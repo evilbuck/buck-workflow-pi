@@ -25,6 +25,10 @@
     {
       "command": "b-iterate",
       "at": "2026-04-16T21:04:47.265Z"
+    },
+    {
+      "command": "b-iterate",
+      "at": "2026-04-16T21:34:33.307Z"
     }
   ],
   "implementation_happened": true,
@@ -50,7 +54,8 @@
     "prompts/b-iterate.md",
     "prompts/b-present.md",
     "prompts/b-research.md",
-    "prompts/b-review.md"
+    "prompts/b-review.md",
+    "docs/buck-workflow.md"
   ],
   "guided_workflow": null,
   "guided_stage": null

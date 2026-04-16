@@ -41,6 +41,7 @@
 ## Completed
 
 - [x] Align `docs/buck-workflow.md` with Pi-native terminology — removed OpenCode config blocks, added historical reference appendix (2026-04-16)
-- [x] **tmux-window-name-pi-status** — implemented `extensions/tmux-window-status.ts` with state machine for icon-only tmux window names (⚙️/🧠/✅/🚧/🛑) driven by pi lifecycle events; saved original window name restored on session shutdown (2026-04-16)
+- [x] **tmux-window-name-pi-status** — implemented `extensions/tmux-window-status.ts` with state machine for icon-only tmux window names (⚙️/🧠/✅/🚧/🛑) driven by pi lifecycle events; fixed thinking→working transition bug; refactored into pure StateMachine + injectable TmuxAdapter + wire(); 38 vitest tests (2026-04-16)
+- [x] **brainstorm-sidecar-naming** — fixed `.b-brainstorm/` hidden subdirectory → flat `brainstorm-state-<slug>.json` in subject folder; updated prompt template and docs; removed dot prefix since `.context` is already hidden (2026-04-16)
 - [x] Remove deprecated `memory-manager` skill from package — deleted `skills/memory-manager/`, removed from README (2026-04-16)
 - [x] Clean Discoverability section — removed OpenCode-specific subagent/primary agent references (2026-04-16)

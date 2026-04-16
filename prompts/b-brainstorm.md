@@ -17,7 +17,7 @@ $ARGUMENTS
 - You may write only to `.context/**` and temporary scratch locations.
 - **Every b-brainstorm creates a subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
 - Save the brainstorm draft inside it (e.g. `brainstorm-<slug>.md` or `plan-draft-<topic>.md`).
-- Maintain sidecar state inside the subject folder (`.b-brainstorm/<slug>.json`).
+- Maintain sidecar state inside the subject folder (`brainstorm-state-<slug>.json`).
 - Do not modify source files outside `.context/`.
 
 ## Core Behavior
@@ -84,7 +84,7 @@ This stays intentionally light — `/b-plan` can formalize it later.
 
 After each AI-authored save, compute a SHA256 hash of the visible draft text and store it in the subject folder:
 
-`.context/YYYY-MM-DD.<subject>/.b-brainstorm/<slug>.json`
+`.context/YYYY-MM-DD.<subject>/brainstorm-state-<slug>.json`
 
 ```json
 {

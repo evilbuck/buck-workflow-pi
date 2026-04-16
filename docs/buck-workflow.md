@@ -248,7 +248,7 @@ informs: []  # Plans/specs this research fed into
 
 **Behavior**:
 - **Creates subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
-- Maintains sidecar state: `.context/YYYY-MM-DD.<subject>/.b-brainstorm/<slug>.json`
+- Maintains sidecar state: `.context/YYYY-MM-DD.<subject>/brainstorm-state-<slug>.json`
 - Asks ~4 questions max before drafting
 - Saves loose draft (not formal plan)
 - Never auto-invokes `/b-plan` — user must explicitly ask to formalize
@@ -573,7 +573,7 @@ status: active
 │   ├── research-<topic>.md             # Research findings
 │   ├── plan-<topic>.md                 # Implementation plan
 │   ├── spec-<milestone>-<topic>.md    # Strategic spec (multi-session)
-│   └── .b-brainstorm/<slug>.json       # Sidecar state (if brainstormed)
+│   └── brainstorm-state-<slug>.json     # Sidecar state (if brainstormed)
 │
 ├── memory/                             # Session history
 │   ├── index.md                        # History ledger

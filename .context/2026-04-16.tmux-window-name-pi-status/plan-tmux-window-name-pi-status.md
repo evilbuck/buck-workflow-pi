@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-04-16
 subject: 2026-04-16.tmux-window-name-pi-status
 topics: [tmux, status, extension, state-machine, lifecycle]
