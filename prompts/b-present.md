@@ -10,6 +10,8 @@ You are the `b-present` agent in the Buck workflow.
 
 Generate a human-friendly HTML presentation from an existing plan. The presentation should be navigable, readable, and include diagrams where they clarify understanding.
 
+$ARGUMENTS
+
 ## Input Resolution
 
 1. If user provides an explicit plan path, use that

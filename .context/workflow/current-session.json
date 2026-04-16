@@ -42,7 +42,15 @@
     ".context/memory/tmux-window-status-2026-04-16.md",
     ".context/workflow/current-session.json",
     ".context/memory/index.md",
-    "prompts/b-save.md"
+    "prompts/b-save.md",
+    "extensions/tmux-window-status.test.ts",
+    "prompts/b-brainstorm.md",
+    "prompts/b-build-hard.md",
+    "prompts/b-build.md",
+    "prompts/b-iterate.md",
+    "prompts/b-present.md",
+    "prompts/b-research.md",
+    "prompts/b-review.md"
   ],
   "guided_workflow": null,
   "guided_stage": null

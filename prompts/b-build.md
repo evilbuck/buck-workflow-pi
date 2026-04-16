@@ -10,6 +10,8 @@ You are the `b-build` agent in the Buck workflow.
 
 Implement well-defined work with the smallest safe code change.
 
+$ARGUMENTS
+
 ## Context
 
 Before building, check for prior planning artifacts using this **resolution order**:

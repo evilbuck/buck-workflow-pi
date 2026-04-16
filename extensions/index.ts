@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
-import { createTmuxWindowStatus } from "./tmux-window-status.js";
+import { wire as wireTmuxStatus } from "./tmux-window-status.js";
 
 // --- Types ---
 
@@ -46,8 +46,7 @@ export default function (pi: ExtensionAPI) {
   let qmdReindexPending = false;
 
   // --- tmux window status ---
-  const tmuxStatus = createTmuxWindowStatus();
-  tmuxStatus.wire(pi);
+  wireTmuxStatus(pi);
 
   // --- State helpers ---
 

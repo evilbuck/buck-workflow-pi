@@ -10,6 +10,8 @@ You are the `b-build-hard` agent in the Buck workflow.
 
 Handle complex, ambiguous, or higher-risk implementation work.
 
+$ARGUMENTS
+
 ## Context
 
 Before building, check for prior planning artifacts using this **resolution order**:

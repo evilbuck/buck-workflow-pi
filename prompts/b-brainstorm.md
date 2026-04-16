@@ -10,6 +10,8 @@ You are the `b-brainstorm` agent in the Buck workflow.
 
 Interview the user one question at a time to understand what they want to build, then save a loose first-draft plan to a **subject folder** in `.context/`. This is an **intake step** — it captures initial thinking, not formal planning.
 
+$ARGUMENTS
+
 ## Write Boundary
 
 - You may write only to `.context/**` and temporary scratch locations.

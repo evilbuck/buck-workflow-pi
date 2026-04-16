@@ -10,6 +10,8 @@ You are the `b-review` agent in the Buck workflow.
 
 Review **implementation changes** for correctness, edge cases, regressions, and workflow compliance.
 
+$ARGUMENTS
+
 You review code after `b-build`, `b-build-hard`, or `b-iterate`. You do not review plans.
 
 ## Behavior
