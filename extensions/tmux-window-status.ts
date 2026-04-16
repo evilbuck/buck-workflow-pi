@@ -15,6 +15,9 @@
  */
 
 import { execSync } from "node:child_process";
+import { appendFileSync, mkdirSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 // ============================================================
 // Public types
@@ -53,12 +56,15 @@ const TERMINAL_STATES: ReadonlySet<Status> = new Set([
 ]);
 
 /**
- * Patterns that suggest the assistant is asking a clarifying question.
+ * Patterns that suggest the assistant is asking a clarifying question
+ * rather than just using a question mark in a statement.
  * Checked against the last ~500 chars of the assistant's final text.
+ *
+ * Note: bare trailing `?` is intentionally excluded — LLMs frequently
+ * end statements with `?` ("How can I help?", "Make sense?") without
+ * actually needing user input.
  */
 const QUESTION_PATTERNS = [
-  /\?\s*$/,
-  /\?\s*["`\)]*\s*$/m,
   /should i\b/i,
   /would you like\b/i,
   /do you (?:want|prefer|need)\b/i,
@@ -150,6 +156,9 @@ export class StateMachine {
 // Tmux adapter — injectable side effects
 // ============================================================
 
+/** Regex that matches any trailing status icon(s) and surrounding whitespace. */
+const ICON_SUFFIX_RE = /(?:\s+(?:⚙️|🧠|✅|🚧|🛑|⏳))+\s*$/;
+
 export class TmuxAdapter implements StatusDisplay {
   private savedName: string | null = null;
   private readonly inTmux: boolean;
@@ -161,11 +170,14 @@ export class TmuxAdapter implements StatusDisplay {
   init(): void {
     if (!this.inTmux || this.savedName !== null) return;
     try {
-      this.savedName = execSync("tmux display-message -p '#{window_name}'", {
+      let name = execSync("tmux display-message -p '#{window_name}'", {
         encoding: "utf-8",
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 2000,
       }).trim();
+      // Strip any previously appended status icons so they don't stack
+      name = name.replace(ICON_SUFFIX_RE, "");
+      this.savedName = name;
     } catch {
       // Can't read window name — fall back to "pi"
     }
@@ -238,6 +250,20 @@ function extractTextBlocks(msg: any): string {
  * Wire a state machine + display into the pi extension API.
  * Returns the machine for external access (e.g. testing).
  */
+// --- JSONL debug logger ---
+const LOG_DIR = join(homedir(), ".cache", "pi-tmux-status");
+const LOG_FILE = join(LOG_DIR, "events.jsonl");
+
+function logEvent(event: string, data: Record<string, unknown>): void {
+  try {
+    if (!existsSync(LOG_DIR)) mkdirSync(LOG_DIR, { recursive: true });
+    const entry = { ts: new Date().toISOString(), event, ...data };
+    appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n", "utf-8");
+  } catch {
+    // Fail soft
+  }
+}
+
 export function wire(
   pi: import("@mariozechner/pi-coding-agent").ExtensionAPI,
   deps: WiringDeps = {},
@@ -246,18 +272,23 @@ export function wire(
   const display = deps.display ?? new TmuxAdapter();
 
   pi.on("session_start", async () => {
+    logEvent("session_start", {});
     display.init();
   });
 
   pi.on("before_agent_start", async () => {
     machine.reset();
-    if (machine.transition("working")) {
+    const ok = machine.transition("working");
+    logEvent("before_agent_start", { accepted: ok, state: machine.current });
+    if (ok) {
       display.show("working");
     }
   });
 
   pi.on("agent_start", async () => {
-    if (machine.transition("working")) {
+    const ok = machine.transition("working");
+    logEvent("agent_start", { accepted: ok, state: machine.current });
+    if (ok) {
       display.show("working");
     }
   });
@@ -266,10 +297,12 @@ export function wire(
     const evt = (event as any).assistantMessageEvent;
     if (evt?.type === "thinking_delta") {
       if (machine.transition("thinking")) {
+        logEvent("message_update", { delta: "thinking", state: machine.current });
         display.show("thinking");
       }
     } else if (evt?.type === "text_delta") {
       if (machine.transition("working")) {
+        logEvent("message_update", { delta: "text", state: machine.current });
         display.show("working");
       }
     }
@@ -283,6 +316,15 @@ export function wire(
 
   pi.on("message_end", async (event) => {
     const msg = (event as any).message;
+    logEvent("message_end", {
+      role: msg?.role ?? null,
+      stopReason: msg?.stopReason ?? null,
+      textLen: msg?.content
+        ? (msg.content as any[])
+            .filter((b: any) => b.type === "text")
+            .reduce((n: number, b: any) => n + (b.text?.length ?? 0), 0)
+        : 0,
+    });
     if (msg?.role === "assistant") {
       if (msg.stopReason) machine.observeStopReason(msg.stopReason);
       const text = extractTextBlocks(msg);
@@ -292,10 +334,18 @@ export function wire(
 
   pi.on("agent_end", async () => {
     const terminal = machine.finalize();
+    logEvent("agent_end", { terminal, state: machine.current });
     display.show(terminal);
   });
 
   pi.on("session_shutdown", async () => {
+    logEvent("session_shutdown", { state: machine.current });
+    // Finalize as a fallback — if agent_end never fired (e.g. cancelled),
+    // show a terminal status before teardown restores the original name.
+    if (machine.current !== null && !TERMINAL_STATES.has(machine.current)) {
+      const terminal = machine.finalize();
+      display.show(terminal);
+    }
     display.teardown();
     machine.reset();
   });

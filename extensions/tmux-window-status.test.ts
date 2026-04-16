@@ -193,9 +193,8 @@ describe("StateMachine", () => {
 
   // ----- stuck detection -----
 
-  describe("stuck detection", () => {
+    describe("stuck detection", () => {
     it.each([
-      ["trailing question mark", "Which approach should I take?"],
       ["'would you like'", "Would you like me to continue?"],
       ["'do you want'", "Do you want me to refactor this?"],
       ["'should I'", "Should I proceed with option A?"],
@@ -203,10 +202,24 @@ describe("StateMachine", () => {
       ["'how would you like'", "How would you like this structured?"],
       ["'can you clarify'", "Can you clarify what you mean?"],
       ["'which approach'", "Which approach do you prefer?"],
+      ["'what would you'", "What would you like me to do next?"],
     ])("detects stuck via %s", (_label, text) => {
       sm.observeStopReason("stop");
       sm.observeAssistantText(text);
       expect(sm.resolveTerminalStatus()).toBe("stuck");
+    });
+
+    // Bare trailing ? is NOT stuck — LLMs use it casually
+    it("bare trailing question mark → done (not stuck)", () => {
+      sm.observeStopReason("stop");
+      sm.observeAssistantText("I've updated the file, make sense?");
+      expect(sm.resolveTerminalStatus()).toBe("done");
+    });
+
+    it("casual 'How can I help?' → done (not stuck)", () => {
+      sm.observeStopReason("stop");
+      sm.observeAssistantText("Hello! How can I help you today?");
+      expect(sm.resolveTerminalStatus()).toBe("done");
     });
 
     it("statement ending with period → done", () => {
@@ -215,15 +228,15 @@ describe("StateMachine", () => {
       expect(sm.resolveTerminalStatus()).toBe("done");
     });
 
-    it("question in last 500 chars → stuck", () => {
+    it("question keyword in last 500 chars → stuck", () => {
       const filler = "x".repeat(600);
       sm.observeStopReason("stop");
       sm.observeAssistantText(`${filler} What would you like me to do next?`);
       expect(sm.resolveTerminalStatus()).toBe("stuck");
     });
 
-    it("question buried before last 500 chars → done", () => {
-      const text = "Which option?\n" + "x".repeat(600);
+    it("question keyword buried before last 500 chars → done", () => {
+      const text = "Would you like option A?\n" + "x".repeat(600);
       sm.observeStopReason("stop");
       sm.observeAssistantText(text);
       expect(sm.resolveTerminalStatus()).toBe("done");
@@ -321,6 +334,57 @@ describe("wire", () => {
     await pi.emit("agent_end");
     expect(machine.current).toBe("timedout");
     expect(display.log).toContain("show:timedout");
+  });
+
+  // Bug: when agent_end never fires (e.g. cancelled session),
+  // session_shutdown should finalize the status, not just teardown.
+  it("session_shutdown finalizes status if agent never ended", async () => {
+    const pi = mockPi();
+    const display = recordingDisplay();
+    const machine = wire(pi as any, { display });
+
+    await pi.emit("session_start");
+    await pi.emit("before_agent_start");
+    await pi.emit("message_update", {
+      assistantMessageEvent: { type: "thinking_delta" },
+    });
+    expect(machine.current).toBe("thinking");
+
+    // Agent completes: message_end fires with stop reason
+    await pi.emit("message_end", {
+      message: {
+        role: "assistant",
+        stopReason: "stop",
+        content: [{ type: "text", text: "All done." }],
+      },
+    });
+    // But agent_end never fires (e.g. user cancelled, session shutdown)
+    // session_shutdown should finalize the state
+    await pi.emit("session_shutdown");
+    // The display should have been updated to a terminal state (done)
+    // either via agent_end or as a fallback in session_shutdown
+    const hasDone = display.log.some(
+      (l) => l === "show:done" || l === "show:stuck" || l === "show:timedout",
+    );
+    expect(hasDone).toBe(true);
+  });
+
+  it("session_shutdown finalizes when stuck at working (no message_end)", async () => {
+    const pi = mockPi();
+    const display = recordingDisplay();
+    const machine = wire(pi as any, { display });
+
+    await pi.emit("session_start");
+    await pi.emit("before_agent_start");
+    // Agent is stuck at working — no message_end, no agent_end
+    expect(machine.current).toBe("working");
+
+    await pi.emit("session_shutdown");
+    // Should finalize to some terminal state
+    const hasTerminal = display.log.some(
+      (l) => l === "show:done" || l === "show:stuck" || l === "show:timedout",
+    );
+    expect(hasTerminal).toBe(true);
   });
 
   it("new prompt resets terminal state", async () => {

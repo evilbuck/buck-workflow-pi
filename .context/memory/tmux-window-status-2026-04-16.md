@@ -1,7 +1,7 @@
 ---
 date: 2026-04-16
 domains: [tooling, pi-extension, testing, docs]
-topics: [tmux, status-icons, state-machine, lifecycle-events, window-naming, refactor, vitest, brainstorm-sidecar, naming-fix]
+topics: [tmux, status-icons, state-machine, lifecycle-events, window-naming, refactor, vitest, brainstorm-sidecar, naming-fix, bug-fix, jsonl-logging]
 subject: 2026-04-16.tmux-window-name-pi-status
 artifacts:
   - .context/2026-04-16.tmux-window-name-pi-status/plan-tmux-window-name-pi-status.md
@@ -28,7 +28,7 @@ A pi extension module (`extensions/tmux-window-status.ts`) that renames the acti
 - **State machine** has no IO — observable `.current` getter, `transition()` returns boolean
 - **`StatusDisplay` interface** — 4-method contract (`show`, `clear`, `init`, `teardown`) for test injection
 - **TmuxAdapter** owns `savedName` state (no module-level globals), no-ops cleanly outside tmux
-- **Stuck detection** uses regex heuristics on the last ~500 chars of assistant text
+- **Stuck detection** uses regex heuristics on the last ~500 chars of assistant text (keyword-based, NOT bare `?`)
 - **`wire()`** accepts `{ machine, display }` deps for testing without execSync mocks
 
 ## Key decisions
@@ -43,48 +43,53 @@ A pi extension module (`extensions/tmux-window-status.ts`) that renames the acti
 - Non-terminal states (working ↔ thinking) transition freely — no priority guard
 - Terminal states (done, stuck, timedout) are locked until `reset()`
 - `transition()` returns boolean so callers know if the transition was accepted
+- **JSONL debug logging** to `~/.cache/pi-tmux-status/events.jsonl` for live diagnostics
+
+## Bug fix #2 (b-iterate session)
+- **Problem**: Icons stayed at 🧠/⚙️ after pi finished, never transitioned to ✅
+- **Root cause**: False "stuck" detection — bare trailing `?` in `QUESTION_PATTERNS` matched casual LLM text like "How can I help you today?"
+  - Verified via JSONL logging: `agent_end` DID fire, but `terminal: "stuck"` instead of `"done"`
+- **Fix**: Removed bare `?` patterns from `QUESTION_PATTERNS` — only keyword patterns remain (`should I`, `would you like`, `do you want`, etc.)
+- **Result**: "Hello! 👋 How can I help you today?" now correctly resolves to `done`
+
+## Bug fix #3 — Icon stacking (b-iterate session)
+- **Problem**: Window name accumulated icons: `development_tools#master 🧠 ⚙️ ⚙️`
+- **Root cause**: `TmuxAdapter.init()` saved the current window name including previously appended icons
+- **Fix**: Added `ICON_SUFFIX_RE` regex to strip trailing status icons from captured name in `init()`
+  - Regex: `/(?:\s+(?:⚙️|🧠|✅|🚧|🛑|⏳))+\s*$/` handles multiple spaced icons
+
+## Bug fix #4 — session_shutdown fallback (b-iterate session)
+- **Problem**: If `agent_end` never fires (e.g. cancelled session), status stays at working/thinking
+- **Fix**: `session_shutdown` handler now finalizes state if non-terminal before teardown
+- **Tested**: Two new wire tests verify session_shutdown finalizes when agent_end doesn't fire
 
 ## Files modified
-- `extensions/tmux-window-status.ts` — refactored into three layers:
-  - `StateMachine` class — pure state transitions, no IO, `.current` getter
-  - `TmuxAdapter` class — implements `StatusDisplay`, owns `savedName` state
-  - `wire()` function — connects pi events to machine + display, accepts injectable deps
-  - Exports: `Status`, `STATUS_ICONS`, `StatusDisplay`, `StateMachine`, `TmuxAdapter`, `wire`
-- `extensions/tmux-window-status.test.ts` — 38 vitest tests
+- `extensions/tmux-window-status.ts`:
+  - Three-layer architecture: `StateMachine`, `TmuxAdapter`, `wire()`
+  - JSONL debug logger (`~/.cache/pi-tmux-status/events.jsonl`)
+  - `ICON_SUFFIX_RE` for stripping stacked icons in `init()`
+  - `session_shutdown` fallback finalization
+  - Tightened `QUESTION_PATTERNS` (removed bare `?`)
+- `extensions/tmux-window-status.test.ts` — 42 vitest tests
   - StateMachine tests: transitions, terminal locking, stuck detection, finalize
-  - Wire integration tests: full lifecycle with recordingDisplay stub, zero execSync mocks
+  - Wire integration tests: full lifecycle + session_shutdown fallback tests
+  - New tests: bare `?` → done, casual greeting → done, stuck at working → finalized
 - `extensions/index.ts` — imports `wire` from tmux-window-status, calls `wireTmuxStatus(pi)`
-- `.gitignore` — added (vitest creates node_modules on `vitest run`)
 
-## QMD fix
-- **Problem**: `b-save` called `qmd index .context/memory --collection memory` which doesn't exist
-- **Solution**: Changed to `qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'`
-- **Why not `qmd update`**: It crashes on the vault collection (tracked as `fix-qmd-index-crash` in backlog)
-- **Collection registered**: `buck-workflow-memory` → `/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/.context/memory` with `*.md` pattern
-
-## Bug fix (this session)
+## Bug fix #1 (earlier this session)
 - **Problem**: When model stopped thinking but was still working (outputting text), icon stayed at 🧠 instead of reverting to ⚙️
-- **Root cause 1**: `PRIORITY` map blocked thinking→working because `PRIORITY[working]=1 < PRIORITY[thinking]=2`
-- **Root cause 2**: No event handler for `text_delta` to trigger the transition back to working
-- **Fix**: Removed priority guard (non-terminal states transition freely), added `text_delta` handler in `message_update`
+- **Root cause**: Priority guard + missing `text_delta` handler
+- **Fix**: Removed priority guard, added `text_delta` handler
 
-## Refactor (this session)
-- **Problem**: State machine was untestable — IO in `transition()`, module-level globals, hidden state
-- **Solution**: Extracted three-layer architecture with injectable deps
-- **Result**: 38 tests pass with zero execSync mocking for core state machine tests
+## Refactor (earlier this session)
+- Extracted three-layer architecture with injectable deps for testability
 
-## Brainstorm sidecar naming fix (this session)
-- **Problem**: `prompts/b-brainstorm.md` instructed AI to create hidden `.b-brainstorm/` subdirectory inside subject folders for sidecar state, violating flat hierarchy
-- **Root cause**: Prompt template and docs both specified `.b-brainstorm/<slug>.json` as nested subdirectory
-- **Fix**: Renamed to flat `brainstorm-state-<slug>.json` file directly in subject folder
-- **Also removed dot prefix**: User pointed out `.context` is already hidden, so no need to double-hide files inside it
-- **Files changed**:
-  - `prompts/b-brainstorm.md` — 2 path references updated
-  - `docs/buck-workflow.md` — sidecar path in brainstorm docs + folder structure diagram updated
-  - Runtime: moved existing `.b-brainstorm/tmux-window-name-pi-status.json` → `brainstorm-state-tmux-window-name-pi-status.json`, removed empty directory
+## Brainstorm sidecar naming fix (earlier this session)
+- Renamed `.b-brainstorm/<slug>.json` → flat `brainstorm-state-<slug>.json` in subject folder
 
 ## Verification
-- ✅ 38 vitest tests pass covering transitions, terminal locking, stuck detection, full lifecycles
-- Test inside tmux: window title changes at each state
-- Test outside tmux: no errors or side effects
-- Test stuck detection with real assistant questions
+- ✅ 42 vitest tests pass (was 38)
+- ✅ Live test: `echo "say hello" | pi -p` → correctly shows `terminal: "done"` in JSONL
+- ✅ Live test: `echo "create a file" | pi -p` → correctly shows `terminal: "done"` in JSONL
+- ✅ Icon stripping regex verified against stacking cases
+- Debug log available at `~/.cache/pi-tmux-status/events.jsonl`
