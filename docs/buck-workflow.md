@@ -1,0 +1,805 @@
+# Buck Workflow
+
+A structured, discoverable workflow for AI-assisted software development with durable context management.
+
+## Philosophy
+
+The Buck workflow is built on one principle: **don't lose work**. It separates **intent** (plans in subject folders) from **record** (history in memory), creating a durable paper trail that survives chat context limits.
+
+**Key Concepts:**
+- **Subject Folders**: Group related work (research, plans, specs) by topic and date
+- **Cross-References**: Link artifacts so agents can cold-start with full context
+- **Plugin Tracking**: Automatic session state tracking prevents lost work
+- **b-prefix Discoverability**: Type `/b-` to find Buck workflow commands exposed by prompt templates and extension commands
+
+## Pi-native package mapping
+
+Pi does not use the same custom command model as OpenCode. In this package, the Buck workflow surface is assembled from Pi primitives:
+
+| Buck concept | Pi primitive | Current implementation |
+|---|---|---|
+| Most `/b-*` workflow entrypoints | Prompt templates | `prompts/b-*.md` |
+| Reusable helper capabilities | Skills | `skills/*/SKILL.md` |
+| Session/runtime automation | Extension | `extensions/index.ts` |
+| `/b-save` orchestration | Extension command | `extensions/index.ts` via `pi.registerCommand("b-save", ...)` |
+
+Practical translation rules:
+- Use a **prompt template** when the main job is to expand a workflow prompt.
+- Use a **skill** when the behavior is a reusable helper, not the primary workflow entrypoint.
+- Use an **extension** when you need hooks, state, notifications, or command registration.
+
+**Important:** The sections below describe workflow behavior. Implementation details are in the Pi-native mapping table above.
+
+---
+
+## Visual Workflow Overview
+
+### Complete Flow Diagram
+
+**All transitions are loose and context-dependent. The paths shown represent likely transitions, but the workflow is intentionally flexible.**
+
+```mermaid
+flowchart TD
+    A[Start] --> B{Have an idea?}
+    B -->|No idea| C[/b-brainstorm\]
+    B -->|Have some idea| D{Need exploration?}
+    B -->|Clear idea| E[/b-plan\]
+    
+    C --> F[Brainstorm<br/>Loose draft in subject folder]
+    
+    D -->|Yes| G[/b-research\]
+    D -->|No| E
+    
+    G --> H[Research<br/>Findings in subject folder]
+    
+    E --> I[Plan<br/>Bounded plan in subject folder]
+    
+    %% Iterative loops between brainstorm/research/plan
+    F -->|Questions need<br/>real-world answers| G
+    F -->|Solid idea ready| E
+    
+    I -->|Plan creates<br/>new questions| G
+    
+    H -->|Enough info to<br/>draft a plan| E
+    H -->|Opened/shut<br/>possibilities| C
+    
+    I -->|Plan is solid| J{Complex/Risky?}
+    J -->|No| K[/b-build\]
+    J -->|Yes| L[/b-build-hard\]
+    I -->|Need to share| M[/b-present\]
+
+    K --> N[Implementation]
+    L --> N
+    M --> O[HTML Presentation]
+    
+    M --> N[/b-review\]
+    N --> O{Issues found?}
+    
+    O -->|Minor| P[/b-iterate\]
+    O -->|Major| Q{New complexity?}
+    Q -->|No| K
+    Q -->|Yes| L
+    
+    P --> N
+    O -->|No| R[/b-save\]
+    
+    R --> S[Memory + Index<br/>Cross-references<br/>Backlog updated]
+    S --> T[Done]
+```
+
+### Ideation Phase Transitions
+
+**Brainstorm → Research**
+When brainstorming reveals questions that need real-world answers before continuing.
+
+**Brainstorm → Plan**
+When the brainstorm solidifies into a clear idea that can be turned into a plan (even a first draft).
+
+**Research → Plan**
+When research has answered enough questions to form a plan or draft plan.
+
+**Research → Brainstorm**
+When research opens up or shuts down possibilities, requiring more ideation.
+
+**Plan → Research**
+When the plan surfaces new questions that need investigation before hardening.
+
+**Plan → Build**
+When the plan is solid enough to implement.
+
+**Plan → Present**
+When you need a human-shareable explanation of the plan for stakeholder review or handoff.
+
+### Command-Only Flow
+
+```mermaid
+flowchart LR
+    subgraph Research["🔍 Research Phase"]
+        R1[/b-research\] --> R2[Subject Folder +<br/>research-*.md]
+        R3[/b-brainstorm\] --> R4[Subject Folder +<br/>brainstorm draft]
+    end
+    
+    subgraph Planning["📋 Planning Phase"]
+        P1[/b-plan\] --> P2[Subject Folder +<br/>plan-*.md or spec-*.md]
+        P2 --> P3[/b-present\]
+    end
+    
+    subgraph Build["🔨 Build Phase"]
+        B1[/b-build\] --> B2[Implementation]
+        B3[/b-build-hard\] --> B2
+        B4[/b-iterate\] --> B2
+    end
+    
+    subgraph Review["✓ Review Phase"]
+        V1[/b-review\] --> V2{Pass?}
+    end
+    
+    subgraph Save["💾 Save Phase"]
+        S1[/b-save\] --> S2[Memory + Index<br/>+ Backlog]
+    end
+    
+    Research --> Planning
+    Planning --> Build
+    Build --> Review
+    Review -->|Pass| Save
+    Review -->|Iterate| Build
+```
+
+### Pi Implementation Matrix
+
+```mermaid
+flowchart TD
+    subgraph Commands["User Commands (/b-*)"]
+        C1["/b-research"]
+        C2["/b-brainstorm"]
+        C3["/b-plan"]
+        C4["/b-build"]
+        C5["/b-build-hard"]
+        C6["/b-iterate"]
+        C7["/b-review"]
+        C8["/b-save"]
+    end
+
+    subgraph PiPrimitives["Pi Package Primitives"]
+        P1["prompts/b-research.md"]
+        P2["prompts/b-brainstorm.md"]
+        P3["prompts/b-plan.md"]
+        P4["prompts/b-build.md"]
+        P5["prompts/b-build-hard.md"]
+        P6["prompts/b-iterate.md"]
+        P7["prompts/b-review.md"]
+        E1["extensions/index.ts<br/>registers b-save"]
+    end
+
+    C1 --> P1
+    C2 --> P2
+    C3 --> P3
+    C4 --> P4
+    C5 --> P5
+    C6 --> P6
+    C7 --> P7
+    C8 --> E1
+```
+
+---
+
+## Workflow Components Reference
+
+### Quick Reference Table
+
+| Component | Pi primitive | Slash entrypoint | Backing file | Purpose |
+|-----------|--------------|------------------|--------------|---------|
+| [**b-research**](#1-research-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | Explore code, trace architecture, capture findings |
+| [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
+| [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
+| [**b-present**](#b-present--plan-presentation) | Prompt template | `/b-present` | `prompts/b-present.md` | Generate HTML presentation from plan |
+| [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation |
+| [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
+| [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
+| [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Implementation review for correctness |
+| [**b-save**](#5-save-phase) | Extension command | `/b-save` | `extensions/index.ts` | Record completed work to history |
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Implementation note:** this Pi package exposes a unified `/b-*` workflow surface, but that surface is backed by both prompt templates and one extension-registered command (`/b-save`).
+
+---
+
+## Detailed Component Documentation
+
+### 1. Research Phase
+
+#### `/b-research` — Explore and Discover
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Understand unfamiliar code, trace architecture and data flow, save findings for reuse.
+
+**Pi primitive**: Prompt template (`prompts/b-research.md`)
+
+**Behavior**:
+- Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/`
+- Writes `research-<topic>.md` with `informs: []` for cross-referencing
+- Uses jcodemunch-mcp for symbol search and code lookup
+- Read-only outside `.context/` (no source changes)
+
+**Output Structure**:
+```yaml
+---
+status: active
+date: YYYY-MM-DD
+subject: YYYY-MM-DD.subject-name
+topics: [keyword, list]
+informs: []  # Plans/specs this research fed into
+---
+```
+
+**Next Steps**: `/b-plan` (findings → plan), `/b-build` (if already clear), `/b-build-hard` (if complex)
+
+---
+
+#### `/b-brainstorm` — Interview-Style Intake
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Capture initial thinking through one-question-at-a-time interview, save loose first-draft plan.
+
+**Pi primitive**: Prompt template (`prompts/b-brainstorm.md`)
+
+**Behavior**:
+- **Creates subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
+- Maintains sidecar state: `.context/YYYY-MM-DD.<subject>/.b-brainstorm/<slug>.json`
+- Asks ~4 questions max before drafting
+- Saves loose draft (not formal plan)
+- Never auto-invokes `/b-plan` — user must explicitly ask to formalize
+
+**Resume Behavior**:
+- Detects matching subject folders
+- Checks sidecar hash for external edits
+- Summarizes changes if draft was edited outside the agent
+
+**Output**: Brainstorm draft in subject folder (e.g., `brainstorm-add-oauth-login.md`)
+
+**Next Step**: `/b-plan` to formalize into bounded plan
+
+---
+
+### 2. Planning Phase
+
+#### `/b-plan` — Create Bounded Plan
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Turn research or task request into bounded implementation plan with scope, risks, verification.
+
+**Pi primitive**: Prompt template (`prompts/b-plan.md`)
+
+**Behavior**:
+- **Creates subject folder**: `.context/YYYY-MM-DD.<subject-name>/`
+- Writes either:
+  - `plan-<topic>.md` — tactical, single-session work
+  - `spec-<milestone>-<topic>.md` — strategic, multi-session epic/PRD
+
+**Cross-Reference Stitching**:
+1. Checks for existing `research-*.md` in subject folder
+2. If found: populates plan's `research:` field + back-fills research's `informs:` field
+3. If implementing a spec: populates plan's `spec:` field
+
+**Plan Frontmatter**:
+```yaml
+---
+status: active
+date: YYYY-MM-DD
+subject: YYYY-MM-DD.subject-name
+topics: [keyword, list]
+research: [research-file.md]  # If research informed this plan
+spec: spec-file.md            # If this plan implements a spec
+memory: []                    # Filled by b-save after execution
+---
+```
+
+**Plan Contents**:
+- Goal
+- Scope / Out of scope
+- Affected files
+- Implementation steps
+- Verification
+- Risks
+
+**Next Steps**: `/b-build` (straightforward), `/b-build-hard` (complex), `/b-review` (critique plan first), `/b-present` (shareable presentation)
+
+---
+
+#### `/b-present` — Plan Presentation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Generate a human-friendly HTML presentation from an existing plan for stakeholder review or handoff.
+
+**Pi primitive**: Prompt template (`prompts/b-present.md`)
+
+**Input Resolution Order**:
+1. Explicit plan path argument
+2. Active subject folder plan
+3. Newest `plan-*.md` in subject folders
+4. Fail with clear error if no plan found
+
+**Output Location**:
+```
+.context/YYYY-MM-DD.<subject>/
+└── <plan-slug>-presentation/
+    ├── index.html
+    ├── styles.css
+    ├── app.js
+    └── presentation.json
+```
+
+**Presentation Structure**:
+- Sticky sidebar with anchor navigation
+- Sections: Overview, Why This Matters, Scope, Affected Files, Implementation Plan, Risks, Verification, Next Step
+- Mermaid diagrams (embedded) where appropriate
+- Desktop-first, document-style (not slides)
+
+**Typical Next Step**: `/b-review` for stakeholder sign-off, `/b-build` after approval
+
+#### Session-scoped model persistence
+
+`/b-build`, `/b-iterate`, and `/b-review` can persist model selection within a session. Behavior:
+
+- First use in a fresh session uses the default model.
+- Manual model changes made during the active Buck session become sticky for later runs.
+- Starting a new session clears overrides and restores defaults.
+- Overrides are session-scoped only.
+
+---
+
+### 3. Build Phase
+
+#### `/b-build` — Standard Implementation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Implement well-defined work with smallest safe code change.
+
+**Pi primitive**: Prompt template (`prompts/b-build.md`)
+
+**Resolution Order** (for finding plans):
+1. Active subject folder: `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
+2. All subject folders: `.context/*/plan-*.md`, `*/spec-*.md`
+3. Flat directories (legacy): `.context/plans/*.md`, `.context/specs/active/*.md`
+4. Backlog: `.context/backlog.md`
+
+**Cross-Reference Following**:
+- Reads plan's `research:` files for context
+- Reads plan's `spec:` file to verify requirements
+- If building ad-hoc (no subject folder), `b-save` will create one at session end
+
+**Session Awareness Protocol**:
+1. Read `.context/workflow/current-session.json` at start
+2. Update living memory file at each natural stop
+3. Tell user "Run /b-save to finalize" at completion
+
+**Model Routing** (b-build):
+- Fresh session → default model
+- Manual model change during active Buck session → sticky session override
+- New session → reset to default
+
+**Behavior**:
+- Follow existing patterns
+- Keep scope tight
+- Read related files and tests before editing
+- Run appropriate verification
+- Report changed files, assumptions, results
+
+**Escalate To**: `b-build-hard` if task becomes ambiguous, architectural, or spreads beyond expected files.
+
+**Next Step**: `/b-review` for validation
+
+---
+
+#### `/b-build-hard` — Complex/Risky Implementation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Handle ambiguous, multi-file, or higher-risk implementation work.
+
+**Pi primitive**: Prompt template (`prompts/b-build-hard.md`)
+
+**Same resolution order and cross-reference following as b-build.**
+
+**Key Differences from b-build**:
+- Think through trade-offs before editing
+- Break changes into safe steps
+- Preserve behavior unless change is required
+- Surface risks and migration concerns clearly
+- Run stronger verification
+
+**Escalation Trigger**: When `/b-build` encounters ambiguity, architectural changes, or scope growth.
+
+**Next Step**: `/b-review` for validation
+
+---
+
+#### `/b-iterate` — Quick Follow-Up Fixes
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Handle review feedback, polish, cleanup — keep momentum without reopening full implementation cycle.
+
+**Pi primitive**: Prompt template (`prompts/b-iterate.md`)
+
+**Best For**:
+- Rename and string fixes
+- Lint or formatting cleanup
+- Small follow-up edits from review
+- Lightweight diagnostics or logging
+
+**Behavior**:
+- Prefer tiny, focused changes
+- Escalate to `b-build` if work spreads
+- Re-run lightweight verification
+- Hand back to `b-review` when done
+
+**Model Routing** (b-iterate):
+- Fresh session → default model
+- Manual model change during active Buck session → sticky session override
+- New session → reset to default
+
+**Escalation Trigger**: When fix grows beyond "small iteration" scope.
+
+**Next Step**: `/b-review` to re-check changes
+
+---
+
+### 4. Review Phase
+
+#### `/b-review` — Implementation Validation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Review implementation changes for correctness, scope adherence, regressions, and workflow compliance.
+
+**Pi primitive**: Prompt template (`prompts/b-review.md`)
+
+**Important**: `b-review` is **read-only**. It should not modify files.
+
+**Use After**:
+- `/b-build` — standard implementation review
+- `/b-build-hard` — complex implementation review
+- `/b-iterate` — small follow-up changes review
+
+**Scope Review** (same resolution order as build agents):
+1. Active subject folder → plan-*.md, spec-*.md
+2. All subject folders
+3. Flat directories (legacy)
+4. Backlog
+
+**Cross-Reference Following**:
+- Read plan's `research:` files for context
+- Read plan's `spec:` file to verify requirements
+- Read spec's `plans:` array to verify coverage
+
+**What It Reviews**:
+- Implementation changes (staged or committed code)
+- **Not plans** — plan review happens implicitly during build when builder reads plan
+- Correctness, edge cases, regressions
+- Security issues and risky assumptions
+
+**Model Routing** (b-review):
+- Fresh session → default model
+- Manual model change during active Buck session → sticky session override
+- New session → reset to default
+
+**Output Structure**:
+```text
+Summary
+Critical issues
+Warnings
+Suggested next step
+```
+
+**Recommendations**:
+- `/b-iterate` — for small follow-up fixes
+- `/b-build` — for normal-sized revisions
+- `/b-build-hard` — for larger or riskier rework
+
+**History Check**: After accepted work, recommends `/b-save` to record completed work in history.
+
+---
+
+### 5. Save Phase
+
+#### `/b-save` — Record History
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Checkpoint session state and record completed work to the canonical history ledger.
+
+**Pi primitive**: Extension command (`extensions/index.ts`)
+
+`/b-save` is an **extension-registered command**, not a prompt template. The extension reads workflow state, sends a structured follow-up save prompt to the model, and marks the session as saved.
+
+**Usage**:
+```
+/b-save [--quick]
+```
+
+- **Interactive mode** (default): Confirm each section
+- **Quick mode** (`--quick`): Auto-apply defaults
+
+**8 Core Responsibilities**:
+
+1. **Read Session State** — Read `.context/workflow/current-session.json` for context
+2. **Subject Folder** — Create if missing; consolidate loose artifacts
+3. **Memory Creation** — Create/update session memory file with proper frontmatter
+4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
+5. **Backlog Update** — Mark completed tasks, add deferred items
+6. **Spec Status Updates** — Set `status: completed` (no file moves)
+7. **Index Update** — Update `.context/memory/index.md`
+8. **QMD Re-index** — Make new memory searchable (if QMD available)
+
+**Memory Frontmatter**:
+```yaml
+---
+date: YYYY-MM-DD
+domains: [tooling, refactor]
+topics: [b-save, session-persistence]
+subject: YYYY-MM-DD.subject-name        # Subject folder linkage
+artifacts: [plan-oauth.md]              # Files touched this session
+related: []
+priority: high
+status: active
+---
+```
+
+**When to Use**:
+- After completing any significant work
+- Before `/new` to start fresh
+- Before context compaction
+- End of work session
+- Switching tasks mid-session
+
+**Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record.
+
+---
+
+## Subject Folder System
+
+### Folder Structure
+
+```
+.context/
+├── YYYY-MM-DD.subject-name/           # Subject folder (date-prefixed)
+│   ├── research-<topic>.md             # Research findings
+│   ├── plan-<topic>.md                 # Implementation plan
+│   ├── spec-<milestone>-<topic>.md    # Strategic spec (multi-session)
+│   └── .b-brainstorm/<slug>.json       # Sidecar state (if brainstormed)
+│
+├── memory/                             # Session history
+│   ├── index.md                        # History ledger
+│   └── <topic>-YYYY-MM-DD.md           # Session notes
+│
+├── workflow/                           # Plugin state
+│   └── current-session.json            # Active session tracking
+│
+├── backlog.md                          # Todo list
+├── plans/                              # Legacy (backward compat)
+└── specs/                              # Legacy (backward compat)
+    ├── active/
+    └── archive/
+```
+
+### Naming Convention
+
+**Subject Folders**: `YYYY-MM-DD.<kebab-case-subject>/`
+- Date prefix keeps folders chronologically sortable
+- Subject name describes the work
+- Example: `2026-04-08.auth-feature/`
+
+**Files Within**:
+- `research-<topic>.md` — Research artifacts
+- `plan-<topic>.md` — Tactical plans
+- `spec-<milestone>-<topic>.md` — Strategic specs
+
+### Resolution Order
+
+All b-* agents search for artifacts in this order:
+
+1. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/`
+2. **All subject folders**: `.context/*/{plan,spec,research}-*.md`
+3. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
+4. **Backlog**: `.context/backlog.md`
+
+This ensures **zero breaking changes** for existing projects.
+
+---
+
+## Cross-Reference System
+
+### Link Map
+
+```
+                    ┌─────────────┐
+                    │   Memory    │
+                    │ (session)   │
+                    └──────┬──────┘
+                           │ subject: → folder
+                           │ artifacts: → [plan, spec, research]
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+  ┌───────────┐    ┌─────────────┐    ┌─────────────┐
+  │ Research   │    │    Plan     │    │    Spec     │
+  │            │───▶│             │───▶│             │
+  │ informs:[] │    │ research:[] │    │ plans:[]    │
+  └───────────┘    │ spec:       │    │ memory:[]   │
+                   │ memory:[]   │    └─────────────┘
+                   └─────────────┘
+```
+
+### Frontmatter Link Fields
+
+| Entity | Field | Points To | Example |
+|--------|-------|-----------|---------|
+| **Research** | `informs:` | Plans/specs this research fed into | `[plan-oauth-login.md]` |
+| **Plan** | `research:` | Research files that informed this plan | `[research-oauth-providers.md]` |
+| **Plan** | `spec:` | Spec this plan implements | `spec-v1-auth-mvp.md` |
+| **Plan** | `memory:` | Memory files recording execution | `[auth-impl-2026-04-08.md]` |
+| **Spec** | `plans:` | Plans that implement this spec | `[plan-oauth-login.md]` |
+| **Spec** | `memory:` | Memory files recording work on this spec | `[auth-research-2026-03-15.md]` |
+| **Memory** | `subject:` | Subject folder this session relates to | `2026-04-08.auth-feature` |
+| **Memory** | `artifacts:` | Specific files touched this session | `[plan-oauth-login.md, research-oauth-providers.md]` |
+
+### Link Rules
+
+- Links use **filenames only** (not full paths) for files within the same subject folder
+- Links to memory files use the memory filename
+- All link fields are arrays (except `spec:` which is single file)
+- Empty arrays `[]` are valid
+- **b-save is responsible for stitching**: back-fills `memory:` links after creating memory files
+
+---
+
+## Buck Workflow Plugin
+
+### Purpose
+
+Tracks b-* command usage, file edits, and session state to enforce the one rule: **don't lose work**.
+
+### State File
+
+**Location**: `.context/workflow/current-session.json`
+
+**Structure**:
+```json
+{
+  "started_at": "2026-04-13T10:00:00.000Z",
+  "mode": "freeform",
+  "commands_run": [
+    { "command": "b-research", "at": "2026-04-13T10:05:00.000Z" },
+    { "command": "b-plan", "at": "2026-04-13T10:15:00.000Z" }
+  ],
+  "implementation_happened": false,
+  "save_completed": false,
+  "memory_file": ".context/memory/topic-2026-04-13.md",
+  "files_modified": ["src/auth.ts", "tests/auth.test.ts"],
+  "active_buck_agent": "b-build",
+  "model_overrides": {
+    "b-build": "openai/gpt-5.4"
+  },
+  "last_seen_session_model": "openai/gpt-5.4",
+  "guided_workflow": null,
+  "guided_stage": null
+}
+```
+
+### Events Handled
+
+| Event | Purpose |
+|-------|---------|
+| `session.created` | Bootstrap session state if `.context` exists |
+| `tui.command.execute` | Apply stored Buck model override before command runs |
+| `command.executed` | Track b-* commands, set implementation/save flags |
+| `session.updated` | Capture manual model changes for the active Buck agent |
+| `file.edited` | Track modified files (deduplicated) |
+| `tool.execute.after` | Supplementary tracking for write/edit/bash |
+| `session.idle` | Toast warning if implementation unsaved |
+| `experimental.session.compacting` | Inject session state into compaction context |
+
+### Idle Warning
+
+If `implementation_happened=true` and `save_completed=false`, plugin shows:
+```
+⚠️ Implementation work unsaved. Run /b-save to record this session.
+```
+
+---
+
+## Historical Reference: OpenCode Configuration
+
+The Buck workflow was originally developed for OpenCode. The configuration model differed significantly from Pi. This section is retained for historical context only.
+
+### OpenCode Config Model (Historical)
+
+| Concept | OpenCode | Pi equivalent |
+|---------|----------|---------------|
+| Custom commands | `command/b-*.md` files | Prompt templates (`prompts/b-*.md`) |
+| Agent definitions | `opencode.json` agent blocks | N/A (prompt templates serve this role) |
+| Agent roles | `primary` / `subagent` modes | N/A |
+| Agent persona files | `agent/*.md` / `agents/*.md` | N/A (prompt content is inline) |
+| Plugin system | `plugins/buck-workflow.ts` | Extension (`extensions/index.ts`) |
+| Model configuration | Per-agent in `opencode.json` | Per-project in Pi config |
+
+### OpenCode File Locations (Historical)
+
+These paths were used in the OpenCode deployment (managed via chezmoi):
+
+| Config | Deployed Path |
+|--------|---------------|
+| Main config | `~/.config/opencode/opencode.json` |
+| Buck workflow plugin | `~/.config/opencode/plugins/buck-workflow.ts` |
+| Commands | `~/.config/opencode/command/b-*.md` |
+| Prompts | `~/.config/opencode/prompts/b-*.md` |
+| Agent personas | `~/.config/opencode/agent/*.md` |
+
+---
+
+## Recommended Workflows
+
+### New Work (Standard)
+
+```
+/b-research → /b-plan → /b-present → /b-build → /b-review → /b-save
+```
+
+### New Work (with brainstorming)
+
+```
+/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-save
+```
+
+### Complex/Risky Work
+
+```
+/b-research → /b-plan → /b-build-hard → /b-review → /b-save
+```
+
+### Quick Fix Loop
+
+```
+/b-iterate → /b-review
+```
+
+### Review Fix Loop
+
+```
+/b-review → /b-iterate → /b-review → (repeat until pass) → /b-save
+```
+
+### Ad-Hoc Work (no planning)
+
+```
+/b-build → /b-review → /b-save
+(Subject folder created automatically by b-save)
+```
+
+---
+
+## Discoverability
+
+Type `/b-` in Pi to see all Buck workflow commands:
+- `/b-brainstorm`
+- `/b-build`
+- `/b-build-hard`
+- `/b-iterate`
+- `/b-plan`
+- `/b-present`
+- `/b-research`
+- `/b-review`
+- `/b-save`
+
+---
+
+## Version
+
+Last updated: 2026-04-16
