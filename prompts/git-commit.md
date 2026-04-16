@@ -10,7 +10,7 @@ Create a Conventional Commits message from staged changes and commit immediately
 
 - Staged changes only. Do not infer work from unstaged or untracked files.
 - Utilize any staged memory or spec files in `.context/memory/` or `.context/specs/` as guidance, but verify the work was done.
-- Optional user context: $ARGUMENTS
+- Additional user context (if any): $ARGUMENTS
 
 ## Safety rules
 
