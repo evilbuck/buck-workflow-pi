@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { join } from "node:path";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { createTmuxWindowStatus } from "./tmux-window-status.js";
 
 // --- Types ---
 
@@ -43,6 +44,10 @@ export default function (pi: ExtensionAPI) {
   let qmdReindexTimer: ReturnType<typeof setTimeout> | null = null;
   let qmdReindexRunning = false;
   let qmdReindexPending = false;
+
+  // --- tmux window status ---
+  const tmuxStatus = createTmuxWindowStatus();
+  tmuxStatus.wire(pi);
 
   // --- State helpers ---
 
@@ -106,6 +111,10 @@ export default function (pi: ExtensionAPI) {
 
   // --- QMD reindex ---
 
+  // Note: qmd update (re-index all collections) is not used here because it crashes on
+  // an unrelated vault collection. The fix-qmd-index-crash backlog item tracks that issue.
+  // qmd collection add creates or updates the buck-workflow-memory collection and indexes
+  // its files, which is sufficient for making new memory entries searchable.
   function runQmdReindex(): void {
     if (qmdReindexRunning) {
       qmdReindexPending = true;
@@ -118,7 +127,7 @@ export default function (pi: ExtensionAPI) {
       "sh",
       [
         "-lc",
-        "command -v qmd >/dev/null 2>&1 && qmd index .context/memory --collection memory >/dev/null 2>&1 || true",
+        "command -v qmd >/dev/null 2>&1 && qmd collection add .context/memory --name buck-workflow-memory --mask '*.md' >/dev/null 2>&1 || true",
       ],
       { cwd, stdio: "ignore" },
     );
@@ -280,7 +289,7 @@ export default function (pi: ExtensionAPI) {
 5. **Backlog Update** — Mark completed tasks, add deferred items in \`.context/backlog.md\`
 6. **Spec Status Updates** — Set \`status: completed\` on finished specs (no file moves)
 7. **Index Update** — Update \`.context/memory/index.md\` with single-line entry at top
-8. **QMD Re-index** — Run \`qmd index .context/memory --collection memory\` if qmd is available
+8. **QMD Re-index** — Ensure the memory collection is indexed: \`qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'\` (safe to run on existing collections; ignores qmd update failures on unrelated collections)
 
 ## Session State
 \`\`\`json
