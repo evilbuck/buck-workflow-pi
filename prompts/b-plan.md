@@ -89,6 +89,8 @@ When creating a plan:
 - Write tactical implementation plans as `plan-*.md` in the subject folder.
 - Write strategic specs as `spec-*.md` in the subject folder (for multi-session epics/PRDs).
 - If a spec already exists in the subject folder, reference it in the plan.
+- Create backlog items only for **clear near-term actionable units** of work that emerge from the plan. One backlog item = one pickup-able unit of work. Do not auto-expand specs/plans into a large queue.
+- When creating backlog items: create the backing item file `.context/backlog/items/<slug>.md` with frontmatter (`title`, `status: active`, `priority`, `created`, `updated`, `completed: null`, `related`) and add a linked checkbox to `.context/backlog/todo.md`. If only `.context/backlog.md` exists (legacy), use that format instead.
 - Recommend `b-build` for straightforward work and `b-build-hard` for ambiguous or high-risk work.
 - Recommend `b-research` only when missing code or architecture understanding prevents a good plan.
 

@@ -3,15 +3,26 @@
   "version": "0.1.0",
   "description": "Buck workflow for structured AI-assisted development — plan, build, review, save with durable context management",
   "type": "module",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "license": "MIT",
   "pi": {
-    "extensions": ["./extensions/index.ts"],
-    "prompts": ["./prompts"],
-    "skills": ["./skills"]
+    "extensions": [
+      "./extensions/index.ts"
+    ],
+    "prompts": [
+      "./prompts"
+    ],
+    "skills": [
+      "./skills"
+    ]
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
   }
 }

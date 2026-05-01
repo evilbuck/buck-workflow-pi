@@ -201,11 +201,66 @@ flowchart TD
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Implementation note:** this Pi package exposes a unified `/b-*` workflow surface, but that surface is backed by both prompt templates and one extension-registered command (`/b-save`).
+**Implementation note:** this Pi package exposes a unified `/b-*` workflow surface, but that surface is backed by both prompt templates and extension commands (`/b-save`, `/plan`).
 
 ---
 
 ## Detailed Component Documentation
+
+---
+
+## Plan Mode
+
+#### `/b-plan` — Auto-Enables Plan Mode
+
+**Purpose**: Plan mode creates a read-only planning environment that allows writing only to documentation and workflow files.
+
+**Pi primitive**: Extension command (`extensions/index.ts`)
+
+**Behavior**:
+- `/b-plan`, `/b-brainstorm`, and `/b-research` automatically enable plan mode
+- `/b-build`, `/b-build-hard`, and `/b-iterate` automatically disable plan mode
+- When enabled:
+  - **Allows** writes to `.context/`, `docs/`, `.md`, and `.txt` files
+  - **Blocks** writes to source code and config files
+  - **Allows** safe bash commands (ls, cat, grep, find, etc.)
+  - **AI-reviews** non-whitelisted bash commands (asks for confirmation if mutating)
+  - **Blocks** mutating git commands (commit, push, pull, merge, etc.)
+  - Shows "⚠️ planning" status indicator
+- State persists across session resume
+
+**To disable plan mode**: Run `/b-build`, `/b-build-hard`, or `/b-iterate` (auto-disables). Or edit `.context/workflow/current-session.json` and set `plan_mode_active` to `false`.
+
+**Status indicator**: When active, shows `⚠️ planning` in the footer status bar.
+
+**Session persistence**: Plan mode state is saved to `.context/workflow/current-session.json` and restored on session resume.
+
+**Allowed paths**:
+- `.context/` — plans, specs, research, memory files
+- `docs/` — documentation
+- Any `.md` or `.txt` file
+
+**Blocked paths**:
+- Source code files (`.ts`, `.js`, `.py`, etc.)
+- Config files (`.json`, `.yaml`, `.toml`, etc.)
+- Any other file type
+
+**Bash restrictions**:
+- Whitelisted: `cat`, `ls`, `grep`, `find`, `head`, `tail`, `wc`, `pwd`, `echo`, `git status`, `git log`, `git diff`, etc.
+- Blocked: `git commit`, `git push`, `git pull`, `git merge`, file redirects (`>`, `>>`)
+- Non-whitelisted commands are AI-reviewed; mutating ones prompt for confirmation
+
+**Typical use**:
+```
+/b-brainstorm  # Auto-enables plan mode
+/b-research    # Plan mode stays active
+/b-plan        # Create plan in .context/
+/b-build       # Auto-disables plan mode, enters implementation
+```
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+---
 
 ### 1. Research Phase
 
@@ -367,7 +422,7 @@ memory: []                    # Filled by b-save after execution
 1. Active subject folder: `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
 2. All subject folders: `.context/*/plan-*.md`, `*/spec-*.md`
 3. Flat directories (legacy): `.context/plans/*.md`, `.context/specs/active/*.md`
-4. Backlog: `.context/backlog.md`
+4. Backlog: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
 
 **Cross-Reference Following**:
 - Reads plan's `research:` files for context
@@ -533,7 +588,7 @@ Suggested next step
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
 3. **Memory Creation** — Create/update session memory file with proper frontmatter
 4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
-5. **Backlog Update** — Mark completed tasks, add deferred items
+5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items (create item file + `todo.md` entry). Legacy fallback: `.context/backlog.md`
 6. **Spec Status Updates** — Set `status: completed` (no file moves)
 7. **Index Update** — Update `.context/memory/index.md`
 8. **QMD Re-index** — Make new memory searchable (if QMD available)
@@ -582,7 +637,10 @@ status: active
 ├── workflow/                           # Plugin state
 │   └── current-session.json            # Active session tracking
 │
-├── backlog.md                          # Todo list
+├── backlog/                         # Active queue + per-item detail
+│   ├── todo.md                       # Active items (linked checkboxes)
+│   ├── items/<slug>.md              # Per-item detail
+│   └── archive/                      # Completed items
 ├── plans/                              # Legacy (backward compat)
 └── specs/                              # Legacy (backward compat)
     ├── active/
@@ -608,7 +666,7 @@ All b-* agents search for artifacts in this order:
 1. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/`
 2. **All subject folders**: `.context/*/{plan,spec,research}-*.md`
 3. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
-4. **Backlog**: `.context/backlog.md`
+4. **Backlog**: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
 
 This ensures **zero breaking changes** for existing projects.
 

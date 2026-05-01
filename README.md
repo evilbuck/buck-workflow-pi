@@ -89,12 +89,16 @@ All artifacts are organized in dated subject folders:
 │   ├── research-oauth-providers.md
 │   ├── plan-oauth-login.md
 │   └── spec-v1-auth-mvp.md
+├── backlog/
+│   ├── todo.md
+│   ├── items/<slug>.md
+│   └── archive/
 ├── memory/
 │   ├── index.md
 │   └── auth-impl-2026-04-08.md
 ├── workflow/
 │   └── current-session.json
-└── backlog.md
+└── backlog.md            # Legacy fallback (not used when backlog/ exists)
 ```
 
 ## Cross-Reference System

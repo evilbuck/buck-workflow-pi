@@ -45,3 +45,4 @@
 - [x] **brainstorm-sidecar-naming** — fixed `.b-brainstorm/` hidden subdirectory → flat `brainstorm-state-<slug>.json` in subject folder; updated prompt template and docs; removed dot prefix since `.context` is already hidden (2026-04-16)
 - [x] Remove deprecated `memory-manager` skill from package — deleted `skills/memory-manager/`, removed from README (2026-04-16)
 - [x] Clean Discoverability section — removed OpenCode-specific subagent/primary agent references (2026-04-16)
+- [x] **ghostty-shift-enter** — commented out Omarchy default `keybind = shift+enter=text:\u001b[13;2u` in Ghostty config; conflicted with native Kitty keyboard protocol that pi enables on startup (2026-04-17)

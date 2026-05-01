@@ -19,7 +19,7 @@ Before building, check for prior planning artifacts using this **resolution orde
 1. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
 2. **All subject folders** (scan for active entities): `.context/*/plan-*.md`, `*/spec-*.md`
 3. **Flat directories** (legacy fallback): `.context/plans/*.md`, `.context/specs/active/*.md`
-4. **Backlog** (always): `.context/backlog.md`
+4. **Backlog** (always): `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
 
 ### Cross-Reference Following
 

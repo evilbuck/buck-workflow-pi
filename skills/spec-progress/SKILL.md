@@ -46,7 +46,12 @@ For each in-progress spec, parse the YAML frontmatter to extract:
 
 ### Step 4: Cross-Reference Backlog
 
-If `.context/backlog.md` exists:
+If `.context/backlog/` exists (canonical):
+- Read `.context/backlog/todo.md` for active items
+- Find items whose `related:` paths reference the spec
+- Note which items are active vs completed
+
+If only `.context/backlog.md` exists (legacy):
 - Find tasks linked to each in-progress spec (via `See: .context/YYYY-MM-DD.*/spec-...`)
 - Note which tasks are pending vs completed
 

@@ -55,8 +55,15 @@
     "prompts/b-present.md",
     "prompts/b-research.md",
     "prompts/b-review.md",
-    "docs/buck-workflow.md"
+    "docs/buck-workflow.md",
+    ".pi/extensions/plan-mode.ts",
+    "~/.local/share/chezmoi/private_dot_config/ghostty/config.tmpl",
+    ".context/memory/ghostty-shift-enter-fix-2026-04-17.md"
   ],
   "guided_workflow": null,
-  "guided_stage": null
+  "guided_stage": null,
+  "active_buck_agent": null,
+  "model_overrides": {},
+  "last_seen_session_model": null,
+  "plan_mode_active": false
 }

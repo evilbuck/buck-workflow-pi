@@ -22,7 +22,7 @@ You review code after `b-build`, `b-build-hard`, or `b-iterate`. You do not revi
   1. **Active subject folder**: `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
   2. **All subject folders**: `.context/*/plan-*.md`, `*/spec-*.md`
   3. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
-  4. **Backlog**: `.context/backlog.md`
+  4. **Backlog**: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
 - **Follow cross-references** for full context:
   - Read plan's `research:` files to understand context
   - Read plan's `spec:` file to verify requirements

@@ -22,6 +22,8 @@ $ARGUMENTS
 
 ## Core Behavior
 
+**Scope**: Stay subject-local by default. Only create backlog entries when the user explicitly asks to add items to the backlog.
+
 ### Interview Flow
 
 1. **Start**: If the user provided a topic hint, use it to derive a draft slug. If a matching draft already exists, offer to resume it.
@@ -39,7 +41,7 @@ If the user seems confused about whether they want a "plan" vs a "spec" vs somet
 ```
 Not sure what you need? Here's a quick guide:
 
-1. "I want a quick todo list" → I'll create a backlog entry
+1. "I want a quick todo list" → I'll create a backlog item (`.context/backlog/items/<slug>.md` + entry in `todo.md`) if you explicitly ask; otherwise I'll keep notes in the brainstorm draft
 2. "I want a loose first draft" → I'll save a brainstorm draft (what we're doing now)
 3. "I want a formal plan with steps" → I'll hand off to `/b-plan` for a bounded plan
 4. "I want a full spec/PRD/roadmap" → I'll hand off to `/b-plan` for a strategic spec
