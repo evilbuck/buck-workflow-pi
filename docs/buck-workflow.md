@@ -53,7 +53,14 @@ flowchart TD
     G --> H[Research<br/>Findings in subject folder]
     
     E --> I[Plan<br/>Bounded plan in subject folder]
-    
+
+    %% Grill sessions can happen before or after planning
+    E -->|Stress-test first| G2[/skill:b-grill-me\]
+    I -->|Stress-test plan| G2
+    G2 --> G3{Threshold hit?}
+    G3 -->|Yes| X
+    G3 -->|No| J
+
     %% Iterative loops between brainstorm/research/plan
     F -->|Questions need<br/>real-world answers| G
     F -->|Solid idea ready| E
@@ -67,6 +74,11 @@ flowchart TD
     J -->|No| K[/b-build\]
     J -->|Yes| L[/b-build-hard\]
     I -->|Need to share| M[/b-present\]
+    I -->|Plan is large| X[/b-phase\]
+
+    X --> Y[Phased Plan<br/>plan-*-phases.md]
+    Y --> K
+    Y --> L
 
     K --> N[Implementation]
     L --> N
@@ -122,6 +134,8 @@ flowchart LR
     subgraph Planning["📋 Planning Phase"]
         P1[/b-plan\] --> P2[Subject Folder +<br/>plan-*.md or spec-*.md]
         P2 --> P3[/b-present\]
+        P2 --> P4[/b-phase\]
+        P4 --> P5[plan-*-phases.md]
     end
     
     subgraph Build["🔨 Build Phase"]
@@ -158,6 +172,9 @@ flowchart TD
         C6["/b-iterate"]
         C7["/b-review"]
         C8["/b-save"]
+        C9["/skill:b-phase"]
+        C10["/skill:b-grill-me"]
+        C11["/skill:b-grill-with-docs"]
     end
 
     subgraph PiPrimitives["Pi Package Primitives"]
@@ -168,6 +185,9 @@ flowchart TD
         P5["prompts/b-build-hard.md"]
         P6["prompts/b-iterate.md"]
         P7["prompts/b-review.md"]
+        P8["skills/b-phase/SKILL.md"]
+        P9["skills/b-grill-me/SKILL.md"]
+        P10["skills/b-grill-with-docs/SKILL.md"]
         E1["extensions/index.ts<br/>registers b-save"]
     end
 
@@ -179,6 +199,9 @@ flowchart TD
     C6 --> P6
     C7 --> P7
     C8 --> E1
+    C9 --> P8
+    C10 --> P9
+    C11 --> P10
 ```
 
 ---
@@ -191,12 +214,15 @@ flowchart TD
 |-----------|--------------|------------------|--------------|---------|
 | [**b-research**](#1-research-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | Explore code, trace architecture, capture findings |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
+| [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
+| [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
+| [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--plan-presentation) | Prompt template | `/b-present` | `prompts/b-present.md` | Generate HTML presentation from plan |
-| [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation |
+| [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
-| [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Implementation review for correctness |
+| [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-save**](#5-save-phase) | Extension command | `/b-save` | `extensions/index.ts` | Record completed work to history |
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -321,6 +347,55 @@ informs: []  # Plans/specs this research fed into
 
 ### 2. Planning Phase
 
+#### `/skill:b-grill-me` — Complexity-Tracked Grilling
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Interview the user relentlessly about a plan, tracking decision-tree complexity. When questions exceed a configurable threshold (default 20), identifies natural break points for phasing.
+
+**Pi primitive**: Skill (`skills/b-grill-me/SKILL.md`)
+
+**When to Use**: Before or after `/b-plan`, when the user wants to stress-test a plan or design through rapid-fire questions.
+
+**Behavior**:
+- Asks questions one at a time, walking the decision tree
+- Tracks: question count, decision domains, question types, resolutions
+- Creates `grill-session-<topic>.md` in the subject folder
+- When threshold exceeded: pauses, identifies break points, recommends `/skill:b-phase`
+- Model determines break points based on decision tree shape
+
+**Output**: `grill-session-<topic>.md` with frontmatter metadata:
+- `total_questions`, `threshold`, `phasing_recommended`
+- `decision_domains` with question ranges and resolution counts
+- `break_points` at natural domain boundaries
+
+**Next Steps**: `/b-plan` (to formalize findings), `/skill:b-phase` (if phasing recommended)
+
+---
+
+#### `/skill:b-grill-with-docs` — Domain-Aware Grilling
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Same as `b-grill-me`, but also challenges the plan against existing domain documentation (CONTEXT.md, ADRs). Updates documentation inline as decisions crystallize.
+
+**Pi primitive**: Skill (`skills/b-grill-with-docs/SKILL.md`)
+
+**When to Use**: When the project has domain documentation (CONTEXT.md, ADRs) and the user wants to stress-test a plan against established terminology and decisions.
+
+**Additional Behavior** (beyond `b-grill-me`):
+- Challenges terms against CONTEXT.md glossary
+- Proposes precise canonical terms for fuzzy language
+- Updates CONTEXT.md inline when terms are resolved
+- Offers ADRs for hard-to-reverse, surprising, trade-off-driven decisions
+- Cross-references user claims with actual code
+
+**Output**: Same `grill-session-<topic>.md` plus inline updates to CONTEXT.md and new ADRs.
+
+**Next Steps**: `/b-plan` (to formalize), `/skill:b-phase` (if phasing recommended)
+
+---
+
 #### `/b-plan` — Create Bounded Plan
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -362,6 +437,53 @@ memory: []                    # Filled by b-save after execution
 - Risks
 
 **Next Steps**: `/b-build` (straightforward), `/b-build-hard` (complex), `/b-review` (critique plan first), `/b-present` (shareable presentation)
+- **Also**: `/skill:b-phase` if plan exceeds ~8 steps, ~5 files, or multiple domains
+
+---
+
+#### `/skill:b-phase` — Plan Phasing
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Break large plans into sequential, independently-verifiable phases when a single session would be risky or cramped.
+
+**Pi primitive**: Skill (`skills/b-phase/SKILL.md`)
+
+**Trigger**: Manual (`/skill:b-phase`) or recommended by `/b-plan` when the plan is large.
+
+**When to Phase**:
+- More than ~8 implementation steps
+- Touches more than ~5 distinct files or directories
+- Spans multiple architectural layers (DB + API + UI)
+- Involves high-risk paths (auth, billing, migrations)
+- Contains significant unknowns or research spikes
+- Verification alone would exhaust a single session
+
+**Behavior**:
+- Reads the most recent `plan-*.md`
+- Maps dependencies between plan steps (HARD, SOFT, NONE)
+- Groups steps into phases (~equal size, vertical slices)
+- Assigns each phase a simple difficulty/model hint: `easy`, `medium`, or `hard`
+- Flags parallel opportunities (phases with NO dependency)
+- Writes `plan-<topic>-phases.md` in the same directory
+
+**Dependency Types**:
+- **HARD**: Phase N cannot start until Phase N-1 completes
+- **SOFT**: Phase N can start with stubs/mocks
+- **NONE**: Phases are independent, could be parallel
+
+**Difficulty / Model Hint Rubric**:
+- **easy** — bounded, local, mostly mechanical work; smaller/faster general model is fine; usually `/b-build`
+- **medium** — some cross-file reasoning or moderate verification; capable general model preferred; usually `/b-build`
+- **hard** — ambiguous, failure-sensitive, or architecture-touching work; strongest reasoning model available; use `/b-build-hard`
+
+**Output**: `plan-<topic>-phases.md` containing:
+- Phase breakdowns with goals, files, acceptance criteria, and difficulty/model hints
+- Dependency matrix and diagram
+- Parallel opportunities section
+- Execution order and backlog integration notes
+
+**Next Steps**: Execute Phase 1 via `/b-build` or `/b-build-hard`, guided by the phase's difficulty/model hint
 
 ---
 
@@ -408,6 +530,50 @@ memory: []                    # Filled by b-save after execution
 
 ---
 
+### Model Auto-Switch Configuration
+
+Buck can automatically switch the active model based on the difficulty of the current phased plan phase. When a mismatch is detected between the active model's tier and the phase's difficulty, it switches to the mapped model and switches back after the phase completes.
+
+**Triggers**: `/b-build`, `/b-build-hard`, `/b-iterate`, `/b-review`
+
+**Configuration**: Add `buckModelMapping` to your Pi settings file:
+
+```json
+// Global: ~/.pi/agent/settings.json
+// Project override: .pi/settings.json (takes precedence)
+{
+  "buckModelMapping": {
+    "easy":   "zai-glm/glm-4.7-flash",
+    "medium": "anthropic/claude-sonnet-4-6",
+    "hard":   "anthropic/claude-opus-4-7"
+  }
+}
+```
+
+**Model IDs**: Use the `provider/model-id` format shown in Pi's model selector (e.g., `zai-glm/glm-4.7-flash`, `anthropic/claude-opus-4-7`).
+
+**Behavior without mapping configured**:
+- First trigger fires an **interactive model picker** built with Pi's custom TUI components — shows all available models (those with API keys configured), groups them by tier (easy/medium/hard based on current config), and prompts the user to pick one model per tier
+- Picks are written directly to `~/.pi/agent/settings.json` as `buckModelMapping`
+- Picker shows explicit controls on screen: `↑↓ navigate • Enter select • Esc cancel`
+- User is notified to run `/reload` to activate
+- If user cancels the picker, the offer is skipped for the rest of that session
+- For non-phased plans after setup: sends a soft info notification suggesting a model tier based on plan complexity
+
+**Behavior with mapping configured**:
+- Reads the active phase's `**Difficulty**` label from `plan-*-phases.md`
+- Compares current model tier to required tier
+- If mismatched → auto-switches to the mapped model
+- After the agent turn ends → switches back to the original model
+- If the user manually switches models mid-phase → respects the change and cancels the switch-back
+
+**Phase difficulty tiers** (from `/skill:b-phase`):
+- **easy** — bounded, mechanical work → mapped `easy` model
+- **medium** — moderate cross-file reasoning → mapped `medium` model
+- **hard** — ambiguous, architecture-touching → mapped `hard` model
+
+**Non-phased plans** (no `plan-*-phases.md` found): a soft info notification suggests a tier based on complexity heuristics. No auto-switch.
+
 ### 3. Build Phase
 
 #### `/b-build` — Standard Implementation
@@ -434,19 +600,15 @@ memory: []                    # Filled by b-save after execution
 2. Update living memory file at each natural stop
 3. Tell user "Run /b-save to finalize" at completion
 
-**Model Routing** (b-build):
-- Fresh session → default model
-- Manual model change during active Buck session → sticky session override
-- New session → reset to default
+**Model Routing + Auto-Switch** (b-build):
+- If no `buckModelMapping` configured → soft suggestion notification (based on plan step/file count)
+- If `buckModelMapping` configured:
+  - Phased plan active phase → auto-switch to mapped model for that difficulty tier
+  - Mismatch detected → switches automatically, switches back after agent_end
+  - User manually switches mid-phase → respects the change, cancels switch-back
+- Without phased plan → uses default model
 
-**Behavior**:
-- Follow existing patterns
-- Keep scope tight
-- Read related files and tests before editing
-- Run appropriate verification
-- Report changed files, assumptions, results
-
-**Escalate To**: `b-build-hard` if task becomes ambiguous, architectural, or spreads beyond expected files.
+**Escalate To**: `b-build-hard` if task becomes ambiguous, architectural, or spreads beyond expected files — or if the active phase is rated **hard**.
 
 **Next Step**: `/b-review` for validation
 
@@ -468,6 +630,7 @@ memory: []                    # Filled by b-save after execution
 - Preserve behavior unless change is required
 - Surface risks and migration concerns clearly
 - Run stronger verification
+- **Phased plan awareness**: if a `plan-*-phases.md` exists, read it, surface the active phase's difficulty/model hint, and scope work to that phase only
 
 **Escalation Trigger**: When `/b-build` encounters ambiguity, architectural changes, or scope growth.
 
@@ -540,10 +703,10 @@ memory: []                    # Filled by b-save after execution
 - Correctness, edge cases, regressions
 - Security issues and risky assumptions
 
-**Model Routing** (b-review):
-- Fresh session → default model
-- Manual model change during active Buck session → sticky session override
-- New session → reset to default
+**Model Routing + Auto-Switch** (b-review):
+- Triggers the same auto-switch logic as build agents when working with phased plans
+- If reviewing a `hard` phase → auto-switches to the mapped hard-tier model
+- Soft suggestion notification for non-phased plans when mapping is configured
 
 **Output Structure**:
 ```text
@@ -559,8 +722,6 @@ Suggested next step
 - `/b-build-hard` — for larger or riskier rework
 
 **History Check**: After accepted work, recommends `/b-save` to record completed work in history.
-
----
 
 ### 5. Save Phase
 
@@ -822,6 +983,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 /b-research → /b-plan → /b-build-hard → /b-review → /b-save
 ```
 
+### Large Plan (Multi-Session)
+
+```
+/b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
+                                              ↺ (repeat per phase)
+```
+
 ### Quick Fix Loop
 
 ```
@@ -856,8 +1024,13 @@ Type `/b-` in Pi to see all Buck workflow commands:
 - `/b-review`
 - `/b-save`
 
+Also available:
+- `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)
+- `/skill:b-grill-me` — Stress-test a plan via interview with complexity tracking
+- `/skill:b-grill-with-docs` — Same as b-grill-me, plus domain doc awareness (CONTEXT.md, ADRs)
+
 ---
 
 ## Version
 
-Last updated: 2026-04-16
+Last updated: 2026-05-02

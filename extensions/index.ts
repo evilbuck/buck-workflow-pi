@@ -1,8 +1,11 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { DynamicBorder } from "@mariozechner/pi-coding-agent";
 import { completeSimple } from "@mariozechner/pi-ai";
+import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
 import { join } from "node:path";
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { spawn } from "node:child_process";
+import { homedir } from "node:os";
 import { wire as wireTmuxStatus } from "./tmux-window-status.js";
 
 // --- Types ---
@@ -80,6 +83,7 @@ const MEMORY_DIR = ".context/memory";
 
 const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-research"];
 const IMPLEMENTATION_COMMANDS = ["b-build", "b-build-hard", "b-iterate"];
+const MODEL_SWITCH_COMMANDS = ["b-build", "b-build-hard", "b-iterate", "b-review"];
 const BUCK_PREFIX = "b-";
 
 function defaultState(): SessionState {
@@ -97,11 +101,197 @@ function defaultState(): SessionState {
   };
 }
 
+// --- Model Auto-Switch Types ---
+
+interface ModelMapping {
+  easy: string;   // e.g. "zai-glm/glm-4.7-flash"
+  medium: string; // e.g. "anthropic/claude-sonnet-4-6"
+  hard: string;   // e.g. "anthropic/claude-opus-4-7"
+}
+
+interface ModelSwitchState {
+  originalModel: { provider: string; id: string } | null;
+  switchedForPhase: boolean;
+  userOverrode: boolean;
+  phaseDifficulty: "easy" | "medium" | "hard" | null;
+}
+
+// --- Model Auto-Switch Helpers ---
+
+function readModelMapping(projectDir: string): ModelMapping | null {
+  // Read from project .pi/settings.json first, then global ~/.pi/agent/settings.json
+  const paths = [
+    join(projectDir, ".pi", "settings.json"),
+    join(homedir(), ".pi", "agent", "settings.json"),
+  ];
+
+  for (const p of paths) {
+    try {
+      if (!existsSync(p)) continue;
+      const raw = JSON.parse(readFileSync(p, "utf-8"));
+      const mapping = raw?.buckModelMapping;
+      if (mapping && mapping.easy && mapping.medium && mapping.hard) {
+        return mapping as ModelMapping;
+      }
+    } catch {
+      // ignore parse errors
+    }
+  }
+  return null;
+}
+
+function parseModelId(modelId: string): { provider: string; id: string } | null {
+  const slashIdx = modelId.indexOf("/");
+  if (slashIdx < 1) return null;
+  return {
+    provider: modelId.slice(0, slashIdx),
+    id: modelId.slice(slashIdx + 1),
+  };
+}
+
+function getCurrentModelTier(
+  currentModel: { provider: string; id: string },
+  mapping: ModelMapping,
+): "easy" | "medium" | "hard" | "unknown" {
+  const currentId = `${currentModel.provider}/${currentModel.id}`;
+  if (currentId === mapping.easy) return "easy";
+  if (currentId === mapping.medium) return "medium";
+  if (currentId === mapping.hard) return "hard";
+  return "unknown";
+}
+
+/**
+ * Find the difficulty of the active phase in a phased plan.
+ * Scans plan-phases.md files in .context subject folders for the first phase
+ * that doesn't have all acceptance criteria checked off.
+ */
+function findActivePhaseDifficulty(contextDir: string): "easy" | "medium" | "hard" | null {
+  try {
+    if (!existsSync(contextDir)) return null;
+
+    // Find phased plan files
+    const candidates: string[] = [];
+    const entries = readdirSync(contextDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.match(/^\d{4}-\d{2}-\d{2}\./)) {
+        const subDir = join(contextDir, entry.name);
+        try {
+          const files = readdirSync(subDir);
+          for (const f of files) {
+            if (f.startsWith("plan-") && f.includes("-phases")) {
+              candidates.push(join(subDir, f));
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Legacy: .context/plans/
+    const legacyDir = join(contextDir, "plans");
+    if (existsSync(legacyDir)) {
+      try {
+        const files = readdirSync(legacyDir);
+        for (const f of files) {
+          if (f.startsWith("plan-") && f.includes("-phases")) {
+            candidates.push(join(legacyDir, f));
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (candidates.length === 0) return null;
+
+    // Use most recent by filename (date-prefixed)
+    candidates.sort().reverse();
+    const phasesFile = candidates[0];
+    const content = readFileSync(phasesFile, "utf-8");
+
+    // Split into phase sections by ## Phase N: headers
+    const phaseSections = content.split(/^## Phase \d+/m).slice(1);
+
+    for (const section of phaseSections) {
+      // Check if all acceptance criteria are completed
+      const criteriaLines = section.match(/^- \[[ x]\] /gm) || [];
+      if (criteriaLines.length === 0) continue; // no criteria = take this phase
+
+      const allChecked = criteriaLines.every((l) => l.startsWith("- [x]"));
+      if (!allChecked) {
+        // This is the active phase — extract difficulty
+        const diffMatch = section.match(/\*\*Difficulty\*\*:\s*(easy|medium|hard)/i);
+        if (diffMatch) {
+          return diffMatch[1].toLowerCase() as "easy" | "medium" | "hard";
+        }
+        return null;
+      }
+    }
+
+    return null; // all phases complete or no phases found
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Find the most recent non-phased plan file for complexity suggestion.
+ */
+function findMostRecentPlan(contextDir: string): string | null {
+  try {
+    if (!existsSync(contextDir)) return null;
+
+    const candidates: string[] = [];
+    const entries = readdirSync(contextDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && entry.name.match(/^\d{4}-\d{2}-\d{2}\./)) {
+        const subDir = join(contextDir, entry.name);
+        try {
+          const files = readdirSync(subDir);
+          for (const f of files) {
+            if (f.startsWith("plan-") && !f.includes("-phases")) {
+              candidates.push(join(subDir, f));
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Legacy
+    const legacyDir = join(contextDir, "plans");
+    if (existsSync(legacyDir)) {
+      try {
+        const files = readdirSync(legacyDir);
+        for (const f of files) {
+          if (f.startsWith("plan-") && !f.includes("-phases")) {
+            candidates.push(join(legacyDir, f));
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    if (candidates.length === 0) return null;
+    candidates.sort().reverse();
+    return candidates[0];
+  } catch {
+    return null;
+  }
+}
+
 export default function (pi: ExtensionAPI) {
   let cwd = "";
   let qmdReindexTimer: ReturnType<typeof setTimeout> | null = null;
   let qmdReindexRunning = false;
   let qmdReindexPending = false;
+
+  // Model switch state — session-scoped in-memory
+  let modelSwitchState: ModelSwitchState = {
+    originalModel: null,
+    switchedForPhase: false,
+    userOverrode: false,
+    phaseDifficulty: null,
+  };
+  // Flag to distinguish our auto-switch from user-initiated switches
+  let autoSwitchingModel = false;
+  // Defer model-switch UI until before_agent_start so it doesn't fight the editor/slash-command UI.
+  let pendingModelSwitchCommand: string | null = null;
 
   // --- tmux window status ---
   wireTmuxStatus(pi);
@@ -130,6 +320,11 @@ export default function (pi: ExtensionAPI) {
   }
 
   pi.on("before_agent_start", async (event, ctx) => {
+    if (pendingModelSwitchCommand && MODEL_SWITCH_COMMANDS.includes(pendingModelSwitchCommand)) {
+      pendingModelSwitchCommand = null;
+      await handleModelSwitch(pi, ctx);
+    }
+
     const state = readState();
     if (!state?.plan_mode_active) return;
 
@@ -325,6 +520,12 @@ Help the user plan what needs to be done:
     }
 
     writeState(state);
+
+    // --- Model auto-switch for phased plans ---
+    if (MODEL_SWITCH_COMMANDS.includes(command)) {
+      pendingModelSwitchCommand = command;
+    }
+
     return { action: "continue" as const };
   });
 
@@ -460,17 +661,7 @@ Help the user plan what needs to be done:
     if (changed) writeState(state);
   });
 
-  // --- Warn on agent completion if save pending ---
-
-  pi.on("agent_end", async (_event, ctx) => {
-    const state = readState();
-    if (state?.implementation_happened && !state.save_completed) {
-      ctx.ui.notify(
-        "⚠️ Implementation work unsaved. Run /b-save to record this session.",
-        "warning",
-      );
-    }
-  });
+  // --- Model switch-back and save warning handled in unified agent_end below ---
 
   // --- Inject session state into compaction context ---
 
@@ -552,5 +743,353 @@ Execute all 8 steps now. Write only to \`.context/\`.`;
       writeState(state);
       scheduleQmdReindex(0);
     },
+  });
+
+  // --- Model Auto-Switch Handler ---
+
+  async function handleModelSwitch(pi: ExtensionAPI, ctx: any): Promise<void> {
+    const mapping = readModelMapping(cwd);
+
+    // No mapping configured — offer setup
+    if (!mapping) {
+      await offerModelMappingSetup(ctx);
+      return;
+    }
+
+    const contextDir = join(cwd, ".context");
+    const difficulty = findActivePhaseDifficulty(contextDir);
+
+    if (!difficulty) {
+      // Non-phased plan — soft suggestion
+      await suggestModelForNonPhasedPlan(ctx, mapping, contextDir);
+      return;
+    }
+
+    // Check current model
+    const currentModel = ctx.model;
+    if (!currentModel) return;
+
+    const currentTier = getCurrentModelTier(
+      { provider: currentModel.provider, id: currentModel.id },
+      mapping,
+    );
+
+    // No mismatch or unknown tier — no switch needed
+    if (currentTier === difficulty || currentTier === "unknown") return;
+
+    // Switch model
+    const targetModelId = mapping[difficulty];
+    const parsed = parseModelId(targetModelId);
+    if (!parsed) return;
+
+    const targetModel = ctx.modelRegistry.find(parsed.provider, parsed.id);
+    if (!targetModel) {
+      ctx.ui.notify(`Model ${targetModelId} not found in registry`, "warning");
+      return;
+    }
+
+    // Set flag BEFORE calling setModel so model_select handler knows it's us
+    autoSwitchingModel = true;
+    const success = await pi.setModel(targetModel);
+    autoSwitchingModel = false;
+
+    if (!success) {
+      ctx.ui.notify(`No API key for ${targetModelId}`, "error");
+      return;
+    }
+
+    // Save original model for switch-back
+    modelSwitchState = {
+      originalModel: { provider: currentModel.provider, id: currentModel.id },
+      switchedForPhase: true,
+      userOverrode: false,
+      phaseDifficulty: difficulty,
+    };
+
+    ctx.ui.notify(
+      `🔄 Switched to ${targetModelId} for ${difficulty} phase (was ${currentModel.provider}/${currentModel.id})`,
+      "info",
+    );
+  }
+
+  /**
+   * Offer the user a grouped model picker to configure buckModelMapping.
+   * Groups available models by tier (easy/medium/hard based on any current
+   * mapping config), lets them pick one model per tier, then writes the
+   * result to ~/.pi/agent/settings.json.
+   */
+  async function offerModelMappingSetup(ctx: any): Promise<void> {
+    const settingsPath = join(homedir(), ".pi", "agent", "settings.json");
+
+    // Read current mapping to know which tier each model belongs to
+    let currentMapping: ModelMapping | null = null;
+    try {
+      if (existsSync(settingsPath)) {
+        const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
+        const m = raw?.buckModelMapping;
+        if (m?.easy && m?.medium && m?.hard) {
+          currentMapping = m as ModelMapping;
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Collect available models from registry
+    let availableModels: Array<{ id: string; label: string; tier: string }> = [];
+    try {
+      const models = ctx.modelRegistry.getAvailable();
+      availableModels = models.map((m: any) => {
+        const fullId = `${m.provider}/${m.id}`;
+        let tier = "unassigned";
+        if (currentMapping) {
+          if (fullId === currentMapping.easy) tier = "easy";
+          else if (fullId === currentMapping.medium) tier = "medium";
+          else if (fullId === currentMapping.hard) tier = "hard";
+        }
+        const label = `${m.provider}/${m.id}`;
+        return { id: fullId, label, tier };
+      });
+    } catch (e) {
+      console.error("[buck-workflow] Could not read model registry:", e);
+    }
+
+    if (availableModels.length === 0) {
+      ctx.ui.notify(
+        "No models with API keys found. Configure models in Pi settings first.",
+        "warning",
+      );
+      return;
+    }
+
+    // Group by tier
+    const groups: Record<string, typeof availableModels> = {
+      easy: [], medium: [], hard: [], unassigned: [],
+    };
+    for (const m of availableModels) {
+      groups[m.tier].push(m);
+    }
+
+    const tiers: Array<"easy" | "medium" | "hard"> = ["easy", "medium", "hard"];
+    const selected: Record<string, string | null> = {
+      easy: null, medium: null, hard: null,
+    };
+
+    // Pre-select current choices
+    for (const tier of tiers) {
+      if (groups[tier].length > 0) {
+        selected[tier] = groups[tier][0].id;
+      }
+    }
+
+    const pickModelForTier = async (
+      tier: "easy" | "medium" | "hard",
+      choices: string[],
+      current: string | null,
+    ): Promise<string | undefined> => {
+      const items: SelectItem[] = choices.map((choice) => ({
+        value: choice,
+        label: choice,
+        description: choice === current ? "(current choice)" : undefined,
+      }));
+
+      return await ctx.ui.custom((tui: any, theme: any, _kb: any, done: (result: string | null) => void) => {
+        const container = new Container();
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+        container.addChild(new Text(theme.fg("accent", `Pick the ${tier.toUpperCase()} model`), 1, 0));
+
+        const selectList = new SelectList(items, Math.min(items.length, 10), {
+          selectedPrefix: (text) => theme.fg("accent", text),
+          selectedText: (text) => theme.fg("accent", text),
+          description: (text) => theme.fg("muted", text),
+          scrollInfo: (text) => theme.fg("dim", text),
+          noMatch: (text) => theme.fg("warning", text),
+        });
+
+        if (current) {
+          const currentIndex = items.findIndex((item) => item.value === current);
+          if (currentIndex !== -1) {
+            selectList.setSelectedIndex(currentIndex);
+          }
+        }
+
+        selectList.onSelect = (item) => done(item.value);
+        selectList.onCancel = () => done(null);
+
+        container.addChild(selectList);
+        container.addChild(new Text(theme.fg("dim", "↑↓ navigate • Enter select • Esc cancel"), 1, 0));
+        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
+
+        return {
+          render(width: number) {
+            return container.render(width);
+          },
+          invalidate() {
+            container.invalidate();
+          },
+          handleInput(data: string) {
+            selectList.handleInput(data);
+            tui.requestRender();
+          },
+        };
+      });
+    };
+
+    // Show a picker per tier
+    for (const tier of tiers) {
+      let choices = groups[tier].map((m) => m.label);
+      if (choices.length === 0) {
+        // This tier has no models yet — pull from unassigned pool
+        if (groups.unassigned.length > 0) {
+          choices = groups.unassigned.map((m) => m.label);
+        } else {
+          choices = availableModels.map((m) => m.label);
+        }
+      }
+
+      const current = selected[tier];
+      if (current && choices.includes(current)) {
+        choices = [current, ...choices.filter((choice) => choice !== current)];
+      }
+      choices = [...new Set(choices)];
+
+      const choice = await pickModelForTier(tier, choices, current);
+      if (!choice) {
+        ctx.ui.notify("Model mapping setup skipped.", "info");
+        return; // User cancelled
+      }
+      selected[tier] = choice;
+    }
+
+    // Write the mapping to settings.json
+    const newMapping: ModelMapping = {
+      easy: selected.easy ?? "zai-glm/glm-4.7-flash",
+      medium: selected.medium ?? "anthropic/claude-sonnet-4-6",
+      hard: selected.hard ?? "anthropic/claude-opus-4-7",
+    };
+
+    let settings: Record<string, any> = {};
+    try {
+      if (existsSync(settingsPath)) {
+        settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      }
+    } catch { /* start fresh */ }
+
+    settings["buckModelMapping"] = newMapping;
+
+    try {
+      const dir = join(homedir(), ".pi", "agent");
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+    } catch (e: any) {
+      ctx.ui.notify(`Failed to write settings: ${e.message}`, "error");
+      return;
+    }
+
+    ctx.ui.notify(
+      `\u2713 buckModelMapping saved to ~/.pi/agent/settings.json\n` +
+      `   easy:   ${newMapping.easy}\n` +
+      `   medium: ${newMapping.medium}\n` +
+      `   hard:   ${newMapping.hard}\n` +
+      `Run /reload to activate.`,
+      "success",
+    );
+  }
+
+
+  async function suggestModelForNonPhasedPlan(
+    ctx: any,
+    mapping: ModelMapping,
+    contextDir: string,
+  ): Promise<void> {
+    const currentModel = ctx.model;
+    if (!currentModel) return;
+
+    const planPath = findMostRecentPlan(contextDir);
+    if (!planPath) return;
+
+    try {
+      const planContent = readFileSync(planPath, "utf-8");
+      const stepCount = (planContent.match(/^\d+\. /gm) || []).length;
+      const fileCount = (planContent.match(/`[^`]+`/g) || []).length;
+
+      let suggested: "easy" | "medium" | "hard";
+      if (stepCount > 8 || fileCount > 5) suggested = "hard";
+      else if (stepCount <= 3 && fileCount <= 2) suggested = "easy";
+      else suggested = "medium";
+
+      const currentTier = getCurrentModelTier(
+        { provider: currentModel.provider, id: currentModel.id },
+        mapping,
+      );
+      if (currentTier === suggested) return;
+
+      const suggestedModelId = mapping[suggested];
+      ctx.ui.notify(
+        `💡 Tip: This plan looks ${suggested}. Consider switching to ${suggestedModelId} ` +
+        `(currently on ${currentModel.provider}/${currentModel.id})`,
+        "info",
+      );
+    } catch {
+      // ignore read errors
+    }
+  }
+
+  // --- Detect user-initiated model changes mid-phase ---
+
+  pi.on("model_select", async (event, _ctx) => {
+    if (!modelSwitchState.switchedForPhase) return;
+    // If this is our own auto-switch, don't mark as user override
+    if (autoSwitchingModel) return;
+    // Any other model selection during an active phase = user override
+    modelSwitchState.userOverrode = true;
+  });
+
+  // --- Switch back to original model after phase completes ---
+
+  pi.on("agent_end", async (_event, ctx) => {
+    // Existing save warning logic
+    const state = readState();
+    if (state?.implementation_happened && !state.save_completed) {
+      ctx.ui.notify(
+        "⚠️ Implementation work unsaved. Run /b-save to record this session.",
+        "warning",
+      );
+    }
+
+    // Model switch-back
+    if (!modelSwitchState.switchedForPhase) return;
+    if (modelSwitchState.userOverrode) {
+      // User manually switched — respect their choice, cancel switch-back
+      modelSwitchState = {
+        originalModel: null,
+        switchedForPhase: false,
+        userOverrode: false,
+        phaseDifficulty: null,
+      };
+      return;
+    }
+
+    const original = modelSwitchState.originalModel;
+    if (!original) return;
+
+    const originalModel = ctx.modelRegistry.find(original.provider, original.id);
+    if (!originalModel) return;
+
+    autoSwitchingModel = true;
+    const success = await pi.setModel(originalModel);
+    autoSwitchingModel = false;
+
+    if (success) {
+      ctx.ui.notify(
+        `🔄 Switched back to ${original.provider}/${original.id}`,
+        "info",
+      );
+    }
+
+    modelSwitchState = {
+      originalModel: null,
+      switchedForPhase: false,
+      userOverrode: false,
+      phaseDifficulty: null,
+    };
   });
 }

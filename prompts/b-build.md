@@ -34,6 +34,19 @@ If you start building without a subject folder (ad-hoc work), **b-save will crea
 
 If a plan exists, follow its implementation steps and affected files list. If a spec exists, verify the implementation satisfies its requirements.
 
+### Phased Plan Awareness
+
+If a `plan-*-phases.md` file exists in the subject folder:
+
+1. **Read it** and identify the current active phase (first uncompleted phase).
+2. **Surface the model hint** — tell the user at the start:
+   > **Phase N: <name>** — difficulty: `<easy|medium|hard>` — model hint: `<description>` — executing via `/b-build`
+3. **Mismatch guard**: If the phase difficulty is **hard**, warn the user:
+   > ⚠️ This phase is rated **hard**. Consider switching to `/b-build-hard` for stronger reasoning.
+   If the user confirms they want to proceed with `/b-build`, continue normally.
+4. **Scope to the active phase only** — implement only the current phase's steps and acceptance criteria, not the entire plan.
+5. **After completing the phase**, note which phase was finished and suggest the next step (queue next phase, run `/b-review`, or `/b-save`).
+
 ## Session Awareness Protocol
 
 The Buck workflow plugin tracks your session automatically. You are responsible
@@ -69,6 +82,7 @@ At COMPLETION:
 ## Escalate To
 
 - `b-build-hard` if the task becomes ambiguous, architectural, or spreads beyond the expected files.
+- `b-build-hard` if the active phase in a phased plan is rated **hard**.
 - `b-review` when implementation is ready for validation.
 
 ## Closeout
@@ -76,4 +90,5 @@ At COMPLETION:
 After completing implementation, report:
 1. **Changed files** — list what was modified
 2. **Verification** — confirm the changes work
-3. **Recommendation** — suggest `/b-save` to record the completed work in history
+3. **Phase status** — if working from a phased plan, note which phase was completed
+4. **Recommendation** — suggest `/b-save` to record the completed work, or `/b-review` for validation

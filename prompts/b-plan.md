@@ -93,6 +93,14 @@ When creating a plan:
 - When creating backlog items: create the backing item file `.context/backlog/items/<slug>.md` with frontmatter (`title`, `status: active`, `priority`, `created`, `updated`, `completed: null`, `related`) and add a linked checkbox to `.context/backlog/todo.md`. If only `.context/backlog.md` exists (legacy), use that format instead.
 - Recommend `b-build` for straightforward work and `b-build-hard` for ambiguous or high-risk work.
 - Recommend `b-research` only when missing code or architecture understanding prevents a good plan.
+- **Recommend `b-phase`** if the plan exceeds any of these thresholds:
+  - More than ~8 implementation steps
+  - Touches more than ~5 distinct files or directories
+  - Spans multiple architectural layers (DB + API + UI)
+  - Involves high-risk paths (auth, billing, data migrations)
+  - Contains significant unknowns or research spikes
+  - Verification alone would exhaust a single session
+  - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential phases with dependency analysis and per-phase model hints."*
 
 ## Plan Frontmatter Template
 

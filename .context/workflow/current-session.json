@@ -29,11 +29,35 @@
     {
       "command": "b-iterate",
       "at": "2026-04-16T21:34:33.307Z"
+    },
+    {
+      "command": "b-brainstorm",
+      "at": "2026-05-02T15:51:24.224Z"
+    },
+    {
+      "command": "b-plan",
+      "at": "2026-05-02T16:08:52.772Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-02T16:12:52.188Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-02T17:15:30.163Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-02T17:16:22.043Z"
+    },
+    {
+      "command": "b-build-hard",
+      "at": "2026-05-02T17:22:45.596Z"
     }
   ],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/tmux-window-status-2026-04-16.md",
+  "memory_file": ".context/memory/b-phase-model-hints-2026-05-02.md",
   "files_modified": [
     ".context/backlog.md",
     "prompts/git-commit.md",
@@ -58,12 +82,19 @@
     "docs/buck-workflow.md",
     ".pi/extensions/plan-mode.ts",
     "~/.local/share/chezmoi/private_dot_config/ghostty/config.tmpl",
-    ".context/memory/ghostty-shift-enter-fix-2026-04-17.md"
+    ".context/memory/ghostty-shift-enter-fix-2026-04-17.md",
+    "skills/b-phase/SKILL.md",
+    ".context/memory/b-phase-skill-2026-05-01.md",
+    "skills/b-grill-me/SKILL.md",
+    "skills/b-grill-with-docs/SKILL.md",
+    ".context/2026-05-02.b-phase-model-hints/plan-b-phase-model-hints.md",
+    ".context/memory/b-phase-model-hints-2026-05-02.md",
+    ".context/2026-05-02.b-phase-model-hints/plan-model-auto-switch.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,
+  "plan_mode_active": false,
   "active_buck_agent": null,
   "model_overrides": {},
-  "last_seen_session_model": null,
-  "plan_mode_active": false
+  "last_seen_session_model": null
 }
