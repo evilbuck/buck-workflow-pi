@@ -465,7 +465,9 @@ memory: []                    # Filled by b-save after execution
 - Groups steps into phases (~equal size, vertical slices)
 - Assigns each phase a simple difficulty/model hint: `easy`, `medium`, or `hard`
 - Flags parallel opportunities (phases with NO dependency)
-- Writes `plan-<topic>-phases.md` in the same directory
+- Creates:
+  - `plan-<topic>-phases.md` — **overview/index** with summary table, dependency matrix, and links to discrete phase files
+  - `phase-N-<slug>.md` — **one per phase** with full implementation details, acceptance criteria, and status tracking
 
 **Dependency Types**:
 - **HARD**: Phase N cannot start until Phase N-1 completes
@@ -477,11 +479,28 @@ memory: []                    # Filled by b-save after execution
 - **medium** — some cross-file reasoning or moderate verification; capable general model preferred; usually `/b-build`
 - **hard** — ambiguous, failure-sensitive, or architecture-touching work; strongest reasoning model available; use `/b-build-hard`
 
-**Output**: `plan-<topic>-phases.md` containing:
-- Phase breakdowns with goals, files, acceptance criteria, and difficulty/model hints
-- Dependency matrix and diagram
-- Parallel opportunities section
-- Execution order and backlog integration notes
+**Output**: Two types of files:
+
+1. **Phases overview** (`plan-<topic>-phases.md`): lightweight index with:
+   - Summary table: phase name, status, difficulty, link to phase file
+   - Dependency matrix and diagram
+   - Parallel opportunities section
+   - Execution order notes
+
+2. **Discrete phase files** (`phase-N-<slug>.md`): one per phase with:
+   - Frontmatter: `status`, `phase`, `difficulty`, `depends_on`, `acceptance_criteria`, `completed_at`
+   - Body: implementation details, context, risks, verification steps
+   - Status flow: `pending` → `in-progress` → `completed`
+
+**Resume Behavior**:
+Any b-* command can pick up where work left off:
+1. Read the phases overview → find the first non-completed phase in the summary table
+2. Read that discrete phase file → get full implementation details
+3. Execute
+
+This works even with zero conversation history — a cold-start agent gets full context from the phase file.
+
+**Backwards Compatibility**: Legacy single-file `plan-*-phases.md` plans (without `format: discrete` frontmatter) continue to work. The extension and b-build/b-build-hard prompts detect format automatically.
 
 **Next Steps**: Execute Phase 1 via `/b-build` or `/b-build-hard`, guided by the phase's difficulty/model hint
 
@@ -743,7 +762,7 @@ Suggested next step
 - **Interactive mode** (default): Confirm each section
 - **Quick mode** (`--quick`): Auto-apply defaults
 
-**8 Core Responsibilities**:
+**9 Core Responsibilities**:
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -753,6 +772,7 @@ Suggested next step
 6. **Spec Status Updates** — Set `status: completed` (no file moves)
 7. **Index Update** — Update `.context/memory/index.md`
 8. **QMD Re-index** — Make new memory searchable (if QMD available)
+9. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
 
 **Memory Frontmatter**:
 ```yaml
@@ -788,6 +808,9 @@ status: active
 ├── YYYY-MM-DD.subject-name/           # Subject folder (date-prefixed)
 │   ├── research-<topic>.md             # Research findings
 │   ├── plan-<topic>.md                 # Implementation plan
+│   ├── plan-<topic>-phases.md          # Phases overview (if phased)
+│   ├── phase-1-<slug>.md               # Discrete phase files (if phased)
+│   ├── phase-2-<slug>.md
 │   ├── spec-<milestone>-<topic>.md    # Strategic spec (multi-session)
 │   └── brainstorm-state-<slug>.json     # Sidecar state (if brainstormed)
 │
@@ -1033,4 +1056,4 @@ Also available:
 
 ## Version
 
-Last updated: 2026-05-02
+Last updated: 2026-05-06

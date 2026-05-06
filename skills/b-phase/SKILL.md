@@ -122,11 +122,62 @@ Prefer the simplest label that honestly matches the phase. Do **not** hard-code 
 
 Phase naming: `Phase 1: <Short Name>`, `Phase 2: <Short Name>`, etc.
 
-### Step 5: Write Phases File
+### Step 5: Write Phase Files
 
-Create `plan-<topic>-phases.md` in the same directory as the original plan.
+Create **two types of output** in the same directory as the original plan:
 
-**Frontmatter:**
+#### 5a. Discrete Phase Files (one per phase)
+
+Create `phase-N-<slug>.md` for each phase.
+
+**Phase file frontmatter:**
+```yaml
+---
+status: pending
+phase: N
+order: N
+plan: plan-<topic>.md
+phases_overview: plan-<topic>-phases.md
+difficulty: easy | medium | hard
+model_hint: <description>
+buck_hint: /b-build | /b-build-hard
+goal: "<one sentence>"
+files: [path/to/file1, path/to/file2]
+from_plan_steps: [3, 4, 5]
+depends_on: [1]           # phase numbers; empty [] if none
+dependency_type: HARD | SOFT | NONE
+acceptance_criteria:
+  - "[ ] <checkable outcome>"
+  - "[ ] <checkable outcome>"
+completed_at: null
+completed_by: null
+---
+```
+
+**Phase file body structure:**
+```markdown
+# Phase N: <Name>
+
+## Context
+<Why this phase exists, what it builds on>
+
+## Implementation Details
+<Step-by-step instructions from the plan, adapted to this phase's scope>
+
+## Risks
+<Phase-specific risks and mitigations>
+
+## Verification
+<How to verify this phase is complete>
+```
+
+**Status flow**: `pending` → `in-progress` (when b-build/b-build-hard picks it up) → `completed` (when all acceptance criteria pass)
+
+#### 5b. Phases Overview File (index + dependency matrix)
+
+Create `plan-<topic>-phases.md` as a **lightweight index**.
+
+**Overview frontmatter:**
 ```yaml
 ---
 status: active
@@ -135,10 +186,11 @@ subject: <same as plan>
 topics: [phasing, <plan topics>]
 source_plan: plan-<topic>.md
 phases: N
+format: discrete
 ---
 ```
 
-**Body structure:**
+**Overview body structure:**
 ```markdown
 # Phased Plan: <Topic>
 
@@ -151,32 +203,20 @@ phases: N
 - **Estimated total effort**: <rough estimate>
 - **Difficulty mix**: <e.g. 1 easy, 2 medium, 1 hard>
 
-## Phase 1: <Name>
+## Phase Summary
 
-**Goal**: <one sentence>
-**From original plan steps**: <step numbers or descriptions>
-**Files**: <affected files>
-**Difficulty**: easy | medium | hard
-**Model hint**: <smaller/faster general model | capable general model | strongest reasoning model available>
-**Buck execution hint**: </b-build | /b-build-hard>
-**Acceptance criteria**:
-- [ ] <checkable outcome>
-- [ ] <checkable outcome>
-
-## Phase 2: <Name>
-
-...
-
-## Phase N: <Name>
-
-...
+| Phase | Status | Difficulty | File |
+|-------|--------|------------|------|
+| 1: <Name> | pending | medium | [phase-1-<slug>.md](phase-1-<slug>.md) |
+| 2: <Name> | pending | easy | [phase-2-<slug>.md](phase-2-<slug>.md) |
+| N: <Name> | pending | hard | [phase-N-<slug>.md](phase-N-<slug>.md) |
 
 ## Dependency Matrix
 
 | From → To | Type | Reason |
 |-----------|------|--------|
-| Phase 1 → Phase 2 | HARD | API schema must exist before UI can integrate |
-| Phase 2 → Phase 3 | SOFT | Tests can use mocked data until Phase 2 completes |
+| Phase 1 → Phase 2 | HARD | <specific reason> |
+| Phase 2 → Phase 3 | SOFT | <specific reason> |
 
 ## Dependency Diagram
 
@@ -206,21 +246,23 @@ Phase 1 ──→ Phase 2 ──→ Phase 3
 ## Execution Order
 
 1. Complete Phase 1, verify acceptance criteria
-2. Update backlog: mark Phase 1 done, queue Phase 2
-3. Complete Phase 2, verify...
-4. ...
+2. Update phase file: `status: completed`, check acceptance criteria
+3. Update this overview: change status to `completed` in summary table
+4. Queue Phase 2, repeat...
 
 ## Notes
 
 - <any warnings, gotchas, or context for future agents>
 ```
 
+**Critical**: The overview file links to discrete phase files. All implementation details live in the phase files. The overview is a scannable index.
+
 ### Step 6: Update Backlog
 
 If `.context/backlog/` exists:
 
 1. Create per-phase backlog items in `.context/backlog/items/phase-<n>-<slug>.md`
-2. Link each to the phases file in their `related:` frontmatter
+2. Link each to the discrete phase file in their `related:` frontmatter
 3. Add only **Phase 1** to `.context/backlog/todo.md` (active queue)
 4. Leave remaining phases as `[ ]` entries but commented out or in a "Upcoming Phases" section
 
@@ -232,9 +274,10 @@ If using legacy `.context/backlog.md`:
 
 Tell the user:
 - How many phases created and why
-- Where the phases file lives
+- Where the overview file and discrete phase files live
 - What Phase 1 covers and how to start it
 - What difficulty/model hint was assigned to each phase (especially Phase 1)
+- That future sessions can resume by reading the overview → finding the first non-completed phase → reading its file
 
 ## Example: Small Plan (SKIP)
 
@@ -245,7 +288,8 @@ Plan has 4 steps, touches 2 files. **SKIP** — executable in one session.
 Plan has 14 steps across 8 files spanning API, DB, and UI.
 
 **Original plan**: `plan-payment-integration.md` — 14 steps
-**Phases file**: `plan-payment-integration-phases.md`
+**Overview file**: `plan-payment-integration-phases.md` (index)
+**Phase files**: `phase-1-schema-migrations.md`, `phase-2-api-endpoints.md`, `phase-3-frontend-integration.md`, `phase-4-testing-verification.md`
 - Phase 1: Schema & Migrations (3 steps, 2 files) — **medium**
 - Phase 2: API Endpoints (4 steps, 3 files) — **medium**
 - Phase 3: Frontend Integration (4 steps, 3 files) — **hard**
@@ -261,10 +305,23 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 - Phase based on risk, not just step count. A 6-step plan touching auth + billing should still be phased.
 
 **No subject folder exists:**
-- Create `.context/plans/plan-<topic>-phases.md` as fallback
+- Create `.context/YYYY-MM-DD.<topic>/` subject folder first
+- Create the overview and phase files within it
+- Fallback: `.context/plans/` for legacy projects
 
 ## Integration with Buck Workflow
 
 - **After `b-plan`**: `b-plan` should recommend running `b-phase` if the plan exceeds 6 steps or touches 3+ domains
-- **Before `b-build`**: If a `plan-*-phases.md` exists, read it and execute only the current active phase
-- **After phase completion**: Run `b-save`, then queue the next phase from the backlog
+- **Before `b-build`**: If a `plan-*-phases.md` overview exists, read it to find the first non-completed phase, then read that discrete phase file for implementation details
+- **During `b-build`/`b-build-hard`**: Mark the phase file `status: in-progress`, then `status: completed` when done; update the overview summary table
+- **After phase completion**: Run `b-save` (which consolidates phase state), then queue the next phase from the backlog
+
+## Resume Behavior
+
+Any b-* command can pick up where work left off:
+1. Read the phases overview (`plan-*-phases.md`)
+2. Find the first non-completed phase in the summary table
+3. Read that discrete phase file for full implementation details
+4. Execute
+
+This works even with zero conversation history — a cold-start agent gets full context from the phase file.

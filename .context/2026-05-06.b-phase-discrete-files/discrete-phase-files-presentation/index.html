@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discrete Phase Files — b-phase, b-build, b-build-hard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Mermaid color overrides to match theme */
+    .mermaid .node rect, .mermaid .node circle, .mermaid .node ellipse, .mermaid .node polygon { fill: #1a1d27 !important; stroke: #6c8cff !important; }
+    .mermaid .nodeLabel { color: #e8eaf0 !important; font-family: -apple-system, BlinkMacSystemFont, sans-serif !important; font-size: 13px !important; }
+    .mermaid .edgePath .path { stroke: #2e3347 !important; }
+    .mermaid .edgeLabel { color: #9ca3b4 !important; background-color: #0f1117 !important; font-size: 12px !important; }
+    .mermaid .cluster rect { fill: #242836 !important; stroke: #2e3347 !important; }
+    .mermaid text { fill: #9ca3b4 !important; }
+    .mermaid .label { color: #e8eaf0 !important; }
+    .mermaid .edgePath .arrowheadPath { fill: #2e3347 !important; stroke: none !important; }
+  </style>
+</head>
+<body>
+  <button class="sidebar-toggle">☰ Menu</button>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-title">Buck Workflow</div>
+        <div class="sidebar-subtitle">Discrete Phase Files</div>
+      </div>
+      <ul class="sidebar-nav">
+        <li class="sidebar-nav-item"><a href="#overview"><span class="sidebar-nav-icon">🎯</span>Overview</a></li>
+        <li class="sidebar-nav-item"><a href="#why"><span class="sidebar-nav-icon">💡</span>Why This Matters</a></li>
+        <li class="sidebar-nav-item"><a href="#old-vs-new"><span class="sidebar-nav-icon">🔀</span>Old vs New</a></li>
+        <li class="sidebar-nav-item"><a href="#phase-format"><span class="sidebar-nav-icon">📄</span>Phase File Format</a></li>
+        <li class="sidebar-nav-item"><a href="#overview-file"><span class="sidebar-nav-icon">📋</span>Overview File</a></li>
+        <li class="sidebar-nav-item"><a href="#lifecycle"><span class="sidebar-nav-icon">🔁</span>Lifecycle</a></li>
+        <li class="sidebar-nav-item"><a href="#cold-start"><span class="sidebar-nav-icon">❄️</span>Cold-Start Resume</a></li>
+        <li class="sidebar-nav-item"><a href="#extension"><span class="sidebar-nav-icon">⚙️</span>Extension Changes</a></li>
+        <li class="sidebar-nav-item"><a href="#b-save"><span class="sidebar-nav-icon">💾</span>b-save Consolidation</a></li>
+        <li class="sidebar-nav-item"><a href="#files"><span class="sidebar-nav-icon">📁</span>Files Changed</a></li>
+        <li class="sidebar-nav-item"><a href="#risks"><span class="sidebar-nav-icon">⚠️</span>Risks</a></li>
+        <li class="sidebar-nav-item"><a href="#next"><span class="sidebar-nav-icon">➡️</span>Next Steps</a></li>
+      </ul>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main">
+
+      <!-- ======================== OVERVIEW ======================== -->
+      <section class="section" id="overview">
+        <div class="section-header">
+          <div class="section-icon overview">🎯</div>
+          <h1 class="section-title">Overview</h1>
+          <div class="section-divider"></div>
+        </div>
+
+        <div class="goal-statement">
+          Give b-phase discrete phase files (one file per phase) and make b-build/b-build-hard update phase state on completion — so any future b-* session can pick up exactly where the last one left off.
+        </div>
+
+        <p class="lead">
+          The Buck workflow's phasing system now uses separate files per phase instead of embedding all phases in one file. This makes session resume reliable: a cold-start agent can understand exactly where work is without any conversation history.
+        </p>
+
+        <div class="meta-row">
+          <div class="meta-item"><span class="meta-label">Date</span> 2026-05-06</div>
+          <div class="meta-item"><span class="meta-label">Plan</span> <code>plan-b-phase-discrete-phase-files.md</code></div>
+          <div class="meta-item"><span class="meta-label">Plan status</span> <span class="badge badge-completed">Completed</span></div>
+          <div class="meta-item"><span class="meta-label">Steps executed</span> 7 of 7</div>
+          <div class="meta-item"><span class="meta-label">Files changed</span> 5</div>
+        </div>
+      </section>
+
+      <!-- ======================== WHY ======================== -->
+      <section class="section" id="why">
+        <div class="section-header">
+          <div class="section-icon why">💡</div>
+          <h2 class="section-title">Why This Matters</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <div class="compare-grid">
+          <div class="compare-col compare-old">
+            <div class="compare-header">Before: Single-File Format</div>
+            <div class="compare-body">
+              <ul>
+                <li>All phases embedded in one <code>plan-*-phases.md</code></li>
+                <li>Acceptance criteria checked inline with <code>[ ]</code> / <code>[x]</code></li>
+                <li>No durable per-phase state</li>
+                <li>Active phase determined by scanning checkboxes</li>
+                <li>Model auto-switch worked but resume was fragile</li>
+                <li>State only existed in conversation context</li>
+              </ul>
+            </div>
+          </div>
+          <div class="compare-col compare-new">
+            <div class="compare-header">After: Discrete Phase Files</div>
+            <div class="compare-body">
+              <ul>
+                <li>One <code>phase-N-*.md</code> file per phase</li>
+                <li>Each file has its own frontmatter state</li>
+                <li>Status: <code>pending</code> → <code>in-progress</code> → <code>completed</code></li>
+                <li>Active phase found by reading summary table</li>
+                <li>Full cold-start resumability</li>
+                <li>State persists across sessions, commits, and context compaction</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout callout-info">
+          <span class="callout-icon">ℹ️</span>
+          The old format is still supported. The extension detects which format is in use automatically.
+        </div>
+      </section>
+
+      <!-- ======================== OLD VS NEW ======================== -->
+      <section class="section" id="old-vs-new">
+        <div class="section-header">
+          <div class="section-icon diagram">🔀</div>
+          <h2 class="section-title">Before &amp; After</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <div class="mermaid-container">
+          <div class="mermaid">
+flowchart LR
+    subgraph Old["🔴 OLD: Single File Format"]
+        direction TB
+        O1["plan-payment-phases.md<br/><small>All phases embedded</small>"]
+        O2["Phase 1 section<br/>[ ] Criteria A<br/>[ ] Criteria B"]
+        O3["Phase 2 section<br/>[ ] Criteria C"]
+        O4["Phase 3 section<br/>[ ] Criteria D"]
+        O1 --> O2 --> O3 --> O4
+    end
+
+    subgraph New["🟢 NEW: Discrete Phase Files"]
+        direction TB
+        N1["plan-payment-phases.md<br/><small>Overview index</small>"]
+        N2["phase-1-api.md<br/><small>status: completed</small>"]
+        N3["phase-2-ui.md<br/><small>status: in-progress</small>"]
+        N4["phase-3-testing.md<br/><small>status: pending</small>"]
+        N1 --- N2 --- N3 --- N4
+    end
+
+    Old --> New
+          </div>
+        </div>
+
+        <h3 class="section-title">File Structure Comparison</h3>
+
+        <div class="compare-grid">
+          <div class="compare-col compare-old">
+            <div class="compare-header">Single File (Legacy)</div>
+            <div class="compare-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; color: var(--text-secondary);">
+<pre style="background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 6px; padding: 12px; margin: 0; font-size: 0.78rem;">
+plan-payment-phases.md
+├── ## Phase 1: API
+│   └── **Acceptance criteria**:
+│       - [ ] Criterion A
+│       - [ ] Criterion B
+├── ## Phase 2: UI
+│   └── **Acceptance criteria**:
+│       - [ ] Criterion C
+└── ## Phase 3: Tests</pre>
+            </div>
+          </div>
+          <div class="compare-col compare-new">
+            <div class="compare-header">Discrete Files (New)</div>
+            <div class="compare-body" style="font-family: monospace; font-size: 0.78rem; line-height: 1.7; color: var(--text-secondary);">
+<pre style="background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 6px; padding: 12px; margin: 0; font-size: 0.78rem;">
+plan-payment-phases.md   ← overview
+├── Phase Summary table
+└── Dependency matrix
+
+phase-1-api.md          ← discrete
+├── status: completed
+├── difficulty: medium
+└── Implementation details
+
+phase-2-ui.md           ← discrete
+├── status: in-progress
+├── difficulty: hard
+└── Implementation details
+
+phase-3-testing.md      ← discrete
+├── status: pending
+├── difficulty: easy
+└── Implementation details</pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== PHASE FORMAT ======================== -->
+      <section class="section" id="phase-format">
+        <div class="section-header">
+          <div class="section-icon phase-format">📄</div>
+          <h2 class="section-title">Discrete Phase File Format</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">Each phase gets its own file with frontmatter tracking and full implementation details.</p>
+
+        <h3 class="section-title">Frontmatter Fields</h3>
+        <div class="frontmatter-block">
+<span class="fm-comment">---</span>
+<span class="fm-key">status</span><span class="fm-value">: </span><span class="fm-string">pending</span>              <span class="fm-comment"># pending | in-progress | completed</span>
+<span class="fm-key">phase</span><span class="fm-value">: </span><span class="fm-value">1</span>
+<span class="fm-key">order</span><span class="fm-value">: </span><span class="fm-value">1</span>
+<span class="fm-key">plan</span><span class="fm-value">: </span><span class="fm-string">plan-payment-integration.md</span>
+<span class="fm-key">phases_overview</span><span class="fm-value">: </span><span class="fm-string">plan-payment-integration-phases.md</span>
+<span class="fm-key">difficulty</span><span class="fm-value">: </span><span class="fm-string">medium</span>          <span class="fm-comment"># easy | medium | hard</span>
+<span class="fm-key">model_hint</span><span class="fm-value">: </span><span class="fm-string">capable general model preferred</span>
+<span class="fm-key">buck_hint</span><span class="fm-value">: </span><span class="fm-string">/b-build</span>
+<span class="fm-key">goal</span><span class="fm-value">: </span><span class="fm-string">"Define payment API schema and database migrations"</span>
+<span class="fm-key">files</span><span class="fm-value">: </span><span class="fm-value">[src/api/payment.ts, src/db/migrations/001.sql]</span>
+<span class="fm-key">from_plan_steps</span><span class="fm-value">: </span><span class="fm-value">[3, 4, 5]</span>
+<span class="fm-key">depends_on</span><span class="fm-value">: </span><span class="fm-value">[]</span>              <span class="fm-comment"># phase numbers; empty = none</span>
+<span class="fm-key">dependency_type</span><span class="fm-value">: </span><span class="fm-string">NONE</span>    <span class="fm-comment"># HARD | SOFT | NONE</span>
+<span class="fm-key">acceptance_criteria</span><span class="fm-value">:</span>
+<span class="fm-value">  - </span><span class="fm-string">"[ ] PaymentSchema type defined in payment.ts"</span>
+<span class="fm-value">  - </span><span class="fm-string">"[ ] Migration 001.sql creates payments table"</span>
+<span class="fm-value">  - </span><span class="fm-string">"[ ] API endpoint POST /payments returns 201"</span>
+<span class="fm-key">completed_at</span><span class="fm-value">: </span><span class="fm-value">null</span>
+<span class="fm-key">completed_by</span><span class="fm-value">: </span><span class="fm-value">null</span>
+<span class="fm-comment">---</span>
+        </div>
+
+        <h3 class="section-title">Status Flow</h3>
+        <div class="phase-flow">
+          <div class="phase-node phase-pending">pending</div>
+          <div class="phase-arrow">→</div>
+          <div class="phase-node phase-active">in-progress</div>
+          <div class="phase-arrow">→</div>
+          <div class="phase-node phase-done">completed</div>
+          <div style="flex: 1;"></div>
+          <span style="font-size: 0.75rem; color: var(--text-muted);">b-build picks up → marks in-progress → marks completed</span>
+        </div>
+
+        <h3 class="section-title">File Body Structure</h3>
+        <div class="card">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">The body contains the full implementation details for this phase:</p>
+          <ul style="font-size: 0.85rem; color: var(--text-secondary);">
+            <li><strong>Context</strong> — Why this phase exists, what it builds on</li>
+            <li><strong>Implementation Details</strong> — Step-by-step instructions from the original plan</li>
+            <li><strong>Risks</strong> — Phase-specific risks and mitigations</li>
+            <li><strong>Verification</strong> — How to confirm this phase is complete</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ======================== OVERVIEW FILE ======================== -->
+      <section class="section" id="overview-file">
+        <div class="section-header">
+          <div class="section-icon overview">📋</div>
+          <h2 class="section-title">Phases Overview File</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">The overview file (<code>plan-*-phases.md</code>) becomes a lightweight index — not a detailed spec. It links to all phase files and shows their status at a glance.</p>
+
+        <h3 class="section-title">Phase Summary Table</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Phase</th>
+                <th>Status</th>
+                <th>Difficulty</th>
+                <th>File</th>
+                <th>Executor</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1: Schema &amp; Migrations</td>
+                <td><span class="badge badge-completed">✓ Completed</span></td>
+                <td><span class="badge badge-medium">medium</span></td>
+                <td><code>phase-1-schema.md</code></td>
+                <td><span class="agent-pill b-build">/b-build</span></td>
+              </tr>
+              <tr>
+                <td>2: API Endpoints</td>
+                <td><span class="badge badge-in-progress">→ In Progress</span></td>
+                <td><span class="badge badge-medium">medium</span></td>
+                <td><code>phase-2-api-endpoints.md</code></td>
+                <td><span class="agent-pill b-build">/b-build</span></td>
+              </tr>
+              <tr>
+                <td>3: Frontend Integration</td>
+                <td><span class="badge badge-pending">○ Pending</span></td>
+                <td><span class="badge badge-hard">hard</span></td>
+                <td><code>phase-3-frontend.md</code></td>
+                <td><span class="agent-pill b-build-hard">/b-build-hard</span></td>
+              </tr>
+              <tr>
+                <td>4: Testing &amp; Verification</td>
+                <td><span class="badge badge-pending">○ Pending</span></td>
+                <td><span class="badge badge-easy">easy</span></td>
+                <td><code>phase-4-testing.md</code></td>
+                <td><span class="agent-pill b-build">/b-build</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <span class="callout-icon">ℹ️</span>
+          The overview also contains the <strong>dependency matrix</strong>, <strong>dependency diagram</strong>, and <strong>parallel opportunities</strong> — everything a cold-start agent needs to understand execution order without reading every phase file.
+        </div>
+      </section>
+
+      <!-- ======================== LIFECYCLE ======================== -->
+      <section class="section" id="lifecycle">
+        <div class="section-header">
+          <div class="section-icon lifecycle">🔁</div>
+          <h2 class="section-title">Phase Lifecycle</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">How b-phase, b-build, and b-build-hard interact with phase files across their workflows.</p>
+
+        <div class="mermaid-container">
+          <div class="mermaid">
+flowchart TD
+    subgraph Create["📝 CREATION — /skill:b-phase"]
+        CP1["Parse source plan<br/>Identify phase boundaries"] --> CP2["Create phase-N-\*.md<br/>files with frontmatter"]
+        CP2 --> CP3["Create plan-\*-phases.md<br/>overview with summary table"]
+        CP3 --> CP4["Add format: discrete<br/>to overview frontmatter"]
+        CP4 --> CP5["Create backlog items<br/>linked to phase files"]
+    end
+
+    subgraph Execute["🔨 EXECUTION — /b-build or /b-build-hard"]
+        E1["Read plan-\*-phases.md<br/>Find first non-completed phase"] --> E2["Read phase file<br/>for implementation details"]
+        E2 --> E3["Set status: in-progress<br/>in phase frontmatter"] --> E4["Implement scope"]
+        E4 --> E5{"Done?"}
+        E5 -- "Yes" --> E6["Check all acceptance criteria<br/>[ ] → [x]"]
+        E6 --> E7["Set status: completed<br/>completed_at: YYYY-MM-DD"]
+        E7 --> E8["Update overview table<br/>pending → completed"]
+        E8 --> E9["Note next phase<br/>Tell user what's next"]
+        E5 -- "No" --> E10["Save progress to phase file<br/>Return to user"]
+    end
+
+    subgraph Consolidate["💾 CONSOLIDATION — /b-save"]
+        S1["Read all phase-N-\*.md files"] --> S2{"Any in-progress<br/>with all criteria checked?"}
+        S2 -- "Yes" --> S3["Set status: completed<br/>completed_at: today"]
+        S3 --> S4{"Overview table<br/>matches phase files?"}
+        S2 -- "No" --> S4
+        S4 -- "Stale" --> S5["Update overview table"]
+        S4 -- "Current" --> S6["✅ Phase state is consistent"]
+        S5 --> S6
+    end
+
+    Create --> Execute --> Consolidate
+
+    style Create fill:#1a1d27,stroke:#6c8cff,color:#e8eaf0
+    style Execute fill:#1a1d27,stroke:#4ade80,color:#e8eaf0
+    style Consolidate fill:#1a1d27,stroke:#fbbf24,color:#e8eaf0
+          </div>
+        </div>
+
+        <h3 class="section-title">Agent Responsibilities</h3>
+        <div class="card-grid">
+          <div class="card-file">
+            <div class="card-file-path">/skill:b-phase</div>
+            <div class="card-file-desc">
+              <ul style="margin: 0; padding-left: 14px; font-size: 0.8rem;">
+                <li>Creates one <code>phase-N-*.md</code> per phase</li>
+                <li>Creates overview <code>plan-*-phases.md</code></li>
+                <li>Adds <code>format: discrete</code> to frontmatter</li>
+                <li>Links phase files in summary table</li>
+                <li>Creates backlog items per phase</li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">/b-build or /b-build-hard</div>
+            <div class="card-file-desc">
+              <ul style="margin: 0; padding-left: 14px; font-size: 0.8rem;">
+                <li>Reads overview → finds active phase</li>
+                <li>Marks phase <code>in-progress</code> at start</li>
+                <li>Executes only current phase scope</li>
+                <li>Checks all acceptance criteria on finish</li>
+                <li>Updates <code>status: completed</code> + <code>completed_at</code></li>
+                <li>Updates overview summary table</li>
+              </ul>
+            </div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">/b-save (responsibility 9)</div>
+            <div class="card-file-desc">
+              <ul style="margin: 0; padding-left: 14px; font-size: 0.8rem;">
+                <li>Verifies phase file states match reality</li>
+                <li>Upgrades stale <code>in-progress</code> → <code>completed</code></li>
+                <li>Fixes stale overview summary table</li>
+                <li>Safe net for manual edits and interrupted sessions</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== COLD START ======================== -->
+      <section class="section" id="cold-start">
+        <div class="section-header">
+          <div class="section-icon why">❄️</div>
+          <h2 class="section-title">Cold-Start Resume</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">A fresh agent with zero conversation history can pick up exactly where work left off by reading only two files.</p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-title">Read the phases overview</div>
+            <div class="step-desc">Agent opens <code>plan-*-phases.md</code> and scans the summary table. The first row without a <span class="badge badge-completed" style="font-size: 0.65rem;">✓ Completed</span> badge is the active phase.</div>
+          </div>
+          <div class="step">
+            <div class="step-title">Read the active phase file</div>
+            <div class="step-desc">Agent opens the linked <code>phase-N-*.md</code> file. Frontmatter shows <code>status: in-progress</code> (or <code>pending</code>), <code>difficulty</code>, <code>files</code>, <code>from_plan_steps</code>, and all acceptance criteria. Body contains full implementation details.</div>
+          </div>
+          <div class="step">
+            <div class="step-title">Execute</div>
+            <div class="step-desc">Agent has everything needed: what to do, which files to touch, what "done" looks like. No guessing, no asking the user, no conversation history required.</div>
+          </div>
+        </div>
+
+        <div class="callout callout-success">
+          <span class="callout-icon">✅</span>
+          This works regardless of context window size, session age, or whether the agent has ever interacted with this project before. The files are the source of truth.
+        </div>
+      </section>
+
+      <!-- ======================== EXTENSION ======================== -->
+      <section class="section" id="extension">
+        <div class="section-header">
+          <div class="section-icon implementation">⚙️</div>
+          <h2 class="section-title">Extension Changes</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">The model auto-switch in <code>extensions/index.ts</code> was updated to support both formats with a dual-path reader.</p>
+
+        <h3 class="section-title">What Changed</h3>
+
+        <div class="card">
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;"><code>findActivePhaseDifficulty()</code> was replaced with two dedicated functions:</p>
+          <ul style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 24px;">
+            <li><code>findActivePhaseDiscrete()</code> — reads discrete phase files; finds first non-completed phase, returns its difficulty</li>
+            <li><code>findActivePhaseLegacy()</code> — the original inline checkbox scanner for legacy single-file format</li>
+          </ul>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 12px;">Format detection: if the overview has <code>format: discrete</code> in frontmatter → discrete path. Otherwise → legacy path.</p>
+        </div>
+
+        <div class="details-block">
+          <div class="details-summary">Show dual-path logic pseudocode</div>
+          <div class="details-content">
+            <pre>function findActivePhaseDifficulty(contextDir):
+  overviewPath = findMostRecentPhasesOverview(contextDir)
+  overviewContent = read(overviewPath)
+
+  # Format detection
+  if "format: discrete" in overviewContent:
+    return findActivePhaseDiscrete(overviewPath, overviewContent)
+  else:
+    return findActivePhaseLegacy(overviewContent)
+
+function findActivePhaseDiscrete(overviewPath, overviewContent):
+  overviewDir = dirname(overviewPath)
+
+  # Extract phase file paths from summary table
+  # Format: [phase-1-slug.md](phase-1-slug.md)
+  phaseFiles = extractLinks(overviewContent, pattern)
+
+  # Fallback: scan directory for phase-N-*.md
+  if phaseFiles.empty:
+    phaseFiles = readdir(overviewDir).filter("phase-\d+-*.md")
+
+  for phaseFile in sorted(phaseFiles):
+    content = read(phaseFile)
+    status = extractFrontmatter(content, "status")
+    if status != "completed":
+      return extractFrontmatter(content, "difficulty")
+  return null  # all phases complete</pre>
+          </div>
+        </div>
+
+        <h3 class="section-title">Phase File Link Extraction</h3>
+        <div class="card">
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">Phase files are discovered via the summary table link syntax:</p>
+          <pre style="margin: 8px 0; font-size: 0.8rem;">| 1: Schema | completed | medium | [phase-1-schema.md](phase-1-schema.md) |</pre>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">If no linked files found in table, the code falls back to scanning the directory for any file matching <code>phase-\d+-*.md</code>. Both approaches are supported simultaneously.</p>
+        </div>
+      </section>
+
+      <!-- ======================== B-SAVE ======================== -->
+      <section class="section" id="b-save">
+        <div class="section-header">
+          <div class="section-icon next">💾</div>
+          <h2 class="section-title">b-save Phase State Consolidation</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <p class="lead">b-save gained a 9th responsibility: ensuring phase state is consistent across the overview and individual phase files.</p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-title">Read all phase files</div>
+            <div class="step-desc">Scan the subject folder for <code>phase-N-*.md</code> files. For each, read frontmatter to check <code>status</code>.</div>
+          </div>
+          <div class="step">
+            <div class="step-title">Verify state against criteria</div>
+            <div class="step-desc">If a phase shows <code>status: in-progress</code> but all acceptance criteria are checked (<code>[x]</code>), promote it to <code>status: completed</code> and set <code>completed_at: today</code>.</div>
+          </div>
+          <div class="step">
+            <div class="step-title">Sync overview table</div>
+            <div class="step-desc">Read the overview's summary table. For each phase, verify the status column matches the phase file's actual frontmatter state. Update any stale entries.</div>
+          </div>
+          <div class="step">
+            <div class="step-title">Skip for legacy format</div>
+            <div class="step-desc">If the overview has no <code>format: discrete</code> frontmatter (legacy single-file), skip all consolidation. The old format has no discrete phase files to sync.</div>
+          </div>
+        </div>
+
+        <div class="callout callout-warning">
+          <span class="callout-icon">⚠️</span>
+          This is the safety net for interrupted sessions. If an agent marks a phase complete but <code>b-save</code> never runs, the next session's b-save will catch it.
+        </div>
+      </section>
+
+      <!-- ======================== FILES CHANGED ======================== -->
+      <section class="section" id="files">
+        <div class="section-header">
+          <div class="section-icon files">📁</div>
+          <h2 class="section-title">Files Changed</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <div class="card-grid">
+          <div class="card-file">
+            <div class="card-file-path">skills/b-phase/SKILL.md</div>
+            <div class="card-file-desc">Major rewrite — Step 5 now outputs both overview + discrete phase files. Step 6 links backlog items to discrete files. Resume behavior documented.</div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">prompts/b-build.md</div>
+            <div class="card-file-desc">Added "Phase State Updates (Required)" section with explicit instructions for marking <code>in-progress</code> and <code>completed</code>. Added "Legacy Phased Plans" fallback section.</div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">prompts/b-build-hard.md</div>
+            <div class="card-file-desc">Same phase state tracking additions as b-build. Informational note when difficulty is easy/medium (proceeding anyway per user intent).</div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">extensions/index.ts</div>
+            <div class="card-file-desc">Replaced <code>findActivePhaseDifficulty()</code> with dual-path: <code>findActivePhaseDiscrete()</code> + <code>findActivePhaseLegacy()</code>. Updated b-save handler to 9 responsibilities.</div>
+          </div>
+          <div class="card-file">
+            <div class="card-file-path">docs/buck-workflow.md</div>
+            <div class="card-file-desc">Updated b-phase section (discrete format, resume behavior, backwards compat). Updated folder structure diagram. Updated b-save count: 8 → 9. Updated version date.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ======================== RISKS ======================== -->
+      <section class="section" id="risks">
+        <div class="section-header">
+          <div class="section-icon risks">⚠️</div>
+          <h2 class="section-title">Risks &amp; Trade-offs</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <ul class="checklist">
+          <li>
+            <span class="checklist-icon warning">⚠️</span>
+            <div><strong>Migration path</strong> — Existing projects with single-file phased plans won't automatically migrate. The extension fallback keeps them working, but users should re-run <code>/skill:b-phase</code> to regenerate in the new format.</div>
+          </li>
+          <li>
+            <span class="checklist-icon warning">⚠️</span>
+            <div><strong>State drift</strong> — Manual edits to phase files (without going through b-build) can drift from reality. b-save's 9th responsibility is the safety net but requires running b-save after manual work.</div>
+          </li>
+          <li>
+            <span class="checklist-icon warning">⚠️</span>
+            <div><strong>File proliferation</strong> — A 6-phase plan creates 7 new files (6 phases + 1 overview). Acceptable for the resumability benefit, but the overview file is critical to keep things scannable.</div>
+          </li>
+          <li>
+            <span class="checklist-icon checked">✓</span>
+            <div><strong>Backwards compatibility</strong> — Legacy single-file format is fully supported. The extension detects <code>format: discrete</code> in frontmatter to choose the read path. No breaking changes.</div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ======================== NEXT ======================== -->
+      <section class="section" id="next">
+        <div class="section-header">
+          <div class="section-icon next">➡️</div>
+          <h2 class="section-title">Next Steps</h2>
+          <div class="section-divider"></div>
+        </div>
+
+        <ul class="checklist">
+          <li>
+            <span class="checklist-icon unchecked">○</span>
+            <div><strong>Test with a real phased plan</strong> — Run <code>/skill:b-phase</code> against a multi-step plan and verify discrete files are created correctly</div>
+          </li>
+          <li>
+            <span class="checklist-icon unchecked">○</span>
+            <div><strong>Verify model auto-switch</strong> — Confirm the extension correctly reads difficulty from discrete phase files and triggers model switching</div>
+          </li>
+          <li>
+            <span class="checklist-icon unchecked">○</span>
+            <div><strong>Run b-review</strong> — Validate the implementation against the plan's verification checklist</div>
+          </li>
+          <li>
+            <span class="checklist-icon unchecked">○</span>
+            <div><strong>Add unit tests</strong> — Consider adding tests for <code>findActivePhaseDiscrete()</code> and <code>findActivePhaseLegacy()</code> in <code>extensions/tmux-window-status.test.ts</code> style</div>
+          </li>
+          <li>
+            <span class="checklist-icon unchecked">○</span>
+            <div><strong>Migrate existing phased plans</strong> — Re-run <code>/skill:b-phase</code> on any project with legacy single-file phased plans to regenerate in the new format</div>
+          </li>
+        </ul>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      flowchart: { curve: 'basis', padding: 20 },
+      themeVariables: {
+        primaryColor: '#1a1d27',
+        primaryTextColor: '#e8eaf0',
+        primaryBorderColor: '#6c8cff',
+        lineColor: '#2e3347',
+        secondaryColor: '#242836',
+        tertiaryColor: '#0f1117',
+        background: '#0f1117',
+        mainBkg: '#1a1d27',
+        nodeBorder: '#6c8cff',
+        clusterBkg: '#242836',
+        titleColor: '#e8eaf0',
+        edgeLabelBackground: '#0f1117',
+      }
+    });
+  </script>
+</body>
+</html>

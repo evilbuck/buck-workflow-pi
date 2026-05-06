@@ -162,14 +162,21 @@ function getCurrentModelTier(
 
 /**
  * Find the difficulty of the active phase in a phased plan.
- * Scans plan-phases.md files in .context subject folders for the first phase
- * that doesn't have all acceptance criteria checked off.
+ *
+ * Supports two formats:
+ * 1. **Discrete phase files** (new): overview `plan-*-phases.md` links to `phase-N-<slug>.md` files.
+ *    Scans discrete phase files for the first non-completed one.
+ * 2. **Single-file legacy**: all phases embedded in `plan-*-phases.md` with `## Phase N` headers.
+ *    Checks inline acceptance criteria.
+ *
+ * Detects format via `format: discrete` frontmatter in the overview file.
+ * Falls back to legacy behavior when no discrete format marker is found.
  */
 function findActivePhaseDifficulty(contextDir: string): "easy" | "medium" | "hard" | null {
   try {
     if (!existsSync(contextDir)) return null;
 
-    // Find phased plan files
+    // Find phased plan overview files
     const candidates: string[] = [];
     const entries = readdirSync(contextDir, { withFileTypes: true });
     for (const entry of entries) {
@@ -206,29 +213,108 @@ function findActivePhaseDifficulty(contextDir: string): "easy" | "medium" | "har
     const phasesFile = candidates[0];
     const content = readFileSync(phasesFile, "utf-8");
 
-    // Split into phase sections by ## Phase N: headers
-    const phaseSections = content.split(/^## Phase \d+/m).slice(1);
+    // Detect format: discrete phase files vs legacy single-file
+    const isDiscrete = content.includes("format: discrete");
 
-    for (const section of phaseSections) {
-      // Check if all acceptance criteria are completed
-      const criteriaLines = section.match(/^- \[[ x]\] /gm) || [];
-      if (criteriaLines.length === 0) continue; // no criteria = take this phase
-
-      const allChecked = criteriaLines.every((l) => l.startsWith("- [x]"));
-      if (!allChecked) {
-        // This is the active phase — extract difficulty
-        const diffMatch = section.match(/\*\*Difficulty\*\*:\s*(easy|medium|hard)/i);
-        if (diffMatch) {
-          return diffMatch[1].toLowerCase() as "easy" | "medium" | "hard";
-        }
-        return null;
-      }
+    if (isDiscrete) {
+      return findActivePhaseDiscrete(phasesFile, content);
+    } else {
+      return findActivePhaseLegacy(content);
     }
-
-    return null; // all phases complete or no phases found
   } catch {
     return null;
   }
+}
+
+/**
+ * Find active phase difficulty using discrete phase files.
+ * Reads the overview, extracts linked phase file paths, scans for first non-completed.
+ */
+function findActivePhaseDiscrete(
+  overviewPath: string,
+  overviewContent: string,
+): "easy" | "medium" | "hard" | null {
+  const overviewDir = overviewPath.substring(0, overviewPath.lastIndexOf("/"));
+
+  // Extract phase file links from the summary table
+  // Format: [phase-N-slug.md](phase-N-slug.md)
+  const phaseFileMatches = overviewContent.matchAll(
+    /\[(phase-\d+-[^\]]+\.md)\]\(\1\)/g,
+  );
+
+  const phaseFiles: string[] = [];
+  for (const match of phaseFileMatches) {
+    phaseFiles.push(join(overviewDir, match[1]));
+  }
+
+  // If no linked files found in table, try scanning directory for phase-N-*.md files
+  if (phaseFiles.length === 0) {
+    try {
+      const files = readdirSync(overviewDir);
+      const phaseFilesInDir = files
+        .filter((f) => f.match(/^phase-\d+-.*\.md$/))
+        .sort()
+        .map((f) => join(overviewDir, f));
+      phaseFiles.push(...phaseFilesInDir);
+    } catch { /* ignore */ }
+  }
+
+  if (phaseFiles.length === 0) {
+    // No discrete files found — fall back to legacy parsing of overview content
+    return findActivePhaseLegacy(overviewContent);
+  }
+
+  // Scan phase files in order for first non-completed
+  for (const phaseFilePath of phaseFiles) {
+    try {
+      const phaseContent = readFileSync(phaseFilePath, "utf-8");
+
+      // Extract status from frontmatter
+      const statusMatch = phaseContent.match(/^status:\s*(\S+)/m);
+      if (statusMatch && statusMatch[1] === "completed") continue;
+
+      // Extract difficulty from frontmatter
+      const diffMatch = phaseContent.match(/^difficulty:\s*(easy|medium|hard)/m);
+      if (diffMatch) {
+        return diffMatch[1] as "easy" | "medium" | "hard";
+      }
+
+      // Phase found but no difficulty — return null
+      return null;
+    } catch {
+      // Can't read phase file — skip it
+      continue;
+    }
+  }
+
+  return null; // all phases complete
+}
+
+/**
+ * Find active phase difficulty using legacy single-file format.
+ * Scans `## Phase N` sections and checks inline acceptance criteria.
+ */
+function findActivePhaseLegacy(content: string): "easy" | "medium" | "hard" | null {
+  // Split into phase sections by ## Phase N: headers
+  const phaseSections = content.split(/^## Phase \d+/m).slice(1);
+
+  for (const section of phaseSections) {
+    // Check if all acceptance criteria are completed
+    const criteriaLines = section.match(/^- \[[ x]\] /gm) || [];
+    if (criteriaLines.length === 0) continue; // no criteria = take this phase
+
+    const allChecked = criteriaLines.every((l) => l.startsWith("- [x]"));
+    if (!allChecked) {
+      // This is the active phase — extract difficulty
+      const diffMatch = section.match(/\*\*Difficulty\*\*:\s*(easy|medium|hard)/i);
+      if (diffMatch) {
+        return diffMatch[1].toLowerCase() as "easy" | "medium" | "hard";
+      }
+      return null;
+    }
+  }
+
+  return null; // all phases complete or no phases found
 }
 
 /**
@@ -704,7 +790,7 @@ Help the user plan what needs to be done:
   // Send the b-save instructions as a user message to the LLM
       const savePrompt = `You are the b-save agent in the Buck workflow.
 
-## Your 8 Responsibilities
+## Your 9 Responsibilities
 
 1. **Read Session State** — Read \`.context/workflow/current-session.json\` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -726,6 +812,12 @@ Help the user plan what needs to be done:
 6. **Spec Status Updates** — Set \`status: completed\` on finished specs (no file moves)
 7. **Index Update** — Update \`.context/memory/index.md\` with single-line entry at top
 8. **QMD Re-index** — Ensure the memory collection is indexed: \`qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'\` (safe to run on existing collections; ignores qmd update failures on unrelated collections)
+9. **Phase State Consolidation** — If phased plan files exist in the subject folder:
+   a. Read all \`phase-N-*.md\` files — verify their \`status\` matches reality (were acceptance criteria met?)
+   b. Read the phases overview \`plan-*-phases.md\` — verify the summary table matches phase file states
+   c. If any phase file shows \`status: in-progress\` but all criteria are checked, update to \`completed\` and set \`completed_at: YYYY-MM-DD\`
+   d. If the overview table is stale (phase file says completed but overview says pending/in-progress), update the overview
+   e. For legacy single-file format (no discrete phase files), skip this step
 
 ## Session State
 \`\`\`json
@@ -735,7 +827,7 @@ ${JSON.stringify(state, null, 2)}
 ## Key Principle
 Plans live in subject folders (intent). History lives in \`.context/memory/\` (record). /b-save turns intent into record.
 
-Execute all 8 steps now. Write only to \`.context/\`.`;
+Execute all 9 steps now. Write only to \`.context/\`.`;
 
       pi.sendUserMessage(savePrompt, { deliverAs: "followUp" });
 
