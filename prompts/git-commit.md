@@ -20,28 +20,39 @@ Create a Conventional Commits message from staged changes and commit immediately
 
 ## Procedure
 
-1. **Gather current state**:
+1. **Check for draft commit message**:
+
+   Find the active subject folder — the most recently modified `.context/YYYY-MM-DD.*/` directory:
+   ```bash
+   ls -dt .context/????-??-??.*/ 2>/dev/null | head -1
+   ```
+   If a subject folder exists, read `.context/<subject>/draft-commit.md`. If that doesn't exist, fall back to `.context/draft-commit.md`.
+
+   If a draft exists and contains a non-empty `## Title`:
+   - Use it directly — **skip diff analysis entirely**.
+   - Proceed to step 5 with the drafted message.
+   - After successful commit, delete the draft from whichever path it was found at.
+
+2. **Fallback: gather current state** (only if no draft exists):
 
    - Branch + working tree: `git status -sb`
    - Staged file list: `git diff --cached --name-only`
    - Staged diff (patch): `git diff --cached`
    - Recent commits (style reference): `git log -10 --oneline`
 
-2. If the current branch is protected (`main`/`master`/`develop`), do not commit.
+3. If the current branch is protected (`main`/`master`/`develop`), do not commit.
 
-3. If there are no staged changes, do not commit.
+4. If there are no staged changes, do not commit.
 
-4. Determine the best Conventional Commits type (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`, etc.).
-
-5. Draft a commit message:
+5. **If no draft was found**, determine the best Conventional Commits type and draft a commit message:
 
    - Title: `<type>(<optional scope>): <short summary>` (<= 72 chars)
    - Body: 1-3 lines focusing on why, key constraints, and notable behavior changes.
    - If breaking change, include `BREAKING CHANGE:` in the body.
 
-6. Commit immediately with the generated message:
+6. Commit immediately with the message (from draft or just drafted):
 
-    First, verify your drafted message doesn't contain placeholder tags:
+    First, verify your message doesn't contain placeholder tags:
     - Title should NOT contain the string `$TITLE`
     - Body should NOT contain the string `$BODY`
 
@@ -53,17 +64,19 @@ Create a Conventional Commits message from staged changes and commit immediately
     My actual body line 2"
     ```
 
-7. **ONLY run if the commit in step 6 actually failed**:
+7. **Clean up draft**: Delete the draft from whichever path it was found at (subject folder or root) after successful commit.
+
+8. **ONLY run if the commit in step 6 actually failed**:
 
     Check if git commit failed:
-    - If commit succeeded, skip to step 8
+    - If commit succeeded, skip to step 9
     - If commit failed (exit code != 0) AND there are staged changes remaining:
       - Run `git status -sb`
       - Stage only the hook-modified files: `git add <files>`
       - Re-run the commit with the same actual message
     - If commit failed but no new staged changes, report the error and stop
 
-8. **Verify** the commit was created correctly:
+9. **Verify** the commit was created correctly:
 
     ```bash
     git log -1 --format='%B'
@@ -76,7 +89,7 @@ Create a Conventional Commits message from staged changes and commit immediately
     ```
     - Report this as a warning
 
-9. Show results:
+10. Show results:
 
    - `git status -sb`
    - `git log -1 --oneline`

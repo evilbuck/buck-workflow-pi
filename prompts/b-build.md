@@ -110,4 +110,14 @@ After completing implementation, report:
 1. **Changed files** — list what was modified
 2. **Verification** — confirm the changes work
 3. **Phase status** — if working from a phased plan, note which phase was completed
-4. **Recommendation** — suggest `/b-save` to record the completed work, or `/b-review` for validation
+4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Include a Conventional Commits message based on the staged changes:
+
+   ```markdown
+   ## Title
+   <type>(<scope>): <short summary>
+
+   ## Body
+   <why this change was made, key constraints, notable behavior changes>
+   ```
+
+5. **Recommendation** — suggest `/b-review` for validation, then `/b-save` to finalize

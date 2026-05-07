@@ -1,1 +1,7 @@
 node_modules/*
+
+# Transient draft commit message — consumed by git-commit and deleted
+# Primary location: .context/YYYY-MM-DD.subject/draft-commit.md
+# Fallback: .context/draft-commit.md
+.context/draft-commit.md
+.context/*/draft-commit.md

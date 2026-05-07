@@ -26,9 +26,41 @@
   - The vault collection processes first (of 5), so ALL subsequent collections fail too
 - Related work: Buck workflow extension calls `qmd index .context/memory --collection memory` but the CLI has no `index` subcommand; it uses `qmd update` to reindex all collections
 
+### test-b-phase-discrete
+**Description**: Run `/skill:b-phase` against a real plan to verify discrete phase files are created correctly and b-build picks up the right phase.
+**Context**:
+- Relevant files: `skills/b-phase/SKILL.md`, `prompts/b-build.md`, `extensions/index.ts`
+- This session (2026-05-06) implemented the discrete phase file system but hasn't been tested end-to-end
+- Verification steps: create a test plan, run b-phase, verify phase files + overview are created, run b-build, verify phase state updates
+
+### b-review-b-phase
+**Description**: Run `/b-review` to validate the discrete phase file changes across skill, prompts, extension, and docs.
+**Context**:
+- Relevant files: all modified in this session
+- Focus areas: backwards compat with legacy single-file format, phase state update correctness, extension dual-path logic
+
+### test-phase-finders
+**Description**: Add unit tests for `findActivePhaseDiscrete()` and `findActivePhaseLegacy()` in the extension test file.
+**Context**:
+- Relevant files: `extensions/index.ts`, existing test patterns in `extensions/*.test.ts`
+- Test cases: discrete phase files (all states), legacy inline format, empty directory, mixed states
+
+### test-tmux-extension
+**Description**: Add vitest tests for `extensions/tmux-window-status.ts` or set up CI to run existing tests.
+**Context**:
+- The extension has 38 vitest tests but may not run in CI
+- Related: `extensions/tmux-window-status.test.ts`
+
 ## High Priority
 
 - [ ] [Fix QMD index crash on vault files with non-handlelizable filenames](#fix-qmd-index-crash)
+- [ ] [Test discrete phase files with real phased plan via /skill:b-phase](#test-b-phase-discrete)
+- [ ] [Run b-review to validate b-phase discrete files changes](#b-review-b-phase)
+
+## Nice to Have (Deferred)
+
+- [ ] [Add tests for findActivePhaseDiscrete and findActivePhaseLegacy](#test-phase-finders)
+- [ ] [Add tests for extensions/tmux-window-status.ts in CI](#test-tmux-extension)
 
 ## Medium Priority
 
