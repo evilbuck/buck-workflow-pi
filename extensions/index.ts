@@ -790,7 +790,7 @@ Help the user plan what needs to be done:
   // Send the b-save instructions as a user message to the LLM
       const savePrompt = `You are the b-save agent in the Buck workflow.
 
-## Your 9 Responsibilities
+## Your 10 Responsibilities
 
 1. **Read Session State** — Read \`.context/workflow/current-session.json\` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -818,6 +818,11 @@ Help the user plan what needs to be done:
    c. If any phase file shows \`status: in-progress\` but all criteria are checked, update to \`completed\` and set \`completed_at: YYYY-MM-DD\`
    d. If the overview table is stale (phase file says completed but overview says pending/in-progress), update the overview
    e. For legacy single-file format (no discrete phase files), skip this step
+10. **Iterate Artifact Consolidation** — Scan subject folders for \`iterate-*.md\` files:
+    a. If the session modified files listed in an active \`iterate-*.md\`, verify its acceptance items are addressed
+    b. If the iterate file still shows \`status: active\` but work was done against it, update to \`status: completed\`
+    c. Include \`iterate-*.md\` filenames in the memory file's \`artifacts:\` frontmatter array
+    d. If the iterate file references the plan it came from, back-fill the plan with \`iterations: [iterate-<subject>.md]\`
 
 ## Session State
 \`\`\`json

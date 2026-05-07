@@ -34,11 +34,69 @@ You review code after `b-build`, `b-build-hard`, or `b-iterate`. You do not revi
 
 ## Output
 
+### When review passes (no issues):
+
 ```text
 Summary
-Critical issues
-Warnings
 Suggested next step
+```
+
+### When review finds issues needing iteration:
+
+**Write an iteration artifact** to the active subject folder before reporting.
+Only write this file when there are actual issues to address — do not create it for clean reviews.
+
+```
+.context/YYYY-MM-DD.<subject>/iterate-<subject>.md
+```
+
+This file captures review findings and proposed fixes so the user can start a fresh session and tackle just those problems.
+
+**Iteration artifact format:**
+
+```markdown
+---
+status: active
+date: YYYY-MM-DD
+subject: YYYY-MM-DD.subject-name
+topics: [review, iteration]
+from_review: b-review
+---
+
+# Iteration: <subject>
+
+## Source
+- Reviewed after: `/b-build` | `/b-build-hard` | `/b-iterate`
+- Plan: `plan-*.md` (if applicable)
+- Spec: `spec-*.md` (if applicable)
+
+## Critical Issues
+
+### 1. <short title>
+- **File**: `path/to/file`
+- **Problem**: <what's wrong>
+- **Proposed fix**: <specific change description>
+
+## Warnings
+
+### 1. <short title>
+- **File**: `path/to/file`
+- **Problem**: <potential issue>
+- **Suggested approach**: <how to address>
+
+## Recommended Workflow
+
+Start with `/b-iterate` — it will pick up this file automatically.
+For larger rework, use `/b-build` or `/b-build-hard`.
+```
+
+### User-facing report:
+
+```text
+Summary
+Critical issues (see iterate-<subject>.md)
+Warnings
+Suggested next step: `/b-iterate` to fix
 ```
 
 ## History & Closeout

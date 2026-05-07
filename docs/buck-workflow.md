@@ -665,6 +665,12 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Pi primitive**: Prompt template (`prompts/b-iterate.md`)
 
+**Context Resolution**:
+1. **Explicit argument** — user-provided path or description
+2. **Iteration artifact** — scans for `iterate-*.md` in subject folders; auto-picks if exactly one exists
+3. **Review findings in memory** — checks most recent memory file
+4. **User request** — falls back to inline description
+
 **Best For**:
 - Rename and string fixes
 - Lint or formatting cleanup
@@ -676,6 +682,7 @@ Buck can automatically switch the active model based on the difficulty of the cu
 - Escalate to `b-build` if work spreads
 - Re-run lightweight verification
 - Hand back to `b-review` when done
+- When working from an `iterate-*.md` artifact, marks it `status: completed` on finish
 
 **Model Routing** (b-iterate):
 - Fresh session → default model
@@ -735,6 +742,12 @@ Warnings
 Suggested next step
 ```
 
+**Iteration Artifact** (when issues are found):
+- Writes `iterate-<subject>.md` to the active subject folder
+- Captures critical issues, warnings, file paths, and proposed fixes
+- Enables fresh-session iteration: run `/b-iterate` to pick up where review left off
+- Only written when there are actual issues — clean reviews skip this
+
 **Recommendations**:
 - `/b-iterate` — for small follow-up fixes
 - `/b-build` — for normal-sized revisions
@@ -762,7 +775,7 @@ Suggested next step
 - **Interactive mode** (default): Confirm each section
 - **Quick mode** (`--quick`): Auto-apply defaults
 
-**9 Core Responsibilities**:
+**10 Core Responsibilities**:
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -773,6 +786,7 @@ Suggested next step
 7. **Index Update** — Update `.context/memory/index.md`
 8. **QMD Re-index** — Make new memory searchable (if QMD available)
 9. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
+10. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
 
 **Memory Frontmatter**:
 ```yaml
@@ -812,6 +826,7 @@ status: active
 │   ├── phase-1-<slug>.md               # Discrete phase files (if phased)
 │   ├── phase-2-<slug>.md
 │   ├── spec-<milestone>-<topic>.md    # Strategic spec (multi-session)
+│   ├── iterate-<subject>.md            # Review findings + proposed fixes
 │   └── brainstorm-state-<slug>.json     # Sidecar state (if brainstormed)
 │
 ├── memory/                             # Session history
@@ -842,6 +857,7 @@ status: active
 - `research-<topic>.md` — Research artifacts
 - `plan-<topic>.md` — Tactical plans
 - `spec-<milestone>-<topic>.md` — Strategic specs
+- `iterate-<subject>.md` — Review findings and proposed fixes
 
 ### Resolution Order
 
