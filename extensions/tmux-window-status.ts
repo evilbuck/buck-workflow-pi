@@ -168,7 +168,7 @@ export class TmuxAdapter implements StatusDisplay {
   }
 
   init(): void {
-    if (!this.inTmux || this.savedName !== null) return;
+    if (!this.inTmux) return;
     try {
       let name = execSync("tmux display-message -p '#{window_name}'", {
         encoding: "utf-8",
@@ -179,7 +179,8 @@ export class TmuxAdapter implements StatusDisplay {
       name = name.replace(ICON_SUFFIX_RE, "");
       this.savedName = name;
     } catch {
-      // Can't read window name — fall back to "pi"
+      // Can't read window name — leave savedName as-is (may be null or stale)
+      // This avoids overwriting a valid name on a transient tmux failure
     }
   }
 

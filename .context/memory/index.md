@@ -1,5 +1,7 @@
 # Memory Index
 
+- 2026-05-07 | `web-images-skill-2026-05-07.md` | domains: [tooling, skills, image-editing, chezmoi] | topics: [web-images, imagemagick, pi-skill, image-optimization, oxipng, jpegoptim, pngquant, svgo, chezmoi, packages.yaml] | status: active
+- 2026-05-07 | `tmux-window-name-bug-2026-05-07.md` | domains: [debugging, extension, tmux] | topics: [tmux, window-naming, session-switch, savedName, init-guard, pi-extension] | status: active
 - 2026-05-06 | `b-phase-discrete-files-2026-05-06.md` | domains: [tooling, skills, buck-workflow, planning, extension] | topics: [b-phase, discrete-phase-files, plan-state-tracking, session-resume, b-build, b-build-hard, b-save, extension, findActivePhaseDifficulty, draft-commit] | status: completed
 - 2026-05-02 | `b-phase-model-hints-2026-05-02.md` | domains: [tooling, skills, buck-workflow, planning, extension, debugging, tui] | topics: [b-phase, model-hints, phase-difficulty, b-plan, model-auto-switch, extension, model-picker, interactive-setup, selector-flicker, input-lifecycle, selectlist] | status: active
 - 2026-05-01 | `b-phase-skill-2026-05-01.md` | domains: [tooling, skills, buck-workflow, planning] | topics: [b-phase, plan-phasing, dependency-analysis, parallel-execution, skill-creation] | status: active

@@ -426,4 +426,25 @@ describe("wire", () => {
     await pi.emit("agent_end");
     expect(machine.current).toBe("done");
   });
+
+  it("calls init on every session_start (not just the first)", async () => {
+    const pi = mockPi();
+    const display = recordingDisplay();
+    wire(pi as any, { display });
+
+    // First session lifecycle
+    await pi.emit("session_start");
+    await pi.emit("before_agent_start");
+    await pi.emit("message_end", {
+      message: { role: "assistant", stopReason: "stop", content: [] },
+    });
+    await pi.emit("agent_end");
+    await pi.emit("session_shutdown");
+
+    // Second session — init must be called again to re-read window name
+    await pi.emit("session_start");
+
+    const initCount = display.log.filter((l) => l === "init").length;
+    expect(initCount).toBe(2);
+  });
 });
