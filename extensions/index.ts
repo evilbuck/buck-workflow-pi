@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { wire as wireTmuxStatus } from "./tmux-window-status.js";
+import { wire as wireGrillAuto } from "./b-grill-auto/index.js";
 
 // --- Types ---
 
@@ -381,6 +382,9 @@ export default function (pi: ExtensionAPI) {
 
   // --- tmux window status ---
   wireTmuxStatus(pi);
+
+  // --- b-grill-auto ---
+  wireGrillAuto(pi);
 
   // --- Plan Mode ---
 

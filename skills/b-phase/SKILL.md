@@ -52,14 +52,15 @@ If skipping, tell the user: *"This plan looks executable in one session. No phas
 If `grill-session-*.md` files exist in the subject folder, read them for additional sizing signals:
 
 **What to look for:**
-- `total_questions`: High count (>20) strongly suggests phasing
+- `total_questions`: High count alone doesn't mandate phasing — look for boundary-crossing
+- `boundary_assessment`: If `boundaries_found`, treat as strong signal to phase; if `cohesive`, the plan is large but unified
 - `decision_domains`: Natural grouping boundaries — these often map directly to phases
 - `break_points`: Already-identified split points from the grilling session
-- `phasing_recommended`: If `true`, treat this as a strong signal to phase
 - `deferred` / `blocked` questions: Unresolved areas that add risk and complexity
 
 **How to use it:**
-- If `phasing_recommended: true`, skip straight to PHASE — don't reassess
+- If `boundary_assessment: boundaries_found`, treat as strong signal to phase
+- If `boundary_assessment: cohesive`, the plan is large but unified — still phase if other criteria apply (step count, file spread, risk)
 - Use `decision_domains` as starting phase boundaries (the model already identified these during grilling)
 - Use `break_points` as candidate phase dividers
 - Cross-reference: do the grill session domains align with the plan's implementation steps? Adjust if needed.

@@ -1,6 +1,6 @@
 ---
 name: b-grill-me
-description: Interview the user relentlessly about a plan or design, tracking decision-tree complexity as metadata. When question count exceeds a configurable threshold (default 20), identifies natural break points for b-phase. Use when user wants to stress-test a plan, get grilled on their design, or mentions "grill me".
+description: Interview the user relentlessly about a plan or design, tracking decision-tree complexity as metadata. When question count reaches a configurable assessment threshold (default 20), the model evaluates whether decision domains cross subject boundaries or separation-of-concerns lines that warrant phasing. Use when user wants to stress-test a plan, get grilled on their design, or mentions "grill me".
 ---
 
 # b-grill-me: Grilling with Complexity Tracking
@@ -32,21 +32,19 @@ For each question, record:
 - **Type**: `scope` | `constraint` | `edge-case` | `dependency` | `rollback` | `verification`
 - **Resolution**: `resolved` | `deferred` | `blocked`
 
-### Phasing Threshold
+### Phasing Assessment Threshold
 
-**Default**: 20 questions. User can override at any time.
+The threshold (default 20) is **not a hard limit** — it is a signal to pause and evaluate whether the session has crossed boundaries that warrant phasing. When the question count reaches the threshold:
 
-When questions exceed the threshold:
+1. **Assess** whether the accumulated questions reveal distinct separation-of-concerns boundaries:
+   - **Subject boundaries**: Decision domains map to different architectural layers, services, or bounded contexts
+   - **Dependency direction**: Groups of decisions are largely independent — answers in group A don't affect group B
+   - **Concern isolation**: The plan touches concerns that should be designed, implemented, and reviewed separately
+2. **If boundaries exist**: Identify break points and write recommendations to the session file
+3. **If the plan is genuinely cohesive**: Note that explicitly — crossing the threshold without crossing boundaries means the plan is large but unified
+4. **Recommend `/skill:b-phase`** when separation-of-concerns boundaries are found
 
-1. **Pause** and notify the user
-2. **Identify break points** — look for:
-   - Topic boundaries (questions shift from "data model" to "API design")
-   - Dependency boundaries (group A answers don't affect group B questions)
-   - Risk boundaries (high-risk areas cluster together)
-3. **Write break point recommendations** to the session file
-4. **Recommend `/skill:b-phase`**
-
-The model determines where break points exist based on decision tree shape, not linear count.
+The key question at threshold is: *"Do the decision domains we've explored represent concerns that should be separated?"* A high question count alone does not mandate phasing — boundary-crossing does.
 
 ### Question Grouping
 
@@ -72,8 +70,8 @@ type: grill-session
 date: YYYY-MM-DD
 subject: YYYY-MM-DD.subject-name
 total_questions: N
-threshold: 20
-phasing_recommended: true|false
+assessment_threshold: 20
+boundary_assessment: boundaries_found|cohesive
 break_points: [7, 14, 22]
 decision_domains:
   - name: Data Model
@@ -102,19 +100,24 @@ status: active|completed
 ### Domain: <Name>
 ...
 
-## Phasing Analysis
+## Boundary Assessment
 
-> Triggered at Q<N> (threshold: <N>)
+> Triggered at Q<N> (assessment threshold: <N>)
 
-**Break points identified:**
-- After Q7 (end of Data Model): Clean boundary
-- After Q14 (end of API Design): API surface defined
-- Q15-Q22 (Auth & Permissions): High-risk cluster
+**Assessment**: {boundaries_found|cohesive}
+
+{If boundaries_found:}
+**Separation-of-concerns boundaries identified:**
+- After Q7 (end of Data Model): Clean boundary — data layer is independent of API surface
+- After Q14 (end of API Design): API surface defined, auth layer starts fresh
 
 **Recommended phases:**
 - Phase 1: Data Model + Migrations (Domain 1)
 - Phase 2: API Endpoints (Domain 2)
 - Phase 3: Auth & Permissions (Domain 3)
+
+{If cohesive:}
+**No phase boundaries**: All questions cluster around a single concern ({name}). Plan is large but unified.
 
 Run `/skill:b-phase` to create the formal phased plan.
 
@@ -129,12 +132,18 @@ Run `/skill:b-phase` to create the formal phased plan.
 
 ### When Threshold is Hit
 
-Tell the user: *"We've hit 20 questions across 3 decision domains. This plan is likely too large for one session."*
+When the threshold is reached, evaluate and report:
 
+**If boundaries are found:**
+*"We've reached 20 questions across {N} decision domains. The questions reveal {N} distinct concern boundaries that suggest phasing:"*
 Show break point analysis, then ask: *"Want to continue grilling, or switch to `/skill:b-phase` to formalize the phases?"*
+
+**If the plan is cohesive despite size:**
+*"We've reached 20 questions, but they all cluster around a single concern: {name}. The plan is large but unified — no clear phase boundary yet."*
+Continue grilling, tracking domains as they emerge.
 
 If user continues, keep tracking — the metadata is still valuable for `b-phase` later.
 
 ## Feeding b-phase
 
-When `b-phase` runs, it reads `grill-session-*.md` files in the subject folder. The `decision_domains` and `break_points` provide concrete signals for phase boundaries. `b-phase` treats these as strong suggestions but may adjust based on code analysis.
+When `b-phase` runs, it reads `grill-session-*.md` files in the subject folder. The `decision_domains`, `break_points`, and `boundary_assessment` provide concrete signals for phase boundaries. `b-phase` treats these as strong suggestions but may adjust based on code analysis.

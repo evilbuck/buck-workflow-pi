@@ -1,6 +1,6 @@
 ---
 name: b-grill-with-docs
-description: Interview the user relentlessly about a plan while challenging it against existing domain documentation (CONTEXT.md, ADRs). Tracks decision-tree complexity as metadata and identifies break points for b-phase. Use when stress-testing a plan against documented domain decisions.
+description: Interview the user relentlessly about a plan while challenging it against existing domain documentation (CONTEXT.md, ADRs). Tracks decision-tree complexity as metadata and evaluates separation-of-concerns boundaries at the assessment threshold. Use when stress-testing a plan against documented domain decisions.
 ---
 
 # b-grill-with-docs: Grilling with Domain Docs + Complexity Tracking
@@ -61,11 +61,12 @@ This skill includes all metadata tracking from `b-grill-me`:
 - **Subject folder**: Create or join `.context/YYYY-MM-DD.<subject-name>/`
 - **Session file**: Write `grill-session-<topic>.md`
 - **Track**: question count, decision domains, question types, resolutions
-- **Threshold**: Default 20 questions, configurable by user
 - **Break points**: Model identifies natural division points in the decision tree
 - **Phasing signal**: When threshold is exceeded, recommend `/skill:b-phase`
 
 See `b-grill-me` skill for full session file format and frontmatter schema.
+
+Note: The `assessment_threshold` (default 20) is **not a hard limit**. When reached, the model evaluates whether the grilling has crossed subject boundaries or separation-of-concerns lines that warrant phasing. A high question count without boundary-crossing means the plan is large but unified.
 
 ### Domain-Specific Additions to Session File
 
@@ -85,14 +86,15 @@ The session file includes an extra section for documentation decisions:
 - CONTEXT.md defines "fulfillment" as warehouse-only, but user described it including digital delivery — resolved: split into Warehouse Fulfillment and Digital Fulfillment
 ```
 
-These documentation decisions also count toward complexity. If a grilling session produces many glossary conflicts or ADRs, that's an additional signal that the plan touches many domain boundaries and may need phasing.
+These documentation decisions also feed into the boundary assessment. If a grilling session produces many glossary conflicts or ADRs across different domains, that's a signal the plan crosses multiple domain boundaries and likely warrants phasing.
 
 ## Workflow Integration
 
 Same as `b-grill-me`:
-1. Show running count with threshold
-2. Pause at threshold, show break points
-3. Recommend `/skill:b-phase`
-4. Continue if user wants
+1. Show running count with estimated remaining
+2. At assessment threshold, evaluate separation-of-concerns boundaries
+3. If boundaries found: write break point recommendations, recommend `/skill:b-phase`
+4. If cohesive: note explicitly, continue grilling
+5. Continue if user wants
 
 Plus: documentation updates (CONTEXT.md, ADRs) happen inline as decisions crystallize.
