@@ -5,3 +5,5 @@ node_modules/*
 # Fallback: .context/draft-commit.md
 .context/draft-commit.md
 .context/*/draft-commit.md
+
+__pycache__
