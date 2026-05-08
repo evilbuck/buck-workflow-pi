@@ -98,3 +98,47 @@ Same as `b-grill-me`:
 5. Continue if user wants
 
 Plus: documentation updates (CONTEXT.md, ADRs) happen inline as decisions crystallize.
+
+## Document Mode (Doc Mode)
+
+### Activation
+- User says "use doc mode", "document mode", or "doc mode"
+- OR auto-detect when the conversation has accumulated 5+ questions in a single session
+
+### Agent Protocol
+
+1. **Start**: When doc mode activates, create the QA file:
+   - Path: `.context/<subject-folder>/grill-qa-<slug>-<n>.md`
+   - Call `grill-me_dialog` tool with `action: "create"` and the file path
+   - Tell the user the file location so they can open it in their editor
+
+2. **Write questions**: Write questions to the file as markdown:
+   ```markdown
+   ---
+
+   ## Question 1
+   <question text>
+
+   ### Answer
+   _(Edit your answer here)_
+
+   ---
+   ```
+   Each question gets a `## Question N` header, `### Answer` section, and `---` dividers.
+
+3. **Wait for answers**: Call `grill-me_dialog` tool with `action: "wait"` and the same file path — this renders an inline Done/Cancel selector in the chat. The agent pauses until the user presses Done.
+
+4. **Read answers**: When the tool returns, parse the structured answer data from the tool result's `details.blocks` array. Each block has `question_number`, `question_text`, and `answer_text`.
+
+5. **Append more questions**: Add new question blocks to the same file using the same format. Re-read the full file each turn. Call `grill-me_dialog` with `action: "wait"` again.
+
+6. **Completion**: When grilling is done, the file remains on disk as a permanent record. Update the grill session file with a reference to the doc.
+
+### Fallback
+If the user cancels the Done/Cancel selector (the tool returns `cancelled: true`), fall back to inline Q&A for the rest of the session. The document is preserved on disk — the user can reference it later.
+
+### Domain-Docs Awareness
+In doc mode, CONTEXT.md and ADR updates happen as usual when decisions crystallize. The grill document captures Q&A pairs; CONTEXT.md/ADRs capture the canonical decisions.
+
+### Non-interactive Mode
+If running in a non-interactive context (no TUI), use `action: "read"` instead of `action: "wait"` to read answers without showing the selector.

@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import { wire as wireTmuxStatus } from "./tmux-window-status.js";
 import { wire as wireGrillAuto } from "./b-grill-auto/index.js";
+import { wire as wireGrillDialog } from "./grill-me-dialog.js";
 
 // --- Types ---
 
@@ -385,6 +386,9 @@ export default function (pi: ExtensionAPI) {
 
   // --- b-grill-auto ---
   wireGrillAuto(pi);
+
+  // --- grill-me dialog ---
+  wireGrillDialog(pi);
 
   // --- Plan Mode ---
 

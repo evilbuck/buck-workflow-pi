@@ -1,5 +1,6 @@
 # Memory Index
 
+- 2026-05-08 | `grillney-doc-plan-2026-05-08.md` | domains: [tooling, skills, pi-extension, grilling] | topics: [grillney-doc, pi-extension, pi-skill, tui, markdown-document, grilling, selectlist, custom-tool, sidecar-state, grill-me_dialog] | status: active
 - 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, skills, extension, rpc, typescript] | topics: [b-grill-auto, pi-rpc, openai-codex-gpt-5.4, model-orchestration, ts-extension, rpc-harness, command-registration] | status: active
 - 2026-05-07 | `2026-05-07.b-present-skill/b-present-skill-2026-05-07.md` | domains: [tooling, skills, buck-workflow, presentation] | topics: [b-present, revealjs, mermaid, slide-deck, architecture-diagrams] | status: active
 - 2026-05-07 | `web-images-skill-2026-05-07.md` | domains: [tooling, skills, image-editing, chezmoi] | topics: [web-images, imagemagick, pi-skill, image-optimization] | status: active
