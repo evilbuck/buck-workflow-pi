@@ -54,13 +54,14 @@
 ## High Priority
 
 - [ ] [Fix QMD index crash on vault files with non-handlelizable filenames](#fix-qmd-index-crash)
-- [ ] [Test discrete phase files with real phased plan via /skill:b-phase](#test-b-phase-discrete)
-- [ ] [Run b-review to validate b-phase discrete files changes](#b-review-b-phase)
+- [ ] [Test b-present with a real single-file plan](#test-b-present-single-plan)
+- [ ] [Test b-present with a phased plan for diagram and phase slides](#test-b-present-phased-plan)
 
 ## Nice to Have (Deferred)
 
 - [ ] [Add tests for findActivePhaseDiscrete and findActivePhaseLegacy](#test-phase-finders)
 - [ ] [Add tests for extensions/tmux-window-status.ts in CI](#test-tmux-extension)
+- [ ] [Add scripts helper to auto-open b-present HTML or serve via HTTP server](#b-present-scripts-helper)
 
 ## Medium Priority
 
@@ -78,3 +79,24 @@
 - [x] Remove deprecated `memory-manager` skill from package — deleted `skills/memory-manager/`, removed from README (2026-04-16)
 - [x] Clean Discoverability section — removed OpenCode-specific subagent/primary agent references (2026-04-16)
 - [x] **ghostty-shift-enter** — commented out Omarchy default `keybind = shift+enter=text:\u001b[13;2u` in Ghostty config; conflicted with native Kitty keyboard protocol that pi enables on startup (2026-04-17)
+- [x] **b-review-b-phase** — validated discrete phase file changes across skill, prompts, extension, and docs; confirmed backwards compat with legacy format, phase state updates, and extension dual-path logic (2026-05-07)
+
+## b-present Skill
+
+### test-b-present-single-plan
+**Description**: Test `/b-present` against a real single-file plan to verify Reveal.js HTML generation, Mermaid diagrams, and slide structure.
+**Context**:
+- Relevant files: `skills/b-present/SKILL.md`, `skills/b-present/references/revealjs-templates.md`
+- Verification steps: create a test plan in a subject folder, run `/b-present`, open generated HTML in browser, verify slides + diagrams render, speaker notes work, keyboard navigation works
+
+### test-b-present-phased-plan
+**Description**: Test `/b-present` against a phased plan to verify phase overview slides, dependency diagram, and per-phase detail slides.
+**Context**:
+- Relevant files: `skills/b-present/SKILL.md` (phased plan section mapping)
+- Verification steps: use an existing phased plan, run `/b-present`, verify phase summary table, dependency flowchart, and acceptance criteria appear correctly
+
+### b-present-scripts-helper
+**Description**: Add a `scripts/` helper to the b-present skill that auto-opens the generated HTML in a browser (e.g., via `open`/`xdg-open`) and optionally serves it via a local HTTP server.
+**Context**:
+- Relevant files: `skills/b-present/scripts/`
+- Optional: integrate with `run-in-idle-pane` for serving the presentation

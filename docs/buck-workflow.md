@@ -218,7 +218,7 @@ flowchart TD
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
-| [**b-present**](#b-present--plan-presentation) | Prompt template | `/b-present` | `prompts/b-present.md` | Generate HTML presentation from plan |
+| [**b-present**](#b-present--slide-deck-presentation) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate Reveal.js slide deck from plan/phase/brainstorm/spec |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
@@ -506,35 +506,44 @@ This works even with zero conversation history — a cold-start agent gets full 
 
 ---
 
-#### `/b-present` — Plan Presentation
+#### `/b-present` — Slide Deck Presentation
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Generate a human-friendly HTML presentation from an existing plan for stakeholder review or handoff.
+**Purpose**: Generate a Reveal.js slide deck from plans, phases, brainstorms, or specs. Includes Mermaid diagrams for architecture overviews, system flows, and request routing.
 
-**Pi primitive**: Prompt template (`prompts/b-present.md`)
+**Pi primitives**: Prompt template (`prompts/b-present.md`) + Skill (`skills/b-present/SKILL.md`)
+
+**Supported Sources**:
+- Plans (`plan-*.md`)
+- Phased plans (`plan-*-phases.md` + `phase-N-*.md`)
+- Brainstorms (`brainstorm-*.md`)
+- Specs (`spec-*.md`)
+- Grill sessions (`grill-session-*.md`)
 
 **Input Resolution Order**:
-1. Explicit plan path argument
-2. Active subject folder plan
-3. Newest `plan-*.md` in subject folders
-4. Fail with clear error if no plan found
+1. Explicit path argument
+2. Phased plan overview
+3. Single plan in active subject folder
+4. Brainstorm output
+5. Spec
+6. Newest artifact in subject folders
+7. Fail with clear error if nothing found
 
 **Output Location**:
 ```
 .context/YYYY-MM-DD.<subject>/
-└── <plan-slug>-presentation/
-    ├── index.html
-    ├── styles.css
-    ├── app.js
-    └── presentation.json
+└── presentations/
+    └── <slug>-presentation.html
 ```
 
-**Presentation Structure**:
-- Sticky sidebar with anchor navigation
-- Sections: Overview, Why This Matters, Scope, Affected Files, Implementation Plan, Risks, Verification, Next Step
-- Mermaid diagrams (embedded) where appropriate
-- Desktop-first, document-style (not slides)
+**Presentation Features**:
+- Reveal.js slide deck (keyboard-navigable, presenter mode with `S` key)
+- Mermaid diagrams: architecture, data flow, request routing, phase dependencies
+- Fragment animations for step-by-step reveals
+- Speaker notes on diagram and complex slides
+- Dark theme by default, self-contained HTML (works from `file://`)
+- PDF exportable (via browser print)
 
 **Typical Next Step**: `/b-review` for stakeholder sign-off, `/b-build` after approval
 

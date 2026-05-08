@@ -142,7 +142,11 @@
     ".context/2026-05-07.web-images-skill/research-cli-image-tools.md",
     ".context/2026-05-07.web-images-skill/plan-web-images-skill.md",
     ".context/memory/web-images-skill-2026-05-07.md",
-    ".context/2026-05-07.tmux-window-name-bug/draft-commit.md"
+    ".context/2026-05-07.tmux-window-name-bug/draft-commit.md",
+    "skills/b-present/SKILL.md",
+    "skills/b-present/references/revealjs-templates.md",
+    ".context/memory/b-present-skill-2026-05-07.md",
+    ".context/2026-05-07.b-present-skill/b-present-skill-2026-05-07.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,
