@@ -36,7 +36,7 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands:
 | `/b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-research` | Explore code, trace architecture, capture findings |
 | `/b-plan` | Create bounded implementation plan with scope and risks |
-| `/b-present` | Generate HTML presentation from a plan |
+| `/b-present` | Generate async-readable presentation package from plan/phase/brainstorm/spec |
 | `/b-build` | Standard implementation — smallest safe code change |
 | `/b-build-hard` | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | Quick follow-up fixes, polish, review-loop edits |

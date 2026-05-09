@@ -109,6 +109,30 @@
     {
       "command": "b-build",
       "at": "2026-05-08T21:55:42.837Z"
+    },
+    {
+      "command": "b-brainstorm",
+      "at": "2026-05-09T13:33:39.279Z"
+    },
+    {
+      "command": "b-plan",
+      "at": "2026-05-09T14:29:16.273Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-09T14:54:04.978Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-09T15:07:05.006Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-09T15:09:20.544Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-09T15:11:38.819Z"
     }
   ],
   "implementation_happened": true,
@@ -229,7 +253,16 @@
     "extensions/b-flow/__tests__/guards.test.ts",
     "tsconfig.json",
     ".context/memory/b-flow-mvp-2026-05-09.md",
-    ".context/backlog/archive/2026-05/phase-1-foundation-types-bflow.md"
+    ".context/backlog/archive/2026-05/phase-1-foundation-types-bflow.md",
+    "CONTEXT.md",
+    ".context/memory/b-present-grill-with-docs-2026-05-09.md",
+    ".context/2026-05-07.b-present-skill/grill-session-b-present-presentation-package.md",
+    ".context/2026-05-07.b-present-skill/plan-b-present-rewrite.md",
+    "skills/b-present/references/briefing-package-patterns.md",
+    "README.md",
+    ".context/memory/b-present-rewrite-build-2026-05-09.md",
+    ".context/2026-05-07.b-present-skill/draft-commit.md",
+    ".context/2026-05-07.b-present-skill/iterate-b-present-rewrite.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,

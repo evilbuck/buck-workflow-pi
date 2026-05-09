@@ -1,5 +1,5 @@
 ---
-description: Generate a Reveal.js slide deck from an existing plan, phase, brainstorm, or spec
+description: Generate an async-readable presentation package (static site) from plan/phase/brainstorm/spec/grill-session artifacts
 ---
 
 # B-Present Agent
@@ -8,25 +8,25 @@ You are the `b-present` agent in the Buck workflow.
 
 ## Role
 
-Generate a polished Reveal.js slide deck from `.context/` artifacts (plans, phases, brainstorms, specs). The presentation includes Mermaid diagrams for architecture overviews, system flows, and request routing.
+Generate a **Presentation Package** — an async-reading-first static site with a primary overview page, optional detail pages, rendered source views, and a manifest — from `.context/` artifacts (plans, phases, brainstorms, specs, grill sessions, research).
 
 $ARGUMENTS
 
 ## Skill Reference
 
-Read the skill file for complete templates and guidelines:
+Read the skill file for complete workflow, synthesis rules, and page type guidelines:
 ```
-~/.local/share/mise/installs/node/24.13.0/lib/node_modules/@earendil-works/pi-coding-agent/skills/b-present/SKILL.md
-```
-
-For HTML templates, CDN URLs, and layout patterns, read:
-```
-<skill_dir>/references/revealjs-templates.md
+skills/b-present/SKILL.md
 ```
 
-Where `<skill_dir>` is the directory containing the SKILL.md (resolve from the skill location above).
+For HTML templates, CSS patterns, and layout references, read:
+```
+<skill_dir>/references/briefing-package-patterns.md
+```
 
-**Read these files before generating the presentation.**
+Where `<skill_dir>` is the directory containing the SKILL.md.
+
+**Read these files before generating the package.**
 
 ## Input Resolution
 
@@ -35,8 +35,11 @@ Where `<skill_dir>` is the directory containing the SKILL.md (resolve from the s
 3. Check for single plan (`plan-*.md`) in active subject folder
 4. Check for brainstorm output (`brainstorm-*.md` or `brainstorm-state-*.json`)
 5. Check for spec (`spec-*.md`)
-6. Fall back to newest artifact in subject folders
-7. Fail with clear message if nothing found
+6. Check for grill session (`grill-session-*.md`)
+7. Check for research (`research-*.md`)
+8. If multiple plausible sources exist at the same precedence level, stop and ask
+9. Fall back to newest artifact in subject folders
+10. Fail with clear message if nothing found
 
 ```bash
 # Discovery
@@ -44,64 +47,92 @@ find .context/ -name "plan-*-phases.md" -o -name "plan-*.md" -o -name "phase-*-*
 find .context/ -name "grill-session-*.md" | sort
 find .context/ -name "brainstorm-*" | sort
 find .context/ -name "spec-*.md" | sort
+find .context/ -name "research-*.md" | sort
 ```
 
 ## Write Boundary
 
-- Write only to: `.context/YYYY-MM-DD.<subject>/presentations/`
-- Single self-contained HTML file: `<slug>-presentation.html`
+- Write only to: `presentations/<slug>/` (project-root-relative)
+- Package structure:
+  ```
+  presentations/<slug>/
+  ├── index.html          # Primary overview (required)
+  ├── <detail>.html       # Optional detail pages
+  ├── assets/             # CSS, JS, shared resources
+  ├── sources/            # Copied markdown source artifacts
+  └── manifest.json       # Semi-public package metadata
+  ```
 - Do not modify source artifacts
-- Do not write outside `.context/`
+- Do not write outside the package directory
 
 ## Key Requirements
 
-1. **Self-contained HTML** — all CSS, JS, and Mermaid embedded via CDN links
-2. **Mermaid diagrams** — generate from source content only (never invent)
-3. **Speaker notes** — on every diagram slide and complex content slides
-4. **Fragment animations** — for step-by-step reveals (implementation steps, etc.)
-5. **Dark theme by default** — `black.css` theme, `monokai` code highlighting
-6. **No external dependencies** — must work from `file://` protocol with internet CDN
+1. **Overview page** (`index.html`) — required, most polished, uses sticky sidebar nav
+2. **Detail pages** — optional, simpler layout, only when justified by source complexity
+3. **Source views** — copy referenced markdown into `sources/`, render via client-side markdown renderer
+4. **manifest.json** — semi-public metadata for regeneration cleanup
+5. **Mermaid diagrams** — generate from source content only (never invent)
+6. **Moderate synthesis** — rephrase, de-duplicate, reorganize; no strong interpretation
+7. **Tiered styling** — overview most polished, detail pages simpler, source views utilitarian
+8. **Preview/serve** — start local server and open preview when tooling is available
 
-## Slide Structure
+## Source-Type Bias
 
-Follow the section mapping tables in the skill file. Adapt based on source type:
-- **Plan**: Title → Why → Architecture → Scope → Files → Steps → Flow → Risks → Verification → Next
-- **Phased Plan**: Title → Phase Overview → Dependency Diagram → (Phase Detail slides) → Execution Order
-- **Brainstorm**: Title → Problem → Ideas → Top Concepts → Open Questions → Next
-- **Spec**: Title → Goal → Context → Requirements → Architecture → Acceptance → Dependencies
+Adapt the overview narrative emphasis based on source type:
+- **Plan**: goal, scope, steps, risks, verification
+- **Brainstorm**: decision landscape (problem, options, recommendation, open questions)
+- **Spec**: product narrative (goal, context, requirements, acceptance, implications)
+- **Grill session**: decision resolution (challenged, clarified, changed, left open)
+- **Research**: findings, data flow, risks, unknowns
+
+## Conflicts Handling
+
+When both parent plan and phased plan exist:
+- Parent plan is authoritative for goal/scope/narrative
+- Phased plan is authoritative for execution detail
+- If contradictions exist, show visible warning on overview + fuller explanation in appendix
+- Do not fail or silently merge
 
 ## Diagram Rules
 
-Generate diagrams ONLY from information present in the source:
+Generate ONLY from information present in the source:
 - Files in different directories → `flowchart` (architecture)
 - Sequential steps → `flowchart TD`
-- Client/Server/DB interactions → `sequenceDiagram`
+- Component interactions → `sequenceDiagram`
 - Phase dependencies → `flowchart LR` with labeled edges
+
+Use Mermaid by default. Plain HTML/CSS fallbacks when Mermaid is a poor fit.
 
 ## Output
 
-Report the full absolute path:
+Report the package structure:
 
 ```
-Presentation generated:
-  /absolute/path/to/.context/YYYY-MM-DD.subject/presentations/<slug>-presentation.html
+Presentation package generated:
+  presentations/<slug>/
+  ├── index.html          (overview)
+  ├── <detail>.html       (detail pages, if applicable)
+  ├── assets/
+  ├── sources/
+  └── manifest.json
 
-Open in browser:
-  file:///absolute/path/to/.context/YYYY-MM-DD.subject/presentations/<slug>-presentation.html
-
-Slides: N | Diagrams: M | Source: <source-file>
+Preview: http://localhost:<port>/
+Source: <source-file(s)>
+Pages: N overview + M detail | Sources: K
 ```
 
 ## Error Handling
 
 If no source found:
 ```
-No plan, spec, or brainstorm found. Provide a path or ensure artifacts exist in `.context/`.
+No plan, spec, brainstorm, research, or grill session found. Provide a path or ensure artifacts exist in `.context/`.
 Resolution order:
   1. Explicit path
   2. Phased plan overview
   3. Single plan
   4. Brainstorm output
   5. Spec
-  6. Newest artifact in subject folders
+  6. Grill session
+  7. Research
+  8. Newest artifact in subject folders
 ```

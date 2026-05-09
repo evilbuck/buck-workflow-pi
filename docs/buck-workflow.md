@@ -218,7 +218,7 @@ flowchart TD
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
-| [**b-present**](#b-present--slide-deck-presentation) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate Reveal.js slide deck from plan/phase/brainstorm/spec |
+| [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
@@ -506,11 +506,11 @@ This works even with zero conversation history — a cold-start agent gets full 
 
 ---
 
-#### `/b-present` — Slide Deck Presentation
+#### `/b-present` — Presentation Package
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Generate a Reveal.js slide deck from plans, phases, brainstorms, or specs. Includes Mermaid diagrams for architecture overviews, system flows, and request routing.
+**Purpose**: Generate an async-reading-first presentation package (small static site) from plans, phases, brainstorms, specs, grill sessions, or research. The package includes a primary overview page, optional detail pages, rendered source views, and a manifest.
 
 **Pi primitives**: Prompt template (`prompts/b-present.md`) + Skill (`skills/b-present/SKILL.md`)
 
@@ -520,6 +520,7 @@ This works even with zero conversation history — a cold-start agent gets full 
 - Brainstorms (`brainstorm-*.md`)
 - Specs (`spec-*.md`)
 - Grill sessions (`grill-session-*.md`)
+- Research (`research-*.md`)
 
 **Input Resolution Order**:
 1. Explicit path argument
@@ -527,25 +528,41 @@ This works even with zero conversation history — a cold-start agent gets full 
 3. Single plan in active subject folder
 4. Brainstorm output
 5. Spec
-6. Newest artifact in subject folders
-7. Fail with clear error if nothing found
+6. Grill session
+7. Research
+8. If multiple plausible sources at same precedence, stop and ask
+9. Newest artifact in subject folders
+10. Fail with clear error if nothing found
 
 **Output Location**:
 ```
-.context/YYYY-MM-DD.<subject>/
-└── presentations/
-    └── <slug>-presentation.html
+presentations/<slug>/
+├── index.html          # Primary overview (required)
+├── architecture.html   # Optional detail page
+├── phases.html         # Optional detail page
+├── verification.html   # Optional detail page
+├── appendix.html       # Optional detail page
+├── assets/             # CSS, JS, shared resources
+├── sources/            # Copied markdown source artifacts
+└── manifest.json       # Semi-public package metadata
 ```
 
-**Presentation Features**:
-- Reveal.js slide deck (keyboard-navigable, presenter mode with `S` key)
-- Mermaid diagrams: architecture, data flow, request routing, phase dependencies
-- Fragment animations for step-by-step reveals
-- Speaker notes on diagram and complex slides
-- Dark theme by default, self-contained HTML (works from `file://`)
-- PDF exportable (via browser print)
+**Package Features**:
+- Primary overview page with sticky sidebar navigation (responsive)
+- Optional detail pages for phases, architecture, verification, or appendix
+- Rendered source views via client-side markdown renderer
+- Mermaid diagrams generated from source content (never invented)
+- Tiered styling: overview most polished, detail pages simpler, source views utilitarian
+- manifest.json for regeneration cleanup
+- Local preview server started automatically
 
-**Typical Next Step**: `/b-review` for stakeholder sign-off, `/b-build` after approval
+**Detail Page Rules**:
+- `phases.html` — when phased plan adds significant detail or complexity would clutter overview
+- `architecture.html` — when architecture needs more than a compact overview
+- `verification.html` — when detailed checks would distract from main narrative
+- `appendix.html` — non-essential supporting material, never core narrative
+
+**Typical Next Step**: `/b-review` for accuracy review, `/b-build` after approval
 
 #### Session-scoped model persistence
 

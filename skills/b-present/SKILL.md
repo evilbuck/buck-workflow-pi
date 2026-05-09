@@ -1,18 +1,18 @@
 ---
 name: b-present
-description: Generate a Reveal.js slide deck from plans, phases, brainstorms, specs, or other .context/ artifacts. Produces a self-contained HTML presentation with Mermaid diagrams for architecture overviews, system flows, and request routing. Use after b-plan, b-phase, or b-brainstorm to create shareable human-readable presentations. Trigger with /b-present or /skill:b-present.
+description: Generate an async-readable presentation package (static site) from plan/phase/brainstorm/spec/grill-session artifacts. Produces a primary overview page, optional detail pages, source views, and a manifest. Use after b-plan, b-phase, b-brainstorm, or b-research to create shareable briefing packages. Trigger with /b-present or /skill:b-present.
 ---
 
-# b-present: Context-to-Presentation
+# b-present: Context-to-Presentation-Package
 
-Transform `.context/` artifacts (plans, phases, brainstorms, specs) into a polished Reveal.js slide deck with Mermaid diagrams. Present architecture overviews, system flows, request routing, and implementation plans as navigable HTML slides.
+Transform `.context/` artifacts (plans, phases, brainstorms, specs, grill sessions) into an async-reading-first **Presentation Package** — a small static site with a primary overview page, optional detail pages, rendered source views, and a manifest.
 
 ## When to Use
 
-- After `b-plan` or `b-phase` — share the plan visually
-- After `b-brainstorm` — present the brainstorm output
-- When someone asks "can you present this?" or "make slides from this plan?"
-- When you need to communicate architecture/system design to stakeholders
+- After `b-plan` or `b-phase` — generate a briefing package for review
+- After `b-brainstorm` — present brainstorm findings
+- After `b-research` — share research output as a readable package
+- When someone asks "can you present this?" or "make a briefing from this plan?"
 - Explicitly via `/b-present` or `/skill:b-present`
 
 ## Input Resolution
@@ -23,362 +23,257 @@ Transform `.context/` artifacts (plans, phases, brainstorms, specs) into a polis
 4. **Brainstorm** → `brainstorm-*.md` or brainstorm state JSON in subject folder
 5. **Spec** → `spec-*.md` in subject folders
 6. **Grill session** → `grill-session-*.md` in subject folder (present findings/decisions)
-7. Fail with clear message if nothing found
+7. **Research** → `research-*.md` in subject folders
+8. If multiple plausible sources exist at the same precedence level, **stop and ask the user**
+9. Fall back to newest artifact in subject folders
+10. Fail with clear message if nothing found
 
 ```bash
 # Discovery commands
-ls -lt .context/*.* 2>/dev/null
 find .context/ -name "plan-*.md" -o -name "plan-*-phases.md" -o -name "phase-*-*.md" | sort
 find .context/ -name "grill-session-*.md" | sort
 find .context/ -name "brainstorm-*" | sort
 find .context/ -name "spec-*.md" | sort
+find .context/ -name "research-*.md" | sort
 ```
 
 ## Write Boundary
 
-- Write only to: `.context/YYYY-MM-DD.<subject>/presentations/`
+- Write only to: `presentations/<slug>/` (project-root-relative)
+- Package-local `assets/`, `sources/`, and `manifest.json`
 - Do not modify source artifacts
-- Do not write outside `.context/`
+- Do not write outside the package directory
+- Packages are disposable generated output — not intended for hand-editing
 
 ## Output Structure
 
 ```
-.context/YYYY-MM-DD.<subject>/presentations/
-└── <slug>-presentation.html    # Self-contained single file
+presentations/<slug>/
+├── index.html          # Primary overview presentation (required)
+├── architecture.html   # Optional detail page
+├── phases.html         # Optional detail page
+├── verification.html   # Optional detail page
+├── appendix.html       # Optional detail page
+├── assets/
+│   ├── styles.css      # Shared stylesheet
+│   └── render-md.js    # Client-side markdown renderer
+├── sources/            # Copied markdown source artifacts
+│   └── <source>.md
+└── manifest.json       # Semi-public package metadata
 ```
 
-**One HTML file** — everything embedded (CSS, JS, Mermaid, speaker notes). No network required after first load.
-
-## Slide Deck Structure
-
-### Section Mapping by Source Type
-
-The slide structure adapts to the source artifact:
-
-#### Plan → Slides
-
-| Slide | Content | Visual Treatment |
-|-------|---------|-----------------|
-| **Title** | Plan goal, date, subject | Large centered text, `r-fit-text` |
-| **Why** | Motivation, context, background | Bullet points with key phrases highlighted |
-| **Architecture Overview** | High-level system diagram | Mermaid flowchart (inferred from files/steps) |
-| **Scope** | In-scope / out-of-scope | Two-column layout |
-| **Affected Files** | Files with descriptions | Compact list with directory grouping |
-| **Implementation Steps** | Numbered steps from plan | One step per sub-slide (vertical), or fragments |
-| **Data Flow** | How data moves through the system | Mermaid sequence/flowchart |
-| **Risks & Unknowns** | Identified risks | Warning-styled cards |
-| **Verification** | Acceptance criteria | Checklist with ✓/✗ indicators |
-| **Next Steps** | Recommended follow-up | Linked to next Buck workflow step |
-
-#### Phased Plan → Slides
-
-| Slide | Content |
-|-------|---------|
-| **Title** | Plan name, total phases, difficulty mix |
-| **Phase Overview** | Summary table (phase, status, difficulty) |
-| **Dependency Diagram** | Mermaid graph of phase dependencies |
-| **Phase N Detail** (repeated) | Goal, files, implementation, acceptance criteria |
-| **Execution Order** | Timeline/sequence of phases |
-| **Parallel Opportunities** | Which phases can run concurrently |
-
-#### Brainstorm → Slides
-
-| Slide | Content |
-|-------|---------|
-| **Title** | Topic, date |
-| **Problem Statement** | What was brainstormed |
-| **Ideas Generated** | Key ideas as cards/bullets |
-| **Top Concepts** | Expanded detail on strongest ideas |
-| **Open Questions** | Unresolved areas |
-| **Next Steps** | Recommended follow-up (e.g., `/b-plan`) |
-
-#### Spec → Slides
-
-| Slide | Content |
-|-------|---------|
-| **Title** | Spec name, type (epic/PRD/milestone) |
-| **Goal** | One-sentence objective |
-| **Context** | Why this spec exists |
-| **Requirements** | Must-have / should-have split |
-| **Architecture** | System diagram from requirements |
-| **Acceptance Criteria** | Checkable outcomes |
-| **Implementation Plans** | Linked plan files |
-| **Dependencies** | Other specs/packages needed |
-
-## Diagram Generation Rules
-
-Generate Mermaid diagrams ONLY from information present in the source artifacts. Do not invent relationships, services, or data flows.
-
-### When to Generate Diagrams
-
-Generate a diagram when the source contains:
-- **Multiple files/directories** that interact → `flowchart`
-- **Steps in a sequence** (implementation plan, request flow) → `flowchart LR` or `sequenceDiagram`
-- **System boundaries or services** mentioned → `flowchart` with subgraphs
-- **Phase dependencies** → `flowchart` with labeled edges
-- **User/stakeholder interactions** → `sequenceDiagram`
-
-### Diagram Types
-
-| Source Pattern | Mermaid Type | Example |
-|---------------|-------------|---------|
-| Files in different directories | `flowchart LR` | `src/api/ --> src/services/ --> src/db/` |
-| Steps 1→2→3→4 | `flowchart TD` | Sequential flow top-down |
-| Client → Server → DB | `sequenceDiagram` | Request routing |
-| Services within boundaries | `flowchart` + `subgraph` | Architecture overview |
-| Phase dependencies | `flowchart LR` | `Phase1 -->|HARD| Phase2 -->|SOFT| Phase3` |
-
-### Mermaid in Reveal.js
-
-Use the `reveal.js-mermaid-plugin`. Diagram markup goes inside `<div class="mermaid">`:
-
-```html
-<section>
-  <h3>Architecture Overview</h3>
-  <div class="mermaid">
-    flowchart LR
-      Client --> API --> Service --> DB
-  </div>
-</section>
-```
-
-For dark themes, add Mermaid init:
-```
-%%{init: {'theme': 'dark', 'themeVariables': { 'darkMode': true }}}%%
-```
-
-## HTML Template
-
-Read `references/revealjs-templates.md` in this skill directory for:
-- CDN URLs (Reveal.js 5.x from jsdelivr, Mermaid plugin)
-- Complete HTML boilerplate
-- Slide layout patterns (two-column, code blocks, diagrams, fragments)
-- Theme configuration
-
-## Slide Layout Patterns
-
-### Title Slide
-```html
-<section>
-  <h2 class="r-fit-text">Plan Title</h2>
-  <p><small>Subject: YYYY-MM-DD.topic • Date</small></p>
-</section>
-```
-
-### Two-Column (Scope)
-```html
-<section>
-  <h3>Scope</h3>
-  <div style="display: flex; gap: 2rem;">
-    <div style="flex: 1;">
-      <h4>✅ In Scope</h4>
-      <ul><li>Item 1</li><li>Item 2</li></ul>
-    </div>
-    <div style="flex: 1;">
-      <h4>❌ Out of Scope</h4>
-      <ul><li>Item 3</li><li>Item 4</li></ul>
-    </div>
-  </div>
-</section>
-```
-
-### Step-by-Step with Fragments
-```html
-<section>
-  <h3>Implementation Steps</h3>
-  <ol>
-    <li class="fragment">Create database schema</li>
-    <li class="fragment">Implement API endpoints</li>
-    <li class="fragment">Build frontend components</li>
-    <li class="fragment">Write integration tests</li>
-  </ol>
-</section>
-```
-
-### Architecture Diagram
-```html
-<section>
-  <h3>System Architecture</h3>
-  <div class="mermaid" style="font-size: 0.7em;">
-    %%{init: {'theme': 'dark'}}%%
-    flowchart LR
-      subgraph Client
-        A[React App]
-      end
-      subgraph Server
-        B[API Gateway]
-        C[Auth Service]
-        D[Business Logic]
-      end
-      subgraph Data
-        E[(PostgreSQL)]
-        F[(Redis Cache)]
-      end
-      A --> B --> C --> D --> E
-      D --> F
-  </div>
-</section>
-```
-
-### Request Flow (Sequence Diagram)
-```html
-<section>
-  <h3>Request Flow</h3>
-  <div class="mermaid" style="font-size: 0.7em;">
-    sequenceDiagram
-      participant C as Client
-      participant A as API
-      participant S as Service
-      participant D as Database
-      C->>A: POST /api/orders
-      A->>A: Validate & Auth
-      A->>S: createOrder(data)
-      S->>D: INSERT order
-      D-->>S: order_id
-      S-->>A: Order created
-      A-->>C: 201 Created
-  </div>
-</section>
-```
-
-### Phase Overview Table
-```html
-<section>
-  <h3>Phase Summary</h3>
-  <table>
-    <thead>
-      <tr><th>Phase</th><th>Status</th><th>Difficulty</th><th>Key Files</th></tr>
-    </thead>
-    <tbody>
-      <tr><td>1: Schema</td><td>⬜ Pending</td><td>Medium</td><td>db/migrations/</td></tr>
-      <tr><td>2: API</td><td>⬜ Pending</td><td>Medium</td><td>src/api/</td></tr>
-      <tr><td>3: Frontend</td><td>⬜ Pending</td><td>Hard</td><td>src/components/</td></tr>
-    </tbody>
-  </table>
-</section>
-```
-
-## Speaker Notes
-
-Add `<aside class="notes">` to slides that benefit from presenter context:
-
-```html
-<section>
-  <h3>Architecture</h3>
-  <div class="mermaid">...</div>
-  <aside class="notes">
-    The API gateway handles rate limiting and auth before
-    routing to internal services. Redis cache reduces DB load
-    by ~60% for read-heavy endpoints.
-  </aside>
-</section>
-```
-
-**Guidelines for speaker notes:**
-- Add to every diagram slide explaining what the diagram shows
-- Add to complex slides with implementation details
-- Include non-obvious context (why, trade-offs, alternatives considered)
-- Keep concise — 1-3 sentences
-
-## Theme Selection
-
-Default: `black` (dark background, white text — good for diagrams and code).
-
-Available themes (via CDN):
-- `black` — dark, minimal (default)
-- `white` — light, clean
-- `league` — gray gradient
-- `sky` — blue gradient
-- `night` — dark with subtle gradient
-- `moon` — dark blue
-- `simple` — white with minimal chrome
-- `solarized` — solarized color scheme
-
-The user can request a theme. If the source artifact has a lot of code, `monokai` code theme pairs well with `black`.
-
-## Configuration Defaults
-
-```javascript
-Reveal.initialize({
-  controls: true,
-  progress: true,
-  center: true,
-  hash: true,
-  transition: 'slide',
-  backgroundTransition: 'fade',
-  width: 1280,
-  height: 720,
-  margin: 0.1,
-  plugins: [RevealMermaid, RevealNotes, RevealHighlight, RevealSearch]
-});
-```
-
-## Workflow
+## Package Generation Workflow
 
 ### Step 1: Discover Source
 
-Find the source artifact using the input resolution order above.
+Resolve the source artifact using the input resolution order.
 
 ### Step 2: Read and Parse
 
-Read the full source artifact. Extract:
+Read the full source artifact(s). Extract:
 - Frontmatter (status, date, subject, topics)
 - Structured sections (goal, scope, steps, files, risks, verification)
 - Phase data (if phased plan)
 - Dependencies and relationships
 
-If the source is a phased plan, also read:
-- The phases overview (`plan-*-phases.md`)
-- Each discrete phase file (`phase-N-*.md`)
+When **both parent plan and phased plan** exist:
+- Parent plan is authoritative for goal, scope, and narrative
+- Phased plan is authoritative for execution detail
+- Synthesize both — de-duplicate overlap
+- If contradictions exist, surface them (do not silently merge)
 
-### Step 3: Design Slide Structure
+### Step 3: Synthesize Overview Narrative
 
-Map the source sections to slides using the section mapping tables above.
+Use **moderate synthesis**: rephrase, de-duplicate, and reorganize for clarity without strong interpretation.
 
-**Slide count guidelines:**
-- Title + Why + 3-5 content slides + Next Steps = good range (6-8 slides)
-- For phased plans: Title + Overview + (2-3 slides per phase) + Execution Order = 8-15 slides
-- Maximum ~20 slides — if more, consolidate or use vertical sub-slides
-
-### Step 4: Generate Diagrams
-
-From the parsed content, determine which diagram types are appropriate:
-
-1. **Architecture overview** — always try to generate if files span multiple directories or services
-2. **Data/request flow** — generate if the plan describes interactions between components
-3. **Dependency diagram** — generate for phased plans with inter-phase dependencies
-4. **Sequence diagram** — generate if request routing or API calls are described
-
-### Step 5: Write Presentation
-
-Generate the self-contained HTML file following the template in `references/revealjs-templates.md`.
-
-### Step 6: Report Output
+The overview uses a **hybrid top-level skeleton** — labels and emphasis adapt by source type:
 
 ```
-Presentation generated:
-  /absolute/path/to/.context/YYYY-MM-DD.subject/presentations/<slug>-presentation.html
-
-Open in browser:
-  file:///absolute/path/to/.context/YYYY-MM-DD.subject/presentations/<slug>-presentation.html
-
-Slides: N | Diagrams: M | Source: plan-<topic>.md
+Title / Summary / Why / What Changes / How It Works / Delivery Shape / Risks & Conflicts / Sources
 ```
+
+**Source-type bias** (emphasis shifts, package model stays the same):
+
+| Source Type | Emphasis |
+|-------------|----------|
+| Plan | Goal, scope, steps, risks, verification |
+| Brainstorm | Decision landscape: problem, options, recommendation, open questions |
+| Spec | Product narrative: goal, context, requirements, acceptance, implications |
+| Grill session | Decision resolution: what was challenged, clarified, changed, left open |
+| Research | Findings, data flow, risks, unknowns, recommended next steps |
+
+**Conflicts section**: When parent/phase plans contradict, show a visible warning banner on the overview page with a concise summary. Fuller explanation goes in the appendix.
+
+**Open questions**: Include an `Open questions` section only when unresolved issues materially affect understanding or next decisions.
+
+### Step 4: Determine Detail Pages
+
+Create detail pages only when justified by source complexity:
+
+| Page | When to Create |
+|------|----------------|
+| `phases.html` | Phased plan adds significant new detail, or phase complexity would clutter the overview |
+| `architecture.html` | Architecture needs more than a compact overview diagram plus short explanation |
+| `verification.html` | Detailed checks or matrices would distract from the main narrative |
+| `appendix.html` | Non-essential but useful supporting material; never core narrative |
+
+### Step 5: Copy Source Markdown
+
+Copy **every** artifact directly used in the synthesis into `sources/`. This ensures source views match actual provenance.
+
+### Step 6: Generate manifest.json
+
+Generate a semi-public `manifest.json` with:
+```json
+{
+  "slug": "<slug>",
+  "title": "<title>",
+  "generated": "<ISO date>",
+  "sourceArtifacts": ["<paths>"],
+  "pages": [{"file": "...", "type": "overview|detail", "title": "..."}],
+  "sources": ["sources/<file>.md"]
+}
+```
+
+Use `manifest.json` on regeneration to remove stale files that are no longer needed.
+
+### Step 7: Serve/Preview
+
+Preview launching is part of the core `b-present` flow:
+- Start a local server from `presentations/<slug>/`
+- Auto-open or select a preview when tooling is available
+- Use this concrete fallback chain:
+  1. `npx --yes serve . -l 4321`
+  2. `python3 -m http.server 4321`
+  3. `python -m http.server 4321`
+  4. `php -S localhost:4321`
+  5. If no server is available, report the package path and tell the user to open `presentations/<slug>/index.html` manually
+- Prefer an available idle tmux pane for long-running preview servers when operating in an interactive terminal session
+
+## Overview Page Structure
+
+The overview page (`index.html`) uses a **product-brief feel** with **docs-like navigation**:
+
+- **Sticky sidebar** on wide screens with section anchor links
+- **Collapsible top nav** on narrow screens (responsive)
+- **Card links** to detail pages when they exist
+- **Mixed navigation** supporting non-linear async reading
+
+### Section Layout
+
+```
+┌─ Sidebar ──────────┐ ┌─ Main Content ─────────────────────┐
+│ Title              │ │                                    │
+│                    │ │ Title / Date / Subject             │
+│ Summary            │ │                                    │
+│ Why                │ │ [Conflict banner if applicable]    │
+│ What Changes       │ │                                    │
+│ How It Works       │ │ Summary                            │
+│ Delivery           │ │ Why                                │
+│ Risks & Conflicts  │ │ What Changes                       │
+│ Sources            │ │ How It Works (with diagrams)       │
+│                    │ │ Delivery Shape                     │
+│ Detail Pages:      │ │ Risks & Conflicts                  │
+│   → Phase Details  │ │ [Open Questions if applicable]     │
+│   → Architecture   │ │ Sources                            │
+└────────────────────┘ └────────────────────────────────────┘
+```
+
+## Detail Page Rules
+
+- Detail pages are **simpler** than the overview — no sidebar nav, just back-link + content
+- Each detail page focuses on **one concern** (phases, architecture, verification, or appendix)
+- Use the `detail-page` CSS layout class from the reference patterns
+- Always include a "← Back to overview" link
+
+## Source View Rules
+
+- Source links open rendered **source views** using a client-side markdown renderer
+- The renderer is for source views **only** — synthesized overview/detail pages remain authored HTML
+- Use `marked.js` from CDN or a simple regex-based renderer
+- Source views use a **utilitarian** visual style (monospace font, minimal styling)
+
+## Diagram Rules
+
+Generate diagrams **ONLY** from information present in the source artifacts. Never invent relationships, services, or data flows.
+
+### When to Generate
+
+Generate a diagram when the source contains:
+- Multiple files/directories that interact → `flowchart`
+- Steps in a sequence → `flowchart LR` or `flowchart TD`
+- System boundaries or services → `flowchart` with subgraphs
+- Phase dependencies → `flowchart` with labeled edges
+- User/stakeholder interactions → `sequenceDiagram`
+
+### Diagram Runtime
+
+- **Mermaid by default** — load from CDN
+- **Plain HTML/CSS fallbacks** when Mermaid is a poor fit (simple tables, lists)
+- Diagrams on the overview page: include as many as materially improve understanding
+- `architecture.html` serves as overflow/deep-dive when architectural explanation exceeds comfortable overview density
+
+```html
+<div class="mermaid-container">
+  <div class="mermaid">
+    flowchart LR
+      A[Component] --> B[Service] --> C[Data]
+  </div>
+</div>
+```
+
+## Visual System
+
+Styling is **tiered** across page types:
+
+| Page Type | Visual Polish |
+|-----------|---------------|
+| `index.html` (overview) | Most polished — sidebar nav, cards, badges |
+| Detail pages | Simpler — back-link + content |
+| Source views | Utilitarian — monospace, minimal |
+
+Use mostly **semantic HTML** by default. A lightweight no-build framework is allowed only when it meaningfully improves navigation or rendering. Do not lock in a specific framework.
+
+## HTML Templates
+
+Read `references/briefing-package-patterns.md` in this skill directory for:
+- Complete HTML boilerplate for overview, detail, and source pages
+- CSS custom properties and component patterns
+- Responsive navigation patterns
+- Mermaid embedding
+- Client-side markdown renderer
+- manifest.json schema
 
 ## Error Handling
 
-- **No source found**: "No plan, spec, or brainstorm found. Provide a path or ensure artifacts exist in `.context/`."
-- **Source malformed**: Generate what you can, note missing sections in speaker notes.
-- **Empty phases**: Skip phase detail slides, show overview only.
+- **No source found**: "No plan, spec, brainstorm, research, or grill session found. Provide a path or ensure artifacts exist in `.context/`."
+- **Source malformed**: Generate what you can, note missing sections in the output.
+- **Empty phases**: Skip phase detail pages, show overview only.
+- **Contradictory sources**: Generate output with a visible conflicts section; do not fail.
 
 ## Integration with Buck Workflow
 
 | Command | Relationship |
 |---------|-------------|
-| `/b-plan` | Primary input source for presentations |
-| `/b-phase` | Phased plans get dedicated phase slides |
-| `/b-brainstorm` | Brainstorm output becomes presentation |
-| `/b-build` | Can reference presentation for context during implementation |
-| `/b-review` | Review the presentation for accuracy before sharing |
+| `/b-plan` | Primary input source for presentation packages |
+| `/b-phase` | Phased plans may trigger phases detail page |
+| `/b-brainstorm` | Brainstorm output becomes a briefing package |
+| `/b-build` | Can reference package for context during implementation |
+| `/b-review` | Review the package for accuracy before sharing |
 
 **Typical flow**: `b-plan` → `b-present` → `b-build` (or `b-plan` → `b-phase` → `b-present` → `b-build`)
+
+## Output Report
+
+```
+Presentation package generated:
+  presentations/<slug>/
+  ├── index.html          (overview)
+  ├── phases.html         (detail, if applicable)
+  ├── assets/
+  ├── sources/
+  └── manifest.json
+
+Preview: http://localhost:<port>/
+Source: <source-file(s)>
+```
