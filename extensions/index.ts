@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { wire as wireTmuxStatus } from "./tmux-window-status.js";
 import { wire as wireGrillAuto } from "./b-grill-auto/index.js";
 import { wire as wireGrillDialog } from "./grill-me-dialog.js";
+import { wire as wireBFlow } from "./b-flow/index.js";
 
 // --- Types ---
 
@@ -389,6 +390,9 @@ export default function (pi: ExtensionAPI) {
 
   // --- grill-me dialog ---
   wireGrillDialog(pi);
+
+  // --- b-flow orchestration ---
+  wireBFlow(pi);
 
   // --- Plan Mode ---
 

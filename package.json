@@ -18,11 +18,15 @@
       "./skills"
     ]
   },
+  "dependencies": {
+    "xstate": "^5.0.0"
+  },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
   "devDependencies": {
+    "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   }
 }
