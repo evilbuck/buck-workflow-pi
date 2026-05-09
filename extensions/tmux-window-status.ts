@@ -169,12 +169,19 @@ export class TmuxAdapter implements StatusDisplay {
 
   init(): void {
     if (!this.inTmux) return;
+    // Use TMUX_PANE to target the specific pane running this process.
+    // Without this, commands operate on the active tmux pane, causing
+    // multi-session setups (multiple windows) to read/rename the wrong window.
+    const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
     try {
-      let name = execSync("tmux display-message -p '#{window_name}'", {
-        encoding: "utf-8",
-        stdio: ["ignore", "pipe", "ignore"],
-        timeout: 2000,
-      }).trim();
+      let name = execSync(
+        `tmux display-message -p '#{window_name}' ${paneFlag}`,
+        {
+          encoding: "utf-8",
+          stdio: ["ignore", "pipe", "ignore"],
+          timeout: 2000,
+        },
+      ).trim();
       // Strip any previously appended status icons so they don't stack
       name = name.replace(ICON_SUFFIX_RE, "");
       this.savedName = name;
@@ -186,10 +193,11 @@ export class TmuxAdapter implements StatusDisplay {
 
   show(status: Status): void {
     if (!this.inTmux) return;
+    const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
     const base = this.savedName ?? "pi";
     const name = `${base} ${STATUS_ICONS[status]}`;
     try {
-      execSync(`tmux rename-window -- "${name}"`, {
+      execSync(`tmux rename-window ${paneFlag} -- "${name}"`, {
         stdio: "ignore",
         timeout: 2000,
       });
@@ -200,9 +208,10 @@ export class TmuxAdapter implements StatusDisplay {
 
   clear(): void {
     if (!this.inTmux) return;
+    const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
     const name = this.savedName ?? "pi";
     try {
-      execSync(`tmux rename-window -- "${name}"`, {
+      execSync(`tmux rename-window ${paneFlag} -- "${name}"`, {
         stdio: "ignore",
         timeout: 2000,
       });
@@ -213,9 +222,10 @@ export class TmuxAdapter implements StatusDisplay {
 
   teardown(): void {
     if (!this.inTmux) return;
+    const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
     if (this.savedName !== null) {
       try {
-        execSync(`tmux rename-window -- "${this.savedName}"`, {
+        execSync(`tmux rename-window ${paneFlag} -- "${this.savedName}"`, {
           stdio: "ignore",
           timeout: 2000,
         });
