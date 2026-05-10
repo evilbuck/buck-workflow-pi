@@ -234,10 +234,14 @@ async function readGitContext(
     return new Promise((resolve) => {
       const child = spawn(cmd, args, { cwd: projectRoot });
       let out = "";
+      const timer = setTimeout(() => {
+        child.kill();
+        resolve("");
+      }, 10_000);
       child.stdout?.on("data", (d) => { out += d; });
       child.stderr?.on("data", () => { /* ignore */ });
-      child.on("close", () => resolve(out.trim()));
-      child.on("error", () => resolve(""));
+      child.on("close", () => { clearTimeout(timer); resolve(out.trim()); });
+      child.on("error", () => { clearTimeout(timer); resolve(""); });
     });
   }
 

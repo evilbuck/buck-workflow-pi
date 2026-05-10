@@ -157,16 +157,14 @@ export function wire(api: ExtensionAPI): void {
     },
   });
 
-  // --- Lifecycle: restore on session start if snapshot exists ---
+  // --- Lifecycle: note active session on startup ---
+  // We intentionally do NOT call ensureActor() here because restoring from
+  // a persisted snapshot and calling .start() re-invokes the state's invoke
+  // actors (e.g. scanContext in "recovering"), which spawns git child
+  // processes and can hang. The actor is lazily created on first command.
 
   api.on("session_start", async (_event, ctx) => {
     projectRoot = ctx.cwd;
-
-    // Auto-restore non-terminal sessions
-    const projection = readProjection(projectRoot);
-    if (projection && projection.currentState !== "idle" && projection.currentState !== "done" && projection.currentState !== "aborted") {
-      ensureActor();
-    }
   });
 
   // --- Compaction hook ---
