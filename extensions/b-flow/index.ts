@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { createActor } from "xstate";
 import { createBuckMachine } from "./machine.js";
-import { readProjection } from "./persistence.js";
+import { readProjection, readSnapshot, writeProjection, writeSnapshot } from "./persistence.js";
 import type { BuckActor } from "./machine.js";
 import { confirmTransition } from "./ui.js";
 
@@ -23,12 +23,34 @@ function setMode(mode: { mode: "guided" | "autonomous"; skipSafeTransitions: boo
 
 export function wire(api: ExtensionAPI): void {
   let actor: BuckActor | null = null;
+  let actorSubscription: { unsubscribe: () => void } | null = null;
   let projectRoot = "";
+
+  function persistActor(current: BuckActor): void {
+    try {
+      const snapshot = current.getSnapshot();
+      writeProjection(projectRoot, snapshot.context.projection);
+      writeSnapshot(projectRoot, current.getPersistedSnapshot());
+    } catch (err) {
+      console.error("[b-flow] Failed to persist actor snapshot:", err);
+    }
+  }
+
+  function clearActor(): void {
+    actorSubscription?.unsubscribe();
+    actorSubscription = null;
+    actor = null;
+  }
 
   function ensureActor(): BuckActor {
     if (!actor) {
-      actor = createActor(createBuckMachine(projectRoot));
+      const persistedSnapshot = readSnapshot(projectRoot);
+      actor = persistedSnapshot
+        ? createActor(createBuckMachine(projectRoot), { snapshot: persistedSnapshot as any })
+        : createActor(createBuckMachine(projectRoot));
+      actorSubscription = actor.subscribe(() => persistActor(actor!));
       actor.start();
+      persistActor(actor);
     }
     return actor;
   }
@@ -39,14 +61,16 @@ export function wire(api: ExtensionAPI): void {
     description: "Buck workflow orchestration — /b-flow <subcommand>",
     handler: async (args: string, ctx) => {
       projectRoot = ctx.cwd;
-      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const parts = (args ?? "").trim().split(/\s+/).filter(Boolean);
       const subcommand = parts[0] ?? "status";
 
       switch (subcommand) {
         case "start": {
           const goal = parts.slice(1).join(" ") || "Untitled goal";
-          ensureActor().send({ type: "START", goal });
-          ctx.ui.notify(`🚀 b-flow started: "${goal}"`, "info");
+          const current = ensureActor();
+          current.send({ type: "START", goal });
+          persistActor(current);
+          ctx.ui.notify(`🚀 b-flow started: "${goal}". Run /b-flow run to execute queued chunks.`, "info");
           break;
         }
         case "run": {
@@ -67,7 +91,7 @@ export function wire(api: ExtensionAPI): void {
           break;
         }
         case "status": {
-          const projection = readProjection(projectRoot);
+          const projection = actor?.getSnapshot().context.projection ?? readProjection(projectRoot);
           if (!projection) {
             ctx.ui.notify("No active b-flow session. Run /b-flow start <goal>", "info");
             return;
@@ -101,8 +125,10 @@ export function wire(api: ExtensionAPI): void {
           break;
         }
         case "stop": {
-          ensureActor().send({ type: "STOP" });
-          actor = null;
+          const current = ensureActor();
+          current.send({ type: "STOP" });
+          persistActor(current);
+          clearActor();
           ctx.ui.notify("🛑 b-flow stopped", "info");
           break;
         }
@@ -139,8 +165,7 @@ export function wire(api: ExtensionAPI): void {
     // Auto-restore non-terminal sessions
     const projection = readProjection(projectRoot);
     if (projection && projection.currentState !== "idle" && projection.currentState !== "done" && projection.currentState !== "aborted") {
-      actor = createActor(createBuckMachine(projectRoot));
-      actor.start();
+      ensureActor();
     }
   });
 

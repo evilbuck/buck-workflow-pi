@@ -11,10 +11,10 @@
 - [x] Decide default automation mode (guided/manual-visible by default; autonomous explicit opt-in)
 - [x] Research XState applicability
 - [x] Draft state-machine spec
-- [ ] Decide worker transport (`pi --mode rpc` vs print/json subprocess)
+- [x] Decide worker transport (`pi` subprocess spawn with prompt file)
 - [x] Define worker result file contract (drafted; exact parser pending)
-- [ ] Implement MVP XState supervisor machine
-- [ ] Implement one-at-a-time external worker loop over phase/task chunks
+- [x] Implement MVP XState supervisor machine
+- [x] Implement one-at-a-time external worker loop over phase/task chunks
 - [x] Add transition/persistence/worker-result tests
 - [ ] Document `/b-flow` in README/docs after implementation
 
@@ -22,10 +22,10 @@
 
 See [plan-b-flow-mvp-phases.md](plan-b-flow-mvp-phases.md) for the full phased plan.
 
-- [ ] **Phase 1: Foundation & Types** (easy) — [phase-1-foundation-types.md](phase-1-foundation-types.md)
-- [ ] **Phase 2: State Machine Core** (medium) — [phase-2-state-machine-core.md](phase-2-state-machine-core.md)
-- [ ] **Phase 3: Worker Loop & Verification** (hard) — [phase-3-worker-loop.md](phase-3-worker-loop.md)
-- [ ] **Phase 4: UI, Commands & Tests** (medium) — [phase-4-ui-commands-tests.md](phase-4-ui-commands-tests.md)
+- [x] **Phase 1: Foundation & Types** (easy) — [phase-1-foundation-types.md](phase-1-foundation-types.md)
+- [x] **Phase 2: State Machine Core** (medium) — [phase-2-state-machine-core.md](phase-2-state-machine-core.md)
+- [x] **Phase 3: Worker Loop & Verification** (hard) — [phase-3-worker-loop.md](phase-3-worker-loop.md)
+- [ ] **Phase 4: UI, Commands & Tests** (medium) — partial: compaction hook, tests done; confirmation UI, footer widget pending
 
 ## Notes
 

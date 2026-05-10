@@ -5,7 +5,7 @@ subject: 2026-05-08.b-orchestration-extension
 topics: [buck-workflow, pi-extension, orchestration, state-machine, b-flow]
 research: [research-xstate-for-b-flow.md]
 spec: spec-b-flow-state-machine.md
-memory: [b-orchestration-extension-2026-05-08.md, b-flow-mvp-2026-05-09.md]
+memory: [b-orchestration-extension-2026-05-08.md, b-flow-mvp-2026-05-09.md, b-flow-start-debug-2026-05-09.md, b-flow-unit-tests-2026-05-09.md]
 ---
 
 # Plan: Buck Workflow Orchestration MVP

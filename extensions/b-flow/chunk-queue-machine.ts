@@ -1,4 +1,4 @@
-import { assign, setup } from "xstate";
+import { assign, fromPromise, setup } from "xstate";
 import type { ChunkQueueItem } from "./types.js";
 import { buildQueue } from "./queue-builder.js";
 import { runWorker, type WorkerResult } from "./worker.js";
@@ -46,11 +46,11 @@ export function createChunkQueueMachine(
       output: {} as ChunkQueueOutput,
     },
     actors: {
-      buildQueue: () => Promise.resolve(buildQueue(projectRoot, subject)),
-      runWorker: ({ input }: { input: { chunk: ChunkQueueItem } }) =>
-        runWorker(input.chunk, { projectRoot, subject, goal }),
-      verifyResult: ({ input }: { input: { resultFile: string } }) =>
-        Promise.resolve(verifyResult(input.resultFile)),
+      buildQueue: fromPromise(() => Promise.resolve(buildQueue(projectRoot, subject))),
+      runWorker: fromPromise(({ input }: { input: { chunk: ChunkQueueItem } }) =>
+        runWorker(input.chunk, { projectRoot, subject, goal })),
+      verifyResult: fromPromise(({ input }: { input: { resultFile: string } }) =>
+        Promise.resolve(verifyResult(input.resultFile))),
     },
     guards: {
       hasNextPending: ({ context }) =>
@@ -74,6 +74,7 @@ export function createChunkQueueMachine(
     },
     states: {
       idle: {
+        always: "buildingQueue",
         on: {
           START_QUEUE: "buildingQueue",
         },

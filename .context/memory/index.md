@@ -1,5 +1,7 @@
 # Memory Index
 
+- 2026-05-09 | `b-flow-unit-tests-2026-05-09.md` | domains: [testing, debugging, orchestration] | topics: [b-flow, xstate, vitest, guard-routing, unit-tests] | status: completed
+- 2026-05-09 | `b-flow-start-debug-2026-05-09.md` | domains: [debugging, testing, orchestration] | topics: [b-flow, xstate, worker-subprocess, persistence, subject-detection] | status: completed
 - 2026-05-09 | `b-present-rewrite-build-2026-05-09.md` | domains: [docs, skill, implementation] | topics: [b-present, presentation-package, rewrite, briefing-package] | status: completed
 - 2026-05-09 | `b-present-grill-with-docs-2026-05-09.md` | domains: [docs, skill, planning] | topics: [b-present, presentation-package, grill-with-docs, context] | status: completed
 - 2026-05-09 | `b-flow-mvp-2026-05-09.md` | domains: [implementation, testing, orchestration] | topics: [b-flow, xstate, state-machine, worker-subprocess, pi-extension] | status: completed

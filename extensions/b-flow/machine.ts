@@ -1,4 +1,5 @@
-import { assign, setup, type ActorRefFrom } from "xstate";
+import { relative } from "node:path";
+import { assign, createActor, fromPromise, setup, type ActorRefFrom } from "xstate";
 import type {
   BuckMachineContext,
   BuckMachineEvent,
@@ -86,6 +87,61 @@ function persistAction(projectRoot: string) {
   };
 }
 
+type ScanDoneEvent = { output?: Awaited<ReturnType<typeof scanContext>> };
+
+function scanOutput(event: ScanDoneEvent): TransitionContext | null {
+  return event.output?.type === "SCAN_COMPLETE" ? event.output.context ?? null : null;
+}
+
+function inferSubjectFromScan(projectRoot: string, scan: TransitionContext | null): string | null {
+  if (!scan) return null;
+  if (scan.subject) return scan.subject;
+
+  const paths = [
+    scan.artifacts.activePhase?.path,
+    scan.artifacts.phasesOverview?.path,
+    scan.artifacts.latestPlan?.path,
+    scan.artifacts.tasksMd?.path,
+    scan.artifacts.workerResults[0]?.path,
+  ].filter((p): p is string => !!p);
+
+  for (const path of paths) {
+    const rel = relative(`${projectRoot}/.context`, path).replaceAll("\\", "/");
+    const first = rel.split("/")[0];
+    if (first?.match(/^\d{4}-\d{2}-\d{2}\./)) return first;
+  }
+
+  return null;
+}
+
+function subjectFromScanEvent(
+  projectRoot: string,
+  context: BuckMachineContext,
+  event: ScanDoneEvent,
+): string | null {
+  return inferSubjectFromScan(projectRoot, scanOutput(event)) ?? context.subject;
+}
+
+function projectionWithScannedSubject(
+  projectRoot: string,
+  context: BuckMachineContext,
+  event: ScanDoneEvent,
+): OrchestrationState {
+  const subject = subjectFromScanEvent(projectRoot, context, event);
+  if (!subject || subject === context.projection.subject) return context.projection;
+  return { ...context.projection, subject };
+}
+
+function assignScanResult(projectRoot: string) {
+  return assign({
+    transitionContext: ({ event }) => scanOutput(event as ScanDoneEvent),
+    subject: ({ context, event }) =>
+      subjectFromScanEvent(projectRoot, context as BuckMachineContext, event as ScanDoneEvent),
+    projection: ({ context, event }) =>
+      projectionWithScannedSubject(projectRoot, context as BuckMachineContext, event as ScanDoneEvent),
+  }) as any;
+}
+
 export function createBuckMachine(projectRoot: string) {
   return setup({
     types: {
@@ -93,12 +149,43 @@ export function createBuckMachine(projectRoot: string) {
       events: {} as BuckMachineEvent,
     },
     actors: {
-      scanContext: ({ input }: { input: { current: string; goal: string; subject: string | null } }) =>
-        scanContext(projectRoot, input.current as string, input.goal, input.subject),
-      evaluateModelGuard: ({ input }: { input: TransitionContext }) =>
-        Promise.resolve(evaluateModelGuard(input)),
-      chunkQueue: ({ input }: { input: { subject: string | null; goal: string } }) =>
-        createChunkQueueMachine(projectRoot, input.subject, input.goal),
+      scanContext: fromPromise(({ input }: { input: { current: string; goal: string; subject: string | null } }) =>
+        scanContext(projectRoot, input.current as any, input.goal, input.subject)),
+      evaluateModelGuard: fromPromise(({ input }: { input: TransitionContext }) =>
+        Promise.resolve(evaluateModelGuard(input))),
+      chunkQueue: fromPromise(({ input }: { input: { subject: string | null; goal: string } }) =>
+        new Promise<ChunkQueueOutput>((resolve, reject) => {
+          const child = createActor(createChunkQueueMachine(projectRoot, input.subject, input.goal));
+          let subscription: { unsubscribe: () => void } | undefined;
+          subscription = child.subscribe({
+            next: (snapshot) => {
+              if (snapshot.status === "done") {
+                subscription?.unsubscribe();
+                const context = snapshot.context as unknown as {
+                  queue: ChunkQueueOutput["queue"];
+                  currentItem?: { id: string } | null;
+                  blockReason?: string;
+                  lastError?: string;
+                };
+                resolve((snapshot.output as ChunkQueueOutput | undefined) ?? {
+                  queue: context.queue,
+                  blocked: String(snapshot.value) === "failed" && context.currentItem
+                    ? {
+                        chunkId: context.currentItem.id,
+                        reason: context.blockReason ?? context.lastError ?? "Failed",
+                      }
+                    : undefined,
+                  error: context.lastError,
+                });
+              } else if (snapshot.status === "error") {
+                subscription?.unsubscribe();
+                reject(snapshot.error);
+              }
+            },
+            error: reject,
+          });
+          child.start();
+        })),
     },
     guards: {
       hasGoal: ({ context }) =>
@@ -148,12 +235,7 @@ export function createBuckMachine(projectRoot: string) {
           }),
           onDone: {
             target: "planning",
-            actions: assign({
-              transitionContext: ({ event }) =>
-                event.output.type === "SCAN_COMPLETE"
-                  ? event.output.context!
-                  : null,
-            }),
+            actions: assignScanResult(projectRoot),
           },
           onError: {
             target: "blocked",
@@ -179,33 +261,18 @@ export function createBuckMachine(projectRoot: string) {
           }),
           onDone: [
             {
-              guard: "hasPhasesOverview",
-              target: "decomposing",
-              actions: assign({
-                transitionContext: ({ event }) =>
-                  event.output.type === "SCAN_COMPLETE"
-                    ? event.output.context!
-                    : null,
-              }),
-            },
-            {
               guard: "hasActivePhase",
               target: "executingChunks",
-              actions: assign({
-                transitionContext: ({ event }) =>
-                  event.output.type === "SCAN_COMPLETE"
-                    ? event.output.context!
-                    : null,
-              }),
+              actions: assignScanResult(projectRoot),
+            },
+            {
+              guard: "hasPhasesOverview",
+              target: "decomposing",
+              actions: assignScanResult(projectRoot),
             },
             {
               target: "decomposing",
-              actions: assign({
-                transitionContext: ({ event }) =>
-                  event.output.type === "SCAN_COMPLETE"
-                    ? event.output.context!
-                    : null,
-              }),
+              actions: assignScanResult(projectRoot),
             },
           ],
         },

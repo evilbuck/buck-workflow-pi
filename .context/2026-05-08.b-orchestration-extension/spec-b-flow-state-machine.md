@@ -7,7 +7,7 @@ type: technical-spec
 priority: high
 dependencies: [research-xstate-for-b-flow.md, plan-b-flow-mvp.md, grill-session-state-machine.md]
 plans: [plan-b-flow-mvp.md]
-memory: [b-orchestration-extension-2026-05-08.md, b-flow-mvp-2026-05-09.md]
+memory: [b-orchestration-extension-2026-05-08.md, b-flow-mvp-2026-05-09.md, b-flow-start-debug-2026-05-09.md, b-flow-unit-tests-2026-05-09.md]
 ---
 
 # Spec: b-flow XState Orchestration State Machine

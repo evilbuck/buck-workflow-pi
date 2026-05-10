@@ -262,7 +262,11 @@
     "README.md",
     ".context/memory/b-present-rewrite-build-2026-05-09.md",
     ".context/2026-05-07.b-present-skill/draft-commit.md",
-    ".context/2026-05-07.b-present-skill/iterate-b-present-rewrite.md"
+    ".context/2026-05-07.b-present-skill/iterate-b-present-rewrite.md",
+    ".context/memory/b-flow-start-debug-2026-05-09.md",
+    "extensions/b-flow/__tests__/machine.test.ts",
+    "vite.config.ts",
+    ".context/memory/b-flow-unit-tests-2026-05-09.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,

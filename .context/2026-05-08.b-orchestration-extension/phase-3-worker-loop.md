@@ -23,8 +23,8 @@ acceptance_criteria:
   - "[ ] Worker audit files written per attempt"
   - "[ ] Parent machine correctly delegates to child machine during executingChunks"
   - "[ ] Stale worker detection on startup (recovers running workers that died)"
-completed_at: null
-completed_by: null
+completed_at: 2026-05-09
+completed_by: b-build-hard
 ---
 
 # Phase 3: Worker Loop & Verification

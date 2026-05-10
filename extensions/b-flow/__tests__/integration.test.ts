@@ -1,6 +1,6 @@
 import { describe, test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { rmSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
+import { rmSync, mkdirSync, existsSync, writeFileSync, chmodSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createActor } from "xstate";
 import { createBuckMachine } from "../machine.js";
@@ -9,6 +9,43 @@ import { verifyResult } from "../verify-result.js";
 import { readProjection } from "../persistence.js";
 
 const TEST_ROOT = join("/tmp", "bflow-test-" + Date.now());
+
+async function waitFor(
+  predicate: () => boolean,
+  timeoutMs = 3_000,
+): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (predicate()) return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.fail("Timed out waiting for condition");
+}
+
+function installFakePi(root: string): () => void {
+  const binDir = join(root, "bin");
+  mkdirSync(binDir, { recursive: true });
+  const fakePiPath = join(binDir, "pi");
+  writeFileSync(
+    fakePiPath,
+    `#!/usr/bin/env node
+const fs = require('node:fs');
+const promptArg = process.argv.find((arg) => arg.startsWith('@'));
+if (!promptArg) process.exit(2);
+const prompt = fs.readFileSync(promptArg.slice(1), 'utf8');
+const resultFile = prompt.split('Write a result file to: ')[1]?.split('\\n')[0]?.trim();
+if (!resultFile) process.exit(3);
+fs.writeFileSync(resultFile, \`---\nchunk_id: fake\nchunk_type: phase\nstatus: completed\nstarted_at: 2026-05-09T00:00:00Z\ncompleted_at: 2026-05-09T00:00:01Z\nworker_attempt: 1\nmodel_used: fake\nchanged_files: []\nacceptance_criteria_met: [all]\nacceptance_criteria_missed: []\nwarnings: []\n---\n\n# Worker Result\n\nDone.\n\`);
+`,
+    "utf-8",
+  );
+  chmodSync(fakePiPath, 0o755);
+  const originalPath = process.env.PATH ?? "";
+  process.env.PATH = `${binDir}:${originalPath}`;
+  return () => {
+    process.env.PATH = originalPath;
+  };
+}
 
 describe("b-flow integration", () => {
   beforeEach(() => {
@@ -30,7 +67,7 @@ describe("b-flow integration", () => {
 
     const snapshot = actor.getSnapshot();
     assert.ok(
-      ["recovering", "planning", "blocked"].includes(String(snapshot.value)),
+      ["recovering", "planning", "decomposing", "blocked"].includes(String(snapshot.value)),
       `Expected transitioning state, got ${snapshot.value}`,
     );
     assert.strictEqual(snapshot.context.projection.goal, "test goal");
@@ -52,6 +89,46 @@ describe("b-flow integration", () => {
     assert.notStrictEqual(projection?.currentState, "idle");
 
     actor.stop();
+  });
+
+  test("continue executes queued phase through worker subprocess", async () => {
+    const restorePath = installFakePi(TEST_ROOT);
+    try {
+      const subject = "2026-05-08.test-subject";
+      const subjectDir = join(TEST_ROOT, ".context", subject);
+      mkdirSync(subjectDir, { recursive: true });
+
+      writeFileSync(
+        join(subjectDir, "plan-test-phases.md"),
+        "---\nstatus: active\nformat: discrete\n---\n# Phases\n",
+      );
+      writeFileSync(
+        join(subjectDir, "phase-1-test.md"),
+        "---\nstatus: active\ndifficulty: easy\n---\n# Phase 1\n",
+      );
+
+      const machine = createBuckMachine(TEST_ROOT);
+      const actor = createActor(machine);
+      actor.start();
+
+      actor.send({ type: "START", goal: "execute queued phase" });
+      // Active phase routes directly from planning to executingChunks
+      await waitFor(() => String(actor.getSnapshot().value) === "executingChunks");
+      await waitFor(() => String(actor.getSnapshot().value) === "reviewing");
+
+      const snapshot = actor.getSnapshot();
+      assert.strictEqual(snapshot.context.subject, subject);
+      assert.strictEqual(snapshot.context.projection.subject, subject);
+      assert.strictEqual(snapshot.context.projection.queue.length, 1);
+      assert.strictEqual(snapshot.context.projection.queue[0].status, "completed");
+
+      const resultsDir = join(subjectDir, "worker-results");
+      assert.ok(readdirSync(resultsDir).some((f) => f.endsWith(".md")));
+
+      actor.stop();
+    } finally {
+      restorePath();
+    }
   });
 
   test("queue builder finds phases in subject folder", () => {
