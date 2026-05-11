@@ -379,6 +379,10 @@ export default function (pi: ExtensionAPI) {
   };
   // Flag to distinguish our auto-switch from user-initiated switches
   let autoSwitchingModel = false;
+  // Timestamp guard: prevents model_select from auto-initiated setModel calls
+  // that arrive after autoSwitchingModel has been cleared (async emit race).
+  let lastAutoSwitchTimestamp = 0;
+  const AUTO_SWITCH_GRACE_MS = 100; // accept model_select events within 100ms
   // Defer model-switch UI until before_agent_start so it doesn't fight the editor/slash-command UI.
   let pendingModelSwitchCommand: string | null = null;
 
@@ -899,6 +903,7 @@ Execute all 9 steps now. Write only to \`.context/\`.`;
 
     // Set flag BEFORE calling setModel so model_select handler knows it's us
     autoSwitchingModel = true;
+    lastAutoSwitchTimestamp = Date.now();
     const success = await pi.setModel(targetModel);
     autoSwitchingModel = false;
 
@@ -1148,6 +1153,8 @@ Execute all 9 steps now. Write only to \`.context/\`.`;
     if (!modelSwitchState.switchedForPhase) return;
     // If this is our own auto-switch, don't mark as user override
     if (autoSwitchingModel) return;
+    // Accept our own auto-switch events that arrived after the flag cleared
+    if (Date.now() - lastAutoSwitchTimestamp < AUTO_SWITCH_GRACE_MS) return;
     // Any other model selection during an active phase = user override
     modelSwitchState.userOverrode = true;
   });
@@ -1184,6 +1191,7 @@ Execute all 9 steps now. Write only to \`.context/\`.`;
     if (!originalModel) return;
 
     autoSwitchingModel = true;
+    lastAutoSwitchTimestamp = Date.now();
     const success = await pi.setModel(originalModel);
     autoSwitchingModel = false;
 

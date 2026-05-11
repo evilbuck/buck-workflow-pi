@@ -2,6 +2,26 @@
 
 ## Details
 
+### pi-agent-cycle-abort-fix
+**Description**: Model cycling (Ctrl+P) in pi-coding-agent does not abort in-flight HTTP requests. When user rapidly cycles models, each hung request continues running, causing sessions to block. Fix: add `await this.abort()` before model state mutation in `_cycleScopedModel()` and `_cycleAvailableModel()`.
+**Context**:
+- Root cause file: `packages/coding-agent/src/core/agent-session.ts` (line 1439-1498)
+- `abort()` exists at line 1387 but `cycleModel()` never calls it
+- Source repo: `https://github.com/earendil-works/pi-mono` (packages/coding-agent)
+- Plan: `.context/2026-05-09.pi-agent-cycle-fix/plan-abort-on-cycle.md`
+- Fix: add `await this.abort();` before `this.agent.state.model = next.model` in both `_cycleScopedModel()` and `_cycleAvailableModel()`
+- Update JSDoc to document abort behavior
+- Manual verification: start session, send message, cycle models while request pending, verify only 1 in-flight at a time
+
+### extension-model-switch-guard
+**Description**: The `autoSwitchingModel` boolean guard in `extensions/index.ts` has a race condition: `model_select` from an auto-initiated `setModel()` can fire after `autoSwitchingModel = false` is set (depending on whether `extensionRunner.emit()` is sync or async), incorrectly setting `userOverrode = true`. This makes `agent_end` skip switch-back and leave the session on the wrong model permanently.
+**Context**:
+- Affected file: `extensions/index.ts` (lines 901-903 guard, 1147-1153 handler, 1167-1203 agent_end)
+- Plan: `.context/2026-05-09.pi-agent-cycle-fix/plan-extension-model-switch-guard.md`
+- Fix: Add timestamp-based guard (`lastAutoSwitchTimestamp`) — accept `model_select` events within 100ms of auto-switch
+- The `cycleModel()` abort fix is a prerequisite (prevents the actual endless loop)
+- Verification: run `/b-build`, verify switch-back occurs after agent turn
+
 ### fix-qmd-index-crash
 **Description**: `qmd update` crashes when indexing the vault collection because some Obsidian note filenames have no valid content for the `handelize()` function.
 **Context**:
@@ -53,6 +73,8 @@
 
 ## High Priority
 
+- [x] [Extension: timestamp guard for model auto-switch race condition](#extension-model-switch-guard) (2026-05-10)
+- [ ] [pi-coding-agent: abort in-flight request on model cycle](#pi-agent-cycle-abort-fix)
 - [ ] [Fix QMD index crash on vault files with non-handlelizable filenames](#fix-qmd-index-crash)
 - [ ] [Test b-present with a real single-file plan](#test-b-present-single-plan)
 - [ ] [Test b-present with a phased plan for diagram and phase slides](#test-b-present-phased-plan)

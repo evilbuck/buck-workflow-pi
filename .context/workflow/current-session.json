@@ -268,7 +268,11 @@
     "vite.config.ts",
     ".context/memory/b-flow-unit-tests-2026-05-09.md",
     "extensions/b-flow/__tests__/scan-context.test.ts",
-    "extensions/b-flow/__tests__/wire.test.ts"
+    "extensions/b-flow/__tests__/wire.test.ts",
+    ".context/2026-05-09.pi-agent-cycle-fix/plan-abort-on-cycle.md",
+    ".context/memory/pi-agent-cycle-fix-2026-05-09.md",
+    ".context/2026-05-09.pi-agent-cycle-fix/plan-extension-model-switch-guard.md",
+    ".context/memory/extension-model-switch-guard-2026-05-10.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,

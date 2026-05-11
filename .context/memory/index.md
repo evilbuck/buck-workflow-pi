@@ -1,5 +1,7 @@
 # Memory Index
 
+- 2026-05-10 | `extension-model-switch-guard-2026-05-10.md` | domains: [debugging, agent, implementation] | topics: [model-switch, race-condition, timestamp-guard, autoSwitchingModel] | status: active
+- 2026-05-09 | `pi-agent-cycle-fix-2026-05-09.md` | domains: [debugging, infra, agent] | topics: [model-cycling, hung-requests, pi-coding-agent, abort-controller] | status: active
 - 2026-05-09 | `b-flow-unit-tests-2026-05-09.md` | domains: [testing, debugging, orchestration] | topics: [b-flow, xstate, vitest, guard-routing, unit-tests] | status: completed
 - 2026-05-09 | `b-flow-start-debug-2026-05-09.md` | domains: [debugging, testing, orchestration] | topics: [b-flow, xstate, worker-subprocess, persistence, subject-detection] | status: completed
 - 2026-05-09 | `b-present-rewrite-build-2026-05-09.md` | domains: [docs, skill, implementation] | topics: [b-present, presentation-package, rewrite, briefing-package] | status: completed
