@@ -16,31 +16,34 @@ pi install git:github.com/buckleyrobinson/buck-workflow-pi
 
 ## What's Included
 
-### Pi-native mapping
+### Layered Architecture
 
-This package maps Buck workflow concepts onto Pi primitives like this:
+Buck workflow uses a three-layer model for portability across agents:
 
-- **Most `/b-*` commands** → **prompt templates** in `prompts/`
-- **Reusable helpers** → **skills** in `skills/`
-- **Session/runtime automation** → **extension** in `extensions/index.ts`
-- **Special case: `/b-save`** → **extension-registered command**, not a prompt template
+1. **Canonical skills** (`skills/`) — Portable workflow logic. These are the reusable, agent-neutral instruction sets that define *how* each workflow behaves. They are the source of truth.
+2. **Thin wrappers** (`prompts/`) — Agent-native invocation surface. Pi prompt templates provide the familiar `/b-*` commands, but each one is now a thin wrapper that loads the matching skill. Other agents (Claude Code, OpenCode, Codex) can use their own command/skill mechanisms to invoke the same canonical logic.
+3. **Runtime automation** (`extensions/`) — Session tracking, state orchestration, and event-driven behavior that needs hooks and persistence. This is not portable as static instructions and stays in extensions.
 
-So while the user experience is a unified `/b-*` command surface, Pi is implementing that surface with multiple package primitives.
+**Pi-native mapping:**
+
+- **Most `/b-*` commands** → **prompt templates** in `prompts/` that invoke **skills** in `skills/`
+- **Session/runtime automation** (`/b-save`) → **extension** in `extensions/index.ts`
 
 ### Prompt Templates (`/b-*` commands)
 
-Type `/b-` in pi to see the Buck workflow prompt-template commands:
+Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a thin wrapper that invokes the matching skill:
 
-| Command | Purpose |
-|---------|---------|
-| `/b-brainstorm` | Interview-style intake, capture initial thinking |
-| `/b-research` | Explore code, trace architecture, capture findings |
-| `/b-plan` | Create bounded implementation plan with scope and risks |
-| `/b-present` | Generate async-readable presentation package from plan/phase/brainstorm/spec |
-| `/b-build` | Standard implementation — smallest safe code change |
-| `/b-build-hard` | Complex, ambiguous, or higher-risk implementation |
-| `/b-iterate` | Quick follow-up fixes, polish, review-loop edits |
-| `/b-review` | Review implementation for correctness and regressions |
+| Command | Skill Invoked | Purpose |
+|---------|---------------|---------|
+| `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
+| `/b-research` | `b-research` | Explore code, trace architecture, capture findings |
+| `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
+| `/b-present` | `b-present` | Generate async-readable presentation package |
+| `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
+| `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
+| `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `/b-review` | `b-review` | Review implementation for correctness and regressions |
+| `/git-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### Extension Command
 
@@ -52,7 +55,20 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands:
 
 | Skill | Purpose |
 |-------|---------|
-| `spec-progress` | Show progress of in-flight specs as a markdown table |
+| `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
+| `b-research` | Explore unfamiliar code, trace architecture, capture findings |
+| `b-plan` | Turn context into a bounded implementation plan |
+| `b-build` | Implement well-defined work (standard or hard mode) |
+| `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `b-review` | Review implementation for correctness and regressions |
+| `b-present` | Generate async-readable presentation package from artifacts |
+| `b-phase` | Analyze a plan and break it into sequential phases |
+| `git-commit` | Create a Conventional Commits message and commit |
+| `b-grill` | Stress-test a plan or design through structured interviewing |
+| `b-grill-me` | Grill the user directly about a plan |
+| `b-grill-auto` | Grill a different AI model via RPC about a plan |
+| `b-grill-with-docs` | Grill against existing domain documentation |
+| `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
 
 ### Extension (Session Tracking)
 

@@ -5,7 +5,7 @@ description: Interview the user relentlessly about a plan while challenging it a
 
 # b-grill-with-docs: Grilling with Domain Docs + Complexity Tracking
 
-Combines the domain-awareness of `grill-with-docs` with the complexity tracking of `b-grill-me`. Grills the user while keeping the project's documented language, decisions, and architecture honest.
+Extends `b-grill` (user mode) with domain-awareness from project documentation (CONTEXT.md, ADRs). Grills the user while keeping the project's documented language, decisions, and architecture honest.
 
 ## Core Behavior
 
@@ -54,9 +54,9 @@ Create files lazily — only when you have something to write.
 
 **Offer ADRs sparingly**: Only when all three are true: hard to reverse, surprising without context, result of a real trade-off. Follow [ADR-FORMAT.md](../b-grill-with-docs/ADR-FORMAT.md).
 
-## Complexity Tracking (from b-grill-me)
+## Complexity Tracking (from b-grill)
 
-This skill includes all metadata tracking from `b-grill-me`:
+This skill includes all metadata tracking from `b-grill` (user mode):
 
 - **Subject folder**: Create or join `.context/YYYY-MM-DD.<subject-name>/`
 - **Session file**: Write `grill-session-<topic>.md`

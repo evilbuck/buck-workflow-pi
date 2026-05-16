@@ -10,6 +10,7 @@ import { wire as wireTmuxStatus } from "./tmux-window-status.js";
 import { wire as wireGrillAuto } from "./b-grill-auto/index.js";
 import { wire as wireGrillDialog } from "./grill-me-dialog.js";
 import { wire as wireBFlow } from "./b-flow/index.js";
+import { wire as wireTpsTracker } from "./tps-tracker.js";
 
 // --- Types ---
 
@@ -397,6 +398,9 @@ export default function (pi: ExtensionAPI) {
 
   // --- b-flow orchestration ---
   wireBFlow(pi);
+
+  // --- TPS tracker ---
+  wireTpsTracker(pi);
 
   // --- Plan Mode ---
 

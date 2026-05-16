@@ -1,5 +1,9 @@
 # Memory Index
 
+- 2026-05-15 | `tps-tracker-review-2026-05-15.md` | domains: [extensions, review, implementation] | topics: [tps-tracker, tokens-per-second, pi-extension, wire-pattern, ctx-hasUI] | status: active
+- 2026-05-13 | `prompt-to-skill-build-2026-05-13.md` | domains: [implementation, refactoring, skills] | topics: [prompts, skills, portability, b-build, b-grill, thin-wrappers] | status: active
+- 2026-05-13 | `prompt-inventory-classification-2026-05-13.md` | domains: [planning, docs, research] | topics: [prompts, skills, inventory, classification, portability] | status: active
+- 2026-05-12 | `prompt-to-skill-portability-plan-2026-05-12.md` | domains: [planning, docs, agent] | topics: [prompts, skills, portability, commands, plugins] | status: active
 - 2026-05-10 | `extension-model-switch-guard-2026-05-10.md` | domains: [debugging, agent, implementation] | topics: [model-switch, race-condition, timestamp-guard, autoSwitchingModel] | status: active
 - 2026-05-09 | `pi-agent-cycle-fix-2026-05-09.md` | domains: [debugging, infra, agent] | topics: [model-cycling, hung-requests, pi-coding-agent, abort-controller] | status: active
 - 2026-05-09 | `b-flow-unit-tests-2026-05-09.md` | domains: [testing, debugging, orchestration] | topics: [b-flow, xstate, vitest, guard-routing, unit-tests] | status: completed
