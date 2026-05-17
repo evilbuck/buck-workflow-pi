@@ -45,46 +45,45 @@ Create a Conventional Commits message from staged changes and commit immediately
 
 4. If there are no staged changes, do not commit.
 
-5. **If no draft was found**, determine the best Conventional Commits type and draft a commit message:
+5. **Draft the commit message** (from draft or just drafted):
 
+   Determine the best Conventional Commits type and draft a commit message:
    - Title: `<type>(<optional scope>): <short summary>` (<= 72 chars)
    - Body: 1-3 lines focusing on why, key constraints, and notable behavior changes.
    - If breaking change, include `BREAKING CHANGE:` in the body.
 
-6. Commit immediately with the message (from draft or just drafted):
+6. **Commit NOW:**
 
-    First, verify your message doesn't contain placeholder tags:
-    - Title should NOT contain the string `$TITLE`
-    - Body should NOT contain the string `$BODY`
+   Use the Bash tool to run `git commit` immediately. This is NOT a dry run. Do NOT output the command as a suggestion. Do NOT wrap it in a code block. Do NOT ask the user to run it themselves. Run it. Right now.
+   - Title should NOT contain the string `$TITLE`
+   - Body should NOT contain the string `$BODY`
 
-    Use multiple `-m` flags for multi-line messages. If no body is needed, use a single `-m` with just the title.
-    Example (replace with your actual values):
-    ```bash
-    git commit -m "feat(scope): my actual title" -m "My actual body line 1
+   Use multiple `-m` flags for multi-line messages. If no body is needed, use a single `-m` with just the title.
+   ```bash
+   git commit -m "feat(scope): my actual title" -m "My actual body line 1
 
-    My actual body line 2"
-    ```
+   My actual body line 2"
+   ```
 
 7. **Clean up draft**: Delete the draft from whichever path it was found at (subject folder or root) after successful commit.
 
 8. **Stage and amend**: After deleting the draft, stage the deletion and amend the commit to include it:
-    ```bash
-    git add <draft-path>
-    git commit --amend --no-edit
-    ```
+   ```bash
+   git add <draft-path>
+   git commit --amend --no-edit
+   ```
 
 9. **ONLY run if the commit in step 6 actually failed**:
 
-    Check if git commit failed:
-    - If commit succeeded, skip to step 10
-    - If commit failed (exit code != 0) AND there are staged changes remaining:
-      - Run `git status -sb`
-      - Stage only the hook-modified files: `git add <files>`
-      - Re-run the commit with the same actual message
-    - If commit failed but no new staged changes, report the error and stop
+   Check if git commit failed:
+   - If commit succeeded, skip to step 10
+   - If commit failed (exit code != 0) AND there are staged changes remaining:
+     - Run `git status -sb`
+     - Stage only the hook-modified files: `git add <files>`
+     - Re-run the commit with the same actual message
+   - If commit failed but no new staged changes, report the error and stop
 
 10. **Verify** the commit was created correctly:
-
     ```bash
     git log -1 --format='%B'
     ```
@@ -96,10 +95,11 @@ Create a Conventional Commits message from staged changes and commit immediately
     ```
     - Report this as a warning
 
-10. Show results:
-
-   - `git status -sb`
-   - `git log -1 --oneline`
+11. Show results:
+    ```bash
+    git status -sb
+    git log -1 --oneline
+    ```
 
 ## Output
 
