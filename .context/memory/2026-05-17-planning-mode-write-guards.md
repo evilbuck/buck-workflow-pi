@@ -57,3 +57,21 @@ User reported last two sessions had b-research implementing half-baked solutions
 - Test `alt+p` to confirm manual toggle works
 - Consider adding `/skill:` path detection as future enhancement
 - Consider whether `b-review` should disable plan mode
+
+## Bug Fix (2026-05-17 evening)
+
+User reported plan mode was blocking `.context/` file writes from another project (qrpro). Two root causes found and fixed:
+
+1. **Absolute paths not handled** — `isAllowedPlanWritePath()` only worked with relative paths. Tools passing absolute paths like `/home/.../qrpro/.context/grill-session.md` failed the `.context/` prefix check. **Fix**: Added `projectDir` parameter; strips project prefix from absolute paths before checking.
+
+2. **Safe redirects blocked** — `REDIRECT_PATTERN = />{1,2}/` blocked `2>/dev/null` in `find` commands. **Fix**: Replaced blanket regex with target-aware check that allows `/dev/null` and `&`-prefixed targets (`2>&1`), blocks actual file writes.
+
+3. **mkdir/touch/cp targeting .context/ sent to AI review** — Commands like `mkdir -p .context/2026-05-17.subject` weren't in `SAFE_BASH_PATTERNS`, fell through to AI review which correctly classified them as MUTATING but that's the wrong outcome for plan mode. **Fix**: Added `commandTargetsAllowedPath()` that extracts path tokens from the command and auto-allows if any target is inside `.context/` or `docs/`.
+
+### Changed Files
+- `extensions/index.ts` — `isAllowedPlanWritePath()` added `projectDir` param + absolute path resolution; redirect guard replaced with target-aware filter; added `commandTargetsAllowedPath()` for mkdir/touch/cp auto-allow; call sites pass `cwd`.
+- `skills/b-plan/SKILL.md` — clarified write boundary to mention native tools vs bash redirects.
+
+### Verification
+- Manual logic test: 10/10 cases pass (absolute/relative paths, safe/unsafe redirects)
+- `npm test`: 93 tests pass (pre-existing empty suite failures unchanged)

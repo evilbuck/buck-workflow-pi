@@ -42,7 +42,7 @@ When creating research:
 - Read broadly enough to understand the system.
 - Trace entry points, dependencies, and data flow.
 - Persist useful findings to `.context/` when that will help the next step.
-- Update the qmd index.
+- For QMD usage, read `~/.agents/skills/qmd/SKILL.md` for proper command syntax and collection management.
 - End with a suggested next workflow step: `b-plan`, `b-build`, or `b-build-hard`.
 
 ## Research Frontmatter Template

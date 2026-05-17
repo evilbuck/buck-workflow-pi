@@ -62,6 +62,20 @@ const MUTATING_GIT_PATTERNS: RegExp[] = [
 const UNSAFE_SHELL_CHARS = /[;&`\n]/;
 const REDIRECT_PATTERN = />{1,2}/;
 
+/** Path-like token: starts with /, ./, or contains .context/ or docs/ */
+const PATH_LIKE = /(?:^|\s)(\/?[\w.-]+(?:\/[\w.-]+)+|\.context\/?|docs\/?)\b/g;
+
+function commandTargetsAllowedPath(command: string, projectDir: string): boolean {
+  // Strip flags, extract candidate path tokens
+  const cleaned = command.replace(/\s-\S+/g, "");
+  const matches = cleaned.matchAll(PATH_LIKE);
+  for (const match of matches) {
+    const candidate = match[1];
+    if (isAllowedPlanWritePath(candidate, projectDir)) return true;
+  }
+  return false;
+}
+
 function isWhitelistedBash(command: string): boolean {
   const trimmed = command.trim().replace(/\\\n\s*/g, "").replace(/\n\s*/g, " ");
   if (UNSAFE_SHELL_CHARS.test(trimmed)) return false;
@@ -69,8 +83,21 @@ function isWhitelistedBash(command: string): boolean {
   return SAFE_BASH_PATTERNS.some((p) => p.test(trimmed));
 }
 
-function isAllowedPlanWritePath(path: string): boolean {
-  const normalizedPath = path.replace(/^\.\//, "").replace(/\/$/, "");
+function isAllowedPlanWritePath(path: string, projectDir?: string): boolean {
+  // Normalize to relative path
+  let normalizedPath = path.replace(/^\.\//, "").replace(/\/$/, "");
+
+  // If absolute path, strip the project directory prefix to get a relative path
+  if (path.startsWith("/") && projectDir) {
+    const prefix = projectDir + "/";
+    if (normalizedPath.startsWith(prefix)) {
+      normalizedPath = normalizedPath.slice(prefix.length);
+    } else {
+      // Absolute path outside project — not allowed
+      return false;
+    }
+  }
+
   for (const allowedPath of PLAN_MODE_ALLOWED_PATHS) {
     const normalizedAllowed = allowedPath.replace(/\/$/, "");
     if (normalizedPath.startsWith(normalizedAllowed) || normalizedPath === normalizedAllowed) {
@@ -901,7 +928,7 @@ Help the user plan what needs to be done:
     // Handle write tool
     if (event.toolName === "write") {
       const path = (event.input as any)?.path || "";
-      if (!isAllowedPlanWritePath(path)) {
+      if (!isAllowedPlanWritePath(path, cwd)) {
         return { block: true, reason: `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/` };
       }
       return;
@@ -910,7 +937,7 @@ Help the user plan what needs to be done:
     // Handle edit tool
     if (event.toolName === "edit") {
       const path = (event.input as any)?.path || "";
-      if (!isAllowedPlanWritePath(path)) {
+      if (!isAllowedPlanWritePath(path, cwd)) {
         const reason = `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/`;
         return { block: true, reason };
       }
@@ -928,11 +955,23 @@ Help the user plan what needs to be done:
         return { block: true, reason: "Plan mode: mutating git commands are not allowed." };
       }
 
-      if (REDIRECT_PATTERN.test(command)) {
+      // Allow safe redirects: 2>/dev/null, 2>&1, &>/dev/null, >/dev/null
+      const redirectMatches = command.match(/>[^>]*/g) || [];
+      const unsafeRedirects = redirectMatches.filter((r) => {
+        const target = r.slice(1).trim();
+        // Safe redirect targets
+        if (target === "/dev/null") return false;
+        if (target.startsWith("&")) return false; // 2>&1, &>file
+        return true;
+      });
+      if (unsafeRedirects.length > 0) {
         return { block: true, reason: "Plan mode: file redirects are not allowed." };
       }
 
       if (isWhitelistedBash(command)) return;
+
+      // Allow commands that target allowed plan-mode paths (mkdir, touch, cp, mv within .context/)
+      if (commandTargetsAllowedPath(command, cwd)) return;
 
       // AI review for non-whitelisted commands
       try {
@@ -1066,6 +1105,9 @@ Help the user plan what needs to be done:
   // Send the b-save instructions as a user message to the LLM
       const savePrompt = `You are the b-save agent in the Buck workflow.
 
+## Skills to Load
+- **qmd**: Read \`~/.agents/skills/qmd/SKILL.md\` for proper QMD usage (collection management, search commands, query syntax).
+
 ## Your 10 Responsibilities
 
 1. **Read Session State** — Read \`.context/workflow/current-session.json\` for context
@@ -1087,7 +1129,10 @@ Help the user plan what needs to be done:
 5. **Backlog Update** — Read \`.context/backlog/todo.md\` (legacy fallback: \`.context/backlog.md\`). For completed items: remove from \`todo.md\`, update item file \`status: completed\` + \`completed: YYYY-MM-DD\`, move item file to \`archive/YYYY-MM/<slug>.md\`, add summary to \`archive/completed.md\`. For new/deferred items: create backing item file in \`items/<slug>.md\` + linked checkbox in \`todo.md\`. Only auto-archive explicitly completed items — if completion is inferred, surface it for user decision.
 6. **Spec Status Updates** — Set \`status: completed\` on finished specs (no file moves)
 7. **Index Update** — Update \`.context/memory/index.md\` with single-line entry at top
-8. **QMD Re-index** — Ensure the memory collection is indexed: \`qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'\` (safe to run on existing collections; ignores qmd update failures on unrelated collections)
+8. **QMD Re-index** — For QMD usage, read the qmd skill at \`~/.agents/skills/qmd/SKILL.md\` for proper command syntax. Ensure the memory collection is indexed:
+    - Use: \`qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'\`
+    - Safe to run on existing collections; ignores qmd update failures on unrelated collections
+    - The qmd skill documents collection management, search commands, and maintenance (BM25 vs vector search, query syntax, etc.)
 9. **Phase State Consolidation** — If phased plan files exist in the subject folder:
    a. Read all \`phase-N-*.md\` files — verify their \`status\` matches reality (were acceptance criteria met?)
    b. Read the phases overview \`plan-*-phases.md\` — verify the summary table matches phase file states

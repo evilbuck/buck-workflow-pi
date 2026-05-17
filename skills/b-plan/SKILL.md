@@ -16,9 +16,12 @@ Turn the user's request into a bounded implementation plan using:
 
 ## Write Boundary
 
-- You may write only to `.context/**` and temporary scratch locations.
+- You may write to `.context/**` and temporary scratch locations using native file tools (write/edit).
 - Save plans where the user can reuse them outside the context window.
 - Do not modify source files outside `.context/`.
+- **Allowed**: Native `write` and `edit` tools for `.context/**` files.
+- **Allowed**: Bash commands for `.context/**` directory operations (mkdir, find, cat, ls).
+- **Blocked**: Bash redirects (`>`) and file modifications outside `.context/**`.
 
 ## Subject Folder Creation (Required)
 

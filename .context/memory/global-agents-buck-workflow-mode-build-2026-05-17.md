@@ -1,12 +1,13 @@
 ---
 date: 2026-05-17
-domains: [buck-workflow, docs, refactor, extensions, testing]
-topics: [global-agents, buck-mode, ownership-split, plan-mode, docs, auto-enable]
+domains: [buck-workflow, docs, refactor, extensions, testing, skill]
+topics: [global-agents, buck-mode, ownership-split, plan-mode, docs, auto-enable, qmd-skill, b-save, b-review]
 subject: 2026-05-17.global-agents-buck-workflow-mode
 artifacts: [plan-global-agents-buck-workflow-mode.md, ownership-split.md, draft-commit.md]
-related: []
+related: [2026-05-17-planning-mode-write-guards.md, planning-mode-guards-2026-05-17.md]
 priority: high
-status: active
+status: completed
+completed: 2026-05-17
 ---
 
 ## Context
@@ -24,14 +25,16 @@ Executing plan from `.context/2026-05-17.global-agents-buck-workflow-mode/plan-g
 7. **`alt+p` toggles Buck workflow/planning mode** — replaces the previous plan-only toggle while preserving the write guard behavior when enabled.
 8. **Narrow auto-enable implemented** — planning/research/docs/spec/backlog/review/handoff requests enable Buck + plan mode; workflow-shaped implementation asks enable Buck mode without the write guard so source edits are not blocked.
 9. **Generic routing entrypoint remains deferred** — documented as deferred in Buck-mode docs.
+10. **b-save and b-research skills now reference qmd skill** — added explicit skill reference to prevent incorrect QMD usage in b-save prompt and b-research skill.
 
 ## Implementation Notes
 
 ### Changed Files
 - `/home/buckleyrobinson/.pi/agent/AGENTS.md` — prior pass: trimmed global always-loaded guidance.
 - `/home/buckleyrobinson/.pi/agent/docs/context-workflow.md` — prior pass: added `.context/workflow/` layout entry.
-- `extensions/index.ts` — added Buck workflow mode state fields, status handling, `/b-mode`, auto-enable classifier, Buck system-prompt injection, command state handling, compaction summary fields, and implementation tracking from source writes.
+- `extensions/index.ts` — added Buck workflow mode state fields, status handling, `/b-mode`, auto-enable classifier, Buck system-prompt injection, command state handling, compaction summary fields, implementation tracking, and qmd skill reference in b-save prompt.
 - `extensions/buck-mode.test.ts` — added focused Vitest coverage for manual mode control, planning auto-enable, workflow-shaped implementation auto-enable, manual suppression, and `/b-plan` state behavior.
+- `skills/b-research/SKILL.md` — added qmd skill reference for proper collection management.
 - `docs/buck-workflow.md` — updated Buck-mode docs from planned to implemented, documented state split and command behavior, added `/b-mode` to command/reference tables.
 - `README.md` — documented `/b-mode` as extension/runtime automation.
 - `.context/2026-05-17.global-agents-buck-workflow-mode/plan-global-agents-buck-workflow-mode.md` — marked remaining runtime/test steps complete and recorded verification blockers.
@@ -51,7 +54,6 @@ Executing plan from `.context/2026-05-17.global-agents-buck-workflow-mode/plan-g
 
 ## Next Steps
 
-- Run `/b-review` against the plan and changed runtime/docs.
+- Run `/git-commit` to commit the changes.
 - Consider a follow-up to convert or exclude the two `node:test` files so `npm test` can pass under Vitest.
 - Consider a follow-up to fix the two pre-existing TypeScript errors.
-- Run `/b-save` to finalize this session record.
