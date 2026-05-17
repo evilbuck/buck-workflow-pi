@@ -154,9 +154,20 @@ Suggested next step
 **Write an iteration artifact** to the active subject folder before reporting.
 Only write this file when there are actual issues to address — do not create it for clean reviews.
 
+**Subject folder resolution:**
+1. Use the **active subject folder** if one was resolved during scope resolution
+2. If **no subject folder exists**, create one: `.context/YYYY-MM-DD.<subject>/`
+3. Write the artifact inside: `.context/YYYY-MM-DD.<subject>/iterate-<subject>.md`
+
 ```
-.context/YYYY-MM-DD.<subject>/iterate-<subject>.md
+.context/YYYY-MM-DD.<subject>/
+└── iterate-<subject>.md
 ```
+
+**Date field guidance:**
+- `date`: Use **review date** (when b-review runs), not the original folder date
+- `subject`: Use the **original subject folder's subject** value (e.g., `2026-05-15.my-feature`)
+- `updated`: Set to same as `date` initially; update whenever the file changes
 
 **Iteration artifact format:**
 
@@ -164,8 +175,12 @@ Only write this file when there are actual issues to address — do not create i
 ---
 status: active
 date: YYYY-MM-DD
+updated: YYYY-MM-DD
 subject: YYYY-MM-DD.subject-name
 topics: [review, iteration]
+informs: []          # Filled by b-plan when referencing this iteration
+addresses: plan-*.md # Plan this iteration is about
+completed: null      # Set when b-iterate marks it done
 from_review: b-review
 ---
 
@@ -195,6 +210,11 @@ from_review: b-review
 Start with `/b-iterate` — it will pick up this file automatically.
 For larger rework, use `/b-build` or `/b-build-hard`.
 ```
+
+**Lifecycle tracking:**
+- When `b-iterate` works on this artifact, it updates `status: completed` and `completed: YYYY-MM-DD`
+- When `b-plan` references this iteration, it adds the plan path to `informs:` field
+- This creates bidirectional traceability: iteration → plan (via `informs`) and plan → iteration (via b-plan's `research:` or new `iterations:` field)
 
 ### User-facing report:
 

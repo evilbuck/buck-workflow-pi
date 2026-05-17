@@ -56,9 +56,13 @@ At COMPLETION:
 ## Closeout
 
 After completing iteration:
-1. **Changed files** — list what was modified
-2. **Verification** — confirm the fixes work
-3. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Include a Conventional Commits message for the follow-up changes:
+1. **Update iteration artifact** — if working from an `iterate-*.md` file:
+   - Set `status: completed`
+   - Set `completed: YYYY-MM-DD` (today's date)
+   - Update `updated: YYYY-MM-DD` (if not already set to today)
+2. **Changed files** — list what was modified
+3. **Verification** — confirm the fixes work
+4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Include a Conventional Commits message for the follow-up changes:
 
    ```markdown
    ## Title
@@ -68,7 +72,7 @@ After completing iteration:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-4. Tell the user: "Run /b-save to finalize this session's record, or `/git-commit` to commit."
+5. Tell the user: "Run /b-save to finalize this session's record, or `/git-commit` to commit."
 
 ## Best For
 

@@ -71,10 +71,13 @@ When creating a plan:
 3. **Brainstorm is optional**:
    - If a `brainstorm-*.md` or draft file exists, use it as planning input
    - Capture its useful conclusions in the plan body under `Context used / assumptions`
-4. **If implementing a spec:**
+4. **Iterations (from b-review findings):**
+   - If relevant `iterate-*.md` files exist in the subject folder, populate the plan's `iterations:` field with those filenames
+   - Back-fill each iteration file's `informs:` field to include this plan
+5. **If implementing a spec:**
    - Populate the plan's `spec:` field with the spec filename
    - The spec's `plans:` array will be updated by b-save after execution
-5. **If no artifacts exist**, continue using the user's provided context, session context, and code reading. Do not block or require `/b-research` first.
+6. **If no artifacts exist**, continue using the user's provided context, session context, and code reading. Do not block or require `/b-research` first.
 
 ## Behavior
 
@@ -107,6 +110,7 @@ date: YYYY-MM-DD
 subject: YYYY-MM-DD.subject-name
 topics: [keyword, list]
 research: [research-file.md]  # Research that informed this plan (if any)
+iterations: [iterate-*.md]     # Iteration artifacts from b-review (if any)
 spec: spec-file.md            # Spec this plan implements (if any)
 memory: []                    # Filled by b-save after execution
 ---

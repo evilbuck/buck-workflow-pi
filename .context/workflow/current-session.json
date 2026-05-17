@@ -189,6 +189,10 @@
     {
       "command": "b-review",
       "at": "2026-05-17T18:03:27.067Z"
+    },
+    {
+      "command": "b-research",
+      "at": "2026-05-17T18:16:28.561Z"
     }
   ],
   "implementation_happened": true,
