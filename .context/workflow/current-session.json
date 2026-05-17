@@ -161,6 +161,26 @@
     {
       "command": "b-iterate",
       "at": "2026-05-16T01:44:37.670Z"
+    },
+    {
+      "command": "b-research",
+      "at": "2026-05-17T17:09:45.515Z"
+    },
+    {
+      "command": "b-plan",
+      "at": "2026-05-17T17:23:10.624Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-17T17:26:03.791Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-17T17:28:22.486Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-17T17:34:20.111Z"
     }
   ],
   "implementation_happened": true,
@@ -325,7 +345,11 @@
     ".context/2026-05-15.tps-tracker-review/iterate-tps-tracker-review.md",
     "extensions/tps-tracker.ts",
     ".context/2026-05-15.tps-tracker-review/draft-commit.md",
-    ".context/memory/tps-tracker-review-2026-05-15.md"
+    ".context/memory/tps-tracker-review-2026-05-15.md",
+    ".context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md",
+    ".context/backlog/items/plan-implementation-ledger.md",
+    ".context/2026-05-17.b-review-plan-path/plan-b-review-plan-path.md",
+    ".context/2026-05-17.b-review-plan-path/draft-commit.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,
