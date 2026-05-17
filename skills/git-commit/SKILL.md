@@ -67,17 +67,23 @@ Create a Conventional Commits message from staged changes and commit immediately
 
 7. **Clean up draft**: Delete the draft from whichever path it was found at (subject folder or root) after successful commit.
 
-8. **ONLY run if the commit in step 6 actually failed**:
+8. **Stage and amend**: After deleting the draft, stage the deletion and amend the commit to include it:
+    ```bash
+    git add <draft-path>
+    git commit --amend --no-edit
+    ```
+
+9. **ONLY run if the commit in step 6 actually failed**:
 
     Check if git commit failed:
-    - If commit succeeded, skip to step 9
+    - If commit succeeded, skip to step 10
     - If commit failed (exit code != 0) AND there are staged changes remaining:
       - Run `git status -sb`
       - Stage only the hook-modified files: `git add <files>`
       - Re-run the commit with the same actual message
     - If commit failed but no new staged changes, report the error and stop
 
-9. **Verify** the commit was created correctly:
+10. **Verify** the commit was created correctly:
 
     ```bash
     git log -1 --format='%B'
