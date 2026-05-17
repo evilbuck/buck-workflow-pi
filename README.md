@@ -39,7 +39,7 @@ Buck workflow uses a three-layer model for portability across agents:
 **Pi-native mapping:**
 
 - **Most `/b-*` commands** → **prompt templates** in `prompts/` that invoke **skills** in `skills/`
-- **Session/runtime automation** (`/b-save`) → **extension** in `extensions/index.ts`
+- **Session/runtime automation** (`/b-save`, `/b-mode`) → **extension** in `extensions/index.ts`
 
 ### Prompt Templates (`/b-*` commands)
 
@@ -62,6 +62,7 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | Command | Purpose |
 |---------|---------|
 | `/b-save` | Record session history to `.context/memory/`, update workflow state, and trigger follow-up save orchestration |
+| `/b-mode on\|off\|status` | Control Buck workflow mode and its planning write guard |
 
 ### Skills
 
@@ -90,7 +91,8 @@ The extension automatically:
 - **Warns** when implementation work is unsaved (reminds you to `/b-save`)
 - **Injects** session state into compaction context so summaries preserve workflow state
 - **Bootstraps** `.context/workflow/current-session.json` on session start
-- **Registers** `/b-save` as a real Pi extension command
+- **Registers** `/b-save` and `/b-mode` as real Pi extension commands
+- **Manages** Buck workflow mode, narrow auto-enable, status indicators, and planning write guards
 
 ## Workflow Overview
 

@@ -84,14 +84,14 @@ Likely files for a future implementation pass:
 4. **Define Buck-mode semantics in the Buck package docs.** ✅ DONE
    Added "Buck Workflow Mode" section to `docs/buck-workflow.md` covering: what mode owns, activation model, what mode does NOT do, relationship to global AGENTS.
 
-5. **Extend the runtime state model in `extensions/index.ts`.** 🔲 DEFERRED
-   Requires b-build-hard.
+5. **Extend the runtime state model in `extensions/index.ts`.** ✅ DONE
+   Added `buck_workflow_mode_active` plus source/reason/auto-disable/intent-count fields while keeping `plan_mode_active` as the write-guard sub-mode.
 
-6. **Add canonical manual mode control.** 🔲 DEFERRED
-   Requires b-build-hard.
+6. **Add canonical manual mode control.** ✅ DONE
+   Added `/b-mode on|off|status` and updated `alt+p` to toggle the Buck workflow/planning envelope.
 
-7. **Implement narrow auto-enable and latching.** 🔲 DEFERRED
-   Requires b-build-hard.
+7. **Implement narrow auto-enable and latching.** ✅ DONE
+   Added workflow intent detection for planning/research/docs/spec/backlog/review/handoff and workflow-shaped implementation requests. Manual `/b-mode off` suppresses auto-enable.
 
 8. **Add or defer the generic Buck-aware routing entrypoint deliberately.** ✅ DEFERRED
    Documented as deferred in Buck-mode section.
@@ -99,18 +99,18 @@ Likely files for a future implementation pass:
 9. **Update repo docs and consistency points.** ✅ DONE
    Updated `README.md`, corrected plan mode allowed paths in `docs/buck-workflow.md`.
 
-10. **Add focused verification around mode behavior.** 🔲 DEFERRED
-    Requires runtime implementation from steps 5-7 first.
+10. **Add focused verification around mode behavior.** ✅ DONE
+    Added `extensions/buck-mode.test.ts` covering `/b-mode`, auto-enable, manual suppression, implementation intent without write guard, and `/b-plan` state behavior.
 
 ## Verification
 - Confirm the global `AGENTS.md` is materially smaller and no longer hardcodes Buck-specific substructures beyond the top-level `.context/` convention and Buck recommendation
 - Confirm the detailed `.context` rules still exist in reference docs and are linked from the compact global AGENTS file
-- Confirm `/b-mode on|off|status` works and stays in sync with the status indicator and persisted session state
-- Confirm explicit workflow-shaped asks auto-enable Buck mode, while trivial ad-hoc asks do not
-- Confirm auto-enabled mode latches for the session until manually disabled or the session ends
-- Confirm plan-mode/write-guard behavior still blocks writes outside `.context/` and `docs/` when the planning phase is active
-- Confirm `/b-build`, `/b-build-hard`, `/b-iterate`, `/b-review`, and `/b-save` interactions remain coherent after the state-model change
-- Run the narrowest relevant checks for extension/documentation work (at minimum `npm test`, and `npx tsc --noEmit` if TypeScript/runtime code changes)
+- Confirm `/b-mode on|off|status` works and stays in sync with the status indicator and persisted session state ✅ covered by `extensions/buck-mode.test.ts`
+- Confirm explicit workflow-shaped asks auto-enable Buck mode, while trivial ad-hoc asks do not ✅ planning and workflow-shaped implementation covered by tests
+- Confirm auto-enabled mode latches for the session until manually disabled or the session ends ✅ manual suppression covered by tests
+- Confirm plan-mode/write-guard behavior still blocks writes outside `.context/` and `docs/` when the planning phase is active ✅ existing tool guard preserved; `/b-plan` active state regression covered
+- Confirm `/b-build`, `/b-build-hard`, `/b-iterate`, `/b-review`, and `/b-save` interactions remain coherent after the state-model change ✅ build commands now disable only the plan write guard while keeping Buck mode active; save state remains intact
+- Run the narrowest relevant checks for extension/documentation work (at minimum `npm test`, and `npx tsc --noEmit` if TypeScript/runtime code changes) ⚠️ targeted `extensions/buck-mode.test.ts` passes; full `npm test` and `npx tsc --noEmit` still hit pre-existing failures outside this change
 
 ## Risks
 - **Instruction split drift**: global AGENTS, global docs, and Buck docs may contradict each other if the migration is only partially completed
@@ -120,6 +120,4 @@ Likely files for a future implementation pass:
 - **External-file coupling**: this work spans both the repo and the user’s global Pi configuration/docs, which raises review and rollout complexity
 
 ## Recommended next step
-This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to split it into sequential phases (for example: ownership/docs split, runtime mode command/state, and auto-routing/verification).
-
-If executing without phasing, prefer `b-build-hard` because this crosses runtime behavior, documentation contracts, and global-vs-package ownership boundaries.
+Run `/b-review` against this plan. Remaining known verification blockers are pre-existing: Vitest treats two `node:test` files under `extensions/b-flow/__tests__/` as empty suites, and `npx tsc --noEmit` reports existing errors in `wire.test.ts` and `grill-me-dialog.ts`.

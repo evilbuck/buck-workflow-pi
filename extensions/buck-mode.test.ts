@@ -1,0 +1,208 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { rmSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import buckWorkflowExtension from "./index.js";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+
+const TEST_ROOT = join("/tmp", "buck-mode-test-" + process.pid);
+
+type MockCommand = { handler: Function; description?: string; getArgumentCompletions?: Function };
+
+function createMockApi(): {
+  api: ExtensionAPI;
+  handlers: Map<string, Function[]>;
+  commands: Map<string, MockCommand>;
+} {
+  const handlers = new Map<string, Function[]>();
+  const commands = new Map<string, MockCommand>();
+
+  const api = {
+    on: vi.fn((event: string, handler: Function) => {
+      const list = handlers.get(event) ?? [];
+      list.push(handler);
+      handlers.set(event, list);
+    }),
+    registerCommand: vi.fn((name: string, opts: MockCommand) => {
+      commands.set(name, opts);
+    }),
+    registerTool: vi.fn(),
+    registerShortcut: vi.fn(),
+    registerFlag: vi.fn(),
+    getFlag: vi.fn(),
+    registerMessageRenderer: vi.fn(),
+    sendMessage: vi.fn(),
+    sendUserMessage: vi.fn(),
+    appendEntry: vi.fn(),
+    setSessionName: vi.fn(),
+    getSessionName: vi.fn(),
+    setLabel: vi.fn(),
+    exec: vi.fn(),
+    getActiveTools: vi.fn(() => []),
+    getAllTools: vi.fn(() => []),
+    setActiveTools: vi.fn(),
+    getCommands: vi.fn(() => []),
+    setModel: vi.fn(),
+    getThinkingLevel: vi.fn(),
+    setThinkingLevel: vi.fn(),
+    registerProvider: vi.fn(),
+    unregisterProvider: vi.fn(),
+    events: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
+  } as unknown as ExtensionAPI;
+
+  return { api, handlers, commands };
+}
+
+function mockCtx(cwd: string) {
+  return {
+    cwd,
+    ui: {
+      notify: vi.fn(),
+      select: vi.fn(),
+      confirm: vi.fn(),
+      input: vi.fn(),
+      setStatus: vi.fn(),
+      setWorkingMessage: vi.fn(),
+      setWorkingVisible: vi.fn(),
+      setWorkingIndicator: vi.fn(),
+      setWidget: vi.fn(),
+      setFooter: vi.fn(),
+      setHeader: vi.fn(),
+      setTitle: vi.fn(),
+      custom: vi.fn(),
+      pasteToEditor: vi.fn(),
+      setEditorText: vi.fn(),
+      getEditorText: vi.fn(),
+      editor: vi.fn(),
+      addAutocompleteProvider: vi.fn(),
+      setEditorComponent: vi.fn(),
+      getEditorComponent: vi.fn(),
+      theme: { fg: (_kind: string, text: string) => text },
+      getAllThemes: vi.fn(() => []),
+      getTheme: vi.fn(),
+      setTheme: vi.fn(),
+      getToolsExpanded: vi.fn(),
+      setToolsExpanded: vi.fn(),
+      onTerminalInput: vi.fn(() => () => {}),
+    },
+    hasUI: true,
+    sessionManager: { getEntries: vi.fn(() => []) },
+    modelRegistry: { getAvailable: vi.fn(() => []), find: vi.fn(), getApiKeyAndHeaders: vi.fn() },
+    model: undefined,
+    isIdle: vi.fn(() => true),
+    signal: undefined,
+    abort: vi.fn(),
+    hasPendingMessages: vi.fn(() => false),
+    shutdown: vi.fn(),
+    getContextUsage: vi.fn(),
+    compact: vi.fn(),
+    getSystemPrompt: vi.fn(),
+  } as any;
+}
+
+async function startSession(handlers: Map<string, Function[]>, ctx: any) {
+  for (const handler of handlers.get("session_start") ?? []) {
+    await handler({ type: "session_start", reason: "startup" }, ctx);
+  }
+}
+
+async function sendInput(handlers: Map<string, Function[]>, text: string, ctx: any) {
+  for (const handler of handlers.get("input") ?? []) {
+    await handler({ text }, ctx);
+  }
+}
+
+function readState(root = TEST_ROOT): any {
+  return JSON.parse(readFileSync(join(root, ".context", "workflow", "current-session.json"), "utf-8"));
+}
+
+describe("Buck workflow mode", () => {
+  beforeEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+    mkdirSync(join(TEST_ROOT, ".context"), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+  });
+
+  it("registers /b-mode and toggles mode state manually", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    expect(commands.has("b-mode")).toBe(true);
+
+    await commands.get("b-mode")!.handler("on", ctx);
+    let state = readState();
+    expect(state.buck_workflow_mode_active).toBe(true);
+    expect(state.plan_mode_active).toBe(true);
+    expect(state.buck_workflow_mode_source).toBe("manual");
+    expect(state.buck_workflow_mode_auto_disabled).toBe(false);
+
+    await commands.get("b-mode")!.handler("off", ctx);
+    state = readState();
+    expect(state.buck_workflow_mode_active).toBe(false);
+    expect(state.plan_mode_active).toBe(false);
+    expect(state.buck_workflow_mode_auto_disabled).toBe(true);
+  });
+
+  it("auto-enables planning guard for explicit planning intent", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await sendInput(handlers, "Please create a plan for this change", ctx);
+
+    const state = readState();
+    expect(state.buck_workflow_mode_active).toBe(true);
+    expect(state.plan_mode_active).toBe(true);
+    expect(state.buck_workflow_mode_source).toBe("auto");
+  });
+
+  it("auto-enables Buck mode without planning guard for workflow-shaped implementation", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await sendInput(handlers, "Implement the remaining work and include handoff notes", ctx);
+
+    const state = readState();
+    expect(state.buck_workflow_mode_active).toBe(true);
+    expect(state.plan_mode_active).toBe(false);
+    expect(state.buck_workflow_mode_source).toBe("auto");
+  });
+
+  it("manual off suppresses later auto-enable", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await commands.get("b-mode")!.handler("off", ctx);
+    await sendInput(handlers, "Please create a plan for this change", ctx);
+
+    const state = readState();
+    expect(state.buck_workflow_mode_active).toBe(false);
+    expect(state.plan_mode_active).toBe(false);
+    expect(state.buck_workflow_mode_auto_disabled).toBe(true);
+    expect(state.workflow_intent_count).toBe(1);
+  });
+
+  it("/b-plan command enables Buck mode and leaves planning guard active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await sendInput(handlers, "/b-plan", ctx);
+
+    const state = readState();
+    expect(state.commands_run.at(-1).command).toBe("b-plan");
+    expect(state.buck_workflow_mode_active).toBe(true);
+    expect(state.plan_mode_active).toBe(true);
+    expect(state.buck_workflow_mode_source).toBe("command");
+  });
+});

@@ -217,6 +217,14 @@
     {
       "command": "b-review",
       "at": "2026-05-17T20:22:43.546Z"
+    },
+    {
+      "command": "b-build-hard",
+      "at": "2026-05-17T20:27:59.357Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-17T21:36:45.739Z"
     }
   ],
   "implementation_happened": true,
@@ -403,11 +411,19 @@
     "/home/buckleyrobinson/.pi/agent/AGENTS.md",
     "/home/buckleyrobinson/.pi/agent/docs/context-workflow.md",
     ".context/2026-05-17.global-agents-buck-workflow-mode/draft-commit.md",
-    ".context/memory/global-agents-buck-workflow-mode-build-2026-05-17.md"
+    ".context/memory/global-agents-buck-workflow-mode-build-2026-05-17.md",
+    "extensions/buck-mode.test.ts"
   ],
   "guided_workflow": null,
   "guided_stage": null,
   "plan_mode_active": false,
+  "buck_workflow_mode_active": false,
+  "buck_workflow_mode_source": null,
+  "buck_workflow_mode_reason": "manual /b-mode off or alt+p toggle",
+  "buck_workflow_mode_enabled_at": null,
+  "buck_workflow_mode_auto_disabled": true,
+  "workflow_intent_count": 0,
+  "last_workflow_intent_at": null,
   "active_buck_agent": "b-build",
   "model_overrides": {},
   "last_seen_session_model": null

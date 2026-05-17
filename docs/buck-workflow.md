@@ -22,6 +22,7 @@ Pi does not use the same custom command model as OpenCode. In this package, the 
 | Reusable helper capabilities | Skills | `skills/*/SKILL.md` |
 | Session/runtime automation | Extension | `extensions/index.ts` |
 | `/b-save` orchestration | Extension command | `extensions/index.ts` via `pi.registerCommand("b-save", ...)` |
+| `/b-mode` control | Extension command | `extensions/index.ts` via `pi.registerCommand("b-mode", ...)` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
@@ -224,6 +225,7 @@ flowchart TD
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-save**](#5-save-phase) | Extension command | `/b-save` | `extensions/index.ts` | Record completed work to history |
+| [**b-mode**](#buck-workflow-mode) | Extension command | `/b-mode on\|off\|status` | `extensions/index.ts` | Control Buck workflow mode |
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -255,11 +257,11 @@ flowchart TD
   - Shows "⚠️ planning" status indicator
 - State persists across session resume
 
-**To disable plan mode**: Run `/b-build`, `/b-build-hard`, or `/b-iterate` (auto-disables). Or edit `.context/workflow/current-session.json` and set `plan_mode_active` to `false`.
+**To disable plan mode**: Run `/b-build`, `/b-build-hard`, or `/b-iterate` (auto-disables the write guard but keeps Buck mode active), or run `/b-mode off` to disable the full Buck workflow envelope.
 
-**Status indicator**: When active, shows `⚠️ planning` in the footer status bar.
+**Status indicators**: When Buck mode is active, shows `🦌 buck`; when the write guard is active, also shows `📝 planning`.
 
-**Session persistence**: Plan mode state is saved to `.context/workflow/current-session.json` and restored on session resume.
+**Session persistence**: Buck mode and plan mode state are saved to `.context/workflow/current-session.json` and restored on session resume.
 
 **Allowed paths**:
 - `.context/` — plans, specs, research, memory files
@@ -295,28 +297,30 @@ Buck workflow mode is an extension-owned session state that provides a broader b
 
 Buck workflow mode encompasses and extends the existing plan-mode behavior:
 
-| Feature | Current | Planned |
-|---------|---------|--------|
-| Write guards (`.context/`, `docs/` only) | ✅ plan mode | Inherited from plan mode |
-| Auto-enable on planning/research commands | ✅ `/b-plan`, `/b-research`, `/b-brainstorm` | Extended to intent detection |
-| Auto-disable on build commands | ✅ `/b-build`, `/b-build-hard`, `/b-iterate` | Inherited |
-| Session persistence | ✅ `plan_mode_active` in `current-session.json` | Renamed/extended state model |
-| Manual toggle | ✅ `alt+p` keybind | `alt+p` + `/b-mode on|off|status` |
-| Narrow auto-enable | ❌ | Intent detection from user messages |
-| Session latching | ❌ | Mode stays active until manually disabled |
-| Implicit session bootstrap | Partial | Read `.context/` on mode activate |
-| Durable artifact prompting | Via plan mode system prompt | Enhanced with Buck-aware guidance |
+| Feature | Current implementation |
+|---------|------------------------|
+| Write guards (`.context/`, `docs/` only) | `plan_mode_active` remains the write-guard sub-mode |
+| Broad workflow mode | `buck_workflow_mode_active` in `.context/workflow/current-session.json` |
+| Auto-enable on planning/research commands | `/b-plan`, `/b-research`, `/b-brainstorm`, grill planning commands enable Buck + plan mode |
+| Auto-disable write guard on build commands | `/b-build`, `/b-build-hard`, `/b-iterate` keep Buck mode active but disable `plan_mode_active` |
+| Manual control | `/b-mode on|off|status` and `alt+p` toggle |
+| Narrow auto-enable | Intent detection from user messages |
+| Session latching | Mode stays active until manually disabled; `/b-mode off` suppresses auto-enable |
+| Implicit session bootstrap | Restores status from `.context/workflow/current-session.json` |
+| Durable artifact prompting | Buck-aware system prompt when mode is active |
 
 ### Activation
 
-**Manual control** (planned):
+**Manual control**:
 ```
-/b-mode on      — Enable Buck workflow mode
-/b-mode off     — Disable Buck workflow mode  
-/b-mode status  — Show current mode state
+/b-mode on      — Enable Buck workflow mode and the planning write guard
+/b-mode off     — Disable Buck workflow mode and suppress auto-enable for the session
+/b-mode status  — Show current mode state, source, reason, and intent count
 ```
 
-**Narrow auto-enable** (planned): Activated when the user's intent matches workflow-shaped asks:
+`alt+p` toggles the same Buck workflow/planning mode envelope.
+
+**Narrow auto-enable**: Activated when the user's intent matches workflow-shaped asks:
 - Explicit planning requests ("plan this", "how should I approach")
 - Research/explore asks ("explore this codebase", "trace the data flow")
 - Documentation/write-up requests ("write up findings", "document this")
@@ -325,9 +329,11 @@ Buck workflow mode encompasses and extends the existing plan-mode behavior:
 - Review/handoff/checkpoint asks
 - Implementation asks that explicitly include planning/handoff/documentation language
 
-**Latching**: Once auto-enabled, mode stays active for the rest of the session unless manually disabled via `/b-mode off` or `alt+p`.
+**Latching**: Once auto-enabled, Buck mode stays active until manually disabled via `/b-mode off` or `alt+p`. Build commands disable only the planning write guard, not the broader Buck workflow mode.
 
-**Accumulated session state**: Auto-enable also considers accumulated session context — once the conversation has clearly become workflow-shaped across multiple turns, mode activates even if the latest message alone wouldn't trigger it.
+**Accumulated session state**: Auto-enable also considers accumulated session context — repeated softer workflow hints can activate mode even if the latest message alone would be ambiguous.
+
+**State split**: `buck_workflow_mode_active` is the broad workflow envelope. `plan_mode_active` is only the write-guard sub-mode. This separation allows workflow-shaped implementation requests to enable Buck guidance without blocking source edits.
 
 ### What Mode Does NOT Do
 
@@ -354,9 +360,9 @@ This split makes Buck workflow portable: the global AGENTS file provides a light
 | Global AGENTS.md trimmed | ✅ Complete |
 | Buck-mode semantics documented | ✅ Complete (this section) |
 | Plan mode allowed paths corrected | ✅ Complete |
-| `/b-mode` command | 🔲 Planned |
-| Narrow auto-enable heuristics | 🔲 Planned |
-| Session state model extension | 🔲 Planned |
+| `/b-mode` command | ✅ Complete |
+| Narrow auto-enable heuristics | ✅ Complete |
+| Session state model extension | ✅ Complete |
 | Generic routing entrypoint | 🔲 Deferred |
 
 ---
