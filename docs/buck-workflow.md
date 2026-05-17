@@ -247,8 +247,8 @@ flowchart TD
 - `/b-plan`, `/b-brainstorm`, and `/b-research` automatically enable plan mode
 - `/b-build`, `/b-build-hard`, and `/b-iterate` automatically disable plan mode
 - When enabled:
-  - **Allows** writes to `.context/`, `docs/`, `.md`, and `.txt` files
-  - **Blocks** writes to source code and config files
+  - **Allows** writes to `.context/` and `docs/` paths only
+  - **Blocks** writes to source code, config files, and any `.md`/`.txt` outside allowed paths
   - **Allows** safe bash commands (ls, cat, grep, find, etc.)
   - **AI-reviews** non-whitelisted bash commands (asks for confirmation if mutating)
   - **Blocks** mutating git commands (commit, push, pull, merge, etc.)
@@ -264,12 +264,11 @@ flowchart TD
 **Allowed paths**:
 - `.context/` — plans, specs, research, memory files
 - `docs/` — documentation
-- Any `.md` or `.txt` file
 
 **Blocked paths**:
 - Source code files (`.ts`, `.js`, `.py`, etc.)
 - Config files (`.json`, `.yaml`, `.toml`, etc.)
-- Any other file type
+- `.md` or `.txt` files outside `.context/` and `docs/`
 
 **Bash restrictions**:
 - Whitelisted: `cat`, `ls`, `grep`, `find`, `head`, `tail`, `wc`, `pwd`, `echo`, `git status`, `git log`, `git diff`, etc.
@@ -285,6 +284,80 @@ flowchart TD
 ```
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+---
+
+## Buck Workflow Mode
+
+Buck workflow mode is an extension-owned session state that provides a broader behavioral envelope around the existing plan-mode write guard. It is designed to make Buck workflow mechanics implicit when the conversation is clearly workflow-shaped, without requiring explicit `/b-*` commands for every step.
+
+### What It Owns
+
+Buck workflow mode encompasses and extends the existing plan-mode behavior:
+
+| Feature | Current | Planned |
+|---------|---------|--------|
+| Write guards (`.context/`, `docs/` only) | ✅ plan mode | Inherited from plan mode |
+| Auto-enable on planning/research commands | ✅ `/b-plan`, `/b-research`, `/b-brainstorm` | Extended to intent detection |
+| Auto-disable on build commands | ✅ `/b-build`, `/b-build-hard`, `/b-iterate` | Inherited |
+| Session persistence | ✅ `plan_mode_active` in `current-session.json` | Renamed/extended state model |
+| Manual toggle | ✅ `alt+p` keybind | `alt+p` + `/b-mode on|off|status` |
+| Narrow auto-enable | ❌ | Intent detection from user messages |
+| Session latching | ❌ | Mode stays active until manually disabled |
+| Implicit session bootstrap | Partial | Read `.context/` on mode activate |
+| Durable artifact prompting | Via plan mode system prompt | Enhanced with Buck-aware guidance |
+
+### Activation
+
+**Manual control** (planned):
+```
+/b-mode on      — Enable Buck workflow mode
+/b-mode off     — Disable Buck workflow mode  
+/b-mode status  — Show current mode state
+```
+
+**Narrow auto-enable** (planned): Activated when the user's intent matches workflow-shaped asks:
+- Explicit planning requests ("plan this", "how should I approach")
+- Research/explore asks ("explore this codebase", "trace the data flow")
+- Documentation/write-up requests ("write up findings", "document this")
+- PRD/spec/roadmap/design asks
+- Backlog/issue breakdown requests
+- Review/handoff/checkpoint asks
+- Implementation asks that explicitly include planning/handoff/documentation language
+
+**Latching**: Once auto-enabled, mode stays active for the rest of the session unless manually disabled via `/b-mode off` or `alt+p`.
+
+**Accumulated session state**: Auto-enable also considers accumulated session context — once the conversation has clearly become workflow-shaped across multiple turns, mode activates even if the latest message alone wouldn't trigger it.
+
+### What Mode Does NOT Do
+
+- **Does not create files immediately** — file creation waits until a clear threshold is crossed or the user explicitly invokes a skill (`/b-plan`, `/b-research`, etc.).
+- **Does not replace explicit commands** — `/b-plan`, `/b-build`, `/b-review`, etc. remain the primary entrypoints. Mode provides implicit scaffolding around them.
+- **Does not change write guards** — plan mode's `.context/` + `docs/` write boundary remains unchanged.
+- **Does not generalize beyond Buck** — the mode is extension-owned and Buck-specific. Global Pi agent guidance remains Buck-agnostic.
+
+### Relationship to Global AGENTS.md
+
+The global `~/.pi/agent/AGENTS.md` file:
+- **Mentions Buck directly** and recommends it for most non-trivial work.
+- **Keeps the durable-artifact principle** — always prefer `.context/` artifacts.
+- **Does not encode Buck substructure** — memory frontmatter, backlog layout, and subject folder taxonomy live in Buck docs and `docs/context-workflow.md`.
+- **Does not implement mode behavior** — mode is extension-owned runtime state.
+
+This split makes Buck workflow portable: the global AGENTS file provides a lightweight baseline, while Buck owns the detailed semantics.
+
+### Implementation Status
+
+| Component | Status |
+|-----------|--------|
+| Ownership split documented | ✅ Complete |
+| Global AGENTS.md trimmed | ✅ Complete |
+| Buck-mode semantics documented | ✅ Complete (this section) |
+| Plan mode allowed paths corrected | ✅ Complete |
+| `/b-mode` command | 🔲 Planned |
+| Narrow auto-enable heuristics | 🔲 Planned |
+| Session state model extension | 🔲 Planned |
+| Generic routing entrypoint | 🔲 Deferred |
 
 ---
 

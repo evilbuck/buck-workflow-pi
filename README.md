@@ -6,6 +6,18 @@ A structured, discoverable workflow for AI-assisted software development with du
 
 The Buck workflow is built on one principle: **don't lose work**. It separates **intent** (plans in subject folders) from **record** (history in memory), creating a durable paper trail that survives chat context limits.
 
+## Global vs Package Ownership
+
+Buck workflow is designed for portability across agent environments. The split between global Pi agent instructions and this package is intentional:
+
+| Layer | Location | Owns |
+|-------|----------|------|
+| **Global baseline** | `~/.pi/agent/AGENTS.md` | Operating principles, durable-artifact principle, `.context/` as shared convention, Buck recommendation |
+| **Global reference** | `~/.pi/agent/docs/context-workflow.md` | Detailed `.context/` conventions, frontmatter templates, backlog layout |
+| **Buck package** | This repo | Workflow semantics, skills, prompts, extension runtime, Buck-mode behavior |
+
+The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workflow taxonomy and runtime behavior. This means Buck workflow remains portable — the global layer provides a lightweight hint that points to Buck for non-trivial work.
+
 ## Install
 
 ```bash

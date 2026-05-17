@@ -1,5 +1,7 @@
 # Memory Index
 
+- 2026-05-17 | `global-agents-buck-workflow-mode-build-2026-05-17.md` | domains: [buck-workflow, docs, refactor] | topics: [global-agents, buck-mode, ownership-split, plan-mode, docs] | status: active
+
 - 2026-05-17 | `2026-05-17-planning-mode-write-guards.md` | domains: [buck-workflow, plan-mode, extensions, keybindings] | topics: [plan-mode, write-guards, grill-commands, prompt-templates, isAllowedPlanWritePath, alt+p, toggle] | status: completed
 - 2026-05-17 | `subject-phase-detection-2026-05-17.md` | domains: [research, extensions, implementation, review, architecture] | topics: [subject-detection, phase-progress, b-flow, before_agent_start, hook, token-savings] | status: completed
 - 2026-05-15 | `tps-tracker-review-2026-05-15.md` | domains: [extensions, review, implementation] | topics: [tps-tracker, tokens-per-second, pi-extension, wire-pattern, ctx-hasUI] | status: active
