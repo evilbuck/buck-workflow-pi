@@ -4,6 +4,8 @@ import { createBuckMachine } from "./machine.js";
 import { readProjection, readSnapshot, writeProjection, writeSnapshot } from "./persistence.js";
 import type { BuckActor } from "./machine.js";
 import { confirmTransition } from "./ui.js";
+import { existsSync, readFileSync } from "node:fs";
+import { basename } from "node:path";
 
 const UI_MODE_KEY = "b-flow:ui-mode";
 
@@ -165,6 +167,90 @@ export function wire(api: ExtensionAPI): void {
 
   api.on("session_start", async (_event, ctx) => {
     projectRoot = ctx.cwd;
+  });
+
+  // --- Inject next work item before agent starts (saves discovery tokens) ---
+
+  api.on("before_agent_start", async (event, ctx) => {
+    const projection = readProjection(projectRoot);
+    if (!projection || projection.currentState === "idle") return;
+
+    // Find next pending or in-progress item
+    const nextItem = projection.queue.find(
+      (q) => q.status === "in-progress" || q.status === "pending",
+    );
+    if (!nextItem || !existsSync(nextItem.path)) return;
+
+    // Read just enough to orient the agent
+    let snippet: string;
+    try {
+      const raw = readFileSync(nextItem.path, "utf-8");
+      snippet = raw.slice(0, 4000);
+    } catch {
+      return;
+    }
+
+    const completed = projection.queue.filter((q) => q.status === "completed").length;
+    const total = projection.queue.length;
+    const statusBlock = projection.queue
+      .map((q) => {
+        const label = q.status === "completed" ? "✓" : q.status === "in-progress" ? "▶" : q.status === "blocked" ? "⚠" : "○";
+        return `${label} [${q.type}] ${q.id}`;
+      })
+      .join("\n");
+
+    return {
+      message: {
+        customType: "b-workflow-next",
+        content: [
+          `# Next Work — ${projection.subject ?? "(no subject)"}`,`Goal: ${projection.goal}`,
+          `State: ${projection.currentState} | Queue: ${completed}/${total} done`,
+          `**Next: \`${basename(nextItem.path)}\` at \`${nextItem.path}\`**`,
+          "",
+          "## Queue",
+          statusBlock,
+          "",
+          "## Content",
+          snippet,
+        ].join("\n"),
+        display: false,
+      },
+    };
+  });
+
+  // --- /b-next command (no LLM needed) ---
+
+  api.registerCommand("b-next", {
+    description: "Show next work item from b-flow queue",
+    handler: async (_args, ctx) => {
+      projectRoot = ctx.cwd;
+      const projection = actor?.getSnapshot().context.projection ?? readProjection(projectRoot);
+      if (!projection || projection.currentState === "idle") {
+        ctx.ui.notify("No active b-flow session. Run /b-flow start <goal>", "info");
+        return;
+      }
+
+      const nextItem = projection.queue.find((q) => q.status === "pending");
+      const inProgress = projection.queue.find((q) => q.status === "in-progress");
+      const current = inProgress ?? nextItem;
+
+      if (!current) {
+        const completed = projection.queue.filter((q) => q.status === "completed").length;
+        ctx.ui.notify(`Queue exhausted. ${completed}/${projection.queue.length} done.`, "info");
+        return;
+      }
+
+      const completed = projection.queue.filter((q) => q.status === "completed").length;
+      const total = projection.queue.length;
+
+      ctx.ui.notify(
+        `▶️ Next: [${current.type}] ${current.id}\n` +
+        `Subject: ${projection.subject ?? "(none)"}\n` +
+        `Path: ${current.path}\n` +
+        `Queue: ${completed}/${total} done | State: ${projection.currentState}`,
+        "info",
+      );
+    },
   });
 
   // --- Compaction hook ---

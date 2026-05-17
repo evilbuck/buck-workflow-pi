@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B-Flow Next-Item Injection — Architecture & Flow</title>
+<style>
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #2d3a4f;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #3b82f6;
+    --accent2: #8b5cf6;
+    --green: #10b981;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --font: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  .slide {
+    display: none;
+    position: absolute;
+    inset: 0;
+    padding: 60px 80px;
+    flex-direction: column;
+    justify-content: center;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .slide.active {
+    display: flex;
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .slide-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: 3.2rem;
+    font-weight: 700;
+    line-height: 1.15;
+    margin-bottom: 20px;
+    max-width: 800px;
+  }
+  h1 .highlight { color: var(--accent); }
+  h1 .highlight2 { color: var(--accent2); }
+  h1 .green { color: var(--green); }
+  h1 .orange { color: var(--orange); }
+
+  h2 {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 30px;
+  }
+
+  p, li {
+    font-size: 1.15rem;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+  p strong { color: var(--text); }
+
+  .subtitle {
+    font-size: 1.4rem;
+    color: var(--muted);
+    max-width: 650px;
+    margin-bottom: 40px;
+  }
+
+  .card-row {
+    display: flex;
+    gap: 24px;
+    margin-top: 30px;
+  }
+  .card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: var(--text);
+  }
+  .card p { font-size: 0.95rem; }
+  .card .stat {
+    font-size: 2.4rem;
+    font-weight: 700;
+    font-family: var(--font);
+    margin: 8px 0;
+  }
+  .card .stat.blue { color: var(--accent); }
+  .card .stat.green { color: var(--green); }
+  .card .stat.orange { color: var(--orange); }
+
+  code {
+    font-family: var(--font);
+    font-size: 0.9rem;
+    background: var(--surface2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: var(--accent2);
+  }
+
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--muted);
+    margin: 16px 0;
+  }
+  pre .kw { color: var(--accent); }
+  pre .str { color: var(--green); }
+  pre .cm { color: #5a6a80; }
+  pre .fn { color: var(--accent2); }
+  pre .num { color: var(--orange); }
+
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 30px 0;
+    font-family: var(--font);
+    font-size: 0.8rem;
+  }
+  .flow-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    min-width: 160px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .flow-step.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(59,130,246,0.15);
+  }
+  .flow-step .step-title {
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .flow-step .step-desc {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .flow-arrow {
+    color: var(--accent);
+    font-size: 1.5rem;
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 10px 0;
+  }
+  .diagram-box.highlight-box {
+    border-color: var(--accent);
+    background: rgba(59,130,246,0.06);
+  }
+
+  ul.checklist {
+    list-style: none;
+    padding: 0;
+  }
+  ul.checklist li {
+    padding: 6px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  ul.checklist li::before {
+    content: "✓";
+    color: var(--green);
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-top: 24px;
+  }
+  .comparison .before, .comparison .after {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 28px;
+  }
+  .comparison .before { border: 1px solid var(--red); border-width: 1px 0 1px 1px; border-radius: 12px 0 0 12px; }
+  .comparison .after { border: 1px solid var(--green); border-radius: 0 12px 12px 0; }
+  .comparison h3 {
+    font-size: 1rem;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .comparison .before h3 { color: var(--red); }
+  .comparison .after h3 { color: var(--green); }
+
+  .nav-hint {
+    position: fixed;
+    bottom: 24px;
+    right: 30px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    opacity: 0.6;
+  }
+
+  .slide-counter {
+    position: fixed;
+    bottom: 24px;
+    left: 30px;
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-family: var(--font);
+  }
+
+  .arch-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    margin-top: 24px;
+  }
+  .arch-col h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .arch-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+  }
+  .arch-item .label { color: var(--text); font-weight: 500; }
+  .arch-item .path { color: var(--muted); font-family: var(--font); font-size: 0.75rem; }
+
+  .phase-list {
+    display: flex;
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .phase-badge {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    font-family: var(--font);
+  }
+  .phase-badge.done { background: rgba(16,185,129,0.15); color: var(--green); border: 1px solid var(--green); }
+  .phase-badge.current { background: rgba(59,130,246,0.15); color: var(--accent); border: 1px solid var(--accent); }
+  .phase-badge.waiting { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide active" data-slide="0">
+  <div class="slide-label">B-Flow Extension</div>
+  <h1>Next-Item<br><span class="highlight">Injection Hook</span></h1>
+  <p class="subtitle">Eliminate discovery token waste by injecting the next work item directly into the agent's context before each turn.</p>
+  <div style="display:flex;gap:32px;align-items:center;">
+    <div>
+      <div style="font-size:0.85rem;color:var(--muted);margin-bottom:4px;">File changed</div>
+      <div style="font-family:var(--font);font-size:0.9rem;">extensions/b-flow/index.ts</div>
+    </div>
+    <div>
+      <div style="font-size:0.85rem;color:var(--muted);margin-bottom:4px;">Additions</div>
+      <div style="font-family:var(--font);font-size:0.9rem;">before_agent_start hook + /b-next command</div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 2: The Problem -->
+<div class="slide" data-slide="1">
+  <div class="slide-label">Problem</div>
+  <h1>Every resume <span class="orange">burns tokens</span><br>on discovery</h1>
+  <p class="subtitle">When the agent starts a new turn, it doesn't know what to work on. It has to figure it out by scanning files.</p>
+
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="step-title">Session Start</div>
+      <div class="step-desc">Agent wakes up</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">ls .context/</div>
+      <div class="step-desc">Read directory</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">Read plan</div>
+      <div class="step-desc">Parse markdown</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">Read phases</div>
+      <div class="step-desc">Check status</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">Read tasks.md</div>
+      <div class="step-desc">Find unchecked</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--orange)">
+      <div class="step-title">~5 tool calls</div>
+      <div class="step-desc">~2-4k tokens wasted</div>
+    </div>
+  </div>
+
+  <div class="card-row">
+    <div class="card">
+      <h3>Cost Per Resume</h3>
+      <div class="stat orange">~3,000</div>
+      <p>wasted tokens per session restart</p>
+    </div>
+    <div class="card">
+      <h3>Over a Day</h3>
+      <div class="stat orange">10-15×</div>
+      <p>resumes × 3k = 30k-45k tokens on discovery alone</p>
+    </div>
+    <div class="card">
+      <h3>Knowledge Already Exists</h3>
+      <div class="stat blue">1</div>
+      <p>file: orchestration.json has the full queue</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: The Solution -->
+<div class="slide" data-slide="2">
+  <div class="slide-label">Solution</div>
+  <h1>Inject <span class="green">before_agent_start</span><br>— zero discovery cost</h1>
+  <p class="subtitle">Read orchestration.json from the extension (not a tool), find the next item, inject it as a hidden context message.</p>
+
+  <div class="flow-diagram">
+    <div class="flow-step">
+      <div class="step-title">Session Start</div>
+      <div class="step-desc">Agent wakes up</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--green)">
+      <div class="step-title">Hook fires</div>
+      <div class="step-desc">readFileSync (no tool)</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--green)">
+      <div class="step-title">Next item found</div>
+      <div class="step-desc">4KB snippet + queue</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--green)">
+      <div class="step-title">Injected message</div>
+      <div class="step-desc">display: false</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--green)">
+      <div class="step-title">Agent starts</div>
+      <div class="step-desc">Already knows what to do</div>
+    </div>
+  </div>
+
+  <div class="comparison">
+    <div class="before">
+      <h3>Before</h3>
+      <ul class="checklist">
+        <li><span>5+ tool calls to discover state</span></li>
+        <li><span>~2-4k tokens burned</span></li>
+        <li><span>Every resume repeats</span></li>
+        <li><span>Agent must reason about state</span></li>
+      </ul>
+    </div>
+    <div class="after">
+      <h3>After</h3>
+      <ul class="checklist">
+        <li><span>0 tool calls — readFileSync</span></li>
+        <li><span>0 tokens for discovery</span></li>
+        <li><span>Hook fires every turn (idempotent)</span></li>
+        <li><span>Next item is in the prompt</span></li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 4: Architecture Overview -->
+<div class="slide" data-slide="3">
+  <div class="slide-label">Architecture</div>
+  <h2>System Layout — Single Project</h2>
+
+  <div class="arch-grid">
+    <div class="arch-col">
+      <h3>Persistent State</h3>
+      <div class="arch-item">
+        <div class="label">Orchestration State</div>
+        <div class="path">.context/workflow/orchestration.json</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">currentState, queue[], subject, goal, history[]</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">XState Snapshot</div>
+        <div class="path">.context/workflow/orchestration.snapshot.json</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Full machine state for restore</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">Session State</div>
+        <div class="path">.context/workflow/current-session.json</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Commands run, files modified, plan mode</div>
+      </div>
+    </div>
+    <div class="arch-col">
+      <h3>Subject Artifacts</h3>
+      <div class="arch-item">
+        <div class="label">Phases</div>
+        <div class="path">.context/YYYY-MM-DD.subject/phase-N-*.md</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">status, difficulty, acceptance criteria</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">Plan</div>
+        <div class="path">.context/YYYY-MM-DD.subject/plan-*.md</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Implementation steps, scope, risks</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">Tasks</div>
+        <div class="path">.context/YYYY-MM-DD.subject/tasks.md</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Checkbox checklist — [ ] / [x]</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">Backlog</div>
+        <div class="path">.context/backlog/todo.md + items/</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Linked item definitions</div>
+      </div>
+    </div>
+    <div class="arch-col">
+      <h3>Extension Hooks</h3>
+      <div class="arch-item highlight-box">
+        <div class="label" style="color:var(--green);">before_agent_start ★</div>
+        <div class="path">b-flow/index.ts</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Injects next item into LLM context</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">session_start</div>
+        <div class="path">b-flow/index.ts</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Sets projectRoot from ctx.cwd</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">session_before_compact</div>
+        <div class="path">b-flow/index.ts</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Injects workflow summary into compaction</div>
+      </div>
+      <div class="arch-item">
+        <div class="label">tool_call</div>
+        <div class="path">extensions/index.ts</div>
+        <div style="color:var(--muted);font-size:0.75rem;margin-top:4px;">Plan mode enforcement</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5: The Hook Code -->
+<div class="slide" data-slide="4">
+  <div class="slide-label">Implementation</div>
+  <h2>The <code>before_agent_start</code> Hook</h2>
+
+  <pre><span class="cm">// Fires before every LLM turn — injects next work item</span>
+<span class="kw">api</span>.<span class="fn">on</span>(<span class="str">"before_agent_start"</span>, <span class="kw">async</span> (event, ctx) => {
+  <span class="kw">const</span> projection = <span class="fn">readProjection</span>(projectRoot);
+  <span class="kw">if</span> (!projection || projection.currentState === <span class="str">"idle"</span>) <span class="kw">return</span>;
+
+  <span class="cm">// Find next work item (in-progress takes priority over pending)</span>
+  <span class="kw">const</span> nextItem = projection.queue.<span class="fn">find</span>(
+    (q) => q.status === <span class="str">"in-progress"</span> || q.status === <span class="str">"pending"</span>,
+  );
+  <span class="kw">if</span> (!nextItem || !<span class="fn">existsSync</span>(nextItem.path)) <span class="kw">return</span>;
+
+  <span class="cm">// Read just enough — 4KB snippet, no tool calls</span>
+  <span class="kw">const</span> snippet = <span class="fn">readFileSync</span>(nextItem.path, <span class="str">"utf-8"</span>).<span class="fn">slice</span>(<span class="num">0</span>, <span class="num">4000</span>);
+
+  <span class="kw">const</span> completed = projection.queue.<span class="fn">filter</span>(q => q.status === <span class="str">"completed"</span>).length;
+
+  <span class="kw">return</span> {
+    <span class="cm">// Hidden message — LLM-only, not shown in TUI</span>
+    message: {
+      customType: <span class="str">"b-workflow-next"</span>,
+      content: <span class="str">`# Next Work — ${projection.subject}`</span> + <span class="str">"\n"</span> +
+        <span class="str">`Queue: ${completed}/${projection.queue.length} done\n\n`</span> + snippet,
+      display: <span class="kw">false</span>,
+    },
+  };
+});</pre>
+
+  <div class="card-row" style="margin-top:16px">
+    <div class="card">
+      <h3>Guard: idle state</h3>
+      <p>If <code>currentState === "idle"</code>, no injection. The XState machine's <code>recovering → scanContext</code> flow handles fresh starts.</p>
+    </div>
+    <div class="card">
+      <h3>Guard: missing file</h3>
+      <p>If the next item's path doesn't exist on disk, silently skip. The XState machine will re-scan and rebuild the queue.</p>
+    </div>
+    <div class="card">
+      <h3>display: false</h3>
+      <p>The message participates in LLM context but is hidden from the TUI. Clean chat, full context.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 6: The XState Machine -->
+<div class="slide" data-slide="5">
+  <div class="slide-label">State Machine</div>
+  <h2>B-Flow <span class="highlight">XState</span> Lifecycle</h2>
+
+  <div class="flow-diagram" style="flex-wrap:wrap;justify-content:center;">
+    <div class="flow-step">
+      <div class="step-title">idle</div>
+      <div class="step-desc">No active workflow</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">recovering</div>
+      <div class="step-desc">scanContext fires</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">planning</div>
+      <div class="step-desc">Find/create plan</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">decomposing</div>
+      <div class="step-desc">Break into chunks</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step active" style="border-color:var(--accent)">
+      <div class="step-title">executingChunks</div>
+      <div class="step-desc">★ Hook active here</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">reviewing</div>
+      <div class="step-desc">Validate results</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">saving</div>
+      <div class="step-desc">b-save</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="step-title">done</div>
+      <div class="step-desc">Final state</div>
+    </div>
+  </div>
+
+  <div class="diagram-box" style="margin-top:20px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px">
+      <span style="background:rgba(59,130,246,0.15);color:var(--accent);padding:4px 12px;border-radius:12px;font-size:0.8rem;font-family:var(--font);border:1px solid var(--accent);">★ HOOK FIRES</span>
+      <span style="color:var(--muted);font-size:0.85rem;">The <code>before_agent_start</code> hook activates when <code>currentState</code> is <strong style="color:var(--text)">anything except <code>idle</code></strong> and the queue has pending items.</span>
+    </div>
+    <div class="phase-list">
+      <span class="phase-badge done">recovering → hook may fire</span>
+      <span class="phase-badge done">planning → hook may fire</span>
+      <span class="phase-badge current">executingChunks → primary hook target</span>
+      <span class="phase-badge waiting">reviewing → hook fires if more chunks</span>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7: Queue Item Types -->
+<div class="slide" data-slide="6">
+  <div class="slide-label">Queue Items</div>
+  <h2>What the <span class="highlight2">Queue</span> Contains</h2>
+
+  <div class="card-row" style="flex-wrap:wrap">
+    <div class="card" style="flex:1 1 220px">
+      <h3>📋 Phase</h3>
+      <div style="font-family:var(--font);font-size:0.8rem;color:var(--accent);margin:8px 0">phase-N-slug.md</div>
+      <p style="font-size:0.85rem">Discrete phase files with <code>status:</code> and <code>difficulty:</code> frontmatter. Ordered by filename. Scanned for first non-completed.</p>
+    </div>
+    <div class="card" style="flex:1 1 220px">
+      <h3>☑️ Task</h3>
+      <div style="font-family:var(--font);font-size:0.8rem;color:var(--accent);margin:8px 0">tasks.md</div>
+      <p style="font-size:0.85rem">Unchecked <code>- [ ]</code> items from the subject's <code>tasks.md</code>. Each unchecked line becomes a queue item.</p>
+    </div>
+    <div class="card" style="flex:1 1 220px">
+      <h3>📦 Backlog</h3>
+      <div style="font-family:var(--font);font-size:0.8rem;color:var(--accent);margin:8px 0">backlog/todo.md</div>
+      <p style="font-size:0.85rem">Linked backlog items from <code>.context/backlog/todo.md</code>. Each <code>[title](items/slug.md)</code> is a queue entry.</p>
+    </div>
+    <div class="card" style="flex:1 1 220px">
+      <h3>🔄 Iterate</h3>
+      <div style="font-family:var(--font);font-size:0.8rem;color:var(--accent);margin:8px 0">iterate-*.md</div>
+      <p style="font-size:0.85rem">Follow-up iteration bundles created during review cycles. Scanned from the subject folder.</p>
+    </div>
+  </div>
+
+  <div class="diagram-box" style="margin-top:20px">
+    <div style="font-size:0.85rem;color:var(--muted);margin-bottom:8px;">Queue items are built by <code>buildQueue()</code> in <code>queue-builder.ts</code> during the <code>executingChunks</code> state. The order is: <strong style="color:var(--text)">Phases → Tasks → Backlog → Iterate</strong>.</div>
+  </div>
+</div>
+
+<!-- SLIDE 8: The /b-next Command -->
+<div class="slide" data-slide="7">
+  <div class="slide-label">Command</div>
+  <h2><code>/b-next</code> — No LLM Needed</h2>
+
+  <p class="subtitle">Quick inspection directly in the TUI. No tokens, no LLM turn, no tool calls.</p>
+
+  <div class="diagram-box highlight-box" style="margin:20px 0">
+    <pre style="border:none;background:none;padding:0;margin:0;font-size:1rem;">
+▶️ Next: [phase] phase-2-migrate-auth
+Subject: 2026-05-15.refactor-auth
+Path: .context/2026-05-15.refactor-auth/phase-2-migrate-auth.md
+Queue: 1/4 done | State: executingChunks</pre>
+  </div>
+
+  <pre><span class="kw">api</span>.<span class="fn">registerCommand</span>(<span class="str">"b-next"</span>, {
+  <span class="fn">description</span>: <span class="str">"Show next work item from b-flow queue"</span>,
+  <span class="kw">async</span> <span class="fn">handler</span>(_args, ctx) {
+    <span class="kw">const</span> projection = <span class="fn">readProjection</span>(projectRoot);
+    <span class="kw">if</span> (!projection || projection.currentState === <span class="str">"idle"</span>) {
+      ctx.ui.<span class="fn">notify</span>(<span class="str">"No active b-flow session."</span>, <span class="str">"info"</span>);
+      <span class="kw">return</span>;
+    }
+    <span class="kw">const</span> current = inProgress ?? nextItem;
+    <span class="kw">if</span> (!current) {
+      ctx.ui.<span class="fn">notify</span>(<span class="str">"Queue exhausted."</span>, <span class="str">"info"</span>);
+      <span class="kw">return</span>;
+    }
+    ctx.ui.<span class="fn">notify</span>(
+      <span class="str">`▶️ Next: [${current.type}] ${current.id}\n`</span> +
+      <span class="str">`Queue: ${completed}/${total} done`</span>,
+      <span class="str">"info"</span>,
+    );
+  },
+});</pre>
+</div>
+
+<!-- SLIDE 9: Session Lifecycle -->
+<div class="slide" data-slide="8">
+  <div class="slide-label">Session Lifecycle</div>
+  <h2>Hook + Compaction <span class="green">Synergy</span></h2>
+
+  <div class="diagram-box">
+    <div style="font-size:0.9rem;font-weight:600;margin-bottom:12px;color:var(--text);">Session Lifecycle Flow</div>
+    <div class="flow-diagram" style="margin:0">
+      <div class="flow-step">
+        <div class="step-title">session_start</div>
+        <div class="step-desc">projectRoot = ctx.cwd</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-title">User prompts</div>
+        <div class="step-desc">/b-build, /b-iterate, etc.</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step active" style="border-color:var(--green)">
+        <div class="step-title">before_agent_start</div>
+        <div class="step-desc">Inject next item</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-title">Agent turn</div>
+        <div class="step-desc">Works on item</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-title">tool_result</div>
+        <div class="step-desc">Track file changes</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-step">
+        <div class="step-title">agent_end</div>
+        <div class="step-desc">Save warning</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card-row">
+    <div class="card">
+      <h3>Compaction Hook</h3>
+      <p style="font-size:0.85rem">When context is compacted, the b-flow state summary is injected into the compaction entry. After compact, the <code>before_agent_start</code> hook re-injects the next item from the updated queue.</p>
+    </div>
+    <div class="card">
+      <h3>tool_result Hook</h3>
+      <p style="font-size:0.85rem">In <code>extensions/index.ts</code>, write/edit tool results are tracked into <code>current-session.json</code>. Memory files trigger QMD re-index. This feeds into <code>b-save</code>.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 10: Token Savings -->
+<div class="slide" data-slide="9">
+  <div class="slide-label">Impact</div>
+  <h1><span class="green">Zero tokens</span><br>on discovery</h1>
+
+  <div class="card-row" style="margin-top:30px">
+    <div class="card">
+      <h3>Tool Calls Saved</h3>
+      <div class="stat green">5+</div>
+      <p>per session resume — ls, read plan, read phases, read tasks, figure out next</p>
+    </div>
+    <div class="card">
+      <h3>Tokens Saved</h3>
+      <div class="stat green">~3,000</div>
+      <p>input tokens per resume (tool call overhead + file content + reasoning)</p>
+    </div>
+    <div class="card">
+      <h3>Time Saved</h3>
+      <div class="stat blue">~15s</div>
+      <p>per resume (5 tool calls × ~3s each, before agent even starts working)</p>
+    </div>
+  </div>
+
+  <div class="diagram-box highlight-box" style="margin-top:30px">
+    <div style="font-size:0.9rem;text-align:center">
+      <strong style="color:var(--text)">Key insight:</strong> The extension runs <code>readFileSync</code> directly — it's <strong style="color:var(--text)">not a tool call</strong>. The LLM never sees the discovery happening. The answer is just in the prompt.
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 11: Files Changed -->
+<div class="slide" data-slide="10">
+  <div class="slide-label">Summary</div>
+  <h2>What <span class="highlight">Changed</span></h2>
+
+  <div class="diagram-box highlight-box">
+    <div style="font-family:var(--font);font-size:0.9rem;margin-bottom:16px">
+      <div style="color:var(--green);margin-bottom:4px">M extensions/b-flow/index.ts</div>
+      <div style="color:var(--muted);font-size:0.8rem">+60 lines, 0 lines removed</div>
+    </div>
+    <ul class="checklist">
+      <li><span><code>before_agent_start</code> hook — reads orchestration.json, injects next item as hidden message</span></li>
+      <li><span><code>/b-next</code> command — shows next queue item in TUI (no LLM)</span></li>
+      <li><span>Guard: skips when <code>idle</code> — XState scan handles fresh starts</span></li>
+      <li><span>Guard: skips when file missing — queue rebuilds automatically</span></li>
+      <li><span>Uses <code>readFileSync</code> — no tool calls, no token cost</span></li>
+      <li><span>message.display = false — LLM-only, clean TUI</span></li>
+      <li><span>All 88 tests pass</span></li>
+    </ul>
+  </div>
+
+  <div style="margin-top:30px;text-align:center">
+    <div style="color:var(--muted);font-size:0.85rem">Existing hooks unchanged:</div>
+    <div style="font-family:var(--font);font-size:0.8rem;color:var(--text);margin-top:4px">session_start · session_before_compact · tool_call (plan mode) · tool_result · agent_end · input · model_select</div>
+  </div>
+</div>
+
+<div class="nav-hint">← → or click to navigate</div>
+<div class="slide-counter" id="counter">1 / 11</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  let current = 0;
+
+  function goTo(n) {
+    if (n < 0 || n >= slides.length) return;
+    slides[current].classList.remove('active');
+    current = n;
+    slides[current].classList.add('active');
+    document.getElementById('counter').textContent = (current + 1) + ' / ' + slides.length;
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') {
+      e.preventDefault();
+      goTo(current + 1);
+    }
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      goTo(current - 1);
+    }
+  });
+
+  document.addEventListener('click', (e) => {
+    if (e.clientX > window.innerWidth / 2) goTo(current + 1);
+    else goTo(current - 1);
+  });
+</script>
+</body>
+</html>
