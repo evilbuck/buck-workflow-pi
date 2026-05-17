@@ -30,7 +30,6 @@ interface SessionState {
 // --- Plan Mode Configuration ---
 
 const PLAN_MODE_ALLOWED_PATHS = [".context/", "docs/"];
-const PLAN_MODE_ALLOWED_EXTENSIONS = [".md", ".txt"];
 
 const SAFE_BASH_PATTERNS: RegExp[] = [
   /^\s*cat\b/, /^\s*ls\b/, /^\s*grep\b/, /^\s*find\b/,
@@ -66,9 +65,6 @@ function isAllowedPlanWritePath(path: string): boolean {
       return true;
     }
   }
-  for (const ext of PLAN_MODE_ALLOWED_EXTENSIONS) {
-    if (normalizedPath.endsWith(ext)) return true;
-  }
   return false;
 }
 
@@ -85,7 +81,7 @@ const STATE_DIR = ".context/workflow";
 const STATE_FILE = "current-session.json";
 const MEMORY_DIR = ".context/memory";
 
-const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-research"];
+const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-research", "b-grill-me", "b-grill-with-docs"];
 const IMPLEMENTATION_COMMANDS = ["b-build", "b-build-hard", "b-iterate"];
 const MODEL_SWITCH_COMMANDS = ["b-build", "b-build-hard", "b-iterate", "b-review"];
 const BUCK_PREFIX = "b-";
@@ -418,12 +414,37 @@ export default function (pi: ExtensionAPI) {
       state.plan_mode_active = true;
       writeState(state);
       ctx.ui.notify(
-        "✅ Plan mode enabled - writes allowed to .context/, docs/, .md, .txt",
+        "✅ Plan mode enabled - writes allowed to .context/, docs/ only",
         "info",
       );
       updatePlanModeStatus(ctx, true);
     }
   }
+
+  function togglePlanMode(ctx: any): void {
+    const state = ensureState();
+    state.plan_mode_active = !state.plan_mode_active;
+    writeState(state);
+    if (state.plan_mode_active) {
+      ctx.ui.notify(
+        "✅ Plan mode enabled - writes allowed to .context/, docs/ only",
+        "info",
+      );
+      updatePlanModeStatus(ctx, true);
+    } else {
+      ctx.ui.notify("📝 Plan mode disabled", "info");
+      updatePlanModeStatus(ctx, false);
+    }
+  }
+
+  // --- Plan mode keybind (alt+p, configurable via keybindings.json) ---
+
+  pi.registerShortcut("alt+p", {
+    description: "Toggle plan mode",
+    handler: async (ctx) => {
+      togglePlanMode(ctx);
+    },
+  });
 
   pi.on("before_agent_start", async (event, ctx) => {
     if (pendingModelSwitchCommand && MODEL_SWITCH_COMMANDS.includes(pendingModelSwitchCommand)) {
@@ -441,16 +462,16 @@ You are in plan mode. This is a PLANNING PHASE only.
 Allowed writes:
 - .context/ directory (Buck workflow: plans, specs, research, memory)
 - docs/ directory (documentation)
-- .md and .txt files
 
 Blocked:
 - Source code files (.ts, .js, .py, etc.)
 - Config files (.json, .yaml, .toml, etc.)
-- Other non-documentation files
+- .md or .txt files outside .context/ and docs/
+- All other non-documentation files
 
 Available tools:
 - read: Read files to understand the codebase
-- write/edit: Write to allowed paths only
+- write/edit: Write to allowed paths only (.context/, docs/)
 - bash: Run commands for exploration (safe commands allowed, others reviewed)
 
 Help the user plan what needs to be done:
@@ -458,7 +479,7 @@ Help the user plan what needs to be done:
 - Discuss the approach  
 - Create/update plans in .context/
 - Update documentation in docs/
-- When ready, run /plan to exit plan mode`;
+- When ready, run /b-build or /b-build-hard to exit plan mode`;
 
     return {
       systemPrompt: event.systemPrompt + "\n\n" + instructions,
@@ -645,11 +666,7 @@ Help the user plan what needs to be done:
     if (event.toolName === "write") {
       const path = (event.input as any)?.path || "";
       if (!isAllowedPlanWritePath(path)) {
-        const ext = path.split(".").pop()?.toLowerCase();
-        const reason = ext && !["md", "txt"].includes(ext)
-          ? `Plan mode: .${ext} files are not allowed. Allowed: .context/, docs/, .md, .txt`
-          : `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/`;
-        return { block: true, reason };
+        return { block: true, reason: `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/` };
       }
       return;
     }
@@ -658,10 +675,7 @@ Help the user plan what needs to be done:
     if (event.toolName === "edit") {
       const path = (event.input as any)?.path || "";
       if (!isAllowedPlanWritePath(path)) {
-        const ext = path.split(".").pop()?.toLowerCase();
-        const reason = ext && !["md", "txt"].includes(ext)
-          ? `Plan mode: .${ext} files are not allowed. Allowed: .context/, docs/, .md, .txt`
-          : `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/`;
+        const reason = `Plan mode: ${path} is not in allowed paths. Allowed: .context/, docs/`;
         return { block: true, reason };
       }
       return;
