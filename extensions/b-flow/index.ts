@@ -5,6 +5,7 @@ import { readProjection, readSnapshot, writeProjection, writeSnapshot } from "./
 import type { BuckActor } from "./machine.js";
 import { confirmTransition } from "./ui.js";
 import { killWorkerPid } from "./worker.js";
+import { createCheckpointCommit } from "./checkpoint.js";
 import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 
@@ -28,10 +29,27 @@ export function wire(api: ExtensionAPI): void {
   let actor: BuckActor | null = null;
   let actorSubscription: { unsubscribe: () => void } | null = null;
   let projectRoot = "";
+  let prevState = "idle";
 
   function persistActor(current: BuckActor): void {
     try {
       const snapshot = current.getSnapshot();
+      const currentState = snapshot.context.projection.currentState;
+
+      // Fire checkpoint on reviewing → saving transition (review passed, about to save)
+      if (prevState === "reviewing" && currentState === "saving") {
+        const result = createCheckpointCommit({
+          projectRoot,
+          subject: snapshot.context.subject,
+        });
+        if (result.success) {
+          console.log(`[b-flow] Checkpoint committed: ${result.commitHash}`);
+        } else if (!result.skipped) {
+          console.error(`[b-flow] Checkpoint failed: ${result.error}`);
+        }
+      }
+      prevState = currentState;
+
       writeProjection(projectRoot, snapshot.context.projection);
       writeSnapshot(projectRoot, current.getPersistedSnapshot());
     } catch (err) {

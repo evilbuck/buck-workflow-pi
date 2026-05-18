@@ -61,11 +61,31 @@
     {
       "command": "b-build",
       "at": "2026-05-18T17:14:34.824Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-18T18:56:22.508Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-18T19:41:20.138Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-18T20:00:08.418Z"
+    },
+    {
+      "command": "b-iterate",
+      "at": "2026-05-18T20:03:35.783Z"
+    },
+    {
+      "command": "b-save",
+      "at": "2026-05-18T20:06:00.000Z"
     }
   ],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/buck-workflow-plan-mode-content-fix-2026-05-18.md",
+  "memory_file": ".context/memory/buck-workflow-checkpoints-2026-05-18.md",
   "files_modified": [
     ".context/2026-05-18.buck-loop/brainstorm-buck-loop.md",
     ".context/2026-05-18.buck-loop/brainstorm-state-buck-loop.json",
@@ -119,19 +139,29 @@
     "extensions/index.ts",
     ".context/draft-commit.md",
     ".context/memory/buck-workflow-plan-mode-content-fix-2026-05-18.md",
-    "extensions/tmux-window-status.ts"
+    "extensions/tmux-window-status.ts",
+    "skills/b-checkpoint/SKILL.md",
+    "skills/b-build/SKILL.md",
+    "skills/b-review/SKILL.md",
+    "skills/b-iterate/SKILL.md",
+    "skills/git-commit/SKILL.md",
+    ".context/memory/buck-workflow-checkpoints-2026-05-18.md",
+    "extensions/b-flow/checkpoint.ts",
+    ".context/2026-05-18.buck-checkpoints/iterate-buck-checkpoints.md",
+    "extensions/b-flow/checkpoint.ts (iteration: opts.subject fix, git add -u, temp file for msg, skill ref)",
+    ".context/2026-05-18.buck-checkpoints/draft-commit.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,
   "plan_mode_active": false,
   "buck_workflow_mode_active": true,
   "buck_workflow_mode_source": "command",
-  "buck_workflow_mode_reason": "/b-build command",
+  "buck_workflow_mode_reason": "/b-iterate command",
   "buck_workflow_mode_enabled_at": "2026-05-18T17:14:34.824Z",
   "buck_workflow_mode_auto_disabled": false,
-  "workflow_intent_count": 23,
-  "last_workflow_intent_at": "2026-05-18T18:55:15.784Z",
-  "active_buck_agent": "b-save",
+  "workflow_intent_count": 38,
+  "last_workflow_intent_at": "2026-05-18T20:08:57.502Z",
+  "active_buck_agent": null,
   "model_overrides": {},
   "last_seen_session_model": null
 }

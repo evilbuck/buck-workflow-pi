@@ -1,5 +1,6 @@
 # Memory Index
 
+- 2026-05-18 | `buck-workflow-checkpoints-2026-05-18.md` | domains: [skills, git, workflow, automation] | topics: [buck-checkpoints, b-checkpoint, b-build, b-review, b-iterate, git-commit, checkpoint.ts, iteration] | status: completed
 - 2026-05-18 | `buck-workflow-plan-mode-content-fix-2026-05-18.md` | domains: [debugging, extensions, plan-mode] | topics: [completeSimple, response.content, zai-provider, string-vs-array, plan-mode-bash-review] | status: completed
 - 2026-05-18 | `buck-loop-phase-5-6-review-save-2026-05-18.md` | domains: [implementation, orchestration, review, testing] | topics: [b-flow, autonomous, guardrails, integration, b-review, b-save, all-phases-complete] | status: completed
 - 2026-05-18 | `buck-loop-phase-6-integration-tests-2026-05-18.md` | domains: [testing, review, integration] | topics: [integration-tests, smoke-verification, guardrails, b-flow, phase-complete] | status: completed

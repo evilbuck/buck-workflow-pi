@@ -1,6 +1,6 @@
 ---
 name: git-commit
-description: Create a Conventional Commits message from staged changes and commit immediately. Standalone utility that also integrates with Buck workflow via draft-commit.md artifacts.
+description: Create a Conventional Commits message from staged changes and commit immediately. Standalone utility that also integrates with Buck workflow via draft-commit.md artifacts. Checkpoint commits (from b-flow's `checkpoint.ts`) use `checkpoint:` as the Conventional Commits type with `[checkpoint]` in the body to distinguish them in git history.
 ---
 
 # git-commit: Conventional Commit Agent
@@ -51,6 +51,7 @@ Create a Conventional Commits message from staged changes and commit immediately
    - Title: `<type>(<optional scope>): <short summary>` (<= 72 chars)
    - Body: 1-3 lines focusing on why, key constraints, and notable behavior changes.
    - If breaking change, include `BREAKING CHANGE:` in the body.
+   - **Checkpoint commits** (invoked from b-flow's checkpoint.ts): use `checkpoint:` as the type, e.g. `checkpoint(b-build): complete phase 1` with `[checkpoint]` as the first line of the body.
 
 6. **Commit NOW:**
 

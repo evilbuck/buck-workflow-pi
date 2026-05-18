@@ -1,19 +1,25 @@
 ---
-status: active
+status: completed
 date: 2026-05-18
 subject: 2026-05-18.buck-checkpoints
-topics: [checkpoints, git, workflow, automation, b-build, b-phase, b-review]
+topics: [checkpoints, git, workflow, automation, b-flow]
 research: []
-iterations: []
+iterations: [iterate-buck-checkpoints.md]
 spec: null
-memory: []
+memory: [buck-workflow-checkpoints-2026-05-18.md]
 ---
 
 # Plan: Buck Workflow Checkpoints
 
 ## Goal
 
-Add automatic Git commit checkpoints at natural workflow boundaries in the Buck workflow — specifically at the end of `b-build` and at the end of each completed phase in `b-phase`. Each checkpoint is a real `git commit` on the working branch, using the existing Conventional Commits message format with a `[checkpoint]` marker. Commits only fire on successful completion; failures leave no commit.
+Add automatic Git commit checkpoints at the `reviewing → saving` transition in the b-flow state machine. The AI drafts the commit message (b-build writes `draft-commit.md`). The extension commits it programmatically on the state transition — no AI involved, purely mechanical.
+
+## Implementation (completed)
+
+1. `extensions/b-flow/checkpoint.ts` — new file. `createCheckpointCommit()` reads the draft, runs `git commit`, cleans up the draft file.
+2. `extensions/b-flow/index.ts` — `persistActor()` now tracks `prevState` and fires `createCheckpointCommit()` on `reviewing → saving`.
+3. Skill files reverted to original state (skill approach was wrong abstraction).
 
 ## Context used / assumptions
 
@@ -163,6 +169,15 @@ The `checkpoint:` prefix makes these easy to filter in `git log --grep="checkpoi
 
 ## Recommended next step
 
-This plan touches 5 files (1 new, 4 edits) across a single architectural layer (skill files). It's bounded and straightforward.
+This plan is complete.
 
-**Run `/b-build`** to implement.
+## What changed (and why)
+
+- **b-checkpoint skill** → scraped. The AI drafting a commit message is fine (that's a judgment call), but running `git commit` is mechanical — a function call, not a reasoning task.
+- **State machine transition** → correct place. `reviewing → saving` is exactly when review has passed and we're about to persist. That's the natural boundary.
+- **Hook in `persistActor`** → clean. Every state change fires it, so the transition detection is just comparing `prevState` to current.
+
+## What was NOT done
+
+- `skills/b-checkpoint/` was never committed — it was created then immediately deleted.
+- Skill files (b-build, b-review, b-iterate) were reverted to their original state.
