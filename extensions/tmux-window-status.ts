@@ -248,8 +248,9 @@ export interface WiringDeps {
 
 function extractTextBlocks(msg: any): string {
   if (!msg?.content) return "";
+  const blocks = Array.isArray(msg.content) ? msg.content : [];
   const parts: string[] = [];
-  for (const block of msg.content) {
+  for (const block of blocks) {
     if (block.type === "text" && typeof block.text === "string") {
       parts.push(block.text);
     }
@@ -330,11 +331,7 @@ export function wire(
     logEvent("message_end", {
       role: msg?.role ?? null,
       stopReason: msg?.stopReason ?? null,
-      textLen: msg?.content
-        ? (msg.content as any[])
-            .filter((b: any) => b.type === "text")
-            .reduce((n: number, b: any) => n + (b.text?.length ?? 0), 0)
-        : 0,
+      textLen: extractTextBlocks(msg).length,
     });
     if (msg?.role === "assistant") {
       if (msg.stopReason) machine.observeStopReason(msg.stopReason);

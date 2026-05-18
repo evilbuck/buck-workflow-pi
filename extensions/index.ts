@@ -1000,11 +1000,13 @@ Help the user plan what needs to be done:
           { apiKey: authResult.apiKey, headers: authResult.headers, maxTokens: 256 },
         );
 
-        const text = response.content
-          .filter((c: any) => c.type === "text")
-          .map((c: any) => c.text)
-          .join(" ")
-          .toLowerCase();
+        const text = Array.isArray(response.content)
+          ? response.content
+              .filter((c: any) => c.type === "text")
+              .map((c: any) => c.text)
+              .join(" ")
+              .toLowerCase()
+          : String(response.content ?? "").toLowerCase();
 
         if (text.includes("mutating")) {
           const allowed = await ctx.ui.confirm(

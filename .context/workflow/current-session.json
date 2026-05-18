@@ -49,11 +49,23 @@
     {
       "command": "b-review",
       "at": "2026-05-18T14:40:07.508Z"
+    },
+    {
+      "command": "b-brainstorm",
+      "at": "2026-05-18T16:56:52.797Z"
+    },
+    {
+      "command": "b-plan",
+      "at": "2026-05-18T17:05:30.407Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-18T17:14:34.824Z"
     }
   ],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/buck-loop-phase-5-autonomous-ui-2026-05-18.md",
+  "memory_file": ".context/memory/buck-workflow-plan-mode-content-fix-2026-05-18.md",
   "files_modified": [
     ".context/2026-05-18.buck-loop/brainstorm-buck-loop.md",
     ".context/2026-05-18.buck-loop/brainstorm-state-buck-loop.json",
@@ -97,7 +109,17 @@
     "extensions/b-flow/__tests__/integration.test.ts",
     ".context/memory/buck-loop-phase-6-integration-tests-2026-05-18.md",
     ".context/memory/buck-loop-phase-5-6-review-save-2026-05-18.md",
-    "README.md"
+    "README.md",
+    "/home/buckleyrobinson/.local/share/chezmoi/.context/2025-05-18.herdr-tmux-keybindings/plan.md",
+    "/home/buckleyrobinson/.local/share/chezmoi/.context/2026-05-18-herdr-tmux-migration/PROPOSED.md",
+    "/home/buckleyrobinson/.local/share/chezmoi/private_dot_config/herdr/config.toml.tmpl",
+    ".context/2026-05-18.buck-checkpoints/brainstorm-buck-checkpoints.md",
+    ".context/2026-05-18.buck-checkpoints/brainstorm-state-buck-checkpoints.json",
+    ".context/2026-05-18.buck-checkpoints/plan-buck-checkpoints.md",
+    "extensions/index.ts",
+    ".context/draft-commit.md",
+    ".context/memory/buck-workflow-plan-mode-content-fix-2026-05-18.md",
+    "extensions/tmux-window-status.ts"
   ],
   "guided_workflow": null,
   "guided_stage": null,
@@ -105,10 +127,10 @@
   "buck_workflow_mode_active": true,
   "buck_workflow_mode_source": "command",
   "buck_workflow_mode_reason": "/b-build command",
-  "buck_workflow_mode_enabled_at": "2026-05-18T12:33:53.295Z",
+  "buck_workflow_mode_enabled_at": "2026-05-18T17:14:34.824Z",
   "buck_workflow_mode_auto_disabled": false,
-  "workflow_intent_count": 8,
-  "last_workflow_intent_at": "2026-05-18T12:15:28.599Z",
+  "workflow_intent_count": 23,
+  "last_workflow_intent_at": "2026-05-18T18:55:15.784Z",
   "active_buck_agent": "b-save",
   "model_overrides": {},
   "last_seen_session_model": null
