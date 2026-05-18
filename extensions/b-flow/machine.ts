@@ -308,10 +308,15 @@ export function createBuckMachine(projectRoot: string) {
               guard: ({ event }) => !!(event.output as ChunkQueueOutput).blocked,
               target: "blocked",
               actions: assign({
-                projection: ({ context, event }) => ({
-                  ...context.projection,
-                  queue: (event.output as ChunkQueueOutput).queue,
-                }),
+                projection: ({ context, event }) => {
+                  const out = event.output as ChunkQueueOutput;
+                  return {
+                    ...context.projection,
+                    queue: out.queue,
+                    active: out.active,
+                    lastWorkerStatus: out.lastWorkerStatus,
+                  };
+                },
                 routeAction: ({ event }) => {
                   const out = event.output as ChunkQueueOutput;
                   return {
@@ -326,10 +331,15 @@ export function createBuckMachine(projectRoot: string) {
             {
               target: "reviewing",
               actions: assign({
-                projection: ({ context, event }) => ({
-                  ...context.projection,
-                  queue: (event.output as ChunkQueueOutput).queue,
-                }),
+                projection: ({ context, event }) => {
+                  const out = event.output as ChunkQueueOutput;
+                  return {
+                    ...context.projection,
+                    queue: out.queue,
+                    active: out.active,
+                    lastWorkerStatus: out.lastWorkerStatus,
+                  };
+                },
               }),
             },
           ],

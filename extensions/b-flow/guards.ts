@@ -1,4 +1,4 @@
-import type { TransitionContext } from "./types.js";
+import type { IterationRecord, TransitionContext } from "./types.js";
 
 export function hasGoal(ctx: TransitionContext): boolean {
   return ctx.goal.length > 0;
@@ -77,4 +77,48 @@ export function hasWorkerActive(ctx: TransitionContext): boolean {
 
 export function requiresReplan(ctx: TransitionContext): boolean {
   return ctx.review.requiresReplan === true;
+}
+
+export function sourceChangedFiles(changedFiles: string[] | undefined): string[] {
+  return (changedFiles ?? []).filter(
+    (file) => !!file && !file.startsWith(".context/") && !file.startsWith("docs/"),
+  );
+}
+
+export function countConsecutiveIssueFingerprints(
+  iterations: IterationRecord[] | undefined,
+  issueFingerprint: string | undefined,
+): number {
+  if (!issueFingerprint) return 0;
+  let count = 0;
+  for (const iteration of [...(iterations ?? [])].reverse()) {
+    if (iteration.issueFingerprint !== issueFingerprint) break;
+    count += 1;
+  }
+  return count;
+}
+
+export function countConsecutiveNoSourceChangeIterations(
+  iterations: IterationRecord[] | undefined,
+): number {
+  let count = 0;
+  for (const iteration of [...(iterations ?? [])].reverse()) {
+    if (!Array.isArray(iteration.changedFiles)) break;
+    if (sourceChangedFiles(iteration.changedFiles).length > 0) break;
+    if (!iteration.completedAt || iteration.status === "in-progress") break;
+    count += 1;
+  }
+  return count;
+}
+
+export function countConsecutiveBlockReasons(
+  blockReasons: string[] | undefined,
+  reason: string,
+): number {
+  let count = 0;
+  for (const existing of [...(blockReasons ?? [])].reverse()) {
+    if (existing !== reason) break;
+    count += 1;
+  }
+  return count;
 }

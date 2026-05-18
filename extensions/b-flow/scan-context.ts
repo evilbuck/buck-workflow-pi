@@ -1,10 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import type {
   BuckState,
   TransitionContext,
   ArtifactRef,
   BuckMachineEvent,
+  ActiveIterateMeta,
+  ActiveIterateConflict,
 } from "./types.js";
 
 interface ScanResult {
@@ -45,7 +47,7 @@ export async function scanContext(
       },
     };
 
-    // --- Scan .context/ for artifacts ---
+      // --- Scan .context/ for artifacts ---
     if (existsSync(contextDir)) {
       // Latest plan
       ctx.artifacts.latestPlan = findLatestPlan(contextDir);
@@ -64,6 +66,14 @@ export async function scanContext(
       // Worker results
       if (subject) {
         ctx.artifacts.workerResults = findWorkerResults(contextDir, subject);
+      }
+      // Active iterate scanning
+      if (subject) {
+        const iterateScan = scanActiveIterates(contextDir, subject);
+        if (iterateScan) {
+          ctx.artifacts.activeIterate = iterateScan.active;
+          ctx.artifacts.activeIterateConflict = iterateScan.conflict;
+        }
       }
     }
 
@@ -212,6 +222,161 @@ function findWorkerResults(
   return [];
 }
 
+// --- Active iterate scanning ---
+
+function parseIterateFrontmatter(
+  raw: string,
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  const fmMatch = raw.match(/^---\n([\s\S]*?)\n---/);
+  if (!fmMatch) return result;
+
+  for (const line of fmMatch[1].split("\n")) {
+    const m = line.match(/^(\w[\w_]*):\s*(.+)$/);
+    if (m) result[m[1]] = m[2].trim();
+  }
+  return result;
+}
+
+export interface IterateScanResult {
+  active?: ArtifactRef & Partial<ActiveIterateMeta>;
+  conflict?: ActiveIterateConflict;
+}
+
+/**
+ * Scan subject folder for iterate-*.md files. Find the active phase
+ * and return at most one active iterate matching it.
+ * Records conflict metadata if multiple active iterates match the active phase.
+ */
+function scanActiveIterates(
+  contextDir: string,
+  subject: string,
+): IterateScanResult | null {
+  const subjectDir = join(contextDir, subject);
+  if (!existsSync(subjectDir)) return null;
+
+  // Find the active phase name for matching
+  const activePhasePath = findActivePhase(contextDir)?.path;
+  const activePhaseName = activePhasePath
+    ? basename(activePhasePath, ".md")
+    : undefined;
+
+  // Find all iterate files
+  let iterateFiles: string[];
+  try {
+    iterateFiles = readdirSync(subjectDir)
+      .filter((f) => f.match(/^iterate-.*\.md$/))
+      .map((f) => join(subjectDir, f));
+  } catch {
+    return null;
+  }
+
+  if (iterateFiles.length === 0) return null;
+
+  // Parse frontmatter of each iterate file
+  interface ParsedIterate {
+    path: string;
+    status: string;
+    phase: string;
+    iteration: number;
+    sourceReviewResult?: string;
+    issueFingerprint?: string;
+  }
+
+  const parsed: ParsedIterate[] = [];
+
+  for (const path of iterateFiles) {
+    try {
+      const content = readFileSync(path, "utf-8");
+      const fm = parseIterateFrontmatter(content);
+      const status = fm.status ?? "unknown";
+      // Skip completed iterates
+      if (status === "completed") continue;
+
+      const iteration = fm.iteration ? parseInt(fm.iteration, 10) : 0;
+      parsed.push({
+        path,
+        status,
+        phase: fm.phase ?? "",
+        iteration: isNaN(iteration) ? 0 : iteration,
+        sourceReviewResult: fm.source_review_result ?? undefined,
+        issueFingerprint: fm.issue_fingerprint ?? undefined,
+      });
+    } catch {
+      // skip unreadable files
+    }
+  }
+
+  if (parsed.length === 0) return null;
+
+  // Filter to active status
+  const activeIterates = parsed.filter((p) => p.status === "active");
+  if (activeIterates.length === 0) return null;
+
+  // Filter to those matching the active phase (if phase info is available)
+  const phaseMatches = activePhaseName
+    ? activeIterates.filter(
+        (p) => p.phase === activePhaseName || p.phase === "",
+      )
+    : activeIterates;
+
+  // Conflict: multiple active iterates match the active phase
+  if (phaseMatches.length > 1) {
+    return {
+      active: undefined,
+      conflict: {
+        files: phaseMatches.map((p) => p.path),
+        phase: activePhaseName ?? "unknown",
+      },
+    };
+  }
+
+  // Exactly one match
+  if (phaseMatches.length === 1) {
+    const it = phaseMatches[0];
+    const ref = makeRef(it.path, it.status);
+    return {
+      active: {
+        ...ref,
+        status: it.status,
+        phase: it.phase,
+        iteration: it.iteration,
+        sourceReviewResult: it.sourceReviewResult,
+        issueFingerprint: it.issueFingerprint,
+      },
+    };
+  }
+
+  // No phase matches but there are active iterates → still return them as unscoped
+  // to let the lifecycle actor decide
+  if (activeIterates.length > 1) {
+    return {
+      active: undefined,
+      conflict: {
+        files: activeIterates.map((p) => p.path),
+        phase: activePhaseName ?? "unknown",
+      },
+    };
+  }
+
+  if (activeIterates.length === 1) {
+    const it = activeIterates[0];
+    const ref = makeRef(it.path, it.status);
+    return {
+      active: {
+        ...ref,
+        status: it.status,
+        phase: it.phase,
+        iteration: it.iteration,
+        sourceReviewResult: it.sourceReviewResult,
+        issueFingerprint: it.issueFingerprint,
+      },
+    };
+  }
+
+  return null;
+}
+
 function makeRef(path: string, status?: string): ArtifactRef {
   const exists = existsSync(path);
   let modifiedAt: string | undefined;
@@ -225,7 +390,7 @@ function makeRef(path: string, status?: string): ArtifactRef {
 
 // --- Git context ---
 
-async function readGitContext(
+export async function readGitContext(
   projectRoot: string,
 ): Promise<TransitionContext["git"]> {
   const { spawn } = await import("node:child_process");
@@ -271,6 +436,13 @@ async function readGitContext(
 }
 
 // --- Worker context ---
+
+export function scanActiveIteratesForSubject(
+  projectRoot: string,
+  subject: string,
+): IterateScanResult | null {
+  return scanActiveIterates(join(projectRoot, ".context"), subject);
+}
 
 function readWorkerContext(
   contextDir: string,

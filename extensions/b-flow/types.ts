@@ -2,6 +2,10 @@
 // b-flow — XState orchestration types
 // ---------------------------------------------------------------------------
 
+// --- Autonomous loop worker modes ---
+
+export type WorkerMode = "build" | "review" | "iterate" | "save";
+
 export type BuckState =
   | "idle"
   | "recovering"
@@ -19,15 +23,18 @@ export type ChunkQueueState =
   | "idle"
   | "buildingQueue"
   | "selectingNext"
-  | "spawningWorker"
-  | "awaitingWorker"
-  | "readingResult"
-  | "verifyingChunk"
-  | "completedChunk"
-  | "completedWithWarnings"
-  | "blockedChunk"
-  | "queueExhausted"
-  | "failed";
+  | "checkingPhaseBoundarySafety"
+  | "buildingPhase"
+  | "processingBuildResult"
+  | "reviewingPhase"
+  | "processingReviewResult"
+  | "iteratingPhase"
+  | "processingIterateResult"
+  | "savingPhase"
+  | "processingSaveResult"
+  | "phaseComplete"
+  | "blockedPhase"
+  | "queueExhausted";
 
 export interface ArtifactRef {
   path: string;
@@ -45,7 +52,8 @@ export interface TransitionContext {
     phasesOverview?: ArtifactRef;
     activePhase?: ArtifactRef;
     tasksMd?: ArtifactRef;
-    activeIterate?: ArtifactRef;
+    activeIterate?: ArtifactRef & Partial<ActiveIterateMeta>;
+    activeIterateConflict?: ActiveIterateConflict;
     memoryFile?: ArtifactRef;
     backlogItems: ArtifactRef[];
     workerResults: ArtifactRef[];
@@ -75,15 +83,62 @@ export interface TransitionContext {
   };
 }
 
+// --- Review result parsing types ---
+
+export type ReviewOutcome =
+  | "pass"
+  | "issues-with-iterate"
+  | "requires-replan"
+  | "blocking";
+
+export interface ReviewResult {
+  outcome: ReviewOutcome;
+  mode: WorkerMode;
+  reviewPassed: boolean;
+  issuesFound: boolean;
+  requiresReplan: boolean;
+  iterateFile?: string;
+  issueFingerprint?: string;
+  parseError?: string;
+}
+
+// --- Active iterate metadata ---
+
+export interface ActiveIterateMeta {
+  path: string;
+  status: string;
+  phase: string;
+  iteration: number;
+  sourceReviewResult?: string;
+  issueFingerprint?: string;
+}
+
+export interface ActiveIterateConflict {
+  files: string[];
+  phase: string;
+}
+
+// --- Route actions ---
+
 export type RouteAction =
   | { type: "run-command"; command: string; prompt?: string }
-  | { type: "spawn-worker"; state: BuckState; taskFile: string; mode: "build" | "review" | "save" }
+  | { type: "spawn-worker"; state: BuckState; taskFile: string; mode: WorkerMode }
   | { type: "ask-user"; question: string; options: string[] }
   | { type: "block"; reason: string; missing?: string[] }
   | { type: "retry"; reason: string; maxAttempts: number }
   | { type: "compact"; then: RouteAction }
   | { type: "new-session"; bootstrap: string; then: RouteAction }
   | { type: "mark-done"; reason: string };
+
+export interface IterationRecord {
+  iteration: number;
+  startedAt: string;
+  completedAt?: string;
+  resultFile?: string;
+  status: string;
+  issueFingerprint?: string;
+  changedFiles?: string[];
+}
 
 export interface ChunkQueueItem {
   id: string;
@@ -100,6 +155,19 @@ export interface ChunkQueueItem {
   workerAttempts: number;
   lastAttemptAt?: string;
   lastResultFile?: string;
+  iterations?: IterationRecord[];
+  blockReasonHistory?: string[];
+}
+
+export interface ActiveOrchestration {
+  chunkId: string;
+  phasePath?: string;
+  step: "build" | "review" | "iterate" | "save";
+  iteration: number;
+  maxIterations: number;
+  workerPid?: number;
+  lastResultFile?: string;
+  issueFingerprint?: string;
 }
 
 export interface OrchestrationState {
@@ -113,6 +181,7 @@ export interface OrchestrationState {
   queue: ChunkQueueItem[];
   workerAttemptCount: number;
   lastWorkerStatus?: string;
+  active?: ActiveOrchestration;
 }
 
 export interface BuckMachineContext {

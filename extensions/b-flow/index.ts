@@ -4,6 +4,7 @@ import { createBuckMachine } from "./machine.js";
 import { readProjection, readSnapshot, writeProjection, writeSnapshot } from "./persistence.js";
 import type { BuckActor } from "./machine.js";
 import { confirmTransition } from "./ui.js";
+import { killWorkerPid } from "./worker.js";
 import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 
@@ -108,6 +109,14 @@ export function wire(api: ExtensionAPI): void {
           break;
         }
         case "pause": {
+          const projection = actor?.getSnapshot().context.projection ?? readProjection(projectRoot);
+          if (projection?.currentState === "executingChunks" && projection.active?.workerPid) {
+            ctx.ui.notify(
+              "⏸️ b-flow pause is blocked while a worker is active. Wait for the current worker to finish, then pause.",
+              "warning",
+            );
+            break;
+          }
           ensureActor().send({ type: "PAUSE" });
           ctx.ui.notify("⏸️ b-flow paused", "info");
           break;
@@ -127,11 +136,20 @@ export function wire(api: ExtensionAPI): void {
           break;
         }
         case "stop": {
+          const projection = actor?.getSnapshot().context.projection ?? readProjection(projectRoot);
+          const killedWorker = killWorkerPid(projection?.active?.workerPid);
           const current = ensureActor();
           current.send({ type: "STOP" });
           persistActor(current);
           clearActor();
-          ctx.ui.notify("🛑 b-flow stopped", "info");
+          ctx.ui.notify(
+            killedWorker
+              ? "🛑 b-flow stopped and the active worker was terminated"
+              : projection?.active?.workerPid
+                ? "🛑 b-flow stopped; active worker could not be terminated, recovery state was preserved"
+                : "🛑 b-flow stopped",
+            "info",
+          );
           break;
         }
         case "mode": {

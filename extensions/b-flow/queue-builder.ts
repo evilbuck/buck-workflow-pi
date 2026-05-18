@@ -80,22 +80,32 @@ export function buildQueue(
     }
   } catch { /* ignore */ }
 
-  // 4. Iterate bundles
-  try {
-    const iterateFiles = readdirSync(subjectDir)
-      .filter((f) => f.match(/^iterate-.*\.md$/))
-      .map((f) => join(subjectDir, f));
-
-    for (const path of iterateFiles) {
-      queue.push({
-        id: `iterate-${basename(path, ".md")}`,
-        type: "iterate",
-        path,
-        status: "pending",
-        workerAttempts: 0,
-      });
-    }
-  } catch { /* ignore */ }
+  // 4. Iterate bundles — only queue active (non-completed) iterates.
+  // Completed iterate files must NOT become fresh pending queue items.
+  // Active iterates are consumed by the current phase lifecycle, not as
+  // independent queue chunks, unless a future policy requires it.
+  // For now: skip iterate files entirely in the queue. They are handled
+  // by the scan-context activeIterate path instead.
+  // try {
+  //   const iterateFiles = readdirSync(subjectDir)
+  //     .filter((f) => f.match(/^iterate-.*\.md$/))
+  //     .map((f) => join(subjectDir, f));
+  //
+  //   for (const path of iterateFiles) {
+  //     const content = readFileSync(path, "utf-8");
+  //     const statusMatch = content.match(/^status:\s*(\S+)/m);
+  //     // Skip completed iterate files
+  //     if (statusMatch && statusMatch[1] === "completed") continue;
+  //
+  //     queue.push({
+  //       id: `iterate-${basename(path, ".md")}`,
+  //       type: "iterate",
+  //       path,
+  //       status: "pending",
+  //       workerAttempts: 0,
+  //     });
+  //   }
+  // } catch { /* ignore */ }
 
   return queue;
 }

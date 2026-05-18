@@ -3,6 +3,7 @@ import { createActor } from "xstate";
 import { rmSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBuckMachine } from "../machine.js";
+import { createChunkQueueMachine } from "../chunk-queue-machine.js";
 import { readProjection } from "../persistence.js";
 import { scanContext } from "../scan-context.js";
 
@@ -541,6 +542,555 @@ describe("b-flow machine", () => {
     });
   });
 
+  // --- Chunk lifecycle actor ---
+
+  describe("chunk lifecycle actor", () => {
+    it("defines explicit lifecycle states", () => {
+      const machine = createChunkQueueMachine(TEST_ROOT, null, "goal", {
+        buildQueue: () => [],
+      });
+      const states = Object.keys(machine.config.states ?? {});
+
+      expect(states).toContain("selectingNext");
+      expect(states).toContain("checkingPhaseBoundarySafety");
+      expect(states).toContain("buildingPhase");
+      expect(states).toContain("reviewingPhase");
+      expect(states).toContain("iteratingPhase");
+      expect(states).toContain("savingPhase");
+      expect(states).toContain("phaseComplete");
+      expect(states).toContain("blockedPhase");
+      expect(states).toContain("queueExhausted");
+    });
+
+    it("runs build → review pass → save → next phase", async () => {
+      const subject = "2026-05-18.lifecycle-pass";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      const statesByPersist: Array<string | undefined> = [];
+      let projection: any = {
+        version: 1,
+        goal: "phase pass",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+      };
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "easy" as const,
+          workerAttempts: 0,
+        },
+      ];
+
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "phase pass", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          if (options.mode === "save") {
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: easy\n---\n# Phase 1\n",
+            );
+          }
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile: `${chunk.id}-${options.mode}.md`,
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile.endsWith("-review.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              review: {
+                outcome: "pass" as const,
+                mode: "review" as const,
+                reviewPassed: true,
+                issuesFound: false,
+                requiresReplan: false,
+              },
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          statesByPersist.push(projection.active?.step);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().status).toBe("done");
+      expect(String(actor.getSnapshot().value)).toBe("queueExhausted");
+      expect(actor.getSnapshot().context.queue[0]?.status).toBe("completed");
+      expect(statesByPersist).toContain("build");
+      expect(statesByPersist).toContain("review");
+      expect(statesByPersist).toContain("save");
+      expect(projection.active).toBeUndefined();
+    });
+
+    it("runs build → review issues → iterate → review pass → save", async () => {
+      const subject = "2026-05-18.lifecycle-iterate";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      const statesByPersist: Array<string | undefined> = [];
+      let projection: any = {
+        version: 1,
+        goal: "phase iterate",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+      };
+      let reviewCount = 0;
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "hard" as const,
+          workerAttempts: 0,
+        },
+      ];
+
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "phase iterate", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          if (options.mode === "save") {
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: hard\n---\n# Phase 1\n",
+            );
+          }
+          if (options.mode === "review") reviewCount += 1;
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile: `${chunk.id}-${options.mode}-${reviewCount}.md`,
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile.includes("-review-1.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              review: {
+                outcome: "issues-with-iterate" as const,
+                mode: "review" as const,
+                reviewPassed: false,
+                issuesFound: true,
+                requiresReplan: false,
+                iterateFile: join(subjectDir, "iterate-fix-phase-1.md"),
+                issueFingerprint: "fingerprint-1",
+              },
+            };
+          }
+          if (resultFile.includes("-review-2.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              review: {
+                outcome: "pass" as const,
+                mode: "review" as const,
+                reviewPassed: true,
+                issuesFound: false,
+                requiresReplan: false,
+              },
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          statesByPersist.push(projection.active?.step);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().status).toBe("done");
+      expect(actor.getSnapshot().context.queue[0]?.status).toBe("completed");
+      expect(actor.getSnapshot().context.queue[0]?.iterations).toHaveLength(1);
+      expect(actor.getSnapshot().context.queue[0]?.iterations?.[0]?.status).toBe("completed");
+      expect(statesByPersist).toContain("iterate");
+      expect(projection.active).toBeUndefined();
+    });
+
+    it("recovery runs review worker instead of reusing stale build verification", async () => {
+      const subject = "2026-05-18.recover-review";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      const staleBuildResult = join(subjectDir, "phase-phase-1-test-build.md");
+      writeFileSync(staleBuildResult, "build result\n");
+
+      let projection: any = {
+        version: 1,
+        goal: "recover review",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+        active: {
+          chunkId: "phase-phase-1-test",
+          phasePath,
+          step: "review",
+          iteration: 0,
+          maxIterations: 5,
+          lastResultFile: staleBuildResult,
+        },
+      };
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "easy" as const,
+          workerAttempts: 1,
+          lastResultFile: staleBuildResult,
+        },
+      ];
+
+      const workerModes: string[] = [];
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "recover review", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          workerModes.push(options.mode ?? "unknown");
+          const resultFile = join(subjectDir, `${chunk.id}-${options.mode}.md`);
+          if (options.mode === "save") {
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: easy\n---\n# Phase 1\n",
+            );
+          }
+          writeFileSync(resultFile, `${options.mode} result\n`);
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile,
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile === staleBuildResult) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "build" as const,
+            };
+          }
+          if (resultFile.endsWith("-review.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "review" as const,
+              review: {
+                outcome: "pass" as const,
+                mode: "review" as const,
+                reviewPassed: true,
+                issuesFound: false,
+                requiresReplan: false,
+              },
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+            mode: "save" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().status).toBe("done");
+      expect(workerModes).toEqual(["review", "save"]);
+      expect(actor.getSnapshot().context.queue[0]?.status).toBe("completed");
+    });
+
+    it("recovery runs iterate worker instead of skipping from a stale review result", async () => {
+      const subject = "2026-05-18.recover-iterate";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      const staleReviewResult = join(subjectDir, "phase-phase-1-test-review.md");
+      writeFileSync(staleReviewResult, "review result\n");
+
+      let projection: any = {
+        version: 1,
+        goal: "recover iterate",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+        active: {
+          chunkId: "phase-phase-1-test",
+          phasePath,
+          step: "iterate",
+          iteration: 1,
+          maxIterations: 5,
+          lastResultFile: staleReviewResult,
+          issueFingerprint: "fingerprint-1",
+        },
+      };
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "hard" as const,
+          workerAttempts: 2,
+          lastResultFile: staleReviewResult,
+          iterations: [
+            {
+              iteration: 1,
+              startedAt: "2026-05-18T00:00:00Z",
+              status: "in-progress",
+              issueFingerprint: "fingerprint-1",
+            },
+          ],
+        },
+      ];
+
+      const workerModes: string[] = [];
+      let reviewCount = 1;
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "recover iterate", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          workerModes.push(options.mode ?? "unknown");
+          if (options.mode === "review") reviewCount += 1;
+          const suffix = options.mode === "review" ? `-${reviewCount}` : "";
+          const resultFile = join(subjectDir, `${chunk.id}-${options.mode}${suffix}.md`);
+          if (options.mode === "save") {
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: hard\n---\n# Phase 1\n",
+            );
+          }
+          writeFileSync(resultFile, `${options.mode} result\n`);
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile,
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile === staleReviewResult) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "review" as const,
+              review: {
+                outcome: "issues-with-iterate" as const,
+                mode: "review" as const,
+                reviewPassed: false,
+                issuesFound: true,
+                requiresReplan: false,
+                iterateFile: join(subjectDir, "iterate-fix-phase-1.md"),
+                issueFingerprint: "fingerprint-1",
+              },
+            };
+          }
+          if (resultFile.includes("-review-2.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "review" as const,
+              review: {
+                outcome: "pass" as const,
+                mode: "review" as const,
+                reviewPassed: true,
+                issuesFound: false,
+                requiresReplan: false,
+              },
+            };
+          }
+          if (resultFile.includes("-iterate.md")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "iterate" as const,
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+            mode: "save" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().status).toBe("done");
+      expect(workerModes).toEqual(["iterate", "review", "save"]);
+      expect(actor.getSnapshot().context.queue[0]?.iterations?.[0]?.status).toBe("completed");
+    });
+
+    it("recovery runs save worker instead of reusing a stale review pass result", async () => {
+      const subject = "2026-05-18.recover-save";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      const staleReviewResult = join(subjectDir, "phase-phase-1-test-review.md");
+      writeFileSync(staleReviewResult, "review pass result\n");
+
+      let projection: any = {
+        version: 1,
+        goal: "recover save",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+        active: {
+          chunkId: "phase-phase-1-test",
+          phasePath,
+          step: "save",
+          iteration: 0,
+          maxIterations: 5,
+          lastResultFile: staleReviewResult,
+        },
+      };
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "easy" as const,
+          workerAttempts: 2,
+          lastResultFile: staleReviewResult,
+        },
+      ];
+
+      const workerModes: string[] = [];
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "recover save", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          workerModes.push(options.mode ?? "unknown");
+          const resultFile = join(subjectDir, `${chunk.id}-${options.mode}.md`);
+          if (options.mode === "save") {
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: easy\n---\n# Phase 1\n",
+            );
+          }
+          writeFileSync(resultFile, `${options.mode} result\n`);
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile,
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile === staleReviewResult) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "review" as const,
+              review: {
+                outcome: "pass" as const,
+                mode: "review" as const,
+                reviewPassed: true,
+                issuesFound: false,
+                requiresReplan: false,
+              },
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+            mode: "save" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().status).toBe("done");
+      expect(workerModes).toEqual(["save"]);
+      expect(actor.getSnapshot().context.queue[0]?.status).toBe("completed");
+    });
+  });
+
   // --- Persistence ---
 
   it("writes projection after every state transition", async () => {
@@ -598,5 +1148,213 @@ describe("b-flow machine", () => {
     // PAUSE and STOP should be defined at root level
     expect(rootOn).toHaveProperty("PAUSE");
     expect(rootOn).toHaveProperty("STOP");
+  });
+
+  // --- Guardrail tests ---
+
+  describe("guardrails", () => {
+    function setupGuardrailMachine(
+      subject: string,
+      opts: {
+        maxIterations?: number;
+        reviewResults: Array<{
+          outcome: "pass" | "issues-with-iterate" | "requires-replan" | "blocking";
+          iterateFile?: string;
+          issueFingerprint?: string;
+        }>;
+        onBuild?: () => void;
+        onSave?: () => void;
+      },
+    ) {
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      let projection: any = {
+        version: 1,
+        goal: `guardrail ${subject}`,
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+      };
+
+      const maxIterations = opts.maxIterations ?? 5;
+      let reviewIndex = 0;
+      let iterationCount = 0;
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "medium" as const,
+          workerAttempts: 0,
+        },
+      ];
+
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, `guardrail ${subject}`, {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async (chunk, options) => {
+          if (options.mode === "build") {
+            opts.onBuild?.();
+          }
+          if (options.mode === "save") {
+            opts.onSave?.();
+            writeFileSync(
+              phasePath,
+              "---\nstatus: completed\ndifficulty: medium\n---\n# Phase 1\n",
+            );
+          }
+          if (options.mode === "review") reviewIndex += 1;
+          if (options.mode === "iterate") iterationCount += 1;
+          const suffix = options.mode === "review" ? `-${reviewIndex - 1}` : options.mode === "iterate" ? `-${iterationCount - 1}` : "";
+          return {
+            type: "WORKER_COMPLETED" as const,
+            resultFile: join(subjectDir, `${chunk.id}-${options.mode}${suffix}.md`),
+            status: "completed",
+            mode: options.mode,
+          };
+        },
+        verifyResult: (resultFile) => {
+          if (resultFile.includes("-review")) {
+            // Extract the review index from the filename
+            const match = resultFile.match(/-review-(\d+)\.md$/);
+            const idx = match ? parseInt(match[1], 10) : 0;
+            const review = opts.reviewResults[idx];
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              review: review
+                ? {
+                    outcome: review.outcome,
+                    mode: "review" as const,
+                    reviewPassed: review.outcome === "pass",
+                    issuesFound: review.outcome !== "pass",
+                    requiresReplan: review.outcome === "requires-replan",
+                    iterateFile: review.iterateFile,
+                    issueFingerprint: review.issueFingerprint,
+                  }
+                : undefined,
+            };
+          }
+          if (resultFile.includes("-iterate")) {
+            return {
+              type: "CHUNK_VERIFIED" as const,
+              chunkId: "phase-phase-1-test",
+              status: "completed" as const,
+              mode: "iterate" as const,
+            };
+          }
+          return {
+            type: "CHUNK_VERIFIED" as const,
+            chunkId: "phase-phase-1-test",
+            status: "completed" as const,
+          };
+        },
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          return projection;
+        },
+      });
+
+      return { machine, subjectDir, getProjection: () => projection };
+    }
+
+    it("blocks when max iterations reached", async () => {
+      const subject = "2026-05-18.guard-max-iter";
+      const reviewResults = Array.from({ length: 6 }, (_, i) => ({
+        outcome: "issues-with-iterate" as const,
+        iterateFile: join(setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true }), "iterate-fix.md"),
+        issueFingerprint: `fp-${i}`,
+      }));
+
+      const { machine } = setupGuardrailMachine(subject, { reviewResults, maxIterations: 5 });
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      const snapshot = actor.getSnapshot();
+      expect(snapshot.context.blockReason).toContain("Max iterations reached");
+      expect(String(snapshot.value)).toBe("blockedPhase");
+    });
+
+    it("blocks on repeated issue fingerprint across 3 iterate passes", async () => {
+      const subject = "2026-05-18.guard-fingerprint";
+      const subjectDir = join(TEST_ROOT, ".context", subject);
+      const iteratePath = join(subjectDir, "iterate-fix.md");
+      const reviewResults = [
+        { outcome: "issues-with-iterate" as const, iterateFile: iteratePath, issueFingerprint: "same-fp" },
+        { outcome: "issues-with-iterate" as const, iterateFile: iteratePath, issueFingerprint: "same-fp" },
+        { outcome: "issues-with-iterate" as const, iterateFile: iteratePath, issueFingerprint: "same-fp" },
+        { outcome: "issues-with-iterate" as const, iterateFile: iteratePath, issueFingerprint: "same-fp" },
+      ];
+
+      const { machine } = setupGuardrailMachine(subject, { reviewResults });
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().context.blockReason).toContain("issue fingerprint same-fp persisted across");
+    });
+
+    it("blocks on repeated block reason", async () => {
+      const subject = "2026-05-18.guard-repeated-block";
+      const subjectDir = setupSubject(TEST_ROOT, subject, { planPhases: true, activePhase: true });
+      const phasePath = join(subjectDir, "phase-1-test.md");
+      let projection: any = {
+        version: 1,
+        goal: "repeated block",
+        currentState: "executingChunks",
+        subject,
+        startedAt: "2026-05-18T00:00:00Z",
+        updatedAt: "2026-05-18T00:00:00Z",
+        history: [],
+        queue: [],
+        workerAttemptCount: 0,
+      };
+
+      const queue = [
+        {
+          id: "phase-phase-1-test",
+          type: "phase" as const,
+          path: phasePath,
+          status: "pending" as const,
+          difficulty: "medium" as const,
+          workerAttempts: 0,
+          blockReasonHistory: ["same reason", "same reason"],
+        },
+      ];
+
+      const machine = createChunkQueueMachine(TEST_ROOT, subject, "repeated block", {
+        buildQueue: () => queue.map((item) => ({ ...item })),
+        runWorker: async () => ({
+          type: "WORKER_FAILED" as const,
+          error: "same reason",
+          mode: "build" as const,
+        }),
+        verifyResult: () => ({
+          type: "CHUNK_FAILED" as const,
+          chunkId: "phase-phase-1-test",
+          status: "failed" as const,
+          reason: "same reason",
+        }),
+        readProjection: () => projection,
+        persistProjection: (_root, updater) => {
+          projection = updater(projection);
+          return projection;
+        },
+      });
+
+      const actor = createActor(machine);
+      actor.start();
+      await settle(actor);
+
+      expect(actor.getSnapshot().context.blockReason).toContain("Repeated blocking reason 3 times");
+    });
   });
 });

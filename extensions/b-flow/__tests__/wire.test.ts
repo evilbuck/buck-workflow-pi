@@ -251,7 +251,7 @@ describe("wire (index.ts)", () => {
     );
 
     const ctx = mockCtx(TEST_ROOT);
-    const handler = commands => {
+    const handler = (_commands: any) => {
       const cmdHandler = handlers.get("session_start")![0];
       return cmdHandler;
     };
