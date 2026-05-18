@@ -6,7 +6,7 @@ topics: [buck-loop, b-flow, autonomous, xstate, orchestration]
 research: []
 iterations: [iterate-buck-loop.md]
 spec:
-memory: [buck-loop-phase-3-lifecycle-2026-05-18.md]
+memory: [buck-loop-phase-3-lifecycle-2026-05-18.md, buck-loop-phase-4-guardrails-2026-05-18.md, buck-loop-phase-5-autonomous-ui-2026-05-18.md, buck-loop-phase-6-integration-tests-2026-05-18.md, buck-loop-phase-5-6-review-save-2026-05-18.md]
 ---
 
 # Plan: Autonomous b-flow Inner Loop

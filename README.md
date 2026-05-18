@@ -1,6 +1,6 @@
 # Buck Workflow for Pi
 
-A structured, discoverable workflow for AI-assisted software development with durable context management.
+A structured, discoverable workflow for AI-assisted software development with durable context management and autonomous phase execution.
 
 ## Philosophy
 
@@ -26,6 +26,8 @@ pi install /path/to/buck-workflow
 pi install git:github.com/buckleyrobinson/buck-workflow-pi
 ```
 
+After installing, the package is active on next Pi session start. To pick up changes during a running session, use `/reload`.
+
 ## What's Included
 
 ### Layered Architecture
@@ -39,14 +41,15 @@ Buck workflow uses a three-layer model for portability across agents:
 **Pi-native mapping:**
 
 - **Most `/b-*` commands** → **prompt templates** in `prompts/` that invoke **skills** in `skills/`
-- **Session/runtime automation** (`/b-save`, `/b-mode`) → **extension** in `extensions/index.ts`
+- **Session/runtime automation** (`/b-save`, `/b-mode`, `/b-flow`, `/b-next`) → **extensions** in `extensions/`
+- **Autonomous phase execution** → **b-flow extension** orchestrating build → review → iterate → save lifecycle
 
 ### Prompt Templates (`/b-*` commands)
 
 Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a thin wrapper that invokes the matching skill:
 
 | Command | Skill Invoked | Purpose |
-|---------|---------------|---------|
+|---------|---------------|--------|
 | `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-research` | `b-research` | Explore code, trace architecture, capture findings |
 | `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
@@ -57,18 +60,62 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/git-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
-### Extension Command
+### Extension Commands
 
-| Command | Purpose |
-|---------|---------|
-| `/b-save` | Record session history to `.context/memory/`, update workflow state, and trigger follow-up save orchestration |
-| `/b-mode on\|off\|status` | Control Buck workflow mode and its planning write guard |
+| Command | Source | Purpose |
+|---------|--------|--------|
+| `/b-save` | `extensions/index.ts` | Record session history to `.context/memory/`, update workflow state, trigger save orchestration |
+| `/b-mode on\|off\|status` | `extensions/index.ts` | Control Buck workflow mode and its planning write guard |
+| `/b-flow <subcommand>` | `extensions/b-flow/index.ts` | Orchestrate autonomous/guided phase execution (see below) |
+| `/b-next` | `extensions/b-flow/index.ts` | Show next pending work item from the b-flow queue |
+| _Auto-injected_ | `extensions/b-flow/index.ts` | `before_agent_start` digest with active step/iteration/phase links |
+
+#### b-flow: Autonomous Phase Execution
+
+`/b-flow` is the autonomous orchestration layer. It executes a phased plan through a deterministic lifecycle without manual prompting between steps.
+
+```
+/b-flow start <goal>    →  Create a phased subject folder and queue
+/b-flow run              →  Execute phases with guided confirmations
+/b-flow run --autonomous →  Execute phases autonomously (skips routine confirmations, preserves guardrails)
+/b-flow status           →  Show current state, active phase, step, iteration
+/b-flow pause            →  Pause after current worker finishes
+/b-flow stop             →  Abort and record reconciliation state
+/b-flow continue         →  Resume from last projected state
+/b-flow jump <state>     →  Manual state transition (experimental, for recovery)
+
+# Non-LLM quick command
+/b-next                  →  Show next pending work item from the queue
+```
+
+**Lifecycle** (executed per phase):
+
+```
+select phase → build → review → [iterate → review]ⁿ → save → next phase
+```
+
+The lifecycle is artifact-driven: it reads and writes phase files, iterate artifacts, and worker result files. Recovery reconciles phase file frontmatter, worker results, and projected state on restart.
+
+**Guardrails (autonomous mode):**
+- Max 5 iterations per phase (configurable)
+- Stagnation detection: same issue fingerprint 3 times, no source changes 2 iterations, repeated failures
+- Phase-boundary git safety: blocks before new phase if unattributed source changes remain
+- Orphaned audit detection: blocks if worker died without producing a result
+- Multiple active iterate artifacts: blocks with actionable message
+
+**Modes:**
+- **Guided** (`/b-flow run`): confirms build/review/iterate/save/next-phase transitions
+- **Autonomous** (`/b-flow run --autonomous`): skips routine confirmations but still blocks on all guardrails
+
+#### b-grill-auto: Automated Plan Grilling
+
+`/b-grill-auto` (in `extensions/b-grill-auto/`) interviews a separate AI model via RPC subprocess to stress-test a plan or design. Tracks decision-tree complexity as metadata and evaluates separation-of-concerns boundaries at the assessment threshold.
 
 ### Skills
 
 | Skill | Purpose |
 |-------|---------|
-| `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
+| `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft plan |
 | `b-research` | Explore unfamiliar code, trace architecture, capture findings |
 | `b-plan` | Turn context into a bounded implementation plan |
 | `b-build` | Implement well-defined work (standard or hard mode) |
@@ -76,23 +123,25 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | `b-review` | Review implementation for correctness and regressions |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
-| `git-commit` | Create a Conventional Commits message and commit |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
 | `b-grill-auto` | Grill a different AI model via RPC about a plan |
 | `b-grill-with-docs` | Grill against existing domain documentation |
+| `arch-deep-dive` | Generate single-page HTML architecture deep-dive with diagrams |
+| `pi-rpc` | Drive a Pi subprocess via JSON RPC protocol |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
+| `git-commit` | Create a Conventional Commits message and commit |
 
-### Extension (Session Tracking)
+### Extensions
 
-The extension automatically:
-- **Tracks** which `/b-*` commands you've used this session
-- **Tracks** files modified during implementation
-- **Warns** when implementation work is unsaved (reminds you to `/b-save`)
-- **Injects** session state into compaction context so summaries preserve workflow state
-- **Bootstraps** `.context/workflow/current-session.json` on session start
-- **Registers** `/b-save` and `/b-mode` as real Pi extension commands
-- **Manages** Buck workflow mode, narrow auto-enable, status indicators, and planning write guards
+| Extension | Location | What it does |
+|-----------|----------|-------------|
+| **Session tracking** | `extensions/index.ts` | Tracks commands, file modifications, compaction injection, `/b-save` and `/b-mode` commands, Buck workflow mode management |
+| **b-flow** | `extensions/b-flow/` | State-machine orchestration for autonomous/guided phase execution — lifecycle actor, guardrails, persistence, status display, before_agent_start injection, b-next injection |
+| **b-grill-auto** | `extensions/b-grill-auto/` | Spawns a Pi RPC subprocess for automated plan grilling by a different model |
+| **grill-me-dialog** | `extensions/grill-me-dialog.ts` | Document-mode grilling dialog that opens a QA markdown file for the user to edit |
+| **tmux-window-status** | `extensions/tmux-window-status.ts` | TMux window status display integration |
+| **tps-tracker** | `extensions/tps-tracker.ts` | Tokens-per-second tracking for cost/performance monitoring |
 
 ## Workflow Overview
 
@@ -100,7 +149,7 @@ The extension automatically:
 /b-research → /b-plan → /b-build → /b-review → /b-save
 ```
 
-### Variations
+### Basic Flows
 
 | Flow | When to Use |
 |------|-------------|
@@ -109,26 +158,43 @@ The extension automatically:
 | `/b-iterate → /b-review` | Quick fix loop |
 | `/b-build → /b-review → /b-save` | Ad-hoc work (no planning) |
 
+### Autonomous Flow
+
+For multi-phase work with multiple build/review/iterate cycles, use the autonomous loop:
+
+```
+/b-flow start "add auth feature"
+/b-flow run --autonomous        # walks through all phases autonomously
+/b-flow status                   # check progress any time
+```
+
+The loop handles build, review, iterate (as needed), and save transitions automatically. Guardrails block on stagnation, excessive iteration, unattributed source changes, and orphaned workers.
+
 ## Subject Folder System
 
 All artifacts are organized in dated subject folders:
 
 ```
 .context/
-├── 2026-04-08.auth-feature/
-│   ├── research-oauth-providers.md
-│   ├── plan-oauth-login.md
-│   └── spec-v1-auth-mvp.md
+├── YYYY-MM-DD.subject-name/
+│   ├── brainstorm-*.md               # Initial thinking capture
+│   ├── research-*.md                  # Code/architecture exploration
+│   ├── plan-*.md                      # Implementation plan (single phase)
+│   ├── plan-*-phases.md               # Multi-phase plan with summary table
+│   ├── phase-N-*.md                   # Individual phase files
+│   ├── spec-*.md                      # Requirements specification
+│   ├── iterate-*.md                   # Iteration artifact (from b-review)
+│   ├── draft-commit.md                # Commit message draft
+│   └── architecture-presentation.html # Generated deep-dive
 ├── backlog/
-│   ├── todo.md
-│   ├── items/<slug>.md
-│   └── archive/
+│   ├── todo.md                        # Active items (checkboxes → item files)
+│   ├── items/<slug>.md                # Individual item definitions
+│   └── archive/                       # Completed/deferred items
 ├── memory/
-│   ├── index.md
-│   └── auth-impl-2026-04-08.md
-├── workflow/
-│   └── current-session.json
-└── backlog.md            # Legacy fallback (not used when backlog/ exists)
+│   ├── index.md                       # Reverse-chronological catalog
+│   └── YYYY-MM-DD.subject-name.md     # Session records
+└── workflow/
+    └── current-session.json           # Live session state
 ```
 
 ## Cross-Reference System
@@ -138,9 +204,23 @@ Artifacts link to each other via frontmatter fields:
 - **Research** → `informs: [plan-file.md]`
 - **Plan** → `research: [research-file.md]`, `spec: spec-file.md`, `memory: []`
 - **Spec** → `plans: [plan-file.md]`, `memory: []`
+- **Phase** → `plan: plan-file.md`, `phases_overview: plan-*-phases.md`
+- **Iterate** → `addresses: plan-file.md`, `informs: []`
 - **Memory** → `subject: YYYY-MM-DD.name`, `artifacts: [files...]`
 
 `/b-save` stitches cross-references automatically.
+
+## Buck Workflow Mode
+
+Buck workflow mode (`/b-mode on`) adds a **planning write guard**: when active, the agent cannot modify files outside the `.context/` directory without explicit confirmation. This prevents accidental implementation changes during planning/research.
+
+```bash
+/b-mode on         # Enable planning write guard
+/b-mode off        # Disable (normal operation)
+/b-mode status     # Show Buck mode + guard state
+```
+
+Mode auto-enables when `/b-plan` is invoked and auto-disables after `/b-build`. The status indicator shows `[📋]` or `[🛡️]` in the Pi context bar.
 
 ## Requirements
 

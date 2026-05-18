@@ -96,7 +96,15 @@ export function buildStatusWidget(
       0,
     ),
   );
-  if (activeChunk) {
+  if (projection.active) {
+    const active = projection.active;
+    let activeLine = theme.fg("warning", `  ▶ step: ${active.step}`);
+    activeLine += theme.fg("dim", ` | iter: ${active.iteration}/${active.maxIterations}`);
+    if (activeChunk) {
+      activeLine += theme.fg("dim", ` | [${activeChunk.type}] ${activeChunk.id}`);
+    }
+    container.addChild(new Text(activeLine, 1, 0));
+  } else if (activeChunk) {
     container.addChild(
       new Text(
         theme.fg("warning", `  ▶ ${activeChunk.type}: ${activeChunk.id}`) +

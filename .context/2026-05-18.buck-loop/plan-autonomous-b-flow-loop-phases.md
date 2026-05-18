@@ -3,6 +3,7 @@ status: active
 date: 2026-05-18
 subject: 2026-05-18.buck-loop
 topics: [phasing, buck-loop, b-flow, autonomous, xstate, orchestration]
+memory: [buck-loop-phase-3-lifecycle-2026-05-18.md, buck-loop-phase-4-guardrails-2026-05-18.md, buck-loop-phase-5-autonomous-ui-2026-05-18.md, buck-loop-phase-6-integration-tests-2026-05-18.md, buck-loop-phase-5-6-review-save-2026-05-18.md]
 source_plan: plan-autonomous-b-flow-loop.md
 phases: 6
 format: discrete
@@ -29,8 +30,8 @@ format: discrete
 | 2: Worker Modes and Prompt Contracts | completed | medium | [phase-2-worker-modes.md](phase-2-worker-modes.md) |
 | 3: Lifecycle Actor and Runtime Projection | completed | hard | [phase-3-lifecycle-projection.md](phase-3-lifecycle-projection.md) |
 | 4: Guardrails, Recovery, and Cancellation | completed | hard | [phase-4-guardrails-recovery.md](phase-4-guardrails-recovery.md) |
-| 5: Autonomous Wiring, Status, and Display | pending | medium | [phase-5-status-autonomous-ui.md](phase-5-status-autonomous-ui.md) |
-| 6: Integration Tests and Smoke Verification | pending | medium | [phase-6-integration-smoke.md](phase-6-integration-smoke.md) |
+| 5: Autonomous Wiring, Status, and Display | completed | medium | [phase-5-status-autonomous-ui.md](phase-5-status-autonomous-ui.md) |
+| 6: Integration Tests and Smoke Verification | completed | medium | [phase-6-integration-smoke.md](phase-6-integration-smoke.md) |
 
 ## Dependency Matrix
 

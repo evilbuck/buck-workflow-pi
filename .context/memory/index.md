@@ -1,5 +1,8 @@
 # Memory Index
 
+- 2026-05-18 | `buck-loop-phase-5-6-review-save-2026-05-18.md` | domains: [implementation, orchestration, review, testing] | topics: [b-flow, autonomous, guardrails, integration, b-review, b-save, all-phases-complete] | status: completed
+- 2026-05-18 | `buck-loop-phase-6-integration-tests-2026-05-18.md` | domains: [testing, review, integration] | topics: [integration-tests, smoke-verification, guardrails, b-flow, phase-complete] | status: completed
+- 2026-05-18 | `buck-loop-phase-5-autonomous-ui-2026-05-18.md` | domains: [implementation, orchestration, ui, status, display] | topics: [b-flow, autonomous, guided, status, display, compaction, before_agent_start] | status: completed
 - 2026-05-18 | `buck-loop-phase-4-guardrails-2026-05-18.md` | domains: [implementation, orchestration, testing] | topics: [b-flow, autonomous, guardrails, stagnation, cancellation, recovery, xstate] | status: completed
 
 - 2026-05-18 | `buck-loop-phase-3-lifecycle-2026-05-18.md` | domains: [implementation, orchestration, testing] | topics: [b-flow, autonomous, lifecycle, projection, recovery, xstate] | status: completed

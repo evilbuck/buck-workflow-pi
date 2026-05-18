@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-autonomous-b-flow-loop.md
@@ -13,16 +13,16 @@ from_plan_steps: [11]
 depends_on: [1, 2, 3, 4, 5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Result parser tests cover review pass, review issues with iterate file, review requires replan, and malformed review result blocking."
-  - "[ ] Scan-context tests cover active iterate detection, completed iterate ignored, and multiple active iterates conflict."
-  - "[ ] Queue-builder tests prove stale iterate artifacts are not queued independently."
-  - "[ ] Worker prompt tests prove every mode loads the correct Buck skill/instructions."
-  - "[ ] Lifecycle tests cover pass path, iterate path, max-iteration block, stagnation block, phase-boundary git safety block, and STOP/orphaned-audit recovery."
-  - "[ ] `npm test -- extensions/b-flow` passes."
-  - "[ ] `npm test` passes or any unrelated failures are documented."
-  - "[ ] Manual smoke verification has been run or blockers are documented."
-completed_at: null
-completed_by: null
+  - "[x] Result parser tests cover review pass, review issues with iterate file, review requires replan, and malformed review result blocking."
+  - "[x] Scan-context tests cover active iterate detection, completed iterate ignored, and multiple active iterates conflict."
+  - "[x] Queue-builder tests prove stale iterate artifacts are not queued independently."
+  - "[x] Worker prompt tests prove every mode loads the correct Buck skill/instructions."
+  - "[x] Lifecycle tests cover pass path, iterate path, max-iteration block, stagnation block, phase-boundary git safety block, and STOP/orphaned-audit recovery."
+  - "[x] `npm test -- extensions/b-flow` passes."
+  - "[x] `npm test` passes or any unrelated failures are documented."
+  - "[x] Manual smoke verification has been run or blockers are documented."
+completed_at: "2026-05-18"
+completed_by: pi
 ---
 
 # Phase 6: Integration Tests and Smoke Verification

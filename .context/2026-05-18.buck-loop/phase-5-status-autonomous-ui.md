@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-autonomous-b-flow-loop.md
@@ -13,14 +13,14 @@ from_plan_steps: [9, 10]
 depends_on: [3, 4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] /b-flow run --autonomous starts the lifecycle actor and skips routine step confirmations while preserving guardrail blocks."
-  - "[ ] Guided mode confirms build, review, iterate, save, and next-phase transitions."
-  - "[ ] /b-flow status shows parent state, active phase/chunk, active step, iteration n/5, last result file, and blocked reason."
-  - "[ ] before_agent_start digest includes active step/iteration and links to phase, iterate, and result files."
-  - "[ ] session_before_compact summarizes active lifecycle progress."
-  - "[ ] Optional tmux naming/display polish is implemented only after projection fields exist."
-completed_at: null
-completed_by: null
+  - "[x] /b-flow run --autonomous starts the lifecycle actor and skips routine step confirmations while preserving guardrail blocks."
+  - "[x] Guided mode confirms build, review, iterate, save, and next-phase transitions."
+  - "[x] /b-flow status shows parent state, active phase/chunk, active step, iteration n/5, last result file, and blocked reason."
+  - "[x] before_agent_start digest includes active step/iteration and links to phase, iterate, and result files."
+  - "[x] session_before_compact summarizes active lifecycle progress."
+  - "[x] Optional tmux naming/display polish is implemented only after projection fields exist."
+completed_at: "2026-05-18"
+completed_by: "b-build"
 ---
 
 # Phase 5: Autonomous Wiring, Status, and Display

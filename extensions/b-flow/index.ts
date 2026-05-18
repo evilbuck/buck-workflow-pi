@@ -80,11 +80,18 @@ export function wire(api: ExtensionAPI): void {
           const autonomous = parts.includes("--autonomous");
           if (autonomous) {
             setMode({ mode: "autonomous", skipSafeTransitions: true });
-            ctx.ui.notify("🤖 b-flow autonomous mode enabled", "info");
+          } else {
+            setMode({ mode: "guided", skipSafeTransitions: false });
           }
+          const modeInfo = getMode();
           ensureActor().send({ type: "RESUME" });
           ensureActor().send({ type: "CONTINUE" });
-          ctx.ui.notify("▶️ b-flow running", "info");
+          ctx.ui.notify(
+            autonomous
+              ? "🤖 b-flow running in autonomous mode (guardrails still block)"
+              : "▶️ b-flow running in guided mode (confirmations required for transitions)",
+            "info",
+          );
           break;
         }
         case "continue": {
@@ -100,12 +107,43 @@ export function wire(api: ExtensionAPI): void {
             return;
           }
           const completed = projection.queue.filter((q) => q.status === "completed").length;
-          ctx.ui.notify(
-            `b-flow: ${projection.currentState} | ` +
-              `Goal: ${projection.goal} | ` +
-              `Queue: ${completed}/${projection.queue.length}`,
-            "info",
-          );
+          const total = projection.queue.length;
+          const mode = getMode();
+          const lines: string[] = [
+            `**State:** ${projection.currentState}`,
+            `**Goal:** ${projection.goal}`,
+            `**Mode:** ${mode.mode}`,
+            `**Queue:** ${completed}/${total} completed`,
+          ];
+
+          // Active chunk details
+          if (projection.active) {
+            const active = projection.active;
+            const activeChunk = projection.queue.find((q) => q.id === active.chunkId);
+            lines.push(
+              `**Active chunk:** ${activeChunk ? `[${activeChunk.type}] ${activeChunk.id}` : active.chunkId}`,
+              `**Active step:** ${active.step}`,
+              `**Iteration:** ${active.iteration}/${active.maxIterations}`,
+            );
+            if (active.phasePath) {
+              lines.push(`**Phase:** ${active.phasePath}`);
+            }
+            if (active.lastResultFile) {
+              lines.push(`**Last result:** ${active.lastResultFile}`);
+            }
+            if (active.workerPid) {
+              lines.push(`**Worker PID:** ${active.workerPid}`);
+            }
+          }
+
+          // Blocked reason — find first blocked chunk or top-level route action
+          const blockedChunk = projection.queue.find((q) => q.status === "blocked");
+          if (projection.currentState === "blocked") {
+            const reason = blockedChunk?.blockReasonHistory?.at(-1) ?? "Unknown block reason";
+            lines.push(`**Blocked:** ${reason}`);
+          }
+
+          ctx.ui.notify(lines.join("\n"), "info");
           break;
         }
         case "pause": {
@@ -217,13 +255,41 @@ export function wire(api: ExtensionAPI): void {
       })
       .join("\n");
 
+    const headerLines: string[] = [
+      `# Next Work — ${projection.subject ?? "(no subject)"}`,
+      `Goal: ${projection.goal}`,
+      `State: ${projection.currentState} | Queue: ${completed}/${total} done`,
+    ];
+
+    // Active lifecycle details
+    if (projection.active) {
+      const active = projection.active;
+      headerLines.push(
+        `Active step: ${active.step} | Iteration: ${active.iteration}/${active.maxIterations}`,
+      );
+      if (active.phasePath) {
+        headerLines.push(`Phase file: ${active.phasePath}`);
+      }
+      if (active.lastResultFile) {
+        headerLines.push(`Last result: ${active.lastResultFile}`);
+      }
+      const activeChunk = projection.queue.find((q) => q.id === active.chunkId);
+      if (activeChunk?.iterations?.length) {
+        const lastIter = activeChunk.iterations[activeChunk.iterations.length - 1];
+        headerLines.push(`Last iterate: iter ${lastIter.iteration} (${lastIter.status})${lastIter.resultFile ? ` — ${lastIter.resultFile}` : ""}`);
+      }
+    }
+
+    headerLines.push(
+      ``,
+      `**Next: \`${basename(nextItem.path)}\` at \`${nextItem.path}\`**`,
+    );
+
     return {
       message: {
         customType: "b-workflow-next",
         content: [
-          `# Next Work — ${projection.subject ?? "(no subject)"}`,`Goal: ${projection.goal}`,
-          `State: ${projection.currentState} | Queue: ${completed}/${total} done`,
-          `**Next: \`${basename(nextItem.path)}\` at \`${nextItem.path}\`**`,
+          ...headerLines,
           "",
           "## Queue",
           statusBlock,
@@ -260,14 +326,25 @@ export function wire(api: ExtensionAPI): void {
 
       const completed = projection.queue.filter((q) => q.status === "completed").length;
       const total = projection.queue.length;
+      const mode = getMode();
 
-      ctx.ui.notify(
-        `▶️ Next: [${current.type}] ${current.id}\n` +
-        `Subject: ${projection.subject ?? "(none)"}\n` +
-        `Path: ${current.path}\n` +
-        `Queue: ${completed}/${total} done | State: ${projection.currentState}`,
-        "info",
-      );
+      const lines: string[] = [
+        `▶️ Next: [${current.type}] ${current.id}`,
+        `Subject: ${projection.subject ?? "(none)"}`,
+        `Path: ${current.path}`,
+        `Queue: ${completed}/${total} done | State: ${projection.currentState} | Mode: ${mode.mode}`,
+      ];
+
+      if (projection.active) {
+        lines.push(
+          `Step: ${projection.active.step} | Iteration: ${projection.active.iteration}/${projection.active.maxIterations}`,
+        );
+        if (projection.active.lastResultFile) {
+          lines.push(`Last result: ${projection.active.lastResultFile}`);
+        }
+      }
+
+      ctx.ui.notify(lines.join("\n"), "info");
     },
   });
 
@@ -278,14 +355,48 @@ export function wire(api: ExtensionAPI): void {
     if (!projection) return;
 
     const completed = projection.queue.filter((q) => q.status === "completed").length;
-    const summary =
+    const blockedChunks = projection.queue.filter((q) => q.status === "blocked");
+    let summary =
       `## b-flow State Summary\n` +
       `- Goal: ${projection.goal}\n` +
       `- State: ${projection.currentState}\n` +
       `- Subject: ${projection.subject ?? "none"}\n` +
-      `- Queue: ${completed}/${projection.queue.length} completed\n` +
-      `- Last transition: ${projection.history.at(-1)?.to ?? "none"}\n` +
-      `- Projection: .context/workflow/orchestration.json`;
+      `- Queue: ${completed}/${projection.queue.length} completed\n`;
+
+    // Active lifecycle progress
+    if (projection.active) {
+      const active = projection.active;
+      const activeChunk = projection.queue.find((q) => q.id === active.chunkId);
+      summary += `\n### Active Lifecycle\n`;
+      summary += `- Chunk: ${activeChunk ? `[${activeChunk.type}] ${activeChunk.id}` : active.chunkId}\n`;
+      summary += `- Step: ${active.step}\n`;
+      summary += `- Iteration: ${active.iteration}/${active.maxIterations}\n`;
+      if (active.phasePath) {
+        summary += `- Phase file: ${active.phasePath}\n`;
+      }
+      if (active.lastResultFile) {
+        summary += `- Last result: ${active.lastResultFile}\n`;
+      }
+      if (active.issueFingerprint) {
+        summary += `- Issue fingerprint: ${active.issueFingerprint}\n`;
+      }
+      if (activeChunk?.iterations?.length) {
+        const lastIter = activeChunk.iterations[activeChunk.iterations.length - 1];
+        summary += `- Last iterate: iter ${lastIter.iteration} (${lastIter.status})${lastIter.resultFile ? ` — ${lastIter.resultFile}` : ""}\n`;
+      }
+    }
+
+    // Blocked chunks
+    if (blockedChunks.length > 0) {
+      summary += `\n### Blocked Chunks\n`;
+      for (const chunk of blockedChunks) {
+        const lastReason = chunk.blockReasonHistory?.at(-1) ?? "Unknown";
+        summary += `- [${chunk.type}] ${chunk.id}: ${lastReason}\n`;
+      }
+    }
+
+    summary += `\n- Last transition: ${projection.history.at(-1)?.to ?? "none"}\n`;
+    summary += `- Projection: .context/workflow/orchestration.json`;
 
     return {
       compaction: {
