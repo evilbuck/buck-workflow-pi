@@ -92,7 +92,7 @@ The extension automatically:
 - **Injects** session state into compaction context so summaries preserve workflow state
 - **Bootstraps** `.context/workflow/current-session.json` on session start
 - **Registers** `/b-save` and `/b-mode` as real Pi extension commands
-- **Manages** Buck workflow mode, narrow auto-enable, status indicators, and planning write guards
+- **Manages** Buck workflow mode, status indicators, and planning write guards (auto-enable is opt-in only)
 
 ## Workflow Overview
 

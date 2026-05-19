@@ -913,7 +913,9 @@ Help the user plan what needs to be done:
       return { action: "continue" as const };
     }
 
-    maybeAutoEnableBuckWorkflowMode(ctx, text, state);
+    // maybeAutoEnableBuckWorkflowMode(ctx, text, state);
+    // NOTE: Auto-enable removed per user request. Planning mode is now opt-in only.
+    // Re-enable by uncommenting or using /b-mode on, /b-plan, etc.
     writeState(state);
 
     return { action: "continue" as const };

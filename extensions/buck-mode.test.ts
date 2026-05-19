@@ -147,7 +147,7 @@ describe("Buck workflow mode", () => {
     expect(state.buck_workflow_mode_auto_disabled).toBe(true);
   });
 
-  it("auto-enables planning guard for explicit planning intent", async () => {
+  it("does NOT auto-enable planning guard - opt-in only", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
@@ -156,12 +156,12 @@ describe("Buck workflow mode", () => {
     await sendInput(handlers, "Please create a plan for this change", ctx);
 
     const state = readState();
-    expect(state.buck_workflow_mode_active).toBe(true);
-    expect(state.plan_mode_active).toBe(true);
-    expect(state.buck_workflow_mode_source).toBe("auto");
+    expect(state.buck_workflow_mode_active).toBe(false);
+    expect(state.plan_mode_active).toBe(false);
+    expect(state.buck_workflow_mode_source).toBe(null);
   });
 
-  it("auto-enables Buck mode without planning guard for workflow-shaped implementation", async () => {
+  it("does NOT auto-enable Buck mode for workflow-shaped input - opt-in only", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
@@ -170,12 +170,12 @@ describe("Buck workflow mode", () => {
     await sendInput(handlers, "Implement the remaining work and include handoff notes", ctx);
 
     const state = readState();
-    expect(state.buck_workflow_mode_active).toBe(true);
+    expect(state.buck_workflow_mode_active).toBe(false);
     expect(state.plan_mode_active).toBe(false);
-    expect(state.buck_workflow_mode_source).toBe("auto");
+    expect(state.buck_workflow_mode_source).toBe(null);
   });
 
-  it("manual off suppresses later auto-enable", async () => {
+  it("no auto-enable means manual off has nothing to suppress", async () => {
     const { api, handlers, commands } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
@@ -188,7 +188,7 @@ describe("Buck workflow mode", () => {
     expect(state.buck_workflow_mode_active).toBe(false);
     expect(state.plan_mode_active).toBe(false);
     expect(state.buck_workflow_mode_auto_disabled).toBe(true);
-    expect(state.workflow_intent_count).toBe(1);
+    expect(state.workflow_intent_count).toBe(0);
   });
 
   it("/b-plan command enables Buck mode and leaves planning guard active", async () => {

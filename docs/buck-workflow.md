@@ -304,7 +304,7 @@ Buck workflow mode encompasses and extends the existing plan-mode behavior:
 | Auto-enable on planning/research commands | `/b-plan`, `/b-research`, `/b-brainstorm`, grill planning commands enable Buck + plan mode |
 | Auto-disable write guard on build commands | `/b-build`, `/b-build-hard`, `/b-iterate` keep Buck mode active but disable `plan_mode_active` |
 | Manual control | `/b-mode on|off|status` and `alt+p` toggle |
-| Narrow auto-enable | Intent detection from user messages |
+| Narrow auto-enable | Intent detection from user messages (disabled by default, opt-in only) |
 | Session latching | Mode stays active until manually disabled; `/b-mode off` suppresses auto-enable |
 | Implicit session bootstrap | Restores status from `.context/workflow/current-session.json` |
 | Durable artifact prompting | Buck-aware system prompt when mode is active |
@@ -320,18 +320,9 @@ Buck workflow mode encompasses and extends the existing plan-mode behavior:
 
 `alt+p` toggles the same Buck workflow/planning mode envelope.
 
-**Narrow auto-enable**: Activated when the user's intent matches workflow-shaped asks:
-- Explicit planning requests ("plan this", "how should I approach")
-- Research/explore asks ("explore this codebase", "trace the data flow")
-- Documentation/write-up requests ("write up findings", "document this")
-- PRD/spec/roadmap/design asks
-- Backlog/issue breakdown requests
-- Review/handoff/checkpoint asks
-- Implementation asks that explicitly include planning/handoff/documentation language
+**Narrow auto-enable** (disabled by default): Previously activated when the user's intent matched workflow-shaped asks. Now opt-in only — users must explicitly enable via `/b-mode on`, `/b-plan`, etc.
 
-**Latching**: Once auto-enabled, Buck mode stays active until manually disabled via `/b-mode off` or `alt+p`. Build commands disable only the planning write guard, not the broader Buck workflow mode.
-
-**Accumulated session state**: Auto-enable also considers accumulated session context — repeated softer workflow hints can activate mode even if the latest message alone would be ambiguous.
+**Latching**: Once enabled, Buck mode stays active until manually disabled via `/b-mode off` or `alt+p`. Build commands disable only the planning write guard, not the broader Buck workflow mode.
 
 **State split**: `buck_workflow_mode_active` is the broad workflow envelope. `plan_mode_active` is only the write-guard sub-mode. This separation allows workflow-shaped implementation requests to enable Buck guidance without blocking source edits.
 
@@ -361,7 +352,7 @@ This split makes Buck workflow portable: the global AGENTS file provides a light
 | Buck-mode semantics documented | ✅ Complete (this section) |
 | Plan mode allowed paths corrected | ✅ Complete |
 | `/b-mode` command | ✅ Complete |
-| Narrow auto-enable heuristics | ✅ Complete |
+| Narrow auto-enable heuristics | ⚠️ Disabled (opt-in only, per user request) |
 | Session state model extension | ✅ Complete |
 | Generic routing entrypoint | 🔲 Deferred |
 
