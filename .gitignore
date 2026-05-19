@@ -9,3 +9,8 @@ node_modules/*
 __pycache__
 
 .ralph
+
+playwright-report
+test-results
+.gitnexus
+gitnexus

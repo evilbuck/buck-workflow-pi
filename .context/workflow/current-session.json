@@ -30,7 +30,13 @@
     ".context/2026-05-19.ralph-loop-plan-phase/draft-commit.md",
     ".context/memory/ralph-loop-plan-phase-build-2026-05-19.md",
     ".context/memory/index.md",
-    ".context/workflow/current-session.json"
+    ".context/workflow/current-session.json",
+    "playwright.config.ts",
+    "tests/e2e/example.spec.ts",
+    "package.json",
+    "scripts/test-browser.sh",
+    "skills/b-build/scripts/test-browser.sh",
+    "skills/b-build/playwright.config.ts"
   ],
   "guided_workflow": null,
   "guided_stage": null,

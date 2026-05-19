@@ -1,14 +1,40 @@
 ---
 name: b-build
-description: Implement well-defined work with the smallest safe code change. Use /b-build for straightforward work or /b-build-hard for complex, ambiguous, or higher-risk implementation. The skill adapts behavior based on difficulty level.
+description: Implement well-defined work using TDD with red-green-refactor loops. Supports unit tests (vitest) and browser tests (Playwright) for UI verification. Use /b-build for straightforward work or /b-build-hard for complex, ambiguous, or higher-risk implementation.
 ---
 
-# b-build: Implementation Agent
+# b-build: Implementation Agent with TDD
 
-Implement well-defined work with the smallest safe code change. Difficulty adapts behavior:
+Implement well-defined work using **test-driven development** with the smallest safe code change. Difficulty adapts behavior:
 
-- **standard** (`/b-build`): Follow existing patterns, keep scope tight, read related files and tests before editing.
+- **standard** (`/b-build`): Follow existing patterns, keep scope tight, write tests first, run appropriate verification.
 - **hard** (`/b-build-hard`): Think through trade-offs before editing, break changes into safe steps, preserve behavior unless change is required, surface risks and migration concerns clearly, run stronger verification.
+
+## Test Strategy
+
+| Test Type | Framework | Use When |
+|-----------|-----------|----------|
+| **Unit tests** | vitest | Logic, utilities, state machines, business rules |
+| **Browser tests** | Playwright | UI rendering, interactions, DOM behavior, visual verification |
+| **Integration tests** | vitest + mocks | API flows, file system, multi-component behavior |
+
+**Golden rule**: Tests verify **behavior through public interfaces**, not implementation details.
+
+### When to Use Each
+
+- **vitest**: Core logic, pure functions, state machines, configuration parsing, file operations
+- **Playwright**: Any code that renders HTML, responds to user interaction, or requires browser APIs
+
+### UI Verification Mandate
+
+**For any work that touches UI files** (HTML, JavaScript, TypeScript, CSS, SASS, SCSS, or server-side templates):
+1. **Write a Playwright test FIRST** — capture the expected behavior
+2. **Run the test** — verify it fails (RED phase)
+3. **Implement the feature** — make the test pass (GREEN phase)
+4. **Refactor** — improve code while tests stay green
+5. **Verify in browser** — use available snapshot/screenshot tools to confirm visual correctness
+
+This makes browser verification **repeatable and cheap** — no manual testing required.
 
 ## Difficulty Levels
 
@@ -16,8 +42,8 @@ Implement well-defined work with the smallest safe code change. Difficulty adapt
 
 - Follow existing patterns.
 - Keep scope tight.
-- Read related files and tests before editing.
-- Run appropriate verification.
+- **Write test before code** (red-green-refactor).
+- Run appropriate verification (unit + browser as needed).
 - Report changed files, assumptions, and results.
 
 ### Hard
@@ -26,8 +52,171 @@ Implement well-defined work with the smallest safe code change. Difficulty adapt
 - Break changes into safe steps.
 - Preserve behavior unless change is required.
 - Surface risks and migration concerns clearly.
-- Run stronger verification than standard.
+- Run stronger verification than standard (browser tests + manual verification).
 - Output includes: implementation summary, changed files, verification results, risks/trade-offs, recommended next step.
+
+## TDD Workflow
+
+### 1. Plan (Before Writing Code)
+
+```
+[ ] Confirm with user what interface changes are needed
+[ ] Confirm which behaviors to test (prioritize critical paths)
+[ ] Identify test type: vitest (unit) or Playwright (browser)
+[ ] List the behaviors to test (not implementation steps)
+[ ] Get user approval on the plan
+```
+
+### 2. Red Phase
+
+Write **ONE test** that confirms **ONE behavior**:
+
+```bash
+# Unit test (vitest)
+npx vitest run --reporter=verbose tests/my-feature.test.ts
+
+# Browser test (Playwright)
+npx playwright test tests/e2e/my-feature.spec.ts
+```
+
+Test fails → confirms the behavior doesn't exist yet.
+
+### 3. Green Phase
+
+Write **minimal code** to make the test pass:
+
+```bash
+# Run tests to verify green
+npx vitest run
+# or
+npx playwright test
+```
+
+Rules:
+- One test at a time
+- Only enough code to pass current test
+- No speculative features
+
+### 4. Refactor Phase
+
+After tests pass, look for improvements:
+
+```
+[ ] Extract duplication
+[ ] Deepen modules (move complexity behind simple interfaces)
+[ ] Apply SOLID principles where natural
+[ ] Run tests after each refactor step
+```
+
+**Never refactor while RED.** Get to GREEN first.
+
+### 5. Verification Cycle
+
+```
+RED → GREEN → REFACTOR → RED → GREEN → REFACTOR → ...
+```
+
+Repeat until all behaviors are tested.
+
+## Playwright Browser Testing
+
+### Setup Verification
+
+Playwright is pre-installed for this project. Browser tests run against your project's UI.
+
+```bash
+# Verify Playwright is available
+npx playwright --version
+
+# Install browsers if needed
+npm run playwright:install
+```
+
+### Test Location
+
+Browser tests are at the **package level** (not inside skills):
+
+```
+buck-workflow-pi/
+├── playwright.config.ts   # Playwright configuration
+├── tests/
+│   └── e2e/
+│       └── *.spec.ts      # Browser tests
+├── extensions/            # Source code (what gets tested)
+└── skills/               # Skill guidance (documentation only)
+    └── b-build/
+        └── SKILL.md
+```
+
+### Playwright Test Pattern
+
+```typescript
+// tests/e2e/my-feature.spec.ts
+import { test, expect } from '@playwright/test';
+
+test('feature description', async ({ page }) => {
+  // Arrange: Navigate to the page
+  await page.goto('/');
+  
+  // Act: Interact with the UI
+  await page.click('#my-button');
+  
+  // Assert: Verify expected behavior
+  await expect(page.locator('#result')).toHaveText('Expected');
+});
+```
+
+### Running Browser Tests
+
+```bash
+# Run all E2E tests (from project root)
+npm run test:e2e
+
+# Run with UI mode
+npm run test:e2e:ui
+
+# Debug mode
+npm run test:e2e:debug
+
+# Chromium only
+npm run test:e2e:chromium
+
+# View HTML report
+npm run playwright:report
+```
+
+### Dev Server Requirement
+
+Browser tests require a running dev server. Before running Playwright tests:
+
+```bash
+# Check if dev server is running
+curl -s http://localhost:3000 > /dev/null && echo "Running" || echo "Not running"
+
+# Start dev server if needed (use tmux for background)
+tmux new-session -d -s dev-server 'npm run dev'
+```
+
+For automated testing, the skill should handle server lifecycle:
+1. Check if server is running
+2. Start if needed
+3. Run tests
+4. Optionally stop server (keep running if tests pass)
+
+### Visual Verification Commands
+
+Use these for manual verification when needed:
+
+```bash
+# Take screenshot of specific element
+npx playwright screenshot --selector='#my-element' output.png
+
+# Record video of test run
+npx playwright test --video=on
+
+# Generate trace on failure
+npx playwright test --trace=on
+```
 
 ## Context Resolution
 
@@ -128,7 +317,7 @@ When `/b-build` is running inside a Ralph loop, preserve durable state before yi
 
 After completing implementation, report:
 1. **Changed files** — list what was modified
-2. **Verification** — confirm the changes work
+2. **Verification** — confirm the changes work (run tests: `npx vitest run` for unit, `npx playwright test` for browser)
 3. **Phase status** — if working from a phased plan, note which phase was completed
 4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Include a Conventional Commits message based on the staged changes:
 
