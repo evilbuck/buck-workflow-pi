@@ -181,6 +181,7 @@ topics: [review, iteration]
 informs: []          # Filled by b-plan when referencing this iteration
 addresses: plan-*.md # Plan this iteration is about
 completed: null      # Set when b-iterate marks it done
+ralph_status: pending # pending | completed; lets Ralph detect active iteration work
 from_review: b-review
 ---
 
@@ -208,11 +209,13 @@ from_review: b-review
 ## Recommended Workflow
 
 Start with `/b-iterate` — it will pick up this file automatically.
+Then re-run `/b-review` against the same plan or phase.
+If running inside Ralph, do not call `ralph_done` until the iterate artifact is completed, review passes, and `/b-save` has recorded durable state.
 For larger rework, use `/b-build` or `/b-build-hard`.
 ```
 
 **Lifecycle tracking:**
-- When `b-iterate` works on this artifact, it updates `status: completed` and `completed: YYYY-MM-DD`
+- When `b-iterate` works on this artifact, it updates `status: completed`, `ralph_status: completed`, and `completed: YYYY-MM-DD`
 - When `b-plan` references this iteration, it adds the plan path to `informs:` field
 - This creates bidirectional traceability: iteration → plan (via `informs`) and plan → iteration (via b-plan's `research:` or new `iterations:` field)
 

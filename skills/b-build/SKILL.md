@@ -55,6 +55,8 @@ If a plan exists, follow its implementation steps and affected files list. If a 
 
 If a `plan-*-phases.md` file exists in the subject folder:
 
+Ralph loops may resume mid-phase. If a phase file is already `status: in-progress`, treat that as the active phase before selecting the first `pending` phase, and check for any active `iterate-*.md` artifact in the same subject folder.
+
 1. **Read it** and identify the current active phase (first non-completed phase in the summary table).
 2. **Read the discrete phase file** linked in the summary table for full implementation details.
 3. **Surface the model hint** — tell the user at the start:
@@ -106,6 +108,16 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 At COMPLETION:
 6. Do a final memory update
 7. Tell the user: "Run /b-save to finalize this session's record."
+
+## Ralph Loop Awareness
+
+When `/b-build` is running inside a Ralph loop, preserve durable state before yielding control:
+
+1. If the active plan or phase cannot be completed in this iteration, stop at a coherent boundary.
+2. For phased plans, leave the phase file `status: in-progress` and keep acceptance criteria unchecked until verified.
+3. Run `/b-save` before calling `ralph_done` so memory, draft commit text, and artifact state are recoverable.
+4. On the next iteration, re-read the phases overview, the `in-progress` phase file, and any active `iterate-*.md` artifact before editing.
+5. Do not call `ralph_done` after a source change unless durable state has been written or updated.
 
 ## Escalation
 

@@ -102,7 +102,8 @@ When creating a plan:
   - Involves high-risk paths (auth, billing, data migrations)
   - Contains significant unknowns or research spikes
   - Verification alone would exhaust a single session
-  - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential phases with dependency analysis and per-phase model hints."*
+  - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential Ralph-ready phases with dependency analysis, per-phase model hints, and resume-safe execution instructions."*
+- If the user wants Ralph automation but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Ralph Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `ralph_done`.
 
 ## Plan Frontmatter Template
 
@@ -117,6 +118,23 @@ iterations: [iterate-*.md]     # Iteration artifacts from b-review (if any)
 spec: spec-file.md            # Spec this plan implements (if any)
 memory: []                    # Filled by b-save after execution
 ---
+```
+
+## Non-Phased Ralph Plans
+
+Not every Ralph-run task needs `b-phase`. If the plan is small enough for one build/review cycle but the user wants Ralph to drive it, add a short **Ralph Instructions** section to the plan itself. Treat the whole plan as one unit and use the same durable mini-cycle documented in `b-phase`'s Ralph Instructions Template.
+
+Recommended wording:
+
+```markdown
+## Ralph Instructions
+
+This is a non-phased Ralph-ready plan. Treat the whole plan as one unit:
+1. Run `/b-build` (or `/b-build-hard` if ambiguity appears) against this plan.
+2. Run `/b-review` against this plan.
+3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
+4. Run `/b-save` before `ralph_done` so memory, draft commits, and review/iteration artifacts are durable.
+5. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next iteration.
 ```
 
 ## Recommended Plan Structure
@@ -147,6 +165,9 @@ memory: []                    # Filled by b-save after execution
 
 ## Verification
 - ...
+
+## Ralph Instructions
+<!-- Optional: include when the user wants Ralph execution on a non-phased plan. Reference b-phase's Ralph Instructions Template and use the single-unit cycle. -->
 
 ## Risks
 - ...

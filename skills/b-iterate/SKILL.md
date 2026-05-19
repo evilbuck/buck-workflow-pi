@@ -16,10 +16,11 @@ Before starting work, resolve iteration context in this order:
    - First check the active subject folder: `.context/YYYY-MM-DD.<subject>/iterate-*.md`
    - Then scan all subject folders: `.context/*/iterate-*.md`
    - If exactly one exists, use it. If multiple, present them to the user and ask which to address.
-3. **Review output in memory** — check the most recent memory file for review findings
-4. **User request** — if no artifact exists, work from the user's inline description
+3. **Ralph in-progress phase** — if running inside a Ralph loop, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point
+4. **Review output in memory** — check the most recent memory file for review findings
+5. **User request** — if no artifact exists, work from the user's inline description
 
-When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings).
+When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). If `ralph_status: pending` is present, treat the artifact as Ralph-blocking until review passes.
 
 ## Behavior
 
@@ -49,15 +50,16 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 7. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-8. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
+8. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed` and `ralph_status: completed` if present
 9. Do a final memory update
-10. Tell the user: "Run /b-save to finalize this session's record."
+10. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before `ralph_done` if inside a Ralph loop).
 
 ## Closeout
 
 After completing iteration:
 1. **Update iteration artifact** — if working from an `iterate-*.md` file:
    - Set `status: completed`
+   - Set `ralph_status: completed` if the field exists
    - Set `completed: YYYY-MM-DD` (today's date)
    - Update `updated: YYYY-MM-DD` (if not already set to today)
 2. **Changed files** — list what was modified
@@ -72,7 +74,7 @@ After completing iteration:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. Tell the user: "Run /b-save to finalize this session's record, or `/git-commit` to commit."
+5. Tell the user: "Run `/b-review` to validate the iteration, then `/b-save` to finalize this session's record, or `/git-commit` to commit." If inside a Ralph loop, call `ralph_done` only after review passes and `/b-save` has durable state.
 
 ## Best For
 
