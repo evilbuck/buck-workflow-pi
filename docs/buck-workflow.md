@@ -48,10 +48,12 @@ flowchart TD
     
     C --> F[Brainstorm<br/>Loose draft in subject folder]
     
-    D -->|Yes| G[/b-research\]
+    D -->|Yes - codebase| G[/b-explore\]
+    D -->|Yes - external| G2[/b-research\]
     D -->|No| E
     
-    G --> H[Research<br/>Findings in subject folder]
+    G --> H[Exploration<br/>Findings in subject folder]
+    G2 --> H2[Research<br/>Findings in subject folder]
     
     E --> I[Plan<br/>Bounded plan in subject folder]
 
@@ -63,13 +65,17 @@ flowchart TD
     G3 -->|No| J
 
     %% Iterative loops between brainstorm/research/plan
-    F -->|Questions need<br/>real-world answers| G
+    F -->|Questions need<br/>code investigation| G
+    F -->|Questions need<br/>external answers| G2
     F -->|Solid idea ready| E
     
-    I -->|Plan creates<br/>new questions| G
+    I -->|Plan creates<br/>internal questions| G
+    I -->|Plan creates<br/>external questions| G2
     
     H -->|Enough info to<br/>draft a plan| E
     H -->|Opened/shut<br/>possibilities| C
+    H2 -->|Enough info to<br/>draft a plan| E
+    H2 -->|Opened/shut<br/>possibilities| C
     
     I -->|Plan is solid| J{Complex/Risky?}
     J -->|No| K[/b-build\]
@@ -127,8 +133,9 @@ When you need a human-shareable explanation of the plan for stakeholder review o
 
 ```mermaid
 flowchart LR
-    subgraph Research["🔍 Research Phase"]
-        R1[/b-research\] --> R2[Subject Folder +<br/>research-*.md]
+    subgraph Research["🔍 Discovery Phase"]
+        R1[/b-explore\] --> R2[Subject Folder +<br/>research-*.md]
+        R1b[/b-research\] --> R2b[Subject Folder +<br/>research-*.md + sources]
         R3[/b-brainstorm\] --> R4[Subject Folder +<br/>brainstorm draft]
     end
     
@@ -165,6 +172,7 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph Commands["User Commands (/b-*)"]
+        C0["/b-explore"]
         C1["/b-research"]
         C2["/b-brainstorm"]
         C3["/b-plan"]
@@ -179,6 +187,7 @@ flowchart TD
     end
 
     subgraph PiPrimitives["Pi Package Primitives"]
+        P0["prompts/b-explore.md"]
         P1["prompts/b-research.md"]
         P2["prompts/b-brainstorm.md"]
         P3["prompts/b-plan.md"]
@@ -192,6 +201,7 @@ flowchart TD
         E1["extensions/index.ts<br/>registers b-save"]
     end
 
+    C0 --> P0
     C1 --> P1
     C2 --> P2
     C3 --> P3
@@ -213,7 +223,8 @@ flowchart TD
 
 | Component | Pi primitive | Slash entrypoint | Backing file | Purpose |
 |-----------|--------------|------------------|--------------|---------|
-| [**b-research**](#1-research-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | Explore code, trace architecture, capture findings |
+| [**b-explore**](#1-discovery-phase) | Prompt template | `/b-explore` | `prompts/b-explore.md` | Explore codebases, trace architecture, map data flows |
+| [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
 | [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
@@ -246,7 +257,7 @@ flowchart TD
 **Pi primitive**: Extension command (`extensions/index.ts`)
 
 **Behavior**:
-- `/b-plan`, `/b-brainstorm`, and `/b-research` automatically enable plan mode
+- `/b-plan`, `/b-brainstorm`, `/b-explore`, `/b-research`, and grill commands automatically enable plan mode
 - `/b-build`, `/b-build-hard`, and `/b-iterate` automatically disable plan mode
 - When enabled:
   - **Allows** writes to `.context/` and `docs/` paths only
@@ -280,6 +291,7 @@ flowchart TD
 **Typical use**:
 ```
 /b-brainstorm  # Auto-enables plan mode
+/b-explore   # Plan mode stays active
 /b-research    # Plan mode stays active
 /b-plan        # Create plan in .context/
 /b-build       # Auto-disables plan mode, enters implementation
@@ -301,7 +313,7 @@ Buck workflow mode encompasses and extends the existing plan-mode behavior:
 |---------|------------------------|
 | Write guards (`.context/`, `docs/` only) | `plan_mode_active` remains the write-guard sub-mode |
 | Broad workflow mode | `buck_workflow_mode_active` in `.context/workflow/current-session.json` |
-| Auto-enable on planning/research commands | `/b-plan`, `/b-research`, `/b-brainstorm`, grill planning commands enable Buck + plan mode |
+| Auto-enable on planning/research commands | `/b-plan`, `/b-explore`, `/b-research`, `/b-brainstorm`, grill planning commands enable Buck + plan mode |
 | Auto-disable write guard on build commands | `/b-build`, `/b-build-hard`, `/b-iterate` keep Buck mode active but disable `plan_mode_active` |
 | Manual control | `/b-mode on|off|status` and `alt+p` toggle |
 | Narrow auto-enable | Intent detection from user messages (disabled by default, opt-in only) |
@@ -328,7 +340,7 @@ Buck workflow mode encompasses and extends the existing plan-mode behavior:
 
 ### What Mode Does NOT Do
 
-- **Does not create files immediately** — file creation waits until a clear threshold is crossed or the user explicitly invokes a skill (`/b-plan`, `/b-research`, etc.).
+- **Does not create files immediately** — file creation waits until a clear threshold is crossed or the user explicitly invokes a skill (`/b-plan`, `/b-explore`, `/b-research`, etc.).
 - **Does not replace explicit commands** — `/b-plan`, `/b-build`, `/b-review`, etc. remain the primary entrypoints. Mode provides implicit scaffolding around them.
 - **Does not change write guards** — plan mode's `.context/` + `docs/` write boundary remains unchanged.
 - **Does not generalize beyond Buck** — the mode is extension-owned and Buck-specific. Global Pi agent guidance remains Buck-agnostic.
@@ -358,21 +370,58 @@ This split makes Buck workflow portable: the global AGENTS file provides a light
 
 ---
 
-### 1. Research Phase
+### 1. Discovery Phase
 
-#### `/b-research` — Explore and Discover
+#### `/b-explore` — Codebase Exploration
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Understand unfamiliar code, trace architecture and data flow, save findings for reuse.
+**Purpose**: Explore unfamiliar codebases, trace architecture and data flows, map module boundaries and dependencies.
+
+**Pi primitive**: Prompt template (`prompts/b-explore.md`)
+
+**Behavior**:
+- Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/`
+- Creates `index.md` as the stable subject entrypoint
+- Writes `research-<topic>.md` with `informs: []` for cross-referencing
+- Uses code lookup tools for symbol search, outlines, and targeted retrieval
+- Read-only outside `.context/` (no source changes)
+
+**When to use**: Codebase investigation, architecture tracing, dependency mapping, blast-radius analysis.
+
+**Output Structure**:
+```yaml
+---
+status: active
+date: YYYY-MM-DD
+subject: YYYY-MM-DD.subject-name
+topics: [keyword, list]
+informs: []  # Plans/specs this exploration fed into
+---
+```
+
+**Next Steps**: `/b-plan` (findings → plan), `/b-research` (if external info needed), `/b-build` (if already clear)
+
+---
+
+#### `/b-research` — External/Web Research
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Investigate external sources — APIs, libraries, documentation, web resources — and capture findings into durable, incrementally updated research artifacts.
 
 **Pi primitive**: Prompt template (`prompts/b-research.md`)
 
 **Behavior**:
 - Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/`
-- Writes `research-<topic>.md` with `informs: []` for cross-referencing
-- Uses jcodemunch-mcp for symbol search and code lookup
-- Read-only outside `.context/` (no source changes)
+- Creates `index.md` as the stable subject entrypoint
+- Writes incremental notes in `research/` subdirectory during long sessions
+- Consolidates into `research-<topic>.md` as the canonical summary
+- Uses the **Research Source Dictionary** (`docs/research-source-dictionary.md`) for source selection
+- Optional: invokes the `crawl4ai` skill for deep website crawling
+- Graceful degradation when web tools are unavailable
+
+**When to use**: API lookup, library research, comparing approaches, verifying standards, any investigation beyond the local codebase.
 
 **Output Structure**:
 ```yaml
@@ -385,7 +434,7 @@ informs: []  # Plans/specs this research fed into
 ---
 ```
 
-**Next Steps**: `/b-plan` (findings → plan), `/b-build` (if already clear), `/b-build-hard` (if complex)
+**Next Steps**: `/b-plan` (findings → plan), `/b-explore` (if internal investigation needed), `/b-build` (if already clear)
 
 ---
 
@@ -916,7 +965,11 @@ status: active
 ```
 .context/
 ├── YYYY-MM-DD.subject-name/           # Subject folder (date-prefixed)
-│   ├── research-<topic>.md             # Research findings
+│   ├── index.md                        # Subject entrypoint (links all artifacts)
+│   ├── research-<topic>.md             # Research findings (canonical summary)
+│   ├── research/                       # Incremental research notes (optional)
+│   │   ├── notes-<topic>.md
+│   │   └── sources-<topic>.md
 │   ├── plan-<topic>.md                 # Implementation plan
 │   ├── plan-<topic>-phases.md          # Phases overview (if phased)
 │   ├── phase-1-<slug>.md               # Discrete phase files (if phased)
@@ -959,10 +1012,11 @@ status: active
 
 All b-* agents search for artifacts in this order:
 
-1. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/`
-2. **All subject folders**: `.context/*/{plan,spec,research}-*.md`
-3. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
-4. **Backlog**: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
+1. **Subject `index.md`** (if present): `.context/YYYY-MM-DD.[:subject]/index.md` — read first for fast artifact discovery
+2. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/`
+3. **All subject folders**: `.context/*/{plan,spec,research}-*.md`
+4. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
+5. **Backlog**: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
 
 This ensures **zero breaking changes** for existing projects.
 
@@ -1103,7 +1157,7 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### New Work (Standard)
 
 ```
-/b-research → /b-plan → /b-present → /b-build → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-save
 ```
 
 ### New Work (with brainstorming)
@@ -1115,13 +1169,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Complex/Risky Work
 
 ```
-/b-research → /b-plan → /b-build-hard → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-save
 ```
 
 ### Large Plan (Multi-Session)
 
 ```
-/b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
                                               ↺ (repeat per phase)
 ```
 
@@ -1152,6 +1206,7 @@ Type `/b-` in Pi to see all Buck workflow commands:
 - `/b-brainstorm`
 - `/b-build`
 - `/b-build-hard`
+- `/b-explore`
 - `/b-iterate`
 - `/b-plan`
 - `/b-present`
@@ -1168,4 +1223,4 @@ Also available:
 
 ## Version
 
-Last updated: 2026-05-06
+Last updated: 2026-05-20

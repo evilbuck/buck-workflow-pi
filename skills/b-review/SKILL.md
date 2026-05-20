@@ -89,7 +89,7 @@ For `phase-*.md` inputs:
 ## Cross-Reference Following
 
 Follow these links for full context:
-- Read plan's `research:` field → research files for context
+- Read plan's `research:` field → research files for context (from either `b-explore` or `b-research`)
 - Read plan's `spec:` field → spec to verify requirements
 - Read spec's `plans:` array → verify coverage
 

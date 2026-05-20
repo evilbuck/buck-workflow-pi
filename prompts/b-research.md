@@ -1,5 +1,5 @@
 ---
-description: Explore unfamiliar code, trace architecture, and capture findings to .context/ without changing the codebase
+description: Investigate external sources — APIs, libraries, documentation, and web resources — and capture findings incrementally into durable research artifacts in .context/
 ---
 
 # B-Research

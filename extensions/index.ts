@@ -172,7 +172,7 @@ const STATE_DIR = ".context/workflow";
 const STATE_FILE = "current-session.json";
 const MEMORY_DIR = ".context/memory";
 
-const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-research", "b-grill-me", "b-grill-with-docs"];
+const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-explore", "b-research", "b-grill-me", "b-grill-with-docs"];
 const IMPLEMENTATION_COMMANDS = ["b-build", "b-build-hard", "b-iterate"];
 const MODEL_SWITCH_COMMANDS = ["b-build", "b-build-hard", "b-iterate", "b-review"];
 const BUCK_PREFIX = "b-";
@@ -692,7 +692,7 @@ Use Buck workflow conventions for meaningful work:
 - Prefer durable .context/ artifacts for plans, research, handoff notes, and useful session state.
 - Do not create files immediately just because mode is active; wait for explicit user intent or a clear workflow threshold.
 - When relevant, check .context/workflow/current-session.json, .context/memory/, .context/backlog/, and subject folders before acting.
-- Suggest explicit Buck entrypoints when helpful: /b-research, /b-plan, /b-build, /b-build-hard, /b-review, /b-save.
+- Suggest explicit Buck entrypoints when helpful: /b-explore, /b-research, /b-plan, /b-build, /b-build-hard, /b-review, /b-save.
 - Buck mode is broad workflow scaffolding; plan mode below is the write-guard sub-mode when active.`);
     }
 

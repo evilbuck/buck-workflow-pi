@@ -12,6 +12,7 @@ Interview the user one question at a time to understand what they want to build,
 - You may write only to `.context/**` and temporary scratch locations.
 - **Every b-brainstorm creates a subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
 - Save the brainstorm draft inside it (e.g. `brainstorm-<slug>.md` or `plan-draft-<topic>.md`).
+- **Create `index.md`** in the subject root linking the draft and any other artifacts. This is the stable entrypoint for downstream commands.
 - Maintain sidecar state inside the subject folder (`brainstorm-state-<slug>.json`).
 - Do not modify source files outside `.context/`.
 

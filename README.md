@@ -48,7 +48,8 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | Command | Skill Invoked | Purpose |
 |---------|---------------|---------|
 | `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
-| `/b-research` | `b-research` | Explore code, trace architecture, capture findings |
+| `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
+| `/b-research` | `b-research` | External/web research, source collection, evidence capture |
 | `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
@@ -69,7 +70,9 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | Skill | Purpose |
 |-------|---------|
 | `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
-| `b-research` | Explore unfamiliar code, trace architecture, capture findings |
+| `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
+| `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
+| `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-plan` | Turn context into a bounded implementation plan |
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |

@@ -14,3 +14,5 @@ playwright-report
 test-results
 .gitnexus
 gitnexus
+CURRENT-TASK.md
+.context/workflow/current-session.json

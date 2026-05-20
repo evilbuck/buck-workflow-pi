@@ -46,8 +46,9 @@ Before writing a plan, gather context from these sources:
 2. **Session context** — prior messages, prior decisions, referenced files, and already-established assumptions in this chat
 3. **Workflow session state** — read `.context/workflow/current-session.json` if it exists; if it points to a `memory_file`, read that too
 4. **Relevant subject-folder artifacts** — check the active or best-matching subject folder for:
+   - `index.md` — **read this first** if it exists; it links all other artifacts in the subject
    - `brainstorm-*.md` or `plan-draft-*.md`
-   - `research-*.md`
+   - `research-*.md` (from either `b-explore` or `b-research`)
    - `spec-*.md`
    - existing `plan-*.md` when refining or replacing a plan
 5. **Relevant code** — read the code/config/tests needed to make the plan concrete
@@ -94,7 +95,8 @@ When creating a plan:
 - Create backlog items only for **clear near-term actionable units** of work that emerge from the plan. One backlog item = one pickup-able unit of work. Do not auto-expand specs/plans into a large queue.
 - When creating backlog items: create the backing item file `.context/backlog/items/<slug>.md` with frontmatter (`title`, `status: active`, `priority`, `created`, `updated`, `completed: null`, `related`) and add a linked checkbox to `.context/backlog/todo.md`. If only `.context/backlog.md` exists (legacy), use that format instead.
 - Recommend `b-build` for straightforward work and `b-build-hard` for ambiguous or high-risk work.
-- Recommend `b-research` only when missing code or architecture understanding prevents a good plan.
+- Recommend `b-explore` when missing code or architecture understanding prevents a good plan.
+- Recommend `b-research` when missing external information (APIs, libraries, documentation) prevents a good plan.
 - **Recommend `b-phase`** if the plan exceeds any of these thresholds:
   - More than ~8 implementation steps
   - Touches more than ~5 distinct files or directories

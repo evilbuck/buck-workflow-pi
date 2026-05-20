@@ -11,22 +11,23 @@ Transform `.context/` artifacts (plans, phases, brainstorms, specs, grill sessio
 
 - After `b-plan` or `b-phase` — generate a briefing package for review
 - After `b-brainstorm` — present brainstorm findings
-- After `b-research` — share research output as a readable package
+- After `b-explore` or `b-research` — share research output as a readable package
 - When someone asks "can you present this?" or "make a briefing from this plan?"
 - Explicitly via `/b-present` or `/skill:b-present`
 
 ## Input Resolution
 
 1. **Explicit path** provided by user → use that
-2. **Phased plan** → look for `plan-*-phases.md` overview + discrete `phase-N-*.md` files
-3. **Single plan** → newest `plan-*.md` in subject folders
-4. **Brainstorm** → `brainstorm-*.md` or brainstorm state JSON in subject folder
-5. **Spec** → `spec-*.md` in subject folders
-6. **Grill session** → `grill-session-*.md` in subject folder (present findings/decisions)
-7. **Research** → `research-*.md` in subject folders
-8. If multiple plausible sources exist at the same precedence level, **stop and ask the user**
-9. Fall back to newest artifact in subject folders
-10. Fail with clear message if nothing found
+2. **Subject `index.md`** → if present, read it first for fast artifact discovery, then follow its links
+3. **Phased plan** → look for `plan-*-phases.md` overview + discrete `phase-N-*.md` files
+4. **Single plan** → newest `plan-*.md` in subject folders
+5. **Brainstorm** → `brainstorm-*.md` or brainstorm state JSON in subject folder
+6. **Spec** → `spec-*.md` in subject folders
+7. **Grill session** → `grill-session-*.md` in subject folder (present findings/decisions)
+8. **Research** → `research-*.md` in subject folders (from either `b-explore` or `b-research`)
+9. If multiple plausible sources exist at the same precedence level, **stop and ask the user**
+10. Fall back to newest artifact in subject folders
+11. Fail with clear message if nothing found
 
 ```bash
 # Discovery commands
