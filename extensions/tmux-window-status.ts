@@ -45,6 +45,9 @@ export interface StatusDisplay {
   teardown(): void;
 }
 
+/** Minimal logger passed to TmuxAdapter so it can write to the JSONL log. */
+export type StatusLogger = (event: string, data: Record<string, unknown>) => void;
+
 // ============================================================
 // State machine — pure logic, no IO
 // ============================================================
@@ -162,9 +165,11 @@ const ICON_SUFFIX_RE = /(?:\s+(?:⚙️|🧠|✅|🚧|🛑|⏳))+\s*$/;
 export class TmuxAdapter implements StatusDisplay {
   private savedName: string | null = null;
   private readonly inTmux: boolean;
+  private readonly log: StatusLogger;
 
-  constructor() {
+  constructor(log: StatusLogger = () => {}) {
     this.inTmux = !!process.env.TMUX;
+    this.log = log;
   }
 
   init(): void {
@@ -191,16 +196,45 @@ export class TmuxAdapter implements StatusDisplay {
     }
   }
 
+  /** Fetch current window name directly from tmux (used for fallback when savedName is missing). */
+  private fetchWindowName(): string | null {
+    const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
+    try {
+      return execSync(
+        `tmux display-message -p '#{window_name}' ${paneFlag}`,
+        { encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"], timeout: 2000 },
+      )
+        .trim()
+        .replace(ICON_SUFFIX_RE, "");
+    } catch {
+      return null;
+    }
+  }
+
   show(status: Status): void {
     if (!this.inTmux) return;
+
+    // Resolve base name: savedName → tmux fetch → abort
+    let base = this.savedName;
+    if (!base) {
+      base = this.fetchWindowName();
+      if (!base) {
+        this.log("show_aborted", { reason: "no_window_name", savedName: this.savedName });
+        return;
+      }
+      // Persist the fetched name so clear() and future show() calls use it
+      this.savedName = base;
+    }
+
     const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
-    const base = this.savedName ?? "pi";
     const name = `${base} ${STATUS_ICONS[status]}`;
     try {
       execSync(`tmux rename-window ${paneFlag} -- "${name}"`, {
         stdio: "ignore",
         timeout: 2000,
       });
+      // Keep savedName current so clear() always restores the true base name
+      this.savedName = base;
     } catch {
       // Fail soft
     }
@@ -208,13 +242,24 @@ export class TmuxAdapter implements StatusDisplay {
 
   clear(): void {
     if (!this.inTmux) return;
+    let base = this.savedName;
+    if (!base) {
+      base = this.fetchWindowName();
+      if (!base) {
+        this.log("clear_aborted", { reason: "no_window_name", savedName: this.savedName });
+        return;
+      }
+      // Persist the fetched name so future show() calls use it
+      this.savedName = base;
+    }
     const paneFlag = process.env.TMUX_PANE ? `-t ${process.env.TMUX_PANE}` : "";
-    const name = this.savedName ?? "pi";
     try {
-      execSync(`tmux rename-window ${paneFlag} -- "${name}"`, {
+      execSync(`tmux rename-window ${paneFlag} -- "${base}"`, {
         stdio: "ignore",
         timeout: 2000,
       });
+      // Keep savedName current so future show() calls use the true base name
+      this.savedName = base;
     } catch {
       // Fail soft
     }
@@ -280,17 +325,14 @@ export function wire(
   deps: WiringDeps = {},
 ): StateMachine {
   const machine = deps.machine ?? new StateMachine();
-  const display = deps.display ?? new TmuxAdapter();
-
-  pi.on("session_start", async () => {
-    logEvent("session_start", {});
-    display.init();
-  });
+  const display = deps.display ?? new TmuxAdapter(logEvent);
 
   pi.on("before_agent_start", async () => {
     machine.reset();
+    // Capture the current window name before we modify it
+    display.init();
     const ok = machine.transition("working");
-    logEvent("before_agent_start", { accepted: ok, state: machine.current });
+    logEvent("before_agent_start", { accepted: ok, state: machine.current, savedName: (display as any).savedName });
     if (ok) {
       display.show("working");
     }
