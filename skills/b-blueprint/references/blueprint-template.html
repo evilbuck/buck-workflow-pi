@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{TITLE}} — Architecture Blueprint</title>
+
+  <!-- Mermaid CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { darkMode: true, background: '#0d1117', primaryColor: '#2563eb', lineColor: '#8b949e' } });</script>
+
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #1c2129;
+      --bg-card: #1c2129;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --border-color: #30363d;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb33;
+      --green: #3fb950;
+      --green-dim: #23863622;
+      --amber: #d29922;
+      --amber-dim: #9e6a0322;
+      --red: #f85149;
+      --red-dim: #da363422;
+      --blue: #58a6ff;
+      --blue-dim: #1f6feb22;
+      --purple: #bc8cff;
+      --purple-dim: #8957e522;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, 'Courier New', monospace;
+      --max-width: 1080px;
+      --section-gap: 3rem;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ───────────────────────────────────────────────── */
+    .blueprint {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2rem 2rem 4rem;
+    }
+
+    /* ── Header ───────────────────────────────────────────────── */
+    .bp-header {
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: var(--section-gap);
+    }
+
+    .bp-header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .bp-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .bp-one-liner {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .bp-one-liner .arrow { color: var(--accent); margin: 0 0.5rem; }
+
+    /* ── Badges ───────────────────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 0.15em 0.6em;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-new      { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+    .badge-modify   { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+    .badge-delete   { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+    .badge-deps     { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+    .badge-info     { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
+    .badge-active   { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+    .badge-draft    { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+    .badge-illustrative { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+
+    /* ── Sections ─────────────────────────────────────────────── */
+    .bp-section {
+      margin-bottom: var(--section-gap);
+    }
+
+    .bp-section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      letter-spacing: -0.01em;
+    }
+
+    .bp-section-title .section-icon {
+      margin-right: 0.5rem;
+      opacity: 0.8;
+    }
+
+    /* ── Diagram Container ────────────────────────────────────── */
+    .diagram-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .diagram-container .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    .diagram-caption {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+    }
+
+    /* ── File Change Map Table ────────────────────────────────── */
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .file-table th {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .file-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    .file-table tr:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .file-path {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-primary);
+    }
+
+    .file-layer {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Code Blocks ──────────────────────────────────────────── */
+    .code-block {
+      margin-bottom: 1.5rem;
+    }
+
+    .code-caption {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .code-caption .lang {
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+
+    .code-block pre {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--text-primary);
+      tab-size: 2;
+    }
+
+    .code-block pre code {
+      font-family: inherit;
+      background: none;
+      padding: 0;
+    }
+
+    /* Inline code */
+    code {
+      font-family: var(--font-mono);
+      background: var(--bg-tertiary);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-size: 0.9em;
+      color: var(--text-primary);
+    }
+    pre code { background: none; padding: 0; }
+
+    /* Syntax tokens */
+    .code-block .kw { color: #ff7b72; }   /* keyword */
+    .code-block .fn { color: #d2a8ff; }   /* function */
+    .code-block .st { color: #a5d6ff; }   /* string */
+    .code-block .cm { color: #8b949e; }   /* comment */
+    .code-block .nu { color: #79c0ff; }   /* number */
+    .code-block .op { color: #ff7b72; }   /* operator */
+    .code-block .ty { color: #ffa657; }   /* type */
+    .code-block .pr { color: #7ee787; }   /* property */
+
+    /* ── Diff Blocks ──────────────────────────────────────────── */
+    .diff-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .diff-block { grid-template-columns: 1fr; }
+    }
+
+    .diff-side {
+      min-width: 0;
+    }
+
+    .diff-caption {
+      padding: 0.4rem 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      border-radius: 8px 8px 0 0;
+      font-weight: 600;
+    }
+
+    .diff-before .diff-caption {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid #da363466;
+      border-bottom: none;
+    }
+
+    .diff-after .diff-caption {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid #23863666;
+      border-bottom: none;
+    }
+
+    .diff-side pre {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .diff-add { background: rgba(63, 185, 80, 0.15); display: block; }
+    .diff-remove { background: rgba(248, 81, 73, 0.15); display: block; }
+
+    /* ── Decision Cards ───────────────────────────────────────── */
+    .decision-list {
+      list-style: none;
+    }
+
+    .decision-item {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .decision-item strong {
+      color: var(--accent);
+    }
+
+    .decision-item .rationale {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    /* ── Risk Cards ───────────────────────────────────────────── */
+    .risk-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--amber);
+      border-radius: 0 6px 6px 0;
+    }
+
+    .risk-card.severity-high { border-left-color: var(--red); }
+    .risk-card.severity-medium { border-left-color: var(--amber); }
+    .risk-card.severity-low { border-left-color: var(--green); }
+
+    .risk-severity {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      padding-top: 0.15rem;
+    }
+
+    .risk-severity.high { color: var(--red); }
+    .risk-severity.medium { color: var(--amber); }
+    .risk-severity.low { color: var(--green); }
+
+    .risk-content { flex: 1; }
+    .risk-content strong { display: block; margin-bottom: 0.15rem; }
+    .risk-content .mitigation {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+
+    /* ── Delivery Timeline ────────────────────────────────────── */
+    .delivery-timeline {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .phase-node {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      text-align: center;
+      white-space: nowrap;
+      min-width: 120px;
+    }
+
+    .phase-node .phase-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+
+    .phase-node .phase-name {
+      font-size: 0.9rem;
+      font-weight: 600;
+    }
+
+    .phase-node .phase-desc {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .phase-arrow {
+      color: var(--text-muted);
+      font-size: 1.2rem;
+      padding: 0 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* ── Verification Checklist ───────────────────────────────── */
+    .checklist {
+      list-style: none;
+    }
+
+    .checklist li {
+      padding: 0.4rem 0;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .checklist li::before {
+      content: '☐';
+      margin-right: 0.5rem;
+      color: var(--text-muted);
+    }
+
+    .checklist li span {
+      color: var(--text-primary);
+    }
+
+    /* ── Footer ───────────────────────────────────────────────── */
+    .bp-footer {
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--section-gap);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .bp-footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .bp-footer a:hover { text-decoration: underline; }
+
+    .bp-footer .source-list {
+      margin-top: 0.5rem;
+    }
+
+    /* ── Utility ──────────────────────────────────────────────── */
+    .text-muted { color: var(--text-muted); }
+    .text-secondary { color: var(--text-secondary); }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .blueprint { padding: 1rem; }
+      .bp-header h1 { font-size: 1.3rem; }
+      .bp-section-title { font-size: 1.1rem; }
+      .delivery-timeline { flex-direction: column; align-items: stretch; }
+      .phase-arrow { transform: rotate(90deg); text-align: center; }
+    }
+
+    /* ── Print ────────────────────────────────────────────────── */
+    @media print {
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f6f8fa;
+        --bg-tertiary: #eef1f5;
+        --text-primary: #1a1a2e;
+        --text-secondary: #4a4a68;
+        --text-muted: #6b7280;
+        --border-color: #d1d5db;
+        --accent: #2563eb;
+      }
+      body { background: white; color: black; }
+      .diagram-container { break-inside: avoid; }
+      .code-block { break-inside: avoid; }
+      .file-table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="blueprint">
+
+    <!-- ═══════════════════ HEADER ═══════════════════════════════ -->
+    <header class="bp-header">
+      <h1>{{TITLE}}</h1>
+      <div class="bp-meta">
+        <span class="badge badge-active">{{STATUS}}</span>
+        <span class="text-muted">{{DATE}}</span>
+        <span class="text-muted">·</span>
+        <span class="text-muted">{{SUBJECT}}</span>
+      </div>
+      <p class="bp-one-liner">
+        <span class="text-secondary">{{PROBLEM}}</span>
+        <span class="arrow">→</span>
+        <span>{{SOLUTION}}</span>
+      </p>
+    </header>
+
+    <!-- ═══════════════════ ARCHITECTURE OVERVIEW ════════════════ -->
+    <section class="bp-section" id="architecture">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⬡</span> Architecture Overview
+      </h2>
+      <div class="diagram-container">
+        <div class="mermaid">
+          {{ARCHITECTURE_DIAGRAM}}
+        </div>
+        <div class="diagram-caption">{{ARCHITECTURE_CAPTION}}</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ FILE CHANGE MAP ══════════════════════ -->
+    <section class="bp-section" id="files">
+      <h2 class="bp-section-title">
+        <span class="section-icon">📁</span> File Change Map
+      </h2>
+      <div style="overflow-x: auto;">
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Action</th>
+              <th>Layer</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- NEW files first -->
+            <tr>
+              <td><span class="file-path">path/to/new-file.js</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">backend</span></td>
+              <td>Description of what this file does</td>
+            </tr>
+            <!-- MODIFY files -->
+            <tr>
+              <td><span class="file-path">path/to/existing-file.js</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">backend</span></td>
+              <td>Description of what's changing</td>
+            </tr>
+            <!-- DELETE files -->
+            <tr>
+              <td><span class="file-path">path/to/removed-file.js</span></td>
+              <td><span class="badge badge-delete">delete</span></td>
+              <td><span class="file-layer">backend</span></td>
+              <td>Why it's being removed</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ CODE CHANGES ═════════════════════════ -->
+    <section class="bp-section" id="code">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⟨/⟩</span> Code Changes
+      </h2>
+
+      <!-- Example: Single code block -->
+      <div class="code-block">
+        <div class="code-caption">
+          <span class="lang">javascript</span>
+          <span>services/new-service.js</span>
+          <span class="badge badge-illustrative">illustrative</span>
+        </div>
+        <pre><code><span class="cm">// New service handling the proposed functionality</span>
+<span class="kw">class</span> <span class="ty">NewService</span> {
+  <span class="kw">static</span> <span class="fn">create</span>(data) {
+    <span class="cm">// Validate input</span>
+    <span class="kw">if</span> (!data.name) <span class="kw">throw new</span> <span class="ty">Error</span>(<span class="st">'Name required'</span>);
+    <span class="kw">return</span> db.<span class="fn">insert</span>(table).<span class="fn">values</span>(data).<span class="fn">returning</span>().<span class="fn">get</span>();
+  }
+}</code></pre>
+      </div>
+
+      <!-- Example: Before/After diff -->
+      <div class="diff-block">
+        <div class="diff-side diff-before">
+          <div class="diff-caption">Before — routes/api.js</div>
+          <pre><code><span class="cm">// Old approach</span>
+router.<span class="fn">post</span>(<span class="st">'/endpoint'</span>, (req, res) => {
+  <span class="kw">const</span> result = <span class="fn">legacyHandler</span>(req.body);
+  res.<span class="fn">json</span>(result);
+});</code></pre>
+        </div>
+        <div class="diff-side diff-after">
+          <div class="diff-caption">After — routes/api.js</div>
+          <pre><code><span class="cm">// New approach with validation</span>
+router.<span class="fn">post</span>(<span class="st">'/endpoint'</span>, validate, <span class="kw">async</span> (req, res) => {
+  <span class="kw">const</span> result = <span class="kw">await</span> <span class="ty">NewService</span>.<span class="fn">create</span>(req.body);
+  res.<span class="fn">status</span>(<span class="nu">201</span>).<span class="fn">json</span>({ data: result });
+});</code></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ DATA FLOW ════════════════════════════ -->
+    <section class="bp-section" id="dataflow">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⟿</span> Data Flow
+      </h2>
+      <div class="diagram-container">
+        <div class="mermaid">
+          {{DATAFLOW_DIAGRAM}}
+        </div>
+        <div class="diagram-caption">{{DATAFLOW_CAPTION}}</div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ KEY DECISIONS ════════════════════════ -->
+    <section class="bp-section" id="decisions">
+      <h2 class="bp-section-title">
+        <span class="section-icon">◆</span> Key Decisions
+      </h2>
+      <ul class="decision-list">
+        <li class="decision-item">
+          <strong>Decision 1</strong>
+          <div class="rationale">Rationale for this choice over alternatives.</div>
+        </li>
+        <li class="decision-item">
+          <strong>Decision 2</strong>
+          <div class="rationale">Why this approach was chosen.</div>
+        </li>
+      </ul>
+    </section>
+
+    <!-- ═══════════════════ RISKS ════════════════════════════════ -->
+    <section class="bp-section" id="risks">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⚠</span> Risks &amp; Tradeoffs
+      </h2>
+      <div class="risk-card severity-medium">
+        <span class="risk-severity medium">Medium</span>
+        <div class="risk-content">
+          <strong>Risk description</strong>
+          <div class="mitigation">Mitigation strategy or acceptance rationale.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ DELIVERY SHAPE ═══════════════════════ -->
+    <section class="bp-section" id="delivery">
+      <h2 class="bp-section-title">
+        <span class="section-icon">▸</span> Delivery Shape
+      </h2>
+
+      <!-- Visual timeline -->
+      <div class="delivery-timeline">
+        <div class="phase-node">
+          <div class="phase-label">Phase 1</div>
+          <div class="phase-name">Setup</div>
+          <div class="phase-desc">Foundation work</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-node">
+          <div class="phase-label">Phase 2</div>
+          <div class="phase-name">Core</div>
+          <div class="phase-desc">Main implementation</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-node">
+          <div class="phase-label">Phase 3</div>
+          <div class="phase-name">Testing</div>
+          <div class="phase-desc">Verification</div>
+        </div>
+      </div>
+
+      <!-- Optional: Mermaid phase dependency diagram -->
+      <div class="diagram-container">
+        <div class="mermaid">
+          {{PHASE_DIAGRAM}}
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════ VERIFICATION ════════════════════════ -->
+    <section class="bp-section" id="verification">
+      <h2 class="bp-section-title">
+        <span class="section-icon">✓</span> Verification Checklist
+      </h2>
+      <ul class="checklist">
+        <li><span>Test X passes</span></li>
+        <li><span>No regressions in Y</span></li>
+        <li><span>Performance within bounds</span></li>
+      </ul>
+    </section>
+
+    <!-- ═══════════════════ FOOTER ══════════════════════════════ -->
+    <footer class="bp-footer">
+      <div>Generated {{GENERATED_DATE}} by b-blueprint</div>
+      <div class="source-list">
+        Sources:
+        <a href="#">{{SOURCE_ARTIFACT}}</a>
+      </div>
+    </footer>
+
+  </div>
+</body>
+</html>
