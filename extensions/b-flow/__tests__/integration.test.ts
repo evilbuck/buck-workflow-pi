@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { rmSync, mkdirSync, existsSync, writeFileSync, chmodSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createActor } from "xstate";
@@ -6,6 +6,23 @@ import { createBuckMachine } from "../machine.js";
 import { buildQueue } from "../queue-builder.js";
 import { verifyResult } from "../verify-result.js";
 import { readProjection } from "../persistence.js";
+import { runWorker } from "../worker.js";
+
+// ---------------------------------------------------------------------------
+// SDK mock — hoisted so sdk-worker.ts (imported via worker.ts) gets the fake
+// ---------------------------------------------------------------------------
+
+vi.mock("@mariozechner/pi-coding-agent", () => ({
+  createAgentSession: vi.fn(),
+  SessionManager: { inMemory: vi.fn(() => ({})) },
+  SettingsManager: { inMemory: vi.fn(() => ({})) },
+}));
+
+vi.mock("@mariozechner/pi-ai", () => ({
+  getModel: vi.fn((_provider: string, id: string) => ({ id, provider: _provider })),
+}));
+
+import { createAgentSession } from "@mariozechner/pi-coding-agent";
 
 const TEST_ROOT = join("/tmp", "bflow-test-" + Date.now());
 
@@ -124,6 +141,84 @@ describe("b-flow integration", () => {
       expect(readdirSync(resultsDir).some((f) => f.endsWith(".md"))).toBe(true);
 
       actor.stop();
+    } finally {
+      restorePath();
+    }
+  });
+
+  it("runWorker dispatches to SDK worker when BFLOW_USE_SDK_WORKER=1", async () => {
+    vi.mocked(createAgentSession).mockResolvedValue({
+      session: {
+        prompt: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn(),
+        abort: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+        messages: [{ role: "assistant", content: "Done." }],
+      } as any,
+      extensionsResult: { extensions: [], errors: [], runtime: {} as any },
+    });
+
+    process.env.BFLOW_USE_SDK_WORKER = "1";
+    try {
+      const result = await runWorker(
+        {
+          id: "sdk-integration-test",
+          type: "phase",
+          path: join(TEST_ROOT, "chunks", "sdk-test.md"),
+          status: "pending",
+          workerAttempts: 0,
+        },
+        { projectRoot: TEST_ROOT, subject: null, goal: "SDK integration test", timeoutMs: 5_000 },
+      );
+
+      expect(result.type).toBe("WORKER_COMPLETED");
+      expect(createAgentSession).toHaveBeenCalled();
+    } finally {
+      delete process.env.BFLOW_USE_SDK_WORKER;
+    }
+  });
+
+  it("sdk worker failure surfaces as WORKER_FAILED", async () => {
+    vi.mocked(createAgentSession).mockRejectedValue(new Error("SDK connection failed"));
+
+    process.env.BFLOW_USE_SDK_WORKER = "1";
+    try {
+      const result = await runWorker(
+        {
+          id: "sdk-failure-test",
+          type: "phase",
+          path: join(TEST_ROOT, "chunks", "sdk-fail.md"),
+          status: "pending",
+          workerAttempts: 0,
+        },
+        { projectRoot: TEST_ROOT, subject: null, goal: "SDK failure test", timeoutMs: 5_000 },
+      );
+
+      expect(result.type).toBe("WORKER_FAILED");
+      expect(result.error).toContain("SDK connection failed");
+    } finally {
+      delete process.env.BFLOW_USE_SDK_WORKER;
+    }
+  });
+
+  it("falls back to subprocess when BFLOW_USE_SDK_WORKER is unset", async () => {
+    const restorePath = installFakePi(TEST_ROOT);
+    delete process.env.BFLOW_USE_SDK_WORKER;
+    try {
+      const { runWorker } = await import("../worker.js");
+      const result = await runWorker(
+        {
+          id: "subprocess-fallback-test",
+          type: "phase",
+          path: join(TEST_ROOT, "chunks", "fallback.md"),
+          status: "pending",
+          workerAttempts: 0,
+        },
+        { projectRoot: TEST_ROOT, subject: null, goal: "Fallback test", timeoutMs: 5_000 },
+      );
+
+      expect(result.type).toBe("WORKER_COMPLETED");
+      expect(result.resultFile).toBeDefined();
     } finally {
       restorePath();
     }

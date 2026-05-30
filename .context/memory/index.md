@@ -1,16 +1,19 @@
 # Memory Index
 
+- 2026-05-30 | `b-flow-sdk-iteration-2026-05-30.md` | domains: [implementation, review, iteration, testing] | topics: [b-flow, sdk-worker, audit-compatibility, model-fallback, phase-3] | status: active
+- 2026-05-30 | `b-flow-sdk-phase2-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, createAgentSession, phase-2, model-selection, tool-scoping, result-synthesis] | status: completed
+- 2026-05-30 | `b-flow-sdk-phase1-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, dual-dispatch, phase-1, iteration, phase-closeout] | status: completed
+- 2026-05-30 | `b-flow-sdk-research-2026-05-30.md` | domains: [research, architecture] | topics: [b-flow, pi-sdk, session-isolation, worker-redesign] | status: completed
 - 2026-05-30 | `cwd-restrict-mode-2026-05-30.md` | domains: [extension, safety-feature] | topics: [cwd-restriction, write-guard, restrict_cwd_active, b-restrict] | status: completed
 - 2026-05-20 | `b-research-b-explore-plan-2026-05-20.md` | domains: [implementation, skill, docs, workflow] | topics: [b-explore, b-research, crawl4ai, research-source-dictionary, subject-index, buck-workflow, split] | status: completed
 - 2026-05-19 | `ralph-loop-plan-phase-build-2026-05-19.md` | domains: [implementation, skill, workflow-automation] | topics: [ralph-loop, b-phase, b-plan, b-build, b-review, b-iterate] | status: completed
 - 2026-05-17 | `global-agents-buck-workflow-mode-build-2026-05-17.md` | domains: [buck-workflow, docs, refactor, extensions, testing, skill] | topics: [global-agents, buck-mode, ownership-split, plan-mode, docs, qmd-skill, b-save, b-review] | status: completed
-
 - 2026-05-17 | `2026-05-17-planning-mode-write-guards.md` | domains: [buck-workflow, plan-mode, extensions, keybindings] | topics: [plan-mode, write-guards, grill-commands, prompt-templates, isAllowedPlanWritePath, alt+p, toggle] | status: completed
 - 2026-05-17 | `subject-phase-detection-2026-05-17.md` | domains: [research, extensions, implementation, review, architecture] | topics: [subject-detection, phase-progress, b-flow, before_agent_start, hook, token-savings] | status: completed
 - 2026-05-15 | `tps-tracker-review-2026-05-15.md` | domains: [extensions, review, implementation] | topics: [tps-tracker, tokens-per-second, pi-extension, wire-pattern, ctx-hasUI] | status: active
 - 2026-05-13 | `prompt-to-skill-build-2026-05-13.md` | domains: [implementation, refactoring, skills] | topics: [prompts, skills, portability, b-build, b-grill, thin-wrappers] | status: active
 - 2026-05-13 | `prompt-inventory-classification-2026-05-13.md` | domains: [planning, docs, research] | topics: [prompts, skills, inventory, classification, portability] | status: active
-- 2026-05-12 | `prompt-to-skill-portability-plan-2026-05-12.md` | domains: [planning, docs, agent] | topics: [prompts, skills, portability, commands, plugins] | status: active
+- 2026-05-12 | `prompt-to-skill-portability-plan-2026-05-12.md` | domains: [planning, docs, agent] | topics: [prompts, skills, portability, commands, plugins] | status: completed
 - 2026-05-10 | `extension-model-switch-guard-2026-05-10.md` | domains: [debugging, agent, implementation] | topics: [model-switch, race-condition, timestamp-guard, autoSwitchingModel] | status: active
 - 2026-05-09 | `pi-agent-cycle-fix-2026-05-09.md` | domains: [debugging, infra, agent] | topics: [model-cycling, hung-requests, pi-coding-agent, abort-controller] | status: active
 - 2026-05-09 | `b-flow-unit-tests-2026-05-09.md` | domains: [testing, debugging, orchestration] | topics: [b-flow, xstate, vitest, guard-routing, unit-tests] | status: completed

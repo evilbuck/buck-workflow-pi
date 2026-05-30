@@ -2,6 +2,7 @@ import { writeFileSync, mkdirSync, existsSync, unlinkSync } from "node:fs";
 import { join, basename } from "node:path";
 import { spawn } from "node:child_process";
 import type { ChunkQueueItem, BuckMachineEvent } from "./types.js";
+import { runSDKWorker } from "./sdk-worker.js";
 
 export interface WorkerOptions {
   projectRoot: string;
@@ -17,13 +18,48 @@ export interface WorkerResult {
   status?: string;
   error?: string;
   exitCode?: number;
+
+  /**
+   * SDK telemetry fields (additive, optional).
+   * @alpha Preview for SDK worker path (Phase 2+)
+   */
+  toolCalls?: Array<{ name: string; input: unknown }>;
+  messageCount?: number;
+  changedFiles?: string[];
 }
 
 /**
- * Default worker implementation: spawns `pi -p` as a subprocess.
- * For testing, inject a custom runFn via options.
+ * Public worker entrypoint with dual-path dispatch (zero blast radius to callers).
+ *
+ * - BFLOW_USE_SDK_WORKER=1 → delegates to runSDKWorker (SDK path via createAgentSession; stub in Phase 1, real impl Phase 2+)
+ * - Otherwise (default) → delegates to runSubprocessWorker (legacy `pi -p --no-session` path, behavior unchanged)
+ *
+ * runSubprocessWorker is an internal implementation detail and not exported.
+ * Existing callers (chunk-queue-machine, tests) continue to import only runWorker + WorkerResult.
  */
 export async function runWorker(
+  chunk: ChunkQueueItem,
+  options: WorkerOptions,
+): Promise<WorkerResult> {
+  const useSDK = process.env.BFLOW_USE_SDK_WORKER === "1";
+  if (useSDK) {
+    try {
+      return await runSDKWorker(chunk, options);
+    } catch (error) {
+      return {
+        type: "WORKER_FAILED",
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+  return runSubprocessWorker(chunk, options);
+}
+
+/**
+ * Legacy subprocess worker (internal).
+ * Spawns `pi -p` as a subprocess. Behavior and side effects (result/audit files, prompt format) are 100% preserved.
+ */
+async function runSubprocessWorker(
   chunk: ChunkQueueItem,
   options: WorkerOptions,
 ): Promise<WorkerResult> {
