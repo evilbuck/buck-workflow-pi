@@ -1,10 +1,10 @@
 ---
-status: active
+status: completed
 date: 2026-05-30
 subject: 2026-05-30.b-flow-sdk-redesign
 topics: [b-flow, sdk-worker, phasing, phases]
 source_plan: plan-b-flow-sdk-redesign.md
-memory: ["b-flow-sdk-phase1-build-2026-05-30.md"]
+memory: ["b-flow-sdk-phase1-build-2026-05-30.md", "b-flow-sdk-phase2-build-2026-05-30.md", "b-flow-phase3-test-coverage-2026-05-30.md", "b-flow-sdk-iteration-2026-05-30.md"]
 phases: 3
 format: discrete
 ---

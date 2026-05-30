@@ -1,6 +1,6 @@
 # Memory Index
 
-- 2026-05-30 | `b-flow-sdk-iteration-2026-05-30.md` | domains: [implementation, review, iteration, testing] | topics: [b-flow, sdk-worker, audit-compatibility, model-fallback, phase-3] | status: active
+- 2026-05-30 | `b-flow-sdk-iteration-2026-05-30.md` | domains: [implementation, review, iteration, testing] | topics: [b-flow, sdk-worker, audit-compatibility, model-fallback, phase-3, completed] | status: completed
 - 2026-05-30 | `b-flow-sdk-phase2-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, createAgentSession, phase-2, model-selection, tool-scoping, result-synthesis] | status: completed
 - 2026-05-30 | `b-flow-sdk-phase1-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, dual-dispatch, phase-1, iteration, phase-closeout] | status: completed
 - 2026-05-30 | `b-flow-sdk-research-2026-05-30.md` | domains: [research, architecture] | topics: [b-flow, pi-sdk, session-isolation, worker-redesign] | status: completed

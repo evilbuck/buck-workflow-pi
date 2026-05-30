@@ -4,7 +4,7 @@ date: 2026-05-30
 updated: 2026-05-30
 subject: 2026-05-30.b-flow-sdk-redesign
 topics: [review, iteration, sdk-worker]
-informs: []
+informs: [plan-b-flow-sdk-redesign-phases.md]
 addresses: plan-b-flow-sdk-redesign-phases.md
 completed: 2026-05-30
 ralph_status: completed

@@ -33,6 +33,52 @@ Practical translation rules:
 
 ---
 
+## b-flow — Autonomous Orchestration
+
+b-flow is a Pi extension that supervises the entire Buck workflow. Given a goal, it runs through Buck states automatically — planning, phasing, building, reviewing, saving — persisting state across context resets and managing isolated workers for each chunk of work.
+
+**Quick start:**
+```
+/b-flow start "Build the SDK worker feature"
+/b-flow run
+```
+
+**Commands:**
+
+| Command | Description |
+|---------|-------------|
+| `/b-flow start <goal>` | Create orchestration state with a goal |
+| `/b-flow run` | Start autonomous execution through the queue |
+| `/b-flow continue` | Advance one step (guided mode) |
+| `/b-flow status` | Show current state, goal, queue progress |
+| `/b-flow pause` | Pause execution (state persisted) |
+| `/b-flow resume` | Resume from paused state |
+| `/b-flow stop` | Abort the flow (artifacts preserved) |
+| `/b-flow mode guided\|autonomous` | Switch execution mode |
+| `/b-next` | Show next queue item without executing |
+
+**Worker backends:** b-flow supports two worker paths controlled by `BFLOW_USE_SDK_WORKER`:
+
+| Worker | Env var | Startup | Notes |
+|--------|---------|---------|-------|
+| Subprocess (default) | unset or `0` | ~2-5s | Spawns `pi -p --no-session` child process |
+| SDK worker | `1` | ~50ms | In-process `createAgentSession()` with per-chunk model selection and tool scoping |
+
+```bash
+# Enable SDK worker
+BFLOW_USE_SDK_WORKER=1 pi
+```
+
+The SDK worker provides:
+- **Per-chunk model selection** by difficulty tier (easy → haiku, medium → sonnet, hard → opus)
+- **Tool scoping** (iterate chunks get read-only tools; build chunks get full coding set)
+- **Real-time event streaming** and tool call capture
+- **Structured lifecycle**: `subscribe → prompt → extract result → dispose` (guaranteed)
+
+**Full documentation**: See [docs/b-flow.md](b-flow.md) for state machine details, result file formats, audit files, persistence, and architecture.
+
+---
+
 ## Visual Workflow Overview
 
 ### Complete Flow Diagram
@@ -235,8 +281,8 @@ flowchart TD
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
-| [**b-save**](#5-save-phase) | Extension command | `/b-save` | `extensions/index.ts` | Record completed work to history |
-| [**b-mode**](#buck-workflow-mode) | Extension command | `/b-mode on\|off\|status` | `extensions/index.ts` | Control Buck workflow mode |
+| [**b-flow**](#b-flow--autonomous-orchestration) | Extension command | `/b-flow <subcommand>` | `extensions/b-flow/` | Autonomous workflow orchestration |
+| [**b-next**](#b-flow--autonomous-orchestration) | Extension command | `/b-next` | `extensions/b-flow/` | Show next queue item |
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -1207,7 +1253,9 @@ Type `/b-` in Pi to see all Buck workflow commands:
 - `/b-build`
 - `/b-build-hard`
 - `/b-explore`
+- `/b-flow` — Autonomous orchestration (`start`, `run`, `status`, `continue`, `pause`, `resume`, `stop`, `mode`)
 - `/b-iterate`
+- `/b-next` — Show next queue item from b-flow
 - `/b-plan`
 - `/b-present`
 - `/b-research`
@@ -1223,4 +1271,4 @@ Also available:
 
 ## Version
 
-Last updated: 2026-05-20
+Last updated: 2026-05-30

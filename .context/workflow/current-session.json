@@ -33,11 +33,79 @@
     {
       "command": "b-review",
       "at": "2026-05-30T14:21:51.126Z"
+    },
+    {
+      "command": "b-research",
+      "at": "2026-05-30T14:41:58.760Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T15:19:47.016Z"
+    },
+    {
+      "command": "b-plan",
+      "at": "2026-05-30T15:24:15.442Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T15:29:23.660Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T15:36:36.317Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T15:41:54.528Z"
+    },
+    {
+      "command": "b-iterate",
+      "at": "2026-05-30T15:44:31.146Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T15:56:37.868Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T18:32:00.477Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T18:50:00.000Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T19:09:31.480Z"
+    },
+    {
+      "command": "b-save",
+      "at": "2026-05-30T19:15:00.000Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T19:18:14.308Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T19:22:57.589Z"
+    },
+    {
+      "command": "b-iterate",
+      "at": "2026-05-30T19:26:08.225Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T19:43:08.022Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T20:22:53.451Z"
     }
   ],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/ralph-loop-plan-phase-build-2026-05-19.md",
+  "memory_file": ".context/memory/b-flow-sdk-iteration-2026-05-30.md",
   "files_modified": [
     ".context/2026-05-19.ralph-loop-plan-phase/brainstorm-ralph-loop-plan-phase.md",
     ".context/2026-05-19.ralph-loop-plan-phase/brainstorm-state-ralph-loop-plan-phase.json",
@@ -49,8 +117,6 @@
     "skills/b-iterate/SKILL.md",
     ".context/2026-05-19.ralph-loop-plan-phase/draft-commit.md",
     ".context/memory/ralph-loop-plan-phase-build-2026-05-19.md",
-    ".context/memory/index.md",
-    ".context/workflow/current-session.json",
     "playwright.config.ts",
     "tests/e2e/example.spec.ts",
     "package.json",
@@ -65,18 +131,49 @@
     "skills/git-commit/SKILL.md",
     "prompts/git-commit.md",
     ".context/backlog/items/fix-b-flow-tests.md",
-    ".context/backlog/todo.md",
     "extensions/b-flow/__tests__/guards.test.ts",
     "extensions/b-flow/__tests__/integration.test.ts",
-    ".context/draft-commit.md"
+    ".context/draft-commit.md",
+    ".context/backlog/items/b-flow-sdk-redesign.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/research-pi-sdk-worker-architecture.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/index.md",
+    ".context/memory/b-flow-sdk-research-2026-05-30.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/architecture-review-sdk-worker.md",
+    "presentations/b-flow-sdk-redesign/index.html",
+    ".context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign-phases.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/phase-1-types-dispatch.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/phase-2-sdk-worker-core.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/phase-3-test-coverage.md",
+    ".context/backlog/items/phase-1-types-dispatch.md",
+    "extensions/b-flow/sdk-worker.ts",
+    "extensions/b-flow/worker.ts",
+    ".context/2026-05-30.b-flow-sdk-redesign/draft-commit.md",
+    ".context/memory/b-flow-sdk-phase1-build-2026-05-30.md",
+    ".context/2026-05-30.b-flow-sdk-redesign/iterate-b-flow-sdk-redesign.md",
+    "extensions/b-flow/chunk-queue-machine.ts",
+    "extensions/b-flow/__tests__/sdk-worker.test.ts",
+    ".context/memory/b-flow-sdk-phase2-build-2026-05-30.md",
+    ".context/backlog/todo.md",
+    ".context/backlog/archive/completed.md",
+    ".context/backlog/archive/2026-05/phase-2-sdk-worker-core.md",
+    ".context/memory/index.md",
+    ".context/workflow/current-session.json",
+    ".context/memory/b-flow-phase3-test-coverage-2026-05-30.md",
+    ".context/memory/b-flow-sdk-iteration-2026-05-30.md",
+    "docs/b-flow-user-guide.md",
+    ".context/backlog/archive/2026-05/phase-3-test-coverage.md",
+    ".context/backlog/archive/2026-05/b-flow-sdk-redesign.md",
+    "docs/b-flow.md",
+    "docs/buck-workflow.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,
   "plan_mode_active": false,
   "buck_workflow_mode_active": true,
   "buck_workflow_mode_source": "command",
-  "buck_workflow_mode_reason": "/b-build command",
-  "buck_workflow_mode_enabled_at": "2026-05-19T16:48:22.069Z",
+  "buck_workflow_mode_reason": "/b-iterate command",
+  "buck_workflow_mode_enabled_at": "2026-05-30T15:19:47.016Z",
   "buck_workflow_mode_auto_disabled": false,
   "workflow_intent_count": 0,
   "last_workflow_intent_at": null,
