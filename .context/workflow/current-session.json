@@ -25,6 +25,14 @@
     {
       "command": "b-review",
       "at": "2026-05-30T13:54:46.791Z"
+    },
+    {
+      "command": "b-build",
+      "at": "2026-05-30T14:07:39.879Z"
+    },
+    {
+      "command": "b-review",
+      "at": "2026-05-30T14:21:51.126Z"
     }
   ],
   "implementation_happened": true,
@@ -55,7 +63,12 @@
     ".context/memory/cwd-restrict-mode-2026-05-30.md",
     ".context/2026-05-30.cwd-restrict-mode/draft-commit.md",
     "skills/git-commit/SKILL.md",
-    "prompts/git-commit.md"
+    "prompts/git-commit.md",
+    ".context/backlog/items/fix-b-flow-tests.md",
+    ".context/backlog/todo.md",
+    "extensions/b-flow/__tests__/guards.test.ts",
+    "extensions/b-flow/__tests__/integration.test.ts",
+    ".context/draft-commit.md"
   ],
   "guided_workflow": null,
   "guided_stage": null,

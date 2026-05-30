@@ -1,5 +1,4 @@
-import { describe, test } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect } from "vitest";
 import {
   hasGoal,
   hasPlan,
@@ -41,54 +40,47 @@ function makeCtx(overrides: Partial<TransitionContext> = {}): TransitionContext 
 }
 
 describe("guards", () => {
-  test("hasGoal returns true when goal is set", () => {
-    assert.strictEqual(hasGoal(makeCtx({ goal: "build thing" })), true);
-    assert.strictEqual(hasGoal(makeCtx({ goal: "" })), false);
+  it("hasGoal returns true when goal is set", () => {
+    expect(hasGoal(makeCtx({ goal: "build thing" }))).toBe(true);
+    expect(hasGoal(makeCtx({ goal: "" }))).toBe(false);
   });
 
-  test("hasPlan returns true when latestPlan exists", () => {
-    assert.strictEqual(
+  it("hasPlan returns true when latestPlan exists", () => {
+    expect(
       hasPlan(makeCtx({ artifacts: { latestPlan: { path: "plan.md", exists: true }, backlogItems: [], workerResults: [] } })),
-      true,
-    );
-    assert.strictEqual(hasPlan(makeCtx()), false);
+    ).toBe(true);
+    expect(hasPlan(makeCtx())).toBe(false);
   });
 
-  test("hasPhasesOverview returns true when phasesOverview exists", () => {
-    assert.strictEqual(
+  it("hasPhasesOverview returns true when phasesOverview exists", () => {
+    expect(
       hasPhasesOverview(makeCtx({ artifacts: { phasesOverview: { path: "phases.md", exists: true }, backlogItems: [], workerResults: [] } })),
-      true,
-    );
-    assert.strictEqual(hasPhasesOverview(makeCtx()), false);
+    ).toBe(true);
+    expect(hasPhasesOverview(makeCtx())).toBe(false);
   });
 
-  test("hasActivePhase returns false when status is completed", () => {
-    assert.strictEqual(
+  it("hasActivePhase returns false when status is completed", () => {
+    expect(
       hasActivePhase(makeCtx({ artifacts: { activePhase: { path: "phase.md", exists: true, status: "completed" }, backlogItems: [], workerResults: [] } })),
-      false,
-    );
-    assert.strictEqual(
+    ).toBe(false);
+    expect(
       hasActivePhase(makeCtx({ artifacts: { activePhase: { path: "phase.md", exists: true, status: "pending" }, backlogItems: [], workerResults: [] } })),
-      true,
-    );
+    ).toBe(true);
   });
 
-  test("loopLimitReached returns true at max", () => {
-    assert.strictEqual(
+  it("loopLimitReached returns true at max", () => {
+    expect(
       loopLimitReached(makeCtx({ safety: { loopCount: 50, maxLoops: 50, workerTasksThisRun: 0, maxWorkerTasksPerRun: 20 } })),
-      true,
-    );
-    assert.strictEqual(
+    ).toBe(true);
+    expect(
       loopLimitReached(makeCtx({ safety: { loopCount: 49, maxLoops: 50, workerTasksThisRun: 0, maxWorkerTasksPerRun: 20 } })),
-      false,
-    );
+    ).toBe(false);
   });
 
-  test("workerLimitReached returns true at max", () => {
-    assert.strictEqual(
+  it("workerLimitReached returns true at max", () => {
+    expect(
       workerLimitReached(makeCtx({ safety: { loopCount: 0, maxLoops: 50, workerTasksThisRun: 20, maxWorkerTasksPerRun: 20 } })),
-      true,
-    );
-    assert.strictEqual(workerLimitReached(makeCtx()), false);
+    ).toBe(true);
+    expect(workerLimitReached(makeCtx())).toBe(false);
   });
 });

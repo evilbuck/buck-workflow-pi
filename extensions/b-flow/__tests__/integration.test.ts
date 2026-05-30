@@ -1,5 +1,4 @@
-import { describe, test, beforeEach, afterEach } from "node:test";
-import assert from "node:assert";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { rmSync, mkdirSync, existsSync, writeFileSync, chmodSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { createActor } from "xstate";
@@ -19,7 +18,7 @@ async function waitFor(
     if (predicate()) return;
     await new Promise((r) => setTimeout(r, 25));
   }
-  assert.fail("Timed out waiting for condition");
+  throw new Error("Timed out waiting for condition");
 }
 
 function installFakePi(root: string): () => void {
@@ -57,7 +56,7 @@ describe("b-flow integration", () => {
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
   });
 
-  test("happy path: start transitions from idle", async () => {
+  it("happy path: start transitions from idle", async () => {
     const machine = createBuckMachine(TEST_ROOT);
     const actor = createActor(machine);
     actor.start();
@@ -66,16 +65,15 @@ describe("b-flow integration", () => {
     await new Promise((r) => setTimeout(r, 100));
 
     const snapshot = actor.getSnapshot();
-    assert.ok(
+    expect(
       ["recovering", "planning", "decomposing", "blocked"].includes(String(snapshot.value)),
-      `Expected transitioning state, got ${snapshot.value}`,
-    );
-    assert.strictEqual(snapshot.context.projection.goal, "test goal");
+    ).toBe(true);
+    expect(snapshot.context.projection.goal).toBe("test goal");
 
     actor.stop();
   });
 
-  test("persistence writes projection after transitions", async () => {
+  it("persistence writes projection after transitions", async () => {
     const machine = createBuckMachine(TEST_ROOT);
     const actor = createActor(machine);
     actor.start();
@@ -84,14 +82,14 @@ describe("b-flow integration", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     const projection = readProjection(TEST_ROOT);
-    assert.notStrictEqual(projection, null);
-    assert.strictEqual(projection?.goal, "persist test");
-    assert.notStrictEqual(projection?.currentState, "idle");
+    expect(projection).not.toBeNull();
+    expect(projection?.goal).toBe("persist test");
+    expect(projection?.currentState).not.toBe("idle");
 
     actor.stop();
   });
 
-  test("continue executes queued phase through worker subprocess", async () => {
+  it("continue executes queued phase through worker subprocess", async () => {
     const restorePath = installFakePi(TEST_ROOT);
     try {
       const subject = "2026-05-08.test-subject";
@@ -117,13 +115,13 @@ describe("b-flow integration", () => {
       await waitFor(() => String(actor.getSnapshot().value) === "reviewing");
 
       const snapshot = actor.getSnapshot();
-      assert.strictEqual(snapshot.context.subject, subject);
-      assert.strictEqual(snapshot.context.projection.subject, subject);
-      assert.strictEqual(snapshot.context.projection.queue.length, 1);
-      assert.strictEqual(snapshot.context.projection.queue[0].status, "completed");
+      expect(snapshot.context.subject).toBe(subject);
+      expect(snapshot.context.projection.subject).toBe(subject);
+      expect(snapshot.context.projection.queue.length).toBe(1);
+      expect(snapshot.context.projection.queue[0].status).toBe("completed");
 
       const resultsDir = join(subjectDir, "worker-results");
-      assert.ok(readdirSync(resultsDir).some((f) => f.endsWith(".md")));
+      expect(readdirSync(resultsDir).some((f) => f.endsWith(".md"))).toBe(true);
 
       actor.stop();
     } finally {
@@ -131,7 +129,7 @@ describe("b-flow integration", () => {
     }
   });
 
-  test("queue builder finds phases in subject folder", () => {
+  it("queue builder finds phases in subject folder", () => {
     const subjectDir = join(TEST_ROOT, ".context", "2026-05-08.test-subject");
     mkdirSync(subjectDir, { recursive: true });
 
@@ -149,13 +147,13 @@ describe("b-flow integration", () => {
     );
 
     const queue = buildQueue(TEST_ROOT, "2026-05-08.test-subject");
-    assert.strictEqual(queue.length, 2);
-    assert.strictEqual(queue[0].id, "phase-phase-1-types");
-    assert.strictEqual(queue[0].difficulty, "easy");
-    assert.strictEqual(queue[1].difficulty, "medium");
+    expect(queue.length).toBe(2);
+    expect(queue[0].id).toBe("phase-phase-1-types");
+    expect(queue[0].difficulty).toBe("easy");
+    expect(queue[1].difficulty).toBe("medium");
   });
 
-  test("queue builder finds tasks.md unchecked items", () => {
+  it("queue builder finds tasks.md unchecked items", () => {
     const subjectDir = join(TEST_ROOT, ".context", "2026-05-08.test-subject");
     mkdirSync(subjectDir, { recursive: true });
 
@@ -166,10 +164,10 @@ describe("b-flow integration", () => {
 
     const queue = buildQueue(TEST_ROOT, "2026-05-08.test-subject");
     const tasks = queue.filter((q) => q.type === "task");
-    assert.strictEqual(tasks.length, 2);
+    expect(tasks.length).toBe(2);
   });
 
-  test("verifyResult parses completed worker result", () => {
+  it("verifyResult parses completed worker result", () => {
     const resultFile = join(TEST_ROOT, "result.md");
     writeFileSync(
       resultFile,
@@ -177,11 +175,11 @@ describe("b-flow integration", () => {
     );
 
     const result = verifyResult(resultFile);
-    assert.strictEqual(result.type, "CHUNK_VERIFIED");
-    assert.strictEqual(result.status, "completed");
+    expect(result.type).toBe("CHUNK_VERIFIED");
+    expect(result.status).toBe("completed");
   });
 
-  test("verifyResult detects warnings", () => {
+  it("verifyResult detects warnings", () => {
     const resultFile = join(TEST_ROOT, "result.md");
     writeFileSync(
       resultFile,
@@ -189,11 +187,11 @@ describe("b-flow integration", () => {
     );
 
     const result = verifyResult(resultFile);
-    assert.strictEqual(result.type, "CHUNK_WARNINGS");
-    assert.strictEqual(result.status, "completed_with_warnings");
+    expect(result.type).toBe("CHUNK_WARNINGS");
+    expect(result.status).toBe("completed_with_warnings");
   });
 
-  test("verifyResult detects blocked", () => {
+  it("verifyResult detects blocked", () => {
     const resultFile = join(TEST_ROOT, "result.md");
     writeFileSync(
       resultFile,
@@ -201,18 +199,18 @@ describe("b-flow integration", () => {
     );
 
     const result = verifyResult(resultFile);
-    assert.strictEqual(result.type, "CHUNK_BLOCKED");
-    assert.strictEqual(result.status, "blocked");
+    expect(result.type).toBe("CHUNK_BLOCKED");
+    expect(result.status).toBe("blocked");
   });
 
-  test("machine defines all required states", () => {
+  it("machine defines all required states", () => {
     const machine = createBuckMachine(TEST_ROOT);
-    assert.ok(machine);
-    assert.strictEqual(machine.config.id, "buck-flow");
+    expect(machine).toBeTruthy();
+    expect(machine.config.id).toBe("buck-flow");
     const states = Object.keys(machine.config.states ?? {});
-    assert.ok(states.includes("idle"));
-    assert.ok(states.includes("done"));
-    assert.ok(states.includes("aborted"));
-    assert.ok(states.includes("executingChunks"));
+    expect(states).toContain("idle");
+    expect(states).toContain("done");
+    expect(states).toContain("aborted");
+    expect(states).toContain("executingChunks");
   });
 });
