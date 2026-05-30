@@ -44,7 +44,8 @@
     "presentations/buck-workflow-architecture.html",
     ".context/2026-06-04.security-audit-script/iterate-security-audit.md",
     ".context/memory/presentation-skill-catalog-addition-2026-06-04.md",
-    ".context/memory/security-audit-iteration-2026-06-04.md"
+    ".context/memory/security-audit-iteration-2026-06-04.md",
+    ".context/workflow/current-session.json"
   ],
   "guided_workflow": null,
   "guided_stage": null,
