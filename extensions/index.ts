@@ -37,6 +37,8 @@ interface SessionState {
   buck_workflow_mode_auto_disabled: boolean;
   workflow_intent_count: number;
   last_workflow_intent_at: string | null;
+  /** CWD restriction: blocks write/edit tools for paths outside project directory. */
+  restrict_cwd_active: boolean;
 }
 
 // --- Plan Mode Configuration ---
@@ -105,6 +107,21 @@ function isAllowedPlanWritePath(path: string, projectDir?: string): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Check if a path is within the current working directory (project root).
+ * Relative paths are always considered within CWD.
+ */
+function isWithinCwd(path: string, cwd: string): boolean {
+  const normalizedPath = path.replace(/^\.\//, "").replace(/\/$/, "");
+  if (!normalizedPath.startsWith("/")) {
+    // Relative path — always allowed
+    return true;
+  }
+  // Absolute path — check if it's under cwd
+  const normalizedCwd = cwd.replace(/\/$/, "");
+  return normalizedPath.startsWith(normalizedCwd + "/") || normalizedPath === normalizedCwd;
 }
 
 function getBashOverride(entries: any[], command: string): boolean {
@@ -205,6 +222,7 @@ function defaultState(): SessionState {
     buck_workflow_mode_auto_disabled: false,
     workflow_intent_count: 0,
     last_workflow_intent_at: null,
+    restrict_cwd_active: true,
   };
 }
 
@@ -523,9 +541,18 @@ export default function (pi: ExtensionAPI) {
     }
   }
 
+  function updateCwdRestrictStatus(ctx: any, active: boolean): void {
+    if (active) {
+      ctx.ui.setStatus("cwd-restrict", ctx.ui.theme.fg("accent", "🔒 cwd"));
+    } else {
+      ctx.ui.setStatus("cwd-restrict", undefined);
+    }
+  }
+
   function updateWorkflowStatuses(ctx: any, state: SessionState): void {
     updateBuckWorkflowModeStatus(ctx, state.buck_workflow_mode_active);
     updatePlanModeStatus(ctx, state.plan_mode_active);
+    updateCwdRestrictStatus(ctx, state.restrict_cwd_active);
   }
 
   function activateBuckWorkflowMode(
@@ -676,6 +703,48 @@ export default function (pi: ExtensionAPI) {
     },
   });
 
+  // --- CWD Restriction Command ---
+
+  pi.registerCommand("b-restrict", {
+    description: "Control CWD restriction mode: /b-restrict on|off|status",
+    getArgumentCompletions: (prefix) => {
+      const values = ["on", "off", "status"];
+      return values
+        .filter((value) => value.startsWith(prefix.trim()))
+        .map((value) => ({ value, label: value }));
+    },
+    handler: async (args, ctx) => {
+      const action = args.trim().toLowerCase() || "status";
+      const state = ensureState();
+
+      if (action === "on") {
+        state.restrict_cwd_active = true;
+        writeState(state);
+        updateCwdRestrictStatus(ctx, true);
+        ctx.ui.notify("🔒 CWD restriction enabled — writes outside project directory are blocked", "info");
+        return;
+      }
+
+      if (action === "off") {
+        state.restrict_cwd_active = false;
+        writeState(state);
+        updateCwdRestrictStatus(ctx, false);
+        ctx.ui.notify("🔓 CWD restriction disabled — all write paths allowed", "info");
+        return;
+      }
+
+      if (action !== "status") {
+        ctx.ui.notify("Usage: /b-restrict on|off|status", "warning");
+        return;
+      }
+
+      ctx.ui.notify(
+        `CWD restriction: ${state.restrict_cwd_active ? "active 🔒" : "inactive 🔓"} (blocks writes outside ${cwd})`,
+        "info",
+      );
+    },
+  });
+
   pi.on("before_agent_start", async (event, ctx) => {
     if (pendingModelSwitchCommand && MODEL_SWITCH_COMMANDS.includes(pendingModelSwitchCommand)) {
       pendingModelSwitchCommand = null;
@@ -722,6 +791,13 @@ Help the user plan what needs to be done:
 - Create/update plans in .context/
 - Update documentation in docs/
 - When ready, run /b-build or /b-build-hard to exit plan mode`);
+    }
+
+    if (state?.restrict_cwd_active && !state?.plan_mode_active) {
+      instructions.push(`[CWD RESTRICTION ACTIVE]
+
+Write and edit operations are restricted to paths within the project directory.
+Use \/b-restrict off to disable this restriction.`);
     }
 
     if (instructions.length === 0) return;
@@ -921,10 +997,23 @@ Help the user plan what needs to be done:
     return { action: "continue" as const };
   });
 
+
   // --- Plan Mode tool blocking ---
 
   pi.on("tool_call", async (event, ctx) => {
     const state = readState();
+
+    // CWD restriction: block write/edit outside project directory (when active)
+    // This runs independently of plan mode.
+    if (state?.restrict_cwd_active) {
+      const path = (event.input as any)?.path || "";
+      if (event.toolName === "write" || event.toolName === "edit") {
+        if (path && !isWithinCwd(path, cwd)) {
+          return { block: true, reason: `CWD restriction: ${path} is outside project directory (${cwd})` };
+        }
+      }
+    }
+
     if (!state?.plan_mode_active) return;
 
     // Handle write tool

@@ -12,11 +12,12 @@ Create a Conventional Commits message from staged changes and commit immediately
 - Staged changes only. Do not infer work from unstaged or untracked files.
 - Utilize any staged memory or spec files in `.context/memory/` or `.context/specs/` as guidance, but verify the work was done.
 - Additional user context (if provided).
+- **`force`** — if present in arguments (e.g. `/git-commit force` or `/git-commit force: emergency hotfix`), override the protected-branch restriction and allow committing directly to `main`, `master`, or `develop`. Use deliberately — this exists for hotfixes and emergencies.
 
 ## Safety Rules
 
-- Never commit to or merge into these branches: `main`, `master`, `develop`.
-- If the current branch is one of those, stop and instruct the user to create/switch to a feature branch.
+- Never commit to or merge into these branches: `main`, `master`, `develop` — **unless `force` is specified** (see Inputs).
+- If the current branch is protected and `force` is NOT specified, stop and instruct the user to create/switch to a feature branch (or re-run with `force`).
 - Do not stage files automatically. If nothing is staged, stop and tell the user to stage changes first.
 
 ## Procedure
@@ -41,7 +42,7 @@ Create a Conventional Commits message from staged changes and commit immediately
    - Staged diff (patch): `git diff --cached`
    - Recent commits (style reference): `git log -10 --oneline`
 
-3. If the current branch is protected (`main`/`master`/`develop`), do not commit.
+3. If the current branch is protected (`main`/`master`/`develop`) **and `force` is NOT specified**, do not commit. Warn the user and suggest creating a feature branch or re-running with `force`.
 
 4. If there are no staged changes, do not commit.
 

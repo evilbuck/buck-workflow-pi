@@ -206,3 +206,217 @@ describe("Buck workflow mode", () => {
     expect(state.buck_workflow_mode_source).toBe("command");
   });
 });
+
+describe("CWD restriction mode", () => {
+  beforeEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+    mkdirSync(join(TEST_ROOT, ".context"), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+  });
+
+  it("registers /b-restrict command", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    expect(commands.has("b-restrict")).toBe(true);
+  });
+
+  it("default state has restrict_cwd_active: true", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    const state = readState();
+    expect(state.restrict_cwd_active).toBe(true);
+  });
+
+  it("/b-restrict off disables restriction", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await commands.get("b-restrict")!.handler("off", ctx);
+
+    const state = readState();
+    expect(state.restrict_cwd_active).toBe(false);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "🔓 CWD restriction disabled — all write paths allowed",
+      "info",
+    );
+  });
+
+  it("/b-restrict on enables restriction", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // First disable it
+    await commands.get("b-restrict")!.handler("off", ctx);
+    let state = readState();
+    expect(state.restrict_cwd_active).toBe(false);
+
+    // Then re-enable
+    await commands.get("b-restrict")!.handler("on", ctx);
+    state = readState();
+    expect(state.restrict_cwd_active).toBe(true);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      "🔒 CWD restriction enabled — writes outside project directory are blocked",
+      "info",
+    );
+  });
+
+  it("/b-restrict status shows current state", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await commands.get("b-restrict")!.handler("status", ctx);
+
+    // Default is active
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("active 🔒"),
+      "info",
+    );
+  });
+
+  it("/b-restrict status shows inactive when disabled", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await commands.get("b-restrict")!.handler("off", ctx);
+    await commands.get("b-restrict")!.handler("status", ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("inactive 🔓"),
+      "info",
+    );
+  });
+
+  it("tool_call blocks write outside CWD when active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate write tool call outside CWD
+    const result = await toolCallHandler(
+      { toolName: "write", input: { path: "/tmp/test.txt", content: "test" } },
+      ctx,
+    );
+
+    expect(result).toEqual({
+      block: true,
+      reason: expect.stringContaining("outside project directory"),
+    });
+  });
+
+  it("tool_call allows write inside CWD when active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate write tool call inside CWD (relative path)
+    const result = await toolCallHandler(
+      { toolName: "write", input: { path: "src/test.ts", content: "test" } },
+      ctx,
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("tool_call allows write outside CWD when inactive", async () => {
+    const { api, handlers, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Disable restriction
+    await commands.get("b-restrict")!.handler("off", ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate write tool call outside CWD
+    const result = await toolCallHandler(
+      { toolName: "write", input: { path: "/tmp/test.txt", content: "test" } },
+      ctx,
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("tool_call blocks edit outside CWD when active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate edit tool call outside CWD
+    const result = await toolCallHandler(
+      { toolName: "edit", input: { path: "/etc/config.conf" } },
+      ctx,
+    );
+
+    expect(result).toEqual({
+      block: true,
+      reason: expect.stringContaining("outside project directory"),
+    });
+  });
+
+  it("tool_call allows edit inside CWD when active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate edit tool call inside CWD
+    const result = await toolCallHandler(
+      { toolName: "edit", input: { path: "./src/index.ts" } },
+      ctx,
+    );
+
+    expect(result).toBeUndefined();
+  });
+
+  it("allows absolute path within CWD", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    // Get the tool_call handler
+    const toolCallHandler = handlers.get("tool_call")![0];
+
+    // Simulate write tool call with absolute path inside CWD
+    const result = await toolCallHandler(
+      { toolName: "write", input: { path: `${TEST_ROOT}/src/test.ts`, content: "test" } },
+      ctx,
+    );
+
+    expect(result).toBeUndefined();
+  });
+});
