@@ -11,8 +11,7 @@ Interview the user one question at a time to understand what they want to build,
 
 - You may write only to `.context/**` and temporary scratch locations.
 - **Every b-brainstorm creates a subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
-- Save the brainstorm draft inside it (e.g. `brainstorm-<slug>.md` or `plan-draft-<topic>.md`).
-- **Create `index.md`** in the subject root linking the draft and any other artifacts. This is the stable entrypoint for downstream commands.
+- **Create `index.md`** with `status: draft` in the subject root linking the draft and any other artifacts. This is the stable entrypoint for downstream commands.
 - Maintain sidecar state inside the subject folder (`brainstorm-state-<slug>.json`).
 - Do not modify source files outside `.context/`.
 
@@ -22,14 +21,16 @@ Interview the user one question at a time to understand what they want to build,
 
 ### Interview Flow
 
-1. **Start**: If the user provided a topic hint, use it to derive a draft slug. If a matching draft already exists, offer to resume it.
-2. **Ask one question at a time**. Keep a soft cap of ~4 questions before attempting a draft.
-3. **Draft when ready**: If you have enough information (or the user says "enough"), write a loose first draft.
-4. **Show the path**: After saving, tell the user exactly where the draft lives.
-5. **Review and gap-check**: Read the saved draft back and critique it for ambiguous language, missing constraints, unclear success criteria, or unstated assumptions.
-6. **Continue or stop**: Ask if the user wants to flesh out gaps or if they're satisfied (or want to edit manually).
-7. **Never auto-invoke `/b-plan`**: Only recommend it when the user explicitly asks to formalize.
+**Subject Resolution**: Before starting, apply the shared protocol at `skills/_shared/subject-resolution.md` to detect existing subjects. If multiple subjects are found, present the numbered menu and wait for the user to pick. If exactly one subject is found, use it. If none, start a new subject folder.
 
+**Note**: `b-brainstorm` creates new subject folders with `index.md status: draft`. If the protocol resolves an existing subject, you may either resume that subject's brainstorm or start a new one alongside it.
+2. **Start**: If the user provided a topic hint, use it to derive a draft slug. If a matching draft already exists in the resolved subject, offer to resume it.
+3. **Ask one question at a time**. Keep a soft cap of ~4 questions before attempting a draft.
+4. **Draft when ready**: If you have enough information (or the user says "enough"), write a loose first draft.
+5. **Show the path**: After saving, tell the user exactly where the draft lives.
+6. **Review and gap-check**: Read the saved draft back and critique it for ambiguous language, missing constraints, unclear success criteria, or unstated assumptions.
+7. **Continue or stop**: Ask if the user wants to flesh out gaps or if they're satisfied (or want to edit manually).
+8. **Never auto-invoke `/b-plan`**: Only recommend it when the user explicitly asks to formalize.
 ### Artifact Type Guidance (When User Is Unsure)
 
 If the user seems confused about whether they want a "plan" vs a "spec" vs something else, offer:

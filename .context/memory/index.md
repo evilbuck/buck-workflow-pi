@@ -1,4 +1,5 @@
 # Memory Index
+- 2026-05-31 | `review-subject-selection-prompting-2026-05-31.md` | domains: [coding, docs] | topics: [subject-selection, skills, review, b-review] | status: active
 
 - 2026-06-04 | `security-audit-iteration-2026-06-04.md` | domains: [testing, debugging] | topics: [security-audit, shell-script, bugfix, b-iterate] | status: completed
 - 2026-06-04 | `presentation-skill-catalog-addition-2026-06-04.md` | domains: [docs, presentation, buck-workflow, skill] | topics: [skill-catalog, presentation-update, buck-workflow, elaboration, flow-composition, grill-variants] | status: active

@@ -30,6 +30,7 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
 3. **Write exploration file inside**: `research-<topic>.md` (keeps the canonical summary artifact name for compatibility)
 4. **Create or update `index.md`** in the subject folder as the stable entrypoint linking all artifacts.
 
+
 **Example:**
 ```
 .context/
@@ -37,6 +38,12 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
     ├── index.md
     └── research-oauth-providers.md
 ```
+
+## Subject Resolution
+
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, proceed as a fresh session.
 
 ## Behavior
 

@@ -218,23 +218,18 @@ npx playwright test --video=on
 npx playwright test --trace=on
 ```
 
-## Context Resolution
+## Subject Resolution
 
-Before building, check for prior planning artifacts using this **resolution order**:
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, proceed as a fresh session.
 
-1. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
-2. **All subject folders** (scan for active entities): `.context/*/plan-*.md`, `*/spec-*.md`
-3. **Flat directories** (legacy fallback): `.context/plans/*.md`, `.context/specs/active/*.md`
-4. **Backlog** (always): `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
-
-### Cross-Reference Following
+After subject resolution, the protocol's resolved subject (or the fresh session) becomes the source for artifact discovery and cross-reference following.
 
 When you load a plan, also read its linked artifacts:
 - **Plan's `research:` field** → read the research files for context
 - **Plan's `spec:` field** → read the spec to verify requirements
 - **Spec's `plans:` field** → verify coverage (for b-review)
-
-### Subject Folder Note
 
 If you start building without a subject folder (ad-hoc work), **b-save will create one** at session end and consolidate artifacts. You don't need to manage this — just focus on implementation.
 

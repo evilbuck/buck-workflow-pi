@@ -29,29 +29,34 @@ Turn the user's request into a bounded implementation plan using:
 
 1. **Infer subject name** from the conversation topic (kebab-case)
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
-3. **Write plan file inside**: `plan-<topic>.md`
+3. **Create `index.md`** with `status: active` (plan now exists, work is underway)
+4. **Write plan file inside**: `plan-<topic>.md`
 
 **Example:**
 ```
 .context/
 └── 2026-04-08.auth-feature/
+    ├── index.md    ← status: active
     └── plan-oauth-login.md
 ```
 
-## Context Resolution Protocol
+## Subject Resolution
 
-Before writing a plan, gather context from these sources:
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, proceed as a fresh session.
+
+After subject resolution, gather planning context from these additional sources:
 
 1. **Explicit user context** — the current request, pasted notes, links, constraints, examples, desired outcomes, and any files the user points at
 2. **Session context** — prior messages, prior decisions, referenced files, and already-established assumptions in this chat
-3. **Workflow session state** — read `.context/workflow/current-session.json` if it exists; if it points to a `memory_file`, read that too
-4. **Relevant subject-folder artifacts** — check the active or best-matching subject folder for:
+3. **Relevant subject-folder artifacts** — check the chosen subject folder for:
    - `index.md` — **read this first** if it exists; it links all other artifacts in the subject
    - `brainstorm-*.md` or `plan-draft-*.md`
    - `research-*.md` (from either `b-explore` or `b-research`)
    - `spec-*.md`
    - existing `plan-*.md` when refining or replacing a plan
-5. **Relevant code** — read the code/config/tests needed to make the plan concrete
+4. **Relevant code** — read the code/config/tests needed to make the plan concrete
 
 Use these sources together. Artifacts are helpful inputs, not prerequisites.
 

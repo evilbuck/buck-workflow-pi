@@ -21,7 +21,10 @@ Use **judgment**: if completing the plan in one session feels risky or cramped, 
 
 ## Input
 
-The most recent `plan-*.md` file in `.context/YYYY-MM-DD.*/` or `.context/plans/`.
+## Subject Resolution
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for plan discovery.
+If the protocol finds no subject, fall back to scanning for the most recent `plan-*.md`.
 
 ## Workflow
 
@@ -275,6 +278,13 @@ Use this overview as Ralph's durable navigation map. For each phase:
 - [ ] Phase 1: <Name> — build → review → iterate if needed → save
 - [ ] Phase 2: <Name> — build → review → iterate if needed → save
 - [ ] Phase N: <Name> — build → review → iterate if needed → save
+
+
+### Step 5c: Update Plan Status
+
+After creating phase files and the phases overview:
+1. **Update the plan file's frontmatter**: set `status: active` if it is currently `draft`
+2. **Update `index.md` in the subject folder**: set `status: active`
 
 ## Notes
 

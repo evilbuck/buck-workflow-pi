@@ -23,17 +23,11 @@ You accept these optional arguments:
 
 If no path is provided, fall back to **scope resolution order** below.
 
-## Scope Resolution
+## Subject Resolution
 
-Resolve the review target in this order:
-
-1. **User-provided path** (if given): load the explicit plan/spec/phase/subject artifact
-2. **Active subject folder** (from session context): `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`, `phase-*.md`
-3. **All subject folders**: `.context/*/plan-*.md`, `*/spec-*.md`, `*/phase-*.md`
-4. **Flat directories** (legacy): `.context/plans/`, `.context/specs/active/`
-5. **Backlog**: `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`)
-
-When a subject folder is provided or resolved, load its best matching active artifact:
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+After subject resolution, load the best matching artifact from the resolved subject:
 - `plan-*-phases.md` → current active phase (first non-completed) unless user asks for all phases
 - `phase-*.md` → that specific phase only
 - `plan-*.md` (no phases) → the full plan

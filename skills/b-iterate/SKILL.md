@@ -7,18 +7,14 @@ description: Quick follow-up fixes, polish, and review-loop edits. Use for small
 
 Handle quick follow-up fixes, polish, and review-loop edits.
 
-## Context Resolution
+## Subject Resolution
 
-Before starting work, resolve iteration context in this order:
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, work from the user's inline description.
+After subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
 
-1. **Explicit argument** — if the user provides a path or inline description, use that
-2. **Iteration artifact** — scan subject folders for `iterate-*.md` files:
-   - First check the active subject folder: `.context/YYYY-MM-DD.<subject>/iterate-*.md`
-   - Then scan all subject folders: `.context/*/iterate-*.md`
-   - If exactly one exists, use it. If multiple, present them to the user and ask which to address.
-3. **Ralph in-progress phase** — if running inside a Ralph loop, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point
-4. **Review output in memory** — check the most recent memory file for review findings
-5. **User request** — if no artifact exists, work from the user's inline description
+Also check for Ralph in-progress phase: if running inside a Ralph loop, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
 
 When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). If `ralph_status: pending` is present, treat the artifact as Ralph-blocking until review passes.
 

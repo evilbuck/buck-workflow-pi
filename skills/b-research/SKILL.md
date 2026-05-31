@@ -34,7 +34,7 @@ Investigate external sources — APIs, libraries, documentation, web resources, 
 
 1. **Infer subject name** from the research topic (kebab-case)
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
-3. **Create `index.md`** as the stable entrypoint linking all artifacts
+3. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts
 4. **Write incremental notes** in a subject-local `research/` subdirectory as you gather information
 5. **Consolidate into `research-<topic>.md`** in the subject root as the canonical summary artifact
 
@@ -42,12 +42,18 @@ Investigate external sources — APIs, libraries, documentation, web resources, 
 ```
 .context/
 └── 2026-04-08.oauth-research/
-    ├── index.md
+    ├── index.md    ← status: draft
     ├── research/
     │   ├── notes-providers.md
     │   └── sources-oauth.md
     └── research-oauth-providers.md    ← canonical summary
 ```
+
+## Subject Resolution
+
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, proceed as a fresh session.
 
 ## Artifact Model
 
