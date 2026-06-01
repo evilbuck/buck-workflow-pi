@@ -28,7 +28,7 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
 1. **Infer subject name** from the exploration topic (kebab-case)
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
 3. **Write exploration file inside**: `research-<topic>.md` (keeps the canonical summary artifact name for compatibility)
-4. **Create or update `index.md`** in the subject folder as the stable entrypoint linking all artifacts.
+4. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts.
 
 
 **Example:**
