@@ -116,57 +116,8 @@ function getBashOverride(entries: any[], command: string): boolean {
   return false;
 }
 
-function classifyWorkflowIntent(text: string, priorIntentCount: number): WorkflowIntent {
-  const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
-  if (!normalized || normalized.startsWith("/")) {
-    return { kind: "none", reason: null, shouldActivate: false, activatePlanMode: false };
-  }
-
-  const hasImplementationVerb = /\b(implement|build|fix|refactor|modify|wire|code)\b/.test(normalized);
-  const hasImplementationWorkflowLanguage = /\b(plan|handoff|document|documentation|write-?up|notes?|checkpoint|context|durable|save)\b/.test(normalized);
-
-  if (hasImplementationVerb && hasImplementationWorkflowLanguage) {
-    return {
-      kind: "workflow-implementation",
-      reason: "implementation request with planning/handoff/documentation language",
-      shouldActivate: true,
-      activatePlanMode: false,
-    };
-  }
-
-  const planningPatterns: Array<[RegExp, string]> = [
-    [/\b(plan this|make a plan|create a plan|draft a plan|implementation plan|planning pass)\b/, "explicit planning request"],
-    [/\b(how should (i|we) approach|scope this|break (this|it) down|phase this|roadmap)\b/, "scoping or roadmap request"],
-    [/\b(prd|spec|design doc|architecture plan|proposal)\b/, "spec/design request"],
-    [/\b(research|explore|investigate|trace|orient|understand this codebase|map out)\b/, "research/exploration request"],
-    [/\b(write up|write-up|document this|documentation pass|capture findings)\b/, "documentation/write-up request"],
-    [/\b(backlog|issue breakdown|break (this|it) into issues|tickets)\b/, "backlog/issue breakdown request"],
-    [/\b(review changes|review this|handoff|checkpoint)\b/, "review/handoff/checkpoint request"],
-  ];
-
-  for (const [pattern, reason] of planningPatterns) {
-    if (pattern.test(normalized)) {
-      return { kind: "planning", reason, shouldActivate: true, activatePlanMode: true };
-    }
-  }
-
-  const softWorkflowHint = /\b(plan|research|review|handoff|checkpoint|context|remaining work|next step|follow up)\b/.test(normalized);
-  if (softWorkflowHint && priorIntentCount >= 1) {
-    return {
-      kind: "soft",
-      reason: "accumulated workflow-shaped session context",
-      shouldActivate: true,
-      activatePlanMode: true,
-    };
-  }
-
-  return {
-    kind: softWorkflowHint ? "soft" : "none",
-    reason: softWorkflowHint ? "soft workflow hint" : null,
-    shouldActivate: false,
-    activatePlanMode: false,
-  };
-}
+// Auto-enable plan mode logic removed — plan mode is now manual-only.
+// Use /b-mode on|off or alt+p to toggle plan mode.
 
 const STATE_DIR = ".context/workflow";
 const STATE_FILE = "current-session.json";
@@ -176,15 +127,6 @@ const PLAN_MODE_COMMANDS = ["b-plan", "b-brainstorm", "b-explore", "b-research",
 const IMPLEMENTATION_COMMANDS = ["b-build", "b-build-hard", "b-iterate"];
 const MODEL_SWITCH_COMMANDS = ["b-build", "b-build-hard", "b-iterate", "b-review"];
 const BUCK_PREFIX = "b-";
-
-type WorkflowIntentKind = "planning" | "workflow-implementation" | "soft" | "none";
-
-interface WorkflowIntent {
-  kind: WorkflowIntentKind;
-  reason: string | null;
-  shouldActivate: boolean;
-  activatePlanMode: boolean;
-}
 
 function defaultState(): SessionState {
   return {
@@ -557,69 +499,36 @@ export default function (pi: ExtensionAPI) {
     return wasActive;
   }
 
-  function enablePlanMode(ctx: any, source: Exclude<BuckWorkflowModeSource, null>, reason: string): void {
-    const state = ensureState();
-    const buckChanged = activateBuckWorkflowMode(state, source, reason);
-    const planChanged = !state.plan_mode_active;
-    state.plan_mode_active = true;
-    writeState(state);
-    updateWorkflowStatuses(ctx, state);
-    if (planChanged) {
-      ctx.ui.notify(
-        "✅ Buck workflow planning mode enabled - writes allowed to .context/, docs/ only",
-        "info",
-      );
-    } else if (buckChanged) {
-      ctx.ui.notify("✅ Buck workflow mode enabled", "info");
-    }
-  }
+// enablePlanMode removed — plan mode is manual-only via /b-mode on|off or alt+p.
 
   function toggleBuckWorkflowMode(ctx: any): void {
     const state = ensureState();
-    if (state.buck_workflow_mode_active || state.plan_mode_active) {
-      deactivateBuckWorkflowMode(state, true, "manual /b-mode off or alt+p toggle");
+    if (state.plan_mode_active) {
+      // Toggle off: just disable plan mode, keep buck workflow if active
+      state.plan_mode_active = false;
       writeState(state);
       updateWorkflowStatuses(ctx, state);
-      ctx.ui.notify("🦌 Buck workflow mode disabled", "info");
+      ctx.ui.notify("📝 Plan mode disabled", "info");
       return;
     }
 
-    activateBuckWorkflowMode(state, "manual", "manual /b-mode on or alt+p toggle");
+    // Toggle on: enable plan mode
+    activateBuckWorkflowMode(state, "manual", "manual alt+p toggle");
     state.plan_mode_active = true;
     writeState(state);
     updateWorkflowStatuses(ctx, state);
     ctx.ui.notify(
-      "✅ Buck workflow mode enabled - planning guard active (.context/, docs/ only)",
+      "✅ Plan mode enabled - writes restricted to .context/, docs/",
       "info",
     );
   }
 
-  function maybeAutoEnableBuckWorkflowMode(ctx: any, text: string, state: SessionState): void {
-    const intent = classifyWorkflowIntent(text, state.workflow_intent_count);
-    if (intent.kind !== "none") {
-      state.workflow_intent_count += 1;
-      state.last_workflow_intent_at = new Date().toISOString();
-    }
-
-    if (!intent.shouldActivate || state.buck_workflow_mode_active || state.buck_workflow_mode_auto_disabled) {
-      return;
-    }
-
-    activateBuckWorkflowMode(state, "auto", intent.reason ?? "workflow intent detected");
-    if (intent.activatePlanMode) state.plan_mode_active = true;
-    updateWorkflowStatuses(ctx, state);
-    ctx.ui.notify(
-      intent.activatePlanMode
-        ? `🦌 Buck workflow mode auto-enabled (${intent.reason}); planning guard active`
-        : `🦌 Buck workflow mode auto-enabled (${intent.reason})`,
-      "info",
-    );
-  }
+// maybeAutoEnableBuckWorkflowMode removed — plan mode is manual-only.
 
   // --- Buck mode keybind (alt+p, configurable via keybindings.json) ---
 
   pi.registerShortcut("alt+p", {
-    description: "Toggle Buck workflow mode",
+    description: "Toggle plan mode (write guard: .context/, docs/ only)",
     handler: async (ctx) => {
       toggleBuckWorkflowMode(ctx);
     },
@@ -643,7 +552,7 @@ export default function (pi: ExtensionAPI) {
         writeState(state);
         updateWorkflowStatuses(ctx, state);
         ctx.ui.notify(
-          "✅ Buck workflow mode enabled - planning guard active (.context/, docs/ only)",
+          "✅ Plan mode enabled - writes restricted to .context/, docs/",
           "info",
         );
         return;
@@ -850,7 +759,7 @@ Help the user plan what needs to be done:
     if (state?.buck_workflow_mode_active || state?.plan_mode_active) {
       updateWorkflowStatuses(ctx, state);
       ctx.ui.notify(
-        state.plan_mode_active ? "ℹ️ Buck workflow planning mode restored" : "ℹ️ Buck workflow mode restored",
+        state.plan_mode_active ? "ℹ️ Plan mode restored - writes restricted to .context/, docs/" : "ℹ️ Buck workflow mode restored",
         "info",
       );
     }
@@ -878,7 +787,6 @@ Help the user plan what needs to be done:
 
       if (PLAN_MODE_COMMANDS.includes(command)) {
         activateBuckWorkflowMode(state, "command", `/${command} command`);
-        state.plan_mode_active = true;
       }
 
       if (IMPLEMENTATION_COMMANDS.includes(command)) {
@@ -898,13 +806,6 @@ Help the user plan what needs to be done:
       writeState(state);
       updateWorkflowStatuses(ctx, state);
 
-      if (PLAN_MODE_COMMANDS.includes(command)) {
-        ctx.ui.notify(
-          "✅ Buck workflow planning mode enabled - writes allowed to .context/, docs/ only",
-          "info",
-        );
-      }
-
       // --- Model auto-switch for phased plans ---
       if (MODEL_SWITCH_COMMANDS.includes(command)) {
         pendingModelSwitchCommand = command;
@@ -913,9 +814,6 @@ Help the user plan what needs to be done:
       return { action: "continue" as const };
     }
 
-    // maybeAutoEnableBuckWorkflowMode(ctx, text, state);
-    // NOTE: Auto-enable removed per user request. Planning mode is now opt-in only.
-    // Re-enable by uncommenting or using /b-mode on, /b-plan, etc.
     writeState(state);
 
     return { action: "continue" as const };
