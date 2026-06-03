@@ -509,7 +509,9 @@ export default function (pi: ExtensionAPI) {
   let pendingModelSwitchCommand: string | null = null;
 
   // --- tmux window status ---
-  wireTmuxStatus(pi);
+  // DISABLED: window renaming keeps overwriting tmux window names to "pi".
+  // Re-enable when fixed or when tmux allow-rename is off.
+  // wireTmuxStatus(pi);
 
   // --- b-grill-auto ---
   wireGrillAuto(pi);
