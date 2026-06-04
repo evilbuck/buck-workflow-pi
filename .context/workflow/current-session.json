@@ -36,7 +36,16 @@
     "package.json",
     "scripts/test-browser.sh",
     "skills/b-build/scripts/test-browser.sh",
-    "skills/b-build/playwright.config.ts"
+    "skills/b-build/playwright.config.ts",
+    ".context/2026-06-04.buck-workflow-benefits-explainer/index.md",
+    ".context/2026-06-04.buck-workflow-benefits-explainer/research-buck-workflow-benefits.md",
+    ".context/2026-06-04.buck-workflow-benefits-explainer/gaps-and-followups.md",
+    ".context/2026-06-04.buck-workflow-benefits-explainer/plan-buck-workflow-benefits-explanation.md",
+    ".context/2026-06-04.buck-workflow-benefits-explainer/tasks.md",
+    ".context/memory/buck-workflow-benefits-explainer-2026-06-04.md",
+    ".context/backlog/items/extract-b-save-skill.md",
+    ".context/backlog/todo.md",
+    "presentations/buck-workflow-architecture.html"
   ],
   "guided_workflow": null,
   "guided_stage": null,
