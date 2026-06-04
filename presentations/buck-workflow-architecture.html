@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buck Workflow — Turning AI Conversations Into Durable Engineering Work</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --bg-section: #0d1220;
+    --bg-card: #131a2e;
+    --bg-code: #0f1524;
+    --border: #1e2a45;
+    --border-glow: #2a3f6f;
+    --fg: #e2e8f0;
+    --fg-dim: #8899b8;
+    --fg-muted: #5a6d8f;
+    --accent: #6c8cff;
+    --accent-bright: #8da8ff;
+    --accent-glow: rgba(108,140,255,0.15);
+    --green: #34d399;
+    --amber: #f59e0b;
+    --rose: #f472b6;
+    --purple: #a78bfa;
+    --cyan: #22d3ee;
+    --orange: #fb923c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg); color: var(--fg);
+    line-height: 1.7; -webkit-font-smoothing: antialiased;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  @keyframes fadeUp { from { opacity:0; transform:translateY(40px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+  @keyframes glow { 0%,100%{box-shadow:0 0 20px var(--accent-glow);} 50%{box-shadow:0 0 40px var(--accent-glow),0 0 60px rgba(108,140,255,0.08);} }
+  @keyframes flowDash { to { stroke-dashoffset: -20; } }
+
+  .reveal { opacity:0; transform:translateY(40px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.visible { opacity:1; transform:translateY(0); }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+
+  /* ── Hero ── */
+  .hero { min-height:100vh; display:flex; align-items:center; justify-content:center; text-align:center; position:relative; overflow:hidden; }
+  .hero::before { content:''; position:absolute; inset:0; background: radial-gradient(ellipse 80% 60% at 50% 40%,rgba(108,140,255,0.08) 0%,transparent 70%), radial-gradient(ellipse 60% 40% at 20% 80%,rgba(167,139,250,0.05) 0%,transparent 60%), radial-gradient(ellipse 60% 40% at 80% 20%,rgba(34,211,238,0.04) 0%,transparent 60%); pointer-events:none; }
+  .hero-content { position:relative; z-index:1; }
+  .hero h1 { font-size:clamp(2.4rem,5vw,4rem); font-weight:900; letter-spacing:-0.03em; line-height:1.15; margin-bottom:16px; animation:fadeUp 1s ease both; }
+  .hero h1 .gradient-text { background:linear-gradient(135deg,var(--accent-bright),var(--cyan),var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+  .hero .subtitle { font-size:clamp(1rem,2vw,1.35rem); color:var(--fg-dim); font-weight:300; max-width:680px; margin:0 auto 20px; animation:fadeUp 1s ease 0.3s both; }
+  .hero .sub-subtitle { font-size:clamp(0.9rem,1.5vw,1.05rem); color:var(--fg-muted); font-weight:400; max-width:600px; margin:0 auto 40px; animation:fadeUp 1s ease 0.45s both; font-style:italic; }
+  .hero-tags { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; animation:fadeUp 1s ease 0.5s both; }
+  .hero-tag { padding:6px 16px; border-radius:100px; border:1px solid var(--border); font-size:0.82rem; font-weight:500; color:var(--fg-dim); background:var(--bg-card); transition:border-color 0.3s,color 0.3s; }
+  .hero-tag:hover { border-color:var(--accent); color:var(--accent); }
+  .scroll-hint { position:absolute; bottom:40px; left:50%; transform:translateX(-50%); animation:pulse 2s ease infinite; color:var(--fg-muted); font-size:0.8rem; display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .scroll-hint svg { width:20px; height:20px; }
+
+  /* ── Sections ── */
+  section { padding:100px 0; }
+  section:nth-child(even) { background:var(--bg-section); }
+  .section-label { font-size:0.75rem; font-weight:600; text-transform:uppercase; letter-spacing:0.15em; color:var(--accent); margin-bottom:12px; }
+  .section-title { font-size:clamp(1.6rem,3vw,2.4rem); font-weight:800; letter-spacing:-0.02em; margin-bottom:16px; line-height:1.25; }
+  .section-desc { color:var(--fg-dim); max-width:700px; font-size:1.05rem; line-height:1.75; margin-bottom:48px; }
+
+  /* ── Pain Cards ── */
+  .pain-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:24px; }
+  .pain-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:32px; transition:border-color 0.3s,transform 0.3s; }
+  .pain-card:hover { border-color:var(--rose); transform:translateY(-4px); }
+  .pain-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.4rem; margin-bottom:20px; background:rgba(244,114,182,0.1); border:1px solid rgba(244,114,182,0.2); }
+  .pain-card h3 { font-size:1.1rem; font-weight:700; margin-bottom:8px; }
+  .pain-card p { color:var(--fg-dim); font-size:0.92rem; }
+
+  /* ── Principle Banner ── */
+  .principle-banner { background:linear-gradient(135deg,var(--bg-card),rgba(108,140,255,0.06)); border:1px solid var(--border-glow); border-radius:20px; padding:56px 48px; text-align:center; animation:glow 4s ease infinite; position:relative; overflow:hidden; }
+  .principle-banner::before { content:''; position:absolute; top:-1px; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--accent),transparent); }
+  .principle-banner .quote { font-size:clamp(1.3rem,2.5vw,1.9rem); font-weight:700; line-height:1.5; }
+  .principle-banner .attribution { margin-top:16px; color:var(--fg-muted); font-size:0.9rem; }
+
+  /* ── Non-prescriptive banner ── */
+  .freedom-banner { background:linear-gradient(135deg,var(--bg-card),rgba(52,211,153,0.05)); border:1px solid rgba(52,211,153,0.25); border-radius:20px; padding:48px; text-align:center; position:relative; overflow:hidden; margin-bottom:48px; }
+  .freedom-banner::before { content:''; position:absolute; top:-1px; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--green),transparent); }
+  .freedom-banner h3 { font-size:1.3rem; font-weight:700; margin-bottom:12px; color:var(--green); }
+  .freedom-banner p { color:var(--fg-dim); font-size:1.02rem; max-width:660px; margin:0 auto; line-height:1.7; }
+  .freedom-banner .mini-flows { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
+  .mini-flow { padding:8px 16px; border-radius:8px; background:var(--bg-code); border:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--fg-dim); transition:border-color 0.3s; }
+  .mini-flow:hover { border-color:var(--green); color:var(--green); }
+  .mini-flow .arrow { color:var(--fg-muted); margin:0 4px; }
+
+  /* ── Architecture Layers ── */
+  .arch-diagram { background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:48px 32px; overflow:hidden; }
+  .layer { display:flex; align-items:stretch; gap:0; margin-bottom:3px; }
+  .layer:last-child { margin-bottom:0; }
+  .layer-label { width:180px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center; padding:20px 24px; border-radius:12px 0 0 12px; z-index:1; }
+  .layer-label .layer-name { font-weight:700; font-size:0.95rem; margin-bottom:4px; }
+  .layer-label .layer-desc { font-size:0.78rem; color:var(--fg-muted); line-height:1.4; }
+  .layer-items { flex:1; display:flex; flex-wrap:wrap; gap:8px; padding:16px 20px; border-radius:0 12px 12px 0; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-left:none; }
+  .layer-global .layer-label { background:rgba(52,211,153,0.12); border:1px solid rgba(52,211,153,0.25); }
+  .layer-skill .layer-label { background:rgba(167,139,250,0.12); border:1px solid rgba(167,139,250,0.25); }
+  .layer-prompt .layer-label { background:rgba(108,140,255,0.12); border:1px solid rgba(108,140,255,0.25); }
+  .layer-ext .layer-label { background:rgba(34,211,238,0.12); border:1px solid rgba(34,211,238,0.25); }
+  .layer-item { padding:8px 14px; border-radius:8px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; font-weight:500; border:1px solid var(--border); background:var(--bg); white-space:nowrap; transition:border-color 0.3s,transform 0.2s; }
+  .layer-item:hover { transform:translateY(-2px); }
+  .layer-global .layer-item:hover { border-color:var(--green); }
+  .layer-skill .layer-item:hover { border-color:var(--purple); }
+  .layer-prompt .layer-item:hover { border-color:var(--accent); }
+  .layer-ext .layer-item:hover { border-color:var(--cyan); }
+  .arch-connector { text-align:center; padding:16px 0; color:var(--fg-muted); font-size:0.82rem; }
+  .arch-connector svg { display:inline-block; vertical-align:middle; }
+
+  /* ── Pipeline ── */
+  .pipeline { display:flex; align-items:stretch; gap:0; overflow-x:auto; padding-bottom:8px; }
+  .pipeline-stage { flex:1; min-width:120px; text-align:center; padding:24px 8px; background:var(--bg-card); border:1px solid var(--border); border-radius:16px; margin:0 4px; transition:border-color 0.3s,transform 0.3s; }
+  .pipeline-stage:hover { transform:translateY(-4px); }
+  .pipeline-stage .stage-emoji { font-size:1.4rem; margin-bottom:8px; display:block; }
+  .pipeline-stage .stage-cmd { font-family:'JetBrains Mono',monospace; font-size:0.68rem; font-weight:600; padding:3px 8px; border-radius:4px; background:rgba(108,140,255,0.12); color:var(--accent-bright); display:inline-block; margin-bottom:8px; }
+  .pipeline-stage h4 { font-size:0.82rem; font-weight:700; margin-bottom:4px; }
+  .pipeline-stage p { font-size:0.72rem; color:var(--fg-dim); line-height:1.5; }
+  .pipeline-arrow { display:flex; align-items:center; justify-content:center; color:var(--fg-muted); font-size:1.1rem; flex-shrink:0; }
+
+  /* ── Stat Row ── */
+  .stat-row { display:flex; justify-content:center; gap:48px; flex-wrap:wrap; margin:48px 0; }
+  .stat { text-align:center; }
+  .stat-num { font-size:2.5rem; font-weight:900; line-height:1; margin-bottom:4px; }
+  .stat-label { font-size:0.82rem; color:var(--fg-muted); font-weight:500; }
+
+  /* ── Code Block ── */
+  .code-block { background:var(--bg-code); border:1px solid var(--border); border-radius:12px; overflow:hidden; margin:24px 0; }
+  .code-header { padding:10px 16px; border-bottom:1px solid var(--border); font-family:'JetBrains Mono',monospace; font-size:0.75rem; color:var(--fg-muted); display:flex; align-items:center; gap:8px; }
+  .code-header .dot { width:8px; height:8px; border-radius:50%; }
+  .code-body { padding:20px; font-family:'JetBrains Mono',monospace; font-size:0.78rem; line-height:1.8; overflow-x:auto; }
+  .kw { color:var(--purple); } .fn { color:var(--cyan); } .str { color:var(--green); } .cm { color:var(--fg-muted); font-style:italic; } .type { color:var(--amber); } .num { color:var(--orange); }
+
+  /* ── Folder Tree ── */
+  .folder-tree { display:grid; grid-template-columns:1fr 1fr; gap:32px; align-items:start; }
+  @media(max-width:768px) { .folder-tree { grid-template-columns:1fr; } }
+  .tree-panel { background:var(--bg-code); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+  .tree-header { padding:16px 20px; border-bottom:1px solid var(--border); font-weight:600; font-size:0.88rem; display:flex; align-items:center; gap:8px; }
+  .tree-body { padding:20px; font-family:'JetBrains Mono',monospace; font-size:0.76rem; line-height:1.9; }
+  .tree-body .dir { color:var(--accent-bright); } .tree-body .file { color:var(--fg-dim); } .tree-body .comment { color:var(--fg-muted); font-style:italic; } .tree-body .highlight { color:var(--green); }
+
+  /* ── Benefit Cards ── */
+  .benefit-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:24px; }
+  .benefit-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:32px; transition:border-color 0.3s,transform 0.3s; position:relative; overflow:hidden; }
+  .benefit-card::after { content:''; position:absolute; top:0; left:0; right:0; height:3px; opacity:0; transition:opacity 0.3s; }
+  .benefit-card:hover { transform:translateY(-4px); }
+  .benefit-card:hover::after { opacity:1; }
+  .benefit-card.continuity::after { background:var(--accent); } .benefit-card.continuity:hover { border-color:rgba(108,140,255,0.4); }
+  .benefit-card.trust::after { background:var(--green); } .benefit-card.trust:hover { border-color:rgba(52,211,153,0.4); }
+  .benefit-card.repeatability::after { background:var(--purple); } .benefit-card.repeatability:hover { border-color:rgba(167,139,250,0.4); }
+  .benefit-card.quality::after { background:var(--amber); } .benefit-card.quality:hover { border-color:rgba(245,158,11,0.4); }
+  .benefit-card.rediscovery::after { background:var(--cyan); } .benefit-card.rediscovery:hover { border-color:rgba(34,211,238,0.4); }
+  .benefit-card.handoff::after { background:var(--orange); } .benefit-card.handoff:hover { border-color:rgba(251,146,60,0.4); }
+  .benefit-num { font-size:2.5rem; font-weight:900; opacity:0.12; position:absolute; top:16px; right:24px; line-height:1; }
+  .benefit-card h3 { font-size:1.1rem; font-weight:700; margin-bottom:8px; }
+  .benefit-card p { color:var(--fg-dim); font-size:0.92rem; }
+  .benefit-card .stakeholder { margin-top:16px; padding-top:14px; border-top:1px solid var(--border); font-size:0.82rem; color:var(--fg-muted); font-style:italic; }
+
+  /* ── Feature Table ── */
+  .feature-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+  .feature-table th { text-align:left; padding:14px 20px; font-weight:600; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--fg-muted); border-bottom:2px solid var(--border); }
+  .feature-table td { padding:16px 20px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .feature-table tr:hover td { background:rgba(108,140,255,0.03); }
+  .feature-table .feat-name { font-weight:600; white-space:nowrap; }
+  .feature-table .feat-benefit { color:var(--fg-dim); }
+  .feature-table .feat-quote { color:var(--fg-muted); font-size:0.82rem; font-style:italic; }
+  .feature-tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:0.7rem; font-weight:600; text-transform:uppercase; letter-spacing:0.05em; }
+  .tag-continuity { background:rgba(108,140,255,0.12); color:var(--accent-bright); }
+  .tag-trust { background:rgba(52,211,153,0.12); color:var(--green); }
+  .tag-quality { background:rgba(245,158,11,0.12); color:var(--amber); }
+  .tag-reuse { background:rgba(167,139,250,0.12); color:var(--purple); }
+  .tag-handoff { background:rgba(251,146,60,0.12); color:var(--orange); }
+  .tag-scale { background:rgba(34,211,238,0.12); color:var(--cyan); }
+
+  /* ── Callout ── */
+  .callout { background:var(--bg-card); border-left:3px solid var(--accent); border-radius:0 12px 12px 0; padding:24px 28px; margin:28px 0; }
+  .callout-green { border-left-color:var(--green); }
+  .callout-purple { border-left-color:var(--purple); }
+  .callout-cyan { border-left-color:var(--cyan); }
+  .callout-amber { border-left-color:var(--amber); }
+  .callout .callout-label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; }
+  .callout p { color:var(--fg-dim); font-size:0.92rem; }
+  .callout code { font-family:'JetBrains Mono',monospace; font-size:0.82rem; }
+
+  /* ── Analogy Box ── */
+  .analogy-box { background:linear-gradient(135deg,rgba(167,139,250,0.06),rgba(34,211,238,0.04)); border:1px solid rgba(167,139,250,0.2); border-radius:16px; padding:40px; margin:48px 0; text-align:center; }
+  .analogy-box h3 { font-size:1.2rem; margin-bottom:12px; }
+  .analogy-box p { color:var(--fg-dim); font-size:1.05rem; max-width:640px; margin:0 auto; line-height:1.7; }
+
+  /* ── State Diagram ── */
+  .state-diagram { background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:40px 32px; text-align:center; }
+
+  /* ── Phase Grid ── */
+  .phase-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:32px; }
+  @media(max-width:768px) { .phase-grid { grid-template-columns:1fr; } }
+  .phase-card { background:var(--bg-code); border:1px solid var(--border); border-radius:12px; padding:20px 24px; transition:border-color 0.3s; }
+  .phase-card:hover { border-color:var(--accent); }
+  .phase-card .phase-num { font-family:'JetBrains Mono',monospace; font-size:0.7rem; font-weight:600; color:var(--accent); margin-bottom:6px; }
+  .phase-card h4 { font-size:0.92rem; font-weight:700; margin-bottom:4px; }
+  .phase-card .phase-meta { font-size:0.78rem; color:var(--fg-muted); margin-bottom:8px; }
+  .phase-card .phase-files { font-family:'JetBrains Mono',monospace; font-size:0.72rem; color:var(--fg-dim); }
+
+  /* ── Audience Cards ── */
+  .audience-grid { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+  @media(max-width:768px) { .audience-grid { grid-template-columns:1fr; } }
+  .audience-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:36px; transition:border-color 0.3s,transform 0.3s; }
+  .audience-card:hover { transform:translateY(-4px); }
+  .audience-card h3 { font-size:1.05rem; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+  .audience-card ul { list-style:none; padding:0; }
+  .audience-card li { padding:8px 0 8px 24px; position:relative; color:var(--fg-dim); font-size:0.9rem; }
+  .audience-card li::before { content:'→'; position:absolute; left:0; color:var(--accent); font-weight:700; }
+  .audience-card.engineer:hover { border-color:var(--accent); }
+  .audience-card.stakeholder:hover { border-color:var(--green); }
+
+  /* ── Agent Parallels Table ── */
+  .parallel-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; }
+  .parallel-card { background:var(--bg-code); border:1px solid var(--border); border-radius:12px; padding:24px; }
+  .parallel-card .parallel-name { font-weight:700; font-size:0.95rem; margin-bottom:4px; }
+  .parallel-card .parallel-equivalent { font-family:'JetBrains Mono',monospace; font-size:0.78rem; color:var(--fg-dim); }
+  .parallel-card .parallel-note { font-size:0.78rem; color:var(--fg-muted); margin-top:8px; }
+
+  /* ── Workflow Example Cards ── */
+  .flow-examples { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-top:32px; }
+  @media(max-width:768px) { .flow-examples { grid-template-columns:1fr; } }
+  .flow-card { background:var(--bg-code); border:1px solid var(--border); border-radius:16px; padding:32px; transition:border-color 0.3s; }
+  .flow-card:hover { border-color:var(--accent); }
+  .flow-card .flow-label { font-size:0.72rem; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:12px; }
+  .flow-card .flow-label.full { color:var(--purple); }
+  .flow-card .flow-label.partial { color:var(--cyan); }
+  .flow-card .flow-label.quick { color:var(--amber); }
+  .flow-card h4 { font-size:1rem; font-weight:700; margin-bottom:12px; }
+  .flow-card .flow-steps { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px; }
+  .flow-step { padding:4px 10px; border-radius:6px; font-family:'JetBrains Mono',monospace; font-size:0.7rem; font-weight:600; }
+  .flow-step.brainstorm { background:rgba(167,139,250,0.12); color:var(--purple); }
+  .flow-step.explore { background:rgba(34,211,238,0.12); color:var(--cyan); }
+  .flow-step.research { background:rgba(245,158,11,0.12); color:var(--amber); }
+  .flow-step.plan { background:rgba(108,140,255,0.12); color:var(--accent-bright); }
+  .flow-step.build { background:rgba(52,211,153,0.12); color:var(--green); }
+  .flow-step.review { background:rgba(244,114,182,0.12); color:var(--rose); }
+  .flow-step.save { background:rgba(251,146,60,0.12); color:var(--orange); }
+  .flow-card .flow-desc { color:var(--fg-dim); font-size:0.88rem; line-height:1.6; }
+
+  /* ── Footer ── */
+  footer { padding:64px 0; text-align:center; border-top:1px solid var(--border); color:var(--fg-muted); font-size:0.85rem; }
+  footer a { color:var(--accent); text-decoration:none; }
+  footer a:hover { text-decoration:underline; }
+
+  @media(max-width:900px) {
+    .pipeline { justify-content:flex-start; padding:0 8px 16px; }
+    .pipeline-stage { min-width:140px; }
+    .layer { flex-direction:column; }
+    .layer-label { width:100%; border-radius:12px 12px 0 0; }
+    .layer-items { border-radius:0 0 12px 12px; border-left:1px solid var(--border); border-top:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════ HERO ═══ -->
+<section class="hero">
+  <div class="hero-content container">
+    <h1>
+      <span class="gradient-text">Buck Workflow</span><br>
+      Turning AI Conversations Into<br>Durable Engineering Work
+    </h1>
+    <p class="subtitle">
+      A structured, discoverable workflow for AI-assisted software development — built on one principle: <strong style="color:var(--fg)">don't lose work</strong>.
+    </p>
+    <p class="sub-subtitle">
+      Not a rigid framework. Not a prescription. Pick the stages you need, skip the ones you don't.
+    </p>
+    <div class="hero-tags">
+      <span class="hero-tag">Continuity</span>
+      <span class="hero-tag">Auditability</span>
+      <span class="hero-tag">Repeatability</span>
+      <span class="hero-tag">Quality Control</span>
+      <span class="hero-tag">Handoff</span>
+      <span class="hero-tag">Lower Rediscovery Cost</span>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <span>Scroll to explore</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ THE PAIN ═══ -->
+<section id="pain">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Problem</p>
+      <h2 class="section-title">Why Chat-Only Agent Work Breaks Down</h2>
+      <p class="section-desc">
+        AI agents are fast — but speed is not the same as continuity, trust, or repeatability. When the conversation ends, the context evaporates.
+      </p>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card reveal reveal-delay-1">
+        <div class="pain-icon">🕳️</div>
+        <h3>Lost Context</h3>
+        <p>Chat windows compact. Sessions expire. Critical decisions vanish into scrollback. Next session starts from scratch.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-2">
+        <div class="pain-icon">👁️</div>
+        <h3>No Audit Trail</h3>
+        <p>"Why did we do this?" — the only answer lives in someone's chat history. No paper trail, no decision record.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-3">
+        <div class="pain-icon">🔁</div>
+        <h3>Repeated Discovery</h3>
+        <p>Each new session re-explores the same codebase, re-learns the same constraints, re-makes the same mistakes.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-1">
+        <div class="pain-icon">⚡</div>
+        <h3>Premature Coding</h3>
+        <p>Without guardrails, agents jump to editing files before understanding the problem. Research, planning, review get skipped.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-2">
+        <div class="pain-icon">🤝</div>
+        <h3>No Handoff</h3>
+        <p>Work can't be resumed by another engineer or agent. Everything is trapped in one conversation's context window.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-3">
+        <div class="pain-icon">📋</div>
+        <h3>No Quality Gates</h3>
+        <p>Review is optional and easily skipped. Feedback lives in chat comments, not as actionable follow-up items.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ THE PRINCIPLE ═══ -->
+<section id="principle">
+  <div class="container">
+    <div class="principle-banner reveal">
+      <p class="quote">
+        Buck workflow gives an AI agent a <span style="color:var(--accent)">project notebook</span>, a <span style="color:var(--green)">filing system</span>, and a <span style="color:var(--amber)">checklist</span>.<br>
+        The agent can still reason and code — but important context is no longer trapped in the chat.
+      </p>
+      <p class="attribution">— The core design principle: don't lose work</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════ NOT PRESCRIPTIVE ═══ -->
+<section id="flexibility">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Philosophy</p>
+      <h2 class="section-title">Pick Up Where You Need To</h2>
+      <p class="section-desc">
+        Buck workflow is not a rigid pipeline you must run from start to finish. It's a toolkit of named thinking modes. Use the ones your task needs. Skip the rest. Start in the middle. Finish early. The artifacts and global conventions make it work regardless of which stages you run.
+      </p>
+    </div>
+
+    <div class="flow-examples">
+      <div class="flow-card reveal reveal-delay-1">
+        <p class="flow-label full">Full Workflow — New Feature</p>
+        <h4>End-to-end for complex, multi-session work</h4>
+        <div class="flow-steps">
+          <span class="flow-step brainstorm">brainstorm</span>
+          <span class="flow-step explore">explore</span>
+          <span class="flow-step research">research</span>
+          <span class="flow-step plan">plan</span>
+          <span class="flow-step build">build</span>
+          <span class="flow-step review">review</span>
+          <span class="flow-step save">save</span>
+        </div>
+        <p class="flow-desc">A new feature from scratch. Brainstorm captures the vague idea, explore investigates the codebase, research checks external APIs, plan scopes the work, build implements, review validates, save records. Every artifact is durable.</p>
+      </div>
+      <div class="flow-card reveal reveal-delay-2">
+        <p class="flow-label partial">Partial — Plan + Review</p>
+        <h4>You already know what to build, you want a plan and a review</h4>
+        <div class="flow-steps">
+          <span class="flow-step plan">plan</span>
+          <span class="flow-step review">review</span>
+          <span class="flow-step save">save</span>
+        </div>
+        <p class="flow-desc">Skip the exploration. Write a plan, build freely, then review against it. The plan creates the subject folder and the review writes iteration artifacts if issues are found. Save commits it all to memory.</p>
+      </div>
+      <div class="flow-card reveal reveal-delay-1">
+        <p class="flow-label partial">Partial — Brainstorm + Plan + Build</p>
+        <h4>Idea to implementation in one session</h4>
+        <div class="flow-steps">
+          <span class="flow-step brainstorm">brainstorm</span>
+          <span class="flow-step plan">plan</span>
+          <span class="flow-step build">build</span>
+        </div>
+        <p class="flow-desc">Interview yourself, get a plan on paper, then build it. Skip review if the change is small enough. The brainstorm and plan still create a subject folder so the thinking survives even if you don't save.</p>
+      </div>
+      <div class="flow-card reveal reveal-delay-2">
+        <p class="flow-label quick">Quick Fix Loop</p>
+        <h4>Small change, verify, done</h4>
+        <div class="flow-steps">
+          <span class="flow-step build">build</span>
+          <span class="flow-step review">review</span>
+        </div>
+        <p class="flow-desc">Sometimes you just need to fix a bug. Build the smallest safe change, review it, commit. No plan, no research, no phases. The global AGENTS.md still ensures memory gets written after significant work.</p>
+      </div>
+    </div>
+
+    <div class="callout callout-green reveal" style="margin-top:40px">
+      <p class="callout-label" style="color:var(--green)">How this works without running every stage</p>
+      <p>
+        The <strong>global <code>~/.pi/agent/AGENTS.md</code></strong> ensures that even without any Buck commands, the agent still follows core conventions: check <code>.context/</code> before starting, write memory after significant work, update the backlog. Buck workflow stages add structure on top. The global baseline means you always get durability even in quick ad-hoc sessions.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════ THE FULL STACK ═══ -->
+<section id="full-stack">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Full Architecture</p>
+      <h2 class="section-title">Global Baseline + Buck Package + Project Config</h2>
+      <p class="section-desc">
+        Buck workflow is a stack of three layers. The global layer is always active — it provides the durable-artifact conventions that make everything else work. Buck adds the structured workflow stages on top. Project config adds domain-specific instructions.
+      </p>
+    </div>
+
+    <div class="arch-diagram reveal">
+      <!-- Layer 0: Global -->
+      <div class="layer layer-global">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--green)">Global Baseline</span>
+          <span class="layer-desc"><code class="mono" style="font-size:0.7rem">~/.pi/agent/AGENTS.md</code><br>Always loaded. Universal conventions.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">Check .context/ before work</span>
+          <span class="layer-item">Write memory after work</span>
+          <span class="layer-item">Update backlog</span>
+          <span class="layer-item">Subject folder conventions</span>
+          <span class="layer-item">Task routing matrix</span>
+          <span class="layer-item">Buck workflow surface (b-* names)</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Buck package adds structured stages on top of the baseline</span>
+      </div>
+
+      <!-- Layer 1: Skills -->
+      <div class="layer layer-skill">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--purple)">Skills</span>
+          <span class="layer-desc">Canonical, portable workflow logic. Agent-neutral. Source of truth.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">b-brainstorm</span>
+          <span class="layer-item">b-explore</span>
+          <span class="layer-item">b-research</span>
+          <span class="layer-item">b-plan</span>
+          <span class="layer-item">b-build</span>
+          <span class="layer-item">b-iterate</span>
+          <span class="layer-item">b-review</span>
+          <span class="layer-item">b-present</span>
+          <span class="layer-item">b-phase</span>
+          <span class="layer-item">b-grill-*</span>
+          <span class="layer-item">git-commit</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Thin wrappers that invoke skills — <strong>Pi-specific surface</strong></span>
+      </div>
+
+      <!-- Layer 2: Prompts -->
+      <div class="layer layer-prompt">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--accent)">Prompt Templates</span>
+          <span class="layer-desc">Pi <code class="mono" style="font-size:0.7rem">/b-*</code> commands. Thin shims invoking skills.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">/b-brainstorm</span>
+          <span class="layer-item">/b-explore</span>
+          <span class="layer-item">/b-research</span>
+          <span class="layer-item">/b-plan</span>
+          <span class="layer-item">/b-build</span>
+          <span class="layer-item">/b-build-hard</span>
+          <span class="layer-item">/b-iterate</span>
+          <span class="layer-item">/b-review</span>
+          <span class="layer-item">/b-present</span>
+          <span class="layer-item">/git-commit</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Runtime hooks that static instructions can't provide</span>
+      </div>
+
+      <!-- Layer 3: Extensions -->
+      <div class="layer layer-ext">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--cyan)">Extensions</span>
+          <span class="layer-desc">Runtime: state machines, session tracking, write guards.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">b-flow (XState machine)</span>
+          <span class="layer-item">/b-save</span>
+          <span class="layer-item">/b-mode (write guard)</span>
+          <span class="layer-item">b-grill-auto (RPC)</span>
+          <span class="layer-item">tmux window status</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Per-project instructions for domain specifics</span>
+      </div>
+
+      <!-- Layer 4: Project -->
+      <div class="layer" style="border:1px solid var(--border); border-radius:12px;">
+        <div class="layer-label" style="background:rgba(255,255,255,0.03); border:1px solid var(--border);">
+          <span class="layer-name" style="color:var(--fg-dim)">Project AGENTS.md</span>
+          <span class="layer-desc"><code class="mono" style="font-size:0.7rem">./AGENTS.md</code> per repo. Build commands, conventions, gotchas.</span>
+        </div>
+        <div class="layer-items" style="border-left:1px solid var(--border);">
+          <span class="layer-item">Build / test / lint commands</span>
+          <span class="layer-item">Code style conventions</span>
+          <span class="layer-item">Architecture notes</span>
+          <span class="layer-item">Known gotchas</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- What's portable vs Pi-specific -->
+    <div class="callout callout-amber reveal" style="margin-top:32px">
+      <p class="callout-label" style="color:var(--amber)">What's Pi-specific vs portable</p>
+      <p>
+        <strong>Prompt templates</strong> (<code>/b-*</code> commands) are a Pi feature. <strong>Skills</strong> (the canonical workflow logic in <code>skills/*/SKILL.md</code>) are agent-neutral Markdown files — they work in Claude Code, Cursor, OpenCode, and Codex through each agent's native command mechanism. <strong>Extensions</strong> (b-flow, /b-save, write guards) are Pi-specific runtime automation. The <strong>global AGENTS.md</strong> and <strong>.context/ conventions</strong> are fully portable.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ AGENT PARALLELS ═══ -->
+<section id="parallels">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Cross-Agent Parallels</p>
+      <h2 class="section-title">How Buck Maps to Your Agent</h2>
+      <p class="section-desc">
+        Skills are the portable layer. Each agent has its own mechanism for invoking them. Here's how the same Buck workflow logic surfaces in different environments.
+      </p>
+    </div>
+
+    <div class="parallel-grid reveal">
+      <div class="parallel-card">
+        <div class="parallel-name" style="color:var(--accent)">Pi</div>
+        <div class="parallel-equivalent">/b-plan → loads skills/b-plan/SKILL.md</div>
+        <div class="parallel-note">Prompt templates are Pi's native invocation surface. Extensions provide runtime hooks.</div>
+      </div>
+      <div class="parallel-card">
+        <div class="parallel-name" style="color:var(--amber)">Claude Code</div>
+        <div class="parallel-equivalent">Commands → .claude/commands/b-plan.md</div>
+        <div class="parallel-note">Claude commands are thin wrappers that reference the same canonical skill files.</div>
+      </div>
+      <div class="parallel-card">
+        <div class="parallel-name" style="color:var(--purple)">Cursor</div>
+        <div class="parallel-equivalent">Rules → .cursor/rules/b-plan.mdc</div>
+        <div class="parallel-note">Cursor rules can load skill content. No slash commands, but rules fire on file patterns or manual invocation.</div>
+      </div>
+      <div class="parallel-card">
+        <div class="parallel-name" style="color:var(--cyan)">OpenCode / Codex</div>
+        <div class="parallel-equivalent">Skills / slash commands → native mechanism</div>
+        <div class="parallel-note">Each agent loads SKILL.md through its own skill or command system. The skill body stays the same.</div>
+      </div>
+    </div>
+
+    <div class="code-block reveal" style="margin-top:32px">
+      <div class="code-header">
+        <span class="dot" style="background:var(--accent)"></span>
+        <span>prompts/b-plan.md — Pi's thin wrapper (3 lines)</span>
+      </div>
+      <div class="code-body">
+<span class="cm"># B-Plan</span><br><br>
+$ARGUMENTS<br><br>
+<span class="cm">Load and follow the `b-plan` skill:</span><br><br>
+```<br>
+skills/b-plan/SKILL.md<br>
+```
+      </div>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--amber)"></span>
+        <span>.claude/commands/b-plan.md — Claude Code equivalent (same idea)</span>
+      </div>
+      <div class="code-body">
+<span class="cm"># B-Plan</span><br><br>
+$ARGUMENTS<br><br>
+<span class="cm">Load and follow the `b-plan` skill:</span><br><br>
+```<br>
+skills/b-plan/SKILL.md<br>
+``>
+      </div>
+    </div>
+
+    <div class="callout callout-purple reveal">
+      <p class="callout-label" style="color:var(--purple)">Real example — prompt-to-skill migration</p>
+      <p>
+        In May 2026, all Buck workflow prompts were migrated from containing full workflow logic to this thin-wrapper pattern. The canonical logic moved into <code>skills/</code> so other agents could invoke the same workflows. See <code>.context/2026-05-12.prompt-to-skill-portability/</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ THE PIPELINE ═══ -->
+<section id="pipeline">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Workflow Stages</p>
+      <h2 class="section-title">Named Thinking Modes</h2>
+      <p class="section-desc">
+        Each stage is a different kind of thinking with its own write boundaries. The agent is nudged to do the right kind of work at the right time — but you choose which stages to run.
+      </p>
+    </div>
+    <div class="pipeline reveal">
+      <div class="pipeline-stage" style="border-color:rgba(167,139,250,0.2)">
+        <span class="stage-emoji">💡</span>
+        <span class="stage-cmd">/b-brainstorm</span>
+        <h4>Intake</h4>
+        <p>Interview-style capture of vague ideas</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(34,211,238,0.2)">
+        <span class="stage-emoji">🔍</span>
+        <span class="stage-cmd">/b-explore</span>
+        <h4>Explore</h4>
+        <p>Internal codebase investigation. Read-only.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(245,158,11,0.2)">
+        <span class="stage-emoji">📚</span>
+        <span class="stage-cmd">/b-research</span>
+        <h4>Research</h4>
+        <p>External facts: APIs, docs, libraries</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(108,140,255,0.2)">
+        <span class="stage-emoji">📐</span>
+        <span class="stage-cmd">/b-plan</span>
+        <h4>Plan</h4>
+        <p>Bounded intent: scope, files, risks</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(52,211,153,0.2)">
+        <span class="stage-emoji">🔧</span>
+        <span class="stage-cmd">/b-build</span>
+        <h4>Build</h4>
+        <p>TDD red-green-refactor</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(244,114,182,0.2)">
+        <span class="stage-emoji">✅</span>
+        <span class="stage-cmd">/b-review</span>
+        <h4>Review</h4>
+        <p>Validate against plan</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage" style="border-color:rgba(251,146,60,0.2)">
+        <span class="stage-emoji">💾</span>
+        <span class="stage-cmd">/b-save</span>
+        <h4>Save</h4>
+        <p>Session → durable record</p>
+      </div>
+    </div>
+
+    <div class="callout callout-cyan reveal" style="margin-top:40px">
+      <p class="callout-label" style="color:var(--cyan)">Real example — b-explore vs b-research split</p>
+      <p>
+        Originally there was one research command. In practice, investigating your <em>own</em> codebase (read-only) is fundamentally different from researching <em>external</em> APIs (capture evidence, write findings). They were split into separate skills with different write boundaries. See <code>.context/2026-05-20.b-research-b-explore-split/</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ GLOBAL AGENTS ═══ -->
+<section id="global-agents">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Foundation</p>
+      <h2 class="section-title">Global AGENTS.md — The Always-On Baseline</h2>
+      <p class="section-desc">
+        Before any Buck command runs, the global <code class="mono">~/.pi/agent/AGENTS.md</code> establishes the conventions that make the whole system work. It's loaded for every session, in every project. It tells the agent: <em>check context, write artifacts, don't lose work</em>.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--green)"></span>
+        <span>~/.pi/agent/AGENTS.md — the critical workflow section (abridged)</span>
+      </div>
+      <div class="code-body">
+<span class="cm">## ⚠️ CRITICAL WORKFLOW - READ FIRST</span><br><br>
+<span class="cm">**Before starting ANY task, execute these steps:**</span><br><br>
+<span class="num">1.</span> ✅ <strong>Check memory index</strong>, then read recent memory files (3-5 most recent)<br>
+<span class="num">2.</span> ✅ <strong>Acknowledge context</strong> to the user<br><br>
+<span class="cm">**After completing ANY significant work:**</span><br><br>
+<span class="num">3.</span> ✅ <strong>Write a persistent artifact</strong> to <span class="str">.context/</span><br>
+<span class="num">4.</span> ✅ <strong>Write session memory</strong> to <span class="str">.context/memory/&lt;topic&gt;-YYYY-MM-DD.md</span><br>
+<span class="num">5.</span> ✅ <strong>Update memory index</strong> (<span class="str">.context/memory/index.md</span>)<br>
+<span class="num">6.</span> ✅ <strong>Update backlog status</strong><br>
+<span class="num">7.</span> ✅ <strong>Update completed specs/plans</span>
+      </div>
+    </div>
+
+    <div class="callout callout-green reveal">
+      <p class="callout-label" style="color:var(--green)">Why this matters</p>
+      <p>
+        The global AGENTS.md means that <strong>even without running any Buck command</strong>, the agent still creates durable artifacts. You can work freeform, run just <code>/b-plan</code>, or do a full workflow — the baseline ensures memory, backlog, and subject folders are always maintained. Buck stages add structure; the global baseline ensures continuity regardless.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--green)"></span>
+        <span>~/.pi/agent/AGENTS.md — Buck workflow surface (environment-agnostic)</span>
+      </div>
+      <div class="code-body">
+<span class="cm">## Buck Workflow Surface</span><br><br>
+The Buck workflow is a conceptual workflow family organized around shared <span class="str">`b-`</span> names.<br><br>
+- Treat <span class="str">`b-*`</span> names as <strong>workflow labels first</strong>, not guaranteed literal commands<br>
+- If your environment exposes Buck commands, use them<br>
+- If it does not, follow the same workflow intent manually using <span class="str">`.context/`</span> artifacts<br><br>
+<span class="cm">### Recommended Flows</span><br><br>
+- New work (with brainstorm): <span class="str">b-brainstorm → b-plan → b-build → b-review</span><br>
+- New work: <span class="str">b-research → b-plan → b-build → b-review</span><br>
+- Complex work: <span class="str">b-research → b-plan → b-build-hard → b-review</span><br>
+- Quick fix loop: <span class="str">b-iterate → b-review</span><br>
+- Review loop: <span class="str">b-review → b-iterate → b-review</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ DURABLE ARTIFACTS ═══ -->
+<section id="artifacts">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Artifact Model</p>
+      <h2 class="section-title">How Work Survives the Session</h2>
+      <p class="section-desc">
+        Buck separates <strong style="color:var(--accent)">intent</strong> (plans in subject folders) from <strong style="color:var(--green)">record</strong> (history in memory). Together they create a durable paper trail that survives context limits, interruptions, and agent handoffs.
+      </p>
+    </div>
+
+    <div class="folder-tree reveal">
+      <div class="tree-panel">
+        <div class="tree-header"><span>📁</span> Real Subject Folder — <span style="color:var(--accent)">Intent</span></div>
+        <div class="tree-body">
+<span class="dir">.context/</span><br>
+<span style="display:inline-block;width:20px"></span><span class="dir highlight">2026-05-08.b-orchestration-extension/</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">index.md</span> <span class="comment">← stable entrypoint</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">research-xstate-for-b-flow.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">grill-session-state-machine.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">spec-b-flow-state-machine.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">plan-b-flow-mvp.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">plan-b-flow-mvp-phases.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">phase-1-foundation-types.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">phase-2-state-machine-core.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">phase-3-worker-loop.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">phase-4-ui-commands-tests.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">tasks.md</span>
+        </div>
+      </div>
+      <div class="tree-panel">
+        <div class="tree-header"><span>📓</span> Real Memory — <span style="color:var(--green)">Record</span></div>
+        <div class="tree-body">
+<span class="dir">.context/memory/</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file highlight">index.md</span> <span class="comment">← history ledger</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">b-orchestration-extension-2026-05-08.md</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">b-flow-mvp-2026-05-09.md</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">b-flow-start-debug-2026-05-09.md</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">b-flow-unit-tests-2026-05-09.md</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">prompt-to-skill-build-2026-05-13.md</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file">global-agents-buck-workflow-mode-build-2026-05-17.md</span><br>
+<br>
+<span class="dir">.context/backlog/</span><br>
+<span style="display:inline-block;width:20px"></span><span class="file highlight">todo.md</span> <span class="comment">← active queue</span><br>
+<span style="display:inline-block;width:20px"></span><span class="dir">items/</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">extract-b-save-skill.md</span><br>
+<span style="display:inline-block;width:40px"></span><span class="file">test-b-grill-auto-extension.md</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="analogy-box reveal">
+      <h3>🔗 Cross-References Work Without Chat History</h3>
+      <p>Every artifact carries forward and backward links in its frontmatter. A plan links to the research that informed it. A memory file links to the subject folder. An agent with <em>zero</em> conversation history can navigate from <em>any</em> artifact to the full picture.</p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--purple)"></span><span>plan-b-flow-mvp.md — actual frontmatter with cross-references</span></div>
+      <div class="code-body">
+<span class="cm">---</span><br>
+<span class="kw">status:</span> <span class="str">active</span><br>
+<span class="kw">subject:</span> <span class="str">2026-05-08.b-orchestration-extension</span><br>
+<span class="kw">research:</span> <span class="type">[research-xstate-for-b-flow.md]</span> <span class="cm"># ← what informed this plan</span><br>
+<span class="kw">spec:</span> <span class="type">spec-b-flow-state-machine.md</span> <span class="cm"># ← what this plan implements</span><br>
+<span class="kw">memory:</span> <span class="type">[b-orchestration-extension-2026-05-08.md, b-flow-mvp-2026-05-09.md, ...]</span><br>
+<span class="cm">---</span>
+      </div>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--green)"></span><span>memory/b-flow-mvp-2026-05-09.md — actual session memory</span></div>
+      <div class="code-body">
+<span class="kw">date:</span> <span class="str">2026-05-09</span><br>
+<span class="kw">subject:</span> <span class="str">2026-05-08.b-orchestration-extension</span><br>
+<span class="kw">status:</span> <span class="str">completed</span><br><br>
+<span class="cm">## Decisions Made</span><br>
+- <span class="str">Direct implementation vs sub-agents</span>: pi -p sub-agent<br>
+&nbsp;&nbsp;approach failed due to model timeouts.<br>
+- <span class="str">XState v5</span>: Used setup() API with typed guards/actors.<br><br>
+<span class="cm">## Test Results</span><br>
+<span style="color:var(--green)">14/14 tests pass</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ STATE FLOW ═══ -->
+<section id="state-flow">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Runtime Orchestration</p>
+      <h2 class="section-title">How b-flow Tracks Progress Automatically</h2>
+      <p class="section-desc">
+        The <code class="mono">b-flow</code> extension runs an XState state machine that persists workflow state across sessions. It scans <code class="mono">.context/</code>, detects where you left off, and routes the next command to the right stage. You don't have to remember where you were — the machine does.
+      </p>
+    </div>
+
+    <div class="state-diagram reveal">
+      <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" style="max-width:800px;width:100%">
+        <defs><marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#5a6d8f"/></marker></defs>
+        <rect x="20" y="140" width="100" height="50" rx="25" fill="rgba(108,140,255,0.08)" stroke="#6c8cff" stroke-width="1.5"/>
+        <text x="70" y="170" text-anchor="middle" fill="#6c8cff" font-family="Inter" font-size="13" font-weight="600">idle</text>
+        <line x1="120" y1="165" x2="168" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="144" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">any /b-*</text>
+        <rect x="170" y="140" width="120" height="50" rx="12" fill="rgba(34,211,238,0.06)" stroke="#22d3ee" stroke-width="1.2"/>
+        <text x="230" y="170" text-anchor="middle" fill="#22d3ee" font-family="Inter" font-size="13" font-weight="600">exploring</text>
+        <line x1="290" y1="165" x2="338" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="314" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-plan</text>
+        <rect x="340" y="140" width="120" height="50" rx="12" fill="rgba(108,140,255,0.06)" stroke="#6c8cff" stroke-width="1.2"/>
+        <text x="400" y="170" text-anchor="middle" fill="#6c8cff" font-family="Inter" font-size="13" font-weight="600">planning</text>
+        <line x1="460" y1="165" x2="508" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="484" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-build</text>
+        <rect x="510" y="140" width="120" height="50" rx="12" fill="rgba(52,211,153,0.06)" stroke="#34d399" stroke-width="1.2"/>
+        <text x="570" y="170" text-anchor="middle" fill="#34d399" font-family="Inter" font-size="13" font-weight="600">building</text>
+        <line x1="630" y1="165" x2="678" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="654" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-review</text>
+        <rect x="680" y="140" width="110" height="50" rx="12" fill="rgba(244,114,182,0.06)" stroke="#f472b6" stroke-width="1.2"/>
+        <text x="735" y="170" text-anchor="middle" fill="#f472b6" font-family="Inter" font-size="13" font-weight="600">reviewing</text>
+        <path d="M735 190 L735 240 Q735 260 715 260 L170 260 Q150 260 150 240 L150 195" fill="none" stroke="#34d399" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrowhead)"/>
+        <text x="440" y="278" text-anchor="middle" fill="#34d399" font-family="Inter" font-size="10" font-weight="500">✓ pass → /b-save → idle</text>
+        <path d="M735 140 L735 80 Q735 60 715 60 L570 60 Q550 60 550 80 L550 140" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrowhead)"/>
+        <text x="642" y="50" text-anchor="middle" fill="#f59e0b" font-family="Inter" font-size="10" font-weight="500">✗ issues → /b-iterate</text>
+        <path d="M400 190 L400 310 Q400 320 380 320 L90 320 Q70 320 70 300 L70 195" fill="none" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arrowhead)"/>
+        <text x="240" y="335" text-anchor="middle" fill="#a78bfa" font-family="Inter" font-size="10">needs replan</text>
+      </svg>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--cyan)"></span><span>extensions/b-flow/machine.ts — actual XState setup</span></div>
+      <div class="code-body">
+<span class="kw">import</span> { assign, createActor, setup } <span class="kw">from</span> <span class="str">"xstate"</span>;<br>
+<span class="kw">import</span> { hasGoal, requiresReview, requiresReplan } <span class="kw">from</span> <span class="str">"./guards.js"</span>;<br><br>
+<span class="kw">function</span> <span class="fn">defaultContext</span>(projectRoot: <span class="type">string</span>) {<br>
+&nbsp;&nbsp;<span class="kw">const</span> saved = <span class="fn">readProjection</span>(projectRoot); <span class="cm">// persists across sessions</span><br>
+&nbsp;&nbsp;<span class="kw">if</span> (saved) <span class="kw">return</span> { goal, subject, projection: saved, ... };<br>
+&nbsp;&nbsp;<span class="kw">return</span> { projection: { currentState: <span class="str">"idle"</span>, history: [], queue: [] } };<br>
+}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ WRITE BOUNDARIES ═══ -->
+<section id="guards">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Safety Mechanism</p>
+      <h2 class="section-title">Write Boundaries Prevent Premature Action</h2>
+      <p class="section-desc">
+        Each stage has explicit write boundaries. This is the engineering control that stops the agent from editing source code while still researching, or skipping review after building. The boundaries are enforced both by skill instructions and by the <code class="mono">/b-mode</code> extension at runtime.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--amber)"></span><span>skills/b-plan/SKILL.md — write boundary rules</span></div>
+      <div class="code-body">
+<span class="cm">## Write Boundary</span><br><br>
+- You may write to <span class="str">`.context/**`</span> and temporary scratch locations.<br>
+- <span style="color:var(--rose)">Do not modify source files</span> outside <span class="str">`.context/`</span>.<br>
+- <span style="color:var(--green)">**Allowed**</span>: Native write and edit tools for <span class="str">`.context/**`</span> files.<br>
+- <span style="color:var(--green)">**Allowed**</span>: Bash commands for <span class="str">`.context/**`</span> directory operations.<br>
+- <span style="color:var(--rose)">**Blocked**</span>: Bash redirects and file modifications outside <span class="str">`.context/**`</span>.
+      </div>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--cyan)"></span><span>extensions/index.ts — runtime write guard</span></div>
+      <div class="code-body">
+<span class="kw">const</span> <span class="fn">PLAN_MODE_ALLOWED_PATHS</span> = [<span class="str">".context/"</span>, <span class="str">"docs/"</span>];<br><br>
+<span class="kw">const</span> <span class="fn">SAFE_BASH_PATTERNS</span>: <span class="type">RegExp[]</span> = [<br>
+&nbsp;&nbsp;/^\s*<span class="kw">cat</span>\b/, /^\s*<span class="kw">ls</span>\b/, /^\s*<span class="kw">grep</span>\b/, /^\s*<span class="kw">find</span>\b/,<br>
+&nbsp;&nbsp;/^\s*<span class="kw">head</span>\b/, /^\s*<span class="kw">tail</span>\b/, /^\s*<span class="kw">git\s+(status|log|diff)</span>\b/,<br>
+];
+      </div>
+    </div>
+
+    <div class="callout reveal">
+      <p class="callout-label" style="color:var(--accent)">Engineering detail — two layers of enforcement</p>
+      <p>
+        Write boundaries are enforced at <strong>two levels</strong>. First, the skill instructions tell the agent what it may and may not write (soft guard — the LLM follows instructions). Second, the <code>/b-mode</code> extension intercepts tool calls at runtime and blocks writes to disallowed paths (hard guard — the extension rejects the call). This dual approach means even if the agent "forgets" the boundary, the extension catches it.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════ REAL PHASING ═══ -->
+<section id="phasing">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Scaling</p>
+      <h2 class="section-title">Real Example: b-flow Was Built in 4 Phases</h2>
+      <p class="section-desc">
+        When <code class="mono">/b-plan</code> produced a 15-step plan across 6+ files, <code class="mono">/b-phase</code> decomposed it into 4 independently verifiable phases with explicit dependencies. Each phase was built and verified before the next started.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header"><span class="dot" style="background:var(--orange)"></span><span>plan-b-flow-mvp-phases.md — actual phased overview</span></div>
+      <div class="code-body">
+<span class="kw">Total phases:</span> <span class="num">4</span> &nbsp;|&nbsp; <span class="kw">Estimated effort:</span> <span class="num">4 sessions</span><br><br>
+Phase <span class="num">1</span> <span class="str">──→</span> Phase <span class="num">2</span> <span class="str">──→</span> Phase <span class="num">3</span> <span class="str">──→</span> Phase <span class="num">4</span><br>
+(foundation) &nbsp;&nbsp; (machine) &nbsp;&nbsp; (worker) &nbsp;&nbsp;&nbsp; (UI + tests)<br><br>
+| Phase | Status | Difficulty |<br>
+|-------|--------|------------|<br>
+| <span class="num">1</span>: Foundation & Types | <span style="color:var(--green)">completed</span> | easy |<br>
+| <span class="num">2</span>: State Machine Core | <span style="color:var(--green)">completed</span> | medium |<br>
+| <span class="num">3</span>: Worker Loop | <span style="color:var(--green)">completed</span> | hard |<br>
+| <span class="num">4</span>: UI, Commands & Tests | <span style="color:var(--green)">completed</span> | medium |
+      </div>
+    </div>
+
+    <div class="phase-grid reveal">
+      <div class="phase-card"><div class="phase-num">PHASE 1 · easy</div><h4>Foundation & Types</h4><p class="phase-meta">Model hint: smaller/faster · Buck: /b-build</p><p class="phase-files">types.ts, persistence.ts, package.json</p></div>
+      <div class="phase-card"><div class="phase-num">PHASE 2 · medium</div><h4>State Machine Core</h4><p class="phase-meta">XState machine, guards, scan-context</p><p class="phase-files">machine.ts, guards.ts, classifier.ts</p></div>
+      <div class="phase-card"><div class="phase-num">PHASE 3 · hard</div><h4>Worker Loop & Verification</h4><p class="phase-meta">Subagent worker, result parsing, retry</p><p class="phase-files">worker.ts, queue-builder.ts, chunk-queue-machine.ts</p></div>
+      <div class="phase-card"><div class="phase-num">PHASE 4 · medium</div><h4>UI, Commands & Tests</h4><p class="phase-meta">Pi commands, status widget, tests</p><p class="phase-files">ui.ts, index.ts, __tests__/</p></div>
+    </div>
+
+    <div class="code-block reveal" style="margin-top:32px">
+      <div class="code-header"><span class="dot" style="background:var(--orange)"></span><span>phase-1-foundation-types.md — actual frontmatter</span></div>
+      <div class="code-body">
+<span class="kw">difficulty:</span> <span class="str">easy</span><br>
+<span class="kw">model_hint:</span> <span class="str">smaller/faster general model; mostly mechanical scaffolding</span><br>
+<span class="kw">buck_hint:</span> <span class="str">/b-build</span><br>
+<span class="kw">depends_on:</span> <span class="type">[]</span><br>
+<span class="kw">dependency_type:</span> <span class="str">NONE</span><br>
+<span class="kw">acceptance_criteria:</span><br>
+&nbsp;&nbsp;- <span class="str">xstate v5 added as dependency in package.json</span><br>
+&nbsp;&nbsp;- <span class="str">extensions/b-flow/ directory exists with types.ts, persistence.ts</span><br>
+&nbsp;&nbsp;- <span class="str">TypeScript compiles without errors</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ BENEFITS ═══ -->
+<section id="benefits">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Benefits</p>
+      <h2 class="section-title">Feature → Benefit → Why You Should Care</h2>
+    </div>
+    <div class="benefit-grid">
+      <div class="benefit-card continuity reveal reveal-delay-1"><span class="benefit-num">01</span><h3 style="color:var(--accent)">Continuity</h3><p>Subject folders with <code class="mono" style="font-size:0.78rem">index.md</code> entrypoints create a stable workspace. Anyone — human or agent — can find the current story without rereading chat.</p><p class="stakeholder">"Work survives chat compaction, lunch breaks, weekends, and agent handoffs."</p></div>
+      <div class="benefit-card trust reveal reveal-delay-2"><span class="benefit-num">02</span><h3 style="color:var(--green)">Trust & Auditability</h3><p>Memory files with frontmatter create an auditable timeline. Every decision, abandoned approach, and test result is on record.</p><p class="stakeholder">"Evidence trail for decisions and outcomes."</p></div>
+      <div class="benefit-card repeatability reveal reveal-delay-3"><span class="benefit-num">03</span><h3 style="color:var(--purple)">Repeatability</h3><p>Skills encode reusable guidance. Fix a workflow once, it stays fixed across projects and agents — Pi, Claude Code, Cursor, Codex.</p><p class="stakeholder">"Improve the system once, benefit every future run."</p></div>
+      <div class="benefit-card quality reveal reveal-delay-1"><span class="benefit-num">04</span><h3 style="color:var(--amber)">Quality Control</h3><p>Named stages with write boundaries prevent premature coding and skipped review. Findings become <code class="mono" style="font-size:0.78rem">iterate-*.md</code> artifacts, not vanishing comments.</p><p class="stakeholder">"Quality feedback becomes part of the workflow state."</p></div>
+      <div class="benefit-card rediscovery reveal reveal-delay-2"><span class="benefit-num">05</span><h3 style="color:var(--cyan)">Lower Rediscovery Cost</h3><p>Subject entrypoints and memory reduce repeated context gathering. Future sessions start faster because they can read what was already learned.</p><p class="stakeholder">"Each session starts closer to the problem."</p></div>
+      <div class="benefit-card handoff reveal reveal-delay-3"><span class="benefit-num">06</span><h3 style="color:var(--orange)">Handoff & Scaling</h3><p><code class="mono" style="font-size:0.78rem">b-phase</code> decomposes large plans into safe, resumable chunks. New engineers or agents pick up where the last session ended.</p><p class="stakeholder">"Quick fix to multi-session — same workflow."</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════ FEATURE TABLE ═══ -->
+<section id="feature-map">
+  <div class="container">
+    <div class="reveal"><p class="section-label">Feature Map</p><h2 class="section-title">What Maps to What</h2></div>
+    <div class="reveal" style="overflow-x:auto">
+      <table class="feature-table">
+        <thead><tr><th>Feature</th><th>Benefit</th><th>Stakeholder Framing</th></tr></thead>
+        <tbody>
+          <tr><td class="feat-name">Global AGENTS.md</td><td class="feat-benefit">Always-on baseline for durability</td><td class="feat-quote"><span class="feature-tag tag-continuity">Continuity</span> "Even without Buck, artifacts get written."</td></tr>
+          <tr><td class="feat-name">Dated subject folders</td><td class="feat-benefit">Shared workspace for an initiative</td><td class="feat-quote"><span class="feature-tag tag-continuity">Continuity</span> "Find the current story without chat."</td></tr>
+          <tr><td class="feat-name">Research & exploration</td><td class="feat-benefit">Evidence before decisions</td><td class="feat-quote"><span class="feature-tag tag-quality">Quality</span> "Plans based on what was learned."</td></tr>
+          <tr><td class="feat-name">Plans, specs, phases</td><td class="feat-benefit">Bounded, reviewable intent</td><td class="feat-quote"><span class="feature-tag tag-trust">Trust</span> "Scope visible before implementation."</td></tr>
+          <tr><td class="feat-name">Review → iteration artifacts</td><td class="feat-benefit">Feedback becomes durable work</td><td class="feat-quote"><span class="feature-tag tag-quality">Quality</span> "Issues don't vanish into chat."</td></tr>
+          <tr><td class="feat-name">Memory files & index</td><td class="feat-benefit">Decision / history ledger</td><td class="feat-quote"><span class="feature-tag tag-trust">Trust</span> "Answer 'why?' later."</td></tr>
+          <tr><td class="feat-name">Skills + commands + extensions</td><td class="feat-benefit">Portable agent operating model</td><td class="feat-quote"><span class="feature-tag tag-reuse">Reuse</span> "Works across Pi, Claude, Cursor, Codex."</td></tr>
+          <tr><td class="feat-name">b-phase decomposition</td><td class="feat-benefit">Safe scaling</td><td class="feat-quote"><span class="feature-tag tag-scale">Scale</span> "Quick fix to multi-session."</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ AUDIENCE ═══ -->
+<section id="audience">
+  <div class="container">
+    <div class="reveal"><p class="section-label">Why It Matters</p><h2 class="section-title">What This Means For You</h2></div>
+    <div class="audience-grid">
+      <div class="audience-card engineer reveal reveal-delay-1">
+        <h3>👷 For Engineers</h3>
+        <ul>
+          <li>Not prescriptive — pick the stages your task needs, skip the rest</li>
+          <li>The workflow teaches good habits: investigate first, plan explicitly, build narrowly, review, record</li>
+          <li>Work survives your lunch break, weekend, or context window limit</li>
+          <li>Another engineer or agent picks up from artifacts, not chat</li>
+          <li>Skills are improvable — fix once, stays fixed across projects and agents</li>
+        </ul>
+      </div>
+      <div class="audience-card stakeholder reveal reveal-delay-2">
+        <h3>📊 For Stakeholders</h3>
+        <ul>
+          <li>Faster AI-assisted delivery without giving up traceability</li>
+          <li>Every decision has a paper trail — plans, research, reviews, memory</li>
+          <li><code class="mono" style="font-size:0.78rem">/b-present</code> turns engineering record into async-readable briefings</li>
+          <li>Risk reduced: scope visible before code, review mandatory before commit</li>
+          <li>Scales from a quick fix to multi-week initiative with the same workflow</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <p><strong>Buck Workflow</strong> — A structured workflow for AI-assisted software development with durable context management.</p>
+    <p style="margin-top:12px">Source: <a href="https://github.com/buckleyrobinson/buck-workflow-pi">github.com/buckleyrobinson/buck-workflow-pi</a></p>
+    <p style="margin-top:8px;font-size:0.78rem;color:var(--fg-muted)">All code snippets, frontmatter, directory listings, and examples are real artifacts from the Buck workflow repository.<br>Research source: <code class="mono" style="font-size:0.75rem">.context/2026-06-04.buck-workflow-benefits-explainer/</code> · Generated 2026-06-04</p>
+  </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const reveals = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => { if (entry.isIntersecting) entry.target.classList.add('visible'); });
+  }, { threshold: 0.08, rootMargin: '0px 0px -30px 0px' });
+  reveals.forEach(el => observer.observe(el));
+});
+</script>
+</body>
+</html>

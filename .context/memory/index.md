@@ -1,5 +1,6 @@
 # Memory Index
 
+- 2026-06-04 | `buck-workflow-benefits-explainer-2026-06-04.md` | domains: [research, docs, planning, buck-workflow] | topics: [buck-workflow, durable-memory, benefits-explainer, b-explore, presentation-plan] | status: active
 - 2026-05-30 | `cwd-restrict-mode-2026-05-30.md` | domains: [extension, safety-feature] | topics: [cwd-restriction, write-guard, restrict_cwd_active, b-restrict] | status: completed
 - 2026-05-20 | `b-research-b-explore-plan-2026-05-20.md` | domains: [implementation, skill, docs, workflow] | topics: [b-explore, b-research, crawl4ai, research-source-dictionary, subject-index, buck-workflow, split] | status: completed
 - 2026-05-19 | `ralph-loop-plan-phase-build-2026-05-19.md` | domains: [implementation, skill, workflow-automation] | topics: [ralph-loop, b-phase, b-plan, b-build, b-review, b-iterate] | status: completed
