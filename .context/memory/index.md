@@ -1,5 +1,7 @@
 # Memory Index
 
+- 2026-06-04 | `presentation-skill-catalog-addition-2026-06-04.md` | domains: [docs, presentation, buck-workflow, skill] | topics: [skill-catalog, presentation-update, buck-workflow, elaboration, flow-composition, grill-variants] | status: active
+- 2026-06-04 | `presentation-readme-update-2026-06-04.md` | domains: [docs, presentation, buck-workflow, readme] | topics: [buck-workflow, benefits-explainer, infographic-presentation, readme-update, cross-agent-parallels, global-agents, non-prescriptive] | status: active
 - 2026-06-04 | `buck-workflow-benefits-explainer-2026-06-04.md` | domains: [research, docs, planning, buck-workflow] | topics: [buck-workflow, durable-memory, benefits-explainer, b-explore, presentation-plan] | status: active
 - 2026-05-30 | `cwd-restrict-mode-2026-05-30.md` | domains: [extension, safety-feature] | topics: [cwd-restriction, write-guard, restrict_cwd_active, b-restrict] | status: completed
 - 2026-05-20 | `b-research-b-explore-plan-2026-05-20.md` | domains: [implementation, skill, docs, workflow] | topics: [b-explore, b-research, crawl4ai, research-source-dictionary, subject-index, buck-workflow, split] | status: completed

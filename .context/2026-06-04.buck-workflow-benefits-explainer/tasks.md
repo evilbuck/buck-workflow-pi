@@ -9,8 +9,8 @@
 - [x] Capture separate gaps/follow-ups artifact.
 - [x] Explore README, Buck docs, workflow skills, prompt wrappers, extension runtime behavior, and prior context artifacts.
 - [x] Draft benefit-oriented explanation plan.
-- [ ] Review the plan with the user and adjust emphasis.
-- [ ] Generate presentation package with `/b-present` after user approval.
+- [x] Review the plan with the user and adjust emphasis.
+- [x] Generate presentation package — `presentations/buck-workflow-architecture.html`
 - [ ] Optionally convert accepted gaps into backlog items or implementation plans.
 
 ## Notes

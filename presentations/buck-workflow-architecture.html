@@ -253,12 +253,47 @@
   footer a { color:var(--accent); text-decoration:none; }
   footer a:hover { text-decoration:underline; }
 
+  /* ── Skill Catalog ── */
+  .skill-group { margin-bottom: 44px; }
+  .skill-group:last-child { margin-bottom: 0; }
+  .skill-group-header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; }
+  .skill-group-num { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: 700; padding: 4px 10px; border-radius: 6px; letter-spacing: 0.05em; }
+  .skill-group-title { font-size: 1.05rem; font-weight: 700; letter-spacing: 0.01em; }
+  .skill-group-desc { font-size: 0.85rem; color: var(--fg-muted); }
+  .skill-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .skill-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; position: relative; transition: border-color 0.3s, transform 0.2s; overflow: hidden; }
+  .skill-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; }
+  .skill-card:hover { transform: translateY(-3px); }
+  .skill-card.intake::before { background: var(--purple); } .skill-card.intake:hover { border-color: var(--purple); }
+  .skill-card.investigate::before { background: var(--cyan); } .skill-card.investigate:hover { border-color: var(--cyan); }
+  .skill-card.plantest::before { background: var(--amber); } .skill-card.plantest:hover { border-color: var(--amber); }
+  .skill-card.plan::before { background: var(--accent); } .skill-card.plan:hover { border-color: var(--accent); }
+  .skill-card.build::before { background: var(--green); } .skill-card.build:hover { border-color: var(--green); }
+  .skill-card.review::before { background: var(--rose); } .skill-card.review:hover { border-color: var(--rose); }
+  .skill-card.output::before { background: var(--orange); } .skill-card.output:hover { border-color: var(--orange); }
+  .skill-card.infra::before { background: var(--fg-muted); } .skill-card.infra:hover { border-color: var(--fg-muted); }
+  .skill-card .skill-name { font-family: 'JetBrains Mono', monospace; font-size: 0.92rem; font-weight: 600; color: var(--fg); margin-bottom: 8px; }
+  .skill-card .skill-desc { font-size: 0.85rem; color: var(--fg-dim); line-height: 1.6; margin-bottom: 12px; }
+  .skill-card .skill-trigger { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; padding: 3px 8px; border-radius: 4px; background: rgba(255,255,255,0.04); color: var(--fg-muted); border: 1px solid var(--border); }
+
+  /* ── Skill Flow Composition ── */
+  .skill-flow { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-top: 32px; }
+  .skill-flow-track { display: flex; gap: 6px; align-items: stretch; flex-wrap: wrap; justify-content: center; }
+  .skill-flow-node { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 14px; border-radius: 10px; background: var(--bg-code); border: 1px solid var(--border); min-width: 110px; text-align: center; transition: transform 0.2s; }
+  .skill-flow-node:hover { transform: translateY(-2px); }
+  .skill-flow-node .node-name { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; font-weight: 600; margin-bottom: 4px; }
+  .skill-flow-node .node-role { font-size: 0.7rem; color: var(--fg-muted); }
+  .skill-flow-arrow { display: flex; align-items: center; color: var(--fg-muted); font-size: 1.2rem; padding: 0 2px; flex-shrink: 0; }
+  .skill-flow-sidecar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; background: var(--bg-code); border: 1px dashed var(--border); margin-top: 10px; font-size: 0.82rem; color: var(--fg-dim); }
+  .skill-flow-sidecar .sidecar-label { font-weight: 600; color: var(--fg-muted); font-family: 'JetBrains Mono', monospace; font-size: 0.74rem; }
+
   @media(max-width:900px) {
     .pipeline { justify-content:flex-start; padding:0 8px 16px; }
     .pipeline-stage { min-width:140px; }
     .layer { flex-direction:column; }
     .layer-label { width:100%; border-radius:12px 12px 0 0; }
     .layer-items { border-radius:0 0 12px 12px; border-left:1px solid var(--border); border-top:none; }
+    .skill-flow-node { min-width: 90px; }
   }
 </style>
 </head>
@@ -613,6 +648,292 @@ skills/b-plan/SKILL.md<br>
       <p class="callout-label" style="color:var(--purple)">Real example — prompt-to-skill migration</p>
       <p>
         In May 2026, all Buck workflow prompts were migrated from containing full workflow logic to this thin-wrapper pattern. The canonical logic moved into <code>skills/</code> so other agents could invoke the same workflows. See <code>.context/2026-05-12.prompt-to-skill-portability/</code>.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ SKILL CATALOG ═══ -->
+<section id="skill-catalog">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Skills</p>
+      <h2 class="section-title">What Each Skill Does</h2>
+      <p class="section-desc">
+        18 skills across 7 categories. Each is a named thinking mode with its own write boundary, its own scope, and a clear role in the workflow. Skills are pure Markdown — they work in Pi, Claude Code, Cursor, OpenCode, and Codex.
+      </p>
+    </div>
+
+    <!-- INTAKE -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(167,139,250,0.12);color:var(--purple)">INTAKE</span>
+        <span class="skill-group-title">Capture the vague idea</span>
+        <span class="skill-group-desc">— turn loose thinking into a first-draft artifact</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card intake">
+          <div class="skill-name">b-brainstorm</div>
+          <p class="skill-desc">Interviews you one question at a time, then writes a loose first-draft plan to a subject folder. Stays subject-local; never auto-invokes b-plan. Soft cap of ~4 questions before attempting a draft.</p>
+          <span class="skill-trigger">/b-brainstorm</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INVESTIGATE -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(34,211,238,0.12);color:var(--cyan)">INVESTIGATE</span>
+        <span class="skill-group-title">Gather evidence before deciding</span>
+        <span class="skill-group-desc">— read-only on the codebase, or external-source research</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card investigate">
+          <div class="skill-name">b-explore</div>
+          <p class="skill-desc">Traces internal code architecture, maps data flow, finds entry points and conventions. Strictly read-only on the codebase; writes findings to <code class="mono" style="font-size:0.78rem">.context/</code> subject folders as <code class="mono" style="font-size:0.78rem">research-&lt;topic&gt;.md</code>.</p>
+          <span class="skill-trigger">/b-explore</span>
+        </div>
+        <div class="skill-card investigate">
+          <div class="skill-name">b-research</div>
+          <p class="skill-desc">Investigates external sources — APIs, libraries, docs, web resources. Captures findings incrementally into <code class="mono" style="font-size:0.78rem">research/notes-*.md</code> and consolidates into a canonical <code class="mono" style="font-size:0.78rem">research-&lt;topic&gt;.md</code>.</p>
+          <span class="skill-trigger">/b-research</span>
+        </div>
+        <div class="skill-card investigate">
+          <div class="skill-name">crawl4ai</div>
+          <p class="skill-desc">Helper skill for b-research. Deep website crawling with structured extraction when lightweight web search isn't enough — bulk pages, JS-rendered sites, API reference docs.</p>
+          <span class="skill-trigger">via b-research</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- STRESS-TEST -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(245,158,11,0.12);color:var(--amber)">STRESS-TEST</span>
+        <span class="skill-group-title">Relentlessly challenge the design</span>
+        <span class="skill-group-desc">— walk every branch of the decision tree, track complexity metadata</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card plantest">
+          <div class="skill-name">b-grill-me</div>
+          <p class="skill-desc">Interviews you relentlessly, one question at a time, walking every branch of the decision tree. At the threshold (default 20 questions), evaluates whether decision domains cross subject boundaries that warrant phasing. Feeds b-phase.</p>
+          <span class="skill-trigger">/b-grill-me</span>
+        </div>
+        <div class="skill-card plantest">
+          <div class="skill-name">b-grill-with-docs</div>
+          <p class="skill-desc">Same as b-grill-me but challenges your plan against existing domain docs (CONTEXT.md, ADRs). Calls out vocabulary drift, sharpens fuzzy language, forces precise boundaries through concrete scenarios.</p>
+          <span class="skill-trigger">/b-grill-with-docs</span>
+        </div>
+        <div class="skill-card plantest">
+          <div class="skill-name">b-grill-auto</div>
+          <p class="skill-desc">Sends grilling questions to a <em>different</em> AI model via RPC (defaults to <code class="mono" style="font-size:0.78rem">openai-codex/gpt-5.4</code>). Use when you want a second opinion without your own context anchoring the answers. Lives in the Extensions layer because it needs a subprocess.</p>
+          <span class="skill-trigger">/b-grill-auto</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PLAN -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(108,140,255,0.12);color:var(--accent-bright)">PLAN</span>
+        <span class="skill-group-title">Define the work</span>
+        <span class="skill-group-desc">— bounded intent: scope, files, risks, verification</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card plan">
+          <div class="skill-name">b-plan</div>
+          <p class="skill-desc">Turns user context into a bounded plan: scope, affected files, implementation steps, risks, verification. Always creates a subject folder; writes <code class="mono" style="font-size:0.78rem">plan-&lt;topic&gt;.md</code>. Strict write boundary: only <code class="mono" style="font-size:0.78rem">.context/**</code>.</p>
+          <span class="skill-trigger">/b-plan</span>
+        </div>
+        <div class="skill-card plan">
+          <div class="skill-name">b-phase</div>
+          <p class="skill-desc">Decomposes a large plan into sequential, independently-verifiable phases. Each phase fits one session, with explicit dependencies, difficulty hints, and model hints. Triggers when a plan has &gt;~8 steps, &gt;~5 files, or cross-domain scope.</p>
+          <span class="skill-trigger">/b-phase</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- BUILD -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(52,211,153,0.12);color:var(--green)">BUILD</span>
+        <span class="skill-group-title">Make the change</span>
+        <span class="skill-group-desc">— implementation, TDD, small safe steps</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card build">
+          <div class="skill-name">b-build</div>
+          <p class="skill-desc">Implements well-defined work with TDD red-green-refactor. Default mode: follows existing patterns, keeps scope tight, runs vitest (unit) and/or Playwright (browser) tests. UI work mandates a Playwright test first.</p>
+          <span class="skill-trigger">/b-build</span>
+        </div>
+        <div class="skill-card build">
+          <div class="skill-name">b-build-hard</div>
+          <p class="skill-desc">Same as b-build but for complex, ambiguous, or higher-risk work. Thinks through trade-offs before editing, breaks changes into safe steps, surfaces risks and migration concerns clearly, runs stronger verification.</p>
+          <span class="skill-trigger">/b-build-hard</span>
+        </div>
+        <div class="skill-card build">
+          <div class="skill-name">b-iterate</div>
+          <p class="skill-desc">Quick follow-up fixes, polish, and review-loop edits. Resolves <code class="mono" style="font-size:0.78rem">iterate-*.md</code> artifacts in priority order. Escalates to b-build if the work spreads. Maintains the live memory file at natural stops.</p>
+          <span class="skill-trigger">/b-iterate</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- REVIEW -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(244,114,182,0.12);color:var(--rose)">REVIEW</span>
+        <span class="skill-group-title">Validate the change</span>
+        <span class="skill-group-desc">— correctness, edge cases, regressions, workflow compliance</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card review">
+          <div class="skill-name">b-review</div>
+          <p class="skill-desc">Reviews implementation changes against an acceptance contract (plan, spec, phase, or subject folder). Discovers evidence from <code class="mono" style="font-size:0.78rem">git status/diff</code> when no plan is provided. Writes <code class="mono" style="font-size:0.78rem">iterate-*.md</code> artifacts when issues are found.</p>
+          <span class="skill-trigger">/b-review</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- OUTPUT -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(251,146,60,0.12);color:var(--orange)">OUTPUT</span>
+        <span class="skill-group-title">Make the work readable</span>
+        <span class="skill-group-desc">— for humans, reviewers, and the commit log</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card output">
+          <div class="skill-name">b-present</div>
+          <p class="skill-desc">Generates a multi-page static-site briefing package from plan/phase/brainstorm/spec/grill artifacts. Async-readable for stakeholders and reviewers. Output goes to <code class="mono" style="font-size:0.78rem">presentations/&lt;slug&gt;/</code>.</p>
+          <span class="skill-trigger">/b-present</span>
+        </div>
+        <div class="skill-card output">
+          <div class="skill-name">b-blueprint</div>
+          <p class="skill-desc">Generates a single-page architecture blueprint HTML from a plan, phase, or brainstorm. Dense, scannable, with code snippets, Mermaid diagrams, and file-change maps. Focused on the implementer, not the stakeholder.</p>
+          <span class="skill-trigger">/b-blueprint</span>
+        </div>
+        <div class="skill-card output">
+          <div class="skill-name">git-commit</div>
+          <p class="skill-desc">Creates a Conventional Commits message from staged changes. Reads <code class="mono" style="font-size:0.78rem">draft-commit.md</code> if present (skips diff analysis). Refuses to commit to <code class="mono" style="font-size:0.78rem">main</code>/<code class="mono" style="font-size:0.78rem">master</code>/<code class="mono" style="font-size:0.78rem">develop</code> unless <code class="mono" style="font-size:0.78rem">force</code> is specified.</p>
+          <span class="skill-trigger">/git-commit</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INFRASTRUCTURE -->
+    <div class="skill-group reveal">
+      <div class="skill-group-header">
+        <span class="skill-group-num" style="background:rgba(255,255,255,0.04);color:var(--fg-muted)">INFRASTRUCTURE</span>
+        <span class="skill-group-title">Substrate the other skills run on</span>
+        <span class="skill-group-desc">— runtime helpers, not workflow stages</span>
+      </div>
+      <div class="skill-grid">
+        <div class="skill-card infra">
+          <div class="skill-name">pi-rpc</div>
+          <p class="skill-desc">Drives a pi subprocess via JSON RPC over stdin/stdout. Used by b-grill-auto to delegate questions to a different model. Also useful for headless scripts, CI, and multi-agent pipelines where pi is one stage.</p>
+          <span class="skill-trigger">via b-grill-auto / scripts</span>
+        </div>
+        <div class="skill-card infra">
+          <div class="skill-name">run-in-idle-pane</div>
+          <p class="skill-desc">Finds the least-active tmux pane and runs a dev server or long-running command there. Always prefer this over backgrounding processes or creating new windows. Deployed from chezmoi to <code class="mono" style="font-size:0.78rem">~/.bin/run-in-idle-pane.sh</code>.</p>
+          <span class="skill-trigger">via bash</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- FLOW: How they compose -->
+    <div class="reveal" style="margin-top:64px">
+      <p class="section-label" style="margin-bottom:8px">Composing a Flow</p>
+      <h3 style="font-size:1.3rem;font-weight:700;margin-bottom:8px;letter-spacing:-0.01em">How the skills fit together</h3>
+      <p class="section-desc" style="margin-bottom:8px">
+        Skills don't run in a fixed order. You compose them by need. Below is the most common composition — a new feature, end-to-end, with all 18 skills accounted for.
+      </p>
+    </div>
+
+    <div class="skill-flow reveal">
+      <div class="skill-flow-track">
+        <div class="skill-flow-node" style="border-color:rgba(167,139,250,0.3)">
+          <span class="node-name" style="color:var(--purple)">b-brainstorm</span>
+          <span class="node-role">capture idea</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(34,211,238,0.3)">
+          <span class="node-name" style="color:var(--cyan)">b-explore</span>
+          <span class="node-role">internal</span>
+        </div>
+        <div class="skill-flow-arrow">⇄</div>
+        <div class="skill-flow-node" style="border-color:rgba(34,211,238,0.3)">
+          <span class="node-name" style="color:var(--cyan)">b-research</span>
+          <span class="node-role">external</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(245,158,11,0.3)">
+          <span class="node-name" style="color:var(--amber)">b-grill-me</span>
+          <span class="node-role">stress-test</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(108,140,255,0.3)">
+          <span class="node-name" style="color:var(--accent-bright)">b-plan</span>
+          <span class="node-role">bound the work</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(108,140,255,0.3)">
+          <span class="node-name" style="color:var(--accent-bright)">b-phase</span>
+          <span class="node-role">if large</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(52,211,153,0.3)">
+          <span class="node-name" style="color:var(--green)">b-build</span>
+          <span class="node-role">TDD</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(244,114,182,0.3)">
+          <span class="node-name" style="color:var(--rose)">b-review</span>
+          <span class="node-role">validate</span>
+        </div>
+        <div class="skill-flow-arrow">↔</div>
+        <div class="skill-flow-node" style="border-color:rgba(52,211,153,0.3)">
+          <span class="node-name" style="color:var(--green)">b-iterate</span>
+          <span class="node-role">if issues</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(251,146,60,0.3)">
+          <span class="node-name" style="color:var(--orange)">b-present</span>
+          <span class="node-role">briefing</span>
+        </div>
+        <div class="skill-flow-arrow">→</div>
+        <div class="skill-flow-node" style="border-color:rgba(251,146,60,0.3)">
+          <span class="node-name" style="color:var(--orange)">git-commit</span>
+          <span class="node-role">commit</span>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border)">
+        <p style="font-size:0.78rem;color:var(--fg-muted);margin-bottom:10px">Sidecars (run alongside any stage, not in the main flow):</p>
+        <div class="skill-flow-sidecar">
+          <span class="sidecar-label">crawl4ai</span>
+          <span>deep web extraction when b-research needs more than lightweight search</span>
+        </div>
+        <div class="skill-flow-sidecar">
+          <span class="sidecar-label">pi-rpc</span>
+          <span>spawns the different-model subprocess for b-grill-auto; useful for headless delegation in scripts and CI</span>
+        </div>
+        <div class="skill-flow-sidecar">
+          <span class="sidecar-label">run-in-idle-pane</span>
+          <span>routes dev servers and long-running commands to an idle tmux pane so b-build can keep working</span>
+        </div>
+        <div class="skill-flow-sidecar">
+          <span class="sidecar-label">b-blueprint</span>
+          <span>swap for b-present when you want a single-page architecture diagram instead of a multi-page briefing</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout callout-green reveal" style="margin-top:32px">
+      <p class="callout-label" style="color:var(--green)">Read the flow as a menu, not a pipeline</p>
+      <p>
+        The diagram above is one composition. You can run <code>/b-plan → /b-build → /b-review</code> for a focused fix, <code>/b-research → /b-plan → /b-build-hard</code> for a complex new feature, or just <code>/b-iterate</code> for a one-line tweak. The skills' write boundaries and subject-folder conventions are what make any composition safe — the order is up to you.
       </p>
     </div>
   </div>

@@ -15,6 +15,7 @@ Create a technically credible, junior-engineer-and-stakeholder-friendly explanat
 - `plan-buck-workflow-benefits-explanation.md` — benefit-oriented narrative plan for the eventual presentation.
 - `tasks.md` — subject-local progress tracker.
 - `gaps-and-followups.md` — separate notes for holes, risks, or improvement ideas found during exploration. Not intended for the presentation.
+- `presentations/buck-workflow-architecture.html` — generated infographic-style HTML presentation.
 
 ## Current Summary
 Buck workflow appears to serve six core benefits:
@@ -26,4 +27,4 @@ Buck workflow appears to serve six core benefits:
 6. **Stakeholder alignment** — source artifacts can be turned into async-readable presentation packages.
 
 ## Next Step
-Review `plan-buck-workflow-benefits-explanation.md` with the user. If approved, generate a presentation package with `/b-present` from that plan.
+Presentation generated. README.md updated with pertinent information. Optionally convert accepted gaps into backlog items.

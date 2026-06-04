@@ -6,7 +6,7 @@ topics: [buck-workflow, benefits, stakeholder-explanation, presentation-plan]
 research: [research-buck-workflow-benefits.md]
 iterations: []
 spec: null
-memory: []
+memory: [presentation-readme-update-2026-06-04.md]
 ---
 
 # Plan: Buck Workflow Benefits Explanation
