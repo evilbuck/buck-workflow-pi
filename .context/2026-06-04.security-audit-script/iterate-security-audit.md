@@ -1,13 +1,13 @@
 ---
-status: active
+status: completed
 date: 2026-06-04
 updated: 2026-06-04
 subject: 2026-06-04.security-audit-script
 topics: [review, iteration, bugfix]
 informs: []
 addresses: plan-security-audit-script.md
-completed: null
-ralph_status: pending
+completed: 2026-06-04
+ralph_status: completed
 from_review: b-review
 ---
 

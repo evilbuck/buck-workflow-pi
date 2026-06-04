@@ -5,7 +5,8 @@ subject: 2026-06-04.security-audit-script
 topics: [security, audit, secrets, git-history, shell-script, pre-commit]
 research: []
 spec:
-memory: []
+memory: [security-audit-iteration-2026-06-04.md]
+iterations: [iterate-security-audit.md]
 ---
 
 # Plan: Security Audit Script

@@ -163,7 +163,7 @@ add_finding() {
     return
   fi
 
-  FINDINGS+=("${severity}|${category}|${file}:${line}|${match}|${pattern_label}")
+  FINDINGS+=("${severity}|${category}|${file}|${line}|${match}|${pattern_label}")
 
   case "$category" in
     secrets)   ((SECRETS_COUNT++)) || true ;;
@@ -179,22 +179,22 @@ suggest_fix() {
   local category="$1" match="$2"
   case "$category" in
     secrets)
-      echo "  $(dim "→ Rotate the exposed credential immediately. Use environment variables or a secrets manager.")"
-      echo "  $(dim "→ Run: git filter-branch or BFG Repo-Cleaner to purge from history.")"
+      echo "  → Rotate the exposed credential immediately. Use environment variables or a secrets manager."
+      echo "  → Run: git filter-branch or BFG Repo-Cleaner to purge from history."
       ;;
     pii)
-      echo "  $(dim "→ Redact or generalize the personal information.")"
-      echo "  $(dim "→ Use placeholders or environment-specific config.")"
+      echo "  → Redact or generalize the personal information."
+      echo "  → Use placeholders or environment-specific config."
       ;;
     profanity)
-      echo "  $(dim "→ Replace with professional language before public release.")"
+      echo "  → Replace with professional language before public release."
       ;;
     binary)
-      echo "  $(dim "→ Remove the binary from git tracking or add to .gitignore.")"
-      echo "  $(dim "→ Consider Git LFS for large binary assets.")"
+      echo "  → Remove the binary from git tracking or add to .gitignore."
+      echo "  → Consider Git LFS for large binary assets."
       ;;
     entropy)
-      echo "  $(dim "→ Verify this is not an encoded secret. If legitimate, add to whitelist.")"
+      echo "  → Verify this is not an encoded secret. If legitimate, add to whitelist."
       ;;
   esac
 }
@@ -213,7 +213,7 @@ SECRET_PATTERNS=(
   "OpenAI key|sk-[a-zA-Z0-9]{20,}"
   "Anthropic key|sk-ant-[a-zA-Z0-9-]{20,}"
   "Token|(token|bearer|auth[_-]?token)['\"]?[[:space:]]*[:=]['\"][a-zA-Z0-9_-]{20,}"
-  "Password|(password|passwd|pwd)['\"]?[[:space:]]*[:=]['\"]['[:space:]]{0,1}[^[:space:]]{8,}"
+  "Password|(password|passwd|pwd)['\"]?[[:space:]]*[:=]['\"]?[[:space:]]*[^[:space:]]{8,}"
   "API key|(api[_-]?key|apikey|api[_-]?secret)['\"]?[[:space:]]*[:=]['\"][a-zA-Z0-9_-]{12,}"
   "Generic secret|(secret|credential)['\"]?[[:space:]]*[:=]['\"][a-zA-Z0-9_-]{16,}"
 )
@@ -263,7 +263,7 @@ scan_tracked_files() {
       local match
       match=$(echo "$line" | sed 's/^[^:]*:[0-9]*://') || continue
       add_finding "CRITICAL" "secrets" "$file" "$lineno" "$match" "$label"
-    done < <(echo "$files" | xargs grep -nE "$regex" 2>/dev/null || true)
+    done < <(echo "$files" | xargs grep -HnE "$regex" 2>/dev/null || true)
   done
 
   # PII scan
@@ -279,11 +279,11 @@ scan_tracked_files() {
         local match
         match=$(echo "$line" | sed 's/^[^:]*:[0-9]*://') || continue
         add_finding "WARNING" "pii" "$file" "$lineno" "$match" "$label"
-      done < <(echo "$files" | xargs grep -nE "$regex" 2>/dev/null || true)
+      done < <(echo "$files" | xargs grep -HnE "$regex" 2>/dev/null || true)
     done
 
-    # Username scan
-    if [[ -n "$USERNAME" ]]; then
+    # Username scan (respects --skip-pii)
+    if ! $SKIP_PII && [[ -n "$USERNAME" ]]; then
       while IFS= read -r line; do
         [[ -z "$line" ]] && continue
         local file="${line%%:*}"
@@ -292,7 +292,7 @@ scan_tracked_files() {
         local match
         match=$(echo "$line" | sed 's/^[^:]*:[0-9]*://') || continue
         add_finding "WARNING" "pii" "$file" "$lineno" "$match" "Username"
-      done < <(echo "$files" | xargs grep -nE "\\b${USERNAME}\\b" 2>/dev/null || true)
+      done < <(echo "$files" | xargs grep -HnE "\\b${USERNAME}\\b" 2>/dev/null || true)
     fi
   fi
 
@@ -309,7 +309,7 @@ scan_tracked_files() {
         local match
         match=$(echo "$line" | sed 's/^[^:]*:[0-9]*://') || continue
         add_finding "WARNING" "profanity" "$file" "$lineno" "$match" "$label"
-      done < <(echo "$files" | xargs grep -inE "$regex" 2>/dev/null || true)
+      done < <(echo "$files" | xargs grep -HinE "$regex" 2>/dev/null || true)
     done
   fi
 }
@@ -490,12 +490,13 @@ print_terminal_report() {
   else
     echo "  $(red "❌ ${#secrets_finds[@]} finding(s)")"
     for f in "${secrets_finds[@]}"; do
-      local sev cat loc match label
+      local sev cat file line match label
       sev=$(echo "$f" | cut -d'|' -f1)
-      loc=$(echo "$f" | cut -d'|' -f3)
-      match=$(echo "$f" | cut -d'|' -f4)
-      label=$(echo "$f" | cut -d'|' -f5)
-      echo "    $(red "CRITICAL") ${loc}  $(dim "[${label}]")"
+      file=$(echo "$f" | cut -d'|' -f3)
+      line=$(echo "$f" | cut -d'|' -f4)
+      match=$(echo "$f" | cut -d'|' -f5)
+      label=$(echo "$f" | cut -d'|' -f6)
+      echo "    $(red "CRITICAL") ${file}:${line}  $(dim "[${label}]")"
       $FIX_SUGGEST && suggest_fix "secrets" "$match"
     done
   fi
@@ -509,11 +510,12 @@ print_terminal_report() {
     else
       echo "  $(yellow "⚠️  ${#pii_finds[@]} finding(s)")"
       for f in "${pii_finds[@]}"; do
-        local loc match label
-        loc=$(echo "$f" | cut -d'|' -f3)
-        match=$(echo "$f" | cut -d'|' -f4)
-        label=$(echo "$f" | cut -d'|' -f5)
-        echo "    $(yellow "WARNING") ${loc}  $(dim "[${label}]")"
+        local file line match label
+        file=$(echo "$f" | cut -d'|' -f3)
+        line=$(echo "$f" | cut -d'|' -f4)
+        match=$(echo "$f" | cut -d'|' -f5)
+        label=$(echo "$f" | cut -d'|' -f6)
+        echo "    $(yellow "WARNING") ${file}:${line}  $(dim "[${label}]")"
         $FIX_SUGGEST && suggest_fix "pii" "$match"
       done
     fi
@@ -528,11 +530,12 @@ print_terminal_report() {
     else
       echo "  $(yellow "⚠️  ${#profanity_finds[@]} finding(s)")"
       for f in "${profanity_finds[@]}"; do
-        local loc match label
-        loc=$(echo "$f" | cut -d'|' -f3)
-        match=$(echo "$f" | cut -d'|' -f4)
-        label=$(echo "$f" | cut -d'|' -f5)
-        echo "    $(yellow "WARNING") ${loc}"
+        local file line match label
+        file=$(echo "$f" | cut -d'|' -f3)
+        line=$(echo "$f" | cut -d'|' -f4)
+        match=$(echo "$f" | cut -d'|' -f5)
+        label=$(echo "$f" | cut -d'|' -f6)
+        echo "    $(yellow "WARNING") ${file}:${line}"
         $FIX_SUGGEST && suggest_fix "profanity" "$match"
       done
     fi
@@ -548,11 +551,12 @@ print_terminal_report() {
   else
     echo "  $(red "❌ ${#history_finds[@]} finding(s)")"
     for f in "${history_finds[@]}"; do
-      local loc match label
-      loc=$(echo "$f" | cut -d'|' -f3)
-      match=$(echo "$f" | cut -d'|' -f4)
-      label=$(echo "$f" | cut -d'|' -f5)
-      echo "    $(red "CRITICAL") ${loc}  $(dim "[${label}]")"
+      local file line match label
+      file=$(echo "$f" | cut -d'|' -f3)
+      line=$(echo "$f" | cut -d'|' -f4)
+      match=$(echo "$f" | cut -d'|' -f5)
+      label=$(echo "$f" | cut -d'|' -f6)
+      echo "    $(red "CRITICAL") ${file}:${line}  $(dim "[${label}]")"
       $FIX_SUGGEST && suggest_fix "secrets" "$match"
     done
   fi
@@ -565,11 +569,12 @@ print_terminal_report() {
   else
     echo "  $(yellow "⚠️  ${#binary_finds[@]} finding(s)")"
     for f in "${binary_finds[@]}"; do
-      local loc match label
-      loc=$(echo "$f" | cut -d'|' -f3)
-      match=$(echo "$f" | cut -d'|' -f4)
-      label=$(echo "$f" | cut -d'|' -f5)
-      echo "    $(yellow "WARNING") ${loc}  $(dim "${match}")"
+      local file line match label
+      file=$(echo "$f" | cut -d'|' -f3)
+      line=$(echo "$f" | cut -d'|' -f4)
+      match=$(echo "$f" | cut -d'|' -f5)
+      label=$(echo "$f" | cut -d'|' -f6)
+      echo "    $(yellow "WARNING") ${file}:${line}  $(dim "${match}")"
       $FIX_SUGGEST && suggest_fix "binary" "$match"
     done
   fi
@@ -582,11 +587,12 @@ print_terminal_report() {
   else
     echo "  $(yellow "⚠️  ${#entropy_finds[@]} finding(s)")"
     for f in "${entropy_finds[@]}"; do
-      local loc match label
-      loc=$(echo "$f" | cut -d'|' -f3)
-      match=$(echo "$f" | cut -d'|' -f4)
-      label=$(echo "$f" | cut -d'|' -f5)
-      echo "    $(yellow "WARNING") ${loc}  $(dim "[${label}]")"
+      local file line match label
+      file=$(echo "$f" | cut -d'|' -f3)
+      line=$(echo "$f" | cut -d'|' -f4)
+      match=$(echo "$f" | cut -d'|' -f5)
+      label=$(echo "$f" | cut -d'|' -f6)
+      echo "    $(yellow "WARNING") ${file}:${line}  $(dim "[${label}]")"
       $FIX_SUGGEST && suggest_fix "entropy" "$match"
     done
   fi
@@ -622,19 +628,13 @@ print_json_report() {
 
   local first=true
   for f in "${FINDINGS[@]+"${FINDINGS[@]}"}"; do
-    local sev cat loc match label
+    local sev cat file line match label
     sev=$(echo "$f" | cut -d'|' -f1 | tr '[:upper:]' '[:lower:]')
     cat=$(echo "$f" | cut -d'|' -f2)
-    loc=$(echo "$f" | cut -d'|' -f3)
-    match=$(echo "$f" | cut -d'|' -f4)
-    label=$(echo "$f" | cut -d'|' -f5)
-
-    local file="${loc%%:*}"
-    local line="${loc#*:}"
-    # Handle git-history entries
-    if echo "$file" | grep -q "^git-history:"; then
-      line="0"
-    fi
+    file=$(echo "$f" | cut -d'|' -f3)
+    line=$(echo "$f" | cut -d'|' -f4)
+    match=$(echo "$f" | cut -d'|' -f5)
+    label=$(echo "$f" | cut -d'|' -f6)
 
     # Escape JSON strings
     match=$(echo "$match" | sed 's/\\/\\\\/g; s/"/\\"/g' | head -c 200)
