@@ -1,0 +1,1419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buck Workflow — Turning AI Conversations Into Durable Engineering Work</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #0a0e17;
+    --bg-section: #0d1220;
+    --bg-card: #131a2e;
+    --bg-code: #0f1524;
+    --border: #1e2a45;
+    --border-glow: #2a3f6f;
+    --fg: #e2e8f0;
+    --fg-dim: #8899b8;
+    --fg-muted: #5a6d8f;
+    --accent: #6c8cff;
+    --accent-bright: #8da8ff;
+    --accent-glow: rgba(108,140,255,0.15);
+    --green: #34d399;
+    --green-dim: #10b981;
+    --amber: #f59e0b;
+    --rose: #f472b6;
+    --purple: #a78bfa;
+    --cyan: #22d3ee;
+    --orange: #fb923c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Utility ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .dim { color: var(--fg-dim); }
+  .muted { color: var(--fg-muted); }
+  .accent { color: var(--accent); }
+  .green { color: var(--green); }
+  .amber { color: var(--amber); }
+  .rose { color: var(--rose); }
+  .purple { color: var(--purple); }
+  .cyan { color: var(--cyan); }
+  .orange { color: var(--orange); }
+
+  /* ── Animations ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(40px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideRight {
+    from { opacity: 0; transform: translateX(-30px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .5; }
+  }
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 20px var(--accent-glow); }
+    50% { box-shadow: 0 0 40px var(--accent-glow), 0 0 60px rgba(108,140,255,0.08); }
+  }
+  @keyframes drawLine {
+    from { stroke-dashoffset: 1000; }
+    to { stroke-dashoffset: 0; }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: scale(0.5); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* ── Hero ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 40%, rgba(108,140,255,0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 40% at 20% 80%, rgba(167,139,250,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 20%, rgba(34,211,238,0.04) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .hero h1 {
+    font-size: clamp(2.4rem, 5vw, 4rem);
+    font-weight: 900;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    animation: fadeUp 1s ease both;
+  }
+  .hero h1 .gradient-text {
+    background: linear-gradient(135deg, var(--accent-bright), var(--cyan), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero .subtitle {
+    font-size: clamp(1rem, 2vw, 1.35rem);
+    color: var(--fg-dim);
+    font-weight: 300;
+    max-width: 680px;
+    margin: 0 auto 40px;
+    animation: fadeUp 1s ease 0.3s both;
+  }
+  .hero-tags {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    animation: fadeUp 1s ease 0.5s both;
+  }
+  .hero-tag {
+    padding: 6px 16px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--fg-dim);
+    background: var(--bg-card);
+    transition: border-color 0.3s, color 0.3s;
+  }
+  .hero-tag:hover { border-color: var(--accent); color: var(--accent); }
+  .scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: pulse 2s ease infinite;
+    color: var(--fg-muted);
+    font-size: 0.8rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .scroll-hint svg { width: 20px; height: 20px; }
+
+  /* ── Sections ── */
+  section { padding: 100px 0; }
+  section:nth-child(even) { background: var(--bg-section); }
+
+  .section-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+    line-height: 1.25;
+  }
+  .section-desc {
+    color: var(--fg-dim);
+    max-width: 700px;
+    font-size: 1.05rem;
+    line-height: 1.75;
+    margin-bottom: 48px;
+  }
+
+  /* ── Problem Cards ── */
+  .pain-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+  }
+  .pain-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .pain-card:hover {
+    border-color: var(--rose);
+    transform: translateY(-4px);
+  }
+  .pain-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    margin-bottom: 20px;
+    background: rgba(244,114,182,0.1);
+    border: 1px solid rgba(244,114,182,0.2);
+  }
+  .pain-card h3 { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .pain-card p { color: var(--fg-dim); font-size: 0.92rem; }
+
+  /* ── Principle Banner ── */
+  .principle-banner {
+    background: linear-gradient(135deg, var(--bg-card), rgba(108,140,255,0.06));
+    border: 1px solid var(--border-glow);
+    border-radius: 20px;
+    padding: 56px 48px;
+    text-align: center;
+    animation: glow 4s ease infinite;
+    position: relative;
+    overflow: hidden;
+  }
+  .principle-banner::before {
+    content: '';
+    position: absolute;
+    top: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  .principle-banner .quote {
+    font-size: clamp(1.3rem, 2.5vw, 1.9rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.5;
+  }
+  .principle-banner .attribution {
+    margin-top: 16px;
+    color: var(--fg-muted);
+    font-size: 0.9rem;
+  }
+
+  /* ── Benefit Cards ── */
+  .benefit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+  }
+  .benefit-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    transition: border-color 0.3s, transform 0.3s;
+    position: relative;
+    overflow: hidden;
+  }
+  .benefit-card::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .benefit-card:hover {
+    transform: translateY(-4px);
+  }
+  .benefit-card:hover::after { opacity: 1; }
+  .benefit-card.continuity::after { background: var(--accent); }
+  .benefit-card.continuity:hover { border-color: rgba(108,140,255,0.4); }
+  .benefit-card.trust::after { background: var(--green); }
+  .benefit-card.trust:hover { border-color: rgba(52,211,153,0.4); }
+  .benefit-card.repeatability::after { background: var(--purple); }
+  .benefit-card.repeatability:hover { border-color: rgba(167,139,250,0.4); }
+  .benefit-card.quality::after { background: var(--amber); }
+  .benefit-card.quality:hover { border-color: rgba(245,158,11,0.4); }
+  .benefit-card.rediscovery::after { background: var(--cyan); }
+  .benefit-card.rediscovery:hover { border-color: rgba(34,211,238,0.4); }
+  .benefit-card.handoff::after { background: var(--orange); }
+  .benefit-card.handoff:hover { border-color: rgba(251,146,60,0.4); }
+
+  .benefit-num {
+    font-size: 2.5rem;
+    font-weight: 900;
+    opacity: 0.12;
+    position: absolute;
+    top: 16px;
+    right: 24px;
+    line-height: 1;
+  }
+  .benefit-card h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .benefit-card p {
+    color: var(--fg-dim);
+    font-size: 0.92rem;
+  }
+  .benefit-card .stakeholder {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    font-size: 0.82rem;
+    color: var(--fg-muted);
+    font-style: italic;
+  }
+
+  /* ── Architecture Diagram ── */
+  .arch-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 48px 32px;
+    overflow: hidden;
+  }
+  .layer {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 3px;
+    position: relative;
+  }
+  .layer:last-child { margin-bottom: 0; }
+  .layer-label {
+    width: 180px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 20px 24px;
+    border-radius: 12px 0 0 12px;
+    position: relative;
+    z-index: 1;
+  }
+  .layer-label .layer-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+  }
+  .layer-label .layer-desc {
+    font-size: 0.78rem;
+    color: var(--fg-muted);
+    line-height: 1.4;
+  }
+  .layer-items {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 16px 20px;
+    border-radius: 0 12px 12px 0;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-left: none;
+  }
+  .layer-skill .layer-label { background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.25); }
+  .layer-prompt .layer-label { background: rgba(108,140,255,0.12); border: 1px solid rgba(108,140,255,0.25); }
+  .layer-ext .layer-label { background: rgba(34,211,238,0.12); border: 1px solid rgba(34,211,238,0.25); }
+
+  .layer-item {
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    white-space: nowrap;
+    transition: border-color 0.3s, transform 0.2s;
+  }
+  .layer-item:hover {
+    transform: translateY(-2px);
+  }
+  .layer-skill .layer-item:hover { border-color: var(--purple); }
+  .layer-prompt .layer-item:hover { border-color: var(--accent); }
+  .layer-ext .layer-item:hover { border-color: var(--cyan); }
+
+  .arch-connector {
+    text-align: center;
+    padding: 16px 0;
+    color: var(--fg-muted);
+    font-size: 0.82rem;
+  }
+  .arch-connector svg { display: inline-block; vertical-align: middle; }
+
+  /* ── Workflow Pipeline ── */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+  }
+  .pipeline-stage {
+    flex: 1;
+    min-width: 140px;
+    text-align: center;
+    position: relative;
+    padding: 24px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    margin: 0 6px;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .pipeline-stage:hover {
+    transform: translateY(-4px);
+  }
+  .pipeline-stage .stage-emoji {
+    font-size: 1.6rem;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .pipeline-stage .stage-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(108,140,255,0.12);
+    color: var(--accent-bright);
+    display: inline-block;
+    margin-bottom: 8px;
+  }
+  .pipeline-stage h4 {
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .pipeline-stage p {
+    font-size: 0.76rem;
+    color: var(--fg-dim);
+    line-height: 1.5;
+  }
+  .pipeline-arrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--fg-muted);
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+
+  .pipeline-stage.brainstorm:hover { border-color: var(--purple); }
+  .pipeline-stage.explore:hover { border-color: var(--cyan); }
+  .pipeline-stage.research:hover { border-color: var(--amber); }
+  .pipeline-stage.plan:hover { border-color: var(--accent); }
+  .pipeline-stage.build:hover { border-color: var(--green); }
+  .pipeline-stage.review:hover { border-color: var(--rose); }
+  .pipeline-stage.save:hover { border-color: var(--orange); }
+
+  /* ── Folder Tree ── */
+  .folder-tree {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    align-items: start;
+  }
+  @media (max-width: 768px) {
+    .folder-tree { grid-template-columns: 1fr; }
+  }
+  .tree-panel {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+  .tree-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .tree-body {
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    line-height: 1.9;
+  }
+  .tree-body .dir { color: var(--accent-bright); }
+  .tree-body .file { color: var(--fg-dim); }
+  .tree-body .comment { color: var(--fg-muted); font-style: italic; }
+  .tree-body .highlight { color: var(--green); }
+  .tree-body .indent { display: inline-block; }
+
+  /* ── Code Block ── */
+  .code-block {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 24px 0;
+  }
+  .code-header {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--fg-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .code-header .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .code-body {
+    padding: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+  .code-body .kw { color: var(--purple); }
+  .code-body .fn { color: var(--cyan); }
+  .code-body .str { color: var(--green); }
+  .code-body .cm { color: var(--fg-muted); font-style: italic; }
+  .code-body .type { color: var(--amber); }
+  .code-body .num { color: var(--orange); }
+
+  /* ── Feature Table ── */
+  .feature-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+  }
+  .feature-table th {
+    text-align: left;
+    padding: 14px 20px;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--fg-muted);
+    border-bottom: 2px solid var(--border);
+  }
+  .feature-table td {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .feature-table tr:hover td {
+    background: rgba(108,140,255,0.03);
+  }
+  .feature-table .feat-name { font-weight: 600; white-space: nowrap; }
+  .feature-table .feat-benefit { color: var(--fg-dim); }
+  .feature-table .feat-quote {
+    color: var(--fg-muted);
+    font-size: 0.82rem;
+    font-style: italic;
+  }
+  .feature-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .tag-continuity { background: rgba(108,140,255,0.12); color: var(--accent-bright); }
+  .tag-trust { background: rgba(52,211,153,0.12); color: var(--green); }
+  .tag-quality { background: rgba(245,158,11,0.12); color: var(--amber); }
+  .tag-reuse { background: rgba(167,139,250,0.12); color: var(--purple); }
+  .tag-handoff { background: rgba(251,146,60,0.12); color: var(--orange); }
+  .tag-scale { background: rgba(34,211,238,0.12); color: var(--cyan); }
+
+  /* ── Flow Diagram (SVG) ── */
+  .flow-svg-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    text-align: center;
+  }
+  .flow-svg-container svg { max-width: 100%; height: auto; }
+
+  /* ── Stat Row ── */
+  .stat-row {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+    margin: 48px 0;
+  }
+  .stat {
+    text-align: center;
+  }
+  .stat-num {
+    font-size: 2.5rem;
+    font-weight: 900;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 0.82rem;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+
+  /* ── Analogy Box ── */
+  .analogy-box {
+    background: linear-gradient(135deg, rgba(167,139,250,0.06), rgba(34,211,238,0.04));
+    border: 1px solid rgba(167,139,250,0.2);
+    border-radius: 16px;
+    padding: 40px;
+    margin: 48px 0;
+    text-align: center;
+  }
+  .analogy-box h3 {
+    font-size: 1.2rem;
+    margin-bottom: 12px;
+  }
+  .analogy-box p {
+    color: var(--fg-dim);
+    font-size: 1.05rem;
+    max-width: 640px;
+    margin: 0 auto;
+    line-height: 1.7;
+  }
+
+  /* ── Audience Cards ── */
+  .audience-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 768px) {
+    .audience-grid { grid-template-columns: 1fr; }
+  }
+  .audience-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 36px;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .audience-card:hover {
+    transform: translateY(-4px);
+  }
+  .audience-card h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .audience-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .audience-card li {
+    padding: 8px 0;
+    padding-left: 24px;
+    position: relative;
+    color: var(--fg-dim);
+    font-size: 0.9rem;
+  }
+  .audience-card li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .audience-card.engineer:hover { border-color: var(--accent); }
+  .audience-card.stakeholder:hover { border-color: var(--green); }
+
+  /* ── State Machine Diagram ── */
+  .state-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 40px 32px;
+    text-align: center;
+  }
+
+  /* ── Footer ── */
+  footer {
+    padding: 64px 0;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 0.85rem;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  footer a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════ HERO ═══ -->
+<section class="hero">
+  <div class="hero-content container">
+    <h1>
+      <span class="gradient-text">Buck Workflow</span><br>
+      Turning AI Conversations Into<br>Durable Engineering Work
+    </h1>
+    <p class="subtitle">
+      A structured, discoverable workflow for AI-assisted software development — built on one principle: <strong style="color:var(--fg)">don't lose work</strong>.
+    </p>
+    <div class="hero-tags">
+      <span class="hero-tag">Continuity</span>
+      <span class="hero-tag">Auditability</span>
+      <span class="hero-tag">Repeatability</span>
+      <span class="hero-tag">Quality Control</span>
+      <span class="hero-tag">Handoff</span>
+      <span class="hero-tag">Lower Rediscovery Cost</span>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <span>Scroll to explore</span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M12 5v14M5 12l7 7 7-7"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════ THE PAIN ═══ -->
+<section id="pain">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Problem</p>
+      <h2 class="section-title">Why Chat-Only Agent Work Breaks Down</h2>
+      <p class="section-desc">
+        AI agents are fast — but speed is not the same as continuity, trust, or repeatability. When the conversation ends, the context evaporates.
+      </p>
+    </div>
+
+    <div class="pain-grid">
+      <div class="pain-card reveal reveal-delay-1">
+        <div class="pain-icon">🕳️</div>
+        <h3>Lost Context</h3>
+        <p>Chat windows compact. Sessions expire. Critical decisions vanish into scrollback. Next session starts from scratch.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-2">
+        <div class="pain-icon">👁️</div>
+        <h3>No Audit Trail</h3>
+        <p>"Why did we do this?" — the only answer lives in someone's chat history. No paper trail, no decision record, no accountability.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-3">
+        <div class="pain-icon">🔁</div>
+        <h3>Repeated Discovery</h3>
+        <p>Each new session re-explores the same codebase, re-learns the same constraints, re-makes the same mistakes.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-1">
+        <div class="pain-icon">⚡</div>
+        <h3>Premature Coding</h3>
+        <p>Without guardrails, agents jump to editing files before understanding the problem. Research, planning, and review get skipped.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-2">
+        <div class="pain-icon">🤝</div>
+        <h3>No Handoff</h3>
+        <p>Work can't be resumed by another engineer or agent. Everything is trapped in one conversation's context window.</p>
+      </div>
+      <div class="pain-card reveal reveal-delay-3">
+        <div class="pain-icon">📋</div>
+        <h3>No Quality Gates</h3>
+        <p>Review is optional and easily skipped. Feedback lives in chat comments, not as actionable follow-up items.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════ THE PRINCIPLE ═══ -->
+<section id="principle">
+  <div class="container">
+    <div class="principle-banner reveal">
+      <p class="quote">
+        Buck workflow gives an AI agent a <span class="accent">project notebook</span>, a <span class="green">filing system</span>, and a <span class="amber">checklist</span>.<br>
+        The agent can still reason and code — but important context is no longer trapped in the chat.
+      </p>
+      <p class="attribution">— The core design principle: don't lose work</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ THE LAYERS ═══ -->
+<section id="layers">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Architecture</p>
+      <h2 class="section-title">Three-Layer Model</h2>
+      <p class="section-desc">
+        Buck workflow separates concerns into three layers. Each one is independently maintainable and portable across different AI agent environments.
+      </p>
+    </div>
+
+    <div class="arch-diagram reveal">
+      <div class="layer layer-skill">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--purple)">Skills</span>
+          <span class="layer-desc">Canonical, portable workflow logic. Agent-neutral. The source of truth.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">b-brainstorm</span>
+          <span class="layer-item">b-explore</span>
+          <span class="layer-item">b-research</span>
+          <span class="layer-item">b-plan</span>
+          <span class="layer-item">b-build</span>
+          <span class="layer-item">b-iterate</span>
+          <span class="layer-item">b-review</span>
+          <span class="layer-item">b-present</span>
+          <span class="layer-item">b-phase</span>
+          <span class="layer-item">b-grill-*</span>
+          <span class="layer-item">git-commit</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Each command loads the matching skill</span>
+      </div>
+
+      <div class="layer layer-prompt">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--accent)">Prompt Templates</span>
+          <span class="layer-desc">Thin wrappers that expose <code class="mono" style="font-size:0.75rem">/b-*</code> commands in Pi.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">/b-brainstorm</span>
+          <span class="layer-item">/b-explore</span>
+          <span class="layer-item">/b-research</span>
+          <span class="layer-item">/b-plan</span>
+          <span class="layer-item">/b-build</span>
+          <span class="layer-item">/b-build-hard</span>
+          <span class="layer-item">/b-iterate</span>
+          <span class="layer-item">/b-review</span>
+          <span class="layer-item">/b-present</span>
+          <span class="layer-item">/git-commit</span>
+        </div>
+      </div>
+
+      <div class="arch-connector">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" stroke-width="1.5"><path d="M12 4v16M5 14l7 6 7-6"/></svg>
+        <span style="margin-left:8px">Extensions handle runtime hooks the skills can't</span>
+      </div>
+
+      <div class="layer layer-ext">
+        <div class="layer-label">
+          <span class="layer-name" style="color:var(--cyan)">Extensions</span>
+          <span class="layer-desc">Runtime automation: state machines, session tracking, write guards.</span>
+        </div>
+        <div class="layer-items">
+          <span class="layer-item">b-flow (XState machine)</span>
+          <span class="layer-item">/b-save</span>
+          <span class="layer-item">/b-mode (write guard)</span>
+          <span class="layer-item">b-grill-auto (RPC)</span>
+          <span class="layer-item">tmux window status</span>
+          <span class="layer-item">TPS tracker</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="code-block reveal" style="margin-top:32px">
+      <div class="code-header">
+        <span class="dot" style="background:var(--accent)"></span>
+        <span>prompts/b-plan.md — a thin wrapper that loads the skill</span>
+      </div>
+      <div class="code-body">
+<span class="cm"># B-Plan</span><br><br>
+$ARGUMENTS<br><br>
+<span class="cm">Load and follow the `b-plan` skill:</span><br><br>
+```<br>
+skills/b-plan/SKILL.md<br>
+```
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════ THE PIPELINE ═══ -->
+<section id="pipeline">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Workflow Stages</p>
+      <h2 class="section-title">Named Thinking Modes</h2>
+      <p class="section-desc">
+        Exploration, research, planning, building, reviewing, and saving are different kinds of thinking. Buck gives each one a named entrypoint and clear write boundaries — so the agent does the right kind of work at the right time.
+      </p>
+    </div>
+
+    <div class="pipeline reveal">
+      <div class="pipeline-stage brainstorm">
+        <span class="stage-emoji">💡</span>
+        <span class="stage-cmd">/b-brainstorm</span>
+        <h4>Intake</h4>
+        <p>Interview-style capture of vague ideas. No pretending they're ready.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage explore">
+        <span class="stage-emoji">🔍</span>
+        <span class="stage-cmd">/b-explore</span>
+        <h4>Explore</h4>
+        <p>Investigate the internal codebase. Map architecture. Read-only.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage research">
+        <span class="stage-emoji">📚</span>
+        <span class="stage-cmd">/b-research</span>
+        <h4>Research</h4>
+        <p>External facts: APIs, docs, libraries. Capture evidence.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage plan">
+        <span class="stage-emoji">📐</span>
+        <span class="stage-cmd">/b-plan</span>
+        <h4>Plan</h4>
+        <p>Bounded intent: scope, files, risks, verification steps.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage build">
+        <span class="stage-emoji">🔧</span>
+        <span class="stage-cmd">/b-build</span>
+        <h4>Build</h4>
+        <p>Implement with TDD. Red-green-refactor. Smallest safe change.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage review">
+        <span class="stage-emoji">✅</span>
+        <span class="stage-cmd">/b-review</span>
+        <h4>Review</h4>
+        <p>Validate against plan. Write iteration artifacts if issues found.</p>
+      </div>
+      <div class="pipeline-arrow">→</div>
+      <div class="pipeline-stage save">
+        <span class="stage-emoji">💾</span>
+        <span class="stage-cmd">/b-save</span>
+        <h4>Save</h4>
+        <p>Convert session into durable history. Update memory and index.</p>
+      </div>
+    </div>
+
+    <div class="stat-row reveal">
+      <div class="stat">
+        <div class="stat-num accent" data-count="18">18</div>
+        <div class="stat-label">Skills</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num purple" data-count="12">12</div>
+        <div class="stat-label">Prompt Templates</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num cyan" data-count="7">7</div>
+        <div class="stat-label">Workflow Stages</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num green" data-count="1">1</div>
+        <div class="stat-label">Core Principle</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════ DURABLE ARTIFACTS ═══ -->
+<section id="artifacts">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">The Artifact Model</p>
+      <h2 class="section-title">How Work Survives the Session</h2>
+      <p class="section-desc">
+        Buck separates <strong class="accent">intent</strong> (plans in subject folders) from <strong class="green">record</strong> (history in memory). Together they create a durable paper trail that survives context limits, interruptions, and agent handoffs.
+      </p>
+    </div>
+
+    <div class="folder-tree reveal">
+      <div class="tree-panel">
+        <div class="tree-header">
+          <span>📁</span> Subject Folder — <span class="accent">Intent</span>
+        </div>
+        <div class="tree-body">
+<span class="dir">.context/</span><br>
+<span class="indent" style="width:20px"></span><span class="dir highlight">2026-06-04.payment-integration/</span><br>
+<span class="indent" style="width:40px"></span><span class="file">index.md</span> <span class="comment">← stable entrypoint</span><br>
+<span class="indent" style="width:40px"></span><span class="file">research-stripe-api.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">plan-checkout-flow.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">spec-v1-checkout-mvp.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">phase-1-stripe-setup.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">phase-2-cart-integration.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">review-2026-06-05.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">iterate-fix-edge-cases.md</span><br>
+<br>
+<span class="indent" style="width:20px"></span><span class="dir highlight">2026-05-20.auth-feature/</span><br>
+<span class="indent" style="width:40px"></span><span class="file">index.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">research-oauth-providers.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">plan-oauth-login.md</span><br>
+        </div>
+      </div>
+
+      <div class="tree-panel">
+        <div class="tree-header">
+          <span>📓</span> Memory — <span class="green">Record</span>
+        </div>
+        <div class="tree-body">
+<span class="dir">.context/memory/</span><br>
+<span class="indent" style="width:20px"></span><span class="file highlight">index.md</span> <span class="comment">← history ledger</span><br>
+<span class="indent" style="width:20px"></span><span class="file">auth-impl-2026-05-20.md</span><br>
+<span class="indent" style="width:20px"></span><span class="file">payment-research-2026-06-04.md</span><br>
+<span class="indent" style="width:20px"></span><span class="file">checkout-build-2026-06-05.md</span><br>
+<br>
+<span class="dir">.context/backlog/</span><br>
+<span class="indent" style="width:20px"></span><span class="file highlight">todo.md</span> <span class="comment">← active queue</span><br>
+<span class="indent" style="width:20px"></span><span class="dir">items/</span><br>
+<span class="indent" style="width:40px"></span><span class="file">refactor-auth-middleware.md</span><br>
+<span class="indent" style="width:40px"></span><span class="file">add-rate-limiting.md</span><br>
+<span class="indent" style="width:20px"></span><span class="dir">archive/</span><br>
+<span class="indent" style="width:40px"></span><span class="file">completed.md</span><br>
+        </div>
+      </div>
+    </div>
+
+    <div class="analogy-box reveal">
+      <h3>🗂️ The Cross-Reference System</h3>
+      <p>
+        Every artifact carries forward and backward links in its frontmatter. A plan links to the research that informed it. A memory file links to the subject folder it relates to. An agent with zero conversation history can navigate from <em>any</em> artifact to the full picture.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--purple)"></span>
+        <span>plan-oauth-login.md — frontmatter links everything together</span>
+      </div>
+      <div class="code-body">
+<span class="cm">---</span><br>
+<span class="kw">status:</span> <span class="str">active</span><br>
+<span class="kw">date:</span> <span class="str">2026-05-20</span><br>
+<span class="kw">subject:</span> <span class="str">2026-05-20.auth-feature</span><br>
+<span class="kw">research:</span> <span class="type">[research-oauth-providers.md]</span> <span class="cm"># ← what informed this plan</span><br>
+<span class="kw">spec:</span> <span class="type">spec-v1-auth-mvp.md</span> <span class="cm"># ← what this plan implements</span><br>
+<span class="kw">memory:</span> <span class="type">[auth-impl-2026-05-20.md]</span> <span class="cm"># ← execution record</span><br>
+<span class="cm">---</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ STATE FLOW ═══ -->
+<section id="state-flow">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Runtime Orchestration</p>
+      <h2 class="section-title">How b-flow Tracks Progress</h2>
+      <p class="section-desc">
+        Behind the scenes, the <code class="mono">b-flow</code> extension runs an XState state machine that persists workflow state across sessions. It scans <code class="mono">.context/</code>, detects where you left off, and routes the next command to the right stage.
+      </p>
+    </div>
+
+    <div class="state-diagram reveal">
+      <svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg" style="max-width:800px;width:100%">
+        <defs>
+          <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#5a6d8f"/>
+          </marker>
+          <marker id="arrowhead-active" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#6c8cff"/>
+          </marker>
+        </defs>
+
+        <!-- Idle -->
+        <rect x="20" y="140" width="100" height="50" rx="25" fill="rgba(108,140,255,0.08)" stroke="#6c8cff" stroke-width="1.5"/>
+        <text x="70" y="170" text-anchor="middle" fill="#6c8cff" font-family="Inter" font-size="13" font-weight="600">idle</text>
+
+        <!-- Arrow idle → exploring -->
+        <line x1="120" y1="165" x2="168" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="144" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-explore</text>
+
+        <!-- Exploring -->
+        <rect x="170" y="140" width="120" height="50" rx="12" fill="rgba(34,211,238,0.06)" stroke="#22d3ee" stroke-width="1.2"/>
+        <text x="230" y="170" text-anchor="middle" fill="#22d3ee" font-family="Inter" font-size="13" font-weight="600">exploring</text>
+
+        <!-- Arrow exploring → planning -->
+        <line x1="290" y1="165" x2="338" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="314" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-plan</text>
+
+        <!-- Planning -->
+        <rect x="340" y="140" width="120" height="50" rx="12" fill="rgba(108,140,255,0.06)" stroke="#6c8cff" stroke-width="1.2"/>
+        <text x="400" y="170" text-anchor="middle" fill="#6c8cff" font-family="Inter" font-size="13" font-weight="600">planning</text>
+
+        <!-- Arrow planning → building -->
+        <line x1="460" y1="165" x2="508" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="484" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-build</text>
+
+        <!-- Building -->
+        <rect x="510" y="140" width="120" height="50" rx="12" fill="rgba(52,211,153,0.06)" stroke="#34d399" stroke-width="1.2"/>
+        <text x="570" y="170" text-anchor="middle" fill="#34d399" font-family="Inter" font-size="13" font-weight="600">building</text>
+
+        <!-- Arrow building → reviewing -->
+        <line x1="630" y1="165" x2="678" y2="165" stroke="#5a6d8f" stroke-width="1.2" marker-end="url(#arrowhead)"/>
+        <text x="654" y="155" text-anchor="middle" fill="#5a6d8f" font-family="Inter" font-size="9">/b-review</text>
+
+        <!-- Reviewing -->
+        <rect x="680" y="140" width="110" height="50" rx="12" fill="rgba(244,114,182,0.06)" stroke="#f472b6" stroke-width="1.2"/>
+        <text x="735" y="170" text-anchor="middle" fill="#f472b6" font-family="Inter" font-size="13" font-weight="600">reviewing</text>
+
+        <!-- Review pass → done (curved arrow down) -->
+        <path d="M735 190 L735 240 Q735 260 715 260 L170 260 Q150 260 150 240 L150 195" fill="none" stroke="#34d399" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrowhead)"/>
+        <text x="440" y="278" text-anchor="middle" fill="#34d399" font-family="Inter" font-size="10" font-weight="500">✓ review pass → save & back to idle</text>
+
+        <!-- Review fail → iterate (curved arrow up) -->
+        <path d="M735 140 L735 80 Q735 60 715 60 L570 60 Q550 60 550 80 L550 140" fill="none" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrowhead)"/>
+        <text x="642" y="50" text-anchor="middle" fill="#f59e0b" font-family="Inter" font-size="10" font-weight="500">✗ issues found → /b-iterate</text>
+
+        <!-- Replan arrow -->
+        <path d="M400 190 L400 310 Q400 320 380 320 L90 320 Q70 320 70 300 L70 195" fill="none" stroke="#a78bfa" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arrowhead)"/>
+        <text x="240" y="335" text-anchor="middle" fill="#a78bfa" font-family="Inter" font-size="10">needs replan → back to planning</text>
+      </svg>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--cyan)"></span>
+        <span>extensions/b-flow/machine.ts — XState state machine definition</span>
+      </div>
+      <div class="code-body">
+<span class="kw">import</span> { assign, createActor, fromPromise, setup } <span class="kw">from</span> <span class="str">"xstate"</span>;<br><br>
+<span class="kw">function</span> <span class="fn">defaultContext</span>(projectRoot: <span class="type">string</span>): <span class="type">BuckMachineContext</span> {<br>
+&nbsp;&nbsp;<span class="kw">const</span> saved = <span class="fn">readProjection</span>(projectRoot);<br>
+&nbsp;&nbsp;<span class="kw">if</span> (saved) <span class="kw">return</span> { goal, subject, projection: saved, ... };<br>
+&nbsp;&nbsp;<span class="kw">return</span> {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;goal: <span class="str">""</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;projection: {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;currentState: <span class="str">"idle"</span>,<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;history: [],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;queue: [],<br>
+&nbsp;&nbsp;&nbsp;&nbsp;},<br>
+&nbsp;&nbsp;};<br>
+}
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ BENEFITS ═══ -->
+<section id="benefits">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Benefits</p>
+      <h2 class="section-title">Feature → Benefit → Why You Should Care</h2>
+      <p class="section-desc">
+        Every feature in Buck workflow maps to a concrete benefit. Here's the translation.
+      </p>
+    </div>
+
+    <div class="benefit-grid">
+      <div class="benefit-card continuity reveal reveal-delay-1">
+        <span class="benefit-num">01</span>
+        <h3 class="accent">Continuity</h3>
+        <p>Subject folders with <code class="mono" style="font-size:0.78rem">index.md</code> entrypoints create a stable workspace for an initiative. Anyone — human or agent — can find the current story without rereading a chat transcript.</p>
+        <p class="stakeholder">"Work survives chat compaction, interruptions, and agent handoffs."</p>
+      </div>
+      <div class="benefit-card trust reveal reveal-delay-2">
+        <span class="benefit-num">02</span>
+        <h3 class="green">Trust & Auditability</h3>
+        <p>Memory files with frontmatter create an auditable timeline. The team can answer "how did we get here?" — not just "where did we end up?" Plans, decisions, reviews, and outcomes are all on record.</p>
+        <p class="stakeholder">"Evidence trail for decisions and outcomes — not just output."</p>
+      </div>
+      <div class="benefit-card repeatability reveal reveal-delay-3">
+        <span class="benefit-num">03</span>
+        <h3 class="purple">Repeatability</h3>
+        <p>Skills encode reusable guidance. Prompt templates expose commands. Extensions automate bookkeeping. Teams improve the system once and that improvement shows up in every future workflow run.</p>
+        <p class="stakeholder">"Agent behavior becomes teachable and improvable."</p>
+      </div>
+      <div class="benefit-card quality reveal reveal-delay-1">
+        <span class="benefit-num">04</span>
+        <h3 class="amber">Quality Control</h3>
+        <p>Named stages with write boundaries prevent premature coding while researching, and prevent skipping review after implementation. Review findings become durable iteration artifacts, not vanishing chat comments.</p>
+        <p class="stakeholder">"The workflow prevents premature coding, skipped review, and lost decisions."</p>
+      </div>
+      <div class="benefit-card rediscovery reveal reveal-delay-2">
+        <span class="benefit-num">05</span>
+        <h3 class="cyan">Lower Rediscovery Cost</h3>
+        <p>Subject entrypoints and memory reduce repeated context gathering. Future sessions start faster, waste fewer tokens, and are less likely to repeat old mistakes because they can read what was already learned.</p>
+        <p class="stakeholder">"Each session starts closer to the problem — not from scratch."</p>
+      </div>
+      <div class="benefit-card handoff reveal reveal-delay-3">
+        <span class="benefit-num">06</span>
+        <h3 class="orange">Handoff & Scaling</h3>
+        <p><code class="mono" style="font-size:0.78rem">b-phase</code> decomposes large plans into independently verifiable phases. Work can proceed in smaller, safer, resumable chunks. New engineers (or new agents) can pick up from where the last session ended.</p>
+        <p class="stakeholder">"The workflow scales from a quick fix to multi-session work without losing the thread."</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════ FEATURE TABLE ═══ -->
+<section id="feature-map">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Feature Map</p>
+      <h2 class="section-title">What Maps to What</h2>
+    </div>
+
+    <div class="reveal" style="overflow-x:auto">
+      <table class="feature-table">
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th>Benefit</th>
+            <th>Stakeholder Framing</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="feat-name">Dated subject folders with <code class="mono" style="font-size:0.72rem">index.md</code></td>
+            <td class="feat-benefit">Shared workspace for an initiative</td>
+            <td class="feat-quote"><span class="feature-tag tag-continuity">Continuity</span> "Anyone can find the current story without rereading chat."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">Research & exploration artifacts</td>
+            <td class="feat-benefit">Evidence before decisions</td>
+            <td class="feat-quote"><span class="feature-tag tag-quality">Quality</span> "Plans based on what was learned, not guesses."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">Plans, specs, phases</td>
+            <td class="feat-benefit">Bounded, reviewable intent</td>
+            <td class="feat-quote"><span class="feature-tag tag-trust">Trust</span> "Scope is visible before implementation begins."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">Review → iteration artifacts</td>
+            <td class="feat-benefit">Feedback becomes durable work</td>
+            <td class="feat-quote"><span class="feature-tag tag-quality">Quality</span> "Issues don't disappear into chat comments."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">Memory files & index</td>
+            <td class="feat-benefit">Decision / history ledger</td>
+            <td class="feat-quote"><span class="feature-tag tag-trust">Trust</span> "We can answer 'why did we do this?' later."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">/b-save</td>
+            <td class="feat-benefit">Session → durable record</td>
+            <td class="feat-quote"><span class="feature-tag tag-handoff">Handoff</span> "Work survives compaction and handoff."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">Skills + prompts + extensions</td>
+            <td class="feat-benefit">Reusable agent operating model</td>
+            <td class="feat-quote"><span class="feature-tag tag-reuse">Reuse</span> "Not one giant prompt — a maintainable system."</td>
+          </tr>
+          <tr>
+            <td class="feat-name">b-phase decomposition</td>
+            <td class="feat-benefit">Safe scaling of large work</td>
+            <td class="feat-quote"><span class="feature-tag tag-scale">Scale</span> "Quick fix to multi-session — same workflow."</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════ WRITE GUARDS ═══ -->
+<section id="guards">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Safety Mechanism</p>
+      <h2 class="section-title">Write Boundaries Prevent Premature Action</h2>
+      <p class="section-desc">
+        Each workflow stage has explicit write boundaries. Exploration is read-only. Planning can only write to <code class="mono">.context/</code>. Building can modify source code. Review writes iteration artifacts if issues are found. This prevents the agent from jumping ahead.
+      </p>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--amber)"></span>
+        <span>skills/b-plan/SKILL.md — write boundary rules</span>
+      </div>
+      <div class="code-body">
+<span class="cm">## Write Boundary</span><br><br>
+- You may write to <span class="str">`.context/**`</span> and temporary scratch locations.<br>
+- Save plans where the user can reuse them outside the context window.<br>
+- <span class="kw">Do not modify source files</span> outside <span class="str">`.context/`</span>.<br>
+- <span class="green">**Allowed**</span>: Native write and edit tools for <span class="str">`.context/**`</span> files.<br>
+- <span class="green">**Allowed**</span>: Bash commands for <span class="str">`.context/**`</span> directory operations.<br>
+- <span class="rose">**Blocked**</span>: Bash redirects and file modifications outside <span class="str">`.context/**`</span>.
+      </div>
+    </div>
+
+    <div class="code-block reveal">
+      <div class="code-header">
+        <span class="dot" style="background:var(--cyan)"></span>
+        <span>extensions/index.ts — plan mode write guard configuration</span>
+      </div>
+      <div class="code-body">
+<span class="kw">const</span> <span class="fn">PLAN_MODE_ALLOWED_PATHS</span> = [<span class="str">".context/"</span>, <span class="str">"docs/"</span>];<br><br>
+<span class="kw">const</span> <span class="fn">SAFE_BASH_PATTERNS</span>: <span class="type">RegExp[]</span> = [<br>
+&nbsp;&nbsp;/^\s*<span class="kw">cat</span>\b/, /^\s*<span class="kw">ls</span>\b/, /^\s*<span class="kw">grep</span>\b/, /^\s*<span class="kw">find</span>\b/,<br>
+&nbsp;&nbsp;/^\s*<span class="kw">head</span>\b/, /^\s*<span class="kw">tail</span>\b/, /^\s*<span class="kw">git\s+(status|log|diff)</span>\b/,<br>
+];
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════ AUDIENCE ═══ -->
+<section id="audience">
+  <div class="container">
+    <div class="reveal">
+      <p class="section-label">Why It Matters</p>
+      <h2 class="section-title">What This Means For You</h2>
+    </div>
+
+    <div class="audience-grid">
+      <div class="audience-card engineer reveal reveal-delay-1">
+        <h3>👷 For Engineers</h3>
+        <ul>
+          <li>The workflow teaches good habits: investigate first, plan explicitly, build narrowly, review, then record what happened</li>
+          <li>Work survives your lunch break, your weekend, or your context window hitting its limit</li>
+          <li>Another engineer (or another agent) can pick up exactly where you left off</li>
+          <li>Skills are improvable — fix a workflow once and it stays fixed across projects</li>
+          <li>TDD is built into <code class="mono" style="font-size:0.78rem">/b-build</code> with red-green-refactor loops</li>
+        </ul>
+      </div>
+      <div class="audience-card stakeholder reveal reveal-delay-2">
+        <h3>📊 For Stakeholders</h3>
+        <ul>
+          <li>You get faster AI-assisted delivery without giving up traceability or reviewability</li>
+          <li>Every decision has a paper trail — plans, research, reviews, and memory are all durable files</li>
+          <li><code class="mono" style="font-size:0.78rem">/b-present</code> turns the engineering record into an async-readable briefing</li>
+          <li>Risk is reduced: scope is visible before implementation, review is mandatory before commit</li>
+          <li>The system scales from a quick fix to a multi-week initiative with the same workflow</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════ FOOTER ═══ -->
+<footer>
+  <div class="container">
+    <p>
+      <strong>Buck Workflow</strong> — A structured workflow for AI-assisted software development with durable context management.
+    </p>
+    <p style="margin-top:12px">
+      Source: <a href="https://github.com/buckleyrobinson/buck-workflow-pi">github.com/buckleyrobinson/buck-workflow-pi</a>
+      &nbsp;·&nbsp;
+      Research: <code class="mono" style="font-size:0.78rem">.context/2026-06-04.buck-workflow-benefits-explainer/</code>
+    </p>
+    <p style="margin-top:24px; font-size:0.75rem; color:var(--fg-muted)">
+      Generated from exploration artifacts · 2026-06-04
+    </p>
+  </div>
+</footer>
+
+<!-- ═══════════════════════════════════ SCROLL REVEAL ═══ -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const reveals = document.querySelectorAll('.reveal');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+  reveals.forEach(el => observer.observe(el));
+
+  // Animate stat numbers
+  const statNums = document.querySelectorAll('.stat-num[data-count]');
+  const statObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !entry.target.dataset.animated) {
+        entry.target.dataset.animated = 'true';
+        const target = parseInt(entry.target.dataset.count, 10);
+        const duration = 1200;
+        const start = performance.now();
+        const animate = (now) => {
+          const elapsed = now - start;
+          const progress = Math.min(elapsed / duration, 1);
+          // ease-out
+          const eased = 1 - Math.pow(1 - progress, 3);
+          entry.target.textContent = Math.round(eased * target);
+          if (progress < 1) requestAnimationFrame(animate);
+        };
+        requestAnimationFrame(animate);
+      }
+    });
+  }, { threshold: 0.5 });
+
+  statNums.forEach(el => statObserver.observe(el));
+});
+</script>
+
+</body>
+</html>
