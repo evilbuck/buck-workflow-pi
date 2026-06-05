@@ -3,7 +3,7 @@ import { createActor } from "xstate";
 import { createBuckMachine } from "./machine.js";
 import { readProjection, readSnapshot, writeProjection, writeSnapshot } from "./persistence.js";
 import type { BuckActor } from "./machine.js";
-import { confirmTransition } from "./ui.js";
+import { confirmTransition, isRiskyState } from "./ui.js";
 import { existsSync, readFileSync } from "node:fs";
 import { basename } from "node:path";
 
@@ -77,6 +77,24 @@ export function wire(api: ExtensionAPI): void {
         }
         case "run": {
           const autonomous = parts.includes("--autonomous");
+          const mode = getMode();
+          // In guided mode, ask for confirmation before running
+          if (!autonomous && mode.mode === "guided") {
+            const machine = ensureActor();
+            const currentState = machine.getSnapshot().value as string;
+            if (isRiskyState(currentState as any)) {
+              const confirmed = await ctx.ui.confirm(
+                "b-flow run",
+                `b-flow is currently in **${currentState}** state.\n\n` +
+                  "Running will execute queued chunks automatically.\n\n" +
+                  "Continue?",
+              );
+              if (!confirmed) {
+                ctx.ui.notify("⏹️ b-flow run cancelled", "info");
+                break;
+              }
+            }
+          }
           if (autonomous) {
             setMode({ mode: "autonomous", skipSafeTransitions: true });
             ctx.ui.notify("🤖 b-flow autonomous mode enabled", "info");
@@ -87,8 +105,24 @@ export function wire(api: ExtensionAPI): void {
           break;
         }
         case "continue": {
-          ensureActor().send({ type: "RESUME" });
-          ensureActor().send({ type: "CONTINUE" });
+          const machine = ensureActor();
+          const currentState = machine.getSnapshot().value as string;
+          const mode = getMode();
+          // In guided mode, ask for confirmation if in a risky state
+          if (mode.mode === "guided" && isRiskyState(currentState as any)) {
+            const confirmed = await ctx.ui.confirm(
+              "b-flow confirmation",
+              `b-flow is currently in **${currentState}** state.\n\n` +
+                "This state may involve executing workers or making changes.\n\n" +
+                "Continue?",
+            );
+            if (!confirmed) {
+              ctx.ui.notify("⏹️ b-flow continue cancelled", "info");
+              break;
+            }
+          }
+          machine.send({ type: "RESUME" });
+          machine.send({ type: "CONTINUE" });
           ctx.ui.notify("▶️ b-flow continuing", "info");
           break;
         }

@@ -26,6 +26,7 @@ import { createChunkQueueMachine, type ChunkQueueOutput } from "./chunk-queue-ma
 export type BuckMachine = ReturnType<typeof createBuckMachine>;
 export type BuckActor = ActorRefFrom<BuckMachine>;
 
+import { reconcileProjection, type ReconciliationResult } from "./reconciliation.js";
 function defaultContext(projectRoot: string): BuckMachineContext {
   const saved = readProjection(projectRoot);
   if (saved) {
@@ -141,6 +142,45 @@ function assignScanResult(projectRoot: string) {
       projectionWithScannedSubject(projectRoot, context as BuckMachineContext, event as ScanDoneEvent),
   }) as any;
 }
+/**
+ * Run reconciliation after scan and update context accordingly.
+ * Returns a partial context update for assign().
+ */
+function reconcileAfterScan(
+  projectRoot: string,
+  ctx: BuckMachineContext,
+  scanEvent: ScanDoneEvent,
+): {
+  transitionContext: TransitionContext | null;
+  projection: OrchestrationState;
+  routeAction: RouteAction | null;
+} {
+  const scanCtx = scanOutput(scanEvent);
+  const subject = subjectFromScanEvent(projectRoot, ctx, scanEvent);
+  let projection = projectionWithScannedSubject(projectRoot, ctx, scanEvent);
+  // Run reconciliation if we have a saved projection
+  if (ctx.projection.goal && scanCtx) {
+    const reconciliation = reconcileProjection(ctx.projection, scanCtx);
+    projection = reconciliation.projection;
+    // If unsafe conflict, return block action
+    if (reconciliation.type === "unsafe" && reconciliation.blocked) {
+      return {
+        transitionContext: scanCtx,
+        projection,
+        routeAction: {
+          type: "block",
+          reason: reconciliation.blocked.reason,
+          missing: reconciliation.blocked.missing,
+        },
+      };
+    }
+  }
+  return {
+    transitionContext: scanCtx,
+    projection,
+    routeAction: null,
+  };
+}
 
 export function createBuckMachine(projectRoot: string) {
   return setup({
@@ -151,8 +191,8 @@ export function createBuckMachine(projectRoot: string) {
     actors: {
       scanContext: fromPromise(({ input }: { input: { current: string; goal: string; subject: string | null } }) =>
         scanContext(projectRoot, input.current as any, input.goal, input.subject)),
-      evaluateModelGuard: fromPromise(({ input }: { input: TransitionContext }) =>
-        Promise.resolve(evaluateModelGuard(input))),
+      evaluateModelGuard: fromPromise(({ input }: { input: { projectRoot: string; context: TransitionContext } }) =>
+        Promise.resolve(evaluateModelGuard(input.projectRoot, input.context))),
       chunkQueue: fromPromise(({ input }: { input: { subject: string | null; goal: string } }) =>
         new Promise<ChunkQueueOutput>((resolve, reject) => {
           const child = createActor(createChunkQueueMachine(projectRoot, input.subject, input.goal));
@@ -233,10 +273,43 @@ export function createBuckMachine(projectRoot: string) {
             goal: context.goal,
             subject: context.subject,
           }),
-          onDone: {
-            target: "planning",
-            actions: assignScanResult(projectRoot),
-          },
+          onDone: [
+            {
+              guard: ({ context, event }) => {
+                // Check if reconciliation returned a block action
+                const reconciliation = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                return reconciliation.routeAction?.type === "block";
+              },
+              target: "blocked",
+              actions: assign({
+                transitionContext: ({ context, event }) => {
+                  const result = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                  return result.transitionContext;
+                },
+                projection: ({ context, event }) => {
+                  const result = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                  return result.projection;
+                },
+                routeAction: ({ context, event }) => {
+                  const result = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                  return result.routeAction;
+                },
+              }),
+            },
+            {
+              target: "planning",
+              actions: assign({
+                transitionContext: ({ context, event }) => {
+                  const result = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                  return result.transitionContext;
+                },
+                projection: ({ context, event }) => {
+                  const result = reconcileAfterScan(projectRoot, context, event as ScanDoneEvent);
+                  return result.projection;
+                },
+              }),
+            },
+          ],
           onError: {
             target: "blocked",
             actions: assign({

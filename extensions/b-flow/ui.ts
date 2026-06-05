@@ -35,6 +35,21 @@ export async function confirmTransition(
   return { confirmed: true };
 }
 
+/**
+ * Check if the current state requires confirmation before continuing.
+ * States that involve executing work or making irreversible decisions need confirmation.
+ */
+export function isRiskyState(state: BuckState): boolean {
+  const riskyStates: BuckState[] = [
+    "executingChunks", // Running workers - may have side effects
+    "reviewing", // Review may reveal issues
+    "saving", // Persisting state
+  ];
+  return riskyStates.includes(state);
+}
+/**
+ * Check if a specific transition is high risk.
+ */
 function isHighRiskTransition(from: BuckState, to: BuckState): boolean {
   const risky: Array<[BuckState, BuckState]> = [
     ["executingChunks", "reviewing"],
