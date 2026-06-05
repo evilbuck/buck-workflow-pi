@@ -1,5 +1,5 @@
 # Memory Index
-- 2026-06-01 | `b-flow-spec-compliance-2026-06-01.md` | domains: [implementation, testing, orchestration] | topics: [b-flow, classifier-audits, reconciliation, confirm-transition, spec-compliance] | status: completed
+  - 2026-06-05 | `extension-slimdown-2026-06-05.md` | domains: [tooling, architecture, refactor] | topics: [extension-slimdown, model-auto-switch, b-save, session-state, pi-extension, omp-plugin] | status: completed
 - 2026-05-31 | `review-subject-selection-prompting-2026-05-31.md` | domains: [coding, docs] | topics: [subject-selection, skills, review, b-review] | status: active
 
 - 2026-06-04 | `security-audit-iteration-2026-06-04.md` | domains: [testing, debugging] | topics: [security-audit, shell-script, bugfix, b-iterate] | status: completed

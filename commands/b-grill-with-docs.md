@@ -1,0 +1,1 @@
+../prompts/b-grill-with-docs.md

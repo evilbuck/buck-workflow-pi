@@ -1,2 +1,3 @@
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign-phases.md`
 - [x] Redesign b-flow to use Pi SDK for isolated worker contexts (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign.md`
+- [x] Extract b-save prompt into portable skill (2026-06-05) — slimmed extension to model auto-switch + TPS tracker; b-save became pure skill + prompt. Completed as part of `.context/2026-06-05.extension-slimdown/plan-extension-slimdown.md`

@@ -1,0 +1,1 @@
+../prompts/b-build-hard.md

@@ -279,9 +279,8 @@ describe("wire", () => {
     const machine = wire(pi as any, { display });
 
     await pi.emit("session_start");
-    expect(display.log).toContain("init");
-
     await pi.emit("before_agent_start");
+    expect(display.log).toContain("init");
     expect(machine.current).toBe("working");
     expect(display.log).toContain("show:working");
 
@@ -427,7 +426,7 @@ describe("wire", () => {
     expect(machine.current).toBe("done");
   });
 
-  it("calls init on every session_start (not just the first)", async () => {
+  it("calls init on every before_agent_start (not just the first)", async () => {
     const pi = mockPi();
     const display = recordingDisplay();
     wire(pi as any, { display });
@@ -441,9 +440,9 @@ describe("wire", () => {
     await pi.emit("agent_end");
     await pi.emit("session_shutdown");
 
-    // Second session — init must be called again to re-read window name
+    // Second session — init must be called again on before_agent_start to re-read window name
     await pi.emit("session_start");
-
+    await pi.emit("before_agent_start");
     const initCount = display.log.filter((l) => l === "init").length;
     expect(initCount).toBe(2);
   });

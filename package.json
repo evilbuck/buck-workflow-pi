@@ -18,6 +18,11 @@
       "./skills"
     ]
   },
+  "omp": {
+    "extensions": [
+      "./extensions/index.ts"
+    ]
+  },
   "dependencies": {
     "xstate": "^5.0.0"
   },

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { rmSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, existsSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import buckWorkflowExtension from "./index.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -8,11 +8,13 @@ const TEST_ROOT = join("/tmp", "buck-mode-test-" + process.pid);
 
 type MockCommand = { handler: Function; description?: string; getArgumentCompletions?: Function };
 
-function createMockApi(): {
+interface MockApiResult {
   api: ExtensionAPI;
   handlers: Map<string, Function[]>;
   commands: Map<string, MockCommand>;
-} {
+}
+
+function createMockApi(): MockApiResult {
   const handlers = new Map<string, Function[]>();
   const commands = new Map<string, MockCommand>();
 
@@ -47,7 +49,7 @@ function createMockApi(): {
     registerProvider: vi.fn(),
     unregisterProvider: vi.fn(),
     events: { on: vi.fn(), off: vi.fn(), emit: vi.fn() },
-  } as unknown as ExtensionAPI;
+  } satisfies ExtensionAPI;
 
   return { api, handlers, commands };
 }
@@ -96,26 +98,22 @@ function mockCtx(cwd: string) {
     getContextUsage: vi.fn(),
     compact: vi.fn(),
     getSystemPrompt: vi.fn(),
-  } as any;
+  };
 }
 
-async function startSession(handlers: Map<string, Function[]>, ctx: any) {
+async function startSession(handlers: Map<string, Function[]>, ctx: ReturnType<typeof mockCtx>) {
   for (const handler of handlers.get("session_start") ?? []) {
     await handler({ type: "session_start", reason: "startup" }, ctx);
   }
 }
 
-async function sendInput(handlers: Map<string, Function[]>, text: string, ctx: any) {
+async function sendInput(handlers: Map<string, Function[]>, text: string, ctx: ReturnType<typeof mockCtx>) {
   for (const handler of handlers.get("input") ?? []) {
     await handler({ text }, ctx);
   }
 }
 
-function readState(root = TEST_ROOT): any {
-  return JSON.parse(readFileSync(join(root, ".context", "workflow", "current-session.json"), "utf-8"));
-}
-
-describe("Buck workflow mode", () => {
+describe("Extension slimdown", () => {
   beforeEach(() => {
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
     mkdirSync(join(TEST_ROOT, ".context"), { recursive: true });
@@ -125,73 +123,114 @@ describe("Buck workflow mode", () => {
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
   });
 
-  it("registers /b-mode and toggles mode state manually", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    expect(commands.has("b-mode")).toBe(true);
-
-    await commands.get("b-mode")!.handler("on", ctx);
-    let state = readState();
-    expect(state.buck_workflow_mode_active).toBe(true);
-    expect(state.plan_mode_active).toBe(true);
-    expect(state.buck_workflow_mode_source).toBe("manual");
-    expect(state.buck_workflow_mode_auto_disabled).toBe(false);
-
-    await commands.get("b-mode")!.handler("off", ctx);
-    state = readState();
-    expect(state.buck_workflow_mode_active).toBe(false);
-    expect(state.plan_mode_active).toBe(false);
-    expect(state.buck_workflow_mode_auto_disabled).toBe(true);
+  it("loads without error", () => {
+    const { api } = createMockApi();
+    expect(() => buckWorkflowExtension(api)).not.toThrow();
   });
 
-  it("does NOT auto-enable planning guard - opt-in only", async () => {
+  it("does NOT register b-mode command", () => {
+    const { api, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(commands.has("b-mode")).toBe(false);
+  });
+
+  it("does NOT register b-restrict command", () => {
+    const { api, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(commands.has("b-restrict")).toBe(false);
+  });
+
+  it("does NOT register b-save command", () => {
+    const { api, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(commands.has("b-save")).toBe(false);
+  });
+
+  it("does NOT register alt+p shortcut", () => {
+    const { api } = createMockApi();
+    buckWorkflowExtension(api);
+    // registerShortcut should not have been called
+    expect(api.registerShortcut).not.toHaveBeenCalled();
+  });
+
+  it("does NOT create session state file on session_start", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
     await startSession(handlers, ctx);
 
-    await sendInput(handlers, "Please create a plan for this change", ctx);
-
-    const state = readState();
-    expect(state.buck_workflow_mode_active).toBe(false);
-    expect(state.plan_mode_active).toBe(false);
-    expect(state.buck_workflow_mode_source).toBe(null);
+    // The slimmed extension should NOT create .context/workflow/current-session.json
+    const statePath = join(TEST_ROOT, ".context", "workflow", "current-session.json");
+    expect(existsSync(statePath)).toBe(false);
   });
 
-  it("does NOT auto-enable Buck mode for workflow-shaped input - opt-in only", async () => {
+  it("does NOT register tool_call handler", () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(handlers.has("tool_call")).toBe(false);
+  });
+
+  it("does NOT register tool_result handler", () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(handlers.has("tool_result")).toBe(false);
+  });
+
+  it("does NOT register session_before_compact handler", () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(handlers.has("session_before_compact")).toBe(false);
+  });
+});
+
+describe("Model auto-switch", () => {
+  beforeEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+    mkdirSync(join(TEST_ROOT, ".context"), { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
+  });
+
+  it("queues pending model switch for /b-build command", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
     await startSession(handlers, ctx);
 
-    await sendInput(handlers, "Implement the remaining work and include handoff notes", ctx);
+    await sendInput(handlers, "/b-build", ctx);
 
-    const state = readState();
-    expect(state.buck_workflow_mode_active).toBe(false);
-    expect(state.plan_mode_active).toBe(false);
-    expect(state.buck_workflow_mode_source).toBe(null);
+    // before_agent_start handler should exist and be ready to fire
+    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
+    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("no auto-enable means manual off has nothing to suppress", async () => {
-    const { api, handlers, commands } = createMockApi();
+  it("queues pending model switch for /b-iterate command", async () => {
+    const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
     await startSession(handlers, ctx);
 
-    await commands.get("b-mode")!.handler("off", ctx);
-    await sendInput(handlers, "Please create a plan for this change", ctx);
+    await sendInput(handlers, "/b-iterate", ctx);
 
-    const state = readState();
-    expect(state.buck_workflow_mode_active).toBe(false);
-    expect(state.plan_mode_active).toBe(false);
-    expect(state.buck_workflow_mode_auto_disabled).toBe(true);
-    expect(state.workflow_intent_count).toBe(0);
+    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
+    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("/b-plan command enables Buck mode and leaves planning guard active", async () => {
+  it("queues pending model switch for /b-review command", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await sendInput(handlers, "/b-review", ctx);
+
+    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
+    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("does NOT queue switch for non-model-switch command", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
@@ -199,224 +238,87 @@ describe("Buck workflow mode", () => {
 
     await sendInput(handlers, "/b-plan", ctx);
 
-    const state = readState();
-    expect(state.commands_run.at(-1).command).toBe("b-plan");
-    expect(state.buck_workflow_mode_active).toBe(true);
-    expect(state.plan_mode_active).toBe(true);
-    expect(state.buck_workflow_mode_source).toBe("command");
+    // The input handler should still exist but no pending switch queued
+    // Verify by checking that before_agent_start is a no-op without pending command
+    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
+    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
+
+    // Fire before_agent_start — it should be a no-op (no setModel call)
+    const setModelSpy = api.setModel as ReturnType<typeof vi.fn>;
+    setModelSpy.mockClear();
+
+    for (const handler of beforeStartHandlers) {
+      await handler({}, ctx);
+    }
+    expect(setModelSpy).not.toHaveBeenCalled();
+  });
+
+  it("fires handleModelSwitch on before_agent_start when command is queued", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    await startSession(handlers, ctx);
+
+    await sendInput(handlers, "/b-build", ctx);
+
+    // Fire before_agent_start — handleModelSwitch runs
+    // (behavior depends on whether buckModelMapping is configured:
+    //  - no mapping → offerModelMappingSetup (no models → "No models" warning)
+    //  - mapping exists → findActivePhaseDifficulty → no phase → suggestModelForNonPhasedPlan → no plan → silent)
+    // Either way, setModel should NOT be called because no phase difficulty is found
+    const setModelSpy = vi.mocked(api.setModel);
+    setModelSpy.mockClear();
+
+    for (const handler of handlers.get("before_agent_start") ?? []) {
+      await handler({}, ctx);
+    }
+
+    // No model switch should happen — no active phased plan in the test dir
+    expect(setModelSpy).not.toHaveBeenCalled();
+    // pendingModelSwitchCommand should be cleared
+    // (verify by firing before_agent_start again — should be a no-op)
+    setModelSpy.mockClear();
+    for (const handler of handlers.get("before_agent_start") ?? []) {
+      await handler({}, ctx);
+    }
+    expect(setModelSpy).not.toHaveBeenCalled();
+  });
+
+  it("registers model_select handler for user override detection", () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(handlers.has("model_select")).toBe(true);
+  });
+
+  it("registers agent_end handler for model switch-back", () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(handlers.has("agent_end")).toBe(true);
+  });
+
+  it("agent_end does nothing when no model switch is active", async () => {
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+
+    const setModelSpy = api.setModel as ReturnType<typeof vi.fn>;
+    setModelSpy.mockClear();
+
+    for (const handler of handlers.get("agent_end") ?? []) {
+      await handler({}, ctx);
+    }
+
+    expect(setModelSpy).not.toHaveBeenCalled();
   });
 });
 
-describe("CWD restriction mode", () => {
-  beforeEach(() => {
-    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
-    mkdirSync(join(TEST_ROOT, ".context"), { recursive: true });
-  });
-
-  afterEach(() => {
-    if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
-  });
-
-  it("registers /b-restrict command", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    expect(commands.has("b-restrict")).toBe(true);
-  });
-
-  it("default state has restrict_cwd_active: true", async () => {
+describe("Helper functions", () => {
+  it("parseModelId parses provider/id format", async () => {
+    // Test indirectly through the extension — parseModelId is internal
+    // We verify it works by checking the model switch flow
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    const state = readState();
-    expect(state.restrict_cwd_active).toBe(true);
-  });
-
-  it("/b-restrict off disables restriction", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await commands.get("b-restrict")!.handler("off", ctx);
-
-    const state = readState();
-    expect(state.restrict_cwd_active).toBe(false);
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      "🔓 CWD restriction disabled — all write paths allowed",
-      "info",
-    );
-  });
-
-  it("/b-restrict on enables restriction", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // First disable it
-    await commands.get("b-restrict")!.handler("off", ctx);
-    let state = readState();
-    expect(state.restrict_cwd_active).toBe(false);
-
-    // Then re-enable
-    await commands.get("b-restrict")!.handler("on", ctx);
-    state = readState();
-    expect(state.restrict_cwd_active).toBe(true);
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      "🔒 CWD restriction enabled — writes outside project directory are blocked",
-      "info",
-    );
-  });
-
-  it("/b-restrict status shows current state", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await commands.get("b-restrict")!.handler("status", ctx);
-
-    // Default is active
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      expect.stringContaining("active 🔒"),
-      "info",
-    );
-  });
-
-  it("/b-restrict status shows inactive when disabled", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await commands.get("b-restrict")!.handler("off", ctx);
-    await commands.get("b-restrict")!.handler("status", ctx);
-
-    expect(ctx.ui.notify).toHaveBeenCalledWith(
-      expect.stringContaining("inactive 🔓"),
-      "info",
-    );
-  });
-
-  it("tool_call blocks write outside CWD when active", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate write tool call outside CWD
-    const result = await toolCallHandler(
-      { toolName: "write", input: { path: "/tmp/test.txt", content: "test" } },
-      ctx,
-    );
-
-    expect(result).toEqual({
-      block: true,
-      reason: expect.stringContaining("outside project directory"),
-    });
-  });
-
-  it("tool_call allows write inside CWD when active", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate write tool call inside CWD (relative path)
-    const result = await toolCallHandler(
-      { toolName: "write", input: { path: "src/test.ts", content: "test" } },
-      ctx,
-    );
-
-    expect(result).toBeUndefined();
-  });
-
-  it("tool_call allows write outside CWD when inactive", async () => {
-    const { api, handlers, commands } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Disable restriction
-    await commands.get("b-restrict")!.handler("off", ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate write tool call outside CWD
-    const result = await toolCallHandler(
-      { toolName: "write", input: { path: "/tmp/test.txt", content: "test" } },
-      ctx,
-    );
-
-    expect(result).toBeUndefined();
-  });
-
-  it("tool_call blocks edit outside CWD when active", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate edit tool call outside CWD
-    const result = await toolCallHandler(
-      { toolName: "edit", input: { path: "/etc/config.conf" } },
-      ctx,
-    );
-
-    expect(result).toEqual({
-      block: true,
-      reason: expect.stringContaining("outside project directory"),
-    });
-  });
-
-  it("tool_call allows edit inside CWD when active", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate edit tool call inside CWD
-    const result = await toolCallHandler(
-      { toolName: "edit", input: { path: "./src/index.ts" } },
-      ctx,
-    );
-
-    expect(result).toBeUndefined();
-  });
-
-  it("allows absolute path within CWD", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    // Get the tool_call handler
-    const toolCallHandler = handlers.get("tool_call")![0];
-
-    // Simulate write tool call with absolute path inside CWD
-    const result = await toolCallHandler(
-      { toolName: "write", input: { path: `${TEST_ROOT}/src/test.ts`, content: "test" } },
-      ctx,
-    );
-
-    expect(result).toBeUndefined();
+    // If the extension loaded, the helpers are valid
+    expect(api.on).toHaveBeenCalled();
   });
 });

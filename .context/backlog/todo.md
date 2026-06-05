@@ -8,4 +8,3 @@
 
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)
-- [ ] [Extract b-save prompt into portable skill](items/extract-b-save-skill.md)
