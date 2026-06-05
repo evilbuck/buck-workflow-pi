@@ -163,12 +163,22 @@ export function createChunkQueueMachine(
                   context.currentItem
                     ? { ...context.currentItem, status: "failed" as const }
                     : null,
+                queue: ({ context }) => {
+                  if (!context.currentItem || context.currentIndex < 0) return context.queue;
+                  const failedItem = { ...context.currentItem, status: "failed" as const };
+                  const nextQueue = [...context.queue];
+                  nextQueue[context.currentIndex] = failedItem;
+                  return nextQueue;
+                },
                 lastError: ({ event }) =>
+                  (event.output as WorkerResult).error ?? "Worker failed (max retries)",
+                blockReason: ({ event }) =>
                   (event.output as WorkerResult).error ?? "Worker failed (max retries)",
               }),
             },
             {
               target: "spawningWorker",
+              reenter: true,
               actions: assign({
                 currentItem: ({ context }) =>
                   context.currentItem

@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Architecture Review: b-flow SDK-Driven Worker Redesign</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-2: #1c2333;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent-green: #3fb950;
+    --accent-red: #f85149;
+    --accent-orange: #d29922;
+    --accent-purple: #bc8cff;
+    --code-bg: #0d1117;
+    --sidebar-width: 260px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+  }
+
+  /* ── Top nav ── */
+  .topnav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; height: 48px;
+  }
+  .topnav .logo { font-weight: 700; font-size: 15px; color: var(--accent); }
+  .topnav .badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 12px;
+    background: var(--accent-orange); color: #000; font-weight: 600;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    position: fixed; top: 48px; left: 0; bottom: 0;
+    width: var(--sidebar-width);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto; padding: 20px 0;
+    z-index: 50;
+  }
+  .sidebar h3 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-dim); padding: 0 20px; margin-bottom: 8px;
+  }
+  .sidebar a {
+    display: block; padding: 6px 20px 6px 28px;
+    color: var(--text-dim); text-decoration: none; font-size: 14px;
+    border-left: 3px solid transparent;
+    transition: all 0.15s;
+  }
+  .sidebar a:hover {
+    color: var(--text); background: var(--surface-2);
+    border-left-color: var(--accent);
+  }
+  .sidebar a.active {
+    color: var(--accent); border-left-color: var(--accent);
+    background: rgba(88,166,255,0.08);
+  }
+  .sidebar .section-divider {
+    height: 1px; background: var(--border); margin: 12px 16px;
+  }
+
+  /* ── Main content ── */
+  .main {
+    margin-left: var(--sidebar-width);
+    margin-top: 48px;
+    padding: 40px 64px 120px;
+    max-width: 960px;
+  }
+
+  .main h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+  .main h2 {
+    font-size: 22px; font-weight: 600; margin-top: 48px; margin-bottom: 16px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    color: var(--accent);
+  }
+  .main h3 {
+    font-size: 17px; font-weight: 600; margin-top: 32px; margin-bottom: 12px;
+    color: var(--accent-purple);
+  }
+  .main p { margin-bottom: 16px; color: var(--text); }
+  .main ul, .main ol { margin: 0 0 16px 24px; }
+  .main li { margin-bottom: 6px; }
+
+  .subtitle {
+    font-size: 16px; color: var(--text-dim); margin-bottom: 32px;
+  }
+
+  .meta-row {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 32px;
+  }
+  .meta-tag {
+    font-size: 12px; padding: 3px 10px; border-radius: 12px;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%; border-collapse: collapse; margin: 0 0 20px;
+    font-size: 14px;
+  }
+  th, td {
+    padding: 10px 14px; border: 1px solid var(--border);
+    text-align: left; vertical-align: top;
+  }
+  th {
+    background: var(--surface); color: var(--accent);
+    font-weight: 600; font-size: 12px; text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  td { color: var(--text); }
+  tr:hover td { background: var(--surface-2); }
+
+  /* ── Code blocks ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 0 0 20px;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  code {
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+  }
+  p code, li code, td code {
+    background: var(--surface-2);
+    padding: 2px 6px; border-radius: 4px;
+    font-size: 13px; color: var(--accent-green);
+  }
+
+  /* Syntax highlighting */
+  .kw { color: #ff7b72; }
+  .str { color: #a5d6ff; }
+  .cm { color: #8b949e; font-style: italic; }
+  .fn { color: #d2a8ff; }
+  .type { color: #79c0ff; }
+  .num { color: #79c0ff; }
+  .op { color: #ff7b72; }
+  .prop { color: #7ee787; }
+
+  /* ── Callout boxes ── */
+  .callout {
+    padding: 16px 20px; border-radius: 8px; margin: 0 0 20px;
+    border-left: 4px solid;
+  }
+  .callout.info {
+    background: rgba(88,166,255,0.08); border-color: var(--accent);
+  }
+  .callout.warn {
+    background: rgba(210,153,34,0.08); border-color: var(--accent-orange);
+  }
+  .callout.risk {
+    background: rgba(248,81,73,0.08); border-color: var(--accent-red);
+  }
+  .callout.good {
+    background: rgba(63,185,80,0.08); border-color: var(--accent-green);
+  }
+  .callout h4 { margin-bottom: 6px; font-size: 14px; }
+  .callout p { margin: 0; font-size: 14px; color: var(--text); }
+
+  /* ── Diagram containers ── */
+  .diagram-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin: 0 0 24px;
+    overflow-x: auto;
+  }
+  .diagram-box .diagram-label {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--text-dim); margin-bottom: 12px; font-weight: 600;
+  }
+  .mermaid { display: flex; justify-content: center; }
+
+  /* ── Before/After comparison ── */
+  .comparison {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+    margin: 0 0 24px;
+  }
+  .comparison .side {
+    background: var(--surface); border-radius: 8px;
+    border: 1px solid var(--border); padding: 16px 20px;
+  }
+  .comparison .side h4 {
+    font-size: 14px; margin-bottom: 8px; padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+  .comparison .side.before h4 { color: var(--accent-red); }
+  .comparison .side.after h4 { color: var(--accent-green); }
+  .comparison .side ul { list-style: none; margin: 0; padding: 0; }
+  .comparison .side li {
+    padding: 4px 0; font-size: 14px; color: var(--text-dim);
+  }
+  .comparison .side li::before { margin-right: 6px; }
+  .comparison .side.before li::before { content: "✗"; color: var(--accent-red); }
+  .comparison .side.after li::before { content: "✓"; color: var(--accent-green); }
+
+  /* ── File change list ── */
+  .file-change {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 10px 16px; border-radius: 6px; margin: 6px 0;
+    font-size: 14px;
+  }
+  .file-change.new { background: rgba(63,185,80,0.06); }
+  .file-change.mod { background: rgba(210,153,34,0.06); }
+  .file-change .icon { font-size: 16px; min-width: 24px; text-align: center; }
+  .file-change .path { font-family: monospace; color: var(--accent); }
+  .file-change .desc { color: var(--text-dim); }
+
+  /* ── Risk matrix ── */
+  .risk-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin: 12px 0;
+  }
+  .risk-card h4 {
+    color: var(--accent-orange); font-size: 15px; margin-bottom: 6px;
+  }
+  .risk-card .mitigation {
+    font-size: 14px; color: var(--accent-green);
+    padding: 8px 12px; background: rgba(63,185,80,0.06);
+    border-radius: 6px; margin-top: 8px;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { margin-left: 0; padding: 24px 20px 80px; }
+    .comparison { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ TOP NAV ═══════════════════ -->
+<nav class="topnav">
+  <span class="logo">b-flow · SDK Worker Redesign</span>
+  <span class="badge">ARCHITECTURE REVIEW</span>
+</nav>
+
+<!-- ═══════════════════ SIDEBAR ═══════════════════ -->
+<aside class="sidebar">
+  <h3>Contents</h3>
+  <a href="#problem" class="active">Problem Statement</a>
+  <a href="#architecture">Architecture Overview</a>
+  <a href="#lifecycle">Worker Lifecycle</a>
+  <a href="#result-extraction">Result Extraction</a>
+  <a href="#file-changes">File Changes</a>
+  <a href="#proposed-code">Proposed Code</a>
+  <a href="#xstate-integration">XState Integration</a>
+  <a href="#benefits">Benefits</a>
+  <a href="#risks">Risks & Mitigations</a>
+  <a href="#migration">Migration Path</a>
+  <a href="#resolved-decisions">Resolved Decisions</a>
+  <div class="section-divider"></div>
+  <h3>Diagrams</h3>
+  <a href="#current-arch">Current (Subprocess)</a>
+  <a href="#proposed-arch">Proposed (SDK)</a>
+  <a href="#sequence-diagram">Sequence Diagram</a>
+</aside>
+
+<!-- ═══════════════════ MAIN ═══════════════════ -->
+<main class="main">
+
+  <h1>Architecture Review</h1>
+  <p class="subtitle">Redesign b-flow to use Pi SDK for isolated worker contexts</p>
+  <div class="meta-row">
+    <span class="meta-tag">Date: 2026-05-30</span>
+    <span class="meta-tag">Subject: b-flow-sdk-redesign</span>
+    <span class="meta-tag">Status: Review Pending</span>
+  </div>
+
+  <!-- ═══════════ 1. PROBLEM ═══════════ -->
+  <h2 id="problem">1. Problem Statement</h2>
+  <p>b-flow orchestration is <strong>wired but never invoked</strong>. The root cause: the current worker model spawns <code>pi -p --no-session</code> as a subprocess for each chunk, which has five structural problems:</p>
+
+  <table>
+    <thead><tr><th>Problem</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td>Subprocess overhead (~2-5s startup)</td><td>Sequential execution is painfully slow</td></tr>
+      <tr><td>CLI prompt file (<code>-p @promptFile</code>)</td><td>No programmatic control over context or tools</td></tr>
+      <tr><td>No streaming feedback</td><td>Orchestrator is blind during execution</td></tr>
+      <tr><td>SIGTERM-only abort</td><td>No graceful cancellation</td></tr>
+      <tr><td>One model for all workers</td><td>Can't optimize cost per chunk difficulty</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <h4>💡 Proposal</h4>
+    <p>Replace <code>worker.ts</code> subprocess spawning with in-process <code>createAgentSession()</code> calls from the Pi SDK. Each session is fully isolated — own messages, tools, model, event stream.</p>
+  </div>
+
+  <!-- ═══════════ 2. ARCHITECTURE OVERVIEW ═══════════ -->
+  <h2 id="architecture">2. Architecture Overview</h2>
+
+  <h3 id="current-arch">Current Architecture (Subprocess)</h3>
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 1 — Current subprocess-based worker flow</div>
+    <div class="mermaid">
+flowchart LR
+    subgraph bflow["b-flow Extension (main thread)"]
+        direction TB
+        M["XState Machine\n(machine.ts)"]
+        Q["Chunk Queue Machine\n(chunk-queue-machine.ts)"]
+        W["runWorker()\n(worker.ts)"]
+    end
+
+    W -->|"spawn('pi', ['-p', ...])"| P["pi subprocess\n(heavy process, 2-5s startup)"]
+    P -->|"writes result file"| R["Result file on disk\n(markdown, parsed later)"]
+    R -->|"reads file"| W
+
+    style W fill:#f85149,color:#fff
+    style P fill:#f85149,color:#fff,opacity:0.8
+    style R fill:#d29922,color:#000
+    </div>
+  </div>
+
+  <h3 id="proposed-arch">Proposed Architecture (SDK Sessions)</h3>
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 2 — Proposed SDK-driven worker flow</div>
+    <div class="mermaid">
+flowchart LR
+    subgraph bflow["b-flow Extension (main thread)"]
+        direction TB
+        M["XState Machine\n(machine.ts) — unchanged"]
+        Q["Chunk Queue Machine\n(chunk-queue-machine.ts) — minimal change"]
+        W["runSDKWorker()\n(sdk-worker.ts)"]
+        W -->|"createAgentSession()"| S["AgentSession A\n(isolated context)"]
+        W -->|"createAgentSession()"| S2["AgentSession B\n(isolated context)"]
+        W -->|"createAgentSession()"| S3["AgentSession C\n(isolated context)"]
+        S -->|"session.prompt()"| E["Event stream\ntool_execution, message_update, turn_end"]
+        S2 -->|"session.prompt()"| E
+        S3 -->|"session.prompt()"| E
+        E -->|"structured result"| W
+    end
+
+    style W fill:#3fb950,color:#000
+    style S fill:#3fb950,color:#000,opacity:0.7
+    style S2 fill:#3fb950,color:#000,opacity:0.7
+    style S3 fill:#3fb950,color:#000,opacity:0.7
+    </div>
+  </div>
+
+  <!-- ═══════════ 3. WORKER LIFECYCLE ═══════════ -->
+  <h2 id="lifecycle">3. Worker Lifecycle</h2>
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 3 — SDK worker sequence diagram</div>
+    <div class="mermaid">
+sequenceDiagram
+    participant Q as ChunkQueue
+    participant W as SDK Worker
+    participant SDK as createAgentSession()
+    participant LLM as Model API
+
+    Q->>W: runSDKWorker(chunk, options)
+    W->>W: select model by difficulty
+    W->>SDK: createAgentSession({<br/>  cwd, model, tools,<br/>  sessionManager: inMemory<br/>})
+    SDK-->>W: { session }
+
+    Note over W,SDK: Subscribe to event stream
+
+    W->>W: session.subscribe(onEvent)
+    W->>SDK: session.prompt(chunkPrompt)
+    SDK->>LLM: LLM API call
+    LLM-->>SDK: streaming response + tool calls
+
+    par Event Stream
+        SDK-->>W: tool_execution_start
+        SDK-->>W: tool_execution_end
+        SDK-->>W: message_update (streaming text)
+        SDK-->>W: turn_end (response complete)
+    end
+
+    SDK-->>W: prompt() resolves
+    W->>W: extract result from session.messages
+    W->>SDK: session.dispose()
+    SDK-->>W: resources released
+    W-->>Q: SDKWorkerResult { status, toolCalls, changedFiles }
+    </div>
+  </div>
+
+  <!-- ═══════════ 4. RESULT EXTRACTION ═══════════ -->
+  <h2 id="result-extraction">4. Result Extraction (No More File Parsing)</h2>
+
+  <div class="comparison">
+    <div class="side before">
+      <h4>Before — File-Based</h4>
+      <ul>
+        <li>Write prompt to temp file</li>
+        <li>Subprocess writes markdown result</li>
+        <li>Parse markdown with regex</li>
+        <li>Handle missing/malformed files</li>
+        <li>Cleanup temp files</li>
+      </ul>
+    </div>
+    <div class="side after">
+      <h4>After — Structured</h4>
+      <ul>
+        <li>Prompt is a string argument</li>
+        <li>Results extracted from session.messages</li>
+        <li>Tool calls are typed objects</li>
+        <li>No file I/O, no parsing</li>
+        <li>dispose() cleans everything</li>
+      </ul>
+    </div>
+  </div>
+
+  <pre><code><span class="cm">// After session.prompt() completes — extract structured result:</span>
+<span class="kw">const</span> assistantMessages = session.messages
+  .<span class="fn">filter</span>(m <span class="op">=></span> m.role <span class="op">===</span> <span class="str">'assistant'</span>);
+
+<span class="kw">const</span> lastMessage = assistantMessages.<span class="fn">at</span>(<span class="num">-1</span>);
+<span class="kw">const</span> toolCalls = session.messages
+  .<span class="fn">filter</span>(m <span class="op">=></span> m.role <span class="op">===</span> <span class="str">'assistant'</span> <span class="op">&&</span> m.toolCalls);
+
+<span class="kw">const</span> result<span class="op">:</span> <span class="type">WorkerResult</span> <span class="op">=</span> {
+  <span class="prop">type</span>: <span class="str">"WORKER_COMPLETED"</span>,
+  <span class="prop">status</span>: <span class="fn">classifyResult</span>(toolCalls),
+  <span class="prop">summary</span>: <span class="fn">extractSummary</span>(lastMessage),
+  <span class="prop">changedFiles</span>: <span class="fn">extractChangedFiles</span>(toolCalls),
+  <span class="prop">toolCallCount</span>: toolCalls.length,
+};
+
+session.<span class="fn">dispose</span>();</code></pre>
+
+  <!-- ═══════════ 5. FILE CHANGES ═══════════ -->
+  <h2 id="file-changes">5. File Changes</h2>
+
+  <h3>New Files</h3>
+  <div class="file-change new">
+    <span class="icon">➕</span>
+    <span class="path">extensions/b-flow/sdk-worker.ts</span>
+    <span class="desc">— SDK-based worker implementation</span>
+  </div>
+  <div class="file-change new">
+    <span class="icon">➕</span>
+    <span class="path">extensions/b-flow/__tests__/sdk-worker.test.ts</span>
+    <span class="desc">— unit tests for SDK worker</span>
+  </div>
+
+  <h3>Modified Files</h3>
+  <div class="file-change mod">
+    <span class="icon">✏️</span>
+    <span class="path">extensions/b-flow/worker.ts</span>
+    <span class="desc">— Replace runWorker body, keep interface for backward compat</span>
+  </div>
+  <div class="file-change mod">
+    <span class="icon">✏️</span>
+    <span class="path">extensions/b-flow/chunk-queue-machine.ts</span>
+    <span class="desc">— Update worker actor input/output types (minimal)</span>
+  </div>
+  <div class="file-change mod">
+    <span class="icon">✏️</span>
+    <span class="path">extensions/b-flow/types.ts</span>
+    <span class="desc">— Add SDK-specific fields to WorkerResult</span>
+  </div>
+
+  <h3>Unchanged (Important)</h3>
+  <div class="file-change">
+    <span class="icon">—</span>
+    <span class="path">extensions/b-flow/index.ts</span>
+    <span class="desc">— orchestrator interface unchanged</span>
+  </div>
+  <div class="file-change">
+    <span class="icon">—</span>
+    <span class="path">extensions/b-flow/machine.ts</span>
+    <span class="desc">— XState state machine is independent of worker impl</span>
+  </div>
+
+  <!-- ═══════════ 6. PROPOSED CODE ═══════════ -->
+  <h2 id="proposed-code">6. Proposed Code: sdk-worker.ts</h2>
+
+  <pre><code><span class="kw">import</span> {
+  createAgentSession,
+  SessionManager,
+  SettingsManager,
+  getModel,
+} <span class="kw">from</span> <span class="str">"@mariozechner/pi-coding-agent"</span>;
+<span class="kw">import type</span> { <span class="type">ChunkQueueItem</span> } <span class="kw">from</span> <span class="str">"./types.js"</span>;
+
+<span class="cm">// ─── Configuration ────────────────────────────────────</span>
+
+<span class="kw">interface</span> <span class="type">SDKWorkerOptions</span> {
+  <span class="prop">projectRoot</span>: <span class="type">string</span>;
+  <span class="prop">subject</span>: <span class="type">string</span> | <span class="kw">null</span>;
+  <span class="prop">goal</span>: <span class="type">string</span>;
+  <span class="prop">timeoutMs</span>?: <span class="type">number</span>;
+  <span class="prop">model</span>?: <span class="type">string</span>;
+  <span class="prop">difficulty</span>?: <span class="str">"easy"</span> | <span class="str">"medium"</span> | <span class="str">"hard"</span>;
+}
+
+<span class="kw">interface</span> <span class="type">SDKWorkerResult</span> {
+  <span class="prop">type</span>: <span class="str">"WORKER_COMPLETED"</span> | <span class="str">"WORKER_FAILED"</span>;
+  <span class="prop">status</span>?: <span class="type">string</span>;
+  <span class="prop">error</span>?: <span class="type">string</span>;
+  <span class="cm">// New SDK-specific fields</span>
+  <span class="prop">toolCalls</span>?: <span class="type">Array</span>&lt;{ <span class="prop">name</span>: <span class="type">string</span>; <span class="prop">input</span>: <span class="type">unknown</span> }&gt;;
+  <span class="prop">messageCount</span>?: <span class="type">number</span>;
+  <span class="prop">changedFiles</span>?: <span class="type">string</span>[];
+}
+
+<span class="cm">// Map difficulty to array of model options (fallback chain)</span>
+<span class="kw">const</span> BUCK_MODEL_MAPPING<span class="op">:</span> <span class="type">Record</span>&lt;<span class="type">string</span>, <span class="type">string</span>[]&gt; <span class="op">=</span> {
+  <span class="prop">easy</span>:   [<span class="str">"anthropic/claude-haiku-4-20250414"</span>, <span class="str">"openai/gpt-4o-mini"</span>],
+  <span class="prop">medium</span>: [<span class="str">"anthropic/claude-sonnet-4-20250514"</span>, <span class="str">"openai/gpt-4o"</span>],
+  <span class="prop">hard</span>:   [<span class="str">"anthropic/claude-opus-4-20250514"</span>, <span class="str">"anthropic/claude-sonnet-4-20250514"</span>],
+} <span class="kw">as const</span>;
+
+<span class="kw">function</span> <span class="fn">selectModel</span>(
+  difficulty<span class="op">:</span> <span class="str">"easy"</span> <span class="op">|</span> <span class="str">"medium"</span> <span class="op">|</span> <span class="str">"hard"</span> <span class="op">|</span> <span class="kw">undefined</span>,
+  override<span class="op">?:</span> <span class="type">string</span>,
+)<span class="op">:</span> <span class="type">Model</span> <span class="op">|</span> <span class="kw">undefined</span> {
+  <span class="kw">if</span> (override) <span class="kw">return</span> <span class="fn">getModel</span>(override.<span class="fn">split</span>(<span class="str">"/"</span>)[<span class="num">0</span>], override.<span class="fn">split</span>(<span class="str">"/"</span>)[<span class="num">1</span>]);
+  <span class="kw">if</span> (<span class="op">!</span>difficulty) <span class="kw">return</span> <span class="kw">undefined</span>;
+  <span class="kw">const</span> candidates <span class="op">=</span> BUCK_MODEL_MAPPING[difficulty] <span class="op">??</span> [];
+  <span class="kw">for</span> (<span class="kw">const</span> id <span class="kw">of</span> candidates) {
+    <span class="kw">const</span> m <span class="op">=</span> <span class="fn">getModel</span>(id.<span class="fn">split</span>(<span class="str">"/"</span>)[<span class="num">0</span>], id.<span class="fn">split</span>(<span class="str">"/"</span>)[<span class="num">1</span>]);
+    <span class="kw">if</span> (m) <span class="kw">return</span> m;  <span class="cm">// first available wins</span>
+  }
+  <span class="kw">return</span> <span class="kw">undefined</span>;  <span class="cm">// fallback to default model</span>
+}
+
+<span class="cm">// ─── Main Worker Function ─────────────────────────────</span>
+
+<span class="kw">export async function</span> <span class="fn">runSDKWorker</span>(
+  chunk: <span class="type">ChunkQueueItem</span>,
+  options: <span class="type">SDKWorkerOptions</span>,
+): <span class="type">Promise</span>&lt;<span class="type">SDKWorkerResult</span>&gt; {
+  <span class="kw">const</span> { projectRoot, goal, timeoutMs <span class="op">=</span> <span class="num">600_000</span>, difficulty } <span class="op">=</span> options;
+
+  <span class="cm">// 1. Select model by difficulty (array fallback chain)</span>
+  <span class="kw">const</span> model <span class="op">=</span> <span class="fn">selectModel</span>(difficulty, options.model);
+
+  <span class="cm">// 2. Create isolated session</span>
+  <span class="kw">const</span> session <span class="op">=</span> <span class="kw">await</span> <span class="fn">createAgentSession</span>({
+    <span class="prop">cwd</span>: projectRoot,
+    <span class="prop">sessionManager</span>: SessionManager.<span class="fn">inMemory</span>(projectRoot),
+    <span class="prop">settingsManager</span>: SettingsManager.<span class="fn">inMemory</span>({
+      <span class="prop">compaction</span>: { <span class="prop">enabled</span>: <span class="kw">false</span> },
+      <span class="prop">retry</span>: { <span class="prop">enabled</span>: <span class="kw">true</span>, <span class="prop">maxRetries</span>: <span class="num">2</span> },
+    }),
+    <span class="prop">model</span>,
+    <span class="prop">thinkingLevel</span>: <span class="str">"off"</span>,
+    <span class="prop">tools</span>: <span class="fn">selectTools</span>(chunk),
+  });
+
+  <span class="kw">const</span> toolCalls: <span class="type">Array</span>&lt;{ <span class="prop">name</span>: <span class="type">string</span>; <span class="prop">input</span>: <span class="type">unknown</span> }&gt; <span class="op">=</span> [];
+
+  <span class="cm">// 3. Subscribe to event stream</span>
+  session.<span class="fn">subscribe</span>((event) <span class="op">=></span> {
+    <span class="kw">if</span> (event.type <span class="op">===</span> <span class="str">"tool_execution_start"</span>) {
+      toolCalls.<span class="fn">push</span>({ <span class="prop">name</span>: event.toolName, <span class="prop">input</span>: event.input });
+    }
+  });
+
+  <span class="kw">const</span> prompt <span class="op">=</span> <span class="fn">buildChunkPrompt</span>(chunk, goal);
+  <span class="kw">const</span> timeout <span class="op">=</span> <span class="kw">new</span> <span class="type">Promise</span>&lt;<span class="type">SDKWorkerResult</span>&gt;((_, reject) <span class="op">=></span> {
+    <span class="fn">setTimeout</span>(() <span class="op">=></span> <span class="fn">reject</span>(<span class="kw">new</span> <span class="type">Error</span>(
+      <span class="str">`Worker timed out after ${timeoutMs}ms`</span>
+    )), timeoutMs);
+  });
+
+  <span class="cm">// 4. Execute with timeout</span>
+  <span class="kw">try</span> {
+    <span class="kw">await</span> Promise.<span class="fn">race</span>([session.<span class="fn">prompt</span>(prompt), timeout]);
+
+    <span class="kw">const</span> changedFiles <span class="op">=</span> <span class="fn">extractChangedFiles</span>(toolCalls);
+    <span class="kw">return</span> {
+      <span class="prop">type</span>: <span class="str">"WORKER_COMPLETED"</span>,
+      <span class="prop">status</span>: <span class="str">"completed"</span>,
+      <span class="prop">toolCalls</span>,
+      <span class="prop">messageCount</span>: session.messages.length,
+      <span class="prop">changedFiles</span>,
+    };
+  } <span class="kw">catch</span> (err) {
+    <span class="kw">await</span> session.<span class="fn">abort</span>();
+    <span class="kw">return</span> {
+      <span class="prop">type</span>: <span class="str">"WORKER_FAILED"</span>,
+      <span class="prop">error</span>: err <span class="kw">instanceof</span> <span class="type">Error</span> <span class="op">?</span> err.message <span class="op">:</span> <span class="fn">String</span>(err),
+    };
+  } <span class="kw">finally</span> {
+    session.<span class="fn">dispose</span>();
+  }
+}
+
+<span class="cm">// ─── Helpers ──────────────────────────────────────────</span>
+
+<span class="kw">function</span> <span class="fn">selectTools</span>(chunk: <span class="type">ChunkQueueItem</span>): <span class="type">string</span>[] {
+  <span class="cm">// Review/iterate chunks: read-only</span>
+  <span class="kw">if</span> (chunk.type <span class="op">===</span> <span class="str">"iterate"</span>) {
+    <span class="kw">return</span> [<span class="str">"read"</span>, <span class="str">"grep"</span>, <span class="str">"find"</span>, <span class="str">"ls"</span>];
+  }
+  <span class="cm">// Build chunks: full toolset</span>
+  <span class="kw">return</span> [<span class="str">"read"</span>, <span class="str">"bash"</span>, <span class="str">"edit"</span>, <span class="str">"write"</span>];
+}
+
+<span class="kw">function</span> <span class="fn">buildChunkPrompt</span>(
+  chunk: <span class="type">ChunkQueueItem</span>,
+  goal: <span class="type">string</span>,
+): <span class="type">string</span> {
+  <span class="kw">return</span> <span class="str">`# Buck Worker: Execute Chunk
+
+## Goal
+${goal}
+
+## Chunk
+- ID: ${chunk.id}
+- Type: ${chunk.type}
+- File: ${chunk.path}
+
+Read the chunk file and execute the work.
+Report what you did and what files changed.`</span>;
+}
+
+<span class="kw">function</span> <span class="fn">extractChangedFiles</span>(
+  toolCalls: <span class="type">Array</span>&lt;{ <span class="prop">name</span>: <span class="type">string</span>; <span class="prop">input</span>: <span class="type">unknown</span> }&gt;,
+): <span class="type">string</span>[] {
+  <span class="kw">return</span> toolCalls
+    .<span class="fn">filter</span>(t <span class="op">=></span> t.name <span class="op">===</span> <span class="str">"edit"</span> <span class="op">||</span> t.name <span class="op">===</span> <span class="str">"write"</span>)
+    .<span class="fn">map</span>(t <span class="op">=></span> (t.input <span class="kw">as any</span>)?.path <span class="op">??</span> <span class="str">""</span>)
+    .<span class="fn">filter</span>(<span class="type">Boolean</span>);
+}</code></pre>
+
+  <!-- ═══════════ 7. XSTATE INTEGRATION ═══════════ -->
+  <h2 id="xstate-integration">7. XState Integration</h2>
+
+  <p>The XState state machine requires <strong>only a one-line change</strong> — swapping the worker actor source. All states, guards, events, and transitions stay identical.</p>
+
+  <h3>chunk-queue-machine.ts — actor definition</h3>
+
+  <div class="comparison">
+    <div class="side before">
+      <h4>Before</h4>
+      <pre><code><span class="prop">runWorker</span>: <span class="fn">fromPromise</span>(({ input }) <span class="op">=></span>
+  <span class="fn">runWorker</span>(input.chunk, {
+    projectRoot,
+    subject,
+    goal,
+  })
+),</code></pre>
+    </div>
+    <div class="side after">
+      <h4>After</h4>
+      <pre><code><span class="prop">runWorker</span>: <span class="fn">fromPromise</span>(({ input }) <span class="op">=></span>
+  <span class="fn">runSDKWorker</span>(input.chunk, {
+    projectRoot,
+    subject,
+    goal,
+    <span class="prop">difficulty</span>: input.chunk.difficulty,
+  })
+),</code></pre>
+    </div>
+  </div>
+
+  <h3>Event Flow — Unchanged</h3>
+
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 4 — XState event flow (identical before/after)</div>
+    <div class="mermaid">
+flowchart TD
+    START["idle"] -->|"START"| RECOVERING["recovering"]
+    RECOVERING -->|"SCAN_COMPLETE"| PLANNING["planning"]
+    PLANNING -->|"hasActivePhase"| EXEC["executingChunks"]
+    PLANNING -->|"else"| DECOMP["decomposing"]
+    DECOMP -->|"CONTINUE"| EXEC
+
+    EXEC -->|"chunkQueue onDone"| REVIEW["reviewing"]
+    EXEC -->|"blocked"| BLOCKED["blocked"]
+
+    REVIEW -->|"requiresReplan"| PLANNING
+    REVIEW -->|"else"| SAVING["saving"]
+
+    SAVING -->|"SAVE_COMPLETE"| DONE["done"]
+    BLOCKED -->|"USER_CONFIRMED"| RECOVERING
+
+    style EXEC fill:#58a6ff,color:#000
+    style REVIEW fill:#bc8cff,color:#000
+    style DONE fill:#3fb950,color:#000
+    </div>
+  </div>
+
+  <div class="callout good">
+    <h4>✓ Key Insight</h4>
+    <p>The XState machine doesn't care <em>how</em> work gets done. It only cares about events (<code>WORKER_COMPLETED</code>, <code>WORKER_FAILED</code>). The worker is a black box actor — we just swap the implementation.</p>
+  </div>
+
+  <!-- ═══════════ 8. BENEFITS ═══════════ -->
+  <h2 id="benefits">8. Benefits</h2>
+
+  <table>
+    <thead><tr><th>Metric</th><th>Before (Subprocess)</th><th>After (SDK)</th></tr></thead>
+    <tbody>
+      <tr><td>Worker startup</td><td>2-5 seconds</td><td>~50ms</td></tr>
+      <tr><td>Context isolation</td><td>Separate process</td><td>Separate session object</td></tr>
+      <tr><td>Streaming feedback</td><td>None</td><td>Real-time events</td></tr>
+      <tr><td>Abort mechanism</td><td>SIGTERM (hard kill)</td><td><code>session.abort()</code> (graceful)</td></tr>
+      <tr><td>Per-chunk model</td><td>No (one CLI flag)</td><td>Yes (by difficulty)</td></tr>
+      <tr><td>Tool scoping</td><td>No</td><td>Yes (read-only for review)</td></tr>
+      <tr><td>Result parsing</td><td>File-based markdown</td><td>Structured data</td></tr>
+      <tr><td>Memory overhead</td><td>Process per worker</td><td>Session object per worker</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 9. RISKS ═══════════ -->
+  <h2 id="risks">9. Risks & Mitigations</h2>
+
+  <div class="risk-card">
+    <h4>⚠️ Risk 1: Sequential Execution Bottleneck</h4>
+    <p><strong>Decision</strong>: Workers run sequentially (1 at a time). No concurrent <code>session.prompt()</code> calls.</p>
+    <div class="mitigation">
+      <strong>Mitigation:</strong> Intentional for Phase 1. Avoids shared-state races. Throughput can be added later via a controlled concurrency pool.
+    </div>
+  </div>
+
+  <div class="risk-card">
+    <h4>⚠️ Risk 2: Session Cleanup Incompleteness</h4>
+    <p><strong>Decision</strong>: Assume <code>session.dispose()</code> is sufficient (matches SDK examples).</p>
+    <p><strong>Risk</strong>: If <code>dispose()</code> doesn't fully clean up, long-running sessions accumulate leaked resources — growing memory, open file limits, stale LLM connections.</p>
+    <div class="mitigation">
+      <strong>Mitigation:</strong> 1) Always <code>dispose()</code> in <code>finally</code> block. 2) Call <code>abort()</code> before <code>dispose()</code> on error. 3) Monitor memory with health check. 4) Add explicit cleanup if leaks appear. <strong>This is the highest uncertainty risk.</strong>
+    </div>
+  </div>
+
+  <div class="risk-card">
+    <h4>⚠️ Risk 3: ResourceLoader Duplication</h4>
+    <p><strong>Decision</strong>: Each worker gets its own <code>DefaultResourceLoader</code>. No sharing.</p>
+    <div class="mitigation">
+      <strong>Mitigation:</strong> Safe but slightly redundant. Only optimize to shared loader if startup becomes a bottleneck.
+    </div>
+  </div>
+
+  <div class="risk-card">
+    <h4>⚠️ Risk 4: Extension Inheritance</h4>
+    <p><strong>Decision</strong>: Workers inherit extensions from parent session (default discovery).</p>
+    <p><strong>Rationale</strong>: Workers need same custom tools. The "clean" use case would be security sandboxing — not needed for trusted b-flow workers.</p>
+    <div class="mitigation">
+      <strong>Mitigation:</strong> For future clean workers, pass explicit empty <code>resourceLoader</code> with <code>getExtensions: () =&gt; ({ extensions: [], ... })</code>.
+    </div>
+  </div>
+
+  <div class="risk-card">
+    <h4>⚠️ Risk 5: Breaking Backward Compatibility</h4>
+    <p>Existing worker audit files and result files won't be generated.</p>
+    <div class="mitigation">
+      <strong>Mitigation:</strong> Keep <code>WorkerResult</code> interface stable. Write audit records to same location. Only add fields, don't remove.
+    </div>
+  </div>
+
+  <!-- ═══════════ 10. MIGRATION ═══════════ -->
+  <h2 id="migration">10. Migration Path</h2>
+
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 5 — Three-phase migration</div>
+    <div class="mermaid">
+flowchart LR
+    P1["Phase 1: Dual Implementation"]
+    P2["Phase 2: SDK Default"]
+    P3["Phase 3: Remove Subprocess"]
+
+    P1 -->|"SDK worker proven"| P2
+    P2 -->|"all tests pass"| P3
+
+    subgraph P1_DETAIL["Low Risk"]
+      D1["Add sdk-worker.ts"]
+      D2["Feature flag toggle"]
+      D3["Test both paths"]
+    end
+
+    subgraph P2_DETAIL["Default Switch"]
+      E1["SDK worker = default"]
+      E2["Subprocess = fallback"]
+      E3["Integration tests"]
+    end
+
+    subgraph P3_DETAIL["Cleanup"]
+      F1["Remove worker.ts"]
+      F2["Clean up file parsing"]
+      F3["Update tests"]
+    end
+
+    P1 -.-> P1_DETAIL
+    P2 -.-> P2_DETAIL
+    P3 -.-> P3_DETAIL
+
+    style P1 fill:#58a6ff,color:#000
+    style P2 fill:#d29922,color:#000
+    style P3 fill:#3fb950,color:#000
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Phase</th><th>What</th><th>Risk Level</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Phase 1</strong></td>
+        <td>Add <code>sdk-worker.ts</code> alongside <code>worker.ts</code>. Feature flag to select. Test both with existing suite.</td>
+        <td><span style="color: var(--accent-green);">Low</span></td>
+      </tr>
+      <tr>
+        <td><strong>Phase 2</strong></td>
+        <td>Switch default to SDK worker. Keep subprocess as fallback. Run full integration tests.</td>
+        <td><span style="color: var(--accent-orange);">Medium</span></td>
+      </tr>
+      <tr>
+        <td><strong>Phase 3</strong></td>
+        <td>Remove subprocess code. Clean up file-based result handling. Update tests.</td>
+        <td><span style="color: var(--accent-green);">Low</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 11. RESOLVED DECISIONS ═══════════ -->
+  <h2 id="resolved-decisions">11. Resolved Decisions</h2>
+
+  <table>
+    <thead><tr><th>Question</th><th>Decision</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td>Concurrency</td><td>Sequential (1 at a time)</td><td>Avoids shared-state races; throughput added later</td></tr>
+      <tr><td>Session cleanup</td><td>Assume <code>dispose()</code> sufficient</td><td>Matches SDK examples; risk monitored via health check</td></tr>
+      <tr><td>Extension inheritance</td><td>Inherit from parent</td><td>Workers need same tools; clean mode = sandbox (not needed)</td></tr>
+      <tr><td>Auth reuse</td><td>Yes — shared <code>AuthStorage</code></td><td>Workers use same credentials as parent</td></tr>
+      <tr><td>Model mapping</td><td>Array per difficulty tier</td><td>Fallback chain if primary model unavailable</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ═══════════ 12. IMPLEMENTATION ORDER ═══════════ -->
+  <h2 id="implementation-order">12. Recommended Implementation Order</h2>
+
+  <div class="diagram-box">
+    <div class="diagram-label">Figure 6 — Implementation dependency graph</div>
+    <div class="mermaid">
+flowchart TD
+    A["sdk-worker.ts\n(standalone, unit-testable)"]
+    B["chunk-queue-machine.ts\n(swap worker actor)"]
+    C["Integration test\n(existing test suite vs SDK worker)"]
+    D["Feature flag\n(toggle subprocess / SDK)"]
+    E["Remove subprocess\ncleanup"]
+
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+
+    style A fill:#58a6ff,color:#000
+    style B fill:#d29922,color:#000
+    style C fill:#d29922,color:#000
+    style D fill:#3fb950,color:#000
+    style E fill:#3fb950,color:#000
+    </div>
+  </div>
+
+  <ol>
+    <li><strong>sdk-worker.ts</strong> — Standalone worker function, unit-testable in isolation</li>
+    <li><strong>chunk-queue-machine.ts</strong> — Swap worker actor source (one-line change)</li>
+    <li><strong>Integration test</strong> — Run existing b-flow test suite against SDK worker</li>
+    <li><strong>Feature flag</strong> — Toggle between subprocess and SDK for safe rollout</li>
+    <li><strong>Remove subprocess</strong> — Once SDK worker is proven, delete old code</li>
+  </ol>
+
+  <div class="callout info" style="margin-top: 40px;">
+    <h4>📄 Source Artifacts</h4>
+    <p>
+      <a href="sources/research-pi-sdk-worker-architecture.md" style="color: var(--accent);">Research: Pi SDK Worker Architecture</a><br>
+      <a href="sources/architecture-review-sdk-worker.md" style="color: var(--accent);">Architecture Review: SDK Worker</a>
+    </p>
+  </div>
+
+</main>
+
+<script>
+  mermaid.initialize({
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#58a6ff',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#30363d',
+      lineColor: '#8b949e',
+      secondaryColor: '#1c2333',
+      tertiaryColor: '#161b22',
+    },
+    startOnLoad: true,
+  });
+
+  // Active sidebar link tracking
+  const sections = document.querySelectorAll('h2[id], h3[id]');
+  const links = document.querySelectorAll('.sidebar a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const link = document.querySelector(`.sidebar a[href="#${entry.target.id}"]`);
+        if (link) link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>
