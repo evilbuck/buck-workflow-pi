@@ -181,7 +181,9 @@ If executing this phase inside a Ralph loop:
 1. Run the indicated Buck build command (`buck_hint`) for this phase only.
 2. Run `/b-review` against this phase file.
 3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
-4. Run `/b-save` before calling `ralph_done`; if the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
+4. Run `/b-save` to consolidate memory, draft commits, and phase state.
+5. Run `/git-commit` to checkpoint durable state before `ralph_done`.
+6. If the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
 ```
 
 **Status flow**: `pending` → `in-progress` (when b-build/b-build-hard picks it up) → `completed` (when all acceptance criteria pass)
@@ -270,14 +272,15 @@ Use this overview as Ralph's durable navigation map. For each phase:
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. Run `/b-review` against the phase file after implementation.
 4. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
-5. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
-6. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+5. Run `/b-save` to consolidate memory, draft commits, phase state, and review/iteration artifacts.
+6. Run `/git-commit` to checkpoint durable state before moving to the next phase.
+7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
 
 ## Ralph Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if needed → save
-- [ ] Phase 2: <Name> — build → review → iterate if needed → save
-- [ ] Phase N: <Name> — build → review → iterate if needed → save
+- [ ] Phase 1: <Name> — build → review → iterate if needed → save → commit
+- [ ] Phase 2: <Name> — build → review → iterate if needed → save → commit
+- [ ] Phase N: <Name> — build → review → iterate if needed → save → commit
 
 
 ### Step 5c: Update Plan Status
@@ -310,11 +313,11 @@ Use this overview as Ralph's durable navigation map. For each phase:
 
 ## Ralph Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if needed → save
-- [ ] Phase 2: <Name> — build → review → iterate if needed → save
+- [ ] Phase 1: <Name> — build → review → iterate if needed → save → commit
+- [ ] Phase 2: <Name> — build → review → iterate if needed → save → commit
 ```
 
-For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `ralph_done`.
+For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `/git-commit` → `ralph_done`.
 
 ### Step 6: Update Backlog
 
@@ -337,7 +340,7 @@ Tell the user:
 - What Phase 1 covers and how to start it
 - What difficulty/model hint was assigned to each phase (especially Phase 1)
 - That future sessions can resume by reading the overview → finding the first non-completed phase → reading its file
-- Ralph invocation hint: start a Ralph loop with the phases overview as the task source, and have each iteration follow build → review → iterate if needed → save → `ralph_done`
+- Ralph invocation hint: start a Ralph loop with the phases overview as the task source, and have each iteration follow build → review → iterate if needed → save → commit → `ralph_done`
 
 ## Example: Small Plan (SKIP)
 
@@ -374,8 +377,8 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 - **After `b-plan`**: `b-plan` should recommend running `b-phase` if the plan exceeds 6 steps or touches 3+ domains
 - **Before `b-build`**: If a `plan-*-phases.md` overview exists, read it to find the first non-completed phase, then read that discrete phase file for implementation details
 - **During `b-build`/`b-build-hard`**: Mark the phase file `status: in-progress`, then `status: completed` when done; update the overview summary table
-- **Ralph loops**: Ralph can use the overview and discrete phase files as durable state. Each iteration should execute the active phase mini-cycle, run `/b-save`, and call `ralph_done`; incomplete phases remain `in-progress` for resume.
-- **After phase completion**: Run `b-save` (which consolidates phase state), then queue the next phase from the backlog
+- **Ralph loops**: Ralph can use the overview and discrete phase files as durable state. Each iteration should execute the active phase mini-cycle, run `/b-save`, run `/git-commit`, then call `ralph_done`; incomplete phases remain `in-progress` for resume.
+- **After phase completion**: Run `/b-save` (which consolidates phase state), then `/git-commit`, then queue the next phase from the backlog
 
 ## Resume Behavior
 

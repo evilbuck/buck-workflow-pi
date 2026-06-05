@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buck Workflow — Don't Lose Your AI's Work</title>
+<meta name="description" content="A structured, discoverable workflow for AI-assisted software development. Plans, decisions, and code changes survive context windows, lunch breaks, and team handoffs.">
+<meta property="og:title" content="Buck Workflow — Don't Lose Your AI's Work">
+<meta property="og:description" content="A structured workflow that turns AI agent conversations into durable engineering work.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://buck-workflow-site.vercel.app">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦬</text></svg>">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ══════════════════════════════════════════
+   Design System
+   ══════════════════════════════════════════ */
+:root {
+  --bg: #0a0e17;
+  --bg-section: #0d1220;
+  --bg-card: #131a2e;
+  --bg-code: #0f1524;
+  --border: #1e2a45;
+  --border-glow: #2a3f6f;
+  --fg: #e2e8f0;
+  --fg-dim: #8899b8;
+  --fg-muted: #5a6d8f;
+  --accent: #6c8cff;
+  --accent-bright: #8da8ff;
+  --accent-glow: rgba(108,140,255,0.15);
+  --green: #34d399;
+  --green-dim: rgba(52,211,153,0.12);
+  --amber: #f59e0b;
+  --amber-dim: rgba(245,158,11,0.12);
+  --rose: #f472b6;
+  --rose-dim: rgba(244,114,182,0.12);
+  --purple: #a78bfa;
+  --purple-dim: rgba(167,139,250,0.12);
+  --cyan: #22d3ee;
+  --cyan-dim: rgba(34,211,238,0.12);
+  --orange: #fb923c;
+  --orange-dim: rgba(251,146,60,0.12);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --max-w: 1120px;
+  --nav-h: 64px;
+}
+
+/* ══════════════════════════════════════════
+   Reset & Base
+   ══════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: var(--nav-h); }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg); color: var(--fg);
+  line-height: 1.7; -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+a { color: var(--accent-bright); text-decoration: none; }
+a:hover { color: var(--accent); }
+img { max-width: 100%; }
+.mono { font-family: 'JetBrains Mono', monospace; }
+
+/* ══════════════════════════════════════════
+   Animations
+   ══════════════════════════════════════════ */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(32px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .5; } }
+@keyframes glow { 0%,100% { box-shadow: 0 0 30px var(--accent-glow); } 50% { box-shadow: 0 0 60px var(--accent-glow), 0 0 90px rgba(108,140,255,0.06); } }
+@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+@keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+.reveal { opacity: 0; transform: translateY(32px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.reveal.visible { opacity: 1; transform: translateY(0); }
+.reveal-d1 { transition-delay: 0.1s; }
+.reveal-d2 { transition-delay: 0.2s; }
+.reveal-d3 { transition-delay: 0.3s; }
+.reveal-d4 { transition-delay: 0.4s; }
+.reveal-d5 { transition-delay: 0.5s; }
+
+/* ══════════════════════════════════════════
+   Nav
+   ══════════════════════════════════════════ */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: var(--nav-h);
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10,14,23,0.7); backdrop-filter: blur(16px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.3s, background 0.3s;
+}
+nav.scrolled { border-bottom-color: var(--border); background: rgba(10,14,23,0.92); }
+.nav-inner {
+  width: 100%; max-width: var(--max-w); padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.nav-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; color: var(--fg); }
+.nav-brand span { font-size: 1.3rem; }
+.nav-links { display: flex; gap: 32px; align-items: center; }
+.nav-links a { font-size: 0.88rem; font-weight: 500; color: var(--fg-dim); transition: color 0.2s; }
+.nav-links a:hover { color: var(--fg); }
+.nav-cta {
+  padding: 7px 18px; border-radius: 100px; font-size: 0.85rem; font-weight: 600;
+  background: var(--accent); color: #0a0e17; transition: background 0.2s, transform 0.2s;
+}
+.nav-cta:hover { background: var(--accent-bright); color: #0a0e17; transform: translateY(-1px); }
+
+/* ══════════════════════════════════════════
+   Container
+   ══════════════════════════════════════════ */
+.container { max-width: var(--max-w); margin: 0 auto; padding: 0 24px; }
+
+/* ══════════════════════════════════════════
+   Section Utilities
+   ══════════════════════════════════════════ */
+section { padding: 100px 0; }
+section:nth-child(even) { background: var(--bg-section); }
+.section-label {
+  font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.15em; color: var(--accent); margin-bottom: 12px;
+}
+.section-title {
+  font-size: clamp(1.6rem, 3vw, 2.4rem); font-weight: 800;
+  letter-spacing: -0.02em; margin-bottom: 16px; line-height: 1.25;
+}
+.section-desc {
+  color: var(--fg-dim); max-width: 700px; font-size: 1.05rem;
+  line-height: 1.75; margin-bottom: 48px;
+}
+
+/* ══════════════════════════════════════════
+   Hero
+   ══════════════════════════════════════════ */
+.hero {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  text-align: center; position: relative; overflow: hidden; padding-top: var(--nav-h);
+}
+.hero::before {
+  content: ''; position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 30%, rgba(108,140,255,0.07) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 20% 70%, rgba(167,139,250,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 30% at 80% 60%, rgba(34,211,238,0.03) 0%, transparent 60%);
+  pointer-events: none;
+}
+.hero-content { position: relative; z-index: 1; max-width: 800px; padding: 0 24px; }
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 18px; border-radius: 100px; border: 1px solid var(--border);
+  font-size: 0.82rem; font-weight: 500; color: var(--fg-dim);
+  background: var(--bg-card); margin-bottom: 28px;
+  animation: fadeIn 0.8s ease both;
+}
+.hero-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s ease infinite; }
+.hero h1 {
+  font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 900;
+  letter-spacing: -0.03em; line-height: 1.12; margin-bottom: 20px;
+  animation: fadeUp 0.9s ease both;
+}
+.hero h1 .accent { color: var(--accent-bright); }
+.hero .subtitle {
+  font-size: clamp(1rem, 2vw, 1.25rem); color: var(--fg-dim); font-weight: 400;
+  max-width: 640px; margin: 0 auto 36px; line-height: 1.7;
+  animation: fadeUp 0.9s ease 0.2s both;
+}
+.hero-ctas {
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+  animation: fadeUp 0.9s ease 0.35s both;
+}
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 100px; font-size: 0.95rem; font-weight: 600;
+  background: var(--accent); color: #0a0e17; transition: all 0.25s;
+  border: none; cursor: pointer;
+}
+.btn-primary:hover { background: var(--accent-bright); color: #0a0e17; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(108,140,255,0.25); }
+.btn-secondary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 12px 28px; border-radius: 100px; font-size: 0.95rem; font-weight: 600;
+  background: transparent; color: var(--fg); border: 1px solid var(--border);
+  transition: all 0.25s; cursor: pointer;
+}
+.btn-secondary:hover { border-color: var(--fg-muted); transform: translateY(-2px); }
+.hero-benefits {
+  display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;
+  margin-top: 48px; animation: fadeUp 0.9s ease 0.5s both;
+}
+.hero-benefit {
+  padding: 6px 14px; border-radius: 100px; border: 1px solid var(--border);
+  font-size: 0.78rem; font-weight: 500; color: var(--fg-muted);
+  background: rgba(255,255,255,0.02); transition: border-color 0.3s, color 0.3s;
+}
+.hero-benefit:hover { border-color: var(--accent); color: var(--accent); }
+.scroll-hint {
+  position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%);
+  animation: pulse 2.5s ease infinite; color: var(--fg-muted); font-size: 0.78rem;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+}
+.scroll-hint svg { width: 18px; height: 18px; opacity: 0.5; }
+
+/* ══════════════════════════════════════════
+   Pain Cards
+   ══════════════════════════════════════════ */
+.pain-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.pain-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  transition: border-color 0.3s, transform 0.3s;
+}
+.pain-card:hover { border-color: var(--rose); transform: translateY(-3px); }
+.pain-icon {
+  width: 44px; height: 44px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; margin-bottom: 16px;
+  background: var(--rose-dim); border: 1px solid rgba(244,114,182,0.2);
+}
+.pain-card h3 { font-size: 1.05rem; font-weight: 700; margin-bottom: 8px; }
+.pain-card p { color: var(--fg-dim); font-size: 0.9rem; line-height: 1.6; }
+
+/* ══════════════════════════════════════════
+   Principle Banner
+   ══════════════════════════════════════════ */
+.principle-banner {
+  background: linear-gradient(135deg, var(--bg-card), rgba(108,140,255,0.05));
+  border: 1px solid var(--border-glow); border-radius: 20px;
+  padding: 56px 48px; text-align: center; animation: glow 5s ease infinite;
+  position: relative; overflow: hidden;
+}
+.principle-banner::before {
+  content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+}
+.principle-banner .quote {
+  font-size: clamp(1.3rem, 2.5vw, 2rem); font-weight: 800; line-height: 1.4;
+  letter-spacing: -0.02em;
+}
+.principle-banner .quote .dim { color: var(--fg-dim); font-weight: 400; }
+.principle-explain {
+  margin-top: 20px; color: var(--fg-dim); font-size: 1.02rem;
+  max-width: 600px; margin-left: auto; margin-right: auto; line-height: 1.7;
+}
+
+/* ══════════════════════════════════════════
+   Freedom / Non-prescriptive
+   ══════════════════════════════════════════ */
+.freedom-banner {
+  background: linear-gradient(135deg, var(--bg-card), rgba(52,211,153,0.04));
+  border: 1px solid rgba(52,211,153,0.2); border-radius: 20px;
+  padding: 44px 40px; text-align: center; position: relative; overflow: hidden;
+  margin-bottom: 40px;
+}
+.freedom-banner::before {
+  content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--green), transparent);
+}
+.freedom-banner h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 10px; color: var(--green); }
+.freedom-banner p { color: var(--fg-dim); font-size: 1rem; max-width: 640px; margin: 0 auto 24px; line-height: 1.7; }
+.mini-flows { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.mini-flow {
+  padding: 8px 16px; border-radius: var(--radius-sm);
+  background: var(--bg-code); border: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+  color: var(--fg-dim); transition: border-color 0.3s, color 0.3s;
+}
+.mini-flow:hover { border-color: var(--green); color: var(--green); }
+.mini-flow .arrow { color: var(--fg-muted); margin: 0 3px; }
+.mini-flow-label {
+  display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem;
+  color: var(--fg-muted); margin-bottom: 4px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ══════════════════════════════════════════
+   Architecture Layers
+   ══════════════════════════════════════════ */
+.arch-stack { display: flex; flex-direction: column; gap: 16px; max-width: 860px; margin: 0 auto; }
+.arch-layer {
+  display: flex; border-radius: var(--radius); overflow: hidden;
+  border: 1px solid var(--border); transition: border-color 0.3s;
+}
+.arch-layer:hover { border-color: var(--border-glow); }
+.arch-layer-label {
+  width: 200px; flex-shrink: 0; padding: 24px;
+  display: flex; flex-direction: column; justify-content: center;
+}
+.arch-layer-label .name { font-weight: 700; font-size: 0.92rem; margin-bottom: 4px; }
+.arch-layer-label .desc { font-size: 0.76rem; color: var(--fg-muted); line-height: 1.4; }
+.arch-layer-items {
+  flex: 1; padding: 20px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: rgba(255,255,255,0.015);
+}
+.arch-tag {
+  padding: 6px 12px; border-radius: 6px; font-family: 'JetBrains Mono', monospace;
+  font-size: 0.76rem; font-weight: 500; border: 1px solid var(--border);
+  background: var(--bg); white-space: nowrap; transition: border-color 0.3s, transform 0.2s;
+}
+.arch-tag:hover { transform: translateY(-1px); }
+
+/* Layer colors */
+.layer-global .arch-layer-label { background: var(--green-dim); }
+.layer-global .arch-tag:hover { border-color: var(--green); color: var(--green); }
+.layer-buck .arch-layer-label { background: var(--purple-dim); }
+.layer-buck .arch-tag:hover { border-color: var(--purple); color: var(--purple); }
+.layer-project .arch-layer-label { background: var(--amber-dim); }
+.layer-project .arch-tag:hover { border-color: var(--amber); color: var(--amber); }
+
+/* Artifact tree */
+.artifact-tree {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 32px; margin-top: 40px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+  color: var(--fg-dim); line-height: 1.8; overflow-x: auto;
+}
+.artifact-tree .folder { color: var(--accent-bright); font-weight: 600; }
+.artifact-tree .file { color: var(--fg-dim); }
+.artifact-tree .comment { color: var(--fg-muted); font-style: italic; }
+.artifact-tree .highlight { color: var(--green); }
+
+/* ══════════════════════════════════════════
+   Skills Grid
+   ══════════════════════════════════════════ */
+.skill-categories { display: flex; flex-direction: column; gap: 32px; }
+.skill-category-title {
+  font-size: 0.82rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.1em; margin-bottom: 16px; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
+.skill-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 20px;
+  transition: border-color 0.3s, transform 0.25s;
+}
+.skill-card:hover { transform: translateY(-3px); }
+.skill-card .cmd {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+  font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+}
+.skill-card .desc { color: var(--fg-dim); font-size: 0.85rem; line-height: 1.5; }
+
+/* Skill category accent colors */
+.cat-intake .skill-card:hover { border-color: var(--cyan); }
+.cat-intake .cmd { color: var(--cyan); }
+.cat-planning .skill-card:hover { border-color: var(--purple); }
+.cat-planning .cmd { color: var(--purple); }
+.cat-building .skill-card:hover { border-color: var(--accent); }
+.cat-building .cmd { color: var(--accent); }
+.cat-review .skill-card:hover { border-color: var(--amber); }
+.cat-review .cmd { color: var(--amber); }
+.cat-grill .skill-card:hover { border-color: var(--rose); }
+.cat-grill .cmd { color: var(--rose); }
+.cat-output .skill-card:hover { border-color: var(--green); }
+.cat-output .cmd { color: var(--green); }
+
+/* ══════════════════════════════════════════
+   Benefits
+   ══════════════════════════════════════════ */
+.benefit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+.benefit-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  transition: border-color 0.3s, transform 0.3s;
+}
+.benefit-card:hover { transform: translateY(-3px); }
+.benefit-card .num {
+  font-size: 0.72rem; font-weight: 700; color: var(--accent);
+  margin-bottom: 12px; letter-spacing: 0.05em;
+}
+.benefit-card h3 { font-size: 1.08rem; font-weight: 700; margin-bottom: 8px; }
+.benefit-card .benefit-desc { color: var(--fg-dim); font-size: 0.9rem; line-height: 1.6; }
+.benefit-card .benefit-quote {
+  margin-top: 12px; padding: 10px 14px; border-radius: 6px;
+  background: rgba(108,140,255,0.06); border-left: 3px solid var(--accent);
+  font-size: 0.82rem; color: var(--fg-dim); font-style: italic;
+}
+
+/* ══════════════════════════════════════════
+   Cross-Agent Table
+   ══════════════════════════════════════════ */
+.agent-table-wrap {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+}
+.agent-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.agent-table th {
+  text-align: left; padding: 16px 24px; font-weight: 600; font-size: 0.82rem;
+  text-transform: uppercase; letter-spacing: 0.05em; color: var(--fg-muted);
+  border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02);
+}
+.agent-table td { padding: 14px 24px; border-bottom: 1px solid var(--border); }
+.agent-table tr:last-child td { border-bottom: none; }
+.agent-table .agent-name { font-weight: 600; }
+.agent-table .mechanism { color: var(--fg-dim); font-size: 0.85rem; }
+.agent-table .status-tested { color: var(--green); font-weight: 600; }
+.agent-table .status-portable { color: var(--amber); font-weight: 500; }
+.agent-note {
+  margin-top: 16px; padding: 14px 20px; border-radius: var(--radius-sm);
+  background: var(--amber-dim); border: 1px solid rgba(245,158,11,0.2);
+  font-size: 0.88rem; color: var(--fg-dim); line-height: 1.6;
+}
+
+/* ══════════════════════════════════════════
+   Get Started / Install
+   ══════════════════════════════════════════ */
+.steps { display: flex; flex-direction: column; gap: 24px; max-width: 680px; }
+.step { display: flex; gap: 20px; align-items: flex-start; }
+.step-num {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem;
+  background: var(--accent-glow); border: 1px solid rgba(108,140,255,0.3);
+  color: var(--accent-bright);
+}
+.step-content h4 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+.step-content p { color: var(--fg-dim); font-size: 0.9rem; margin-bottom: 10px; line-height: 1.6; }
+.code-block {
+  background: var(--bg-code); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 14px 18px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.82rem;
+  color: var(--fg-dim); overflow-x: auto; line-height: 1.6;
+}
+.code-block .comment { color: var(--fg-muted); }
+.code-block .cmd-text { color: var(--green); }
+.code-block .flag { color: var(--amber); }
+
+/* ══════════════════════════════════════════
+   CTA Section
+   ══════════════════════════════════════════ */
+.cta-section {
+  text-align: center; padding: 80px 0;
+  background: linear-gradient(135deg, var(--bg-card), rgba(108,140,255,0.04));
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+}
+.cta-section .section-title { margin-bottom: 12px; }
+.cta-section .section-desc { margin: 0 auto 32px; text-align: center; }
+.cta-buttons { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+/* ══════════════════════════════════════════
+   Footer
+   ══════════════════════════════════════════ */
+footer {
+  padding: 40px 0; border-top: 1px solid var(--border);
+  color: var(--fg-muted); font-size: 0.85rem;
+}
+.footer-inner {
+  max-width: var(--max-w); margin: 0 auto; padding: 0 24px;
+  display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+}
+.footer-links { display: flex; gap: 24px; }
+.footer-links a { color: var(--fg-muted); font-size: 0.85rem; }
+.footer-links a:hover { color: var(--fg); }
+
+/* ══════════════════════════════════════════
+   Responsive
+   ══════════════════════════════════════════ */
+@media (max-width: 768px) {
+  .nav-links { display: none; }
+  section { padding: 64px 0; }
+  .hero h1 { font-size: 2rem; }
+  .pain-grid, .benefit-grid { grid-template-columns: 1fr; }
+  .skill-grid { grid-template-columns: 1fr 1fr; }
+  .arch-layer { flex-direction: column; }
+  .arch-layer-label { width: 100%; }
+  .mini-flows { flex-direction: column; align-items: center; }
+  .principle-banner { padding: 36px 24px; }
+  .steps { max-width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .skill-grid { grid-template-columns: 1fr; }
+  .hero-ctas { flex-direction: column; align-items: center; }
+  .agent-table { font-size: 0.8rem; }
+  .agent-table th, .agent-table td { padding: 10px 14px; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ═════════════════════ Nav ═════════════════════ -->
+<nav id="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-brand"><span>🦬</span> Buck Workflow</a>
+    <div class="nav-links">
+      <a href="#why">Why</a>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#skills">Skills</a>
+      <a href="#get-started">Get Started</a>
+      <a href="https://github.com/evilbuck/buck-workflow-pi" target="_blank" class="nav-cta">GitHub ↗</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ═════════════════════ Hero ═════════════════════ -->
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge"><span class="dot"></span> Open source · MIT license · Works with any AI agent</div>
+    <h1>Don't lose <span class="accent">your AI's work.</span></h1>
+    <p class="subtitle">
+      Buck workflow turns agent conversations into durable engineering work.
+      Plans, decisions, and code changes survive context windows, lunch breaks, and team handoffs.
+    </p>
+    <div class="hero-ctas">
+      <a href="#get-started" class="btn-primary">Get Started →</a>
+      <a href="https://github.com/evilbuck/buck-workflow-pi" target="_blank" class="btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        View on GitHub
+      </a>
+    </div>
+    <div class="hero-benefits">
+      <span class="hero-benefit">Continuity</span>
+      <span class="hero-benefit">Auditability</span>
+      <span class="hero-benefit">Repeatability</span>
+      <span class="hero-benefit">Quality Control</span>
+      <span class="hero-benefit">Handoff</span>
+    </div>
+  </div>
+  <div class="scroll-hint">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+    Scroll
+  </div>
+</section>
+
+<!-- ═════════════════════ Problem ═════════════════════ -->
+<section id="why">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">The Problem</div>
+      <h2 class="section-title">Why Chat-Only Agent Work Breaks Down</h2>
+      <p class="section-desc">
+        AI agents are fast — but speed is not the same as continuity, trust, or repeatability.
+        When the conversation ends, the context evaporates.
+      </p>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card reveal reveal-d1">
+        <div class="pain-icon">🕳️</div>
+        <h3>Lost Context</h3>
+        <p>Chat windows compact. Sessions expire. Critical decisions vanish into scrollback. Next session starts from scratch.</p>
+      </div>
+      <div class="pain-card reveal reveal-d2">
+        <div class="pain-icon">👁️</div>
+        <h3>No Audit Trail</h3>
+        <p>"Why did we do this?" — the only answer lives in someone's chat history. No paper trail, no decision record.</p>
+      </div>
+      <div class="pain-card reveal reveal-d3">
+        <div class="pain-icon">🔁</div>
+        <h3>Repeated Discovery</h3>
+        <p>Each new session re-explores the same codebase, re-learns the same constraints, re-makes the same mistakes.</p>
+      </div>
+      <div class="pain-card reveal reveal-d1">
+        <div class="pain-icon">⚡</div>
+        <h3>Premature Coding</h3>
+        <p>Without guardrails, agents jump to editing files before understanding the problem. Research and planning get skipped.</p>
+      </div>
+      <div class="pain-card reveal reveal-d2">
+        <div class="pain-icon">🤝</div>
+        <h3>No Handoff</h3>
+        <p>Work can't be resumed by another engineer or agent. Everything is trapped in one conversation's context window.</p>
+      </div>
+      <div class="pain-card reveal reveal-d3">
+        <div class="pain-icon">📋</div>
+        <h3>No Quality Gates</h3>
+        <p>Review is optional and easily skipped. Feedback lives in chat comments, not as actionable follow-up items.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Principle ═════════════════════ -->
+<section>
+  <div class="container">
+    <div class="principle-banner reveal">
+      <div class="quote">
+        <span class="dim">The principle:</span> Don't lose work.
+      </div>
+      <p class="principle-explain">
+        Buck workflow gives your AI agent a project notebook, a filing system, and quality gates —
+        so every plan, decision, and line of code survives the session.
+      </p>
+    </div>
+
+    <div class="freedom-banner reveal" style="margin-top: 40px;">
+      <h3>✦ Not a framework. A toolkit.</h3>
+      <p>
+        Pick the stages your task needs. Skip the rest. Start in the middle. Finish early.
+        The artifacts and global conventions make it work regardless of which stages you run.
+      </p>
+      <div class="mini-flows">
+        <div class="mini-flow">
+          <span class="mini-flow-label">Quick fix</span>
+          /b-build → /b-review
+        </div>
+        <div class="mini-flow">
+          <span class="mini-flow-label">Planned work</span>
+          /b-plan → /b-build → /b-review → /b-save
+        </div>
+        <div class="mini-flow">
+          <span class="mini-flow-label">Full feature</span>
+          /b-brainstorm → /b-research → /b-plan → /b-build → /b-review
+        </div>
+        <div class="mini-flow">
+          <span class="mini-flow-label">Ad-hoc</span>
+          Just work. The baseline handles durability.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ How It Works ═════════════════════ -->
+<section id="how-it-works">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">How It Works</div>
+      <h2 class="section-title">Three Layers, One Principle</h2>
+      <p class="section-desc">
+        A global baseline is always active — even without running any Buck command.
+        Buck adds structured stages on top. Project config adds domain specifics.
+      </p>
+    </div>
+
+    <div class="arch-stack">
+      <div class="arch-layer layer-project reveal reveal-d1">
+        <div class="arch-layer-label">
+          <div class="name">Project Config</div>
+          <div class="desc">Per-repo instructions. Build commands, conventions, gotchas.</div>
+        </div>
+        <div class="arch-layer-items">
+          <span class="arch-tag">AGENTS.md</span>
+          <span class="arch-tag">Build commands</span>
+          <span class="arch-tag">Code style</span>
+          <span class="arch-tag">Architecture notes</span>
+        </div>
+      </div>
+      <div class="arch-layer layer-buck reveal reveal-d2">
+        <div class="arch-layer-label">
+          <div class="name">Buck Package</div>
+          <div class="desc">Skills, prompt templates, runtime automation.</div>
+        </div>
+        <div class="arch-layer-items">
+          <span class="arch-tag">18 skills</span>
+          <span class="arch-tag">/b-* commands</span>
+          <span class="arch-tag">/b-save</span>
+          <span class="arch-tag">Write guards</span>
+          <span class="arch-tag">Session tracking</span>
+        </div>
+      </div>
+      <div class="arch-layer layer-global reveal reveal-d3">
+        <div class="arch-layer-label">
+          <div class="name">Global Baseline</div>
+          <div class="desc">Always active. Durable-artifact conventions for every session.</div>
+        </div>
+        <div class="arch-layer-items">
+          <span class="arch-tag">Check .context/ first</span>
+          <span class="arch-tag">Write memory after work</span>
+          <span class="arch-tag">Update backlog</span>
+          <span class="arch-tag">Subject folders</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="artifact-tree reveal" style="margin-top: 40px;">
+      <div class="folder">.context/</div>
+      <div class="file">&nbsp;&nbsp;2026-05-08.auth-feature/</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">index.md</span>&nbsp;&nbsp;<span class="comment">← entry point for this initiative</span></div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;research-oauth-providers.md</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;plan-oauth-login.md</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;spec-v1-auth-mvp.md</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;tasks.md</div>
+      <div class="file">&nbsp;&nbsp;</div>
+      <div class="file">&nbsp;&nbsp;memory/</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;<span class="highlight">index.md</span>&nbsp;&nbsp;<span class="comment">← searchable history ledger</span></div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;auth-implementation-2026-05-08.md</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;auth-debug-2026-05-09.md</div>
+      <div class="file">&nbsp;&nbsp;</div>
+      <div class="file">&nbsp;&nbsp;backlog/</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;todo.md</div>
+      <div class="file">&nbsp;&nbsp;&nbsp;&nbsp;items/extract-b-save-skill.md</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Skills ═════════════════════ -->
+<section id="skills">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">The Skills</div>
+      <h2 class="section-title">Named Thinking Modes</h2>
+      <p class="section-desc">
+        18 skills across 7 categories. Each is a different kind of thinking with its own
+        write boundary. Pick the ones your task needs. They're pure Markdown — portable
+        across Pi, Claude Code, Cursor, OpenCode, and Codex.
+      </p>
+    </div>
+
+    <div class="skill-categories">
+      <!-- Intake -->
+      <div class="reveal">
+        <div class="skill-category-title cat-intake" style="color: var(--cyan);">Intake &amp; Discovery</div>
+        <div class="skill-grid cat-intake">
+          <div class="skill-card">
+            <div class="cmd">/b-brainstorm</div>
+            <div class="desc">Interview-style capture of vague ideas. One question at a time, then writes a loose first-draft plan.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-explore</div>
+            <div class="desc">Trace internal code architecture, map data flows, find entry points. Strictly read-only on the codebase.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-research</div>
+            <div class="desc">Investigate external sources — APIs, libraries, docs, web. Captures evidence incrementally.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Planning -->
+      <div class="reveal">
+        <div class="skill-category-title cat-planning" style="color: var(--purple);">Planning</div>
+        <div class="skill-grid cat-planning">
+          <div class="skill-card">
+            <div class="cmd">/b-plan</div>
+            <div class="desc">Turn context into a bounded plan: scope, affected files, implementation steps, risks, verification.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-phase</div>
+            <div class="desc">Decompose a large plan into sequential, independently-verifiable phases with dependencies.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Building -->
+      <div class="reveal">
+        <div class="skill-category-title cat-building" style="color: var(--accent);">Building</div>
+        <div class="skill-grid cat-building">
+          <div class="skill-card">
+            <div class="cmd">/b-build</div>
+            <div class="desc">Standard implementation with TDD red-green-refactor. Smallest safe change. Follows existing patterns.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-build-hard</div>
+            <div class="desc">Complex, ambiguous, or higher-risk work. Thinks through trade-offs, breaks changes into safe steps.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-iterate</div>
+            <div class="desc">Quick follow-up fixes, polish, and review-loop edits. Resolves iterate-*.md artifacts in priority order.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Review -->
+      <div class="reveal">
+        <div class="skill-category-title cat-review" style="color: var(--amber);">Review</div>
+        <div class="skill-grid cat-review">
+          <div class="skill-card">
+            <div class="cmd">/b-review</div>
+            <div class="desc">Validate against a plan or spec. Finds issues, writes iteration artifacts. Quality feedback becomes durable work.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grilling -->
+      <div class="reveal">
+        <div class="skill-category-title cat-grill" style="color: var(--rose);">Grilling — Stress-Test Your Plan</div>
+        <div class="skill-grid cat-grill">
+          <div class="skill-card">
+            <div class="cmd">/b-grill-me</div>
+            <div class="desc">Interviews you relentlessly, walking every branch of the decision tree. Evaluates if phasing is warranted.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-grill-auto</div>
+            <div class="desc">Sends questions to a different AI model via RPC. Second opinion without your context anchoring the answers.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-grill-with-docs</div>
+            <div class="desc">Same as grill-me but challenges your plan against existing domain docs. Sharpens vocabulary and boundaries.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Output -->
+      <div class="reveal">
+        <div class="skill-category-title cat-output" style="color: var(--green);">Output &amp; Utilities</div>
+        <div class="skill-grid cat-output">
+          <div class="skill-card">
+            <div class="cmd">/b-present</div>
+            <div class="desc">Generate an async-readable presentation package from artifacts. For stakeholders who don't read .context/.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/b-blueprint</div>
+            <div class="desc">Single-page architecture blueprint HTML with Mermaid diagrams and code snippets.</div>
+          </div>
+          <div class="skill-card">
+            <div class="cmd">/git-commit</div>
+            <div class="desc">Conventional Commits message from staged changes. Reads draft-commit.md if present.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Benefits ═════════════════════ -->
+<section>
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Benefits</div>
+      <h2 class="section-title">Feature → Benefit → Why You Should Care</h2>
+      <p class="section-desc">
+        Every feature in Buck workflow maps to a concrete benefit that makes AI-assisted engineering more reliable.
+      </p>
+    </div>
+    <div class="benefit-grid">
+      <div class="benefit-card reveal reveal-d1">
+        <div class="num">01</div>
+        <h3>Continuity</h3>
+        <p class="benefit-desc">Subject folders with entry points create a stable workspace. Anyone — human or agent — can find the current story without rereading chat.</p>
+        <div class="benefit-quote">"Work survives chat compaction, lunch breaks, weekends, and agent handoffs."</div>
+      </div>
+      <div class="benefit-card reveal reveal-d2">
+        <div class="num">02</div>
+        <h3>Trust &amp; Auditability</h3>
+        <p class="benefit-desc">Memory files with frontmatter create an auditable timeline. Every decision, abandoned approach, and test result is on record.</p>
+        <div class="benefit-quote">"Answer 'why did we do this?' without reconstructing from memory."</div>
+      </div>
+      <div class="benefit-card reveal reveal-d3">
+        <div class="num">03</div>
+        <h3>Repeatability</h3>
+        <p class="benefit-desc">Skills encode reusable guidance. Fix a workflow once, it stays fixed across projects and agents.</p>
+        <div class="benefit-quote">"Improve the system once, benefit every future run."</div>
+      </div>
+      <div class="benefit-card reveal reveal-d1">
+        <div class="num">04</div>
+        <h3>Quality Control</h3>
+        <p class="benefit-desc">Named stages with write boundaries prevent premature coding and skipped review. Findings become artifacts, not vanishing comments.</p>
+        <div class="benefit-quote">"Quality feedback becomes part of the workflow state."</div>
+      </div>
+      <div class="benefit-card reveal reveal-d2">
+        <div class="num">05</div>
+        <h3>Lower Rediscovery Cost</h3>
+        <p class="benefit-desc">Subject entrypoints and memory reduce repeated context gathering. Future sessions start faster because they read what was already learned.</p>
+        <div class="benefit-quote">"Each session starts closer to the problem."</div>
+      </div>
+      <div class="benefit-card reveal reveal-d3">
+        <div class="num">06</div>
+        <h3>Handoff &amp; Scaling</h3>
+        <p class="benefit-desc">b-phase decomposes large plans into safe, resumable chunks. New engineers or agents pick up where the last session ended.</p>
+        <div class="benefit-quote">"Quick fix to multi-session — same workflow."</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Cross-Agent ═════════════════════ -->
+<section id="cross-agent">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Cross-Agent</div>
+      <h2 class="section-title">One Skill System, Many Agents</h2>
+      <p class="section-desc">
+        Skills are plain Markdown files. Each agent invokes them through its own mechanism.
+        The skill body stays the same — only the wrapper layer changes.
+      </p>
+    </div>
+    <div class="agent-table-wrap reveal">
+      <table class="agent-table">
+        <thead>
+          <tr>
+            <th>Agent</th>
+            <th>Mechanism</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="agent-name">Pi</td>
+            <td class="mechanism">Prompt templates <code class="mono" style="font-size:0.8rem; color:var(--fg-muted);">/b-plan → skills/b-plan/SKILL.md</code></td>
+            <td class="status-tested">✓ Tested</td>
+          </tr>
+          <tr>
+            <td class="agent-name">Claude Code</td>
+            <td class="mechanism">Commands <code class="mono" style="font-size:0.8rem; color:var(--fg-muted);">.claude/commands/b-plan.md</code></td>
+            <td class="status-portable">Skills portable</td>
+          </tr>
+          <tr>
+            <td class="agent-name">Cursor</td>
+            <td class="mechanism">Rules <code class="mono" style="font-size:0.8rem; color:var(--fg-muted);">.cursor/rules/b-plan.mdc</code></td>
+            <td class="status-portable">Skills portable</td>
+          </tr>
+          <tr>
+            <td class="agent-name">OpenCode / Codex</td>
+            <td class="mechanism">Native skill/command system</td>
+            <td class="status-portable">Skills portable</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="agent-note reveal">
+      <strong>Currently tested with Pi only.</strong> The architecture is agent-agnostic — skills are Markdown, .context/ uses standard file formats —
+      but other agents need adapter wiring and testing.
+      <a href="https://github.com/evilbuck/buck-workflow-pi" style="color:var(--accent);">Pull requests welcome →</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Get Started ═════════════════════ -->
+<section id="get-started">
+  <div class="container">
+    <div class="reveal">
+      <div class="section-label">Get Started</div>
+      <h2 class="section-title">Up and Running in 3 Steps</h2>
+      <p class="section-desc">
+        Install the package, add the bootstrap instructions, and start your first workflow.
+      </p>
+    </div>
+
+    <div class="steps">
+      <div class="step reveal reveal-d1">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4>Install the Buck Workflow package</h4>
+          <p>If you're using Pi, install from the GitHub repository:</p>
+          <div class="code-block"><span class="cmd-text">pi install</span> git:github.com/evilbuck/buck-workflow-pi</div>
+        </div>
+      </div>
+      <div class="step reveal reveal-d2">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4>Install the agent bootstrap instructions</h4>
+          <p>Copy the global AGENTS.md to tell your agent about .context/ conventions:</p>
+          <div class="code-block"><span class="cmd-text">cp</span> GLOBAL_OR_PROJECT-AGENTS.md ~/.pi/agent/AGENTS.md</div>
+        </div>
+      </div>
+      <div class="step reveal reveal-d3">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4>Start your first workflow</h4>
+          <p>Open any project and run a Buck command. Here's a simple flow for a planned feature:</p>
+          <div class="code-block">
+<span class="comment"># Plan the work</span>
+<span class="cmd-text">/b-plan</span> Add user authentication
+
+<span class="comment"># Start a new session for clean context</span>
+<span class="cmd-text">/new</span>
+
+<span class="comment"># Build it</span>
+<span class="cmd-text">/b-build</span> .context/2026-06-04.add-user-auth
+
+<span class="comment"># Review against the plan</span>
+<span class="cmd-text">/b-review</span> .context/2026-06-04.add-user-auth
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="freedom-banner reveal" style="margin-top: 48px;">
+      <h3>✦ No workflow is too small</h3>
+      <p>
+        Just fixing a bug? Skip the planning. Run <code class="mono" style="font-size:0.85rem;">/b-build</code> → <code class="mono" style="font-size:0.85rem;">/b-review</code> and you're done.
+        The global baseline still ensures memory gets written. You can always add more structure later.
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ CTA ═════════════════════ -->
+<section class="cta-section">
+  <div class="container reveal">
+    <h2 class="section-title">Stop losing work to context windows.</h2>
+    <p class="section-desc">
+      Buck workflow is open source, MIT licensed, and works with the AI agent you're already using.
+    </p>
+    <div class="cta-buttons">
+      <a href="https://github.com/evilbuck/buck-workflow-pi" target="_blank" class="btn-primary">View on GitHub →</a>
+      <a href="/architecture" class="btn-secondary">Read the Architecture Deep-Dive</a>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════ Footer ═════════════════════ -->
+<footer>
+  <div class="footer-inner">
+    <div>© 2026 Buck Workflow · MIT License</div>
+    <div class="footer-links">
+      <a href="https://github.com/evilbuck/buck-workflow-pi" target="_blank">GitHub</a>
+      <a href="/architecture">Architecture</a>
+      <a href="https://pi.dev" target="_blank">Pi</a>
+    </div>
+  </div>
+</footer>
+
+<!-- ═════════════════════ JS ═════════════════════ -->
+<script>
+// Scroll reveal
+const revealEls = document.querySelectorAll('.reveal');
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      entry.target.classList.add('visible');
+      revealObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+revealEls.forEach(el => revealObserver.observe(el));
+
+// Nav scroll effect
+const nav = document.getElementById('nav');
+let lastScroll = 0;
+window.addEventListener('scroll', () => {
+  nav.classList.toggle('scrolled', window.scrollY > 20);
+}, { passive: true });
+
+// Smooth scroll for anchor links
+document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+  anchor.addEventListener('click', (e) => {
+    e.preventDefault();
+    const target = document.querySelector(anchor.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth' });
+  });
+});
+</script>
+</body>
+</html>
