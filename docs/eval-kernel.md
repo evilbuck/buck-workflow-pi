@@ -260,6 +260,32 @@ If you need a free-form field, declare it explicitly with
 `{"type": "string"}` or `{"type": "array", "items": {"type": "string"}}`.
 Do not rely on the parser to allow extras.
 
+### decision_domains → PHASES
+
+When a `b-grill-me` or `b-grill-with-docs` session has produced
+`decision_domains` AND a `b-plan` invocation has recommended
+`omp_execution: workflow`, the auto-derive mapping (see
+`skills/b-grill-me/SKILL.md` and `skills/b-grill-with-docs/SKILL.md`
+§ "Feeding the workflow-kernel cell") emits one `PHASES` entry per
+domain. The invariants are:
+
+- **One `agent()` per domain.** The cell's `parallel()` list length
+  equals the number of `decision_domains` (NOT the number of plan
+  phases — the two are independent).
+- **Schema is unchanged.** The auto-derived cell uses the same
+  `FINDINGS_SCHEMA` (per-phase `{verdict, evidence, risks,
+  open_questions}`). The mapping does not introduce a new schema.
+- **Judge prompt names the domains.** The synthesis `llm()` prompt
+  includes the domain names explicitly so the judge can adjudicate
+  per-domain rather than per-phase. The `build_prompt()` in the
+  auto-derived cell passes `domain.name` into the prompt body.
+
+If the `b-grill*` session produced no `decision_domains` (a small
+"pre-flight" interview, or a session that concluded
+`boundary_assessment: cohesive`), the cell falls back to the
+user-fills-by-hand flow from Phase 3 — the user edits the F6 starter
+template directly.
+
 ## Failure modes
 
 | Failure | Behavior |

@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-06-06
 subject: 2026-06-06.omp-integration-buck-workflow
 topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, plan-mode, autonomous, b-phase, b-plan, b-build, magic-keywords, slash-commands, eval, slash-command-mirror, cross-harness, compat, b-grill, eval-kernel]

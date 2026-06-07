@@ -187,4 +187,67 @@ When `b-phase` runs, it reads `grill-session-*.md` files in the subject folder. 
 If the user cancels the Done/Cancel selector (the tool returns `cancelled: true`), fall back to inline Q&A for the rest of the session. The document is preserved on disk — the user can reference it later.
 
 ### Non-interactive Mode
-If running in a non-interactive context (no TUI), use `action: "read"` instead of `action: "wait"` to read answers without showing the selector.
+
+## Feeding the workflow-kernel cell
+
+After a grilling session produces a `grill-session-*.md`, the
+`decision_domains` list can feed the eval cell's `PHASES` list when
+the plan declares `omp_execution: workflow` AND the plan's `b-plan`
+wrote a starter `eval-<topic>.py`. **Both conditions must hold**;
+otherwise the user fills the cell by hand.
+
+### Mapping table
+
+The `decision_domains[*].name` field becomes the slug of a `PHASES`
+entry; the domain's `rationale` (if present) becomes the brief.
+
+| `decision_domains[*].name` | `PHASES` entry |
+|---|---|
+| Domain name (any string) | `(N, slug_of(name), "medium", rationale or "see grill-session")` |
+
+The mapping is **one row per domain**. The auto-derive algorithm
+enumerates `decision_domains` in order and emits one `agent()` per
+domain. The domain's `name` becomes the `slug` (kebab-cased); the
+domain's `rationale` (if present) becomes the `brief`; difficulty
+defaults to `medium` unless the model has a signal otherwise.
+
+### Auto-derive algorithm
+
+1. Read the active plan's `omp_execution` field. If not `workflow`,
+   skip this section.
+2. Read `.context/<subject>/grill-session-*.md` (most recent). If
+   absent or `decision_domains` is empty, skip.
+3. For each `decision_domain` in order:
+   - `N` = 1-indexed position in the list.
+   - `slug` = `domain.name.lower().replace(" ", "-")`. If two domains
+     slug to the same value, append `-2`, `-3`, etc.
+   - `difficulty` = `"medium"`. (The grilling session does not emit
+     a difficulty signal; the user can edit by hand.)
+   - `brief` = `domain.rationale or f"see grill-session-{topic}.md (domain {N})"`.
+4. Emit `.context/<subject>/eval-<topic>.py` using the F6 template
+   (see `skills/b-plan/SKILL.md` § Eval Cell Template) as the body
+   and the derived `PHASES` list.
+5. Tell the user: "I derived the cell's `PHASES` from your grill
+   session's `decision_domains`. Edit by hand if the auto-derived
+   values are off."
+
+### Why this is opt-in
+
+`b-grill-me` does **not** auto-write the cell. The user must invoke
+`b-plan` first, see the `omp_execution: workflow` recommendation,
+then return to the grilling session output. The auto-derive only
+runs in the **next** `b-plan` invocation (the one that produces a
+plan with `omp_execution: workflow`). This keeps the grilling
+session pure (decision capture) and the planning session pure
+(artifact emission). The `b-flow` deprecation (2026-06-01) is the
+lesson: **prompt-level / skill-level changes only, no new Pi
+extension or state machine** for this auto-derive.
+
+### Schema stability note
+
+The mapping depends on the `decision_domains` data shape emitted by
+this skill's session file. If a future revision of `b-grill-me`
+adds fields like `complexity:` per domain, this mapping must be
+updated to use the new field. Treat the frontmatter schema in
+`## Session File` above as the source of truth for what the
+auto-derive can read.
