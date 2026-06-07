@@ -19,13 +19,25 @@ Interview the user one question at a time to understand what they want to build,
 
 **Scope**: Stay subject-local by default. Only create backlog entries when the user explicitly asks to add items to the backlog.
 
+### User Goal
+
+**MUST** capture a `## User Goal` for every brainstorm draft. This is the user-facing north star — *who* benefits from this work and *what* changes for them.
+
+Behavior:
+- The first substantive interview question surfaces the user goal. Don't treat it as a separate phase — weave it into the natural interview (e.g. "Who is this for and what changes for them when it's done?").
+- If the user can't articulate it, synthesize a draft from their loose requirements and ask them to confirm or refine.
+- If the user explicitly says "this is a technical chore", record `## User Goal\nTechnical chore — <one-line reason>` so the waiver is visible to downstream skills.
+- This is **not optional**. The agent always prompts for it. If the user wants to skip, the only acceptable skip is the explicit "technical chore" waiver.
+
+Downstream skills (`b-plan`, `b-build`, `b-review`, `b-phase`, `b-save`) all read the user goal as the user-facing intent. A missing user goal is a visible gap, not a silent omission.
+
 ### Interview Flow
 
 **Subject Resolution**: Before starting, apply the shared protocol at `skills/_shared/subject-resolution.md` to detect existing subjects. If multiple subjects are found, present the numbered menu and wait for the user to pick. If exactly one subject is found, use it. If none, start a new subject folder.
 
 **Note**: `b-brainstorm` creates new subject folders with `index.md status: draft`. If the protocol resolves an existing subject, you may either resume that subject's brainstorm or start a new one alongside it.
 2. **Start**: If the user provided a topic hint, use it to derive a draft slug. If a matching draft already exists in the resolved subject, offer to resume it.
-3. **Ask one question at a time**. Keep a soft cap of ~4 questions before attempting a draft.
+3. **Ask one question at a time**. Keep a soft cap of ~4 questions before attempting a draft. The first substantive question surfaces the user goal — *who* this is for and *what* changes for them. See the [User Goal](#user-goal) section for fallback behavior when the user can't articulate it or waives as a technical chore.
 4. **Draft when ready**: If you have enough information (or the user says "enough"), write a loose first draft.
 5. **Show the path**: After saving, tell the user exactly where the draft lives.
 6. **Review and gap-check**: Read the saved draft back and critique it for ambiguous language, missing constraints, unclear success criteria, or unstated assumptions.
@@ -52,6 +64,9 @@ Save drafts in this loose structure:
 
 ```markdown
 # Plan: <working title>
+
+## User Goal
+<who benefits and what changes for them, or: Technical chore — <reason>>
 
 ## What we might build
 - ...

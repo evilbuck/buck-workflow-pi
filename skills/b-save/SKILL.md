@@ -22,7 +22,7 @@ Record the current session's work into durable `.context/` artifacts. Run at nat
 
 When invoked, the LLM receives the prompt instructions and executes them directly. No extension coordination or state injection is required.
 
-## The 10 Responsibilities
+## The 11 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -34,6 +34,8 @@ When invoked, the LLM receives the prompt instructions and executes them directl
 8. **QMD Re-index** — Ensure the memory collection is indexed for search
 9. **Phase State Consolidation** — Verify phased plan file states match reality
 10. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
+
+11. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
 
 ## Key Principle
 

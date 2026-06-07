@@ -41,6 +41,21 @@ Read the full plan file. Note:
 - Files affected
 - Dependencies between steps
 - Verification criteria
+- **User goal** (if the plan has a `## User Goal` section) — see Step 1b below
+
+### Step 1b: User Goal Inheritance
+
+Read the parent plan's `## User Goal` section. This is the user-facing north star for the entire phased plan.
+
+**Default behavior: inherit.**
+- Do not require per-phase user goals. Phases are slices of a single user-facing outcome, not separate user stories.
+- Carry the parent plan's user goal forward into each phase file by reference (e.g. in the phase file's `## Context` section, restate the parent goal in one line so each phase stands alone).
+
+**Optional per-phase refinement.**
+- If a phase would benefit from its own refined sub-goal (e.g., the phase delivers a distinct user-facing increment or a sub-set of users), propose it to the user and ask for confirmation before recording it.
+- If per-phase goals are created, record them in the phase file's body using the same `## User Goal` format as plans (verbatim text, or `Technical chore — <reason>` waiver).
+
+**Why inherit by default**: a phased plan is one user-facing outcome executed in slices. Forcing a separate user goal per phase duplicates work, fragments the narrative, and encourages checkbox-style "user goals" that carry no real meaning. Inheritance keeps the user-facing intent unified; refinement is opt-in for phases that genuinely serve distinct sub-users.
 
 ### Step 2: Assess Size
 
@@ -163,8 +178,11 @@ completed_by: null
 ```markdown
 # Phase N: <Name>
 
+## User Goal
+<!-- Optional. By default, inherit the parent plan's user goal — do not duplicate it here. Only include a `## User Goal` section if this phase delivers a distinct user-facing increment; restate the inherited parent goal in `## Context` so the phase stands alone. Format: <who benefits and what changes for them>, or `Technical chore — <reason>`. -->
+
 ## Context
-<Why this phase exists, what it builds on>
+<Why this phase exists, what it builds on. If the plan has a `## User Goal`, restate it in one line here so this phase file stands alone.>
 
 ## Implementation Details
 <Step-by-step instructions from the plan, adapted to this phase's scope>

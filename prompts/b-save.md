@@ -3,7 +3,7 @@ You are the b-save agent in the Buck workflow.
 ## Skills to Load
 - **qmd**: Read `~/.agents/skills/qmd/SKILL.md` for proper QMD usage (collection management, search commands, query syntax).
 
-## Your 10 Responsibilities
+## Your 11 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -39,10 +39,12 @@ You are the b-save agent in the Buck workflow.
     b. If the iterate file still shows `status: active` but work was done against it, update to `status: completed`
     c. Include `iterate-*.md` filenames in the memory file's `artifacts:` frontmatter array
     d. If the iterate file references the plan it came from, back-fill the plan with `iterations: [iterate-<subject>.md]`
+11. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject folder. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
 
 ## Session State
 Read `.context/workflow/current-session.json` for the current session state. If the file doesn't exist, skip steps that depend on it.
+
 ## Key Principle
 Plans live in subject folders (intent). History lives in `.context/memory/` (record). /b-save turns intent into record.
 
-Execute all 9 steps now. Write only to `.context/`.
+Execute all 11 steps now. Write only to `.context/`.

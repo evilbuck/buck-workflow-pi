@@ -55,6 +55,7 @@ When reviewing against a plan (`plan-*.md`), parse these fields and produce a **
 
 | Plan Field | What to Verify |
 |---|---|
+| `user goal` | Does the implementation deliver on the user-facing goal? If absent, note as a review finding (not blocking, but a gap). |
 | `goal` | Does the implementation appear to achieve the goal? |
 | `scope` / `affected files` | Are these files changed? Are changes appropriate? |
 | `out of scope` | Any unplanned changes in these areas? |
@@ -126,8 +127,16 @@ When reviewing against a plan/spec/phase path, include:
 
 ### Verification Status
 - Goal achieved: <yes/no/partial>
+- User goal: <met / partially met / not met> — <evidence from implementation>
 - Scope adhered: <yes/no/exceptions>
 - Out-of-scope changes: <list if any>
+
+### User Goal Analysis
+- Goal: <the user goal text, or "Not defined in plan">
+- Met: <what's covered by the implementation>
+- Partial: <what's partially addressed>
+- Missing: <what's not addressed>
+- Verdict: <met / partially met / not met / not defined>
 
 ### Verdict
 <Pass / Pass with warnings / Needs work>

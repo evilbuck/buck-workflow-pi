@@ -66,8 +66,9 @@ If the work definition is ambiguous, underspecified, or hiding important tradeof
 
 1. Ask targeted follow-up questions before finalizing the plan.
 2. Prefer one question at a time; if needed, ask a short batch of tightly related questions.
-3. Focus on missing information that changes the plan: goals, constraints, non-goals, success criteria, rollout, verification, dependencies, or risk tolerance.
-4. If the user wants to move forward without answering everything, proceed with explicit assumptions and list open questions in the plan.
+3. Focus on missing information that changes the plan: user goal (who benefits, what changes for them), goals, constraints, non-goals, success criteria, rollout, verification, dependencies, or risk tolerance.
+4. **User goal gate**: if the plan has no `## User Goal` and the user has not waived with an explicit "technical chore", ask for one before finalizing. See the [User Goal Requirement](#user-goal-requirement) for details.
+5. If the user wants to move forward without answering everything, proceed with explicit assumptions and list open questions in the plan.
 
 ## Cross-Reference Stitching
 
@@ -92,6 +93,19 @@ When creating a plan:
 
 - Read the relevant code before deciding.
 - Combine user-provided context, session context, and any relevant artifacts.
+### User Goal Requirement
+
+Every plan MUST include a `## User Goal` section immediately after the title. The user goal is the user-facing north star — *who* benefits from this work and *what* changes for them.
+
+Behavior:
+- If the user provided a user goal, record it verbatim under `## User Goal`.
+- If the upstream brainstorm (`b-brainstorm`) defined one, carry it forward.
+- If neither, **synthesize** a draft from the user's loose requirements and ask them to confirm or refine before finalizing.
+- The user may waive with an explicit "technical chore" — record `Technical chore — <reason>` so the waiver is visible to downstream skills (`b-build`, `b-review`, `b-phase`, `b-save`).
+- This section is **REQUIRED**. Plans without it are incomplete. Do not finalize a plan that lacks `## User Goal` (or an explicit waiver) — if the user resists, surface it as a gap, not a silent omission.
+
+Downstream skills read the user goal as the user-facing intent. A missing user goal is a visible gap in the plan, not a stylistic preference.
+
 - Interview the user when clarification is needed to make the plan bounded and actionable.
 - Define scope, out-of-scope, affected files, assumptions, risks, and verification.
 - Write tactical implementation plans as `plan-*.md` in the subject folder.
@@ -149,6 +163,9 @@ This is a non-phased Ralph-ready plan. Treat the whole plan as one unit:
 
 ```markdown
 # Plan: <title>
+
+## User Goal
+<who benefits and what changes for them, or: Technical chore — <reason>>
 
 ## Goal
 ...

@@ -235,6 +235,23 @@ If you start building without a subject folder (ad-hoc work), **b-save will crea
 
 If a plan exists, follow its implementation steps and affected files list. If a spec exists, verify the implementation satisfies its requirements.
 
+### User Goal Gate-Check
+
+Whenever you load a plan (top-level or discrete phase), check for a `## User Goal` section. This is a **soft gate** — it never blocks, only flags.
+
+**If `## User Goal` is present**:
+- Display it at the very start of your work as a north star:
+  > **User Goal**: <one-line summary of the plan's user goal>
+- Use it to frame implementation decisions when tradeoffs arise (e.g., "this would optimize for the developer, but the user goal prioritizes the end user — prefer the user-facing path").
+
+**If `## User Goal` is absent** (and no explicit `Technical chore — <reason>` waiver):
+- Flag it prominently at the start of your work:
+  > ⚠️ This plan has no User Goal defined. Consider adding one before building. Run `/b-plan` to update, or proceed if this is intentional.
+- Do **not** block. Continue with implementation. The flag is a nudge, not a hard gate.
+
+**Why a soft gate, not a hard gate**: existing plans and ad-hoc work may legitimately lack a user goal. Forcing one would either block real work or produce a checkbox-style "user goal" that carries no real meaning. A visible flag is the right tradeoff — it surfaces the gap without breaking flow.
+
+
 ## Phased Plan Awareness
 
 If a `plan-*-phases.md` file exists in the subject folder:
