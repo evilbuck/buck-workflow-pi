@@ -344,6 +344,12 @@ if budget.remaining() is not None and budget.remaining() < 5_000:
         f"halting fan-out and surfacing partial results.")
 ```
 
+> **See also:** [`docs/eval-kernel.md`](../../docs/eval-kernel.md) for the full
+> helper API, budget semantics, schemas, and failure modes. The eval cell is
+> OMP-only — on other harnesses the prelude is absent and the cell degrades to
+> a no-op via the runtime probe above.
+
+
 **`b-plan` writes this file** to `.context/<subject>/eval-<topic>.py`
 when the recommendation table above yields `workflow`. The cell is
 always emitted as a **starter** — the user edits the `PHASES` list and
