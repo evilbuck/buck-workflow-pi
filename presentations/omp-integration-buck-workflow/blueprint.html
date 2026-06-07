@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>omp × buck-workflow Integration — Architecture Blueprint</title>
+
+  <!-- Mermaid CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { darkMode: true, background: '#0d1117', primaryColor: '#2563eb', lineColor: '#8b949e' } });</script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #1c2129;
+      --bg-card: #1c2129;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --border-color: #30363d;
+      --accent: #58a6ff;
+      --accent-dim: #1f6feb33;
+      --green: #3fb950;
+      --green-dim: #23863622;
+      --amber: #d29922;
+      --amber-dim: #9e6a0322;
+      --red: #f85149;
+      --red-dim: #da363422;
+      --blue: #58a6ff;
+      --blue-dim: #1f6feb22;
+      --purple: #bc8cff;
+      --purple-dim: #8957e522;
+      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+      --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, 'Courier New', monospace;
+      --max-width: 1080px;
+      --section-gap: 3rem;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      line-height: 1.6;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .blueprint {
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 2rem 2rem 4rem;
+    }
+
+    .bp-header {
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: var(--section-gap);
+    }
+
+    .bp-header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.02em;
+    }
+
+    .bp-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.75rem;
+    }
+
+    .bp-one-liner {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .bp-one-liner .arrow { color: var(--accent); margin: 0 0.5rem; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.15em 0.6em;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-new      { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+    .badge-modify   { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+    .badge-delete   { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
+    .badge-deps     { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+    .badge-info     { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
+    .badge-active   { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+    .badge-draft    { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
+    .badge-illustrative { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+
+    .bp-section { margin-bottom: var(--section-gap); }
+
+    .bp-section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+      letter-spacing: -0.01em;
+    }
+
+    .bp-section-title .section-icon {
+      margin-right: 0.5rem;
+      opacity: 0.8;
+    }
+
+    .diagram-container {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      overflow-x: auto;
+    }
+
+    .diagram-container .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    .diagram-caption {
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin-top: 0.75rem;
+    }
+
+    .file-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    .file-table th {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .file-table td {
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    .file-table tr:hover { background: var(--bg-tertiary); }
+
+    .file-path { font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-primary); }
+    .file-layer { font-size: 0.8rem; color: var(--text-muted); }
+
+    .code-block { margin-bottom: 1.5rem; }
+
+    .code-caption {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-bottom: none;
+      border-radius: 8px 8px 0 0;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+    }
+
+    .code-caption .lang {
+      color: var(--accent);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.7rem;
+      letter-spacing: 0.05em;
+    }
+
+    .code-block pre {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      color: var(--text-primary);
+      tab-size: 2;
+    }
+
+    .code-block pre code {
+      font-family: inherit;
+      background: none;
+      padding: 0;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      background: var(--bg-tertiary);
+      padding: 0.15em 0.4em;
+      border-radius: 3px;
+      font-size: 0.9em;
+      color: var(--text-primary);
+    }
+    pre code { background: none; padding: 0; }
+
+    .code-block .kw { color: #ff7b72; }
+    .code-block .fn { color: #d2a8ff; }
+    .code-block .st { color: #a5d6ff; }
+    .code-block .cm { color: #8b949e; }
+    .code-block .nu { color: #79c0ff; }
+    .code-block .op { color: #ff7b72; }
+    .code-block .ty { color: #ffa657; }
+    .code-block .pr { color: #7ee787; }
+
+    .diff-block {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) { .diff-block { grid-template-columns: 1fr; } }
+
+    .diff-side { min-width: 0; }
+
+    .diff-caption {
+      padding: 0.4rem 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      border-radius: 8px 8px 0 0;
+      font-weight: 600;
+    }
+
+    .diff-before .diff-caption {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid #da363466;
+      border-bottom: none;
+    }
+
+    .diff-after .diff-caption {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid #23863666;
+      border-bottom: none;
+    }
+
+    .diff-side pre {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 1rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      line-height: 1.7;
+      margin: 0;
+    }
+
+    .diff-add { background: rgba(63, 185, 80, 0.15); display: block; }
+    .diff-remove { background: rgba(248, 81, 73, 0.15); display: block; }
+
+    .decision-list { list-style: none; }
+    .decision-item {
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--accent);
+      border-radius: 0 6px 6px 0;
+    }
+    .decision-item strong { color: var(--accent); }
+    .decision-item .rationale { color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem; }
+
+    .risk-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.5rem;
+      background: var(--bg-secondary);
+      border-left: 3px solid var(--amber);
+      border-radius: 0 6px 6px 0;
+    }
+    .risk-card.severity-high { border-left-color: var(--red); }
+    .risk-card.severity-medium { border-left-color: var(--amber); }
+    .risk-card.severity-low { border-left-color: var(--green); }
+
+    .risk-severity {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      white-space: nowrap;
+      padding-top: 0.15rem;
+    }
+    .risk-severity.high { color: var(--red); }
+    .risk-severity.medium { color: var(--amber); }
+    .risk-severity.low { color: var(--green); }
+
+    .risk-content { flex: 1; }
+    .risk-content strong { display: block; margin-bottom: 0.15rem; }
+    .risk-content .mitigation { color: var(--text-secondary); font-size: 0.85rem; }
+
+    .delivery-timeline {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 1rem;
+      overflow-x: auto;
+      padding-bottom: 0.5rem;
+    }
+
+    .phase-node {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 0.75rem 1.25rem;
+      text-align: center;
+      white-space: nowrap;
+      min-width: 120px;
+    }
+    .phase-node .phase-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 0.25rem;
+    }
+    .phase-node .phase-name { font-size: 0.9rem; font-weight: 600; }
+    .phase-node .phase-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+    .phase-arrow { color: var(--text-muted); font-size: 1.2rem; padding: 0 0.5rem; flex-shrink: 0; }
+
+    .checklist { list-style: none; }
+    .checklist li {
+      padding: 0.4rem 0;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+    .checklist li::before {
+      content: '☐';
+      margin-right: 0.5rem;
+      color: var(--text-muted);
+    }
+    .checklist li span { color: var(--text-primary); }
+
+    .bp-footer {
+      padding-top: 1.5rem;
+      border-top: 1px solid var(--border-color);
+      margin-top: var(--section-gap);
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    .bp-footer a { color: var(--accent); text-decoration: none; }
+    .bp-footer a:hover { text-decoration: underline; }
+    .bp-footer .source-list { margin-top: 0.5rem; }
+
+    .text-muted { color: var(--text-muted); }
+    .text-secondary { color: var(--text-secondary); }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .mb-1 { margin-bottom: 0.5rem; }
+    .mb-2 { margin-bottom: 1rem; }
+
+    @media (max-width: 640px) {
+      .blueprint { padding: 1rem; }
+      .bp-header h1 { font-size: 1.3rem; }
+      .bp-section-title { font-size: 1.1rem; }
+      .delivery-timeline { flex-direction: column; align-items: stretch; }
+      .phase-arrow { transform: rotate(90deg); text-align: center; }
+    }
+
+    @media print {
+      :root {
+        --bg-primary: #ffffff;
+        --bg-secondary: #f6f8fa;
+        --bg-tertiary: #eef1f5;
+        --text-primary: #1a1a2e;
+        --text-secondary: #4a4a68;
+        --text-muted: #6b7280;
+        --border-color: #d1d5db;
+        --accent: #2563eb;
+      }
+      body { background: white; color: black; }
+      .diagram-container { break-inside: avoid; }
+      .code-block { break-inside: avoid; }
+      .file-table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="blueprint">
+
+    <header class="bp-header">
+      <h1>omp × buck-workflow Integration</h1>
+      <div class="bp-meta">
+        <span class="badge badge-draft">research</span>
+        <span class="text-muted">2026-06-06</span>
+        <span class="text-muted">·</span>
+        <span class="text-muted">.context/2026-06-06.omp-integration-buck-workflow</span>
+      </div>
+      <p class="bp-one-liner">
+        <span class="text-secondary">Buck-workflow has hand-written orchestration prose and zero omp integration.</span>
+        <span class="arrow">→</span>
+        <span>Phase plans declare an <code>omp_execution</code> field; the user opts into <code>goal</code> mode / <code>orchestrate</code> keyword / <code>workflow</code> keyword on first turn of each phase.</span>
+      </p>
+    </header>
+
+    <section class="bp-section" id="architecture">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⬡</span> Architecture Overview
+      </h2>
+      <div class="diagram-container">
+        <div class="mermaid">
+flowchart TB
+  subgraph "User Surface"
+    TUI["omp TUI<br/>(interactive)"]
+    Slash["Slash Commands<br/>/goal /plan /build /review"]
+    Kw["Magic Keywords<br/>orchestrate / workflow / ultrathink"]
+  end
+
+  subgraph "omp Runtime"
+    Det["Keyword Detector<br/>agent-session.ts:4288-4307<br/>(synthetic-guarded)"]
+    Goal["Goal Runtime<br/>goals/runtime.ts<br/>persistent state, budget"]
+    Eval["eval Kernel<br/>eval/py/prelude.py<br/>agent() / parallel() / pipeline()"]
+    Promp["Prompt Builder<br/>system-prompt.ts<br/>+ goal-mode-active.md<br/>+ orchestrate-notice.md<br/>+ workflow-notice.md"]
+  end
+
+  subgraph "buck-workflow (this repo)"
+    BP["b-plan<br/>writes plan-*.md<br/>recommends omp_execution"]
+    BPhase["b-phase<br/>writes phase-N-*.md<br/>carries omp_execution field"]
+    BBuild["b-build<br/>surfaces omp_execution<br/>user says keyword"]
+    BReview["b-review<br/>completion matrix"]
+    BSave["b-save<br/>persists state"]
+  end
+
+  TUI --> Kw
+  TUI --> Slash
+  Kw -->|"user prose only"| Det
+  Slash -->|"/goal set"| Goal
+  Det -->|"injects notice"| Promp
+  Promp -->|"contract steered"| BBuild
+  Goal -->|"budget + audit"| BBuild
+  BPhase -->|"active phase"| BBuild
+  BBuild -->|"evidence"| BReview
+  BReview -->|"durable state"| BSave
+
+  BBuild -.->|"optionally fanned out via"| Eval
+        </div>
+        <div class="diagram-caption">How a user's prose flows through omp's keyword detector and into buck-workflow's skills</div>
+      </div>
+    </section>
+
+    <section class="bp-section" id="files">
+      <h2 class="bp-section-title">
+        <span class="section-icon">📁</span> File Change Map
+      </h2>
+      <div style="overflow-x: auto;">
+        <table class="file-table">
+          <thead>
+            <tr>
+              <th>File</th>
+              <th>Action</th>
+              <th>Layer</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="file-path">prompts/omp-orchestrate.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — Cross-platform slash-command stub pointing at the orchestrate contract</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">prompts/omp-workflow.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — Cross-platform slash-command stub for the eval-kernel workflow</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">prompts/omp-goal.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — Cross-platform slash-command stub for the /goal workflow</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">commands/omp-orchestrate.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — symlink mirror (existing pattern: 14 symlinks verified)</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">commands/omp-workflow.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — symlink mirror</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">commands/omp-goal.md</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F1 — symlink mirror</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">skills/b-phase/SKILL.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F4 — Document <code>omp_execution</code> field in frontmatter + Ralph instructions</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">skills/b-plan/SKILL.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F5 — Add recommendation trigger for omp_execution based on plan shape</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">skills/b-build/SKILL.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F4 — Surface omp_execution at start-of-phase (one-liner, no auto-insert)</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">skills/b-review/SKILL.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">skill</span></td>
+              <td>F7 — Adopt 6-step goal-mode completion-audit protocol into the matrix</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">docs/buck-workflow.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">docs</span></td>
+              <td>F2 — "OMP autonomous loops" section explaining the three primitives</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">AGENTS.md</span></td>
+              <td><span class="badge badge-modify">modify</span></td>
+              <td><span class="file-layer">docs</span></td>
+              <td>F3 — One-liner in Architecture section pointing at the three primitives</td>
+            </tr>
+            <tr>
+              <td><span class="file-path">.context/&lt;subject&gt;/eval-&lt;topic&gt;.py</span></td>
+              <td><span class="badge badge-new">new</span></td>
+              <td><span class="file-layer">artifact</span></td>
+              <td>F6 — Starter Python eval cell with one <code>agent()</code> per phase; b-plan writes when omp_execution: workflow</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="bp-section" id="code">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⟨/⟩</span> Code Changes
+      </h2>
+
+      <div class="diff-block">
+        <div class="diff-side diff-before">
+          <div class="diff-caption">Before — phase file frontmatter</div>
+          <pre><code><span class="cm"># Existing fields — unchanged</span>
+ralph_complexity: single | multi
+goal: "<span class="st">one sentence</span>"
+files: [path/to/file1, path/to/file2]
+from_plan_steps: [3, 4, 5]
+depends_on: [1]
+dependency_type: HARD | SOFT | NONE
+acceptance_criteria:
+  - "<span class="st">[ ] checkable outcome</span>"
+completed_at: null
+completed_by: null</code></pre>
+        </div>
+        <div class="diff-side diff-after">
+          <div class="diff-caption">After — adds <code>omp_execution</code> field</div>
+          <pre><code><span class="cm"># Existing fields — unchanged</span>
+ralph_complexity: single | multi
+goal: "<span class="st">one sentence</span>"
+files: [path/to/file1, path/to/file2]
+from_plan_steps: [3, 4, 5]
+depends_on: [1]
+dependency_type: HARD | SOFT | NONE
+<span class="diff-add"><span class="pr">omp_execution</span>: none | orchestrate | workflow | goal  <span class="cm"># NEW</span></span>
+<span class="diff-add"><span class="pr">omp_goal_budget</span>: &lt;tokens&gt;  <span class="cm"># NEW (only if omp_execution: goal)</span></span>
+acceptance_criteria:
+  - "<span class="st">[ ] checkable outcome</span>"
+completed_at: null
+completed_by: null</code></pre>
+        </div>
+      </div>
+
+      <div class="code-block">
+        <div class="code-caption">
+          <span class="lang">markdown</span>
+          <span>prompts/omp-workflow.md</span>
+          <span class="badge badge-illustrative">illustrative</span>
+        </div>
+        <pre><code><span class="cm">---</span>
+<span class="pr">description</span>: Author a Python eval cell that fans out subagents via agent()/parallel()/pipeline()
+<span class="cm">---</span>
+
+<span class="cm"># OMP-Workflow</span>
+
+<span class="cm">$ARGUMENTS</span>
+
+Drop the keyword <code>workflow</code> in your next prompt. omp will inject a notice
+that switches you into the eval-kernel fan-out contract.
+
+In the persistent Python cell, use the prelude helpers:
+
+<span class="cm">- `agent(prompt, *, agent_type, schema)` — one subagent; with `schema=` returns parsed JSON</span>
+<span class="cm">- `parallel(thunks)` — bounded pool (width = `task.maxConcurrency`)</span>
+<span class="cm">- `pipeline(items, *stages)` — barrier between stages</span>
+<span class="cm">- `llm(prompt, *, model, schema)` — oneshot judge; tiers: smol / default / slow</span>
+<span class="cm">- `budget` — `.total`, `.spent()`, `.remaining()`; respect the ceiling</span>
+
+Patterns: adversarial verify, perspective-diverse verify, judge panel,
+loop-until-dry, multi-modal sweep, completeness critic.
+
+See `.context/&lt;subject&gt;/eval-&lt;topic&gt;.py` if a starter cell was generated by b-plan.</code></pre>
+      </div>
+
+      <div class="code-block">
+        <div class="code-caption">
+          <span class="lang">python</span>
+          <span>.context/&lt;subject&gt;/eval-review.py</span>
+          <span class="badge badge-illustrative">illustrative</span>
+        </div>
+        <pre><code><span class="cm"># Starter eval cell — generated by b-plan when omp_execution: workflow</span>
+<span class="cm"># User edits this before invoking the `workflow` keyword.</span>
+
+<span class="kw">from</span> prelude <span class="kw">import</span> agent, parallel, pipeline, llm, phase, log, budget
+
+<span class="fn">phase</span>(<span class="st">"fan-out: N finders, each searching a different dimension"</span>)
+
+<span class="kw">def</span> <span class="fn">finder</span>(dimension):
+    <span class="kw">return</span> <span class="fn">agent</span>(
+        <span class="st">f"Find issues in </span><span class="cm">{dimension}</span><span class="st">. Return JSON: {findings: [...], severity: ...}"</span>,
+        agent_type=<span class="st">"task"</span>,
+        schema={<span class="st">"type"</span>: <span class="st">"object"</span>, <span class="st">"properties"</span>: {<span class="st">"findings"</span>: {<span class="st">"type"</span>: <span class="st">"array"</span>}}},
+    )
+
+dimensions = [<span class="st">"correctness"</span>, <span class="st">"regressions"</span>, <span class="st">"performance"</span>, <span class="st">"security"</span>]
+raw = <span class="fn">parallel</span>([<span class="kw">lambda</span> d=d: <span class="fn">finder</span>(d) <span class="kw">for</span> d <span class="kw">in</span> dimensions])
+
+<span class="fn">phase</span>(<span class="st">"synthesize: judge panel — keep findings that survive majority"</span>)
+
+<span class="kw">def</span> <span class="fn">judge</span>(finding):
+    verdict = <span class="fn">llm</span>(
+        <span class="st">f"Is this a real issue? </span><span class="cm">{finding}</span><span class="st">. Reply yes/no with one-sentence reason."</span>,
+        model=<span class="st">"smol"</span>,
+    )
+    <span class="kw">return</span> {<span class="st">"finding"</span>: finding, <span class="st">"verdict"</span>: verdict}
+
+kept = <span class="fn">pipeline</span>(raw, <span class="kw">lambda</span> r: [judge(f) <span class="kw">for</span> f <span class="kw">in</span> r[<span class="st">"findings"</span>]])
+
+<span class="fn">log</span>(<span class="st">f"audit complete: </span><span class="cm">{len(kept)}</span><span class="st"> findings kept; budget remaining </span><span class="cm">{budget.remaining()}</span><span class="st">"</span>)</code></pre>
+      </div>
+
+    </section>
+
+    <section class="bp-section" id="dataflow">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⟿</span> Data Flow
+      </h2>
+      <div class="diagram-container">
+        <div class="mermaid">
+sequenceDiagram
+  participant U as User
+  participant TUI as omp TUI
+  participant Det as Keyword Detector
+  participant Promp as Prompt Builder
+  participant Runtime as omp Runtime
+  participant BW as buck-workflow skill
+  participant Eval as eval Kernel
+
+  U->>TUI: "<span>orchestrate fix the auth bug</span>"
+  TUI->>Det: expanded prompt
+  Det->>Det: synthetic? — no (user prose)
+  Det->>Det: keywordInProse(/orchestrate/) — match
+  Det->>Promp: inject customType:orchestrate-notice
+  Promp->>Runtime: build next turn with notice
+  Runtime->>BW: b-build reads phase file with omp_execution: orchestrate
+  BW->>BW: todo + parallel task batches per phase
+  loop per phase
+    BW->>Runtime: verify gates (bun test, lsp diagnostics)
+    Runtime-->>BW: green / red
+  end
+  BW->>Runtime: write evidence to b-review matrix
+  Note over U,Eval: alt: workflow keyword
+  U->>TUI: "<span>workflow audit this plan</span>"
+  Det->>Promp: inject customType:workflow-notice
+  Runtime->>Eval: model writes Python in eval cell
+  Eval->>Eval: agent() / parallel() / pipeline() / llm()
+  Eval->>Runtime: budget-enforced fan-out
+  Runtime-->>BW: structured findings via schema=
+        </div>
+        <div class="diagram-caption">Two paths: orchestrate (hand-driven task batches) vs. workflow (eval-kernel Python cell)</div>
+      </div>
+    </section>
+
+    <section class="bp-section" id="decisions">
+      <h2 class="bp-section-title">
+        <span class="section-icon">◆</span> Key Decisions
+      </h2>
+      <ul class="decision-list">
+        <li class="decision-item">
+          <strong>Integration is prompt-level / skill-level, not extension-based</strong>
+          <div class="rationale">b-flow was deprecated 2026-06-01 for being wired-but-never-invoked. Lesson: don't ship runtime machinery the user has to discover. All five integration surfaces are SKILL.md and PROMPT.md changes the user runs from the TUI.</div>
+        </li>
+        <li class="decision-item">
+          <strong>Default <code>omp_execution: none</code> (omitted field)</strong>
+          <div class="rationale">Existing plans and ad-hoc work must keep working. The new field is opt-in; b-plan recommends a value, never auto-sets it; the user confirms.</div>
+        </li>
+        <li class="decision-item">
+          <strong>b-build does NOT auto-insert the magic keyword</strong>
+          <div class="rationale">omp guards <code>if (!options?.synthetic)</code> at agent-session.ts:4274. Synthetic / agent-initiated turns never trigger the magic-keyword notices. The user must say the keyword. The phase file is a recommendation, not a directive.</div>
+        </li>
+        <li class="decision-item">
+          <strong>Python (not JavaScript) for the eval cell template</strong>
+          <div class="rationale">omp's workflow-notice examples are in Python; the prelude's <code>agent()</code>/<code>parallel()</code>/<code>pipeline()</code> are in src/eval/py/prelude.py. Python is the documented surface. JS is a follow-up if asked.</div>
+        </li>
+        <li class="decision-item">
+          <strong>Cross-reference the b-flow deprecation in every new doc/skill</strong>
+          <div class="rationale">The next agent who reads F4-F5 must see "we already tried extension-based orchestration; it didn't work; here's why we're not doing that again." Otherwise the same mistake re-emerges.</div>
+        </li>
+        <li class="decision-item">
+          <strong>Goal-mode state is session-scoped, not plan-scoped</strong>
+          <div class="rationale"><code>/goal set</code> is a user-toggled runtime state. The plan can recommend a budget; the user must enter goal mode. A plan with 5 phases and <code>omp_execution: goal</code> means the user sets a single budget for the whole plan — phases compete for the same ceiling.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="bp-section" id="risks">
+      <h2 class="bp-section-title">
+        <span class="section-icon">⚠</span> Risks &amp; Tradeoffs
+      </h2>
+
+      <div class="risk-card severity-high">
+        <span class="risk-severity high">High</span>
+        <div class="risk-content">
+          <strong>Auto-keyword insertion would silently no-op</strong>
+          <div class="mitigation">Document the synthetic-guard constraint in every skill that touches omp. Phase files phrase "the user should drop the keyword" — never "the agent runs the keyword."</div>
+        </div>
+      </div>
+
+      <div class="risk-card severity-high">
+        <span class="risk-severity high">High</span>
+        <div class="risk-content">
+          <strong>Repeating the b-flow mistake (extension that isn't invoked)</strong>
+          <div class="mitigation">F1 stubs are independently discoverable from the TUI. F4-F6 are additions to the existing b-plan/b-phase/b-build surface that already runs. No new Pi extension, no new state machine.</div>
+        </div>
+      </div>
+
+      <div class="risk-card severity-medium">
+        <span class="risk-severity medium">Medium</span>
+        <div class="risk-content">
+          <strong>Per-turn budget vs plan-wide budget confusion</strong>
+          <div class="mitigation">b-plan output for <code>omp_execution: goal</code> plans explicitly states "single budget for the whole plan; phases share it." Goal mode's <code>token_budget</code> is goal-scoped, not phase-scoped.</div>
+        </div>
+      </div>
+
+      <div class="risk-card severity-medium">
+        <span class="risk-severity medium">Medium</span>
+        <div class="risk-content">
+          <strong>Eval cell is interactive-TUI-only</strong>
+          <div class="mitigation"><code>workflow</code> keyword is meaningless under <code>--mode rpc</code> and <code>omp -p</code>. b-plan surfaces this in the plan's "Ralph Instructions" section: "this mode requires the interactive TUI."</div>
+        </div>
+      </div>
+
+      <div class="risk-card severity-medium">
+        <span class="risk-severity medium">Medium</span>
+        <div class="risk-content">
+          <strong>Orchestrate's "no-yield-between-phases" vs buck's per-session phase</strong>
+          <div class="mitigation">Phase file's <code>ralph_complexity: multi</code> already encodes "phase may take multiple iterations." The new <code>omp_execution: orchestrate</code> field is per-phase, not plan-wide — each phase is a unit of "do not yield until phase done."</div>
+        </div>
+      </div>
+
+      <div class="risk-card severity-low">
+        <span class="risk-severity low">Low</span>
+        <div class="risk-content">
+          <strong>Backward compatibility for existing plans</strong>
+          <div class="mitigation">All new fields are optional with documented defaults. Existing phase files without <code>omp_execution</code> behave as <code>none</code>. Existing skills behave unchanged.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bp-section" id="delivery">
+      <h2 class="bp-section-title">
+        <span class="section-icon">▸</span> Delivery Shape
+      </h2>
+
+      <div class="delivery-timeline">
+        <div class="phase-node">
+          <div class="phase-label">F1</div>
+          <div class="phase-name">Slash stubs</div>
+          <div class="phase-desc">3 prompts/ + 3 commands/ symlinks</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-node">
+          <div class="phase-label">F2 / F3</div>
+          <div class="phase-name">Docs</div>
+          <div class="phase-desc">buck-workflow.md + AGENTS.md</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-node">
+          <div class="phase-label">F4 / F5 / F6</div>
+          <div class="phase-name">Core integration</div>
+          <div class="phase-desc">omp_execution field, b-plan recommendations, eval cell</div>
+        </div>
+        <div class="phase-arrow">→</div>
+        <div class="phase-node">
+          <div class="phase-label">F7</div>
+          <div class="phase-name">Hardening</div>
+          <div class="phase-desc">b-review adopts goal-mode audit</div>
+        </div>
+      </div>
+
+      <div class="diagram-container">
+        <div class="mermaid">
+flowchart LR
+  F1["<b>F1</b><br/>Slash stubs<br/>3 commands + 3 prompts<br/>~10 min"] --> F23["<b>F2 / F3</b><br/>Docs<br/>buck-workflow.md<br/>AGENTS.md"]
+  F23 --> Core["<b>F4 / F5 / F6</b><br/>Core integration<br/>omp_execution field<br/>b-plan recommendations<br/>eval cell template"]
+  Core --> F7["<b>F7</b><br/>Hardening<br/>b-review goal-mode audit"]
+
+  classDef quick fill:#23863622,stroke:#3fb950;
+  classDef medium fill:#9e6a0322,stroke:#d29922;
+  classDef large fill:#1f6feb22,stroke:#58a6ff;
+  class F1 quick;
+  class F23 medium;
+  class Core large;
+  class F7 large;
+        </div>
+        <div class="diagram-caption">F1 is independent; F2/F3 are doc-only and parallel to F4-F5; F7 is a follow-up hardening pass</div>
+      </div>
+    </section>
+
+    <section class="bp-section" id="verification">
+      <h2 class="bp-section-title">
+        <span class="section-icon">✓</span> Verification Checklist
+      </h2>
+      <ul class="checklist">
+        <li><span><code>omp -p "what does /omp-orchestrate do"</code> returns the expected text from prompts/omp-orchestrate.md</span></li>
+        <li><span><code>ls -la commands/</code> shows the three new symlinks resolving to prompts/omp-*.md</span></li>
+        <li><span>A new phased plan with <code>omp_execution: orchestrate</code> in phase-1 reads cleanly: <code>grep -l "omp_execution" .context/*/phase-1-*.md</code></span></li>
+        <li><span>Existing phased plans without <code>omp_execution</code> still build unchanged — verify by running <code>/b-build</code> on a pre-integration phase file</span></li>
+        <li><span><code>grep -rn "omp_execution" skills/</code> shows documentation in b-plan, b-phase, b-build SKILL.md</span></li>
+        <li><span>The eval cell generated by b-plan (F6) is parseable Python: <code>python3 -c "import ast; ast.parse(open('.context/<subject>/eval-<topic>.py').read())"</code></span></li>
+        <li><span><code>omp -p "drop the keyword orchestrate"</code> in the TUI injects the orchestrate-notice (verify by checking TUI output)</span></li>
+        <li><span>No regression in the b-flow deprecation: <code>grep -rn b-flow skills/ docs/ AGENTS.md README.md</code> still shows the deprecation notices</span></li>
+        <li><span>Memory file <code>.context/memory/omp-integration-buck-workflow-2026-06-06.md</code> is referenced in the index</span></li>
+      </ul>
+    </section>
+
+    <footer class="bp-footer">
+      <div>Generated 2026-06-06 by b-blueprint</div>
+      <div class="source-list">
+        Sources:
+        <a href="#">.context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md</a> ·
+        <a href="#">.context/2026-06-06.omp-integration-buck-workflow/follow-ups.md</a> ·
+        <a href="#">.context/2026-06-06.omp-integration-buck-workflow/index.md</a>
+      </div>
+    </footer>
+
+  </div>
+</body>
+</html>

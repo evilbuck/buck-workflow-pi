@@ -64,10 +64,10 @@ When reviewing against a plan (`plan-*.md`), parse these fields and produce a **
 | `risks` | Any unmitigated risks visible in the code? |
 
 For each step, mark status:
-- ✅ **complete** — appears done, evidence found
-- 🔄 **partial** — some evidence, incomplete
-- ❌ **missing** — no evidence found
-- ⚠️ **not-verifiable** — cannot determine from available evidence
+- ✅ **complete** — appears done, **direct current-state evidence found** (file:line, passing test, CLI output, screenshot — not just a status field or commit hash)
+- 🔄 **partial** — some evidence, **with the missing piece named** ("Step 1 done; Step 2 missing the type-import of `Foo`")
+- ❌ **missing** — no evidence found, **paired with a fix proposal** in the `iterate-*.md` artifact
+- ⚠️ **not-verifiable** — cannot determine from available evidence, **with the reason stated** (env missing, fixture absent, permission denied)
 
 ## Phased Plan Handling
 
@@ -78,6 +78,62 @@ For `plan-*-phases.md` inputs:
 For `phase-*.md` inputs:
 - Review only that phase's scope and acceptance criteria
 - Do not require other phases to be complete
+
+## Goal-Mode Completion-Audit Protocol
+
+`b-review` mirrors the 6-step protocol from omp's `goal-continuation.md`.
+Apply it on every review, regardless of whether the active session is in
+goal mode. The protocol is the same shape — the matrix is the per-step
+evidence; the audit is a one-time pass at the end.
+
+1. **Restate the objective as concrete deliverables.** Pull the
+   acceptance criteria from the active plan, spec, or phase file. If
+   they are missing, surface that as a finding (not a blocker — the soft
+   gate from `b-build` applies).
+2. **Map each deliverable to evidence.** Each acceptance criterion
+   needs a file path, line range, test name, or run-command output.
+   "Looks right" is not evidence.
+3. **Inspect the actual current state.** Read the code. Run the tests.
+   Do not trust checkboxes, status fields, or commit messages.
+4. **Match verification scope to claim scope.** If the plan claims
+   browser behavior, run a browser test. If it claims CLI behavior, run
+   the CLI. What you can run is what counts.
+5. **Treat uncertainty as not-yet-achieved.** "I couldn't reproduce
+   the bug" is not "the bug is fixed." Mark it `⚠️ not-verifiable` or
+   `🔄 partial`, never `✅ complete`.
+6. **Budget exhaustion is not completion.** A truncated review is a
+   `🔄 partial` review, not a pass. Surface the truncation explicitly
+   in the report.
+
+### Tightening the completion matrix
+
+Apply these rules when filling out the matrix:
+
+- **`✅ complete`** requires direct current-state evidence — a cited
+  file:line, a passing test, a screenshot, or a CLI output. A status
+  field or commit hash alone is not enough.
+- **`🔄 partial`** must name what is missing. "Looks mostly done" is
+  not a partial — name the unchecked criterion.
+- **`❌ missing`** must be paired with a fix proposal in the
+  `iterate-*.md` artifact if the review is producing one.
+- **`⚠️ not-verifiable`** must include the reason verification was
+  impossible (env missing, fixture absent, permission denied, etc.).
+  The fix is to remove the blocker, not to soften the verdict.
+
+### When the active session is in goal mode
+
+If `.context/workflow/current-session.json` shows an active goal
+(`goal` field non-null) or the user invoked `/goal set` during the
+review, also run these checks:
+
+- **Objective match** — does the implementation achieve the goal's
+  objective verbatim, or only the plan's narrower scope?
+- **Budget awareness** — has the goal spent >80% of its
+  `token_budget`? If so, recommend the user run `/goal budget` to
+  inspect and either raise the budget or wrap up.
+- **6-step audit re-run** — apply the steps above as the review's
+  closing block, after the per-step matrix. This is the auditable
+  record the goal-mode completion handshake requires.
 
 **Checkbox evidence**: Completed status and checkboxes in plan/phase files are evidence but not proof. Verify actual implementation, not just task completion markers.
 

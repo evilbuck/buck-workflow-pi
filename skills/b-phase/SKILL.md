@@ -162,6 +162,8 @@ model_hint: <description>
 buck_hint: /b-build | /b-build-hard
 ralph_complexity: single | multi  # single = likely one Ralph iteration; multi = may need several mini-cycles
 goal: "<one sentence>"
+omp_execution: none | orchestrate | workflow | goal  # see "omp_execution" below; default omitted (= none)
+omp_goal_budget: <tokens>                            # only meaningful when omp_execution: goal
 files: [path/to/file1, path/to/file2]
 from_plan_steps: [3, 4, 5]
 depends_on: [1]           # phase numbers; empty [] if none
@@ -174,6 +176,25 @@ completed_by: null
 ---
 ```
 
+**`omp_execution` field.** Optional. Default is `none` (omit the field entirely).
+When set, it tells the user running the phase to drop the matching omp primitive
+on the first turn of the phase. **The field is a recommendation to the user,
+not runtime state the agent can enforce** — omp's `agent-session.ts:4274`
+guards `if (!options?.synthetic)`, so the user must type the keyword.
+See `docs/buck-workflow.md#omp-autonomous-loops` for the full contract.
+
+| Value | What the user does on the phase's first turn |
+|---|---|
+| `none` (or omit) | Plain first turn — standard Buck build cycle. |
+| `orchestrate` | Type the `orchestrate` keyword anywhere in the first turn. omp injects the orchestrator contract. |
+| `workflow` | Type the `workflow` keyword in the first turn after running the `eval-<topic>.py` cell b-plan wrote into the subject folder. |
+| `goal` | Run `/goal set <objective> --budget <omp_goal_budget>` first; then proceed under active goal mode. |
+
+**`omp_goal_budget` field.** Optional companion to `omp_execution: goal`. Hints
+at the recommended `token_budget` to set on the `/goal` session. The user
+sets the actual budget when they run `/goal set`. The plan's recommendation
+rule of thumb: `4_000` per easy phase, `8_000` per medium phase, `16_000`
+per hard phase, summed across the plan (rounded to nearest 5k).
 **Phase file body structure:**
 ```markdown
 # Phase N: <Name>
@@ -202,6 +223,15 @@ If executing this phase inside a Ralph loop:
 4. Run `/b-save` to consolidate memory, draft commits, and phase state.
 5. Run `/git-commit` to checkpoint durable state before `ralph_done`.
 6. If the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
+
+If the phase's frontmatter declares `omp_execution: orchestrate | workflow | goal`,
+expand step 1 above with a one-liner **before** the build command runs:
+
+| `omp_execution` | First-turn precondition |
+|---|---|
+| `orchestrate` | "Type the `orchestrate` keyword anywhere in your first turn of this phase. omp will inject the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase)." |
+| `workflow` | "Open `.context/<subject>/eval-<topic>.py`, run the cell, then type the `workflow` keyword in your first turn. The eval kernel fans out one `agent()` per phase." |
+| `goal` | "Run `/goal set <plan User Goal> --budget <omp_goal_budget>`, then begin the build. The active goal persists across turns and triggers the 6-step completion-audit on `goal({op:'complete'}).`" |
 ```
 
 **Status flow**: `pending` → `in-progress` (when b-build/b-build-hard picks it up) → `completed` (when all acceptance criteria pass)
@@ -238,11 +268,11 @@ format: discrete
 
 ## Phase Summary
 
-| Phase | Status | Difficulty | File |
-|-------|--------|------------|------|
-| 1: <Name> | pending | medium | [phase-1-<slug>.md](phase-1-<slug>.md) |
-| 2: <Name> | pending | easy | [phase-2-<slug>.md](phase-2-<slug>.md) |
-| N: <Name> | pending | hard | [phase-N-<slug>.md](phase-N-<slug>.md) |
+| Phase | Status | Difficulty | omp_execution | File |
+|-------|--------|------------|---------------|------|
+| 1: <Name> | pending | medium | none | [phase-1-<slug>.md](phase-1-<slug>.md) |
+| 2: <Name> | pending | easy | none | [phase-2-<slug>.md](phase-2-<slug>.md) |
+| N: <Name> | pending | hard | none | [phase-N-<slug>.md](phase-N-<slug>.md) |
 
 ## Dependency Matrix
 
@@ -324,10 +354,11 @@ Use this canonical text when creating Ralph-ready phased output. Adapt the phase
 Use this overview as Ralph's durable navigation map. For each phase:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
-3. Run `/b-review` against the phase file after implementation.
-4. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
-5. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
-6. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+3. If the phase's `omp_execution` is `orchestrate | workflow | goal`, drop the matching keyword (or run `/goal set`) on the first turn before the build command — see the phase file's "Ralph Mini-Cycle Instructions" for the precondition.
+4. Run `/b-review` against the phase file after implementation.
+5. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
+6. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
+7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
 
 ## Ralph Execution Checklist
 
