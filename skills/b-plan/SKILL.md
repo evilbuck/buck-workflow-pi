@@ -349,7 +349,24 @@ if budget.remaining() is not None and budget.remaining() < 5_000:
 > OMP-only — on other harnesses the prelude is absent and the cell degrades to
 > a no-op via the runtime probe above.
 
-
+### Example cells
+Two real example cells live in `.context/2026-06-06.omp-integration-buck-workflow/`.
+They fill the placeholders in the F6 template above and demonstrate two
+different fan-out shapes. **Read them before authoring your own cell** —
+they are the most concrete documentation of the eval-kernel pattern.
+| Cell | Pattern | When to use |
+|---|---|---|
+| `eval-review-audit.py` | `parallel()` per phase → `pipeline()` log → `llm()` judge | Plan is phased; you want one review subagent per phase and a single go/no-go verdict at the end. |
+| `eval-migration-sweep.py` | `parallel()` per directory → `pipeline()` log → `llm()` multi-criterion judge | Work is a migration / sweep / audit across multiple directories; the judge returns a structured ready-to-migrate verdict with a `compatibility_score` and a `blockers` list. |
+Both cells:
+- Use the runtime probe from Phase 1, so they degrade to a no-op on non-OMP.
+- Use a `__main__` guard that exits cleanly when run as `python3 eval-*.py`
+  for plain-Python syntax checking without the prelude.
+- Cite [`docs/eval-kernel.md`](../../docs/eval-kernel.md) for the full
+  helper API and failure modes.
+If you write a cell that combines both shapes (e.g., per-target *and*
+per-phase), copy the cell whose first half matches and graft the second
+half from the other. The two patterns compose — there is no third shape.
 **`b-plan` writes this file** to `.context/<subject>/eval-<topic>.py`
 when the recommendation table above yields `workflow`. The cell is
 always emitted as a **starter** — the user edits the `PHASES` list and

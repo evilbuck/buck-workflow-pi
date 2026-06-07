@@ -1,4 +1,5 @@
 # Memory Index
+  - 2026-06-07 | `cross-harness-kernel-phase-3-2026-06-07.md` | domains: [implementation, buck-workflow, omp, eval-kernel, planning] | topics: [eval-cells, review-audit, migration-sweep, parallel, pipeline, llm-judge, schemas, additionalProperties, b-plan] | status: completed
   - 2026-06-07 | `cross-harness-kernel-phase-2-2026-06-07.md` | domains: [docs, buck-workflow, omp, planning, eval-kernel] | topics: [eval-kernel, contract-doc, prelude-helpers, budget, schemas, failure-modes, cross-platform, b-plan] | status: completed
   - 2026-06-07 | `cross-harness-kernel-phase-1-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [cross-harness, compat, header-guard, runtime-probe, eval-template, b-plan, slash-commands, omp, no-op] | status: completed
   - 2026-06-07 | `omp-integration-buck-workflow-build-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, slash-commands, eval-kernel, b-phase, b-plan, b-review, b-flow-deprecation, autonomous-loops] | status: completed

@@ -14,6 +14,8 @@ artifacts:
   - phase-3-eval-kernel-examples.md
   - phase-4-b-grill-integration.md
   - docs/eval-kernel.md
+  - eval-review-audit.py
+  - eval-migration-sweep.py
 ---
 
 # omp integration with buck-workflow
