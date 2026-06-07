@@ -1,4 +1,7 @@
 # Memory Index
+  - 2026-06-07 | `cross-harness-kernel-phase-1-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [cross-harness, compat, header-guard, runtime-probe, eval-template, b-plan, slash-commands, omp, no-op] | status: completed
+  - 2026-06-07 | `omp-integration-buck-workflow-build-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, slash-commands, eval-kernel, b-phase, b-plan, b-review, b-flow-deprecation, autonomous-loops] | status: completed
+  - 2026-06-06 | `omp-integration-buck-workflow-2026-06-06.md` | domains: [research, buck-workflow, planning, omp, autonomous] | topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, magic-keywords, slash-commands, eval-kernel, b-phase, b-plan, autonomous-loops] | status: completed
   - 2026-06-05 | `extension-slimdown-2026-06-05.md` | domains: [tooling, architecture, refactor] | topics: [extension-slimdown, model-auto-switch, b-save, session-state, pi-extension, omp-plugin] | status: completed
 - 2026-05-31 | `review-subject-selection-prompting-2026-05-31.md` | domains: [coding, docs] | topics: [subject-selection, skills, review, b-review] | status: active
 

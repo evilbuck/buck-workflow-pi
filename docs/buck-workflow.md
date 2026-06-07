@@ -79,6 +79,115 @@ The SDK worker provides:
 
 ---
 
+## OMP Autonomous Loops
+
+buck-workflow plans and phase files are omp-aware. When run inside an
+omp session, the workflow can opt into omp's three autonomous-loop
+primitives. **None of these are auto-enabled by the workflow** — the
+primitives are user-toggled, and the workflow only *recommends* them.
+See `skills/cross-platform-pi-omp-loading/SKILL.md` for the
+package-level pattern, and `.context/2026-06-06.omp-integration-buck-workflow/`
+for the decision log.
+
+### The three primitives
+
+| Primitive | Triggered by | Effect on the workflow |
+|---|---|---|
+| **`/goal set <objective>`** | User-invoked slash command — **persistent runtime state** | Adds a `goal` tool; injects `goal-mode-active.md`; tracks a token+time budget; enforces a 6-step completion-audit protocol on every active-goal turn. |
+| **`orchestrate` keyword** | User types `orchestrate` as a standalone lowercase prose word | Injects a hidden `orchestrate-notice`; switches the model into the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase). |
+| **`workflow` keyword** | User types `workflow` or `workflows` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python in the `eval` tool, fanning out via `agent()` / `parallel()` / `pipeline()` with a per-turn budget ceiling. |
+
+### How buck-workflow surfaces them
+
+- **Slash-command stubs** at `prompts/omp-orchestrate.md`,
+  `prompts/omp-workflow.md`, and `prompts/omp-goal.md` (each
+  symlinked into `commands/` for OMP discovery). These are observation
+  only — they make the primitives discoverable in the agent's slash
+  menu and document the contract.
+- **`omp_execution` field on phase files.** When a phase file carries
+  `omp_execution: orchestrate | workflow | goal` in its frontmatter,
+  `b-phase` writes a "Ralph Mini-Cycle Instructions" expansion that
+  tells the user to drop the keyword on the first turn of the phase.
+  `omp_execution: none` (the default) is omitted from frontmatter and
+  means "standard / no opt-in."
+- **Optional `omp_goal_budget: <tokens>` companion field.** When
+  `omp_execution: goal`, this hints at the recommended `token_budget`
+  to set on the `/goal` session. The user sets the actual budget when
+  they run `/goal set`.
+- **`b-plan` recommendation rules.** When a plan is large, multi-phase,
+  or contains review/audit/sweep/migrate language, `b-plan` recommends
+  the field in the plan's Ralph Instructions. It does **not** auto-set
+  the field.
+- **Eval-cell template for `workflow` plans.** When
+  `omp_execution: workflow` is selected, `b-plan` writes a starter
+  `.context/<subject>/eval-<topic>.py` (Python) that fans one
+  `agent()` per phase. The cell is a **deliverable artifact** the user
+  edits before invoking the keyword.
+- **`b-review` 6-step completion audit.** The goal-mode completion-audit
+  protocol (see `prompts/omp-goal.md`) is mirrored by `b-review`'s
+  completion matrix — every unchecked acceptance criterion requires
+  direct current-state evidence, uncertainty is treated as not-achieved.
+
+### What the workflow does NOT do
+
+- **Does not auto-insert the magic keywords.** omp's `agent-session.ts:4274`
+  guards `if (!options?.synthetic)` — synthetic / agent-initiated turns
+  never trigger the notices. The user must say the keyword.
+- **Does not auto-`/goal set` for the user.** Goal mode is a
+  user-toggled runtime state. The plan can recommend, not enable.
+- **Does not write a new b-flow-style extension.** The b-flow
+  deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`)
+  is the lesson: extension-based orchestration that is not observably
+  invoked is dead weight. All omp-integration surfaces are
+  **prompt-level or skill-level changes** the user runs from the TUI.
+- **Does not break on non-OMP harnesses.** Each OMP slash-command stub
+  (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
+  declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
+  `b-plan` "OMP Execution Recommendation" table has a top-row guard
+  that returns `none` on non-OMP, and the eval-cell template prelude
+  is wrapped in `try / except ImportError` so the cell degrades to a
+  no-op instead of crashing when the omp prelude is missing. Together
+  these are the cross-harness safety net — the workflow stays
+  authoritative-looking on OMP and silent on every other harness.
+
+### Recommended workflow variations
+
+```
+# Standard phased plan with no omp opt-in (default)
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
+#                                                            ↺ (repeat per phase)
+
+# Large multi-phase plan that should fan out parallel work
+/b-explore or /b-research → /b-plan → /skill:b-phase (omp_execution: orchestrate)
+#                                       → drop "orchestrate" on phase 1 turn
+#                                       → /b-build / /b-review / /b-save
+
+# Audit / review / migration plan that benefits from eval-cell fan-out
+/b-plan → set omp_execution: workflow → b-plan writes eval-<topic>.py
+#       → edit cell → drop "workflow" → review outputs
+
+# Single persistent objective across an entire plan
+/b-plan → set omp_execution: goal → /goal set "<plan User Goal>" --budget <omp_goal_budget>
+#       → b-build works under the active goal → b-review 6-step audit on completion
+```
+
+### Cross-references
+
+- **In-repo skill**: `skills/cross-platform-pi-omp-loading/SKILL.md` —
+  cross-platform package loading (Pi + OMP), slash-command mirror
+  pattern, extension API shim gaps.
+- **In-repo skill**: `skills/cross-platform-pi-omp-loading/slash-command-mirror/SKILL.md` —
+  the `prompts/` ↔ `commands/` per-file symlink pattern.
+- **Research**: `.context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md` —
+  full source-verified analysis of the three primitives.
+- **Decision log**: `.context/2026-06-06.omp-integration-buck-workflow/follow-ups.md` —
+  follow-ups F1–F9 with the "do not" list and open decisions.
+- **Stubs**: `prompts/omp-orchestrate.md`, `prompts/omp-workflow.md`,
+  `prompts/omp-goal.md`.
+
+
+---
+
 ## Visual Workflow Overview
 
 ### Complete Flow Diagram
@@ -1267,8 +1376,10 @@ Also available:
 - `/skill:b-grill-me` — Stress-test a plan via interview with complexity tracking
 - `/skill:b-grill-with-docs` — Same as b-grill-me, plus domain doc awareness (CONTEXT.md, ADRs)
 
----
+**OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
+- `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
+- `/omp-workflow` — Document the `workflow` keyword contract. User must type the keyword on the relevant turn.
+- `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-
-Last updated: 2026-05-30
+Last updated: 2026-06-07

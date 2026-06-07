@@ -159,6 +159,197 @@ This is a non-phased Ralph-ready plan. Treat the whole plan as one unit:
 6. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next iteration.
 ```
 
+## OMP Execution Recommendation
+
+`b-plan` does **not** auto-set the `omp_execution` field. It surfaces a
+recommendation in the plan's "Ralph Instructions" section based on the
+plan's shape, then asks the user to confirm. See
+`docs/buck-workflow.md#omp-autonomous-loops` for the full contract.
+
+Apply these rules in order. The first rule that matches wins. If multiple
+match, pick the strongest one (goal > workflow > orchestrate > none).
+
+| Trigger | Recommend | Rationale |
+|---|---|---|
+| If the active harness is not OMP, return `none` (omit) immediately. The remaining rules assume OMP. | `none` (omit) | Prevents recommending a primitive the harness cannot invoke. Detect from session state (omp has an `omp` tool / `omp.runtime` field; Pi has `pi.runtime`; Claude Code has none) or from the package's `package.json` `omp` field presence. |
+| Plan is phased and ≥ 4 phases with at least one HARD dependency between them | `orchestrate` | The orchestrator contract ("do not yield between phases", "parallelize maximally", "verify after every phase") maps to phased work with hard gates. |
+| Plan User Goal is one sentence with no clear phase boundary, AND total work is one persistent objective | `goal` | A single `/goal` session is the right envelope when the work is unified. The plan's phases compete for one budget. |
+| Plan title / scope / affected files contain `review`, `audit`, `sweep`, `migrate`, or `coverage-check` | `workflow` | Cross-cutting review/audit work benefits from `eval`-cell fan-out with a budget ceiling. The user edits `eval-<topic>.py` before invoking. |
+| Plan is non-phased, single-session, bounded, low-risk | `none` (omit) | Default. No opt-in. |
+| All other cases | `none` (omit) | Default. No opt-in. |
+
+**When recommending `goal`**, also estimate `omp_goal_budget`:
+- 4k tokens per easy phase, 8k per medium phase, 16k per hard phase,
+  summed across the plan and rounded to the nearest 5k.
+- For non-phased plans, default to 12k tokens.
+- The user can override; the field is a hint.
+
+**Recommended wording** for the plan's "Ralph Instructions" section when
+a mode is recommended (omit the section entirely if no mode is recommended):
+
+```markdown
+## Ralph Instructions
+
+<!-- OMP opt-in: this plan is recommended to run under
+     <orchestrate|workflow|goal> mode. <one-sentence rationale> -->
+
+This is a phased Ralph-ready plan. Treat each phase as one unit:
+1. Read the first non-completed phase from the Phase Summary table.
+2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
+3. <If orchestrate|workflow|goal: drop the matching omp keyword on the first turn
+    before the build command — see the phase file's "Ralph Mini-Cycle Instructions"
+    for the precondition.>
+4. Run `/b-review` against the phase file after implementation.
+5. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
+6. Run `/b-save` to consolidate memory, draft commits, and phase state.
+7. Run `/git-commit` to checkpoint durable state before `ralph_done`.
+```
+
+## Eval Cell Template for `workflow` Plans
+
+When the recommendation above is `workflow`, `b-plan` writes a starter
+`.context/<subject>/eval-<topic>.py` file into the subject folder. The
+cell is a **deliverable artifact** the user edits before invoking the
+`workflow` keyword. omp's `eval` tool executes it in the persistent
+Python kernel; `agent()` / `parallel()` / `pipeline()` are imported
+from the kernel prelude (see omp `src/eval/py/prelude.py`).
+
+**Why an artifact, not a hint.** A real `.py` file is:
+
+- Editable in the IDE / kernel (with autocomplete and type checks).
+- Verifiable — `python -c "import ast; ast.parse(open(path).read())"`
+  catches syntax errors before the workflow keyword is invoked.
+- Self-contained — the cell carries the imports, schema, and per-phase
+  dispatch in one place. Hint-only snippets get fragmented across turns.
+
+**Template** (replace `<…>` placeholders):
+
+```python
+# .context/<subject>/eval-<topic>.py
+"""
+<plan title> — workflow-mode fan-out.
+
+Edit this cell before invoking the `workflow` keyword in omp. The kernel
+imports the helpers below; the cell runs as the workflow's first turn.
+
+Hard contract:
+  - This is a deliverable artifact, not throwaway scratch.
+  - One `agent()` call per phase, returning a structured findings object
+    with the `schema=` parameter.
+  - A barrier stage verifies the findings; a synthesis stage adjudicates.
+"""
+
+from __future__ import annotations
+
+# eval-kernel prelude helpers (always in scope inside the omp eval tool).
+try:
+    from prelude import agent, parallel, pipeline, llm, phase, log, budget  # noqa: F401
+except ImportError:
+    # The eval cell is OMP-specific. On non-OMP runtimes, the helpers do not
+    # exist; surface a clear no-op so the user knows the cell is not portable.
+    def _no_op(*_args, **_kwargs):
+        print("eval cell: omp runtime required (prelude helpers missing); skipped.")
+        return None
+    agent = parallel = pipeline = llm = phase = log = budget = _no_op  # type: ignore
+
+SUBJECT = "<subject-folder-name>"
+PHASES = [
+    # (phase_number, slug, difficulty, brief)
+    (1, "<slug-1>", "medium", "<one-sentence phase-1 brief>"),
+    (2, "<slug-2>", "easy",   "<one-sentence phase-2 brief>"),
+    # ...
+]
+
+# Findings schema — every agent() returns a dict matching this shape.
+FINDINGS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "phase": {"type": "integer"},
+        "slug":  {"type": "string"},
+        "verdict": {"type": "string", "enum": ["pass", "warn", "fail", "blocked"]},
+        "evidence": {"type": "array", "items": {"type": "string"}},
+        "risks":    {"type": "array", "items": {"type": "string"}},
+        "open_questions": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["phase", "slug", "verdict", "evidence", "risks", "open_questions"],
+    "additionalProperties": False,
+}
+
+
+def build_prompt(phase_num: int, slug: str, difficulty: str, brief: str) -> str:
+    """Compose the per-phase subagent prompt. Edit freely."""
+    return (
+        f"You are reviewing Phase {phase_num} ({slug}, difficulty={difficulty}) "
+        f"of the {SUBJECT!r} plan.\n\n"
+        f"Brief: {brief}\n\n"
+        f"Read the active phase file at `.context/{SUBJECT}/phase-{phase_num}-{slug}.md`. "
+        f"Verify each acceptance criterion against the actual current repo state — "
+        f"do not trust checkboxes or commit messages. Return structured findings "
+        f"matching the schema: verdict, evidence (cite file:line or test name), "
+        f"risks, open_questions. If you cannot run a check, mark it as a risk, "
+        f"not a pass."
+    )
+
+
+# Stage 1 — fan out one `agent()` per phase in parallel.
+phase("workflow: fan out per-phase review")
+findings_per_phase = parallel(
+    [lambda n=num, s=slug, d=diff, b=brief: agent(
+        build_prompt(n, s, d, b),
+        agent_type="task",
+        model=None,  # let the kernel pick per-tick
+        schema=FINDINGS_SCHEMA,
+        label=f"phase-{n}-{s}",
+    ) for (num, slug, diff, brief) in PHASES]
+)
+
+# Stage 2 — barrier: all phases reviewed before synthesis.
+phase("workflow: synthesize")
+overall = pipeline(
+    findings_per_phase,
+    # stage 1: aggregate verdicts, log per-phase summary
+    lambda findings: [
+        log(f"phase {f['phase']} ({f['slug']}): {f['verdict']} — "
+            f"{len(f['evidence'])} evidence, {len(f['risks'])} risks")
+        for f in findings
+    ] or findings,
+    # stage 2: judge — escalate any `fail` or `blocked` to the user
+    lambda findings: llm(
+        "Synthesize these per-phase findings into a single go/no-go verdict "
+        "for the plan. Cite the per-phase evidence. Do not paraphrase "
+        "the findings — adjudicate.",
+        model="default",
+        schema={
+            "type": "object",
+            "properties": {
+                "verdict": {"type": "string", "enum": ["go", "iterate", "block"]},
+                "rationale": {"type": "string"},
+                "blocking_phases": {"type": "array", "items": {"type": "integer"}},
+            },
+            "required": ["verdict", "rationale", "blocking_phases"],
+            "additionalProperties": False,
+        },
+    ),
+)
+
+# Stage 3 — surface the final verdict to the user.
+log(f"workflow verdict: {overall.get('verdict', 'unknown')}")
+log(f"rationale: {overall.get('rationale', '')}")
+if overall.get("blocking_phases"):
+    log(f"blocking phases: {overall['blocking_phases']}")
+
+# Hard stop if a hard ceiling is set and the cell is about to exceed it.
+if budget.remaining() is not None and budget.remaining() < 5_000:
+    log(f"workflow eval cell: budget remaining {budget.remaining()}; "
+        f"halting fan-out and surfacing partial results.")
+```
+
+**`b-plan` writes this file** to `.context/<subject>/eval-<topic>.py`
+when the recommendation table above yields `workflow`. The cell is
+always emitted as a **starter** — the user edits the `PHASES` list and
+`build_prompt()` body before invoking. If a JavaScript variant is
+requested, swap `prelude` imports for `tool.eval-py` and re-emit in JS.
+
 ## Recommended Plan Structure
 
 ```markdown
