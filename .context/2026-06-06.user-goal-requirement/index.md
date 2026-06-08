@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-06-06
 subject: 2026-06-06.user-goal-requirement
 ---

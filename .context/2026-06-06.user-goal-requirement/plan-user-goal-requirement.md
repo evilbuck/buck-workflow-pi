@@ -6,7 +6,8 @@ topics: [user-goal, user-story, plan-quality, brainstorm, review]
 research: []
 iterations: []
 spec:
-memory: []
+memory:
+  - ../memory/code-review-skill-build-2026-06-07.md
 ---
 
 # Plan: Require User Goal in Plans and Brainstorms

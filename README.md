@@ -20,8 +20,7 @@ The global baseline ensures that even without running any Buck command, the agen
 
 Buck workflow is a stack of three layers that work together. The global layer is always active — it provides the durable-artifact conventions that make everything else work. Buck adds structured workflow stages. Project config adds domain-specific instructions.
 
-### The Global Baseline (`~/.pi/agent/AGENTS.md`)
-
+### The Global Baseline (`~/.omp/agent/AGENTS.md` or `~/.pi/agent/AGENTS.md`)
 The global AGENTS.md is loaded for every session, in every project. It establishes the conventions that make Buck work without requiring any Buck command to be run:
 
 - **Before any task**: check `.context/memory/index.md` and recent memory files, check backlog
@@ -35,9 +34,9 @@ This means **durability works even in quick ad-hoc sessions** where no Buck comm
 
 | Layer | Location | Owns |
 |-------|----------|------|
-| **Global baseline** | `~/.pi/agent/AGENTS.md` | Operating principles, durable-artifact principle, `.context/` conventions, Buck workflow surface |
-| **Global reference** | `~/.pi/agent/docs/context-workflow.md` | Detailed `.context/` conventions, frontmatter templates, backlog layout |
-| **Buck package** | This repo | Workflow semantics, skills, prompts, extension runtime, Buck-mode behavior |
+| **Global baseline** | `~/.omp/agent/AGENTS.md` or `~/.pi/agent/AGENTS.md` | Operating principles, durable-artifact principle, `.context/` conventions, Buck workflow surface |
+| **Global reference** | Agent-global `docs/context-workflow.md` when installed | Detailed `.context/` conventions, frontmatter templates, backlog layout |
+| **Buck package** | This repo | Workflow semantics, skills, prompt/command wrappers, minimal runtime automation |
 | **Project config** | `./AGENTS.md` per repo | Build commands, code style, architecture notes, gotchas |
 
 The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workflow taxonomy and runtime behavior. This means Buck workflow remains portable — the global layer provides a lightweight hint that points to Buck for non-trivial work.
@@ -60,6 +59,12 @@ The file [`GLOBAL_OR_PROJECT-AGENTS.md`](./GLOBAL_OR_PROJECT-AGENTS.md) in this 
 
 #### Option A: Global (recommended — applies to all projects)
 
+For **OMP**, copy it to the global agent config:
+
+```bash
+cp GLOBAL_OR_PROJECT-AGENTS.md ~/.omp/agent/AGENTS.md
+```
+
 For **Pi**, copy it to the global agent config:
 
 ```bash
@@ -70,12 +75,13 @@ For other agents, place it wherever the agent loads global instructions from:
 
 | Agent | Global Location | Tested? |
 |-------|----------------|---------|
+| **OMP** | `~/.omp/agent/AGENTS.md` | ✅ Yes |
 | **Pi** | `~/.pi/agent/AGENTS.md` | ✅ Yes |
 | **Claude Code** | `~/.claude/AGENTS.md` | ❌ Not yet |
 | **OpenCode** | `~/.config/opencode/AGENTS.md` | ❌ Not yet |
 | **Codex** | `~/.codex/AGENTS.md` | ❌ Not yet |
 
-> **⚠️ Compatibility note:** Buck workflow has only been tested with **Pi**. The table above shows where other agents *expect* to find global instructions, but the bootstrap instructions and skills have not been validated with those harnesses. If you try another agent, expect to debug path resolution, tool invocation differences, and behavioral quirks. **Pull requests adding or improving support for other agents are welcome.**
+> **Compatibility note:** Buck workflow currently targets Pi and OMP. OMP uses the `commands/` symlink mirror for slash-command discovery; Pi uses `prompts/`. Claude Code, OpenCode, Codex, and Cursor still need adapter wiring and validation.
 
 #### Option B: Per-Project (project-specific only)
 
@@ -93,16 +99,16 @@ This scopes the bootstrap instructions to that project alone. Use this when you 
 
 ### Layered Architecture
 
-Buck workflow uses a three-layer model for portability across agents:
+1. **Canonical skills** (`skills/`) — Portable workflow logic. Agent-neutral Markdown files that define *how* each workflow behaves. These are the source of truth.
+2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads `commands/*.md`; those files are symlinks back to `prompts/` so there is one source of truth.
+3. **Runtime automation** (`extensions/index.ts`) — Minimal Pi/OMP extension surface for model auto-switch and TPS tracking. Historical orchestration subsystems remain in `extensions/` but are not wired by the package manifest.
 
-1. **Canonical skills** (`skills/`) — Portable workflow logic. Agent-neutral Markdown files that define *how* each workflow behaves. These are the source of truth and work across all agent environments.
-2. **Thin wrappers** (`prompts/`) — Agent-native invocation surface. In Pi, prompt templates provide the familiar `/b-*` commands, each loading the matching skill. Other agents invoke the same skills through their own mechanisms (see cross-agent parallels below).
-3. **Runtime automation** (`extensions/`) — Session tracking, state orchestration, and event-driven behavior that needs hooks and persistence. This is Pi-specific and stays in extensions.
+**Runtime mapping:**
 
-**Pi-native mapping:**
-
-- **Most `/b-*` commands** → **prompt templates** in `prompts/` that invoke **skills** in `skills/`
-- **Session/runtime automation** (`/b-save`, `/b-mode`) → **extension** in `extensions/index.ts`
+- **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
+- **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
+- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans and token-per-second tracking
+- **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command
 
 ### Cross-Agent Parallels
 
@@ -110,18 +116,19 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 
 | Agent | Invocation Mechanism | Example | Tested? |
 |-------|---------------------|---------|---------|
-| **Pi** | Prompt templates (`/b-*`) | `/b-plan` loads `skills/b-plan/SKILL.md` | ✅ Yes |
+| **Pi** | Prompt templates (`prompts/`) | `/b-plan` loads `prompts/b-plan.md` | ✅ Yes |
+| **OMP** | Command mirror (`commands/`) | `/b-plan` loads `commands/b-plan.md` → `../prompts/b-plan.md` | ✅ Yes |
 | **Claude Code** | Commands (`.claude/commands/`) | Command file loads the same skill | ❌ Not yet |
 | **Cursor** | Rules (`.cursor/rules/`) | Rule file references skill content | ❌ Not yet |
 | **OpenCode / Codex** | Native skill/command system | Skill loaded through agent mechanism | ❌ Not yet |
 
-Prompt templates and extensions are Pi-specific. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic, but **only Pi has been tested end-to-end**. Other agents will need adapter wiring and likely some debugging to work correctly.
+Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic; the currently maintained wrappers are Pi `prompts/` and OMP `commands/`.
 
 **Want to help?** Pull requests that add or improve support for Claude Code, Cursor, OpenCode, Codex, or other agent harnesses are very welcome. The skills are plain Markdown — the main work is creating the thin wrapper layer (commands, rules, etc.) for each agent and testing the full workflow.
 
 ### Prompt Templates (`/b-*` commands)
 
-Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a thin wrapper that invokes the matching skill:
+Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt command is a thin wrapper that invokes the matching skill:
 
 | Command | Skill Invoked | Purpose |
 |---------|---------------|---------|
@@ -136,12 +143,15 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/git-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
-### Extension Command
+### OMP Command Mirror
+
+`commands/*.md` are symlinks to `prompts/*.md`. They exist so OMP discovers the same slash commands that Pi exposes from `prompts/`.
+
+### Pure Prompt Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/b-save` | Record session history to `.context/memory/`, update workflow state, and trigger follow-up save orchestration |
-| `/b-mode on\|off\|status` | Control Buck workflow mode and its planning write guard |
+| `/b-save` | Record session history to `.context/memory/`, update workflow state, stitch cross-references, and update backlog/spec status |
 
 ### Skills
 
@@ -164,16 +174,13 @@ Type `/b-` in pi to see the Buck workflow prompt-template commands. Each is a th
 | `b-grill-with-docs` | Grill against existing domain documentation |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
 
-### Extension (Session Tracking)
+### Extension (Runtime Hooks)
 
-The extension automatically:
-- **Tracks** which `/b-*` commands you've used this session
-- **Tracks** files modified during implementation
-- **Warns** when implementation work is unsaved (reminds you to `/b-save`)
-- **Injects** session state into compaction context so summaries preserve workflow state
-- **Bootstraps** `.context/workflow/current-session.json` on session start
-- **Registers** `/b-save` and `/b-mode` as real Pi extension commands
-- **Manages** Buck workflow mode, status indicators, and planning write guards (auto-enable is opt-in only)
+The wired package extension is intentionally small:
+- **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
+- **Token-per-second tracking** during model generation
+
+Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 
@@ -200,7 +207,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 
 ### Ad-Hoc Work
 
-You don't have to run any Buck command at all. The global `~/.pi/agent/AGENTS.md` ensures that even in freeform sessions, the agent still writes memory, updates the backlog, and maintains `.context/` artifacts. Buck stages add structure; the baseline ensures continuity regardless.
+You don't have to run any Buck command at all. The global AGENTS.md bootstrap (`~/.omp/agent/AGENTS.md` or `~/.pi/agent/AGENTS.md`) ensures that even in freeform sessions, the agent still writes memory, updates the backlog, and maintains `.context/` artifacts. Buck stages add structure; the baseline ensures continuity regardless.
 
 ## Subject Folder System
 
@@ -233,21 +240,21 @@ Artifacts link to each other via frontmatter fields:
 - **Spec** → `plans: [plan-file.md]`, `memory: []`
 - **Memory** → `subject: YYYY-MM-DD.name`, `artifacts: [files...]`
 
-`/b-save` stitches cross-references automatically.
+`/b-save` stitches cross-references by executing the prompt/skill instructions directly.
 
 ## Requirements
 
-- An AI coding agent — **Pi is the only tested and supported agent** (see [Compatibility](#compatibility))
+- An AI coding agent — **Pi and OMP are the maintained targets** (see [Compatibility](#compatibility))
 - The agent bootstrap instructions installed (see [Install](#install) step 2) — either globally or per-project
 - A `.context/` directory in your project (created automatically on first use)
-- For `/b-*` commands: Pi with this package installed
+- For slash commands: Pi with `prompts/` loaded, or OMP with the `commands/` mirror discovered
 - Optional: [qmd](https://github.com/qmd-project/qmd) for semantic search over memory files
 
 ## Compatibility
 
-**Buck workflow is developed and tested exclusively with [Pi](https://pi.dev).**
+**Buck workflow is developed for Pi and OMP.**
 
-The architecture is designed to be agent-agnostic — skills are plain Markdown, `.context/` conventions use standard file formats, and the global AGENTS.md avoids Pi-specific tool calls. However, only Pi has been validated end-to-end. Other agent harnesses (Claude Code, Cursor, OpenCode, Codex) will need:
+The architecture is designed to be agent-agnostic — skills are plain Markdown, `.context/` conventions use standard file formats, and the global AGENTS.md avoids runtime-specific tool calls where possible. Pi and OMP are the current maintained targets. Other agent harnesses (Claude Code, Cursor, OpenCode, Codex) will need:
 
 1. **Path placement** — The `AGENTS.md` bootstrap file must be placed where each agent expects to load global instructions from (see the install table above)
 2. **Wrapper wiring** — Each agent needs its own thin invocation layer (commands, rules, etc.) to call into the shared skills

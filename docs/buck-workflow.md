@@ -9,73 +9,49 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
-- **Plugin Tracking**: Automatic session state tracking prevents lost work
-- **b-prefix Discoverability**: Type `/b-` to find Buck workflow commands exposed by prompt templates and extension commands
+- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` symlinks to the same prompt bodies
+- **Minimal Runtime Hooks**: The wired extension handles model auto-switch and TPS tracking only
+- **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
-## Pi-native package mapping
+## Runtime package mapping
 
-Pi does not use the same custom command model as OpenCode. In this package, the Buck workflow surface is assembled from Pi primitives:
+Pi and OMP discover slash commands differently. This package keeps one
+source of truth for command bodies and mirrors only the registration surface:
 
-| Buck concept | Pi primitive | Current implementation |
-|---|---|---|
-| Most `/b-*` workflow entrypoints | Prompt templates | `prompts/b-*.md` |
-| Reusable helper capabilities | Skills | `skills/*/SKILL.md` |
-| Session/runtime automation | Extension | `extensions/index.ts` |
-| `/b-save` orchestration | Extension command | `extensions/index.ts` via `pi.registerCommand("b-save", ...)` |
-| `/b-mode` control | Extension command | `extensions/index.ts` via `pi.registerCommand("b-mode", ...)` |
+| Buck concept | Pi primitive | OMP primitive | Current implementation |
+|---|---|---|---|
+| Most `/b-*` workflow entrypoints | Prompt templates | Slash commands | `prompts/b-*.md`; `commands/b-*.md` symlinks |
+| Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
+| Runtime hooks | Extension | Extension | `extensions/index.ts` |
+| `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
-- Use a **skill** when the behavior is a reusable helper, not the primary workflow entrypoint.
-- Use an **extension** when you need hooks, state, notifications, or command registration.
+- Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
+- Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
+- Use an **extension** only for runtime hooks that cannot be expressed as prompts or skills. Current wired hooks are model auto-switch and TPS tracking.
 
-**Important:** The sections below describe workflow behavior. Implementation details are in the Pi-native mapping table above.
+**Important:** Historical extension subsystems still exist under `extensions/`, but the package manifest wires only `extensions/index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
-## b-flow — Autonomous Orchestration
+## b-flow — Deprecated / Unwired Historical Subsystem
 
-b-flow is a Pi extension that supervises the entire Buck workflow. Given a goal, it runs through Buck states automatically — planning, phasing, building, reviewing, saving — persisting state across context resets and managing isolated workers for each chunk of work.
+`extensions/b-flow/` remains in the repository as historical code and tests,
+but it is **not wired by `package.json`** and should not be documented as the
+current autonomous workflow surface. The deprecation lesson is deliberate:
+extension-based orchestration that is not observably invoked becomes dead
+weight.
 
-**Quick start:**
-```
-/b-flow start "Build the SDK worker feature"
-/b-flow run
-```
+Current autonomous-loop guidance lives in prompt/skill surfaces instead:
 
-**Commands:**
+- Use `b-plan` and `b-phase` for normal phase decomposition.
+- Use OMP's user-toggled primitives (`/goal set`, `orchestrate`, `workflow`)
+  only when the plan/phase recommends `omp_execution`.
+- Use `/b-save` as a pure prompt/skill for durable session recordkeeping.
 
-| Command | Description |
-|---------|-------------|
-| `/b-flow start <goal>` | Create orchestration state with a goal |
-| `/b-flow run` | Start autonomous execution through the queue |
-| `/b-flow continue` | Advance one step (guided mode) |
-| `/b-flow status` | Show current state, goal, queue progress |
-| `/b-flow pause` | Pause execution (state persisted) |
-| `/b-flow resume` | Resume from paused state |
-| `/b-flow stop` | Abort the flow (artifacts preserved) |
-| `/b-flow mode guided\|autonomous` | Switch execution mode |
-| `/b-next` | Show next queue item without executing |
-
-**Worker backends:** b-flow supports two worker paths controlled by `BFLOW_USE_SDK_WORKER`:
-
-| Worker | Env var | Startup | Notes |
-|--------|---------|---------|-------|
-| Subprocess (default) | unset or `0` | ~2-5s | Spawns `pi -p --no-session` child process |
-| SDK worker | `1` | ~50ms | In-process `createAgentSession()` with per-chunk model selection and tool scoping |
-
-```bash
-# Enable SDK worker
-BFLOW_USE_SDK_WORKER=1 pi
-```
-
-The SDK worker provides:
-- **Per-chunk model selection** by difficulty tier (easy → haiku, medium → sonnet, hard → opus)
-- **Tool scoping** (iterate chunks get read-only tools; build chunks get full coding set)
-- **Real-time event streaming** and tool call capture
-- **Structured lifecycle**: `subscribe → prompt → extract result → dispose` (guaranteed)
-
-**Full documentation**: See [docs/b-flow.md](b-flow.md) for state machine details, result file formats, audit files, persistence, and architecture.
+Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
+archival reference, not as active user-facing setup.
 
 ---
 
@@ -353,7 +329,7 @@ flowchart TD
         P8["skills/b-phase/SKILL.md"]
         P9["skills/b-grill-me/SKILL.md"]
         P10["skills/b-grill-with-docs/SKILL.md"]
-        E1["extensions/index.ts<br/>registers b-save"]
+        P11["prompts/b-save.md<br/>+ skills/b-save/SKILL.md"]
     end
 
     C0 --> P0
@@ -364,7 +340,7 @@ flowchart TD
     C5 --> P5
     C6 --> P6
     C7 --> P7
-    C8 --> E1
+    C8 --> P11
     C9 --> P8
     C10 --> P9
     C11 --> P10
@@ -376,8 +352,8 @@ flowchart TD
 
 ### Quick Reference Table
 
-| Component | Pi primitive | Slash entrypoint | Backing file | Purpose |
-|-----------|--------------|------------------|--------------|---------|
+| Component | Runtime primitive | Slash entrypoint | Backing file | Purpose |
+|-----------|-------------------|------------------|--------------|---------|
 | [**b-explore**](#1-discovery-phase) | Prompt template | `/b-explore` | `prompts/b-explore.md` | Explore codebases, trace architecture, map data flows |
 | [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
@@ -390,12 +366,12 @@ flowchart TD
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
-| [**b-flow**](#b-flow--autonomous-orchestration) | Extension command | `/b-flow <subcommand>` | `extensions/b-flow/` | Autonomous workflow orchestration |
-| [**b-next**](#b-flow--autonomous-orchestration) | Extension command | `/b-next` | `extensions/b-flow/` | Show next queue item |
+| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
+| [**b-flow**](#b-flow--deprecated--unwired-historical-subsystem) | Historical/unwired | none by default | `extensions/b-flow/` | Deprecated orchestration prototype retained for reference |
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Implementation note:** this Pi package exposes a unified `/b-*` workflow surface, but that surface is backed by both prompt templates and extension commands (`/b-save`, `/plan`).
+**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 ---
 
@@ -403,126 +379,30 @@ flowchart TD
 
 ---
 
-## Plan Mode
+## Runtime Extension Scope
 
-#### `/b-plan` — Auto-Enables Plan Mode
+`extensions/index.ts` is intentionally small. It currently owns only:
 
-**Purpose**: Plan mode creates a read-only planning environment that allows writing only to documentation and workflow files.
+1. **Model auto-switch** — Reads `buckModelMapping`, detects the active
+   phased-plan difficulty, switches model tier for `/b-build`,
+   `/b-build-hard`, `/b-iterate`, and `/b-review`, then switches back after
+   `agent_end` unless the user manually changed models.
+2. **TPS tracker** — Tracks token-per-second generation metrics.
 
-**Pi primitive**: Extension command (`extensions/index.ts`)
+The following older subsystems are **not** wired by the package manifest:
 
-**Behavior**:
-- `/b-plan`, `/b-brainstorm`, `/b-explore`, `/b-research`, and grill commands automatically enable plan mode
-- `/b-build`, `/b-build-hard`, and `/b-iterate` automatically disable plan mode
-- When enabled:
-  - **Allows** writes to `.context/` and `docs/` paths only
-  - **Blocks** writes to source code, config files, and any `.md`/`.txt` outside allowed paths
-  - **Allows** safe bash commands (ls, cat, grep, find, etc.)
-  - **AI-reviews** non-whitelisted bash commands (asks for confirmation if mutating)
-  - **Blocks** mutating git commands (commit, push, pull, merge, etc.)
-  - Shows "⚠️ planning" status indicator
-- State persists across session resume
+| Subsystem | Current state |
+|---|---|
+| `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
+| `/b-mode` and plan-mode write guards | Removed from the wired extension |
+| `/b-flow` / `/b-next` orchestration | Historical code in `extensions/b-flow/`; not an active command |
+| `b-grill-auto` extension command | Historical/unwired; the skill remains available |
+| Session-state injection / tmux status | Removed/unwired |
 
-**To disable plan mode**: Run `/b-build`, `/b-build-hard`, or `/b-iterate` (auto-disables the write guard but keeps Buck mode active), or run `/b-mode off` to disable the full Buck workflow envelope.
-
-**Status indicators**: When Buck mode is active, shows `🦌 buck`; when the write guard is active, also shows `📝 planning`.
-
-**Session persistence**: Buck mode and plan mode state are saved to `.context/workflow/current-session.json` and restored on session resume.
-
-**Allowed paths**:
-- `.context/` — plans, specs, research, memory files
-- `docs/` — documentation
-
-**Blocked paths**:
-- Source code files (`.ts`, `.js`, `.py`, etc.)
-- Config files (`.json`, `.yaml`, `.toml`, etc.)
-- `.md` or `.txt` files outside `.context/` and `docs/`
-
-**Bash restrictions**:
-- Whitelisted: `cat`, `ls`, `grep`, `find`, `head`, `tail`, `wc`, `pwd`, `echo`, `git status`, `git log`, `git diff`, etc.
-- Blocked: `git commit`, `git push`, `git pull`, `git merge`, file redirects (`>`, `>>`)
-- Non-whitelisted commands are AI-reviewed; mutating ones prompt for confirmation
-
-**Typical use**:
-```
-/b-brainstorm  # Auto-enables plan mode
-/b-explore   # Plan mode stays active
-/b-research    # Plan mode stays active
-/b-plan        # Create plan in .context/
-/b-build       # Auto-disables plan mode, enters implementation
-```
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
----
-
-## Buck Workflow Mode
-
-Buck workflow mode is an extension-owned session state that provides a broader behavioral envelope around the existing plan-mode write guard. It is designed to make Buck workflow mechanics implicit when the conversation is clearly workflow-shaped, without requiring explicit `/b-*` commands for every step.
-
-### What It Owns
-
-Buck workflow mode encompasses and extends the existing plan-mode behavior:
-
-| Feature | Current implementation |
-|---------|------------------------|
-| Write guards (`.context/`, `docs/` only) | `plan_mode_active` remains the write-guard sub-mode |
-| Broad workflow mode | `buck_workflow_mode_active` in `.context/workflow/current-session.json` |
-| Auto-enable on planning/research commands | `/b-plan`, `/b-explore`, `/b-research`, `/b-brainstorm`, grill planning commands enable Buck + plan mode |
-| Auto-disable write guard on build commands | `/b-build`, `/b-build-hard`, `/b-iterate` keep Buck mode active but disable `plan_mode_active` |
-| Manual control | `/b-mode on|off|status` and `alt+p` toggle |
-| Narrow auto-enable | Intent detection from user messages (disabled by default, opt-in only) |
-| Session latching | Mode stays active until manually disabled; `/b-mode off` suppresses auto-enable |
-| Implicit session bootstrap | Restores status from `.context/workflow/current-session.json` |
-| Durable artifact prompting | Buck-aware system prompt when mode is active |
-
-### Activation
-
-**Manual control**:
-```
-/b-mode on      — Enable Buck workflow mode and the planning write guard
-/b-mode off     — Disable Buck workflow mode and suppress auto-enable for the session
-/b-mode status  — Show current mode state, source, reason, and intent count
-```
-
-`alt+p` toggles the same Buck workflow/planning mode envelope.
-
-**Narrow auto-enable** (disabled by default): Previously activated when the user's intent matched workflow-shaped asks. Now opt-in only — users must explicitly enable via `/b-mode on`, `/b-plan`, etc.
-
-**Latching**: Once enabled, Buck mode stays active until manually disabled via `/b-mode off` or `alt+p`. Build commands disable only the planning write guard, not the broader Buck workflow mode.
-
-**State split**: `buck_workflow_mode_active` is the broad workflow envelope. `plan_mode_active` is only the write-guard sub-mode. This separation allows workflow-shaped implementation requests to enable Buck guidance without blocking source edits.
-
-### What Mode Does NOT Do
-
-- **Does not create files immediately** — file creation waits until a clear threshold is crossed or the user explicitly invokes a skill (`/b-plan`, `/b-explore`, `/b-research`, etc.).
-- **Does not replace explicit commands** — `/b-plan`, `/b-build`, `/b-review`, etc. remain the primary entrypoints. Mode provides implicit scaffolding around them.
-- **Does not change write guards** — plan mode's `.context/` + `docs/` write boundary remains unchanged.
-- **Does not generalize beyond Buck** — the mode is extension-owned and Buck-specific. Global Pi agent guidance remains Buck-agnostic.
-
-### Relationship to Global AGENTS.md
-
-The global `~/.pi/agent/AGENTS.md` file:
-- **Mentions Buck directly** and recommends it for most non-trivial work.
-- **Keeps the durable-artifact principle** — always prefer `.context/` artifacts.
-- **Does not encode Buck substructure** — memory frontmatter, backlog layout, and subject folder taxonomy live in Buck docs and `docs/context-workflow.md`.
-- **Does not implement mode behavior** — mode is extension-owned runtime state.
-
-This split makes Buck workflow portable: the global AGENTS file provides a lightweight baseline, while Buck owns the detailed semantics.
-
-### Implementation Status
-
-| Component | Status |
-|-----------|--------|
-| Ownership split documented | ✅ Complete |
-| Global AGENTS.md trimmed | ✅ Complete |
-| Buck-mode semantics documented | ✅ Complete (this section) |
-| Plan mode allowed paths corrected | ✅ Complete |
-| `/b-mode` command | ✅ Complete |
-| Narrow auto-enable heuristics | ⚠️ Disabled (opt-in only, per user request) |
-| Session state model extension | ✅ Complete |
-| Generic routing entrypoint | 🔲 Deferred |
-
+The durable-artifact behavior now comes from AGENTS.md instructions and
+prompt/skill workflows, not from an always-on session-state supervisor.
+See [docs/extension-loading.md](extension-loading.md) for the package loading
+truth table.
 ---
 
 ### 1. Discovery Phase
@@ -533,7 +413,7 @@ This split makes Buck workflow portable: the global AGENTS file provides a light
 
 **Purpose**: Explore unfamiliar codebases, trace architecture and data flows, map module boundaries and dependencies.
 
-**Pi primitive**: Prompt template (`prompts/b-explore.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-explore.md` in Pi, `commands/b-explore.md` symlink in OMP)
 
 **Behavior**:
 - Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/`
@@ -565,7 +445,7 @@ informs: []  # Plans/specs this exploration fed into
 
 **Purpose**: Investigate external sources — APIs, libraries, documentation, web resources — and capture findings into durable, incrementally updated research artifacts.
 
-**Pi primitive**: Prompt template (`prompts/b-research.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-research.md` in Pi, `commands/b-research.md` symlink in OMP)
 
 **Behavior**:
 - Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/`
@@ -599,7 +479,7 @@ informs: []  # Plans/specs this research fed into
 
 **Purpose**: Capture initial thinking through one-question-at-a-time interview, save loose first-draft plan.
 
-**Pi primitive**: Prompt template (`prompts/b-brainstorm.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-brainstorm.md` in Pi, `commands/b-brainstorm.md` symlink in OMP)
 
 **Behavior**:
 - **Creates subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
@@ -627,7 +507,7 @@ informs: []  # Plans/specs this research fed into
 
 **Purpose**: Interview the user relentlessly about a plan, tracking decision-tree complexity. When questions exceed a configurable threshold (default 20), identifies natural break points for phasing.
 
-**Pi primitive**: Skill (`skills/b-grill-me/SKILL.md`)
+**Pi/OMP primitive**: Skill (`skills/b-grill-me/SKILL.md`)
 
 **When to Use**: Before or after `/b-plan`, when the user wants to stress-test a plan or design through rapid-fire questions.
 
@@ -653,7 +533,7 @@ informs: []  # Plans/specs this research fed into
 
 **Purpose**: Same as `b-grill-me`, but also challenges the plan against existing domain documentation (CONTEXT.md, ADRs). Updates documentation inline as decisions crystallize.
 
-**Pi primitive**: Skill (`skills/b-grill-with-docs/SKILL.md`)
+**Pi/OMP primitive**: Skill (`skills/b-grill-with-docs/SKILL.md`)
 
 **When to Use**: When the project has domain documentation (CONTEXT.md, ADRs) and the user wants to stress-test a plan against established terminology and decisions.
 
@@ -676,7 +556,7 @@ informs: []  # Plans/specs this research fed into
 
 **Purpose**: Turn research or task request into bounded implementation plan with scope, risks, verification.
 
-**Pi primitive**: Prompt template (`prompts/b-plan.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-plan.md` in Pi, `commands/b-plan.md` symlink in OMP)
 
 **Behavior**:
 - **Creates subject folder**: `.context/YYYY-MM-DD.<subject-name>/`
@@ -721,7 +601,7 @@ memory: []                    # Filled by b-save after execution
 
 **Purpose**: Break large plans into sequential, independently-verifiable phases when a single session would be risky or cramped.
 
-**Pi primitive**: Skill (`skills/b-phase/SKILL.md`)
+**Pi/OMP primitive**: Skill (`skills/b-phase/SKILL.md`)
 
 **Trigger**: Manual (`/skill:b-phase`) or recommended by `/b-plan` when the plan is large.
 
@@ -786,7 +666,7 @@ This works even with zero conversation history — a cold-start agent gets full 
 
 **Purpose**: Generate an async-reading-first presentation package (small static site) from plans, phases, brainstorms, specs, grill sessions, or research. The package includes a primary overview page, optional detail pages, rendered source views, and a manifest.
 
-**Pi primitives**: Prompt template (`prompts/b-present.md`) + Skill (`skills/b-present/SKILL.md`)
+**Pi/OMP primitives**: Prompt command (`prompts/b-present.md` / `commands/b-present.md`) + Skill (`skills/b-present/SKILL.md`)
 
 **Supported Sources**:
 - Plans (`plan-*.md`)
@@ -901,7 +781,7 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Purpose**: Implement well-defined work with smallest safe code change.
 
-**Pi primitive**: Prompt template (`prompts/b-build.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-build.md` in Pi, `commands/b-build.md` symlink in OMP)
 
 **Resolution Order** (for finding plans):
 1. Active subject folder: `.context/YYYY-MM-DD.[:subject]/plan-*.md`, `spec-*.md`
@@ -939,7 +819,7 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Purpose**: Handle ambiguous, multi-file, or higher-risk implementation work.
 
-**Pi primitive**: Prompt template (`prompts/b-build-hard.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-build-hard.md` in Pi, `commands/b-build-hard.md` symlink in OMP)
 
 **Same resolution order and cross-reference following as b-build.**
 
@@ -963,7 +843,7 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Purpose**: Handle review feedback, polish, cleanup — keep momentum without reopening full implementation cycle.
 
-**Pi primitive**: Prompt template (`prompts/b-iterate.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-iterate.md` in Pi, `commands/b-iterate.md` symlink in OMP)
 
 **Context Resolution**:
 1. **Explicit argument** — user-provided path or description
@@ -1003,7 +883,7 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Purpose**: Review implementation changes for correctness, scope adherence, regressions, and workflow compliance.
 
-**Pi primitive**: Prompt template (`prompts/b-review.md`)
+**Pi/OMP primitive**: Prompt command (`prompts/b-review.md` in Pi, `commands/b-review.md` symlink in OMP)
 
 **Important**: `b-review` is **read-only**. It should not modify files.
 
@@ -1063,19 +943,19 @@ Suggested next step
 
 **Purpose**: Checkpoint session state and record completed work to the canonical history ledger.
 
-**Pi primitive**: Extension command (`extensions/index.ts`)
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
-`/b-save` is an **extension-registered command**, not a prompt template. The extension reads workflow state, sends a structured follow-up save prompt to the model, and marks the session as saved.
+`/b-save` is a **pure prompt/skill command**. There is no extension handler.
+The model executes the prompt instructions directly, reads
+`.context/workflow/current-session.json` when it exists, and writes only to
+`.context/`.
 
 **Usage**:
 ```
-/b-save [--quick]
+/b-save
 ```
 
-- **Interactive mode** (default): Confirm each section
-- **Quick mode** (`--quick`): Auto-apply defaults
-
-**10 Core Responsibilities**:
+**11 Core Responsibilities**:
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -1087,6 +967,7 @@ Suggested next step
 8. **QMD Re-index** — Make new memory searchable (if QMD available)
 9. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
 10. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
+11. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
 
 **Memory Frontmatter**:
 ```yaml
@@ -1137,8 +1018,8 @@ status: active
 │   ├── index.md                        # History ledger
 │   └── <topic>-YYYY-MM-DD.md           # Session notes
 │
-├── workflow/                           # Plugin state
-│   └── current-session.json            # Active session tracking
+├── workflow/                           # Optional prompt-read session state
+│   └── current-session.json            # Read by /b-save if present
 │
 ├── backlog/                         # Active queue + per-item detail
 │   ├── todo.md                       # Active items (linked checkboxes)
@@ -1223,58 +1104,38 @@ This ensures **zero breaking changes** for existing projects.
 
 ---
 
-## Buck Workflow Plugin
+## Runtime Extension
 
 ### Purpose
 
-Tracks b-* command usage, file edits, and session state to enforce the one rule: **don't lose work**.
+The wired extension is operational support, not the source of workflow
+truth. Durable context comes from AGENTS.md plus prompt/skill commands.
 
-### State File
+### Current hooks
 
-**Location**: `.context/workflow/current-session.json`
-
-**Structure**:
-```json
-{
-  "started_at": "2026-04-13T10:00:00.000Z",
-  "mode": "freeform",
-  "commands_run": [
-    { "command": "b-research", "at": "2026-04-13T10:05:00.000Z" },
-    { "command": "b-plan", "at": "2026-04-13T10:15:00.000Z" }
-  ],
-  "implementation_happened": false,
-  "save_completed": false,
-  "memory_file": ".context/memory/topic-2026-04-13.md",
-  "files_modified": ["src/auth.ts", "tests/auth.test.ts"],
-  "active_buck_agent": "b-build",
-  "model_overrides": {
-    "b-build": "openai/gpt-5.4"
-  },
-  "last_seen_session_model": "openai/gpt-5.4",
-  "guided_workflow": null,
-  "guided_stage": null
-}
-```
-
-### Events Handled
-
-| Event | Purpose |
+| Hook | Purpose |
 |-------|---------|
-| `session.created` | Bootstrap session state if `.context` exists |
-| `tui.command.execute` | Apply stored Buck model override before command runs |
-| `command.executed` | Track b-* commands, set implementation/save flags |
-| `session.updated` | Capture manual model changes for the active Buck agent |
-| `file.edited` | Track modified files (deduplicated) |
-| `tool.execute.after` | Supplementary tracking for write/edit/bash |
-| `session.idle` | Toast warning if implementation unsaved |
-| `experimental.session.compacting` | Inject session state into compaction context |
+| `session_start` | Capture current working directory for model-switch lookups |
+| `input` | Detect model-switch-eligible `/b-*` commands |
+| `before_agent_start` | Run model-switch setup/check before build/review commands |
+| `model_select` | Detect user-initiated model changes and respect them |
+| `agent_end` | Switch back to the original model after phase-scoped work |
+| TPS tracker hooks | Track token-per-second metrics during generation |
 
-### Idle Warning
+### Model auto-switch
 
-If `implementation_happened=true` and `save_completed=false`, plugin shows:
-```
-⚠️ Implementation work unsaved. Run /b-save to record this session.
-```
+The extension reads `buckModelMapping` from Pi settings, finds the active
+phase difficulty in `.context/`, switches to the mapped model for
+`/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`, and switches back
+after the agent turn unless the user manually selected a different model.
+
+### What is no longer extension-owned
+
+- `/b-save` is pure prompt/skill recordkeeping.
+- There is no wired `/b-mode` command or plan-mode write guard.
+- There is no wired `/b-flow` or `/b-next` command.
+- Session-state injection and idle warnings are not part of the current
+  package surface.
 
 ---
 
@@ -1357,19 +1218,17 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 
 ## Discoverability
 
-Type `/b-` in Pi to see all Buck workflow commands:
+Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/b-brainstorm`
 - `/b-build`
 - `/b-build-hard`
 - `/b-explore`
-- `/b-flow` — Autonomous orchestration (`start`, `run`, `status`, `continue`, `pause`, `resume`, `stop`, `mode`)
 - `/b-iterate`
-- `/b-next` — Show next queue item from b-flow
 - `/b-plan`
 - `/b-present`
 - `/b-research`
 - `/b-review`
-- `/b-save`
+- `/b-save` — pure prompt/skill recordkeeping command
 
 Also available:
 - `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)

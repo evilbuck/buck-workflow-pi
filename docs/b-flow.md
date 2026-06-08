@@ -1,17 +1,28 @@
 # b-flow: Autonomous Workflow Orchestration
 
+> **Status: deprecated / unwired.** `extensions/b-flow/` is retained as
+> historical implementation and test code, but the package manifest does not
+> load it and the current Buck workflow does not expose `/b-flow` or `/b-next`
+> by default. Use `b-plan` + `b-phase` for normal decomposition, and OMP's
+> prompt-level primitives (`/goal set`, `orchestrate`, `workflow`) only when a
+> plan/phase explicitly recommends `omp_execution`. This page is archival
+> reference for the old state machine.
+
+## Historical Design
+
+
 b-flow is a Pi extension that acts as a **durable workflow supervisor** for Buck. Given a goal, it runs through the Buck workflow states automatically — planning, phasing, building, reviewing, saving — persisting state across context resets and managing workers that execute individual chunks of work.
 
-## Quick Start
+The old user-facing shape was:
 
 ```
 /b-flow start "Build the SDK worker feature"
 /b-flow run
 ```
 
-This creates orchestration state, discovers or creates a plan, decomposes work into chunks, and begins executing them one at a time through isolated worker sessions.
+Those commands are not part of the wired package surface today.
 
-## Commands
+## Historical Commands
 
 | Command | Description |
 |---------|-------------|

@@ -1,4 +1,6 @@
 # Memory Index
+  - 2026-06-07 | `code-review-skill-build-2026-06-07.md` | domains: [implementation, buck-workflow, skill, docs, pi, omp] | topics: [code-review, pr-review, pr-context, submit-review, worktree, gh-api, bun-scripts, harsh-review, docs-reality-pass, README, OMP, cross-platform] | status: active
+  - 2026-06-07 | `docs-reality-pass-2026-06-07.md` | domains: [docs, buck-workflow, omp, pi] | topics: [readme, docs, extension-loading, b-save, b-flow, command-mirror] | status: completed
   - 2026-06-07 | `cross-harness-kernel-phase-4-2026-06-07.md` | domains: [implementation, buck-workflow, omp, eval-kernel, planning, skill-authoring] | topics: [b-grill-me, b-grill-with-docs, decision_domains, PHASES, auto-derive, mapping, eval-cell, workflow-kernel, skill-section] | status: completed
   - 2026-06-07 | `cross-harness-kernel-phase-3-2026-06-07.md` | domains: [implementation, buck-workflow, omp, eval-kernel, planning] | topics: [eval-cells, review-audit, migration-sweep, parallel, pipeline, llm-judge, schemas, additionalProperties, b-plan] | status: completed
   - 2026-06-07 | `cross-harness-kernel-phase-2-2026-06-07.md` | domains: [docs, buck-workflow, omp, planning, eval-kernel] | topics: [eval-kernel, contract-doc, prelude-helpers, budget, schemas, failure-modes, cross-platform, b-plan] | status: completed

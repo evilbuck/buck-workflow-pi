@@ -19,3 +19,5 @@ test-results
 gitnexus
 CURRENT-TASK.md
 .context/workflow/current-session.json
+.worktrees/
+CODE-REVIEW.md
