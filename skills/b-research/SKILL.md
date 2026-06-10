@@ -61,14 +61,15 @@ If the protocol finds no subject, proceed as a fresh session.
 
 `research-<topic>.md` in the subject root is the canonical artifact that other Buck commands consume. It must exist by the end of the session and contain a synthesized summary of findings.
 
-### Incremental Notes (Optional but Recommended)
+### Incremental Notes (Required)
 
-During long research sessions, write rolling notes and source captures in a `research/` subdirectory:
+Every research session writes rolling notes and source captures in a `research/` subdirectory immediately after creating the subject folder:
 
-- `research/notes-<topic>.md` — running notes, observations, intermediate conclusions
-- `research/sources-<topic>.md` — URLs, citations, and key quotes from sources
+- `research/notes-<topic>.md` — running notes, observations, intermediate conclusions, updated after each source consulted
+- `research/sources-<topic>.md` — URLs, citations, and key quotes from sources, updated after each source
 
-This prevents loss if the session is interrupted and makes it easy to trace where conclusions came from.
+This is not optional. Prevents loss if the session is interrupted and makes it easy to trace where conclusions came from.
+
 
 ### Subject Entrypoint (Required)
 
@@ -81,7 +82,7 @@ This prevents loss if the session is interrupted and makes it easy to trace wher
 1. **Clarify the question**: Understand what specific information is needed. If ambiguous, ask one targeted question before diving in.
 2. **Select sources**: Choose the most authoritative sources first (official docs, source code, standards bodies) before secondary sources (blogs, forums, StackOverflow).
 3. **Search systematically**: Use multiple queries with varied phrasing for broader coverage.
-4. **Capture as you go**: Write findings to incremental notes immediately — don't batch until the end.
+4. **Write after each source**: follow the Write-Gate Protocol below — persist findings immediately, do not batch.
 5. **Evaluate evidence**: Note confidence levels, contradictions between sources, and recency.
 6. **Synthesize**: Consolidate incremental notes into the canonical `research-<topic>.md` summary.
 
@@ -103,15 +104,18 @@ Workflow:
 - **Code search**: Use code search tools for library source code and implementation examples.
 - **Local docs**: Check local project docs and README files first — they may already contain the answer.
 
-### Incremental Research Behavior
+### Write-Gate Protocol (Required)
 
-During a long research pass:
+**Write immediately. Do not hoard findings in context.** After each source consulted (web page read, API doc fetched, library source examined), persist findings before moving to the next source.
 
-1. **Create/update `index.md`** with current state and links to notes
-2. **Append/update rolling notes** in `research/notes-<topic>.md`
-3. **Track sources** in `research/sources-<topic>.md` with URLs and key quotes
-4. **Keep the assessment section current** in the canonical summary as evidence changes
-5. **Finish by consolidating** incremental notes into the final `research-<topic>.md`
+Cadence:
+1. **Create `research/` subdirectory and rolling notes** immediately after the subject folder.
+2. **After each source**, append findings to `research/notes-<topic>.md` with a `### <source topic>` heading. Record: what was consulted, key findings, confidence level, and how it bears on the research question.
+3. **After each source**, update `research/sources-<topic>.md` with the URL, access date, and 1–3 key quotes or data points.
+4. **Every 3–5 sources**, or at any natural breakpoint, consolidate rolling notes into the canonical `research-<topic>.md`. Update its assessment section and frontmatter `status: active`.
+5. **Update `index.md`** after each consolidation so downstream consumers see a fresh entrypoint.
+
+Do NOT wait until session end to write. The canonical summary should be readable and useful at any interruption point.
 
 ### Graceful Degradation
 

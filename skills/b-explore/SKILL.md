@@ -27,16 +27,18 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
 
 1. **Infer subject name** from the exploration topic (kebab-case)
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
-3. **Write exploration file inside**: `research-<topic>.md` (keeps the canonical summary artifact name for compatibility)
-4. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts.
-
+3. **Create `research/` subdirectory** inside the subject folder for rolling notes.
+4. **Write exploration file inside**: `research-<topic>.md` (keeps the canonical summary artifact name for compatibility)
+5. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts.
 
 **Example:**
 ```
 .context/
 └── 2026-04-08.auth-feature/
     ├── index.md
-    └── research-oauth-providers.md
+    ├── research/
+    │   └── notes-oauth-providers.md   ← rolling exploration notes
+    └── research-oauth-providers.md    ← canonical summary (consolidated)
 ```
 
 ## Subject Resolution
@@ -62,11 +64,18 @@ If the protocol finds no subject, proceed as a fresh session.
 - Use GitNexus (when available) for dependency/caller analysis.
 - For QMD usage, read `~/.agents/skills/qmd/SKILL.md` for proper command syntax and collection management.
 
-### Persistence
+### Write-Gate Protocol (Required)
 
-- Persist useful findings to `.context/` as you go — don't wait until the end.
-- Update `index.md` with key discoveries so downstream consumers (b-plan, b-build) have a fast entrypoint.
-- Keep notes structured enough for a cold-start agent to understand without conversation history.
+**Write immediately. Do not hoard findings in context.** After each meaningful discovery — tracing a call chain, reading a module, identifying a pattern, or mapping a dependency — persist it to `.context/` before moving to the next step. A "meaningful discovery" is anything that would be lost if the session were interrupted at that point.
+
+Cadence:
+1. **Create rolling notes file immediately** after the subject folder: `research/notes-<topic>.md` in the subject root.
+2. **After each code trace or file-group read**, append findings to the rolling notes file with a `### <what you traced>` heading. Include: files examined, key symbols, data flow observed, and questions raised.
+3. **Every 3–5 findings**, or at any natural breakpoint (e.g., finished tracing a subsystem), consolidate the rolling notes into `research-<topic>.md` (the canonical summary). Update its frontmatter `status: active` and keep it current.
+4. **Update `index.md`** after each consolidation so downstream consumers see a fresh entrypoint.
+
+Do NOT wait until session end to write. The canonical summary should be readable and useful at any interruption point.
+
 
 ## Cross-Reference Stitching
 
@@ -76,14 +85,6 @@ When creating exploration findings:
 2. **If you know what this exploration will inform**, you can pre-populate `informs:` with the expected plan/spec filename
 3. **b-save will stitch links** when plans are created that reference this research
 
-## Incremental Updates
-
-For long exploration sessions:
-
-1. Create/update `index.md` as the stable entrypoint
-2. Update `research-<topic>.md` as findings accumulate
-3. Keep the summary current — downstream commands read this file directly
-4. Note open questions and areas not yet explored
 
 ## Research Frontmatter Template
 
