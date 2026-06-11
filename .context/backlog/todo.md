@@ -18,5 +18,5 @@
 
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)
+- [x] [b-pr skill](items/b-pr-skill.md) — SKILL.md, pr-preflight.ts, prompt, command, dual-audience description — done 2026-06-11
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
-
