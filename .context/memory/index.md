@@ -1,4 +1,6 @@
 # Memory Index
+  - 2026-06-11 | `b-pr-skill-build-2026-06-11.md` | domains: [implementation, buck-workflow, skill, docs] | topics: [b-pr, pull-request, github, gh-cli, git, dual-audience-description, base-branch-detection, rebase-verification, subagent-polish, context-artifacts] | status: active
+  - 2026-06-11 | `b-commit-final-step-plan-2026-06-11.md` | domains: [planning, buck-workflow, docs] | topics: [b-commit, git-commit, ralph, omp, chezmoi, global-agents] | status: active
   - 2026-06-09 | `durable-research-write-gate-2026-06-09.md` | domains: [skill, docs, buck-workflow] | topics: [b-explore, b-research, write-gate, incremental-notes, durable-artifacts] | status: completed
   - 2026-06-07 | `code-review-skill-build-2026-06-07.md` | domains: [implementation, buck-workflow, skill, docs, pi, omp] | topics: [code-review, pr-review, pr-context, submit-review, worktree, gh-api, bun-scripts, harsh-review, docs-reality-pass, README, OMP, cross-platform] | status: active
   - 2026-06-07 | `docs-reality-pass-2026-06-07.md` | domains: [docs, buck-workflow, omp, pi] | topics: [readme, docs, extension-loading, b-save, b-flow, command-mirror] | status: completed

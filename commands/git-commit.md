@@ -1,1 +1,0 @@
-../prompts/git-commit.md
