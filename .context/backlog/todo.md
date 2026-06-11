@@ -18,3 +18,5 @@
 
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)
+- [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
+

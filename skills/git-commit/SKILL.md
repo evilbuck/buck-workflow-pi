@@ -7,12 +7,14 @@ description: Create a Conventional Commits message from staged changes and commi
 
 Create a Conventional Commits message from staged changes and commit immediately. Works standalone or as part of the Buck workflow (reads draft-commit.md if present).
 
+Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash command). The skill name remains `git-commit` because it is the generic, reusable implementation.
+
 ## Inputs
 
 - Staged changes only. Do not infer work from unstaged or untracked files.
 - Utilize any staged memory or spec files in `.context/memory/` or `.context/specs/` as guidance, but verify the work was done.
 - Additional user context (if provided).
-- **`force`** — if present in arguments (e.g. `/git-commit force` or `/git-commit force: emergency hotfix`), override the protected-branch restriction and allow committing directly to `main`, `master`, or `develop`. Use deliberately — this exists for hotfixes and emergencies.
+- **`force`** — if present in arguments (e.g. `/b-commit force` or `/b-commit force: emergency hotfix`), override the protected-branch restriction and allow committing directly to `main`, `master`, or `develop`. Use deliberately — this exists for hotfixes and emergencies. (The skill also accepts `/git-commit force` when invoked directly outside the Buck workflow.)
 
 ## Safety Rules
 

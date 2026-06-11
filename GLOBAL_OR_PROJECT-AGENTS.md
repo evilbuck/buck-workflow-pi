@@ -19,6 +19,7 @@
 3. Update `.context/memory/index.md` with entry for the session file
 4. Update backlog: mark completed items, add new items
 5. Update spec/plan status to `completed` if finished
+6. Run `/b-commit` to commit durable state
 
 ---
 
@@ -43,7 +44,6 @@
 ```
 
 ### Subject Folder Rules
-
 - Format: `YYYY-MM-DD.subject-name/` (date prefix + kebab-case name)
 - The full folder name is the canonical subject identifier
 - Files inside use prefixes: `research-*`, `plan-*`, `spec-*`
@@ -131,12 +131,12 @@ Links use filenames within same subject folder. Memory links use memory filename
 
 ## Buck Workflow
 
-**Steps:** `b-brainstorm` → `b-research` → `b-plan` → `b-present` → `b-build` → `b-build-hard` → `b-review` → `b-iterate`
+**Steps:** `b-brainstorm` → `b-research` → `b-plan` → `b-present` → `b-build` → `b-build-hard` → `b-review` → `b-iterate` → `b-save` → `b-commit`
 
 **Recommended flows:**
-- New work: `b-research` → `b-plan` → `b-build` → `b-review`
-- Complex: `b-research` → `b-plan` → `b-build-hard` → `b-review`
-- Quick fix: `b-iterate` → `b-review`
+- New work: `b-research` → `b-plan` → `b-build` → `b-review` → `b-save` → `b-commit`
+- Complex: `b-research` → `b-plan` → `b-build-hard` → `b-review` → `b-save` → `b-commit`
+- Quick fix: `b-iterate` → `b-review` → `b-save` → `b-commit`
 
 ---
 
@@ -165,6 +165,7 @@ Before closing significant work:
 - [ ] Plan/spec status updated if completed
 - [ ] Verification results recorded
 - [ ] UI changes verified in browser when applicable
+- [ ] Commit created via `/b-commit` when completing a Buck loop unit
 
 ---
 

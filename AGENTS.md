@@ -42,11 +42,21 @@ For the full rationale and migration details, see `.context/2026-05-12.prompt-to
 
 ```
 skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-present, b-phase, git-commit, b-grill*, run-in-idle-pane)
-prompts/         # Pi prompt templates — thin wrappers that invoke skills
 extensions/      # Pi extensions for runtime automation (b-flow, b-grill-auto)
+prompts/         # Pi prompt templates — thin wrappers that invoke skills (including b-commit wrapping git-commit skill)
 docs/            # Documentation
 presentations/   # Output from b-present
 ```
+
+# Buck Workflow Steps
+
+Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → save → commit:
+
+```
+/b-build → /b-review → /b-iterate (if needed) → /b-save → /b-commit
+```
+
+`/b-commit` is the final step after durable state has been recorded via `/b-save`. It uses the `git-commit` skill to create a Conventional Commits message and commit.
 
 # Intention
 

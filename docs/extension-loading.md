@@ -126,11 +126,13 @@ buck-workflow-pi/
     b-build.md
     b-plan.md
     b-save.md               # b-save prompt (reads state file directly)
-    ... (13 prompt files)
+    b-commit.md             # b-commit prompt (git-commit skill wrapper)
+    ... (14 prompt files)
   commands/                 # symlink mirror so OMP discovers slash commands
     b-build.md    -> ../prompts/b-build.md
     b-save.md     -> ../prompts/b-save.md
-    ... (13 symlinks)
+    b-commit.md   -> ../prompts/b-commit.md
+    ... (14 symlinks)
 ```
 
 `package.json` declares both `pi` and `omp` keys. The `pi` key lists `extensions`, `prompts`, and `skills` because Pi's filter-object schema exposes them as first-class. The `omp` key lists only `extensions` because OMP's `omp-plugins` provider auto-discovers `skills/`, `commands/`, `prompts/`, and the other sibling directories directly from the package root — duplicating them in the `omp` manifest would be redundant and brittle. (JSON disallows comments, so this rationale lives here rather than in `package.json`.)
@@ -185,7 +187,7 @@ This provider is independent of the `omp` field in `package.json`. The `omp` fie
     "+prompts/b-grill-me.md", "+prompts/b-grill-with-docs.md",
     "+prompts/b-iterate.md", "+prompts/b-plan.md",
     "+prompts/b-present.md", "+prompts/b-research.md",
-    "+prompts/b-review.md", "+prompts/git-commit.md"
+    "+prompts/b-review.md", "+prompts/b-commit.md"
   ]
 }
 ```

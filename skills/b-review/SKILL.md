@@ -289,6 +289,6 @@ Suggested next step: `/b-iterate` to fix
 
 ## History & Closeout
 
-After accepted work, recommend `/b-save` to record the completed work in history:
+After accepted work, recommend `/b-save` to record the completed work, then `/b-commit` to commit:
 - Check `.context/memory/index.md` to verify the work is recorded
 - Point user to `/b-save` if memory hasn't been updated

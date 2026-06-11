@@ -221,7 +221,7 @@ If executing this phase inside a Ralph loop:
 2. Run `/b-review` against this phase file.
 3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
 4. Run `/b-save` to consolidate memory, draft commits, and phase state.
-5. Run `/git-commit` to checkpoint durable state before `ralph_done`.
+5. Run `/b-commit` to checkpoint durable state before `ralph_done`.
 6. If the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
 
 If the phase's frontmatter declares `omp_execution: orchestrate | workflow | goal`,
@@ -321,8 +321,9 @@ Use this overview as Ralph's durable navigation map. For each phase:
 3. Run `/b-review` against the phase file after implementation.
 4. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
 5. Run `/b-save` to consolidate memory, draft commits, phase state, and review/iteration artifacts.
-6. Run `/git-commit` to checkpoint durable state before moving to the next phase.
+6. Run `/b-commit` to checkpoint durable state before moving to the next phase.
 7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+**Commit invariant**: one phase completion equals one commit. Do not batch multiple completed phases into a single commit; run `/b-save` → `/b-commit` after each phase, before queueing the next.
 
 ## Ralph Execution Checklist
 
@@ -358,7 +359,8 @@ Use this overview as Ralph's durable navigation map. For each phase:
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
 6. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
-7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+7. Run `/b-commit` to checkpoint durable state before `ralph_done`.
+8. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
 
 ## Ralph Execution Checklist
 
@@ -366,7 +368,7 @@ Use this overview as Ralph's durable navigation map. For each phase:
 - [ ] Phase 2: <Name> — build → review → iterate if needed → save → commit
 ```
 
-For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `/git-commit` → `ralph_done`.
+For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `/b-commit` → `ralph_done`.
 
 ### Step 6: Update Backlog
 
@@ -426,8 +428,8 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 - **After `b-plan`**: `b-plan` should recommend running `b-phase` if the plan exceeds 6 steps or touches 3+ domains
 - **Before `b-build`**: If a `plan-*-phases.md` overview exists, read it to find the first non-completed phase, then read that discrete phase file for implementation details
 - **During `b-build`/`b-build-hard`**: Mark the phase file `status: in-progress`, then `status: completed` when done; update the overview summary table
-- **Ralph loops**: Ralph can use the overview and discrete phase files as durable state. Each iteration should execute the active phase mini-cycle, run `/b-save`, run `/git-commit`, then call `ralph_done`; incomplete phases remain `in-progress` for resume.
-- **After phase completion**: Run `/b-save` (which consolidates phase state), then `/git-commit`, then queue the next phase from the backlog
+- **Ralph loops**: Ralph can use the overview and discrete phase files as durable state. Each iteration should execute the active phase mini-cycle, run `/b-save`, run `/b-commit`, then call `ralph_done`; incomplete phases remain `in-progress` for resume.
+- **After phase completion**: Run `/b-save` (which consolidates phase state), then `/b-commit`, then queue the next phase from the backlog
 
 ## Resume Behavior
 

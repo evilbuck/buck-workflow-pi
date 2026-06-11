@@ -24,6 +24,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` |
+| `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
@@ -130,7 +131,7 @@ for the decision log.
 
 ```
 # Standard phased plan with no omp opt-in (default)
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save → /b-commit
 #                                                            ↺ (repeat per phase)
 
 # Large multi-phase plan that should fan out parallel work
@@ -311,6 +312,7 @@ flowchart TD
         C5["/b-build-hard"]
         C6["/b-iterate"]
         C7["/b-review"]
+        C12["/b-commit"]
         C8["/b-save"]
         C9["/skill:b-phase"]
         C10["/skill:b-grill-me"]
@@ -330,6 +332,7 @@ flowchart TD
         P9["skills/b-grill-me/SKILL.md"]
         P10["skills/b-grill-with-docs/SKILL.md"]
         P11["prompts/b-save.md<br/>+ skills/b-save/SKILL.md"]
+        P12["prompts/b-commit.md<br/>+ skills/git-commit/SKILL.md"]
     end
 
     C0 --> P0
@@ -344,6 +347,7 @@ flowchart TD
     C9 --> P8
     C10 --> P9
     C11 --> P10
+    C12 --> P12
 ```
 
 ---
@@ -363,15 +367,15 @@ flowchart TD
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
+| [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
-| [**b-flow**](#b-flow--deprecated--unwired-historical-subsystem) | Historical/unwired | none by default | `extensions/b-flow/` | Deprecated orchestration prototype retained for reference |
+**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 ---
 
@@ -992,7 +996,38 @@ status: active
 
 **Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record.
 
+### 6. Commit Phase
+
+#### /b-commit — Final Commit
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Create a Conventional Commits message from staged changes and commit immediately. The final Buck workflow step after `/b-save` has recorded durable context.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-commit.md` in Pi, `commands/b-commit.md` symlink in OMP), backed by `skills/git-commit/SKILL.md`.
+
+**Usage**:
+```
+/b-commit          # Normal commit
+/b-commit force    # Override protected-branch restriction
+```
+
+**When to use**:
+- After `/b-save` has recorded memory and updated artifacts
+- Each completed phase or body loop unit should produce its own commit
+- Ralph loops: run `/b-commit` before `ralph_done`
+
+**Phase/body commit invariant**: One completed unit = one commit. Do not batch multiple completed phases into a single commit.
+
+**Workflow completion sequence**:
+```
+/b-build → /b-review → /b-iterate if needed → /b-save → /b-commit
+```
+
+**Safety**: Protected branches (main, master, develop) are guarded — use `force` only for hotfixes.
+
 ---
+
 
 ## Subject Folder System
 
@@ -1173,25 +1208,25 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### New Work (Standard)
 
 ```
-/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-save → /b-commit
 ```
 
 ### New Work (with brainstorming)
 
 ```
-/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-save
+/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-save → /b-commit
 ```
 
 ### Complex/Risky Work
 
 ```
-/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-save → /b-commit
 ```
 
 ### Large Plan (Multi-Session)
 
 ```
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save → /b-commit
                                               ↺ (repeat per phase)
 ```
 
@@ -1204,13 +1239,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Review Fix Loop
 
 ```
-/b-review → /b-iterate → /b-review → (repeat until pass) → /b-save
+/b-review → /b-iterate → /b-review → (repeat until pass) → /b-save → /b-commit
 ```
 
 ### Ad-Hoc Work (no planning)
 
 ```
-/b-build → /b-review → /b-save
+/b-build → /b-review → /b-save → /b-commit
 (Subject folder created automatically by b-save)
 ```
 
@@ -1219,6 +1254,7 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ## Discoverability
 
 Type `/b-` in Pi or OMP to see Buck workflow commands:
+- `/b-commit`
 - `/b-brainstorm`
 - `/b-build`
 - `/b-build-hard`
@@ -1228,7 +1264,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/b-present`
 - `/b-research`
 - `/b-review`
-- `/b-save` — pure prompt/skill recordkeeping command
+- `/b-save` — pure prompt/skill recordkeeping command (run before `/b-commit`)
 
 Also available:
 - `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)

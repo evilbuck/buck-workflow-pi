@@ -108,7 +108,7 @@ This scopes the bootstrap instructions to that project alone. Use this when you 
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
 - **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans and token-per-second tracking
-- **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command
+- **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command; run before `/b-commit` to record durable session state
 
 ### Cross-Agent Parallels
 
@@ -141,7 +141,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
-| `/git-commit` | `git-commit` | Create a Conventional Commits message and commit |
+| `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### OMP Command Mirror
 
@@ -189,7 +189,7 @@ Buck workflow is not a rigid pipeline. You choose which stages to run based on t
 ### Full Workflow — New Feature
 
 ```
-/b-brainstorm → /b-explore → /b-research → /b-plan → /b-build → /b-review → /b-save
+/b-brainstorm → /b-explore → /b-research → /b-plan → /b-build → /b-review → /b-save → /b-commit
 ```
 
 Starting from a vague idea through to durable completion. Every artifact survives the session.
@@ -199,11 +199,11 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | Flow | When to Use |
 |------|-------------|
 | `/b-brainstorm → /b-plan → /b-build` | Idea to implementation in one session |
-| `/b-plan → /b-build → /b-review → /b-save` | You already know what to build |
-| `/b-research → /b-plan → /b-build-hard → /b-review → /b-save` | Complex/risky work |
+| `/b-plan → /b-build → /b-review → /b-save → /b-commit` | You already know what to build |
+| `/b-research → /b-plan → /b-build-hard → /b-review → /b-save → /b-commit` | Complex/risky work |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |
-| `/b-plan → /b-review → /b-save` | Plan and review without exploration |
+| `/b-plan → /b-review → /b-save → /b-commit` | Plan and review without exploration |
 
 ### Ad-Hoc Work
 

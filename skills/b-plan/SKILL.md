@@ -124,7 +124,7 @@ Downstream skills read the user goal as the user-facing intent. A missing user g
   - Contains significant unknowns or research spikes
   - Verification alone would exhaust a single session
   - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential Ralph-ready phases with dependency analysis, per-phase model hints, and resume-safe execution instructions."*
-- If the user wants Ralph automation but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Ralph Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `/git-commit` → `ralph_done`.
+- If the user wants Ralph automation but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Ralph Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-save` → `/b-commit` → `ralph_done`.
 
 ## Plan Frontmatter Template
 
@@ -155,7 +155,7 @@ This is a non-phased Ralph-ready plan. Treat the whole plan as one unit:
 2. Run `/b-review` against this plan.
 3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
 4. Run `/b-save` to consolidate memory, draft commits, and review/iteration artifacts.
-5. Run `/git-commit` to checkpoint durable state before `ralph_done`.
+5. Run `/b-commit` to checkpoint durable state before `ralph_done`.
 6. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next iteration.
 ```
 
@@ -202,7 +202,7 @@ This is a phased Ralph-ready plan. Treat each phase as one unit:
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`.
 6. Run `/b-save` to consolidate memory, draft commits, and phase state.
-7. Run `/git-commit` to checkpoint durable state before `ralph_done`.
+7. Run `/b-commit` to checkpoint durable state before `ralph_done`.
 ```
 
 ## Eval Cell Template for `workflow` Plans

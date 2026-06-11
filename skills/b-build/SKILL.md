@@ -308,7 +308,7 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 
 At COMPLETION:
 6. Do a final memory update
-7. Tell the user: "Run /b-save to finalize this session's record."
+7. Tell the user: "Run /b-review for validation, then /b-save to finalize, then /b-commit to commit."
 
 ## Ralph Loop Awareness
 
@@ -316,7 +316,7 @@ When `/b-build` is running inside a Ralph loop, preserve durable state before yi
 
 1. If the active plan or phase cannot be completed in this iteration, stop at a coherent boundary.
 2. For phased plans, leave the phase file `status: in-progress` and keep acceptance criteria unchecked until verified.
-3. Run `/b-save` before calling `ralph_done` so memory, draft commit text, and artifact state are recoverable.
+3. Run `/b-save` to consolidate memory and draft commits, then `/b-commit` before calling `ralph_done` so memory, draft commit text, and artifact state are recoverable.
 4. On the next iteration, re-read the phases overview, the `in-progress` phase file, and any active `iterate-*.md` artifact before editing.
 5. Do not call `ralph_done` after a source change unless durable state has been written or updated.
 
@@ -341,4 +341,4 @@ After completing implementation, report:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. **Recommendation** — suggest `/b-review` for validation, then `/b-save` to finalize
+5. **Recommendation** — suggest `/b-review` for validation, `/b-save` to finalize, then `/b-commit` to commit
