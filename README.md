@@ -51,49 +51,53 @@ pi install /path/to/buck-workflow
 pi install git:github.com/buckleyrobinson/buck-workflow-pi
 ```
 
-### 2. Install the Agent Bootstrap Instructions
+### 2. Run the Multi-Harness Installer
 
-Buck workflow requires a companion `AGENTS.md` file that provides agent bootstrap instructions — the durable-artifact conventions, memory management, backlog system, and workflow surface that agents follow in every session.
-
-The file [`GLOBAL_OR_PROJECT-AGENTS.md`](./GLOBAL_OR_PROJECT-AGENTS.md) in this repo is the canonical source. Install it in one of two places:
-
-#### Option A: Global (recommended — applies to all projects)
-
-For **OMP**, copy it to the global agent config:
+The installer detects which agent harnesses are installed on your machine and symlinks the bootstrap instructions + skill/command trees into each harness's expected locations. One command, every harness, always in sync:
 
 ```bash
-cp GLOBAL_OR_PROJECT-AGENTS.md ~/.omp/agent/AGENTS.md
+npx buck-workflow install
 ```
 
-For **Pi**, copy it to the global agent config:
+**What it does:**
+- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor)
+- Symlinks `GLOBAL_OR_PROJECT-AGENTS.md` as bootstrap instructions for each
+- Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode
+- Symlinks `skills/<name>/` directories for Claude Code, OpenCode
+- Idempotent — re-run anytime, existing correct symlinks are skipped
 
-```bash
-cp GLOBAL_OR_PROJECT-AGENTS.md ~/.pi/agent/AGENTS.md
-```
+**Flags:**
 
-For other agents, place it wherever the agent loads global instructions from:
+| Flag | Purpose |
+|------|---------|
+| `--dry-run` | Print planned symlinks, write nothing |
+| `--force` | Replace real files at destination (e.g., chezmoi-managed configs) |
+| `--source <path>` | Repo root symlinks resolve from (default: auto-detect) |
+| `--harness <id,...>` | Wire only named harnesses (comma-separated) |
+| `--list` | Print detected harnesses and exit |
 
-| Agent | Global Location | Tested? |
-|-------|----------------|---------|
-| **OMP** | `~/.omp/agent/AGENTS.md` | ✅ Yes |
-| **Pi** | `~/.pi/agent/AGENTS.md` | ✅ Yes |
-| **Claude Code** | `~/.claude/AGENTS.md` | ❌ Not yet |
-| **OpenCode** | `~/.config/opencode/AGENTS.md` | ❌ Not yet |
-| **Codex** | `~/.codex/AGENTS.md` | ❌ Not yet |
+**Per-harness behavior:**
 
-> **Compatibility note:** Buck workflow currently targets Pi and OMP. OMP uses the `commands/` symlink mirror for slash-command discovery; Pi uses `prompts/`. Claude Code, OpenCode, Codex, and Cursor still need adapter wiring and validation.
+| Harness | Bootstrap | Commands | Skills | Notes |
+|---------|:---------:|:--------:|:------:|-------|
+| **Pi** | ✅ symlink | ❌ (package) | ❌ (package) | Skills/commands loaded via `pi install` |
+| **OMP** | ✅ symlink | ❌ (package) | ❌ (package) | Skills/commands loaded via package manifest |
+| **Claude Code** | ✅ → `CLAUDE.md` | ✅ `~/.claude/commands/` | ✅ `~/.claude/skills/` | |
+| **Codex** | ✅ → `AGENTS.md` | ❌ (no commands) | — | Bootstrap-only; Codex has no slash commands |
+| **OpenCode** | ✅ → `AGENTS.md` | ✅ `~/.config/opencode/commands/` | ✅ `~/.config/opencode/skills/` | |
+| **Cursor** | — | — | — | Project-scoped only (`.cursor/rules/`); no global install |
 
-#### Option B: Per-Project (project-specific only)
+**Bootstrap drift fix:** The installer uses symlinks instead of copies, so `git pull` + re-run keeps every harness in sync. No more manual re-copying when the bootstrap file changes.
 
-Copy it to the root of a project as `AGENTS.md`:
+#### Per-Project (Optional)
+
+If you want project-specific instructions in addition to the global bootstrap, place an `AGENTS.md` in the project root:
 
 ```bash
 cp GLOBAL_OR_PROJECT-AGENTS.md /path/to/your-project/AGENTS.md
 ```
 
-This scopes the bootstrap instructions to that project alone. Use this when you want different agent behavior per project, or when you can't modify global config.
-
-> **Note:** If both global and project-level `AGENTS.md` exist, most agents load both — the project-level file extends the global one. Project-level instructions typically add build commands, code style, architecture notes, and gotchas specific to that repo.
+Most agents load both global and project-level files — the project-level one extends the global baseline with build commands, code style, and architecture notes.
 
 ## What's Included
 
@@ -114,17 +118,18 @@ This scopes the bootstrap instructions to that project alone. Use this when you 
 
 Skills are designed to be a portable layer. Each agent would invoke them through its native mechanism:
 
-| Agent | Invocation Mechanism | Example | Tested? |
-|-------|---------------------|---------|---------|
-| **Pi** | Prompt templates (`prompts/`) | `/b-plan` loads `prompts/b-plan.md` | ✅ Yes |
-| **OMP** | Command mirror (`commands/`) | `/b-plan` loads `commands/b-plan.md` → `../prompts/b-plan.md` | ✅ Yes |
-| **Claude Code** | Commands (`.claude/commands/`) | Command file loads the same skill | ❌ Not yet |
-| **Cursor** | Rules (`.cursor/rules/`) | Rule file references skill content | ❌ Not yet |
-| **OpenCode / Codex** | Native skill/command system | Skill loaded through agent mechanism | ❌ Not yet |
+| Agent | Invocation Mechanism | Example | Installed by |
+|-------|---------------------|---------|-------------|
+| **Pi** | Prompt templates (`prompts/`) | `/b-plan` loads `prompts/b-plan.md` | `pi install` (package) |
+| **OMP** | Command mirror (`commands/`) | `/b-plan` loads `commands/b-plan.md` → `../prompts/b-plan.md` | Package manifest |
+| **Claude Code** | Commands (`.claude/commands/`) | `/b-plan` loads the same prompt template | `buck-workflow install` |
+| **Codex** | Bootstrap only (no slash commands) | `AGENTS.md` auto-loaded | `buck-workflow install` |
+| **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
+| **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 
-Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic; the currently maintained wrappers are Pi `prompts/` and OMP `commands/`.
+Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic. The installer wires each harness's native loading mechanism to the shared source of truth.
 
-**Want to help?** Pull requests that add or improve support for Claude Code, Cursor, OpenCode, Codex, or other agent harnesses are very welcome. The skills are plain Markdown — the main work is creating the thin wrapper layer (commands, rules, etc.) for each agent and testing the full workflow.
+**Want to help?** Pull requests that improve support for Claude Code, Cursor, OpenCode, Codex, or other agent harnesses are very welcome. The skills are plain Markdown — the main work is testing the full workflow on each harness and fixing any behavioral quirks.
 
 ### Prompt Templates (`/b-*` commands)
 
@@ -243,37 +248,32 @@ Artifacts link to each other via frontmatter fields:
 `/b-save` stitches cross-references by executing the prompt/skill instructions directly.
 
 ## Requirements
-
-- An AI coding agent — **Pi and OMP are the maintained targets** (see [Compatibility](#compatibility))
-- The agent bootstrap instructions installed (see [Install](#install) step 2) — either globally or per-project
+- An AI coding agent — any supported harness (see [Compatibility](#compatibility))
+- The agent bootstrap instructions installed (via `buck-workflow install` or manually)
 - A `.context/` directory in your project (created automatically on first use)
-- For slash commands: Pi with `prompts/` loaded, or OMP with the `commands/` mirror discovered
+- For slash commands: Pi with `prompts/` loaded, or OMP with `commands/` mirror, or any harness wired by the installer
 - Optional: [qmd](https://github.com/qmd-project/qmd) for semantic search over memory files
 
 ## Compatibility
 
-**Buck workflow is developed for Pi and OMP.**
+**Buck workflow runs on all major agent harnesses.**
 
-The architecture is designed to be agent-agnostic — skills are plain Markdown, `.context/` conventions use standard file formats, and the global AGENTS.md avoids runtime-specific tool calls where possible. Pi and OMP are the current maintained targets. Other agent harnesses (Claude Code, Cursor, OpenCode, Codex) will need:
+The multi-harness installer (`buck-workflow install`) handles path placement and wrapper wiring automatically. Pi and OMP are the maintained targets with full test coverage. Claude Code, Codex, OpenCode, and Cursor are wired by the installer but may have behavioral differences:
 
-1. **Path placement** — The `AGENTS.md` bootstrap file must be placed where each agent expects to load global instructions from (see the install table above)
-2. **Wrapper wiring** — Each agent needs its own thin invocation layer (commands, rules, etc.) to call into the shared skills
-3. **Debugging** — Expect differences in tool availability, schema compliance, context injection points, and behavioral quirks
-
-### Future Plans
-
-- **Automated installer** — A setup script or `pi install` hook that handles copying `GLOBAL_OR_PROJECT-AGENTS.md` to the right location may come in the future
-- **Multi-agent testing** — No timeline yet, but cross-agent validation is on the roadmap
+1. **Tool availability** — Some agents may not support all tools referenced by skills (e.g., `ast_grep`, `debug`)
+2. **Schema compliance** — Frontmatter parsing and file conventions may vary
+3. **Context injection** — How agents load and prioritize `AGENTS.md`/`CLAUDE.md` differs
+4. **Cursor** — Global install not supported; requires project-scoped `.cursor/rules/` setup
 
 ### Contributing
 
 Pull requests are welcome and encouraged:
-- Agent-specific wrapper layers (Claude commands, Cursor rules, Codex skills)
 - Bug fixes from testing on other harnesses
-- Installer improvements
+- Installer improvements and new harness support
 - Documentation corrections
 
 The skills are the portable core — if you can load a Markdown file and follow instructions, you can make Buck workflow run on any agent.
+
 
 ## License
 

@@ -3,28 +3,49 @@
 A loose collection of skills, prompts, and extensions for agentic development workflows.
 
 ## Targets
-The targets for this are pi-coding-agent, opencode, claude, codex.
+The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
+ 
+ ## Cross-Platform Agent Reference
+ 
+ Detailed docs for each agent's context files, skills, and customization:
+ 
+ | Agent | Context File(s) | Skills Location | Skills Standard | Extensions | Doc |
+ |---|---|---|---|---|---|
+ | **Pi** | `AGENTS.md`, `SYSTEM.md`, `APPEND_SYSTEM.md` | `~/.pi/agent/skills/`, `.pi/skills/`, `~/.agents/skills/` | [Agent Skills](https://agentskills.io) | TypeScript (`~/.pi/agent/extensions/`) | [docs/pi.md](docs/pi.md) |
+ | **Oh My Pi (omp)** | `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md` | `~/.omp/agent/skills/`, `.omp/skills/` + Pi paths | [Agent Skills](https://agentskills.io) | TypeScript (`~/.omp/agent/extensions/`) | [docs/oh-my-pi.md](docs/oh-my-pi.md) |
+ | **Claude Code** | `CLAUDE.md` (root + subdirs) | `~/.claude/skills/`, `.claude/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents | [docs/claude-code.md](docs/claude-code.md) |
+ | **Codex** | `AGENTS.md`, `AGENTS.override.md` (walk root→cwd) | `$HOME/.agents/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins (`.codex/plugins/`) | [docs/codex.md](docs/codex.md) |
+ | **Goose** | `.goosehints`, `AGENTS.md` | Via Summon extension | Skills via Summon | MCP servers (all extensions are MCP) | [docs/goose.md](docs/goose.md) |
+ 
+ ### Shared Skill Directories
+ 
+ The `~/.agents/skills/` and `.agents/skills/` paths are the cross-tool standard. Pi, OMP, and Codex all scan these. Claude Code uses `.claude/skills/` but Pi/OMP can be configured to load from it too:
+ 
+ ```json
+ // ~/.pi/agent/settings.json or ~/.omp/agent/settings.json
+ { "skills": ["~/.claude/skills"] }
+ ```
+ 
+ ### Context File Conventions
+ 
+ | Convention | Used by | File |
+ |---|---|---|
+ | `AGENTS.md` at project root | Pi, OMP, Codex, Goose | Standard cross-tool context |
+ | `CLAUDE.md` at project root + subdirs | Claude Code, OMP (reads on first launch) | Claude-specific context |
+ | `.goosehints` per directory | Goose | Goose-specific hints |
+ | `SYSTEM.md` / `APPEND_SYSTEM.md` | Pi, OMP | System prompt customization |
+ 
+ ### Agent Documentation Links
+ 
+ **Skills:**
+ - [pi](https://pi.dev/docs/latest/skills) · [claude](https://code.claude.com/docs/en/skills) · [codex](https://developers.openai.com/codex/skills) · [goose](https://goose-docs.ai/docs/getting-started/using-extensions/)
+ 
+ **Prompts / Commands:**
+ - [pi — Prompt Templates](https://pi.dev/docs/latest/prompt-templates) · [claude — Commands](https://code.claude.com/docs/en/commands) · [codex — Slash Commands](https://developers.openai.com/codex/guides/slash-commands/)
+ 
+ **Extensions / Plugins:**
+ - [pi — Extensions](https://pi.dev/docs/latest/extensions) · [claude — Plugins](https://code.claude.com/docs/en/plugins) · [codex — Plugins](https://developers.openai.com/codex/plugins)
 
-## Agent Documentation
-Do not guess at implementation. Look it up.
-
-### Skills
-- [pi](https://pi.dev/docs/latest/skills)
-- [claude](https://code.claude.com/docs/en/skills)
-- [opencode](https://opencode.ai/docs/skills/)
-- [codex](https://developers.openai.com/codex/skills)
-
-### Prompts / Commands
-- [pi — Prompt Templates](https://pi.dev/docs/latest/prompt-templates)
-- [claude — Commands](https://code.claude.com/docs/en/commands)
-- [opencode — Commands](https://opencode.ai/docs/commands/)
-- [codex — Slash Commands](https://developers.openai.com/codex/guides/slash-commands/)
-
-### Extensions / Plugins
-- [pi — Extensions](https://pi.dev/docs/latest/extensions)
-- [claude — Plugins](https://code.claude.com/docs/en/plugins)
-- [opencode — Plugins](https://opencode.ai/docs/plugins/)
-- [codex — Plugins](https://developers.openai.com/codex/plugins)
 
 ## Architecture
 

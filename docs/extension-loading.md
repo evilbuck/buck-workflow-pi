@@ -248,3 +248,23 @@ Restart the agent after updating for changes to take effect.
 
 - `skills/cross-platform-pi-omp-loading/SKILL.md` — package authoring pattern for shipping one package that works in both runtimes (manifest keys, directory layout, OMP API shim gaps).
 - `skills/cross-platform-pi-omp-loading/slash-command-mirror/SKILL.md` — the `prompts/` ↔ `commands/` symlink pattern in depth, including the per-file vs single-directory trade-off and drift mitigation.
+
+## Multi-Harness Installer (`buck-workflow install`)
+
+The installer (`scripts/install.mjs`) handles the **external fan-out** that the package system cannot: symlinking bootstrap instructions and skill/command trees into harness directories that don't use Pi or OMP's package loading.
+
+### How it relates to package loading
+
+For **Pi and OMP**, the installer symlinks **bootstrap only** (`GLOBAL_OR_PROJECT-AGENTS.md` → harness AGENTS.md). Skills and commands are already loaded by the package system (`pi install` / OMP auto-discovery). Duplicating them via installer symlinks would cause double-loading.
+
+For **Claude Code, OpenCode, and Codex**, the installer symlinks bootstrap + commands + skills (where applicable), because these harnesses don't use Pi/OMP's package system and have no other way to discover the content.
+
+**Cursor** is project-scoped only — the installer detects it but does not create global symlinks.
+
+### Idempotency
+
+The installer is idempotent: re-running it skips symlinks that already point to the correct target, replaces stale ones, and warns about conflicts (real files at the destination). Use `--force` to overwrite conflicts. This makes `git pull && buck-workflow install` safe as a sync workflow.
+
+### Chezmoi interaction
+
+If harness config files are managed by chezmoi, they'll appear as real files (not symlinks). The installer detects this and reports a conflict rather than clobbering. Use `--force` to replace, or manage the symlink through chezmoi's `dot_*` source files instead.
