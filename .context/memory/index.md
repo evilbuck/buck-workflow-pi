@@ -1,4 +1,5 @@
 # Memory Index
+  - 2026-06-13 | `code-smells-audit-contract-hardening-plan-2026-06-13.md` | domains: [planning, skill, buck-workflow] | topics: [code-smells, b-plan, audit-workflow, schema, omp] | status: completed
   - 2026-06-13 | `code-smells-audit-skill-review-2026-06-13.md` | domains: [skill, review, docs] | topics: [code-smells, b-review, audit-workflow, verification] | status: completed
   - 2026-06-13 | `code-smells-audit-skill-iteration-2026-06-13.md` | domains: [skill, docs, review] | topics: [code-smells, b-review, b-iterate, omp, audit-workflow] | status: completed
   - 2026-06-11 | `b-pr-skill-build-2026-06-11.md` | domains: [implementation, buck-workflow, skill, docs] | topics: [b-pr, pull-request, github, gh-cli, git, dual-audience-description, base-branch-detection, rebase-verification, subagent-polish, context-artifacts] | status: active

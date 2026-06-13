@@ -24,3 +24,4 @@ Add an operational code-smells audit to the `code-smells` skill: fan out paralle
 - `iterate-code-smells-audit-skill.md`
 - `.context/memory/code-smells-audit-skill-iteration-2026-06-13.md`
 - `.context/memory/code-smells-audit-skill-review-2026-06-13.md`
+- `plan-code-smells-audit-contract-hardening.md`

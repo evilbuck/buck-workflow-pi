@@ -4,7 +4,7 @@ date: 2026-06-13
 updated: 2026-06-13
 subject: 2026-06-13.code-smells-audit-skill
 topics: [review, iteration]
-informs: []
+informs: [plan-code-smells-audit-contract-hardening.md]
 addresses: index.md
 completed: 2026-06-13
 ralph_status: completed

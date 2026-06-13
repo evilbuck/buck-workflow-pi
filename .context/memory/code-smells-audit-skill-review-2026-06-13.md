@@ -1,12 +1,12 @@
 ---
 date: 2026-06-13
 domains: [skill, review, docs]
-topics: [code-smells, b-review, audit-workflow, verification]
-related: [code-smells-audit-skill-iteration-2026-06-13.md]
+topics: [code-smells, b-review, b-save, audit-workflow, verification, schema]
+related: [code-smells-audit-skill-iteration-2026-06-13.md, code-smells-audit-contract-hardening-plan-2026-06-13.md]
 priority: medium
 status: completed
 subject: 2026-06-13.code-smells-audit-skill
-artifacts: [.context/2026-06-13.code-smells-audit-skill/index.md, skills/code-smells/SKILL.md, skills/code-smells/docs/index.md]
+artifacts: [.context/2026-06-13.code-smells-audit-skill/index.md, skills/code-smells/SKILL.md, skills/code-smells/docs/index.md, .context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md]
 ---
 
 # Session: Code Smells Audit Skill Review
@@ -30,3 +30,12 @@ artifacts: [.context/2026-06-13.code-smells-audit-skill/index.md, skills/code-sm
 ## Next Steps
 - Run `/b-save` to record durable workflow state if not already accepted.
 - Run `/b-commit` using `.context/2026-06-13.code-smells-audit-skill/draft-commit.md`.
+
+## Plan Review (2026-06-13): Contract Hardening
+
+- Reviewed against `plan-code-smells-audit-contract-hardening.md`.
+- **Verdict:** ✅ Pass — all 7 implementation steps verified, 198/198 tests pass.
+- **Scope:** `skills/code-smells/SKILL.md` only — +4 lines added (`additionalProperties: False` + documenting comment).
+- The two prior findings (partial-scan checkpointing; `category`+`confidence` in `required`) were already present in source — verified via contract assertions, not reapplied.
+- **Out-of-scope:** deterministic preflight research remains uncommitted — correct.
+- **Next:** `/b-commit` using the existing draft-commit.md (accurately describes the change).

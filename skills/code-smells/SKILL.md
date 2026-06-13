@@ -250,6 +250,9 @@ SCOPE = "src"                      # path/glob to audit
 TODAY  = datetime.date.today().isoformat()
 SUBJECT = f".context/{TODAY}.code-smells-scan"
 
+# Finding schema — every agent() returns a list of dicts matching this shape.
+# additionalProperties: false is required by the eval kernel; see
+# docs/eval-kernel.md § Schemas.
 FINDING_SCHEMA = {
     "type": "object",
     "properties": {
@@ -264,6 +267,7 @@ FINDING_SCHEMA = {
         "confidence":  {"type": "string", "enum": ["high","medium","low"]},
     },
     "required": ["smell","category","location","severity","impact","effort","evidence","treatment","confidence"],
+    "additionalProperties": False,
 }
 LIST_SCHEMA = {"type": "array", "items": FINDING_SCHEMA}
 
