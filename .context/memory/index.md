@@ -1,4 +1,6 @@
 # Memory Index
+  - 2026-06-13 | `code-smells-audit-skill-review-2026-06-13.md` | domains: [skill, review, docs] | topics: [code-smells, b-review, audit-workflow, verification] | status: completed
+  - 2026-06-13 | `code-smells-audit-skill-iteration-2026-06-13.md` | domains: [skill, docs, review] | topics: [code-smells, b-review, b-iterate, omp, audit-workflow] | status: completed
   - 2026-06-11 | `b-pr-skill-build-2026-06-11.md` | domains: [implementation, buck-workflow, skill, docs] | topics: [b-pr, pull-request, github, gh-cli, git, dual-audience-description, base-branch-detection, rebase-verification, subagent-polish, context-artifacts] | status: active
   - 2026-06-11 | `b-commit-final-step-plan-2026-06-11.md` | domains: [planning, buck-workflow, docs] | topics: [b-commit, git-commit, ralph, omp, chezmoi, global-agents] | status: active
   - 2026-06-09 | `durable-research-write-gate-2026-06-09.md` | domains: [skill, docs, buck-workflow] | topics: [b-explore, b-research, write-gate, incremental-notes, durable-artifacts] | status: completed
