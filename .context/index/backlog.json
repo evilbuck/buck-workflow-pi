@@ -1,0 +1,106 @@
+[
+  {
+    "path": ".context/backlog/items/hybrid-context-artifact-model.md",
+    "kind": "backlog-item",
+    "title": "Implement hybrid context artifact model",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-06-13",
+    "updated": "2026-06-13",
+    "completed": null,
+    "related": [
+      "- .context/2026-06-13.context-format-research/index.md\n- .context/2026-06-13.context-format-research/research-context-format.md\n- .context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md\n- scripts/context-artifacts.mjs\n- scripts/context-artifacts.test.mjs\n- docs/context-artifacts.md\n- README.md\n- package.json\n- .context/index/subjects.json\n- .context/index/memory.json\n- .context/index/backlog.json\n- .context/index/artifacts.json"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/multi-harness-symlink-installer.md",
+    "kind": "backlog-item",
+    "title": "Multi-harness symlink installer (buck-workflow install)",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-06-12",
+    "updated": "2026-06-12",
+    "completed": null,
+    "related": [
+      "- .context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md\n- scripts/install.mjs\n- package.json\n- README.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-commit-final-step.md",
+    "kind": "backlog-item",
+    "title": "Make b-commit the final Buck workflow step",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-06-11",
+    "updated": "2026-06-11",
+    "completed": null,
+    "related": [
+      "- .context/2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- .context/2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-pr-skill.md",
+    "kind": "backlog-item",
+    "title": "Add b-pr skill for GitHub PR creation",
+    "status": "completed",
+    "priority": "medium",
+    "created": "2026-06-11",
+    "updated": "2026-06-11",
+    "completed": "2026-06-11",
+    "related": [
+      "- .context/2026-06-11.b-pr-skill/index.md\n- skills/b-pr/SKILL.md\n- skills/b-pr/scripts/pr-preflight.ts\n- prompts/b-pr.md\n- commands/b-pr.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/code-review-skill.md",
+    "kind": "backlog-item",
+    "title": "Code review universal skill",
+    "status": "completed",
+    "priority": "high",
+    "created": "2026-06-07",
+    "updated": "2026-06-07",
+    "completed": "2026-06-07",
+    "related": [
+      "- skills/code-review/SKILL.md\n- skills/code-review/scripts/pr-context.ts\n- skills/code-review/scripts/submit-review.ts\n- prompts/code-review.md\n- commands/code-review.md\n- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-flow-sdk-redesign.md",
+    "kind": "backlog-item",
+    "title": "Redesign b-flow to use Pi SDK for isolated worker contexts",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-05-30",
+    "updated": "2026-05-30",
+    "completed": null,
+    "related": [
+      "- extensions/b-flow/"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/plan-implementation-ledger.md",
+    "kind": "backlog-item",
+    "title": "Add plan-specific implementation ledger for b-review traceability",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-05-17",
+    "updated": "2026-05-17",
+    "completed": null,
+    "related": [
+      "- .context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/test-b-grill-auto-extension.md",
+    "kind": "backlog-item",
+    "title": "Test b-grill-auto extension in live Pi session",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-05-08",
+    "updated": "2026-05-08",
+    "completed": null,
+    "related": [
+      "- .context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md\n- .context/memory/b-grill-auto-2026-05-08.md"
+    ]
+  }
+]

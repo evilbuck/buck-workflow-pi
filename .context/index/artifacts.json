@@ -1,0 +1,2452 @@
+[
+  {
+    "path": ".context/2026-04-16.pi-opencode-mapping/plan-pi-opencode-mapping.md",
+    "kind": "plan",
+    "subject": "2026-04-16.pi-opencode-mapping",
+    "status": "completed",
+    "date": "2026-04-16",
+    "topics": [
+      "pi-packages",
+      "opencode-mapping",
+      "buck-workflow",
+      "docs"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-04-16.tmux-window-name-pi-status/plan-tmux-window-name-pi-status.md",
+    "kind": "plan",
+    "subject": "2026-04-16.tmux-window-name-pi-status",
+    "status": "completed",
+    "date": "2026-04-16",
+    "topics": [
+      "tmux",
+      "status",
+      "extension",
+      "state-machine",
+      "lifecycle"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-02.b-phase-model-hints/plan-b-phase-model-hints.md",
+    "kind": "plan",
+    "subject": "2026-05-02.b-phase-model-hints",
+    "status": "completed",
+    "date": "2026-05-02",
+    "topics": [
+      "b-phase",
+      "model-hints",
+      "phase-difficulty",
+      "buck-workflow"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-02.b-phase-model-hints/plan-model-auto-switch.md",
+    "kind": "plan",
+    "subject": "2026-05-02.b-phase-model-hints",
+    "status": "active",
+    "date": "2026-05-02",
+    "topics": [
+      "model-auto-switch",
+      "buck-workflow",
+      "extension",
+      "b-phase",
+      "b-build"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-06.b-phase-discrete-files/plan-b-phase-discrete-phase-files.md",
+    "kind": "plan",
+    "subject": "2026-05-06.b-phase-discrete-files",
+    "status": "completed",
+    "date": "2026-05-06",
+    "topics": [
+      "b-phase",
+      "discrete-phase-files",
+      "plan-state-tracking",
+      "session-resume",
+      "b-build",
+      "b-build-hard",
+      "b-save"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-07.b-present-skill/plan-b-present-rewrite.md",
+    "kind": "plan",
+    "subject": "2026-05-07.b-present-skill",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-present",
+      "presentation-package",
+      "rewrite",
+      "async-reading",
+      "briefing-package"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-07.tmux-window-name-bug/plan-fix-tmux-window-name.md",
+    "kind": "plan",
+    "subject": "2026-05-07.tmux-window-name-bug",
+    "status": "completed",
+    "date": "2026-05-07",
+    "topics": [
+      "tmux",
+      "window-naming",
+      "savedName",
+      "init-guard",
+      "bug-fix",
+      "session-lifecycle"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-07.tmux-window-name-bug/research-tmux-window-name-bug.md",
+    "kind": "research",
+    "subject": "2026-05-07.tmux-window-name-bug",
+    "status": "active",
+    "date": "2026-05-07",
+    "topics": [
+      "tmux",
+      "window-naming",
+      "bug",
+      "extension",
+      "state-machine",
+      "session-lifecycle"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-07.web-images-skill/plan-web-images-skill.md",
+    "kind": "plan",
+    "subject": "2026-05-07.web-images-skill",
+    "status": "completed",
+    "date": "2026-05-07",
+    "topics": [
+      "web-images",
+      "imagemagick",
+      "pi-skill",
+      "image-optimization",
+      "chezmoi",
+      "packages"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-07.web-images-skill/research-cli-image-tools.md",
+    "kind": "research",
+    "subject": "2026-05-07.web-images-skill",
+    "status": "completed",
+    "date": "2026-05-07",
+    "topics": [
+      "web-images",
+      "imagemagick",
+      "cli-tools",
+      "image-optimization",
+      "smartcrop",
+      "webp",
+      "avif",
+      "png-optimization"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md",
+    "kind": "plan",
+    "subject": "2026-05-08.b-grill-auto",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "b-grill-auto",
+      "typescript-extension",
+      "rpc-harness",
+      "model-orchestration",
+      "command-registration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-08.b-grill-auto/research-b-grill-auto-review.md",
+    "kind": "research",
+    "subject": "2026-05-08.b-grill-auto",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "b-grill-auto",
+      "rpc",
+      "skills",
+      "extensions",
+      "model-orchestration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-08.b-orchestration-extension/plan-b-flow-mvp-phases.md",
+    "kind": "plan",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "completed",
+    "date": "2026-05-08",
+    "topics": [
+      "phasing",
+      "buck-workflow",
+      "pi-extension",
+      "orchestration",
+      "state-machine",
+      "b-flow"
+    ],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-08.b-orchestration-extension/plan-b-flow-mvp.md",
+    "kind": "plan",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "buck-workflow",
+      "pi-extension",
+      "orchestration",
+      "state-machine",
+      "b-flow"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-08.b-orchestration-extension/research-xstate-for-b-flow.md",
+    "kind": "research",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "xstate",
+      "state-machine",
+      "actors",
+      "guards",
+      "persistence",
+      "orchestration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-08.grillney-doc-skill/plan-grillney-doc-skill.md",
+    "kind": "plan",
+    "subject": "2026-05-08.grillney-doc-skill",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "grillney-doc",
+      "pi-extension",
+      "pi-skill",
+      "tui",
+      "markdown-document",
+      "grilling"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-09.pi-agent-cycle-fix/plan-abort-on-cycle.md",
+    "kind": "plan",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'status'",
+      "plan: missing required field 'date'",
+      "plan: missing required field 'subject'",
+      "plan: missing required field 'topics'",
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-09.pi-agent-cycle-fix/plan-extension-model-switch-guard.md",
+    "kind": "plan",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'status'",
+      "plan: missing required field 'date'",
+      "plan: missing required field 'subject'",
+      "plan: missing required field 'topics'",
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-09.pi-agent-cycle-fix/plan-model-cycle-abort.md",
+    "kind": "plan",
+    "subject": "2026-05-09.pi-agent-cycle-fix",
+    "status": "active",
+    "date": "2026-05-09",
+    "topics": [
+      "pi-core",
+      "model-switching",
+      "request-abort",
+      "interactive-session"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-12.prompt-to-skill-portability/plan-prompt-to-skill-portability.md",
+    "kind": "plan",
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "status": "active",
+    "date": "2026-05-12",
+    "topics": [
+      "prompts",
+      "skills",
+      "portability",
+      "agents",
+      "commands",
+      "plugins"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-17.b-review-plan-path/plan-b-review-plan-path.md",
+    "kind": "plan",
+    "subject": "2026-05-17.b-review-plan-path",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "b-review",
+      "plan-path",
+      "acceptance-contract",
+      "workflow",
+      "skills"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md",
+    "kind": "research",
+    "subject": "2026-05-17.b-review-plan-path",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "b-review",
+      "plan-path",
+      "review",
+      "workflow",
+      "skills"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-17.global-agents-buck-workflow-mode/plan-global-agents-buck-workflow-mode.md",
+    "kind": "plan",
+    "subject": "2026-05-17.global-agents-buck-workflow-mode",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "agents",
+      "buck-workflow",
+      "mode",
+      "portability",
+      "routing",
+      "context"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-17.planning-mode-write-guards/research-planning-mode-guards.md",
+    "kind": "research",
+    "subject": "2026-05-17.planning-mode-write-guards",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "plan-mode",
+      "write-guards",
+      "extension-hooks",
+      "b-research",
+      "b-plan",
+      "b-grill-me",
+      "b-grill-with-docs"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-17.subject-phase-detection/research-subject-phase-detection.md",
+    "kind": "research",
+    "subject": "2026-05-17.subject-phase-detection",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "extensions",
+      "subjects",
+      "phases",
+      "detection",
+      "session-management",
+      "b-flow"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-19.ralph-loop-plan-phase/plan-ralph-loop-plan-phase.md",
+    "kind": "plan",
+    "subject": "2026-05-19.ralph-loop-plan-phase",
+    "status": "completed",
+    "date": "2026-05-19",
+    "topics": [
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "ralph-loop",
+      "workflow-automation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-20.b-plan-step-specificity/plan-tighten-b-plan-step-output.md",
+    "kind": "plan",
+    "subject": "2026-05-20.b-plan-step-specificity",
+    "status": "active",
+    "date": "2026-05-20",
+    "topics": [
+      "b-plan",
+      "step-specificity",
+      "build-readiness",
+      "skill-quality",
+      "plan-contract"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-20.b-research-b-explore-split/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "subject-index: missing required field 'status'",
+      "subject-index: missing required field 'date'",
+      "subject-index: missing required field 'subject'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-20.b-research-b-explore-split/plan-b-research-b-explore-split.md",
+    "kind": "plan",
+    "subject": "2026-05-20.b-research-b-explore-split",
+    "status": "active",
+    "date": "2026-05-20",
+    "topics": [
+      "b-research",
+      "b-explore",
+      "web-research",
+      "crawl4ai",
+      "subject-index",
+      "skills"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-30.b-flow-sdk-redesign/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "subject-index: missing required field 'status'",
+      "subject-index: missing required field 'date'",
+      "subject-index: missing required field 'subject'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign-phases.md",
+    "kind": "plan",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "completed",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "phasing",
+      "phases"
+    ],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'research'"
+    ]
+  },
+  {
+    "path": ".context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign.md",
+    "kind": "plan",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "completed",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "pi-sdk",
+      "sdk-worker",
+      "worker-redesign",
+      "xstate",
+      "migration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-30.b-flow-sdk-redesign/research-pi-sdk-worker-architecture.md",
+    "kind": "research",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [
+      "pi-sdk",
+      "session-isolation",
+      "worker-architecture",
+      "b-flow"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-30.cwd-restrict-mode/plan-cwd-restrict.md",
+    "kind": "plan",
+    "subject": "2026-05-30.cwd-restrict-mode",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [
+      "cwd-restriction",
+      "write-guard",
+      "extension"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-31.subject-selection-prompting/index.md",
+    "kind": "subject-index",
+    "subject": "2026-05-31.subject-selection-prompting",
+    "status": "active",
+    "date": "2026-05-31",
+    "topics": [],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-05-31.subject-selection-prompting/plan-subject-selection-prompting.md",
+    "kind": "plan",
+    "subject": "2026-05-31.subject-selection-prompting",
+    "status": "active",
+    "date": "2026-05-31",
+    "topics": [
+      "subjects",
+      "prompting",
+      "selection",
+      "convention",
+      "skills"
+    ],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-01.deprecate-b-flow/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-01.deprecate-b-flow",
+    "status": "active",
+    "date": "2026-06-01",
+    "topics": [
+      "deprecation",
+      "b-flow",
+      "xstate",
+      "extension",
+      "removal-marking"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md",
+    "kind": "plan",
+    "subject": "2026-06-01.deprecate-b-flow",
+    "status": "active",
+    "date": "2026-06-01",
+    "topics": [
+      "deprecation",
+      "b-flow",
+      "xstate",
+      "extension",
+      "removal-marking"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-01.skill-universality-exploration/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "draft",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "subject-index: missing required field 'date'",
+      "subject-index: missing required field 'subject'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-01.skill-universality-exploration/research-universal-skills.md",
+    "kind": "research",
+    "subject": "2026-06-01.skill-universality-exploration",
+    "status": "active",
+    "date": "2026-06-01",
+    "topics": [
+      "skills",
+      "portability",
+      "universal",
+      "deployment",
+      "claude",
+      "opencode",
+      "codex",
+      "omp",
+      "oh-my-pi",
+      "pi-coding-agent",
+      "installation",
+      "distribution"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-04.buck-workflow-benefits-explainer/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "benefits",
+      "durable-memory",
+      "stakeholder-explanation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-04.buck-workflow-benefits-explainer/plan-buck-workflow-benefits-explanation.md",
+    "kind": "plan",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "benefits",
+      "stakeholder-explanation",
+      "presentation-plan"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-04.buck-workflow-benefits-explainer/research-buck-workflow-benefits.md",
+    "kind": "research",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "durable-memory",
+      "benefits",
+      "explanation",
+      "presentation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-04.security-audit-script/plan-security-audit-script.md",
+    "kind": "plan",
+    "subject": "2026-06-04.security-audit-script",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "security",
+      "audit",
+      "secrets",
+      "git-history",
+      "shell-script",
+      "pre-commit"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-05.cross-platform-extension-loading/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.cross-platform-extension-loading",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "extensions",
+      "omp",
+      "pi",
+      "cross-platform",
+      "loading",
+      "slash-commands",
+      "prompts"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-05.cross-platform-extension-loading/plan-cross-platform-extension-loading.md",
+    "kind": "plan",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'status'",
+      "plan: missing required field 'date'",
+      "plan: missing required field 'subject'",
+      "plan: missing required field 'topics'",
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-05.current-session-json-design/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.current-session-json-design",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "design",
+      "merge-conflicts",
+      "git-tracking",
+      "papertrail",
+      "handoff",
+      "multi-machine",
+      "planning"
+    ],
+    "related": [
+      "2026-06-05.session-json-origin"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-05.current-session-json-design/plan-current-session-redesign.md",
+    "kind": "plan",
+    "subject": "2026-06-05.current-session-json-design",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "redesign",
+      "per-subject",
+      "handoff",
+      "multi-machine",
+      "migration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-05.current-session-json-design/research-current-session-json-design.md",
+    "kind": "research",
+    "subject": "2026-06-05.current-session-json-design",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "design",
+      "merge-conflicts",
+      "git-tracking",
+      "papertrail",
+      "schema-reduction",
+      "handoff",
+      "multi-machine"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-05.extension-slimdown/plan-extension-slimdown.md",
+    "kind": "plan",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'status'",
+      "plan: missing required field 'date'",
+      "plan: missing required field 'subject'",
+      "plan: missing required field 'topics'",
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-05.session-json-origin/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.session-json-origin",
+    "status": "draft",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "extension",
+      "pi-integration"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-06.omp-integration-buck-workflow/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "plan-mode",
+      "autonomous",
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "magic-keywords",
+      "slash-commands",
+      "eval",
+      "slash-command-mirror",
+      "cross-harness",
+      "compat",
+      "b-grill",
+      "eval-kernel"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-06.omp-integration-buck-workflow/plan-cross-harness-kernel-phases.md",
+    "kind": "plan",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "active",
+    "date": "2026-06-07",
+    "topics": [
+      "phasing",
+      "cross-harness",
+      "compat",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "omp-execution-recommendation",
+      "omp-autonomous-loops",
+      "b-grill"
+    ],
+    "related": [],
+    "errors": [
+      "plan: missing required field 'research'",
+      "plan: missing required field 'memory'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-06.omp-integration-buck-workflow/plan-cross-harness-kernel.md",
+    "kind": "plan",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "active",
+    "date": "2026-06-07",
+    "topics": [
+      "cross-harness",
+      "compat",
+      "slash-commands",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "omp-execution-recommendation",
+      "omp-autonomous-loops",
+      "b-grill"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md",
+    "kind": "research",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "active",
+    "date": "2026-06-06",
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "plan-mode",
+      "autonomous",
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "magic-keywords",
+      "slash-commands",
+      "eval"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-06.user-goal-requirement/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-06.user-goal-requirement",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-06.user-goal-requirement/plan-user-goal-requirement.md",
+    "kind": "plan",
+    "subject": "2026-06-06.user-goal-requirement",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [
+      "user-goal",
+      "user-story",
+      "plan-quality",
+      "brainstorm",
+      "review"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-09.durable-research-write-gate/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-06-09",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "subject-index: missing required field 'subject'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-11.b-commit-final-step/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-11.b-commit-final-step",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-commit",
+      "buck-workflow",
+      "commits",
+      "ralph",
+      "omp",
+      "documentation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-11.b-commit-final-step/plan-b-commit-final-step.md",
+    "kind": "plan",
+    "subject": "2026-06-11.b-commit-final-step",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-commit",
+      "buck-workflow",
+      "ralph",
+      "omp",
+      "docs",
+      "chezmoi"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-11.b-commit-final-step/research-current-commit-surface.md",
+    "kind": "research",
+    "subject": "2026-06-11.b-commit-final-step",
+    "status": "completed",
+    "date": "2026-06-11",
+    "topics": [
+      "b-commit",
+      "git-commit",
+      "workflow-surface",
+      "docs"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-11.b-pr-skill/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-11.b-pr-skill",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-pr",
+      "pull-request",
+      "github",
+      "gh-cli",
+      "git",
+      "buck-workflow",
+      "skill"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-12.multi-harness-symlink-installer/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-12.multi-harness-symlink-installer",
+    "status": "active",
+    "date": "2026-06-12",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "subject-index: missing required field 'date'"
+    ]
+  },
+  {
+    "path": ".context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md",
+    "kind": "plan",
+    "subject": "2026-06-12.multi-harness-symlink-installer",
+    "status": "active",
+    "date": "2026-06-12",
+    "topics": [
+      "installer",
+      "symlink",
+      "multi-harness",
+      "claude",
+      "codex",
+      "cursor",
+      "opencode",
+      "pi",
+      "omp",
+      "node-bin"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.code-smells-audit-skill/index.md",
+    "kind": "subject-index",
+    "subject": "code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md",
+    "kind": "plan",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "audit-workflow",
+      "b-iterate",
+      "schema",
+      "omp"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.code-smells-audit-skill/research-deterministic-detection-pipeline.md",
+    "kind": "research",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "static-analysis",
+      "semgrep",
+      "reek",
+      "eslint",
+      "pylint",
+      "golangci-lint",
+      "clang-tidy",
+      "phpmd",
+      "clippy",
+      "gitnexus"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.context-format-research/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-13.context-format-research",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [
+      "context-format",
+      "markdown",
+      "json",
+      "jsonc",
+      "jq",
+      "llm-memory"
+    ],
+    "related": [
+      "2026-06-05.current-session-json-design",
+      "2026-06-05.session-json-origin"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md",
+    "kind": "plan",
+    "subject": "2026-06-13.context-format-research",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [
+      "context-format",
+      "hybrid-model",
+      "markdown",
+      "json",
+      "jq",
+      "validation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/2026-06-13.context-format-research/research-context-format.md",
+    "kind": "research",
+    "subject": "2026-06-13.context-format-research",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [
+      "context-format",
+      "markdown",
+      "json",
+      "jsonc",
+      "jq",
+      "llm-memory",
+      "marksman"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/b-commit-final-step.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [],
+    "related": [
+      "- .context/2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- .context/2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/b-flow-sdk-redesign.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [],
+    "related": [
+      "- extensions/b-flow/"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/b-pr-skill.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-06-11",
+    "topics": [],
+    "related": [
+      "- .context/2026-06-11.b-pr-skill/index.md\n- skills/b-pr/SKILL.md\n- skills/b-pr/scripts/pr-preflight.ts\n- prompts/b-pr.md\n- commands/b-pr.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/code-review-skill.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [],
+    "related": [
+      "- skills/code-review/SKILL.md\n- skills/code-review/scripts/pr-context.ts\n- skills/code-review/scripts/submit-review.ts\n- prompts/code-review.md\n- commands/code-review.md\n- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/hybrid-context-artifact-model.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [],
+    "related": [
+      "- .context/2026-06-13.context-format-research/index.md\n- .context/2026-06-13.context-format-research/research-context-format.md\n- .context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md\n- scripts/context-artifacts.mjs\n- scripts/context-artifacts.test.mjs\n- docs/context-artifacts.md\n- README.md\n- package.json\n- .context/index/subjects.json\n- .context/index/memory.json\n- .context/index/backlog.json\n- .context/index/artifacts.json"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/multi-harness-symlink-installer.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-06-12",
+    "topics": [],
+    "related": [
+      "- .context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md\n- scripts/install.mjs\n- package.json\n- README.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/plan-implementation-ledger.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [],
+    "related": [
+      "- .context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/backlog/items/test-b-grill-auto-extension.md",
+    "kind": "backlog-item",
+    "subject": "",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [],
+    "related": [
+      "- .context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md\n- .context/memory/b-grill-auto-2026-05-08.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/2026-05-17-planning-mode-write-guards.md",
+    "kind": "memory",
+    "subject": "2026-05-17.planning-mode-write-guards",
+    "status": "completed",
+    "date": "2026-05-17",
+    "topics": [
+      "plan-mode",
+      "write-guards",
+      "grill-commands",
+      "prompt-templates",
+      "isAllowedPlanWritePath",
+      "alt+p",
+      "toggle",
+      "keybind"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-commit-final-step-plan-2026-06-11.md",
+    "kind": "memory",
+    "subject": "2026-06-11.b-commit-final-step",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-commit",
+      "git-commit",
+      "ralph",
+      "omp",
+      "chezmoi",
+      "global-agents"
+    ],
+    "related": [
+      "- ../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- ../2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-mvp-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-flow",
+      "xstate",
+      "state-machine",
+      "worker-subprocess",
+      "pi-extension"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "b-phase-bflow-plan-2026-05-08.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-phase3-test-coverage-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "vitest",
+      "integration-tests",
+      "test-mocking"
+    ],
+    "related": [
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-iteration-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "completed",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "audit-compatibility",
+      "model-fallback",
+      "phase-3"
+    ],
+    "related": [
+      "b-flow-sdk-phase2-build-2026-05-30.md",
+      "b-flow-phase3-test-coverage-2026-05-30.md",
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-phase1-build-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "dual-dispatch",
+      "phase-1",
+      "iteration",
+      "phase-closeout"
+    ],
+    "related": [
+      "b-flow-sdk-research-2026-05-30.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-phase2-build-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "completed",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "createAgentSession",
+      "phase-2",
+      "model-selection",
+      "tool-scoping",
+      "result-synthesis"
+    ],
+    "related": [
+      "b-flow-sdk-research-2026-05-30.md",
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-research-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "status": "active",
+    "date": "2026-05-30",
+    "topics": [
+      "b-flow",
+      "pi-sdk",
+      "session-isolation",
+      "worker-redesign"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-spec-compliance-2026-06-01.md",
+    "kind": "memory",
+    "subject": "b-flow-spec-compliance",
+    "status": "completed",
+    "date": "2026-06-01",
+    "topics": [
+      "b-flow",
+      "classifier-audits",
+      "reconciliation",
+      "confirm-transition",
+      "spec-compliance"
+    ],
+    "related": [
+      "b-flow-mvp-2026-05-09.md",
+      "b-flow-sdk-iteration-2026-05-30.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-start-debug-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-flow",
+      "xstate",
+      "worker-subprocess",
+      "persistence",
+      "subject-detection"
+    ],
+    "related": [
+      "b-flow-mvp-2026-05-09.md",
+      "b-orchestration-extension-2026-05-08.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-flow-unit-tests-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-flow",
+      "xstate",
+      "vitest",
+      "guard-routing",
+      "unit-tests"
+    ],
+    "related": [
+      "b-flow-start-debug-2026-05-09.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-grill-auto-2026-05-08.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-grill-auto",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "b-grill-auto",
+      "pi-rpc",
+      "openai-codex-gpt-5.4",
+      "model-orchestration",
+      "ts-extension",
+      "rpc-harness",
+      "command-registration"
+    ],
+    "related": [
+      "b-present-skill-2026-05-07.md",
+      "b-phase-model-hints-2026-05-02.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-orchestration-extension-2026-05-08.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "b-flow",
+      "orchestration",
+      "state-machine",
+      "subagent",
+      "context-rollover",
+      "worker-loop",
+      "xstate"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08.md",
+      "b-phase-discrete-files-2026-05-06.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-phase-bflow-plan-2026-05-08.md",
+    "kind": "memory",
+    "subject": "2026-05-08.b-orchestration-extension",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "b-phase",
+      "plan-phasing",
+      "b-flow",
+      "xstate",
+      "orchestration",
+      "state-machine",
+      "worker-loop"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "b-phase-discrete-files-2026-05-06.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-phase-discrete-files-2026-05-06.md",
+    "kind": "memory",
+    "subject": "2026-05-06.b-phase-discrete-files",
+    "status": "completed",
+    "date": "2026-05-06",
+    "topics": [
+      "b-phase",
+      "discrete-phase-files",
+      "plan-state-tracking",
+      "session-resume",
+      "b-build",
+      "b-build-hard",
+      "b-save",
+      "extension",
+      "findActivePhaseDifficulty"
+    ],
+    "related": [
+      "b-phase-model-hints-2026-05-02.md",
+      "b-phase-skill-2026-05-01.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-phase-model-hints-2026-05-02.md",
+    "kind": "memory",
+    "subject": "2026-05-02.b-phase-model-hints",
+    "status": "active",
+    "date": "2026-05-02",
+    "topics": [
+      "b-phase",
+      "model-hints",
+      "phase-difficulty",
+      "b-plan",
+      "model-auto-switch",
+      "extension",
+      "model-picker",
+      "interactive-setup",
+      "selector-flicker",
+      "input-lifecycle",
+      "selectlist"
+    ],
+    "related": [
+      "b-phase-skill-2026-05-01.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-phase-skill-2026-05-01.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "active",
+    "date": "2026-05-01",
+    "topics": [
+      "b-phase",
+      "plan-phasing",
+      "dependency-analysis",
+      "parallel-execution",
+      "skill-creation"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-pr-skill-build-2026-06-11.md",
+    "kind": "memory",
+    "subject": "2026-06-11.b-pr-skill",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-pr",
+      "pull-request",
+      "github",
+      "gh-cli",
+      "git",
+      "dual-audience-description",
+      "base-branch-detection",
+      "rebase-verification",
+      "subagent-polish",
+      "context-artifacts"
+    ],
+    "related": [
+      "- ../2026-06-11.b-pr-skill/index.md\n- ../backlog/items/b-pr-skill.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-present-grill-with-docs-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-07.b-present-skill",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-present",
+      "presentation-package",
+      "grill-with-docs",
+      "context"
+    ],
+    "related": [
+      "b-present-skill-2026-05-07.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-present-rewrite-build-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-07.b-present-skill",
+    "status": "completed",
+    "date": "2026-05-09",
+    "topics": [
+      "b-present",
+      "presentation-package",
+      "rewrite",
+      "briefing-package"
+    ],
+    "related": [
+      "b-present-grill-with-docs-2026-05-09.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/b-research-b-explore-plan-2026-05-20.md",
+    "kind": "memory",
+    "subject": "2026-05-20.b-research-b-explore-split",
+    "status": "completed",
+    "date": "2026-05-20",
+    "topics": [
+      "b-explore",
+      "b-research",
+      "crawl4ai",
+      "research-source-dictionary",
+      "subject-index",
+      "buck-workflow",
+      "split"
+    ],
+    "related": [
+      "prompt-to-skill-portability-plan-2026-05-12.md",
+      "global-agents-buck-workflow-mode-build-2026-05-17.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/buck-workflow-benefits-explainer-2026-06-04.md",
+    "kind": "memory",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "durable-memory",
+      "benefits-explainer",
+      "b-explore",
+      "presentation-plan"
+    ],
+    "related": [
+      "b-research-b-explore-plan-2026-05-20.md",
+      "global-agents-buck-workflow-mode-build-2026-05-17.md",
+      "subject-phase-detection-2026-05-17.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/code-review-skill-build-2026-06-07.md",
+    "kind": "memory",
+    "subject": "code-review-skill",
+    "status": "active",
+    "date": "2026-06-07",
+    "topics": [
+      "code-review",
+      "pr-review",
+      "pr-context",
+      "submit-review",
+      "worktree",
+      "gh-api",
+      "bun-scripts",
+      "harsh-review",
+      "docs-reality-pass",
+      "README",
+      "OMP",
+      "cross-platform"
+    ],
+    "related": [
+      "- ./docs-reality-pass-2026-06-07.md\n- ../2026-06-01.skill-universality-exploration/research-universal-skills.md\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/code-smells-audit-contract-hardening-plan-2026-06-13.md",
+    "kind": "memory",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "b-plan",
+      "audit-workflow",
+      "schema",
+      "omp"
+    ],
+    "related": [
+      "\".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md\"",
+      "\".context/2026-06-13.code-smells-audit-skill/iterate-code-smells-audit-skill.md\"",
+      "\"skills/code-smells/SKILL.md\""
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/code-smells-audit-skill-iteration-2026-06-13.md",
+    "kind": "memory",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "b-review",
+      "b-iterate",
+      "omp",
+      "audit-workflow"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/code-smells-audit-skill-review-2026-06-13.md",
+    "kind": "memory",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "b-review",
+      "b-save",
+      "audit-workflow",
+      "verification",
+      "schema"
+    ],
+    "related": [
+      "code-smells-audit-skill-iteration-2026-06-13.md",
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/code-smells-docs-resolution-hard-gate-2026-06-13.md",
+    "kind": "memory",
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [
+      "code-smells",
+      "skill-resolution",
+      "skill-protocol",
+      "hard-gate",
+      "audit-workflow"
+    ],
+    "related": [
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md",
+      "code-smells-audit-skill-iteration-2026-06-13.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-1-2026-06-07.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "cross-harness",
+      "compat",
+      "header-guard",
+      "runtime-probe",
+      "eval-template",
+      "b-plan",
+      "slash-commands",
+      "omp",
+      "no-op"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-2-2026-06-07.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "eval-kernel",
+      "contract-doc",
+      "prelude-helpers",
+      "budget",
+      "schemas",
+      "failure-modes",
+      "cross-platform",
+      "b-plan"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-3-2026-06-07.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "eval-cells",
+      "review-audit",
+      "migration-sweep",
+      "parallel",
+      "pipeline",
+      "llm-judge",
+      "schemas",
+      "additionalProperties",
+      "b-plan"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-4-2026-06-07.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "b-grill-me",
+      "b-grill-with-docs",
+      "decision_domains",
+      "PHASES",
+      "auto-derive",
+      "mapping",
+      "eval-cell",
+      "workflow-kernel",
+      "skill-section"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/cwd-restrict-mode-2026-05-30.md",
+    "kind": "memory",
+    "subject": "2026-05-30.cwd-restrict-mode",
+    "status": "completed",
+    "date": "2026-05-30",
+    "topics": [
+      "cwd-restriction",
+      "write-guard",
+      "restrict_cwd_active",
+      "b-restrict"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/docs-reality-pass-2026-06-07.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "readme",
+      "docs",
+      "extension-loading",
+      "b-save",
+      "b-flow",
+      "command-mirror"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/durable-research-write-gate-2026-06-09.md",
+    "kind": "memory",
+    "subject": "2026-06-09.durable-research-write-gate",
+    "status": "completed",
+    "date": "2026-06-09",
+    "topics": [
+      "b-explore",
+      "b-research",
+      "write-gate",
+      "incremental-notes",
+      "durable-artifacts"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/extension-model-switch-guard-2026-05-10.md",
+    "kind": "memory",
+    "subject": "2026-05-09.pi-agent-cycle-fix",
+    "status": "active",
+    "date": "2026-05-10",
+    "topics": [
+      "model-switch",
+      "race-condition",
+      "timestamp-guard",
+      "autoSwitchingModel"
+    ],
+    "related": [
+      "pi-agent-cycle-fix-2026-05-09.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/extension-slimdown-2026-06-05.md",
+    "kind": "memory",
+    "subject": "2026-06-05.extension-slimdown",
+    "status": "completed",
+    "date": "2026-06-05",
+    "topics": [
+      "extension-slimdown",
+      "model-auto-switch",
+      "b-save",
+      "session-state",
+      "buck-workflow",
+      "pi-extension",
+      "omp-plugin"
+    ],
+    "related": [
+      "- .context/2026-06-05.extension-slimdown/plan-extension-slimdown.md\n- .context/2026-05-15.tps-tracker-review/iterate-tps-tracker-review.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/ghostty-shift-enter-fix-2026-04-17.md",
+    "kind": "memory",
+    "subject": "\"\"",
+    "status": "completed",
+    "date": "2026-04-17",
+    "topics": [
+      "ghostty",
+      "shift-enter",
+      "kitty-keyboard-protocol",
+      "pi-tui",
+      "newline",
+      "omarchy",
+      "keybind-conflict"
+    ],
+    "related": [
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/global-agents-buck-workflow-mode-build-2026-05-17.md",
+    "kind": "memory",
+    "subject": "2026-05-17.global-agents-buck-workflow-mode",
+    "status": "completed",
+    "date": "2026-05-17",
+    "topics": [
+      "global-agents",
+      "buck-mode",
+      "ownership-split",
+      "plan-mode",
+      "docs",
+      "auto-enable",
+      "qmd-skill",
+      "b-save",
+      "b-review"
+    ],
+    "related": [
+      "2026-05-17-planning-mode-write-guards.md",
+      "planning-mode-guards-2026-05-17.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/grillney-doc-plan-2026-05-08.md",
+    "kind": "memory",
+    "subject": "2026-05-08.grillney-doc-skill",
+    "status": "active",
+    "date": "2026-05-08",
+    "topics": [
+      "grillney-doc",
+      "pi-extension",
+      "pi-skill",
+      "tui",
+      "markdown-document",
+      "grilling",
+      "selectlist",
+      "custom-tool",
+      "sidecar-state"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/hybrid-context-artifact-model-build-2026-06-13.md",
+    "kind": "memory",
+    "subject": "2026-06-13.context-format-research",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [
+      "context-format",
+      "hybrid-model",
+      "context-indexes",
+      "frontmatter-validation",
+      "jq"
+    ],
+    "related": [
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/model-cycle-abort-plan-2026-05-09.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "memory: missing required field 'date'",
+      "memory: missing required field 'domains'",
+      "memory: missing required field 'topics'",
+      "memory: missing required field 'related'",
+      "memory: missing required field 'priority'",
+      "memory: missing required field 'status'"
+    ]
+  },
+  {
+    "path": ".context/memory/omp-integration-buck-workflow-2026-06-06.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "magic-keywords",
+      "slash-commands",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "autonomous-loops"
+    ],
+    "related": [
+      "- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md\n- ../2026-06-05.cross-platform-extension-loading/plan-cross-platform-extension-loading.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/omp-integration-buck-workflow-build-2026-06-07.md",
+    "kind": "memory",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-07",
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "slash-commands",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "b-review",
+      "b-flow-deprecation",
+      "autonomous-loops"
+    ],
+    "related": [
+      "- ./omp-integration-buck-workflow-2026-06-06.md\n- ../2026-06-06.omp-integration-buck-workflow/\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/pi-agent-cycle-fix-2026-05-09.md",
+    "kind": "memory",
+    "subject": "2026-05-09.pi-agent-cycle-fix",
+    "status": "active",
+    "date": "2026-05-09",
+    "topics": [
+      "model-cycling",
+      "hung-requests",
+      "pi-coding-agent",
+      "abort-controller"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/pi-coding-agent-hang-2026-05-09.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "memory: missing required field 'date'",
+      "memory: missing required field 'domains'",
+      "memory: missing required field 'topics'",
+      "memory: missing required field 'related'",
+      "memory: missing required field 'priority'",
+      "memory: missing required field 'status'"
+    ]
+  },
+  {
+    "path": ".context/memory/pi-opencode-mapping-2026-04-16.md",
+    "kind": "memory",
+    "subject": "2026-04-16.pi-opencode-mapping",
+    "status": "completed",
+    "date": "2026-04-16",
+    "topics": [
+      "pi-packages",
+      "opencode-mapping",
+      "buck-workflow",
+      "prompt-templates",
+      "extensions"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/pi-rpc-skill-2026-05-16.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "errors": [
+      "memory: missing required field 'date'",
+      "memory: missing required field 'domains'",
+      "memory: missing required field 'topics'",
+      "memory: missing required field 'related'",
+      "memory: missing required field 'priority'",
+      "memory: missing required field 'status'"
+    ]
+  },
+  {
+    "path": ".context/memory/planning-mode-guards-2026-05-17.md",
+    "kind": "memory",
+    "subject": "2026-05-17.planning-mode-write-guards",
+    "status": "active",
+    "date": "2026-05-17",
+    "topics": [
+      "plan-mode",
+      "write-guards",
+      "b-grill-me",
+      "b-grill-with-docs",
+      "isAllowedPlanWritePath"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "prompt-to-skill-build-2026-05-13.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/presentation-readme-update-2026-06-04.md",
+    "kind": "memory",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "benefits-explainer",
+      "infographic-presentation",
+      "readme-update",
+      "cross-agent-parallels",
+      "global-agents",
+      "non-prescriptive"
+    ],
+    "related": [
+      "buck-workflow-benefits-explainer-2026-06-04.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/presentation-skill-catalog-addition-2026-06-04.md",
+    "kind": "memory",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "skill-catalog",
+      "presentation-update",
+      "buck-workflow",
+      "elaboration",
+      "flow-composition",
+      "grill-variants"
+    ],
+    "related": [
+      "presentation-readme-update-2026-06-04.md",
+      "buck-workflow-benefits-explainer-2026-06-04.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/prompt-inventory-classification-2026-05-13.md",
+    "kind": "memory",
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "status": "active",
+    "date": "2026-05-13",
+    "topics": [
+      "prompts",
+      "skills",
+      "inventory",
+      "classification",
+      "portability"
+    ],
+    "related": [
+      "prompt-to-skill-portability-plan-2026-05-12.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/prompt-to-skill-build-2026-05-13.md",
+    "kind": "memory",
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "status": "active",
+    "date": "2026-05-13",
+    "topics": [
+      "prompts",
+      "skills",
+      "portability",
+      "b-build",
+      "b-build-hard",
+      "b-brainstorm",
+      "b-iterate",
+      "b-plan",
+      "b-research",
+      "b-review",
+      "git-commit",
+      "b-grill"
+    ],
+    "related": [
+      "prompt-inventory-classification-2026-05-13.md",
+      "prompt-to-skill-portability-plan-2026-05-12.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/prompt-to-skill-portability-plan-2026-05-12.md",
+    "kind": "memory",
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "status": "active",
+    "date": "2026-05-12",
+    "topics": [
+      "prompts",
+      "skills",
+      "portability",
+      "commands",
+      "plugins"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/ralph-loop-plan-phase-build-2026-05-19.md",
+    "kind": "memory",
+    "subject": "2026-05-19.ralph-loop-plan-phase",
+    "status": "completed",
+    "date": "2026-05-19",
+    "topics": [
+      "ralph-loop",
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "b-review",
+      "b-iterate"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/review-subject-selection-prompting-2026-05-31.md",
+    "kind": "memory",
+    "subject": "",
+    "status": "active",
+    "date": "2026-05-31",
+    "topics": [
+      "subject-selection",
+      "skills",
+      "review",
+      "b-review"
+    ],
+    "related": [
+      "2026-05-31.subject-selection-prompting/plan-subject-selection-prompting.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/security-audit-iteration-2026-06-04.md",
+    "kind": "memory",
+    "subject": "2026-06-04.security-audit-script",
+    "status": "completed",
+    "date": "2026-06-04",
+    "topics": [
+      "security-audit",
+      "shell-script",
+      "bugfix",
+      "b-iterate"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/subject-phase-detection-2026-05-17.md",
+    "kind": "memory",
+    "subject": "2026-05-17.subject-phase-detection",
+    "status": "completed",
+    "date": "2026-05-17",
+    "topics": [
+      "subject-detection",
+      "phase-progress",
+      "b-flow",
+      "before_agent_start",
+      "hook",
+      "token-savings"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/tmux-window-name-bug-2026-05-07.md",
+    "kind": "memory",
+    "subject": "2026-05-07.tmux-window-name-bug",
+    "status": "active",
+    "date": "2026-05-07",
+    "topics": [
+      "tmux",
+      "window-naming",
+      "session-switch",
+      "savedName",
+      "init-guard",
+      "pi-extension"
+    ],
+    "related": [
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/tmux-window-status-2026-04-16.md",
+    "kind": "memory",
+    "subject": "2026-04-16.tmux-window-name-pi-status",
+    "status": "active",
+    "date": "2026-04-16",
+    "topics": [
+      "tmux",
+      "status-icons",
+      "state-machine",
+      "lifecycle-events",
+      "window-naming",
+      "refactor",
+      "vitest",
+      "brainstorm-sidecar",
+      "naming-fix",
+      "bug-fix",
+      "jsonl-logging"
+    ],
+    "related": [],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/tps-tracker-review-2026-05-15.md",
+    "kind": "memory",
+    "subject": "2026-05-15.tps-tracker-review",
+    "status": "active",
+    "date": "2026-05-15",
+    "topics": [
+      "tps-tracker",
+      "tokens-per-second",
+      "pi-extension",
+      "wire-pattern",
+      "ctx-hasUI"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08",
+      "tmux-window-status-2026-04-16"
+    ],
+    "errors": []
+  },
+  {
+    "path": ".context/memory/web-images-skill-2026-05-07.md",
+    "kind": "memory",
+    "subject": "2026-05-07.web-images-skill",
+    "status": "active",
+    "date": "2026-05-07",
+    "topics": [
+      "web-images",
+      "imagemagick",
+      "pi-skill",
+      "image-optimization",
+      "oxipng",
+      "jpegoptim",
+      "pngquant",
+      "svgo",
+      "chezmoi",
+      "packages.yaml"
+    ],
+    "related": [
+      "tmux-window-name-bug-2026-05-07.md",
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "errors": []
+  }
+]

@@ -1,0 +1,279 @@
+[
+  {
+    "path": ".context/2026-05-20.b-research-b-explore-split/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-05-30.b-flow-sdk-redesign/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-01.skill-universality-exploration/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "draft",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-09.durable-research-write-gate/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-06-09",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-05-31.subject-selection-prompting/index.md",
+    "kind": "subject-index",
+    "subject": "2026-05-31.subject-selection-prompting",
+    "status": "active",
+    "date": "2026-05-31",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-01.deprecate-b-flow/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-01.deprecate-b-flow",
+    "status": "active",
+    "date": "2026-06-01",
+    "topics": [
+      "deprecation",
+      "b-flow",
+      "xstate",
+      "extension",
+      "removal-marking"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-04.buck-workflow-benefits-explainer/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "status": "active",
+    "date": "2026-06-04",
+    "topics": [
+      "buck-workflow",
+      "benefits",
+      "durable-memory",
+      "stakeholder-explanation"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-05.cross-platform-extension-loading/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.cross-platform-extension-loading",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "extensions",
+      "omp",
+      "pi",
+      "cross-platform",
+      "loading",
+      "slash-commands",
+      "prompts"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": [
+      "plan-cross-platform-extension-loading.md"
+    ]
+  },
+  {
+    "path": ".context/2026-06-05.current-session-json-design/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.current-session-json-design",
+    "status": "active",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "design",
+      "merge-conflicts",
+      "git-tracking",
+      "papertrail",
+      "handoff",
+      "multi-machine",
+      "planning"
+    ],
+    "related": [
+      "2026-06-05.session-json-origin"
+    ],
+    "informs": [],
+    "artifacts": [
+      "research-current-session-json-design.md",
+      "plan-current-session-redesign.md"
+    ]
+  },
+  {
+    "path": ".context/2026-06-05.session-json-origin/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-05.session-json-origin",
+    "status": "draft",
+    "date": "2026-06-05",
+    "topics": [
+      "session-state",
+      "extension",
+      "pi-integration"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": [
+      "research-session-json-origin.md"
+    ]
+  },
+  {
+    "path": ".context/2026-06-06.omp-integration-buck-workflow/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "plan-mode",
+      "autonomous",
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "magic-keywords",
+      "slash-commands",
+      "eval",
+      "slash-command-mirror",
+      "cross-harness",
+      "compat",
+      "b-grill",
+      "eval-kernel"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": [
+      "- research-omp-integration.md\n- follow-ups.md\n- plan-cross-harness-kernel.md\n- plan-cross-harness-kernel-phases.md\n- phase-1-cross-harness-compat.md\n- phase-2-kernel-contract-doc.md\n- phase-3-eval-kernel-examples.md\n- phase-4-b-grill-integration.md\n- docs/eval-kernel.md\n- eval-review-audit.py\n- eval-migration-sweep.py"
+    ]
+  },
+  {
+    "path": ".context/2026-06-06.user-goal-requirement/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-06.user-goal-requirement",
+    "status": "completed",
+    "date": "2026-06-06",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-11.b-commit-final-step/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-11.b-commit-final-step",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-commit",
+      "buck-workflow",
+      "commits",
+      "ralph",
+      "omp",
+      "documentation"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-11.b-pr-skill/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-11.b-pr-skill",
+    "status": "active",
+    "date": "2026-06-11",
+    "topics": [
+      "b-pr",
+      "pull-request",
+      "github",
+      "gh-cli",
+      "git",
+      "buck-workflow",
+      "skill"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-12.multi-harness-symlink-installer/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-12.multi-harness-symlink-installer",
+    "status": "active",
+    "date": "2026-06-12",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-13.context-format-research/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-13.context-format-research",
+    "status": "active",
+    "date": "2026-06-13",
+    "topics": [
+      "context-format",
+      "markdown",
+      "json",
+      "jsonc",
+      "jq",
+      "llm-memory"
+    ],
+    "related": [
+      "2026-06-05.current-session-json-design",
+      "2026-06-05.session-json-origin"
+    ],
+    "informs": [],
+    "artifacts": [
+      "research-context-format.md",
+      "plan-hybrid-context-artifact-model.md"
+    ]
+  },
+  {
+    "path": ".context/2026-06-13.code-smells-audit-skill/index.md",
+    "kind": "subject-index",
+    "subject": "code-smells-audit-skill",
+    "status": "completed",
+    "date": "2026-06-13",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  }
+]

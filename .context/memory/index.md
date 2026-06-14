@@ -1,4 +1,6 @@
 # Memory Index
+  - 2026-06-13 | `hybrid-context-artifact-model-build-2026-06-13.md` | domains: [implementation, buck-workflow, docs, testing] | topics: [context-format, hybrid-model, context-indexes, frontmatter-validation, jq] | status: completed
+  - 2026-06-13 | `code-smells-docs-resolution-hard-gate-2026-06-13.md` | domains: [skill, docs, omp, eval-kernel] | topics: [code-smells, skill-resolution, skill-protocol, hard-gate, audit-workflow] | status: completed
   - 2026-06-13 | `code-smells-audit-contract-hardening-plan-2026-06-13.md` | domains: [planning, skill, buck-workflow] | topics: [code-smells, b-plan, audit-workflow, schema, omp] | status: completed
   - 2026-06-13 | `code-smells-audit-skill-review-2026-06-13.md` | domains: [skill, review, docs] | topics: [code-smells, b-review, audit-workflow, verification] | status: completed
   - 2026-06-13 | `code-smells-audit-skill-iteration-2026-06-13.md` | domains: [skill, docs, review] | topics: [code-smells, b-review, b-iterate, omp, audit-workflow] | status: completed

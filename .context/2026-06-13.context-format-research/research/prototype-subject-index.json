@@ -1,0 +1,25 @@
+{
+  "kind": "subject-index",
+  "status": "completed",
+  "subject": "2026-06-13.code-smells-audit-skill",
+  "date": "2026-06-13",
+  "title": "Code Smells Audit Skill",
+  "goal": "Add an operational code-smells audit to the code-smells skill: fan out parallel subagents (one per category) to scan a codebase for all 23 smells, producing a buck-workflow-ready remediation report (impact, severity, effort).",
+  "outcome": [
+    "skills/code-smells/SKILL.md augmented with frontmatter, audit workflow, per-category detection playbook, rubrics, report schema, b-blueprint review offer, and b-plan / goal handoff.",
+    "Existing 23-smell reference catalog preserved verbatim."
+  ],
+  "verification": [
+    "23/23 docs referenced via markdown links; 0 missing, 0 uncovered.",
+    "CATEGORIES starter cell covers all 23 bare names (5+4+3+6+5).",
+    "vitest: 198 passed, 0 regressions."
+  ],
+  "artifacts": [
+    "skills/code-smells/SKILL.md",
+    "draft-commit.md",
+    "iterate-code-smells-audit-skill.md",
+    ".context/memory/code-smells-audit-skill-iteration-2026-06-13.md",
+    ".context/memory/code-smells-audit-skill-review-2026-06-13.md",
+    "plan-code-smells-audit-contract-hardening.md"
+  ]
+}

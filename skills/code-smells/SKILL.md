@@ -26,11 +26,39 @@ Ask about a specific smell or category:
 > "Run a code-smells audit on `src/`."
 > "Find code smells, prioritized for remediation."
 
+> **Doc resolution (both modes):** Reference lookups read `docs/<smell>.md`; the audit fans out subagents that read them too. Both resolve the docs **relative to this skill** via `skill://code-smells/docs/<name>.md`. If that fails (the skill isn't discovered in the session), say so plainly and point the user to register the skill — do **not** fabricate smell definitions from memory. The audit's full hard-gate contract is in step 0 below.
+
 ---
 
 ## Audit Workflow
 
-Scan a codebase for all 23 smells by fanning out **one subagent per category** (5 categories). Each subagent reads its category's `docs/`, applies the detection playbook below, and returns structured findings. The orchestrator ranks findings by severity × impact and writes a buck-workflow-ready report.
+Scan a codebase for all 23 smells by fanning out **one subagent per category** (5 categories). Each subagent reads its category's `docs/` (resolved in step 0), applies the detection playbook below, and returns structured findings. The orchestrator ranks findings by severity × impact and writes a buck-workflow-ready report.
+
+### 0. Resolve the reference docs — hard gate (do this first)
+
+The 23 smell definitions in `docs/` are the audit's source of truth: symptoms, causes, treatment, payoff. Without them the subagents have no authoritative definitions to apply, and any findings would be ungrounded guessing. **Resolve the docs before anything else. Do not fan out. Do not run a partial audit.**
+
+The `docs/` live next to this `SKILL.md`, and the harness resolves a skill's own assets **relative to itself** via the `skill://<name>/<path>` scheme — it resolves inside the skill directory regardless of the current working directory. That is how this skill finds its own docs; use it as the primary resolver.
+
+**Resolution order (first hit wins):**
+
+1. **Explicit override.** If the user named a `docs/` directory (or set `CODE_SMELLS_DOCS` to an absolute path), use it verbatim. Verify completeness (see *Completeness check* below).
+2. **Canonical — relative to self.** Probe `skill://code-smells/docs/index.md`. If it resolves, `code-smells` is discovered in this session and all 23 docs are reachable as `skill://code-smells/docs/<smell>.md`. Set `DOCS = skill://code-smells/docs` and `SKILL_BASE = skill://code-smells`.
+3. **Hard stop.** If neither resolves, **STOP — do not proceed.** Do not fan out, do not write a report. Surface this to the user verbatim:
+
+   > **Cannot resolve the code-smells reference docs — audit aborted.** This skill's `docs/` are only reachable when `code-smells` is *discovered* by the agent. Skill discovery is package/roots-based (`~/.{omp,pi,agents}/skills/`, `.agents/skills/`, registered packages), **not** relative to your current working directory. I probed `skill://code-smells/docs/index.md` and it was not found.
+   >
+   > Fix one, then re-run:
+   > - **Register the skill** so `skill://code-smells` resolves. It ships in the `buck-workflow-pi` package — add that package to Pi `packages` / OMP `extensions`, or symlink `skills/code-smells/` into `~/.agents/skills/` (or `~/.pi/agent/skills/`, `~/.omp/agent/skills/`).
+   > - **Re-run and pass the path** to this checkout's `docs/` (e.g. `~/projects/development_tools/buck-workflow-pi/skills/code-smells/docs`), or `export CODE_SMELLS_DOCS=/abs/path/to/docs`.
+
+   Do **not** paper over this with a silent filesystem search. An absolute path found by globbing is not "relative to itself" and will silently break the next session; make the failure visible so discovery is fixed once, permanently. (Subagents inherit this session's discovered-skills list, so once `skill://code-smells` resolves for the orchestrator it resolves for every category subagent too.)
+
+**Completeness check (after a hit, before fanning out).** Confirm `index.md` plus all 23 smell files are reachable:
+
+`alternative-classes-with-different-interfaces, comments, data-class, data-clumps, dead-code, divergent-change, duplicate-code, feature-envy, inappropriate-intimacy, incomplete-library-class, large-class, lazy-class, long-method, long-parameter-list, message-chains, middle-man, parallel-inheritance-hierarchies, primitive-obsession, refused-bequest, shotgun-surgery, speculative-generality, switch-statements, temporary-field`.
+
+If any are missing, **STOP** and name exactly which files are absent — partial docs mean partial definitions, which means an invalid audit. Record `docs_source: skill://code-smells/docs | <absolute path>` in the report frontmatter (§7).
 
 ### 1. Scope and setup
 
@@ -45,7 +73,7 @@ The audit logic is agent-agnostic: **five category subagents run in parallel, ea
 
 **OMP (preferred).** Run the audit in the `eval` kernel via `parallel()` fanning out one `agent()` per category. The persistent kernel holds the category definitions and finding schema, accumulates results, and assembles the report in Python — no re-serializing across the boundary. A starter cell is provided below. Respect `budget.remaining()`; if budget is low, checkpoint the finished categories and mark the report `status: partial` with explicit `unscanned_categories` instead of dropping coverage. A buck-workflow-ready remediation report is complete only after all 5 categories / 23 smells have been scanned.
 
-**Portable fallback (Pi, Claude Code, Codex, Goose).** Spawn one `task` per category in a single batch (`tasks[]` array, 5 items). Each assignment embeds the category's docs, the detection playbook, and the finding schema. Collect the five outputs and assemble the report.
+**Portable fallback (Pi, Claude Code, Codex, Goose).** Spawn one `task` per category in a single batch (`tasks[]` array, 5 items). The orchestrator reads each category's docs via the resolved `DOCS` base (step 0) and **inlines their contents into the assignment** — portable subagents are separate sessions and must not be relied on to resolve `skill://` themselves. Each assignment also embeds the detection playbook (§4), the rubric (§6), and the finding schema (§5). Collect the five outputs and assemble the report.
 
 > Canonical logic is identical either way: the subagent contracts, detection playbook, rubric, and report schema below are the source of truth. Only the fan-out primitive differs.
 
@@ -175,6 +203,7 @@ unscanned_categories: [] # non-empty only when status: partial
 date: YYYY-MM-DD
 scope: "<scanned path>"
 graph: available|fallback
+docs_source: skill://code-smells/docs | <absolute path if overridden>
 total_findings: N
 by_severity: { critical: a, high: b, medium: c, low: d }
 by_effort: { XS: .., S: .., M: .., L: .., XL: .. }
@@ -241,7 +270,7 @@ b-plan reads the report as research input and turns the prioritized findings int
 
 ### OMP starter cell
 
-Drop into the `eval` kernel (OMP workflow mode). Edit `SCOPE`, `CATEGORIES`, and the repo id, then run.
+Drop into the `eval` kernel (OMP workflow mode). Edit `SCOPE` and `CATEGORIES`, then run. The cell self-gates on docs resolution (step 0): if `code-smells` isn't discovered in this session it raises `SystemExit` with a remediation message instead of running a partial audit.
 
 ```python
 import json, datetime
@@ -249,6 +278,36 @@ import json, datetime
 SCOPE = "src"                      # path/glob to audit
 TODAY  = datetime.date.today().isoformat()
 SUBJECT = f".context/{TODAY}.code-smells-scan"
+
+# ---- Step 0 (hard gate): resolve docs relative to this skill. ----
+# skill://<name>/<path> resolves inside the skill's own directory regardless of
+# cwd. If code-smells isn't discovered here the probe fails and we STOP — no
+# partial audit. Override with CODE_SMELLS_DOCS=/abs/path/to/docs if needed.
+import os
+
+def _docs_reachable(base):
+    # tool.read (the session read tool) resolves skill:// internal URIs.
+    # The kernel `read` helper does NOT — it rejects protocol paths.
+    try:
+        tool.read({"path": f"{base}/index.md"})
+        return True
+    except Exception:
+        return False
+
+_override = os.environ.get("CODE_SMELLS_DOCS", "").rstrip("/")
+if _override:
+    DOCS, SKILL_BASE = _override, None
+    assert _docs_reachable(DOCS), f"CODE_SMELLS_DOCS={_override!r} has no index.md"
+elif _docs_reachable("skill://code-smells/docs"):
+    DOCS, SKILL_BASE = "skill://code-smells/docs", "skill://code-smells"
+else:
+    raise SystemExit(
+        "HARD STOP: code-smells docs not resolved.\n"
+        "code-smells is not discovered in this session, so skill://code-smells/docs "
+        "does not resolve. Register the skill (add buck-workflow-pi to Pi `packages` "
+        "/ OMP `extensions`, or symlink skills/code-smells/ into ~/.agents/skills/), "
+        "or set CODE_SMELLS_DOCS=/abs/path/to/docs and re-run."
+    )
 
 # Finding schema — every agent() returns a list of dicts matching this shape.
 # additionalProperties: false is required by the eval kernel; see
@@ -282,13 +341,17 @@ CATEGORIES = [
 ]
 
 def category_prompt(cat):
-    refs = "\n".join(f"- skill://code-smells/docs/{d}.md" for d in cat["docs"])
+    refs = "\n".join(f"- {DOCS}/{d}.md" for d in cat["docs"])
+    rubric = (f"Apply the rubric from {SKILL_BASE}."
+              if SKILL_BASE else
+              "Apply the severity/impact/effort rubric (critical>high>medium>low; "
+              "impact = blast radius + churn; effort XS<S<M<L<XL).")
     return f"""You are scanning {SCOPE!r} for code smells in the **{cat['name']}** category.
 
 FIRST read these reference definitions (symptoms + treatment):
 {refs}
 
-Detection strategy: {cat['tools']}. Apply the rubric from skill://code-smells.
+Detection strategy: {cat['tools']}. {rubric}
 Detect gitnexus availability with gitnexus_list_repos; if unavailable, fall back
 to search/ast_grep/git history. Every finding MUST cite tool output as evidence;
 a finding without evidence is a hypothesis — drop it.

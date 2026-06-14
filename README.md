@@ -236,6 +236,25 @@ All artifacts are organized in dated subject folders:
 └── backlog.md            # Legacy fallback (not used when backlog/ exists)
 ```
 
+## Hybrid Context Indexes
+
+Narrative `.context/` artifacts stay in Markdown. Machine query views are generated under `.context/index/`.
+
+Commands:
+
+```bash
+npm run context:index
+npm run context:validate
+```
+
+Generated files:
+
+- `.context/index/subjects.json`
+- `.context/index/memory.json`
+- `.context/index/backlog.json`
+- `.context/index/artifacts.json`
+
+`context:validate` is strict on enum/value errors and currently reports legacy missing-field drift as warnings so older artifacts do not block adoption. `context:index` rebuilds the JSON views from Markdown source; never hand-edit the generated JSON.
 ## Cross-Reference System
 
 Artifacts link to each other via frontmatter fields:

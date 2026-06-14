@@ -1,0 +1,1748 @@
+[
+  {
+    "path": ".context/memory/code-smells-audit-contract-hardening-plan-2026-06-13.md",
+    "kind": "memory",
+    "date": "2026-06-13",
+    "domains": [
+      "planning",
+      "skill",
+      "buck-workflow"
+    ],
+    "topics": [
+      "code-smells",
+      "b-plan",
+      "audit-workflow",
+      "schema",
+      "omp"
+    ],
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "artifacts": [
+      "\"plan-code-smells-audit-contract-hardening.md\"",
+      "\"iterate-code-smells-audit-skill.md\"",
+      "\"index.md\""
+    ],
+    "related": [
+      "\".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md\"",
+      "\".context/2026-06-13.code-smells-audit-skill/iterate-code-smells-audit-skill.md\"",
+      "\"skills/code-smells/SKILL.md\""
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/code-smells-audit-skill-iteration-2026-06-13.md",
+    "kind": "memory",
+    "date": "2026-06-13",
+    "domains": [
+      "skill",
+      "docs",
+      "review"
+    ],
+    "topics": [
+      "code-smells",
+      "b-review",
+      "b-iterate",
+      "omp",
+      "audit-workflow"
+    ],
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "artifacts": [
+      "index.md",
+      "iterate-code-smells-audit-skill.md",
+      "draft-commit.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/code-smells-audit-skill-review-2026-06-13.md",
+    "kind": "memory",
+    "date": "2026-06-13",
+    "domains": [
+      "skill",
+      "review",
+      "docs"
+    ],
+    "topics": [
+      "code-smells",
+      "b-review",
+      "b-save",
+      "audit-workflow",
+      "verification",
+      "schema"
+    ],
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "artifacts": [
+      ".context/2026-06-13.code-smells-audit-skill/index.md",
+      "skills/code-smells/SKILL.md",
+      "skills/code-smells/docs/index.md",
+      ".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md"
+    ],
+    "related": [
+      "code-smells-audit-skill-iteration-2026-06-13.md",
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/code-smells-docs-resolution-hard-gate-2026-06-13.md",
+    "kind": "memory",
+    "date": "2026-06-13",
+    "domains": [
+      "skill",
+      "docs",
+      "omp",
+      "eval-kernel"
+    ],
+    "topics": [
+      "code-smells",
+      "skill-resolution",
+      "skill-protocol",
+      "hard-gate",
+      "audit-workflow"
+    ],
+    "subject": "2026-06-13.code-smells-audit-skill",
+    "artifacts": [
+      "skills/code-smells/SKILL.md"
+    ],
+    "related": [
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md",
+      "code-smells-audit-skill-iteration-2026-06-13.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/hybrid-context-artifact-model-build-2026-06-13.md",
+    "kind": "memory",
+    "date": "2026-06-13",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "docs",
+      "testing"
+    ],
+    "topics": [
+      "context-format",
+      "hybrid-model",
+      "context-indexes",
+      "frontmatter-validation",
+      "jq"
+    ],
+    "subject": "2026-06-13.context-format-research",
+    "artifacts": [
+      ".context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md",
+      "scripts/context-artifacts.mjs",
+      "scripts/context-artifacts.test.mjs",
+      "package.json",
+      "README.md",
+      "docs/context-artifacts.md",
+      ".context/index/subjects.json",
+      ".context/index/memory.json",
+      ".context/index/backlog.json",
+      ".context/index/artifacts.json"
+    ],
+    "related": [
+      "code-smells-audit-contract-hardening-plan-2026-06-13.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-commit-final-step-plan-2026-06-11.md",
+    "kind": "memory",
+    "date": "2026-06-11",
+    "domains": [
+      "planning",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "b-commit",
+      "git-commit",
+      "ralph",
+      "omp",
+      "chezmoi",
+      "global-agents"
+    ],
+    "subject": "2026-06-11.b-commit-final-step",
+    "artifacts": [
+      "- ../2026-06-11.b-commit-final-step/index.md\n- ../2026-06-11.b-commit-final-step/research-current-commit-surface.md\n- ../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- ../backlog/items/b-commit-final-step.md\n- ../backlog/todo.md"
+    ],
+    "related": [
+      "- ../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- ../2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-pr-skill-build-2026-06-11.md",
+    "kind": "memory",
+    "date": "2026-06-11",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "skill",
+      "docs"
+    ],
+    "topics": [
+      "b-pr",
+      "pull-request",
+      "github",
+      "gh-cli",
+      "git",
+      "dual-audience-description",
+      "base-branch-detection",
+      "rebase-verification",
+      "subagent-polish",
+      "context-artifacts"
+    ],
+    "subject": "2026-06-11.b-pr-skill",
+    "artifacts": [
+      "- ../2026-06-11.b-pr-skill/index.md\n- ../../skills/b-pr/SKILL.md\n- ../../skills/b-pr/scripts/pr-preflight.ts\n- ../../prompts/b-pr.md\n- ../../commands/b-pr.md\n- ../backlog/items/b-pr-skill.md\n- ../backlog/todo.md"
+    ],
+    "related": [
+      "- ../2026-06-11.b-pr-skill/index.md\n- ../backlog/items/b-pr-skill.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/durable-research-write-gate-2026-06-09.md",
+    "kind": "memory",
+    "date": "2026-06-09",
+    "domains": [
+      "skill",
+      "docs",
+      "buck-workflow"
+    ],
+    "topics": [
+      "b-explore",
+      "b-research",
+      "write-gate",
+      "incremental-notes",
+      "durable-artifacts"
+    ],
+    "subject": "2026-06-09.durable-research-write-gate",
+    "artifacts": [
+      "- index.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/code-review-skill-build-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "skill",
+      "docs",
+      "pi",
+      "omp"
+    ],
+    "topics": [
+      "code-review",
+      "pr-review",
+      "pr-context",
+      "submit-review",
+      "worktree",
+      "gh-api",
+      "bun-scripts",
+      "harsh-review",
+      "docs-reality-pass",
+      "README",
+      "OMP",
+      "cross-platform"
+    ],
+    "subject": "code-review-skill",
+    "artifacts": [
+      "- skills/code-review/scripts/pr-context.ts\n- skills/code-review/scripts/submit-review.ts\n- skills/code-review/SKILL.md\n- prompts/code-review.md\n- commands/code-review.md\n- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md\n- .gitignore\n- .context/memory/index.md\n- .context/2026-06-06.user-goal-requirement/plan-user-goal-requirement.md"
+    ],
+    "related": [
+      "- ./docs-reality-pass-2026-06-07.md\n- ../2026-06-01.skill-universality-exploration/research-universal-skills.md\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-1-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "omp",
+      "planning",
+      "docs"
+    ],
+    "topics": [
+      "cross-harness",
+      "compat",
+      "header-guard",
+      "runtime-probe",
+      "eval-template",
+      "b-plan",
+      "slash-commands",
+      "omp",
+      "no-op"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- plan-cross-harness-kernel.md\n- phase-1-cross-harness-compat.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-2-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "docs",
+      "buck-workflow",
+      "omp",
+      "planning",
+      "eval-kernel"
+    ],
+    "topics": [
+      "eval-kernel",
+      "contract-doc",
+      "prelude-helpers",
+      "budget",
+      "schemas",
+      "failure-modes",
+      "cross-platform",
+      "b-plan"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- plan-cross-harness-kernel.md\n- phase-2-kernel-contract-doc.md\n- docs/eval-kernel.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-3-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "omp",
+      "eval-kernel",
+      "planning"
+    ],
+    "topics": [
+      "eval-cells",
+      "review-audit",
+      "migration-sweep",
+      "parallel",
+      "pipeline",
+      "llm-judge",
+      "schemas",
+      "additionalProperties",
+      "b-plan"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- plan-cross-harness-kernel.md\n- phase-3-eval-kernel-examples.md\n- eval-review-audit.py\n- eval-migration-sweep.py"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/cross-harness-kernel-phase-4-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "omp",
+      "eval-kernel",
+      "planning",
+      "skill-authoring"
+    ],
+    "topics": [
+      "b-grill-me",
+      "b-grill-with-docs",
+      "decision_domains",
+      "PHASES",
+      "auto-derive",
+      "mapping",
+      "eval-cell",
+      "workflow-kernel",
+      "skill-section"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- plan-cross-harness-kernel.md\n- phase-4-b-grill-integration.md\n- skills/b-grill-me/SKILL.md\n- skills/b-grill-with-docs/SKILL.md\n- docs/eval-kernel.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/docs-reality-pass-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "docs",
+      "buck-workflow",
+      "omp",
+      "pi"
+    ],
+    "topics": [
+      "readme",
+      "docs",
+      "extension-loading",
+      "b-save",
+      "b-flow",
+      "command-mirror"
+    ],
+    "subject": "",
+    "artifacts": [
+      "- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-integration-buck-workflow-build-2026-06-07.md",
+    "kind": "memory",
+    "date": "2026-06-07",
+    "domains": [
+      "implementation",
+      "buck-workflow",
+      "omp",
+      "planning",
+      "docs"
+    ],
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "slash-commands",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "b-review",
+      "b-flow-deprecation",
+      "autonomous-loops"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- ../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md\n- ../2026-06-06.omp-integration-buck-workflow/follow-ups.md\n- ../2026-06-06.omp-integration-buck-workflow/index.md\n- ../../prompts/omp-orchestrate.md\n- ../../prompts/omp-workflow.md\n- ../../prompts/omp-goal.md\n- ../../prompts/b-phase.md\n- ../../docs/buck-workflow.md\n- ../../AGENTS.md\n- ../../skills/b-phase/SKILL.md\n- ../../skills/b-plan/SKILL.md\n- ../../skills/b-review/SKILL.md"
+    ],
+    "related": [
+      "- ./omp-integration-buck-workflow-2026-06-06.md\n- ../2026-06-06.omp-integration-buck-workflow/\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-integration-buck-workflow-2026-06-06.md",
+    "kind": "memory",
+    "date": "2026-06-06",
+    "domains": [
+      "research",
+      "buck-workflow",
+      "planning",
+      "omp",
+      "autonomous"
+    ],
+    "topics": [
+      "omp",
+      "buck-workflow",
+      "goal-mode",
+      "orchestrate-keyword",
+      "workflow-keyword",
+      "magic-keywords",
+      "slash-commands",
+      "eval-kernel",
+      "b-phase",
+      "b-plan",
+      "autonomous-loops"
+    ],
+    "subject": "2026-06-06.omp-integration-buck-workflow",
+    "artifacts": [
+      "- ../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md\n- ../2026-06-06.omp-integration-buck-workflow/follow-ups.md\n- ../2026-06-06.omp-integration-buck-workflow/index.md"
+    ],
+    "related": [
+      "- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md\n- ../2026-06-05.cross-platform-extension-loading/plan-cross-platform-extension-loading.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/extension-slimdown-2026-06-05.md",
+    "kind": "memory",
+    "date": "2026-06-05",
+    "domains": [
+      "tooling",
+      "architecture",
+      "refactor"
+    ],
+    "topics": [
+      "extension-slimdown",
+      "model-auto-switch",
+      "b-save",
+      "session-state",
+      "buck-workflow",
+      "pi-extension",
+      "omp-plugin"
+    ],
+    "subject": "2026-06-05.extension-slimdown",
+    "artifacts": [
+      "- plan-extension-slimdown.md\n- extensions/index.ts\n- extensions/buck-mode.test.ts\n- extensions/tmux-window-status.test.ts\n- prompts/b-save.md\n- skills/b-save/SKILL.md\n- docs/extension-loading.md\n- package.json"
+    ],
+    "related": [
+      "- .context/2026-06-05.extension-slimdown/plan-extension-slimdown.md\n- .context/2026-05-15.tps-tracker-review/iterate-tps-tracker-review.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/buck-workflow-benefits-explainer-2026-06-04.md",
+    "kind": "memory",
+    "date": "2026-06-04",
+    "domains": [
+      "research",
+      "docs",
+      "planning",
+      "buck-workflow"
+    ],
+    "topics": [
+      "buck-workflow",
+      "durable-memory",
+      "benefits-explainer",
+      "b-explore",
+      "presentation-plan"
+    ],
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "artifacts": [
+      "index.md",
+      "research-buck-workflow-benefits.md",
+      "plan-buck-workflow-benefits-explanation.md",
+      "tasks.md",
+      "gaps-and-followups.md"
+    ],
+    "related": [
+      "b-research-b-explore-plan-2026-05-20.md",
+      "global-agents-buck-workflow-mode-build-2026-05-17.md",
+      "subject-phase-detection-2026-05-17.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/presentation-readme-update-2026-06-04.md",
+    "kind": "memory",
+    "date": "2026-06-04",
+    "domains": [
+      "docs",
+      "presentation",
+      "buck-workflow",
+      "readme"
+    ],
+    "topics": [
+      "buck-workflow",
+      "benefits-explainer",
+      "infographic-presentation",
+      "readme-update",
+      "cross-agent-parallels",
+      "global-agents",
+      "non-prescriptive"
+    ],
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "artifacts": [
+      "research-buck-workflow-benefits.md",
+      "plan-buck-workflow-benefits-explanation.md",
+      "gaps-and-followups.md"
+    ],
+    "related": [
+      "buck-workflow-benefits-explainer-2026-06-04.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/presentation-skill-catalog-addition-2026-06-04.md",
+    "kind": "memory",
+    "date": "2026-06-04",
+    "domains": [
+      "docs",
+      "presentation",
+      "buck-workflow",
+      "skill"
+    ],
+    "topics": [
+      "skill-catalog",
+      "presentation-update",
+      "buck-workflow",
+      "elaboration",
+      "flow-composition",
+      "grill-variants"
+    ],
+    "subject": "2026-06-04.buck-workflow-benefits-explainer",
+    "artifacts": [
+      "presentations/buck-workflow-architecture.html"
+    ],
+    "related": [
+      "presentation-readme-update-2026-06-04.md",
+      "buck-workflow-benefits-explainer-2026-06-04.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/security-audit-iteration-2026-06-04.md",
+    "kind": "memory",
+    "date": "2026-06-04",
+    "domains": [
+      "testing",
+      "debugging"
+    ],
+    "topics": [
+      "security-audit",
+      "shell-script",
+      "bugfix",
+      "b-iterate"
+    ],
+    "subject": "2026-06-04.security-audit-script",
+    "artifacts": [
+      "plan-security-audit-script.md",
+      "iterate-security-audit.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-flow-spec-compliance-2026-06-01.md",
+    "kind": "memory",
+    "date": "2026-06-01",
+    "domains": [
+      "implementation",
+      "testing",
+      "orchestration"
+    ],
+    "topics": [
+      "b-flow",
+      "classifier-audits",
+      "reconciliation",
+      "confirm-transition",
+      "spec-compliance"
+    ],
+    "subject": "b-flow-spec-compliance",
+    "artifacts": [],
+    "related": [
+      "b-flow-mvp-2026-05-09.md",
+      "b-flow-sdk-iteration-2026-05-30.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/review-subject-selection-prompting-2026-05-31.md",
+    "kind": "memory",
+    "date": "2026-05-31",
+    "domains": [
+      "coding",
+      "docs"
+    ],
+    "topics": [
+      "subject-selection",
+      "skills",
+      "review",
+      "b-review"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [
+      "2026-05-31.subject-selection-prompting/plan-subject-selection-prompting.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-flow-phase3-test-coverage-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "testing"
+    ],
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "vitest",
+      "integration-tests",
+      "test-mocking"
+    ],
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "artifacts": [
+      "phase-3-test-coverage.md"
+    ],
+    "related": [
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-iteration-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "implementation",
+      "review",
+      "iteration",
+      "testing"
+    ],
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "audit-compatibility",
+      "model-fallback",
+      "phase-3"
+    ],
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "artifacts": [
+      "iterate-b-flow-sdk-redesign.md",
+      "phase-3-test-coverage.md",
+      "phase-2-sdk-worker-core.md",
+      "phase-1-types-dispatch.md",
+      "plan-b-flow-sdk-redesign-phases.md"
+    ],
+    "related": [
+      "b-flow-sdk-phase2-build-2026-05-30.md",
+      "b-flow-phase3-test-coverage-2026-05-30.md",
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-phase1-build-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "implementation",
+      "b-flow",
+      "sdk",
+      "testing",
+      "review",
+      "workflow"
+    ],
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "dual-dispatch",
+      "phase-1",
+      "iteration",
+      "phase-closeout"
+    ],
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "artifacts": [
+      "plan-b-flow-sdk-redesign.md",
+      "plan-b-flow-sdk-redesign-phases.md",
+      "phase-1-types-dispatch.md",
+      "iterate-b-flow-sdk-redesign.md",
+      "index.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "b-flow-sdk-research-2026-05-30.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-phase2-build-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "implementation",
+      "b-flow",
+      "sdk",
+      "testing",
+      "review",
+      "workflow"
+    ],
+    "topics": [
+      "b-flow",
+      "sdk-worker",
+      "createAgentSession",
+      "phase-2",
+      "model-selection",
+      "tool-scoping",
+      "result-synthesis"
+    ],
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "artifacts": [
+      "plan-b-flow-sdk-redesign.md",
+      "plan-b-flow-sdk-redesign-phases.md",
+      "phase-2-sdk-worker-core.md",
+      "iterate-b-flow-sdk-redesign.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "b-flow-sdk-research-2026-05-30.md",
+      "b-flow-sdk-phase1-build-2026-05-30.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-flow-sdk-research-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "research",
+      "architecture"
+    ],
+    "topics": [
+      "b-flow",
+      "pi-sdk",
+      "session-isolation",
+      "worker-redesign"
+    ],
+    "subject": "2026-05-30.b-flow-sdk-redesign",
+    "artifacts": [
+      "research-pi-sdk-worker-architecture.md",
+      "index.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/cwd-restrict-mode-2026-05-30.md",
+    "kind": "memory",
+    "date": "2026-05-30",
+    "domains": [
+      "extension",
+      "safety-feature"
+    ],
+    "topics": [
+      "cwd-restriction",
+      "write-guard",
+      "restrict_cwd_active",
+      "b-restrict"
+    ],
+    "subject": "2026-05-30.cwd-restrict-mode",
+    "artifacts": [
+      "plan-cwd-restrict.md",
+      "draft-commit.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-research-b-explore-plan-2026-05-20.md",
+    "kind": "memory",
+    "date": "2026-05-20",
+    "domains": [
+      "implementation",
+      "skill",
+      "docs",
+      "workflow"
+    ],
+    "topics": [
+      "b-explore",
+      "b-research",
+      "crawl4ai",
+      "research-source-dictionary",
+      "subject-index",
+      "buck-workflow",
+      "split"
+    ],
+    "subject": "2026-05-20.b-research-b-explore-split",
+    "artifacts": [
+      "plan-b-research-b-explore-split.md",
+      "tasks.md",
+      "index.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "prompt-to-skill-portability-plan-2026-05-12.md",
+      "global-agents-buck-workflow-mode-build-2026-05-17.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/ralph-loop-plan-phase-build-2026-05-19.md",
+    "kind": "memory",
+    "date": "2026-05-19",
+    "domains": [
+      "implementation",
+      "skill",
+      "workflow-automation"
+    ],
+    "topics": [
+      "ralph-loop",
+      "b-phase",
+      "b-plan",
+      "b-build",
+      "b-review",
+      "b-iterate"
+    ],
+    "subject": "2026-05-19.ralph-loop-plan-phase",
+    "artifacts": [
+      "plan-ralph-loop-plan-phase.md",
+      "draft-commit.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/2026-05-17-planning-mode-write-guards.md",
+    "kind": "memory",
+    "date": "2026-05-17",
+    "domains": [
+      "buck-workflow",
+      "plan-mode",
+      "write-guards",
+      "extensions",
+      "keybindings"
+    ],
+    "topics": [
+      "plan-mode",
+      "write-guards",
+      "grill-commands",
+      "prompt-templates",
+      "isAllowedPlanWritePath",
+      "alt+p",
+      "toggle",
+      "keybind"
+    ],
+    "subject": "2026-05-17.planning-mode-write-guards",
+    "artifacts": [
+      "research-planning-mode-guards.md",
+      "draft-commit.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/global-agents-buck-workflow-mode-build-2026-05-17.md",
+    "kind": "memory",
+    "date": "2026-05-17",
+    "domains": [
+      "buck-workflow",
+      "docs",
+      "refactor",
+      "extensions",
+      "testing",
+      "skill"
+    ],
+    "topics": [
+      "global-agents",
+      "buck-mode",
+      "ownership-split",
+      "plan-mode",
+      "docs",
+      "auto-enable",
+      "qmd-skill",
+      "b-save",
+      "b-review"
+    ],
+    "subject": "2026-05-17.global-agents-buck-workflow-mode",
+    "artifacts": [
+      "plan-global-agents-buck-workflow-mode.md",
+      "ownership-split.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "2026-05-17-planning-mode-write-guards.md",
+      "planning-mode-guards-2026-05-17.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/planning-mode-guards-2026-05-17.md",
+    "kind": "memory",
+    "date": "2026-05-17",
+    "domains": [
+      "research",
+      "extensions"
+    ],
+    "topics": [
+      "plan-mode",
+      "write-guards",
+      "b-grill-me",
+      "b-grill-with-docs",
+      "isAllowedPlanWritePath"
+    ],
+    "subject": "2026-05-17.planning-mode-write-guards",
+    "artifacts": [
+      "research-planning-mode-guards.md"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "prompt-to-skill-build-2026-05-13.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/subject-phase-detection-2026-05-17.md",
+    "kind": "memory",
+    "date": "2026-05-17",
+    "domains": [
+      "research",
+      "extensions",
+      "implementation",
+      "review",
+      "architecture"
+    ],
+    "topics": [
+      "subject-detection",
+      "phase-progress",
+      "b-flow",
+      "before_agent_start",
+      "hook",
+      "token-savings"
+    ],
+    "subject": "2026-05-17.subject-phase-detection",
+    "artifacts": [
+      "research-subject-phase-detection.md",
+      "presentation/index.html"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/tps-tracker-review-2026-05-15.md",
+    "kind": "memory",
+    "date": "2026-05-15",
+    "domains": [
+      "extensions",
+      "review",
+      "implementation"
+    ],
+    "topics": [
+      "tps-tracker",
+      "tokens-per-second",
+      "pi-extension",
+      "wire-pattern",
+      "ctx-hasUI"
+    ],
+    "subject": "2026-05-15.tps-tracker-review",
+    "artifacts": [
+      "iterate-tps-tracker-review.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08",
+      "tmux-window-status-2026-04-16"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/prompt-inventory-classification-2026-05-13.md",
+    "kind": "memory",
+    "date": "2026-05-13",
+    "domains": [
+      "planning",
+      "docs",
+      "research"
+    ],
+    "topics": [
+      "prompts",
+      "skills",
+      "inventory",
+      "classification",
+      "portability"
+    ],
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "artifacts": [
+      "inventory-prompts.md"
+    ],
+    "related": [
+      "prompt-to-skill-portability-plan-2026-05-12.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/prompt-to-skill-build-2026-05-13.md",
+    "kind": "memory",
+    "date": "2026-05-13",
+    "domains": [
+      "implementation",
+      "refactoring",
+      "skills"
+    ],
+    "topics": [
+      "prompts",
+      "skills",
+      "portability",
+      "b-build",
+      "b-build-hard",
+      "b-brainstorm",
+      "b-iterate",
+      "b-plan",
+      "b-research",
+      "b-review",
+      "git-commit",
+      "b-grill"
+    ],
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "artifacts": [
+      "skills/b-build/SKILL.md",
+      "skills/b-brainstorm/SKILL.md",
+      "skills/b-iterate/SKILL.md",
+      "skills/b-plan/SKILL.md",
+      "skills/b-research/SKILL.md",
+      "skills/b-review/SKILL.md",
+      "skills/git-commit/SKILL.md",
+      "skills/b-grill/SKILL.md"
+    ],
+    "related": [
+      "prompt-inventory-classification-2026-05-13.md",
+      "prompt-to-skill-portability-plan-2026-05-12.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/prompt-to-skill-portability-plan-2026-05-12.md",
+    "kind": "memory",
+    "date": "2026-05-12",
+    "domains": [
+      "planning",
+      "docs",
+      "agent"
+    ],
+    "topics": [
+      "prompts",
+      "skills",
+      "portability",
+      "commands",
+      "plugins"
+    ],
+    "subject": "2026-05-12.prompt-to-skill-portability",
+    "artifacts": [
+      "plan-prompt-to-skill-portability.md",
+      "tasks.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/extension-model-switch-guard-2026-05-10.md",
+    "kind": "memory",
+    "date": "2026-05-10",
+    "domains": [
+      "debugging",
+      "agent",
+      "implementation"
+    ],
+    "topics": [
+      "model-switch",
+      "race-condition",
+      "timestamp-guard",
+      "autoSwitchingModel"
+    ],
+    "subject": "2026-05-09.pi-agent-cycle-fix",
+    "artifacts": [
+      "plan-extension-model-switch-guard.md"
+    ],
+    "related": [
+      "pi-agent-cycle-fix-2026-05-09.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-flow-mvp-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "implementation",
+      "testing",
+      "orchestration"
+    ],
+    "topics": [
+      "b-flow",
+      "xstate",
+      "state-machine",
+      "worker-subprocess",
+      "pi-extension"
+    ],
+    "subject": "2026-05-08.b-orchestration-extension",
+    "artifacts": [
+      "spec-b-flow-state-machine.md",
+      "plan-b-flow-mvp.md",
+      "plan-b-flow-mvp-phases.md",
+      "phase-1-foundation-types.md",
+      "phase-2-state-machine-core.md",
+      "phase-3-worker-loop.md",
+      "phase-4-ui-commands-tests.md",
+      "research-xstate-for-b-flow.md",
+      "grill-session-state-machine.md"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "b-phase-bflow-plan-2026-05-08.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-flow-start-debug-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "debugging",
+      "testing",
+      "orchestration"
+    ],
+    "topics": [
+      "b-flow",
+      "xstate",
+      "worker-subprocess",
+      "persistence",
+      "subject-detection"
+    ],
+    "subject": "2026-05-08.b-orchestration-extension",
+    "artifacts": [
+      "spec-b-flow-state-machine.md",
+      "phase-4-ui-commands-tests.md"
+    ],
+    "related": [
+      "b-flow-mvp-2026-05-09.md",
+      "b-orchestration-extension-2026-05-08.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-flow-unit-tests-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "testing",
+      "debugging",
+      "orchestration"
+    ],
+    "topics": [
+      "b-flow",
+      "xstate",
+      "vitest",
+      "guard-routing",
+      "unit-tests"
+    ],
+    "subject": "2026-05-08.b-orchestration-extension",
+    "artifacts": [
+      "spec-b-flow-state-machine.md",
+      "phase-4-ui-commands-tests.md"
+    ],
+    "related": [
+      "b-flow-start-debug-2026-05-09.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-present-grill-with-docs-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "docs",
+      "skill",
+      "planning"
+    ],
+    "topics": [
+      "b-present",
+      "presentation-package",
+      "grill-with-docs",
+      "context"
+    ],
+    "subject": "2026-05-07.b-present-skill",
+    "artifacts": [
+      "CONTEXT.md",
+      "grill-session-b-present-presentation-package.md"
+    ],
+    "related": [
+      "b-present-skill-2026-05-07.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-present-rewrite-build-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "docs",
+      "skill",
+      "implementation"
+    ],
+    "topics": [
+      "b-present",
+      "presentation-package",
+      "rewrite",
+      "briefing-package"
+    ],
+    "subject": "2026-05-07.b-present-skill",
+    "artifacts": [
+      "plan-b-present-rewrite.md",
+      "grill-session-b-present-presentation-package.md"
+    ],
+    "related": [
+      "b-present-grill-with-docs-2026-05-09.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/pi-agent-cycle-fix-2026-05-09.md",
+    "kind": "memory",
+    "date": "2026-05-09",
+    "domains": [
+      "debugging",
+      "infra",
+      "agent"
+    ],
+    "topics": [
+      "model-cycling",
+      "hung-requests",
+      "pi-coding-agent",
+      "abort-controller"
+    ],
+    "subject": "2026-05-09.pi-agent-cycle-fix",
+    "artifacts": [
+      "plan-abort-on-cycle.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-grill-auto-2026-05-08.md",
+    "kind": "memory",
+    "date": "2026-05-08",
+    "domains": [
+      "tooling",
+      "skills",
+      "extension",
+      "rpc",
+      "typescript"
+    ],
+    "topics": [
+      "b-grill-auto",
+      "pi-rpc",
+      "openai-codex-gpt-5.4",
+      "model-orchestration",
+      "ts-extension",
+      "rpc-harness",
+      "command-registration"
+    ],
+    "subject": "2026-05-08.b-grill-auto",
+    "artifacts": [
+      "research-b-grill-auto-review.md",
+      "plan-b-grill-auto-extension.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "b-present-skill-2026-05-07.md",
+      "b-phase-model-hints-2026-05-02.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-orchestration-extension-2026-05-08.md",
+    "kind": "memory",
+    "date": "2026-05-08",
+    "domains": [
+      "tooling",
+      "pi-extension",
+      "orchestration",
+      "buck-workflow"
+    ],
+    "topics": [
+      "b-flow",
+      "orchestration",
+      "state-machine",
+      "subagent",
+      "context-rollover",
+      "worker-loop",
+      "xstate"
+    ],
+    "subject": "2026-05-08.b-orchestration-extension",
+    "artifacts": [
+      "plan-b-flow-mvp.md",
+      "tasks.md",
+      "research-xstate-for-b-flow.md",
+      "spec-b-flow-state-machine.md",
+      "grill-session-state-machine.md"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08.md",
+      "b-phase-discrete-files-2026-05-06.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-phase-bflow-plan-2026-05-08.md",
+    "kind": "memory",
+    "date": "2026-05-08",
+    "domains": [
+      "tooling",
+      "planning",
+      "buck-workflow",
+      "pi-extension",
+      "orchestration"
+    ],
+    "topics": [
+      "b-phase",
+      "plan-phasing",
+      "b-flow",
+      "xstate",
+      "orchestration",
+      "state-machine",
+      "worker-loop"
+    ],
+    "subject": "2026-05-08.b-orchestration-extension",
+    "artifacts": [
+      "plan-b-flow-mvp-phases.md",
+      "phase-1-foundation-types.md",
+      "phase-2-state-machine-core.md",
+      "phase-3-worker-loop.md",
+      "phase-4-ui-commands-tests.md"
+    ],
+    "related": [
+      "b-orchestration-extension-2026-05-08.md",
+      "b-phase-discrete-files-2026-05-06.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/grillney-doc-plan-2026-05-08.md",
+    "kind": "memory",
+    "date": "2026-05-08",
+    "domains": [
+      "tooling",
+      "skills",
+      "pi-extension",
+      "grilling"
+    ],
+    "topics": [
+      "grillney-doc",
+      "pi-extension",
+      "pi-skill",
+      "tui",
+      "markdown-document",
+      "grilling",
+      "selectlist",
+      "custom-tool",
+      "sidecar-state"
+    ],
+    "subject": "2026-05-08.grillney-doc-skill",
+    "artifacts": [
+      "plan-grillney-doc-skill.md",
+      "brainstorm-grillney-doc.md",
+      "draft-commit.md",
+      "extensions/grill-me-dialog.ts"
+    ],
+    "related": [
+      "b-grill-auto-2026-05-08.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/tmux-window-name-bug-2026-05-07.md",
+    "kind": "memory",
+    "date": "2026-05-07",
+    "domains": [
+      "debugging",
+      "extension",
+      "tmux"
+    ],
+    "topics": [
+      "tmux",
+      "window-naming",
+      "session-switch",
+      "savedName",
+      "init-guard",
+      "pi-extension"
+    ],
+    "subject": "2026-05-07.tmux-window-name-bug",
+    "artifacts": [
+      ".context/2026-05-07.tmux-window-name-bug/research-tmux-window-name-bug.md"
+    ],
+    "related": [
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/web-images-skill-2026-05-07.md",
+    "kind": "memory",
+    "date": "2026-05-07",
+    "domains": [
+      "tooling",
+      "skills",
+      "image-editing",
+      "chezmoi"
+    ],
+    "topics": [
+      "web-images",
+      "imagemagick",
+      "pi-skill",
+      "image-optimization",
+      "oxipng",
+      "jpegoptim",
+      "pngquant",
+      "svgo",
+      "chezmoi",
+      "packages.yaml"
+    ],
+    "subject": "2026-05-07.web-images-skill",
+    "artifacts": [
+      "research-cli-image-tools.md",
+      "plan-web-images-skill.md"
+    ],
+    "related": [
+      "tmux-window-name-bug-2026-05-07.md",
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-phase-discrete-files-2026-05-06.md",
+    "kind": "memory",
+    "date": "2026-05-06",
+    "domains": [
+      "tooling",
+      "skills",
+      "buck-workflow",
+      "planning",
+      "extension"
+    ],
+    "topics": [
+      "b-phase",
+      "discrete-phase-files",
+      "plan-state-tracking",
+      "session-resume",
+      "b-build",
+      "b-build-hard",
+      "b-save",
+      "extension",
+      "findActivePhaseDifficulty"
+    ],
+    "subject": "2026-05-06.b-phase-discrete-files",
+    "artifacts": [
+      "plan-b-phase-discrete-phase-files.md"
+    ],
+    "related": [
+      "b-phase-model-hints-2026-05-02.md",
+      "b-phase-skill-2026-05-01.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-phase-model-hints-2026-05-02.md",
+    "kind": "memory",
+    "date": "2026-05-02",
+    "domains": [
+      "tooling",
+      "skills",
+      "buck-workflow",
+      "planning",
+      "extension",
+      "debugging",
+      "tui"
+    ],
+    "topics": [
+      "b-phase",
+      "model-hints",
+      "phase-difficulty",
+      "b-plan",
+      "model-auto-switch",
+      "extension",
+      "model-picker",
+      "interactive-setup",
+      "selector-flicker",
+      "input-lifecycle",
+      "selectlist"
+    ],
+    "subject": "2026-05-02.b-phase-model-hints",
+    "artifacts": [
+      "plan-b-phase-model-hints.md",
+      "plan-model-auto-switch.md"
+    ],
+    "related": [
+      "b-phase-skill-2026-05-01.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-phase-skill-2026-05-01.md",
+    "kind": "memory",
+    "date": "2026-05-01",
+    "domains": [
+      "tooling",
+      "skills",
+      "buck-workflow",
+      "planning"
+    ],
+    "topics": [
+      "b-phase",
+      "plan-phasing",
+      "dependency-analysis",
+      "parallel-execution",
+      "skill-creation"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/ghostty-shift-enter-fix-2026-04-17.md",
+    "kind": "memory",
+    "date": "2026-04-17",
+    "domains": [
+      "debugging",
+      "terminal",
+      "chezmoi"
+    ],
+    "topics": [
+      "ghostty",
+      "shift-enter",
+      "kitty-keyboard-protocol",
+      "pi-tui",
+      "newline",
+      "omarchy",
+      "keybind-conflict"
+    ],
+    "subject": "\"\"",
+    "artifacts": [],
+    "related": [
+      "tmux-window-status-2026-04-16.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/pi-opencode-mapping-2026-04-16.md",
+    "kind": "memory",
+    "date": "2026-04-16",
+    "domains": [
+      "docs",
+      "tooling"
+    ],
+    "topics": [
+      "pi-packages",
+      "opencode-mapping",
+      "buck-workflow",
+      "prompt-templates",
+      "extensions"
+    ],
+    "subject": "2026-04-16.pi-opencode-mapping",
+    "artifacts": [
+      "plan-pi-opencode-mapping.md",
+      "todo.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/tmux-window-status-2026-04-16.md",
+    "kind": "memory",
+    "date": "2026-04-16",
+    "domains": [
+      "tooling",
+      "pi-extension",
+      "testing",
+      "docs"
+    ],
+    "topics": [
+      "tmux",
+      "status-icons",
+      "state-machine",
+      "lifecycle-events",
+      "window-naming",
+      "refactor",
+      "vitest",
+      "brainstorm-sidecar",
+      "naming-fix",
+      "bug-fix",
+      "jsonl-logging"
+    ],
+    "subject": "2026-04-16.tmux-window-name-pi-status",
+    "artifacts": [
+      "- .context/2026-04-16.tmux-window-name-pi-status/plan-tmux-window-name-pi-status.md\n- .context/2026-04-16.tmux-window-name-pi-status/brainstorm-tmux-window-name-pi-status.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/model-cycle-abort-plan-2026-05-09.md",
+    "kind": "memory",
+    "date": "",
+    "domains": [],
+    "topics": [],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "",
+    "status": ""
+  },
+  {
+    "path": ".context/memory/pi-coding-agent-hang-2026-05-09.md",
+    "kind": "memory",
+    "date": "",
+    "domains": [],
+    "topics": [],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "",
+    "status": ""
+  },
+  {
+    "path": ".context/memory/pi-rpc-skill-2026-05-16.md",
+    "kind": "memory",
+    "date": "",
+    "domains": [],
+    "topics": [],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "",
+    "status": ""
+  }
+]

@@ -43,7 +43,9 @@
     "test:e2e:chromium": "npx playwright test --project=chromium",
     "playwright": "playwright",
     "playwright:install": "playwright install chromium",
-    "playwright:report": "npx playwright show-report"
+    "playwright:report": "npx playwright show-report",
+    "context:index": "node scripts/context-artifacts.mjs index",
+    "context:validate": "node scripts/context-artifacts.mjs validate"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
