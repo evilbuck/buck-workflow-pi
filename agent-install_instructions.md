@@ -1,8 +1,9 @@
 # Agent Install Instructions — Buck Workflow
 
-> **For installing agents:** Read this file, identify your agent type from the
-> section headers, and follow the matching section. Run the commands it lists.
-> Then verify the install with the "Verify it worked" check at the bottom.
+> **For the installing agent:** Before running any install command, **ask the
+> user which agent they're installing for** — Pi, OMP, Codex, OpenCode, or
+> Claude Code. Then jump to that section and run only those commands.
+> Do **not** blast through every section in sequence.
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
 explore, research, plan, build, review, save, present, grill, commit, plus
@@ -37,16 +38,13 @@ invocations on agents that use skill loaders):
 
 The skills themselves live in `skills/<name>/SKILL.md` of this repo and are
 agent-neutral.
-
-## Quick reference
-
 | Agent | Install method | Skills land at | Commands land at |
 |---|---|---|---|
 | **Pi** | `pi install git:github.com/buckleyrobinson/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
 | **OMP** | `omp install git:github.com/buckleyrobinson/buck-workflow-pi` | per-plugin skill dir | per-plugin command dir |
+| **Codex** | Symlink or copy the `skills/` directory | `~/.agents/skills/buck-workflow/` | n/a — invoke as `$buck-plan` (skill name) |
 | **OpenCode** | Symlink or copy the `skills/` and `commands/` directories | `~/.config/opencode/skills/buck-workflow/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Symlink/copy the `skills/` directory, or use the marketplace | `~/.claude/skills/buck-workflow/` | derived from skill name (`/b-plan` etc.) |
-| **Codex** | Symlink or copy the `skills/` directory | `~/.agents/skills/buck-workflow/` | n/a — invoke as `$buck-plan` (skill name) |
 
 ---
 
@@ -165,6 +163,79 @@ Reference: <https://omp.sh/docs/plugins>
 
 ---
 
+## Codex (`developers.openai.com/codex`)
+
+Codex also follows the [Agent Skills](https://agentskills.io) standard. The
+shared `.agents/skills/` directory is the simplest install path. Codex
+discovers skills both implicitly (by `description` match) and explicitly via
+`$skill-name`.
+
+### Install
+
+User scope (applies to every repo):
+
+```bash
+mkdir -p ~/.agents/skills
+for d in /path/to/buck-workflow-pi/skills/*/; do
+  ln -s "$d" ~/.agents/skills/"$(basename "$d")"
+done
+```
+
+Project scope (this repo only, safe to commit):
+
+```bash
+mkdir -p .agents/skills
+for d in /path/to/buck-workflow-pi/skills/*/; do
+  ln -s "$d" .agents/skills/"$(basename "$d")"
+done
+```
+
+### Alternative — plugin installer
+
+Codex ships a built-in skill installer that fetches from a marketplace:
+
+```
+$skill-installer buck-workflow
+```
+
+This works once a marketplace entry is published.
+
+### Invocation
+
+Codex doesn't expose a `/b-plan` style slash command for arbitrary skills.
+Invoke a Buck skill by its name:
+
+```
+$buck-plan
+```
+
+Or let Codex match the `description` automatically — describing a planning
+task in natural language is enough for Codex to load the `b-plan` skill
+itself.
+
+### Where things go
+
+| Surface | Location |
+|---|---|
+| Skills (user) | `~/.agents/skills/<name>/SKILL.md` |
+| Skills (repo) | `<cwd>/.agents/skills/<name>/SKILL.md` (walks up to git root) |
+| Skills (admin) | `/etc/codex/skills/<name>/SKILL.md` |
+| Bootstrap (recommended) | place `AGENTS.md` in the repo root; Codex discovers it automatically |
+
+### Verify
+
+In a Codex session:
+
+```
+$buck-plan
+```
+
+Or run `/skills` to list every loaded skill and confirm the Buck set is
+present.
+
+Reference: <https://developers.openai.com/codex/skills>
+
+---
 ## OpenCode (`opencode.ai`)
 
 OpenCode has no package install command. It scans well-known directories for
@@ -297,80 +368,6 @@ Reference: <https://code.claude.com/docs/en/skills>
 
 ---
 
-## Codex (`developers.openai.com/codex`)
-
-Codex also follows the [Agent Skills](https://agentskills.io) standard. The
-shared `.agents/skills/` directory is the simplest install path. Codex
-discovers skills both implicitly (by `description` match) and explicitly via
-`$skill-name`.
-
-### Install
-
-User scope (applies to every repo):
-
-```bash
-mkdir -p ~/.agents/skills
-for d in /path/to/buck-workflow-pi/skills/*/; do
-  ln -s "$d" ~/.agents/skills/"$(basename "$d")"
-done
-```
-
-Project scope (this repo only, safe to commit):
-
-```bash
-mkdir -p .agents/skills
-for d in /path/to/buck-workflow-pi/skills/*/; do
-  ln -s "$d" .agents/skills/"$(basename "$d")"
-done
-```
-
-### Alternative — plugin installer
-
-Codex ships a built-in skill installer that fetches from a marketplace:
-
-```
-$skill-installer buck-workflow
-```
-
-This works once a marketplace entry is published.
-
-### Invocation
-
-Codex doesn't expose a `/b-plan` style slash command for arbitrary skills.
-Invoke a Buck skill by its name:
-
-```
-$buck-plan
-```
-
-Or let Codex match the `description` automatically — describing a planning
-task in natural language is enough for Codex to load the `b-plan` skill
-itself.
-
-### Where things go
-
-| Surface | Location |
-|---|---|
-| Skills (user) | `~/.agents/skills/<name>/SKILL.md` |
-| Skills (repo) | `<cwd>/.agents/skills/<name>/SKILL.md` (walks up to git root) |
-| Skills (admin) | `/etc/codex/skills/<name>/SKILL.md` |
-| Bootstrap (recommended) | place `AGENTS.md` in the repo root; Codex discovers it automatically |
-
-### Verify
-
-In a Codex session:
-
-```
-$buck-plan
-```
-
-Or run `/skills` to list every loaded skill and confirm the Buck set is
-present.
-
-Reference: <https://developers.openai.com/codex/skills>
-
----
-
 ## Companion bootstrap (`.context/` conventions)
 
 Buck workflow is durable by design — the skills write session memory,
@@ -385,9 +382,9 @@ Install it once per agent:
 |---|---|---|
 | Pi | `~/.pi/agent/AGENTS.md` | `./AGENTS.md` |
 | OMP | `~/.omp/agent/AGENTS.md` | `./AGENTS.md` |
-| Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
-| OpenCode | `~/.config/opencode/AGENTS.md` (or any ancestor) | `./AGENTS.md` |
 | Codex | `~/.codex/AGENTS.md` (or any ancestor of cwd) | `./AGENTS.md` |
+| OpenCode | `~/.config/opencode/AGENTS.md` (or any ancestor) | `./AGENTS.md` |
+| Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
 
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.
