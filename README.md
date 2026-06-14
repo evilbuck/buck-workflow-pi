@@ -43,6 +43,11 @@ The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workfl
 
 ## Install
 
+> **For installing agents:** Use the instructions at
+> [`agent-install_instructions.md`](./agent-install_instructions.md) to install
+> this set of skills — it covers Pi, OMP, OpenCode, Claude Code, and Codex
+> with the optimal method for each.
+
 ### 1. Install the Buck Workflow Package
 
 ```bash
