@@ -24,6 +24,12 @@
   "omp": {
     "extensions": [
       "./extensions/index.ts"
+    ],
+    "commands": [
+      "./commands"
+    ],
+    "skills": [
+      "./skills"
     ]
   },
   "dependencies": {

@@ -70,6 +70,55 @@ If the work definition is ambiguous, underspecified, or hiding important tradeof
 4. **User goal gate**: if the plan has no `## User Goal` and the user has not waived with an explicit "technical chore", ask for one before finalizing. See the [User Goal Requirement](#user-goal-requirement) for details.
 5. If the user wants to move forward without answering everything, proceed with explicit assumptions and list open questions in the plan.
 
+## Light Grill (Plan Evaluation)
+
+When the plan draft has material ambiguities — hidden assumptions, fuzzy scope edges, missing acceptance criteria, or unclear verification paths — run a short structured pass over the plan itself before finalizing. This is the **plan-targeted** counterpart to the upstream [Clarification Interview Protocol](#clarification-interview-protocol): the Clarification Protocol targets ambiguity in the *user's ask*; the Light Grill targets ambiguity in the *plan* you just drafted.
+
+**Use your judgment.** Straightforward, well-bounded plans do not need this. The protocol exists for plans where a 3–10 question pass would meaningfully change the deliverable. Skip without ceremony when the plan is already tight.
+
+### When to invoke
+
+The Light Grill is worth running when the draft has any of:
+
+- **Hidden assumptions** — claims stated as fact that the user knows are conditional
+- **Scope edges** — the in/out boundary is fuzzy enough that different answers would produce different plans
+- **Acceptance criteria gaps** — "done" is undefined or unmeasurable
+- **Risk / rollback holes** — failure modes that would change the plan if surfaced
+- **Verification gaps** — no concrete way to prove the plan worked end-to-end
+
+If none of these apply, skip the Light Grill and write the plan straight to the subject folder. The absence of a `## Light Grill` section in the plan is the signal that the plan was bounded enough to skip.
+
+### How to run it
+
+1. After the plan draft is complete, identify the **3–10 most material ambiguities** — skip the rest. The goal is resolution, not exhaustive coverage. (Contrast with `b-grill-me`, which interviews relentlessly up to a 20-question threshold.)
+2. Ask **one question at a time**, with a recommended answer. The user may accept, modify, defer, or skip.
+3. After each answer, **update the plan draft** and re-evaluate whether the next-most-material ambiguity is now obvious (an early answer can dissolve a later question or surface a new one).
+4. Stop at 10 questions or when the user says stop. The [User Goal gate](#user-goal-requirement) is the only hard floor — the Light Grill never blocks on its own.
+5. If a question reveals a new artifact is needed (research, spec, brainstorm), record the gap and recommend the right skill in the "Recommended next step" output. Do not auto-spawn a new skill.
+
+### When to skip
+
+The Light Grill is **discretionary, not mandatory**. Common skip cases:
+
+- **Plan is bounded and unambiguous** — the implementation steps follow directly from the user's request, with no fuzzy edges. This is the default for mechanical / well-specified work.
+- **Upstream `b-grill-me` ran** — a `grill-session-*.md` exists in the subject folder with non-empty `decision_domains` and the domains already cover the plan's material ambiguities. Reference the session file in the plan's "Context used / assumptions" section.
+- **Technical chore** — the work is mechanically specified and carries an explicit `Technical chore — <reason>` waiver.
+
+### Output
+
+When the Light Grill runs, add a `## Light Grill` section to the plan body with this shape:
+
+```markdown
+## Light Grill
+
+- Q1: <question text> → resolved: <answer> (recommended: <rec>)
+- Q2: <question text> → deferred: <reason>
+- Q3: <question text> → resolved: <answer>
+- ...
+```
+
+The Q&A lives in the plan itself — no separate session file. The distinction from `b-grill-me` is intentional: `b-grill-me` writes a separate `grill-session-*.md` because it is a multi-session, threshold-tracking artifact; the Light Grill is a one-shot planning step whose audit trail belongs inside the plan. If a more exhaustive interview is later needed, run `b-grill-me` separately and stitch its session file to the plan via the "Context used / assumptions" section.
+
 ## Cross-Reference Stitching
 
 When creating a plan:
@@ -107,6 +156,7 @@ Behavior:
 Downstream skills read the user goal as the user-facing intent. A missing user goal is a visible gap in the plan, not a stylistic preference.
 
 - Interview the user when clarification is needed to make the plan bounded and actionable.
+- **Light Grill the draft when it has material ambiguities** (hidden assumptions, fuzzy scope, missing acceptance criteria, verification gaps). 3–10 questions, one at a time, with a recommended answer — see [Light Grill (Plan Evaluation)](#light-grill-plan-evaluation). Skip without ceremony for well-bounded plans.
 - Define scope, out-of-scope, affected files, assumptions, risks, and verification.
 - Write tactical implementation plans as `plan-*.md` in the subject folder.
 - Write strategic specs as `spec-*.md` in the subject folder (for multi-session epics/PRDs).

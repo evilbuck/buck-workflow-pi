@@ -183,6 +183,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-grill-auto` | Grill a different AI model via RPC about a plan |
 | `b-grill-with-docs` | Grill against existing domain documentation |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
+| `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
 
 ### Extension (Runtime Hooks)
 

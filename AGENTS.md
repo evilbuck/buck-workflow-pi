@@ -16,8 +16,18 @@ The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
  | **Claude Code** | `CLAUDE.md` (root + subdirs) | `~/.claude/skills/`, `.claude/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents | [docs/claude-code.md](docs/claude-code.md) |
  | **Codex** | `AGENTS.md`, `AGENTS.override.md` (walk root→cwd) | `$HOME/.agents/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins (`.codex/plugins/`) | [docs/codex.md](docs/codex.md) |
  | **Goose** | `.goosehints`, `AGENTS.md` | Via Summon extension | Skills via Summon | MCP servers (all extensions are MCP) | [docs/goose.md](docs/goose.md) |
- 
- ### Shared Skill Directories
+
+### Bootstrap vs Project `AGENTS.md`
+
+- `GLOBAL_OR_PROJECT-AGENTS.md` is the **installable bootstrap source** for agent-global `AGENTS.md` files (for example `~/.omp/agent/AGENTS.md`, `~/.pi/agent/AGENTS.md`, or other harness bootstrap targets).
+- This repository's root `AGENTS.md` is the **project-specific directive** for work inside `buck-workflow-pi`.
+- They are intentionally different:
+  - `GLOBAL_OR_PROJECT-AGENTS.md` stays generic and installable across projects.
+  - `AGENTS.md` carries repository-specific workflow, architecture, and packaging guidance.
+- When updating bootstrap policy, update `GLOBAL_OR_PROJECT-AGENTS.md` and any docs describing install/sync behavior.
+- When updating repository-local guidance, update this `AGENTS.md`.
+
+### Shared Skill Directories
  
  The `~/.agents/skills/` and `.agents/skills/` paths are the cross-tool standard. Pi, OMP, and Codex all scan these. Claude Code uses `.claude/skills/` but Pi/OMP can be configured to load from it too:
  
@@ -68,6 +78,18 @@ prompts/         # Pi prompt templates — thin wrappers that invoke skills (inc
 docs/            # Documentation
 presentations/   # Output from b-present
 ```
+
+## Setup
+
+### OMP skill loading
+
+OMP scans `.omp/skills/` (native provider, priority 100). The canonical skills live in `skills/`. Link them once:
+
+```bash
+mkdir -p .omp && ln -s ../skills .omp/skills
+```
+
+This makes all project skills load automatically on next OMP start. Pi does not need this — it scans `skills/` directly.
 
 # Buck Workflow Steps
 
