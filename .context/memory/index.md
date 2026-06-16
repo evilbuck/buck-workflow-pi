@@ -1,4 +1,6 @@
 # Memory Index
+  - 2026-06-16 | `b-fix-rebase-conflict-skill-build-2026-06-16.md` | domains: [implementation, skill, docs, testing] | topics: [b-fix-rebase-conflict, rebase, merge-conflict, semantic-merge, bun-script] | status: completed
+  - 2026-06-16 | `b-fix-rebase-conflict-skill-review-2026-06-16.md` | domains: [review, skill, buck-workflow] | topics: [b-review, b-fix-rebase-conflict, ours-theirs, semantic-merge, manual-gate] | status: completed
   - 2026-06-15 | `omp-account-status-plugin-2026-06-15.md` | domains: [tooling] | topics: [omp, plugin, tui, account-awareness] | status: active
   - 2026-06-14 | `agents-bootstrap-clarification-2026-06-14.md` | domains: [docs, buck-workflow, bootstrap] | topics: [agents, bootstrap, global-vs-project, installable-source] | status: completed
   - 2026-06-14 | `design-brief-skill-update-2026-06-14.md` | domains: [skill, docs, buck-workflow] | topics: [design-brief, subject-folder, agent-skills, readme] | status: completed

@@ -144,6 +144,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 |---------|---------------|---------|
 | `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
+| `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
 | `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
@@ -169,6 +170,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 |-------|---------|
 | `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
 | `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
+| `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-plan` | Turn context into a bounded implementation plan |
@@ -212,6 +214,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-brainstorm → /b-plan → /b-build` | Idea to implementation in one session |
 | `/b-plan → /b-build → /b-review → /b-save → /b-commit` | You already know what to build |
 | `/b-research → /b-plan → /b-build-hard → /b-review → /b-save → /b-commit` | Complex/risky work |
+| `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |
 | `/b-plan → /b-review → /b-save → /b-commit` | Plan and review without exploration |

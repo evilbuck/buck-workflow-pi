@@ -2,3 +2,4 @@
 - [x] Redesign b-flow to use Pi SDK for isolated worker contexts (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign.md`
 - [x] Extract b-save prompt into portable skill (2026-06-05) — slimmed extension to model auto-switch + TPS tracker; b-save became pure skill + prompt. Completed as part of `.context/2026-06-05.extension-slimdown/plan-extension-slimdown.md`
 - [x] Implement hybrid context artifact model (2026-06-13) — `.context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md`. Built `scripts/context-artifacts.mjs` (scanner, validator, index generator), 41 tests, docs, npm scripts. Review passed clean.
+- [x] Add b-fix-rebase-conflict skill (2026-06-16) — `.context/2026-06-16.b-fix-rebase-conflict/plan-b-fix-rebase-conflict.md`. Build + review passed. Files: SKILL.md, rebase-conflict-analyze.ts, test.ts, prompt, symlink, README.

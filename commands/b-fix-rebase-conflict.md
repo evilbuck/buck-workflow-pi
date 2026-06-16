@@ -1,0 +1,1 @@
+../prompts/b-fix-rebase-conflict.md
