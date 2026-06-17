@@ -3,3 +3,4 @@
 - [x] Extract b-save prompt into portable skill (2026-06-05) — slimmed extension to model auto-switch + TPS tracker; b-save became pure skill + prompt. Completed as part of `.context/2026-06-05.extension-slimdown/plan-extension-slimdown.md`
 - [x] Implement hybrid context artifact model (2026-06-13) — `.context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md`. Built `scripts/context-artifacts.mjs` (scanner, validator, index generator), 41 tests, docs, npm scripts. Review passed clean.
 - [x] Add b-fix-rebase-conflict skill (2026-06-16) — `.context/2026-06-16.b-fix-rebase-conflict/plan-b-fix-rebase-conflict.md`. Build + review passed. Files: SKILL.md, rebase-conflict-analyze.ts, test.ts, prompt, symlink, README.
+- [x] Skip `.context` review comments in b-pr-review-2-issues (2026-06-17) — `.context/2026-06-17.b-pr-review-2-issues-context-skip/index.md`. Skill now excludes `.context/**` comments by default, except secret-leak reports.

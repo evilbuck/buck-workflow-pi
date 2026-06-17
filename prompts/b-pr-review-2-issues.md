@@ -16,9 +16,11 @@ Ingest all review comments from a GitHub pull request (provided as a URL or numb
    git worktree add ../.worktrees/<head-branch> <head-branch>
    cd ../.worktrees/<head-branch>
    ```
-4. **Classify each comment**: actionable, question, nit, duplicate
+4. **Classify each comment**: actionable, question, nit, duplicate, context_skip
+   - Comments on `.context/**` default to `context_skip`
+   - Exception: comments reporting leaked credentials/secrets in `.context/**` stay `actionable`
    - Deduplicate: exact match only (same body + same author + same file)
-   - Skip nit and duplicate from grouping
+   - Skip nit, duplicate, and context_skip from grouping
 5. **Create subject folder**: `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/`
 6. **Write comment files** into the subject folder
 7. **Group by topic/theme** — AI infers semantic themes from comment bodies

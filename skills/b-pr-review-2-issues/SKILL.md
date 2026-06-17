@@ -60,6 +60,11 @@ Fetch all comments:
 gh pr view <number> --comments --json comments
 ```
 
+For each comment, first inspect its file path:
+- If `file` starts with `.context/`, treat it as session-context feedback, not product/source review.
+- **Exception**: if the comment reports leaked credentials or other exposed secrets in `.context/` content, keep it in scope and classify it as `actionable`.
+- Otherwise classify it as `context_skip`, write the comment artifact as usual, and exclude it from grouping and the implementation plan. Record the skipped count in the summary.
+
 For each comment, write `.context/<subject>/comment-<N>.md`:
 ```markdown
 ---
@@ -83,10 +88,11 @@ type: <classified-type>
    - `question` — asks for clarification, ends with `?`
    - `nit` — "nit", "LGTM", stylistic-only, minor formatting
    - `duplicate` — exact same body + same author + same file as another comment
+   - `context_skip` — comment is on `.context/**` session artifacts and does not report leaked credentials/secrets
 
 2. **Deduplicate**: exact match only (identical body text + same author + same file path). Near-dupes stay separate.
 
-3. **Skip noise**: `nit` and `duplicate` comments are excluded from grouping and the plan. Report their count in the summary.
+3. **Skip noise**: `nit`, `duplicate`, and `context_skip` comments are excluded from grouping and the plan. Report their counts in the summary.
 
 ### Phase 5: Subject Folder + Theme Grouping
 
@@ -172,18 +178,19 @@ Implement changes grouped by concern theme, addressing each comment systematical
 ## Context used / assumptions
 
 - Source: PR #<N> — <pr-url>
-- Comments ingested: <total> (actionable: <N>, questions: <N>, nits: <N>, duplicates: <N>)
+- Comments ingested: <total> (actionable: <N>, questions: <N>, nits: <N>, duplicates: <N>, context-skipped: <N>)
 - Groups: <N> themes (see grouping table below)
 
 ## Scope
 
 - All `actionable` comments addressed
 - All `question` comments answered in implementation or marked as follow-up
-- `nit` and `duplicate` comments excluded
+- `nit`, `duplicate`, and `.context/**` session-context comments excluded unless they report credential/secret leakage
 
 ## Out of scope
 
 - Comments classified as `nit` (listed below for reference)
+- Comments classified as `context_skip` because they target `.context/**` session artifacts without reporting secret leakage
 - Comments on unrelated concerns
 
 ## Affected files
@@ -239,7 +246,7 @@ ralph_mini_cycle: |
 ```text
 PR solutions plan created: PR #<N> — <title>
   Subject folder: .context/YYYY-MM-DD.<pr-number>-<kebab-title>/
-  Comments ingested: <total> (actionable: <N>, questions: <N>, nits: <N>, duplicates: <N>)
+  Comments ingested: <total> (actionable: <N>, questions: <N>, nits: <N>, duplicates: <N>, context-skipped: <N>)
   Groups: <N> (user-approved)
   Plan: .context/<subject>/plan-pr-solutions.md
   Phases: <N> (or: single plan)
@@ -253,6 +260,8 @@ PR solutions plan created: PR #<N> — <title>
 - **Worktree cleanup**: report the path; do NOT auto-delete
 - **Grouping requires user approval** before writing the plan
 - **Classify all comments** — nothing skipped without a reason
+- **Ignore `.context/**` review comments by default** — they are session memory/context, not implementation feedback
+- **Exception for secrets**: comments on `.context/**` that report leaked credentials, tokens, keys, or other secrets stay in scope as `actionable`
 - **Deduplicate**: exact match only (body + author + file)
 - **No GitHub issue creation** — stops at the plan artifact
 
