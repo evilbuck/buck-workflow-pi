@@ -20,6 +20,7 @@
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)
 - [x] [b-pr skill](items/b-pr-skill.md) — SKILL.md, pr-preflight.ts, prompt, command, dual-audience description — done 2026-06-11
+- [x] [b-pr: portable script path + .context-as-research](../2026-06-22.b-pr-skill-portable-path/index.md) — `<skill_dir>` resolution, impl/context file split, changed-only artifacts — done 2026-06-22
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
 

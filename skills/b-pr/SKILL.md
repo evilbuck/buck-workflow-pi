@@ -1,11 +1,11 @@
 ---
 name: b-pr
-description: Create a GitHub pull request from the current feature branch. Detects and verifies the base branch with the user, checks rebase status, generates a description from the diff and buck-workflow context artifacts, optionally polishes the description via a parallel subagent, then creates the PR via `gh`.
+description: Create a GitHub pull request from the current feature branch. Detects and verifies the base branch with the user, checks rebase status, generates a description from the implementation diff — using `.context/**` artifacts only as the research that informed the work (never as part of it) — optionally polishes via a parallel subagent, then creates the PR via `gh`.
 ---
 
 # b-pr: Pull Request Agent
 
-Create a GitHub pull request from the current feature branch with a well-crafted description that synthesizes the actual code changes and any buck-workflow context artifacts (plans, specs, brainstorms).
+Create a GitHub pull request from the current feature branch with a well-crafted description built from the **implementation** diff (code, config, docs). `.context/**` artifacts (plans, specs, brainstorms, research) are treated strictly as the research and planning that **informed** the work — referenced as background, never listed as part of the implementation.
 
 ## Prerequisites
 
@@ -14,6 +14,7 @@ Create a GitHub pull request from the current feature branch with a well-crafted
 | `git` | branch detection, diff, rebase verification |
 | `gh` | PR creation, auth check |
 | `bun` | runs the preflight script (no compile, native TS) |
+
 
 ## Invocation
 
@@ -64,7 +65,7 @@ The script now:
 1. Validates the chosen base exists
 2. Checks if the feature branch is **behind** the base (commits on base not in feature)
 3. If behind → exits with code 2 and `needs_rebase: true`
-4. If current → gathers commit log, diff stats, changed files, `.context/` artifacts
+4. If current → gathers commit log, `diff_stat`/`implementation_files[]` (the implementation), and `context_files[]` + `context_artifacts[]` (the `.context/**` research that informed it)
 
 **If the script exits with code 2 (needs rebase):**
 
@@ -91,16 +92,15 @@ You have these inputs from the preflight JSON:
 | Field | What it tells you |
 |---|---|
 | `commits[]` | commit subjects, authors, dates — the narrative arc |
-| `changed_files[]` | what files changed, how many additions/deletions |
-| `diff_stat` | summary string for the diff |
-| `context_artifacts[]` | plans, specs, brainstorms with titles, goals, statuses |
-
-**Read the context artifacts.** For each artifact in `context_artifacts[]`, read the file at `path` to extract:
-- The `## User Goal` or `goal:` field (what the user wanted)
-- The `scope` or `affected files` (what was planned)
-- The `verification` criteria (how success was defined)
-- Any risks or constraints noted
-
+| `implementation_files[]` | the **implementation**: code, config, docs that changed — everything **except** `.context/**`. This is what the PR delivers. |
+| `context_files[]` | **every** changed `.context/**` file (artifacts, memory, index, backlog, …). Research/development context that **informed** the work — **not** implementation. |
+| `diff_stat` | summary string for the **implementation** diff only (`.context/**` excluded) |
+| `context_artifacts[]` | the **parsed subset** of changed `.context/**` files named `plan-`/`spec-`/`brainstorm-`/`research-`/`phase-*.md`, with title/goal/status extracted. Not every `context_files[]` entry appears here (memory/index/backlog files are excluded). |
+**Read `.context/**` as the research that informed the work — never as the work itself.** `context_artifacts[]` and `context_files[]` capture the planning, specs, and research that **guided** the implementation; they are **not** deliverables. Use them to explain *why* the implementation looks the way it does, and to cross-check that `implementation_files[]` actually delivers what was planned. For each artifact in `context_artifacts[]`, read the file at `path` to extract:
+- The `## User Goal` or `goal:` field (what the user wanted → drives the "What & Why")
+- The `scope` or `affected files` (what was planned → compare against `implementation_files[]`)
+- The `verification` criteria (how success was defined → drives "Verification Steps")
+- Any risks or constraints noted (→ drives "Known Risks")
 **Synthesize a PR description** with two distinct sections: one for humans (scannable, impact-focused) and one for agents (technical, actionable).
 
 **Description format** (markdown, for the PR body):
@@ -148,7 +148,7 @@ npm run dev
 
 ### Files Changed
 
-<Detailed list grouped by type>
+<List **only** `implementation_files[]` — never `.context/**`. Group by type.>
 
 **Source files:**
 - `path/to/file.ts` — <what changed, line count if relevant>
@@ -167,9 +167,9 @@ npm run dev
 - **Dependencies**: <any new deps added, or "None">
 - **Migration**: <any data/config migration needed, or "None">
 
-### Context Artifacts
+### Research & Planning Context
 
-<If buck-workflow artifacts exist, link them>
+<If `context_artifacts[]` is non-empty, reference the `.context/**` research that **informed** this work. Frame it as background that guided the implementation — not as part of the deliverable.>
 
 - **Plan**: `.context/YYYY-MM-DD.subject/plan-*.md` — <goal summary>
 - **Spec**: `.context/YYYY-MM-DD.subject/spec-*.md` — <requirement summary>
@@ -195,7 +195,7 @@ npm run dev
 **Writing guidelines:**
 - The **Human section** (top) should be scannable in 15 seconds. No jargon, no file paths, focus on impact.
 - The **Agent section** (bottom) should be copy-pasteable. Exact commands, exact file paths, exact verification steps.
-- If there are no context artifacts, omit the "Context Artifacts" subsection entirely.
+- If `context_artifacts[]` is empty, omit the "Research & Planning Context" subsection entirely. Never list `.context/**` files under "Files Changed".
 - If there are no known risks, omit "Known Risks" or write "None identified."
 - If this is not a bug fix, omit "Reproduction Steps."
 - Keep both sections tight. No filler. A good PR description is useful, not long.
@@ -209,7 +209,7 @@ If the harness supports **parallel subagents** (omp `task`, pi subagents, codex 
 ```
 You are a PR description polisher. You will receive:
 1. A draft PR description with two sections (Humans at top, Agents at bottom)
-2. The preflight JSON (commits, changed files, context artifacts)
+2. The preflight JSON (commits, `implementation_files[]`, `context_files[]`, `context_artifacts[]`)
 
 Your job:
 HUMANS section:
@@ -219,9 +219,9 @@ HUMANS section:
 
 AGENTS section:
 - Verify the Verification Steps commands are correct and copy-pasteable
-- Verify Files Changed matches the actual diff from preflight JSON
+- Verify Files Changed lists only `implementation_files[]` (never `.context/**`)
 - Ensure technical details reflect what's actually in the diff
-- If context artifacts contain verification criteria, make sure they're referenced
+- If context artifacts contain verification criteria, make sure they're referenced; `.context/**` is research context, not a deliverable
 - Ensure the markdown structure is preserved (### headings, code blocks, lists)
 
 Do NOT merge the two sections. The human/agent boundary must stay clear.
@@ -300,27 +300,30 @@ After successful creation, report:
 
 - **Never create a PR without user confirmation** of both the base branch and the description.
 - **Never auto-push.** If the branch hasn't been pushed, tell the user to push first.
-- **Never create a PR against a protected branch** unless the user explicitly confirms it. If the base is `main`/`master`/`develop`, add a warning:
+- **Never create a PR against a protected branch** unless the user explicitly confirms it. If the base is `main`/`master`/`dev`/`develop`, add a warning:
   ```
   ⚠️ Target base is a protected branch (<base>). Are you sure? [y/n]
   ```
 - **Do not create the PR if the branch needs rebasing.** Fix the rebase first.
 - **Do not pad the description.** A short, accurate description beats a long one full of filler.
-- **The script is the source of truth** for branch names, commit counts, and file lists. Do not re-derive these from memory.
+- **The script is the source of truth** for branch names, commit counts, and the `implementation_files[]` / `context_files[]` split. Do not re-derive these from memory, and do not move `.context/**` files into "Files Changed".
 - **`--dry-run` never creates anything.** It stops after Phase 5 and reports.
 
-## Context Artifact Usage
+## `.context/**` Is Research, Not Implementation
 
-The preflight script scans `.context/YYYY-MM-DD.*/` for:
-- `plan-*.md` → source for goal, scope, verification, risks
-- `spec-*.md` → source for requirements and user goal
-- `brainstorm-*.md` → source for motivation and approach
-- `research-*.md` → source for technical decisions
-- `phase-*.md` → source for current phase scope
+The preflight script surfaces `.context/**` changes in two fields, both framed as research/development context that **informed and guided** the implementation:
 
-These are **supplementary** to the diff. If no context artifacts exist, the description is generated from the diff alone — this is fine for ad-hoc work.
+- `context_files[]` — **every** changed `.context/**` file (artifacts, memory, index, backlog, …).
+- `context_artifacts[]` — the **parsed subset** whose names mark them as research artifacts:
+  - `plan-*.md` → goal, scope, verification, risks
+  - `spec-*.md` → requirements and user goal
+  - `brainstorm-*.md` → motivation and approach
+  - `research-*.md` → technical decisions
+  - `phase-*.md` → current phase scope
 
-If artifacts exist but the diff doesn't match them (e.g., the plan mentioned files that weren't changed), note the discrepancy in the description's Risks section rather than silently ignoring it.
+These **guided** the implementation; they are **not** part of it. Only `.context/**` files that **changed** in this diff are surfaced — stale, unrelated plans never leak in. If no `.context/**` files changed, both fields are empty and the description is generated from `implementation_files[]` alone, which is correct for ad-hoc work.
+
+If artifacts exist but the implementation doesn't match them (e.g., the plan mentioned files that weren't changed), note the discrepancy in the description's Risks section rather than silently ignoring it.
 
 ## Cross-References
 

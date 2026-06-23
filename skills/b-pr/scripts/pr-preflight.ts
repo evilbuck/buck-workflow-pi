@@ -2,9 +2,10 @@
 // skills/b-pr/scripts/pr-preflight.ts
 //
 // PR preflight: detect base branches, verify rebase status, gather diff stats,
-// scan .context/ for buck-workflow artifacts. Deterministic plumbing for b-pr.
+// and surface the .context/** research artifacts that informed the work.
+// Deterministic plumbing for b-pr.
 //
-// Usage:
+// Usage (run from the repo root):
 //   bun skills/b-pr/scripts/pr-preflight.ts              # detect base candidates
 //   bun skills/b-pr/scripts/pr-preflight.ts --base main  # full gather against chosen base
 //
@@ -14,7 +15,7 @@
 //   2 = feature branch is behind the base branch (needs rebase)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------- types ----------
@@ -56,8 +57,10 @@ interface PreflightOutput {
   behind_count?: number;
   ahead_count?: number;
   commits?: CommitInfo[];
-  changed_files_count?: number;
-  changed_files?: FileStat[];
+  implementation_files_count?: number;
+  implementation_files?: FileStat[];
+  context_files_count?: number;
+  context_files?: FileStat[];
   diff_stat?: string;
   context_artifacts?: ContextArtifact[];
   needs_rebase?: boolean;
@@ -89,6 +92,23 @@ function execGh(args: readonly string[]): string {
     const stderr = err.stderr?.toString().trim() || err.message;
     die(`gh ${args.join(" ")} failed: ${stderr}`);
   }
+}
+
+// Classify a repo-relative .context/** path into an artifact type, or null.
+// rel looks like ".context/2026-06-11.b-pr-skill/plan-foo.md".
+function artifactType(rel: string): ContextArtifact["type"] | null {
+  const parts = rel.split("/");
+  if (parts.length < 3 || parts[0] !== ".context") return null;
+  const subject = parts[1];
+  if (!/^\d{4}-\d{2}-\d{2}\..+/.test(subject)) return null;
+  const file = parts.slice(2).join("/");
+  if (file.startsWith("plan-") && file.endsWith(".md")) {
+    return file.includes("-phases") ? "phase" : "plan";
+  }
+  if (file.startsWith("spec-") && file.endsWith(".md")) return "spec";
+  if (file.startsWith("brainstorm-") && file.endsWith(".md")) return "brainstorm";
+  if (file.startsWith("research-") && file.endsWith(".md")) return "research";
+  return null;
 }
 
 // ---------- main ----------
@@ -203,94 +223,79 @@ if (logRaw) {
   }
 }
 
-// 10. Gather diff stats
-const diffStat = execGit(["diff", "--stat", `${baseRef}..HEAD`]).trim();
+// 10. Gather diff stats — implementation only.
+//     .context/** is research/development context that GUIDED the work; it is NOT
+//     implementation. Exclude it so diff_stat matches implementation_files. Paths are
+//     repo-root-relative; the skill is always run from the repo root.
+const diffStat = execGit(["diff", "--stat", `${baseRef}..HEAD`, "--", ".", ":(exclude).context"]).trim();
 
-// 11. Gather per-file stats
+// 11. Gather per-file stats, split into implementation vs context (.context/**).
 const numstatRaw = execGit(["diff", "--numstat", `${baseRef}..HEAD`]).trim();
-const changedFiles: FileStat[] = [];
+const implementationFiles: FileStat[] = [];
+const contextFiles: FileStat[] = [];
 if (numstatRaw) {
   for (const line of numstatRaw.split("\n")) {
     const parts = line.split("\t");
     if (parts.length === 3) {
       const adds = parts[0] === "-" ? 0 : parseInt(parts[0], 10);
       const dels = parts[1] === "-" ? 0 : parseInt(parts[1], 10);
-      changedFiles.push({ path: parts[2], additions: adds, deletions: dels });
+      const file = { path: parts[2], additions: adds, deletions: dels };
+      if (parts[2].startsWith(".context/")) {
+        contextFiles.push(file);
+      } else {
+        implementationFiles.push(file);
+      }
     }
   }
 }
 
-// 12. Scan .context/ for buck-workflow artifacts
-const contextDir = join(repoRoot, ".context");
+// 12. Parse the .context/** artifacts that CHANGED in this diff.
+//     These are research/development artifacts (plans, specs, brainstorms, research,
+//     phases) that informed the implementation — they are NOT the implementation. Only
+//     changed artifacts are surfaced (derived from context_files) so stale, unrelated
+//     plans never leak into the PR description. Paths are repo-relative and stable.
 const contextArtifacts: ContextArtifact[] = [];
+for (const cf of contextFiles) {
+  const type = artifactType(cf.path);
+  if (!type) continue;
 
-if (existsSync(contextDir)) {
-  // Scan subject folders
-  const entries = readdirSync(contextDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const dirName = entry.name;
-    // Match subject folder pattern: YYYY-MM-DD.subject-name
-    if (!/^\d{4}-\d{2}-\d{2}\..+/.test(dirName)) continue;
+  const absPath = join(repoRoot, cf.path);
+  if (!existsSync(absPath)) continue; // deleted in this diff — nothing to read
+  const content = readFileSync(absPath, "utf-8");
 
-    const subjectPath = join(contextDir, dirName);
-    const files = readdirSync(subjectPath);
-
-    for (const file of files) {
-      const filePath = join(subjectPath, file);
-      const stat = statSync(filePath);
-      if (!stat.isFile()) continue;
-
-      let type: ContextArtifact["type"] | null = null;
-      if (file.startsWith("plan-") && file.endsWith(".md")) {
-        type = file.includes("-phases") ? "phase" : "plan";
-      } else if (file.startsWith("spec-") && file.endsWith(".md")) {
-        type = "spec";
-      } else if (file.startsWith("brainstorm-") && file.endsWith(".md")) {
-        type = "brainstorm";
-      } else if (file.startsWith("research-") && file.endsWith(".md")) {
-        type = "research";
-      }
-
-      if (type) {
-        const content = readFileSync(filePath, "utf-8");
-        // Extract frontmatter fields
-        const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
-        let title: string | undefined;
-        let goal: string | undefined;
-        let status: string | undefined;
-
-        if (fmMatch) {
-          const fm = fmMatch[1];
-          const titleMatch = fm.match(/^title:\s*(.+)$/m);
-          const goalMatch = fm.match(/^goal:\s*(.+)$/m);
-          const statusMatch = fm.match(/^status:\s*(.+)$/m);
-          if (titleMatch) title = titleMatch[1].trim();
-          if (goalMatch) goal = goalMatch[1].trim();
-          if (statusMatch) status = statusMatch[1].trim();
-        }
-
-        // Also try to extract ## User Goal or # Title from body
-        if (!title) {
-          const h1Match = content.match(/^#\s+(.+)$/m);
-          if (h1Match) title = h1Match[1].trim();
-        }
-        if (!goal) {
-          const userGoalMatch = content.match(/^##\s+User Goal\s*\n+(.+)$/m);
-          if (userGoalMatch) goal = userGoalMatch[1].trim();
-        }
-
-        contextArtifacts.push({
-          type,
-          path: filePath,
-          subject: dirName,
-          title,
-          goal,
-          status,
-        });
-      }
-    }
+  // Extract frontmatter fields
+  const fmMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  let title: string | undefined;
+  let goal: string | undefined;
+  let status: string | undefined;
+  if (fmMatch) {
+    const fm = fmMatch[1];
+    const titleMatch = fm.match(/^title:\s*(.+)$/m);
+    const goalMatch = fm.match(/^goal:\s*(.+)$/m);
+    const statusMatch = fm.match(/^status:\s*(.+)$/m);
+    if (titleMatch) title = titleMatch[1].trim();
+    if (goalMatch) goal = goalMatch[1].trim();
+    if (statusMatch) status = statusMatch[1].trim();
   }
+
+  // Fall back to body headings
+  if (!title) {
+    const h1Match = content.match(/^#\s+(.+)$/m);
+    if (h1Match) title = h1Match[1].trim();
+  }
+  if (!goal) {
+    const userGoalMatch = content.match(/^##\s+User Goal\s*\n+(.+)$/m);
+    if (userGoalMatch) goal = userGoalMatch[1].trim();
+  }
+
+  contextArtifacts.push({
+    type,
+    path: cf.path,
+    subject: cf.path.split("/")[1],
+    title,
+    goal,
+    status,
+  });
 }
 
 // 13. Output
@@ -303,8 +308,10 @@ const output: PreflightOutput = {
   behind_count: behindCount,
   ahead_count: aheadCount,
   commits,
-  changed_files_count: changedFiles.length,
-  changed_files: changedFiles,
+  implementation_files_count: implementationFiles.length,
+  implementation_files: implementationFiles,
+  context_files_count: contextFiles.length,
+  context_files: contextFiles,
   diff_stat: diffStat,
   context_artifacts: contextArtifacts,
   needs_rebase: false,
