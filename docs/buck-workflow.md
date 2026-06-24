@@ -24,6 +24,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` |
+| `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 
 Practical translation rules:
@@ -131,13 +132,13 @@ for the decision log.
 
 ```
 # Standard phased plan with no omp opt-in (default)
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → /b-commit
 #                                                            ↺ (repeat per phase)
 
 # Large multi-phase plan that should fan out parallel work
 /b-explore or /b-research → /b-plan → /skill:b-phase (omp_execution: orchestrate)
 #                                       → drop "orchestrate" on phase 1 turn
-#                                       → /b-build / /b-review / /b-save
+#                                       → /b-build / /b-review / /b-docs / /b-save
 
 # Audit / review / migration plan that benefits from eval-cell fan-out
 /b-plan → set omp_execution: workflow → b-plan writes eval-<topic>.py
@@ -232,7 +233,9 @@ flowchart TD
     Q -->|Yes| L
     
     P --> N
-    O -->|No| R[/b-save\]
+    O -->|No docs impact| R[/b-save\]
+    O -->|Docs to update| DOC[/b-docs\]
+    DOC --> R
     
     R --> S[Memory + Index<br/>Cross-references<br/>Backlog updated]
     S --> T[Done]
@@ -288,6 +291,10 @@ flowchart LR
         V1[/b-review\] --> V2{Pass?}
     end
     
+    subgraph Docs["📝 Docs Phase (if impact)"]
+        D1[/b-docs\] --> D2[Living docs:<br/>CONTEXT.md · ADRs · conventions]
+    end
+    
     subgraph Save["💾 Save Phase"]
         S1[/b-save\] --> S2[Memory + Index<br/>+ Backlog]
     end
@@ -296,6 +303,8 @@ flowchart LR
     Planning --> Build
     Build --> Review
     Review -->|Pass| Save
+    Review -->|Doc impact| Docs
+    Docs --> Save
     Review -->|Iterate| Build
 ```
 
@@ -312,6 +321,7 @@ flowchart TD
         C5["/b-build-hard"]
         C6["/b-iterate"]
         C7["/b-review"]
+        C13["/b-docs"]
         C12["/b-commit"]
         C8["/b-save"]
         C9["/skill:b-phase"]
@@ -328,6 +338,7 @@ flowchart TD
         P5["prompts/b-build-hard.md"]
         P6["prompts/b-iterate.md"]
         P7["prompts/b-review.md"]
+        P13["prompts/b-docs.md<br/>+ skills/b-docs/SKILL.md"]
         P8["skills/b-phase/SKILL.md"]
         P9["skills/b-grill-me/SKILL.md"]
         P10["skills/b-grill-with-docs/SKILL.md"]
@@ -343,6 +354,7 @@ flowchart TD
     C5 --> P5
     C6 --> P6
     C7 --> P7
+    C13 --> P13
     C8 --> P11
     C9 --> P8
     C10 --> P9
@@ -371,6 +383,7 @@ flowchart TD
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
+| [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
 **Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
 
@@ -939,6 +952,29 @@ Suggested next step
 
 **History Check**: After accepted work, recommends `/b-save` to record completed work in history.
 
+#### `/b-docs` — Living-Documentation Sync
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Keep the project's living documentation in sync with what was implemented — domain language, architecture decisions, conventions, and architecture narrative. Records *meaning* (what the code now is); `/b-save` records the *event* (what happened this session). The two are complementary.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-docs.md`, `commands/b-docs.md`, `skills/b-docs/SKILL.md`)
+
+**Conditional**: `/b-docs` runs only when `/b-review` flags documentation impact. Most changes need no doc update and skip it.
+
+**Canonical doc locations** (the writer's surface — reuse existing formats, never invent parallel docs):
+- Domain language → `CONTEXT.md` (or `CONTEXT-MAP.md` + per-context) — format in `skills/b-grill-with-docs/CONTEXT-FORMAT.md`
+- Architecture decisions → `docs/adr/0001-slug.md` (sequential) — format in `skills/b-grill-with-docs/ADR-FORMAT.md`
+- Agent/dev conventions → idempotent managed block in `AGENTS.md` / `CLAUDE.md`
+- Architecture narrative → `docs/`
+- `README.md` → read-only (flag only)
+
+**ADR gate**: an ADR is written only when the decision is hard to reverse, surprising without context, and the result of a real trade-off.
+
+**Read-only on `.context/`**: writes only to living docs; session memory is `/b-save`'s job.
+
+**Recommendations**: run before `/b-save` so doc changes land in the commit; then `/b-save` → `/b-commit`.
+
 ### 5. Save Phase
 
 #### `/b-save` — Record History
@@ -1021,7 +1057,7 @@ status: active
 
 **Workflow completion sequence**:
 ```
-/b-build → /b-review → /b-iterate if needed → /b-save → /b-commit
+/b-build → /b-review → /b-iterate if issues → /b-docs if doc impact → /b-save → /b-commit
 ```
 
 **Safety**: Protected branches (main, master, develop) are guarded — use `force` only for hotfixes.
@@ -1208,25 +1244,25 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### New Work (Standard)
 
 ```
-/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
 ```
 
 ### New Work (with brainstorming)
 
 ```
-/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-save → /b-commit
+/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
 ```
 
 ### Complex/Risky Work
 
 ```
-/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit
 ```
 
 ### Large Plan (Multi-Session)
 
 ```
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → /b-commit
                                               ↺ (repeat per phase)
 ```
 
@@ -1239,13 +1275,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Review Fix Loop
 
 ```
-/b-review → /b-iterate → /b-review → (repeat until pass) → /b-save → /b-commit
+/b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
 ```
 
 ### Ad-Hoc Work (no planning)
 
 ```
-/b-build → /b-review → /b-save → /b-commit
+/b-build → /b-review → /b-docs → /b-save → /b-commit
 (Subject folder created automatically by b-save)
 ```
 

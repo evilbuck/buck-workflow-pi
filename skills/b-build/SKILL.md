@@ -341,4 +341,4 @@ After completing implementation, report:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. **Recommendation** — suggest `/b-review` for validation, `/b-save` to finalize, then `/b-commit` to commit
+5. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit

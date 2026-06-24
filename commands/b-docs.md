@@ -1,0 +1,1 @@
+../prompts/b-docs.md

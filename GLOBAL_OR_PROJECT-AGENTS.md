@@ -131,12 +131,28 @@ Links use filenames within same subject folder. Memory links use memory filename
 
 ## Buck Workflow
 
-**Steps:** `b-brainstorm` → `b-research` → `b-plan` → `b-present` → `b-build` → `b-build-hard` → `b-review` → `b-iterate` → `b-save` → `b-commit`
+**Steps:** `b-brainstorm` → `b-research` → `b-plan` → `b-present` → `b-build` → `b-build-hard` → `b-review` → `b-iterate` → `b-docs` → `b-save` → `b-commit`
 
 **Recommended flows:**
-- New work: `b-research` → `b-plan` → `b-build` → `b-review` → `b-save` → `b-commit`
-- Complex: `b-research` → `b-plan` → `b-build-hard` → `b-review` → `b-save` → `b-commit`
-- Quick fix: `b-iterate` → `b-review` → `b-save` → `b-commit`
+- New work: `b-research → b-plan → b-build → b-review → b-docs → b-save → b-commit`
+- Complex: `b-research → b-plan → b-build-hard → b-review → b-docs → b-save → b-commit`
+- Quick fix: `b-iterate → b-review → b-docs → b-save → b-commit`
+
+---
+
+## Canonical Documentation Locations
+
+Living documentation (what the code *means*) lives in fixed locations, separate from `.context/` (which records what *happened*). `/b-docs` keeps these in sync after implementation, when `/b-review` flags documentation impact. `/b-save` records the session *event* in `.context/`; `/b-docs` records the *meaning* in living docs. Run `/b-docs` before `/b-save`.
+
+| What | Where | Notes |
+|---|---|---|
+| Domain language / ubiquitous language | `CONTEXT.md` (repo root); `CONTEXT-MAP.md` + per-context `CONTEXT.md` for multi-context repos | Terms meaningful to domain experts only. Format: `b-grill-with-docs/CONTEXT-FORMAT.md` |
+| Architecture decisions | `docs/adr/0001-slug.md` (sequential) | Only when hard to reverse, surprising, and a real trade-off. Format: `b-grill-with-docs/ADR-FORMAT.md` |
+| Agent & dev conventions | Managed block in `AGENTS.md` / `CLAUDE.md` | Idempotent `<!-- BEGIN b-docs:conventions -->` block; preserve hand-authored content outside it |
+| Architecture narrative | `docs/` | Structure, data flow, module boundaries |
+| README | `README.md` | Hand-authored; `/b-docs` flags needed changes, does not rewrite prose |
+
+Create `CONTEXT.md` and `docs/adr/` lazily — on first use. Do not invent parallel doc trees.
 
 ---
 
@@ -164,6 +180,7 @@ Before closing significant work:
 - [ ] Backlog updated (completed/new items)
 - [ ] Plan/spec status updated if completed
 - [ ] Verification results recorded
+- [ ] Living docs updated via `/b-docs` when conventions, decisions, or domain language changed
 - [ ] UI changes verified in browser when applicable
 - [ ] Commit created via `/b-commit` when completing a Buck loop unit
 

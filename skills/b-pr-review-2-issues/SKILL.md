@@ -231,7 +231,8 @@ ralph_mini_cycle: |
   1. Run /b-build or /b-build-hard against this phase file
   2. Run /b-review against this phase file
   3. If review creates iterate-*.md, run /b-iterate, then re-run /b-review
-  4. Run /b-save, then /b-commit, then ralph_done
+  4. If /b-review flags documentation impact, run /b-docs
+  5. Run /b-save, then /b-commit, then ralph_done
 ---
 ```
 

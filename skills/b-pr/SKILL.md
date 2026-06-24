@@ -328,4 +328,4 @@ If artifacts exist but the diff doesn't match them (e.g., the plan mentioned fil
 - `skills/b-review/` — reviews implementation against a plan before PR creation
 - `skills/b-save/` — records session state; typically run before `/b-pr` to ensure `.context/` is up to date
 - `skills/git-commit/` — commits changes; typically run before `/b-pr`
-- **Recommended flow**: `/b-build` → `/b-review` → `/b-save` → `/b-commit` → `/b-pr`
+- **Recommended flow**: `/b-build` → `/b-review` → `/b-docs` → `/b-save` → `/b-commit` → `/b-pr`

@@ -70,7 +70,7 @@ After completing iteration:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. Tell the user: "Run `/b-review` to validate the iteration, then `/b-save` to finalize this session's record, then `/b-commit` to commit." If inside a Ralph loop, call `ralph_done` only after review passes and `/b-save` has durable state.
+5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." If inside a Ralph loop, call `ralph_done` only after review passes and `/b-save` has durable state.
 
 ## Best For
 

@@ -152,6 +152,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
+| `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### OMP Command Mirror
@@ -177,6 +178,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-review` | Review implementation for correctness and regressions |
+| `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
 | `git-commit` | Create a Conventional Commits message and commit |
@@ -202,22 +204,23 @@ Buck workflow is not a rigid pipeline. You choose which stages to run based on t
 ### Full Workflow — New Feature
 
 ```
-/b-brainstorm → /b-explore → /b-research → /b-plan → /b-build → /b-review → /b-save → /b-commit
+/b-brainstorm → /b-explore → /b-research → /b-plan → /b-build → /b-review → /b-docs → /b-save → /b-commit
 ```
 
 Starting from a vague idea through to durable completion. Every artifact survives the session.
+`/b-docs` is conditional — it runs only when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language). Most changes skip it.
 
 ### Partial Workflows
 
 | Flow | When to Use |
 |------|-------------|
 | `/b-brainstorm → /b-plan → /b-build` | Idea to implementation in one session |
-| `/b-plan → /b-build → /b-review → /b-save → /b-commit` | You already know what to build |
-| `/b-research → /b-plan → /b-build-hard → /b-review → /b-save → /b-commit` | Complex/risky work |
+| `/b-plan → /b-build → /b-review → /b-docs → /b-save → /b-commit` | You already know what to build |
+| `/b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit` | Complex/risky work |
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |
-| `/b-plan → /b-review → /b-save → /b-commit` | Plan and review without exploration |
+| `/b-plan → /b-review → /b-docs → /b-save → /b-commit` | Plan and review without exploration |
 
 ### Ad-Hoc Work
 

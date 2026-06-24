@@ -1,4 +1,5 @@
 # Memory Index
+  - 2026-06-24 | `b-docs-living-documentation-2026-06-24.md` | domains: [skill, docs, buck-workflow, bootstrap] | topics: [b-docs, living-documentation, doc-sync, conventions, adr, context-md, b-review, canonical-locations, loop-agnostic, managed-block] | status: active
   - 2026-06-17 | `b-pr-review-2-issues-context-skip-2026-06-17.md` | domains: [skill, docs, buck-workflow] | topics: [b-pr-review-2-issues, pr-review, context-skip, secrets] | status: completed
   - 2026-06-16 | `b-fix-rebase-conflict-skill-build-2026-06-16.md` | domains: [implementation, skill, docs, testing] | topics: [b-fix-rebase-conflict, rebase, merge-conflict, semantic-merge, bun-script] | status: completed
   - 2026-06-16 | `b-fix-rebase-conflict-skill-review-2026-06-16.md` | domains: [review, skill, buck-workflow] | topics: [b-review, b-fix-rebase-conflict, ours-theirs, semantic-merge, manual-gate] | status: completed

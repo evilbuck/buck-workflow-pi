@@ -72,7 +72,7 @@ For the full rationale and migration details, see `.context/2026-05-12.prompt-to
 ## Project Structure
 
 ```
-skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-present, b-phase, git-commit, b-grill*, run-in-idle-pane)
+skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-docs, b-save, b-present, b-phase, git-commit, b-grill*, run-in-idle-pane)
 extensions/      # Pi extensions for runtime automation (b-flow, b-grill-auto)
 prompts/         # Pi prompt templates — thin wrappers that invoke skills (including b-commit wrapping git-commit skill)
 docs/            # Documentation
@@ -93,13 +93,14 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 
 # Buck Workflow Steps
 
-Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → save → commit:
+Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → (fix issues / sync docs) → save → commit:
 
 ```
-/b-build → /b-review → /b-iterate (if needed) → /b-save → /b-commit
+/b-build → /b-review → /b-iterate (if issues) → /b-docs (if doc impact) → /b-save → /b-commit
 ```
 
 `/b-commit` is the final step after durable state has been recorded via `/b-save`. It uses the `git-commit` skill to create a Conventional Commits message and commit.
+`/b-docs` is a conditional step: when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language), run it to update the project's living docs before `/b-save`. See `skills/b-docs/SKILL.md` for the canonical doc locations.
 
 # Intention
 

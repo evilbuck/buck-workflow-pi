@@ -261,5 +261,7 @@ Recommended next step:
 ## Related skills
 
 - `b-explore` — generic read-only codebase exploration (this skill is the UX-specialized form)
+- `b-blueprint` / `b-present` — generate visual/briefing artifacts from a plan (this skill produces its own HTML guide)
 - `b-plan` — turn the finished guide into a bounded implementation/styleguide plan (run after `b-create-styleguide`)
 - `b-create-styleguide` — turn this inventory into a living, agent-wired styleguide (reconciles `design-brief.json` by `id`, deprecates missing components, wires AGENTS.md). Best next step before `b-plan`.
+- `b-grill-me` — stress-test the scope and decisions before planning

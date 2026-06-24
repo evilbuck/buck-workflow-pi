@@ -47,7 +47,7 @@ Plans live in subject folders (intent). History lives in `.context/memory/` (rec
 `/b-save` prepares durable context (memory, backlog, draft commit material) for `/b-commit`, but does not commit itself. The standard completion sequence is:
 
 ```
-/b-review → /b-save → /b-commit
+/b-review → /b-iterate (if issues) → /b-docs (if doc impact) → /b-save → /b-commit
 ```
 
 Run `/b-save` before `/b-commit` so that memory and draft-commit artifacts are included in the commit.

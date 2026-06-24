@@ -137,6 +137,32 @@ review, also run these checks:
 
 **Checkbox evidence**: Completed status and checkboxes in plan/phase files are evidence but not proof. Verify actual implementation, not just task completion markers.
 
+## Documentation Impact Check
+
+After the completion matrix and verification, run a **non-blocking** check for
+whether the implementation should be reflected in the project's **living
+documentation**. This is the detector that triggers `/b-docs`.
+
+**Signals that living docs may need updating:**
+- A new or changed **convention** other agents/engineers should follow
+- An **architecture decision** realized in the build (ADR candidate)
+- New or shifted **domain language** now in code but not in `CONTEXT.md`
+- New **module boundaries or data flows** absent from the architecture narrative
+- A **constraint not visible in code** (compliance, performance contract)
+- A **deviation** where living docs now contradict the code
+
+**Hard rules — documentation impact is never a correctness issue:**
+- It is **non-blocking.** A passing review stays a Pass; documentation impact
+  never turns Pass into Needs work.
+- It **never creates an `iterate-*.md` artifact.** Documentation impact is a
+  separate path from correctness issues. Only correctness issues write to
+  `iterate-*.md`.
+- It only adds a **Documentation Impact** section to the report and a
+  recommended next step of `/b-docs`.
+
+Canonical doc locations live in `skills/b-docs/SKILL.md`. If no signal is
+present, state "No documentation impact" and move on.
+
 ## Cross-Reference Following
 
 Follow these links for full context:
@@ -151,6 +177,7 @@ Follow these links for full context:
 - If no plan/spec is found, review against the user request, discovered diff, and code context — state assumptions explicitly.
 - Check tests, security, and risky assumptions.
 - Recommend either `b-iterate` for small fixes or `b-build` / `b-build-hard` for larger follow-up work.
+- **Documentation impact is non-blocking.** When the implementation should be reflected in living docs (conventions, decisions, domain language), recommend `/b-docs` — but never fold it into the correctness verdict or the `iterate-*.md` artifact.
 
 ## Output
 
@@ -194,10 +221,15 @@ When reviewing against a plan/spec/phase path, include:
 - Missing: <what's not addressed>
 - Verdict: <met / partially met / not met / not defined>
 
+### Documentation Impact
+- <"No documentation impact" · or a bullet per flagged area: convention / decision / language / architecture / constraint / deviation>
+- Recommended: <none · `/b-docs` before `/b-save`>
+
 ### Verdict
 <Pass / Pass with warnings / Needs work>
 
 ### Recommended Next Step
+<`/b-iterate` for correctness issues · `/b-docs` if documentation impact flagged · else `/b-save` → `/b-commit`>
 </markdown>
 ```
 
@@ -205,6 +237,7 @@ When reviewing against a plan/spec/phase path, include:
 
 ```text
 Summary
+Documentation impact: <none | flagged — run /b-docs before /b-save>
 Suggested next step
 ```
 
@@ -212,6 +245,7 @@ Suggested next step
 
 **Write an iteration artifact** to the active subject folder before reporting.
 Only write this file when there are actual issues to address — do not create it for clean reviews.
+Documentation impact (conventions, decisions, language) is **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`.
 
 **Subject folder resolution:**
 1. Use the **active subject folder** if one was resolved during scope resolution
@@ -289,6 +323,6 @@ Suggested next step: `/b-iterate` to fix
 
 ## History & Closeout
 
-After accepted work, recommend `/b-save` to record the completed work, then `/b-commit` to commit:
+After accepted work: if documentation impact was flagged, recommend `/b-docs` to update living docs first; then `/b-save` to record the session; then `/b-commit` to commit:
 - Check `.context/memory/index.md` to verify the work is recorded
 - Point user to `/b-save` if memory hasn't been updated
