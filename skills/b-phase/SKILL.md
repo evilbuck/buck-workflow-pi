@@ -219,7 +219,7 @@ per hard phase, summed across the plan (rounded to nearest 5k).
 If executing this phase inside a Ralph loop:
 1. Run the indicated Buck build command (`buck_hint`) for this phase only.
 2. Run `/b-review` against this phase file.
-3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
+3. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 4. Run `/b-save` to consolidate memory, draft commits, and phase state.
 5. Run `/b-commit` to checkpoint durable state before `ralph_done`.
 6. If the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
@@ -319,7 +319,7 @@ Use this overview as Ralph's durable navigation map. For each phase:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. Run `/b-review` against the phase file after implementation.
-4. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
+4. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 5. Run `/b-save` to consolidate memory, draft commits, phase state, and review/iteration artifacts.
 6. Run `/b-commit` to checkpoint durable state before moving to the next phase.
 7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
@@ -327,9 +327,9 @@ Use this overview as Ralph's durable navigation map. For each phase:
 
 ## Ralph Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if needed → docs if doc impact → save → commit
-- [ ] Phase 2: <Name> — build → review → iterate if needed → docs if doc impact → save → commit
-- [ ] Phase N: <Name> — build → review → iterate if needed → docs if doc impact → save → commit
+- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase N: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 
 ### Step 5c: Update Plan Status
@@ -357,18 +357,18 @@ Use this overview as Ralph's durable navigation map. For each phase:
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. If the phase's `omp_execution` is `orchestrate | workflow | goal`, drop the matching keyword (or run `/goal set`) on the first turn before the build command — see the phase file's "Ralph Mini-Cycle Instructions" for the precondition.
 4. Run `/b-review` against the phase file after implementation.
-5. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
+5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 6. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
 7. Run `/b-commit` to checkpoint durable state before `ralph_done`.
 8. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
 
 ## Ralph Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if needed → docs if doc impact → save → commit
-- [ ] Phase 2: <Name> — build → review → iterate if needed → docs if doc impact → save → commit
+- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 ```
 
-For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if needed → `/b-docs` if doc impact → `/b-save` → `/b-commit` → `ralph_done`.
+For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit` → `ralph_done`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
 
 ### Step 6: Update Backlog
 
@@ -391,7 +391,7 @@ Tell the user:
 - What Phase 1 covers and how to start it
 - What difficulty/model hint was assigned to each phase (especially Phase 1)
 - That future sessions can resume by reading the overview → finding the first non-completed phase → reading its file
-- Ralph invocation hint: start a Ralph loop with the phases overview as the task source, and have each iteration follow build → review → iterate if needed → docs if doc impact → save → commit → `ralph_done`
+- Ralph invocation hint: start a Ralph loop with the phases overview as the task source, and have each iteration follow build → review → iterate if in-plan issues → docs if doc impact → save → commit → `ralph_done`
 
 ## Example: Small Plan (SKIP)
 

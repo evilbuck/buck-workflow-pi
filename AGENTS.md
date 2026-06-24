@@ -96,8 +96,10 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → (fix issues / sync docs) → save → commit:
 
 ```
-/b-build → /b-review → /b-iterate (if issues) → /b-docs (if doc impact) → /b-save → /b-commit
+/b-build → /b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact) → /b-save → /b-commit
 ```
+
+**Out-of-plan review findings** (issues beyond the plan's scope) do **not** iterate — they spawn a separate `/b-plan` → `/b-build` cycle, after the accepted work is closed via `/b-save` → `/b-commit`. `/b-iterate` is reserved for in-plan defects.
 
 `/b-commit` is the final step after durable state has been recorded via `/b-save`. It uses the `git-commit` skill to create a Conventional Commits message and commit.
 `/b-docs` is a conditional step: when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language), run it to update the project's living docs before `/b-save`. See `skills/b-docs/SKILL.md` for the canonical doc locations.

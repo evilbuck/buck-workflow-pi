@@ -1057,8 +1057,10 @@ status: active
 
 **Workflow completion sequence**:
 ```
-/b-build → /b-review → /b-iterate if issues → /b-docs if doc impact → /b-save → /b-commit
+/b-build → /b-review → /b-iterate if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
 ```
+
+**Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
 
 **Safety**: Protected branches (main, master, develop) are guarded — use `force` only for hotfixes.
 
@@ -1272,11 +1274,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 /b-iterate → /b-review
 ```
 
-### Review Fix Loop
+### Review Fix Loop (in-plan issues only)
 
 ```
 /b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
 ```
+
+This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.
 
 ### Ad-Hoc Work (no planning)
 

@@ -137,6 +137,59 @@ review, also run these checks:
 
 **Checkbox evidence**: Completed status and checkboxes in plan/phase files are evidence but not proof. Verify actual implementation, not just task completion markers.
 
+## Issue Classification & Routing
+
+Every issue found during review is classified by its relationship to the
+plan/spec's stated scope. The classification drives **both** the artifact
+written and the recommended next step — it is not cosmetic.
+
+### In-plan issues (implementation defects)
+
+The work was **planned** — it appears in the plan's scope, implementation
+steps, affected files, or acceptance criteria — but it is broken,
+incomplete, or incorrect. This is a bug in the implementation.
+
+- Completes the existing plan; adds no scope.
+- Route to **`/b-iterate`**.
+- Write an `iterate-*.md` artifact (see "When review finds in-plan issues" below).
+
+The completion matrix surfaces most in-plan issues as `🔄 partial`, `❌
+missing`, or `⚠️ not-verifiable` steps; add any correctness defect found in a
+file the plan named.
+
+### Out-of-plan issues (scope discoveries)
+
+The issue **falls outside the plan/spec's stated scope and acceptance
+criteria** — a newly surfaced requirement, an unanticipated edge case, a
+defect in adjacent code exposed by the change, or an improvement the plan
+never anticipated. These are **not** implementation bugs against the current
+plan; they are newly discovered work.
+
+- Does **not** complete the current plan; it is new work.
+- Do **not** route to `/b-iterate`. Do **not** write an `iterate-*.md` artifact — that file is reserved for in-plan defects of the plan under review.
+- Route to a fresh **`/b-plan` → `/b-build`** cycle (or `/b-brainstorm` first if the work is genuinely unclear). `b-plan` needs no upstream artifact — it plans from the review report and session context, and may open a new subject folder.
+- b-review writes **no artifact** for these — it reports them and recommends `/b-plan`. This keeps the current plan closable.
+
+### Verdict vs. follow-up
+
+In-plan issues drive the **verdict** for the current plan: any in-plan issue
+makes the plan `Needs work`. Out-of-plan issues **do not** change the
+current plan's verdict — the plan's own work can still pass — they are
+follow-up work surfaced only in `Recommended Next Step`, never as a blocker
+on the plan under review.
+
+When review finds **only** out-of-plan issues, the current plan still
+passes: close the accepted work first (`/b-docs` if documentation impact →
+`/b-save` → `/b-commit`), then start the follow-up `/b-plan` → `/b-build`
+as a separate cycle. Do not skip closing accepted work to chase follow-ups.
+
+### Not the same as "out-of-scope changes"
+
+`Out-of-scope changes` (the plan field) means the implementation *touched
+code the plan said to leave alone* — a scope violation in the diff.
+`Out-of-plan issues` means the review *found new work to do* that the plan
+never covered. Opposite directions.
+
 ## Documentation Impact Check
 
 After the completion matrix and verification, run a **non-blocking** check for
@@ -155,8 +208,7 @@ documentation**. This is the detector that triggers `/b-docs`.
 - It is **non-blocking.** A passing review stays a Pass; documentation impact
   never turns Pass into Needs work.
 - It **never creates an `iterate-*.md` artifact.** Documentation impact is a
-  separate path from correctness issues. Only correctness issues write to
-  `iterate-*.md`.
+  separate path from in-plan correctness issues. Only **in-plan** correctness issues write to `iterate-*.md`; out-of-plan findings never do.
 - It only adds a **Documentation Impact** section to the report and a
   recommended next step of `/b-docs`.
 
@@ -176,7 +228,7 @@ Follow these links for full context:
 - Prioritize correctness over style.
 - If no plan/spec is found, review against the user request, discovered diff, and code context — state assumptions explicitly.
 - Check tests, security, and risky assumptions.
-- Recommend either `b-iterate` for small fixes or `b-build` / `b-build-hard` for larger follow-up work.
+- Classify every issue as **in-plan** (implementation defect against the plan → `/b-iterate`) or **out-of-plan** (newly surfaced work beyond the plan's scope → fresh `/b-plan` → `/b-build`). See "Issue Classification & Routing."
 - **Documentation impact is non-blocking.** When the implementation should be reflected in living docs (conventions, decisions, domain language), recommend `/b-docs` — but never fold it into the correctness verdict or the `iterate-*.md` artifact.
 
 ## Output
@@ -225,15 +277,19 @@ When reviewing against a plan/spec/phase path, include:
 - <"No documentation impact" · or a bullet per flagged area: convention / decision / language / architecture / constraint / deviation>
 - Recommended: <none · `/b-docs` before `/b-save`>
 
+### Issue Classification
+- In-plan issues (implementation defects → `/b-iterate`): <list, or "none">
+- Out-of-plan issues (scope discoveries → fresh `/b-plan`): <list, or "none">
+
 ### Verdict
-<Pass / Pass with warnings / Needs work>
+<Pass / Pass with warnings / Needs work> — driven by in-plan issues only; out-of-plan findings do not change this verdict
 
 ### Recommended Next Step
-<`/b-iterate` for correctness issues · `/b-docs` if documentation impact flagged · else `/b-save` → `/b-commit`>
+<In-plan issues present → `/b-iterate`. Only out-of-plan issues → close accepted work (`/b-docs` if impact → `/b-save` → `/b-commit`), then follow-up `/b-plan` → `/b-build`. Clean → `/b-save` → `/b-commit`.>
 </markdown>
 ```
 
-### When review passes (no issues):
+### When review passes (no in-plan issues):
 
 ```text
 Summary
@@ -241,11 +297,14 @@ Documentation impact: <none | flagged — run /b-docs before /b-save>
 Suggested next step
 ```
 
-### When review finds issues needing iteration:
+This branch also covers **pass with out-of-plan follow-up** — the plan's own work is complete and correct, but review found new scope. Do **not** write an `iterate-*.md`. List out-of-plan issues in the conditional user-facing report (below), and recommend closing the accepted work (`/b-save` → `/b-commit`), then a follow-up `/b-plan` → `/b-build`.
 
-**Write an iteration artifact** to the active subject folder before reporting.
-Only write this file when there are actual issues to address — do not create it for clean reviews.
-Documentation impact (conventions, decisions, language) is **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`.
+### When review finds in-plan issues needing iteration:
+
+**Write an iteration artifact** to the active subject folder before reporting — but **only for in-plan issues** (implementation defects against the plan under review).
+Only write this file when there are actual in-plan issues to address — do not create it for clean reviews.
+Out-of-plan issues (scope discoveries) are **never** written here — they are follow-up work surfaced in the report's `Recommended Next Step` (route to a fresh `/b-plan`), with no `iterate-*.md`. b-review writes no artifact for them, and they do not block the current plan.
+Documentation impact (conventions, decisions, language) is also **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`.
 
 **Subject folder resolution:**
 1. Use the **active subject folder** if one was resolved during scope resolution
@@ -316,9 +375,9 @@ For larger rework, use `/b-build` or `/b-build-hard`.
 
 ```text
 Summary
-Critical issues (see iterate-<subject>.md)
+In-plan issues: <N or "none"> · Out-of-plan issues: <N or "none">
 Warnings
-Suggested next step: `/b-iterate` to fix
+Suggested next step: <`/b-iterate` if in-plan issues · close accepted work then `/b-plan` if only out-of-plan · `/b-save` → `/b-commit` if none>
 ```
 
 ## History & Closeout
@@ -326,3 +385,5 @@ Suggested next step: `/b-iterate` to fix
 After accepted work: if documentation impact was flagged, recommend `/b-docs` to update living docs first; then `/b-save` to record the session; then `/b-commit` to commit:
 - Check `.context/memory/index.md` to verify the work is recorded
 - Point user to `/b-save` if memory hasn't been updated
+
+If review surfaced **only out-of-plan issues**, the current plan still passed: close it here (`/b-save` → `/b-commit`) before starting the follow-up `/b-plan` → `/b-build` as a new subject. Do not leave accepted work uncommitted to chase follow-ups.
