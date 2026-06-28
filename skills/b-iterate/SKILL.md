@@ -14,9 +14,9 @@ If the protocol resolves a subject, use it for all downstream artifact discovery
 If the protocol finds no subject, work from the user's inline description.
 After subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
 
-Also check for Ralph in-progress phase: if running inside a Ralph loop, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
+Also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
 
-When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). If `ralph_status: pending` is present, treat the artifact as Ralph-blocking until review passes.
+When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Treat any active (`status: active` / `completed: null`) iterate artifact as blocking until review passes; read `status` as the source of truth.
 
 ## Behavior
 
@@ -46,16 +46,15 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 7. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-8. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed` and `ralph_status: completed` if present
+8. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
 9. Do a final memory update
-10. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before `ralph_done` if inside a Ralph loop).
+10. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before yielding the execution session).
 
 ## Closeout
 
 After completing iteration:
 1. **Update iteration artifact** — if working from an `iterate-*.md` file:
    - Set `status: completed`
-   - Set `ralph_status: completed` if the field exists
    - Set `completed: YYYY-MM-DD` (today's date)
    - Update `updated: YYYY-MM-DD` (if not already set to today)
 2. **Changed files** — list what was modified
@@ -70,7 +69,7 @@ After completing iteration:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." If inside a Ralph loop, call `ralph_done` only after review passes and `/b-save` has durable state.
+5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." Inside an OMP execution session, do not yield until review passes and `/b-save` has durable state.
 
 ## Best For
 

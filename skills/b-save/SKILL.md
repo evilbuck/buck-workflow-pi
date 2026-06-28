@@ -13,7 +13,7 @@ Record the current session's work into durable `.context/` artifacts. Run at nat
 
 - End of a work session (before closing the agent or switching tasks)
 - After completing a plan, build, or review phase
-- Before yielding in a Ralph loop
+- Before yielding an OMP execution session
 - Any time you want durable state that survives context compaction
 
 ## How It Works

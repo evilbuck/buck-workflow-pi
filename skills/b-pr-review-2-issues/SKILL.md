@@ -227,12 +227,12 @@ difficulty: easy | medium | hard
 acceptance_criteria:
   - "All comments in group N addressed"
   - "Tests pass for affected files"
-ralph_mini_cycle: |
+execution_loop: |
   1. Run /b-build or /b-build-hard against this phase file
   2. Run /b-review against this phase file
   3. If review creates iterate-*.md, run /b-iterate, then re-run /b-review
   4. If /b-review flags documentation impact, run /b-docs
-  5. Run /b-save, then /b-commit, then ralph_done
+  5. Run /b-save, then /b-commit
 ---
 ```
 

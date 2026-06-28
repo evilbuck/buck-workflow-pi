@@ -528,7 +528,7 @@ flowchart TB
               <td><span class="file-path">skills/b-phase/SKILL.md</span></td>
               <td><span class="badge badge-modify">modify</span></td>
               <td><span class="file-layer">skill</span></td>
-              <td>F4 — Document <code>omp_execution</code> field in frontmatter + Ralph instructions</td>
+              <td>F4 — Document <code>omp_execution</code> field in frontmatter + execution instructions</td>
             </tr>
             <tr>
               <td><span class="file-path">skills/b-plan/SKILL.md</span></td>
@@ -580,7 +580,6 @@ flowchart TB
         <div class="diff-side diff-before">
           <div class="diff-caption">Before — phase file frontmatter</div>
           <pre><code><span class="cm"># Existing fields — unchanged</span>
-ralph_complexity: single | multi
 goal: "<span class="st">one sentence</span>"
 files: [path/to/file1, path/to/file2]
 from_plan_steps: [3, 4, 5]
@@ -594,7 +593,6 @@ completed_by: null</code></pre>
         <div class="diff-side diff-after">
           <div class="diff-caption">After — adds <code>omp_execution</code> field</div>
           <pre><code><span class="cm"># Existing fields — unchanged</span>
-ralph_complexity: single | multi
 goal: "<span class="st">one sentence</span>"
 files: [path/to/file1, path/to/file2]
 from_plan_steps: [3, 4, 5]
@@ -784,7 +782,7 @@ sequenceDiagram
         <span class="risk-severity medium">Medium</span>
         <div class="risk-content">
           <strong>Eval cell is interactive-TUI-only</strong>
-          <div class="mitigation"><code>workflow</code> keyword is meaningless under <code>--mode rpc</code> and <code>omp -p</code>. b-plan surfaces this in the plan's "Ralph Instructions" section: "this mode requires the interactive TUI."</div>
+          <div class="mitigation"><code>workflow</code> keyword is meaningless under <code>--mode rpc</code> and <code>omp -p</code>. b-plan surfaces this in the plan's "Execution Instructions" section: "this mode requires the interactive TUI."</div>
         </div>
       </div>
 
@@ -792,7 +790,7 @@ sequenceDiagram
         <span class="risk-severity medium">Medium</span>
         <div class="risk-content">
           <strong>Orchestrate's "no-yield-between-phases" vs buck's per-session phase</strong>
-          <div class="mitigation">Phase file's <code>ralph_complexity: multi</code> already encodes "phase may take multiple iterations." The new <code>omp_execution: orchestrate</code> field is per-phase, not plan-wide — each phase is a unit of "do not yield until phase done."</div>
+          <div class="mitigation">Phase file's <code>difficulty: hard</code> plus resume semantics (<code>status: in-progress</code>, acceptance criteria) already encodes "phase may take multiple turns." The new <code>omp_execution: orchestrate</code> field is per-phase, not plan-wide — each phase is a unit of "do not yield until phase done."</div>
         </div>
       </div>
 

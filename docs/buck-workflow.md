@@ -84,8 +84,8 @@ for the decision log.
   menu and document the contract.
 - **`omp_execution` field on phase files.** When a phase file carries
   `omp_execution: orchestrate | workflow | goal` in its frontmatter,
-  `b-phase` writes a "Ralph Mini-Cycle Instructions" expansion that
-  tells the user to drop the keyword on the first turn of the phase.
+  `b-phase` writes a "Per-Phase Execution Loop" expansion that
+  tells the user to drop the keyword (orchestrate/workflow) or run `/goal set` (goal mode) on the first turn of the phase.
   `omp_execution: none` (the default) is omitted from frontmatter and
   means "standard / no opt-in."
 - **Optional `omp_goal_budget: <tokens>` companion field.** When
@@ -94,7 +94,7 @@ for the decision log.
   they run `/goal set`.
 - **`b-plan` recommendation rules.** When a plan is large, multi-phase,
   or contains review/audit/sweep/migrate language, `b-plan` recommends
-  the field in the plan's Ralph Instructions. It does **not** auto-set
+  the field in the plan's Execution Instructions. It does **not** auto-set
   the field.
 - **Eval-cell template for `workflow` plans.** When
   `omp_execution: workflow` is selected, `b-plan` writes a starter
@@ -1051,7 +1051,7 @@ status: active
 **When to use**:
 - After `/b-save` has recorded memory and updated artifacts
 - Each completed phase or body loop unit should produce its own commit
-- Ralph loops: run `/b-commit` before `ralph_done`
+- Execution sessions: run `/b-commit` before yielding the turn
 
 **Phase/body commit invariant**: One completed unit = one commit. Do not batch multiple completed phases into a single commit.
 

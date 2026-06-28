@@ -160,7 +160,6 @@ phases_overview: plan-<topic>-phases.md
 difficulty: easy | medium | hard
 model_hint: <description>
 buck_hint: /b-build | /b-build-hard
-ralph_complexity: single | multi  # single = likely one Ralph iteration; multi = may need several mini-cycles
 goal: "<one sentence>"
 omp_execution: none | orchestrate | workflow | goal  # see "omp_execution" below; default omitted (= none)
 omp_goal_budget: <tokens>                            # only meaningful when omp_execution: goal
@@ -177,10 +176,11 @@ completed_by: null
 ```
 
 **`omp_execution` field.** Optional. Default is `none` (omit the field entirely).
-When set, it tells the user running the phase to drop the matching omp primitive
-on the first turn of the phase. **The field is a recommendation to the user,
-not runtime state the agent can enforce** — omp's `agent-session.ts:4274`
-guards `if (!options?.synthetic)`, so the user must type the keyword.
+When set, it tells the user running the phase how to opt in: `orchestrate`/`workflow`
+are first-turn keywords the user types; `goal` means the user runs `/goal set` before
+the build. **The field is a recommendation to the user, not runtime state the agent
+can enforce** — omp's `agent-session.ts:4274` guards `if (!options?.synthetic)`, so
+the user must type the keyword (or run `/goal set`) themselves.
 See `docs/buck-workflow.md#omp-autonomous-loops` for the full contract.
 
 | Value | What the user does on the phase's first turn |
@@ -214,15 +214,15 @@ per hard phase, summed across the plan (rounded to nearest 5k).
 ## Verification
 <How to verify this phase is complete>
 
-## Ralph Mini-Cycle Instructions
+## Per-Phase Execution Loop
 
-If executing this phase inside a Ralph loop:
+If executing this phase inside an OMP execution session:
 1. Run the indicated Buck build command (`buck_hint`) for this phase only.
 2. Run `/b-review` against this phase file.
 3. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 4. Run `/b-save` to consolidate memory, draft commits, and phase state.
-5. Run `/b-commit` to checkpoint durable state before `ralph_done`.
-6. If the phase is incomplete, leave `status: in-progress` so the next Ralph iteration resumes here.
+5. Run `/b-commit` to checkpoint durable state.
+6. If the phase is incomplete, leave `status: in-progress` so the session resumes here next turn.
 
 If the phase's frontmatter declares `omp_execution: orchestrate | workflow | goal`,
 expand step 1 above with a one-liner **before** the build command runs:
@@ -313,19 +313,19 @@ Phase 1 ──→ Phase 2 ──→ Phase 3
 3. Update this overview: change status to `completed` in summary table
 4. Queue Phase 2, repeat...
 
-## Ralph Workflow Instructions
+## Execution Workflow
 
-Use this overview as Ralph's durable navigation map. For each phase:
+Use this overview as the durable navigation map for an OMP execution session. For each phase:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. Run `/b-review` against the phase file after implementation.
 4. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 5. Run `/b-save` to consolidate memory, draft commits, phase state, and review/iteration artifacts.
 6. Run `/b-commit` to checkpoint durable state before moving to the next phase.
-7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the session resumes from that phase and any active `iterate-*.md` artifact.
 **Commit invariant**: one phase completion equals one commit. Do not batch multiple completed phases into a single commit; run `/b-save` → `/b-commit` after each phase, before queueing the next.
 
-## Ralph Execution Checklist
+## Execution Checklist
 
 - [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
@@ -345,30 +345,30 @@ After creating phase files and the phases overview:
 
 **Critical**: The overview file links to discrete phase files. All implementation details live in the phase files. The overview is a scannable index.
 
-### Ralph Instructions Template
+### Execution Instructions Template
 
-Use this canonical text when creating Ralph-ready phased output. Adapt the phase names and checklist length to the actual phase set, but preserve the cycle and interruption rules:
+Use this canonical text when creating execution-ready phased output. Adapt the phase names and checklist length to the actual phase set, but preserve the cycle and interruption rules:
 
 ```markdown
-## Ralph Workflow Instructions
+## Execution Workflow
 
-Use this overview as Ralph's durable navigation map. For each phase:
+Use this overview as the durable navigation map for an OMP execution session. For each phase:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
-3. If the phase's `omp_execution` is `orchestrate | workflow | goal`, drop the matching keyword (or run `/goal set`) on the first turn before the build command — see the phase file's "Ralph Mini-Cycle Instructions" for the precondition.
+3. If the phase's `omp_execution` is `orchestrate | workflow`, drop the matching keyword on the first turn before the build command. If it is `goal`, run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first instead. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
-6. Run `/b-save` before `ralph_done` so memory, draft commits, phase state, and review/iteration artifacts are durable.
-7. Run `/b-commit` to checkpoint durable state before `ralph_done`.
-8. If interrupted mid-cycle, leave the phase file `status: in-progress`; the next Ralph iteration resumes from that phase and any active `iterate-*.md` artifact.
+6. Run `/b-save` so memory, draft commits, phase state, and review/iteration artifacts are durable.
+7. Run `/b-commit` to checkpoint durable state.
+8. If interrupted mid-cycle, leave the phase file `status: in-progress`; the session resumes from that phase and any active `iterate-*.md` artifact.
 
-## Ralph Execution Checklist
+## Execution Checklist
 
 - [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 ```
 
-For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit` → `ralph_done`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
+For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
 
 ### Step 6: Update Backlog
 
@@ -391,7 +391,7 @@ Tell the user:
 - What Phase 1 covers and how to start it
 - What difficulty/model hint was assigned to each phase (especially Phase 1)
 - That future sessions can resume by reading the overview → finding the first non-completed phase → reading its file
-- Ralph invocation hint: start a Ralph loop with the phases overview as the task source, and have each iteration follow build → review → iterate if in-plan issues → docs if doc impact → save → commit → `ralph_done`
+- Execution hint: start an OMP execution session with the phases overview as the task source. If the plan or a phase recommends an `omp_execution` mode (orchestrate/workflow/goal), follow its keyword / `/goal set` precondition on the first turn; otherwise work the phases sequentially. Each phase runs build → review → iterate if in-plan issues → docs if doc impact → save → commit.
 
 ## Example: Small Plan (SKIP)
 
@@ -428,7 +428,7 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 - **After `b-plan`**: `b-plan` should recommend running `b-phase` if the plan exceeds 6 steps or touches 3+ domains
 - **Before `b-build`**: If a `plan-*-phases.md` overview exists, read it to find the first non-completed phase, then read that discrete phase file for implementation details
 - **During `b-build`/`b-build-hard`**: Mark the phase file `status: in-progress`, then `status: completed` when done; update the overview summary table
-- **Ralph loops**: Ralph can use the overview and discrete phase files as durable state. Each iteration should execute the active phase mini-cycle, run `/b-docs` if `/b-review` flagged documentation impact, run `/b-save`, run `/b-commit`, then call `ralph_done`; incomplete phases remain `in-progress` for resume.
+- **OMP execution sessions**: An execution session can use the overview and discrete phase files as durable state. Each turn should execute the active phase mini-cycle, run `/b-docs` if `/b-review` flagged documentation impact, run `/b-save`, run `/b-commit`; incomplete phases remain `in-progress` for resume.
 - **After phase completion**: Run `/b-docs` if `/b-review` flagged documentation impact, then `/b-save` (which consolidates phase state), then `/b-commit`, then queue the next phase from the backlog
 
 ## Resume Behavior

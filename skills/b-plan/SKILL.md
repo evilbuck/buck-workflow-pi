@@ -173,8 +173,8 @@ Downstream skills read the user goal as the user-facing intent. A missing user g
   - Involves high-risk paths (auth, billing, data migrations)
   - Contains significant unknowns or research spikes
   - Verification alone would exhaust a single session
-  - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential Ralph-ready phases with dependency analysis, per-phase model hints, and resume-safe execution instructions."*
-- If the user wants Ralph automation but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Ralph Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit` → `ralph_done`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
+  - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential OMP-ready execution phases with dependency analysis, per-phase model hints, and resume-safe execution instructions."*
+- If the user wants an automated execution session but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Execution Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
 
 ## Plan Frontmatter Template
 
@@ -191,28 +191,28 @@ memory: []                    # Filled by b-save after execution
 ---
 ```
 
-## Non-Phased Ralph Plans
+## Non-Phased Execution-Ready Plans
 
-Not every Ralph-run task needs `b-phase`. If the plan is small enough for one build/review cycle but the user wants Ralph to drive it, add a short **Ralph Instructions** section to the plan itself. Treat the whole plan as one unit and use the same durable mini-cycle documented in `b-phase`'s Ralph Instructions Template.
+Not every execution-session task needs `b-phase`. If the plan is small enough for one build/review cycle but the user wants an automated session to drive it, add a short **Execution Instructions** section to the plan itself. Treat the whole plan as one unit and use the same durable mini-cycle documented in `b-phase`'s Execution Instructions Template.
 
 Recommended wording:
 
 ```markdown
-## Ralph Instructions
+## Execution Instructions
 
-This is a non-phased Ralph-ready plan. Treat the whole plan as one unit:
+This is a non-phased execution-ready plan. Treat the whole plan as one unit:
 1. Run `/b-build` (or `/b-build-hard` if ambiguity appears) against this plan.
 2. Run `/b-review` against this plan.
 3. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this plan), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this plan. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 4. Run `/b-save` to consolidate memory, draft commits, and review/iteration artifacts.
-5. Run `/b-commit` to checkpoint durable state before `ralph_done`.
-6. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next iteration.
+5. Run `/b-commit` to checkpoint durable state.
+6. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next turn.
 ```
 
 ## OMP Execution Recommendation
 
 `b-plan` does **not** auto-set the `omp_execution` field. It surfaces a
-recommendation in the plan's "Ralph Instructions" section based on the
+recommendation in the plan's "Execution Instructions" section based on the
 plan's shape, then asks the user to confirm. See
 `docs/buck-workflow.md#omp-autonomous-loops` for the full contract.
 
@@ -234,25 +234,23 @@ match, pick the strongest one (goal > workflow > orchestrate > none).
 - For non-phased plans, default to 12k tokens.
 - The user can override; the field is a hint.
 
-**Recommended wording** for the plan's "Ralph Instructions" section when
+**Recommended wording** for the plan's "Execution Instructions" section when
 a mode is recommended (omit the section entirely if no mode is recommended):
 
 ```markdown
-## Ralph Instructions
+## Execution Instructions
 
 <!-- OMP opt-in: this plan is recommended to run under
      <orchestrate|workflow|goal> mode. <one-sentence rationale> -->
 
-This is a phased Ralph-ready plan. Treat each phase as one unit:
+This is a phased execution-ready plan. Treat each phase as one unit:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
-3. <If orchestrate|workflow|goal: drop the matching omp keyword on the first turn
-    before the build command — see the phase file's "Ralph Mini-Cycle Instructions"
-    for the precondition.>
+3. <If orchestrate|workflow: drop the matching omp keyword on the first turn before the build command. If goal: run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.>
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this plan), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this plan. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 6. Run `/b-save` to consolidate memory, draft commits, and phase state.
-7. Run `/b-commit` to checkpoint durable state before `ralph_done`.
+7. Run `/b-commit` to checkpoint durable state.
 ```
 
 ## Eval Cell Template for `workflow` Plans
@@ -455,8 +453,8 @@ requested, swap `prelude` imports for `tool.eval-py` and re-emit in JS.
 ## Verification
 - ...
 
-## Ralph Instructions
-<!-- Optional: include when the user wants Ralph execution on a non-phased plan. Reference b-phase's Ralph Instructions Template and use the single-unit cycle. -->
+## Execution Instructions
+<!-- Optional: include when the user wants an automated execution session on a non-phased plan. Reference b-phase's Execution Instructions Template and use the single-unit cycle. -->
 
 ## Risks
 - ...
