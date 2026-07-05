@@ -473,6 +473,10 @@ informs: []  # Plans/specs this exploration fed into
 - Optional: invokes the `crawl4ai` skill for deep website crawling
 - Graceful degradation when web tools are unavailable
 
+**Delegation & Execution**:
+- **Always delegate to a subagent.** `b-research` is multi-source and noisy — offload it to a subagent so the main context stays clean.
+- **Run asynchronously when helpful.** During planning, brainstorming, or architecture discussion, dispatch in the background; keep working and surface findings when it returns. Don't block the conversation waiting on it.
+
 **When to use**: API lookup, library research, comparing approaches, verifying standards, any investigation beyond the local codebase.
 
 **Output Structure**:

@@ -158,6 +158,12 @@ Links use filenames within same subject folder. Memory links use memory filename
 - Complex: `b-research → b-plan → b-build-hard → b-review → b-docs → b-save → b-commit`
 - Quick fix: `b-iterate → b-review → b-docs → b-save → b-commit`
 
+### b-research: Always Delegate, Background When Helpful
+
+- **Always delegate to a subagent.** `b-research` is a heavy, multi-source investigation — offload it. Never bundle external research into the main agent's context.
+- **Trigger when research is needed** — info beyond the local codebase (libraries, APIs, external services, standards, unfamiliar domains) or verification against authoritative sources. Default to delegating; the main agent should not be the one hitting the docs.
+- **Run asynchronously when helpful.** During planning, brainstorming, or architecture discussion, dispatch `b-research` in the background; keep working on the main thread and surface findings when the subagent returns. Don't block the conversation waiting on it.
+
 ---
 
 ## Canonical Documentation Locations
