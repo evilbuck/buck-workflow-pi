@@ -1,6 +1,6 @@
 ---
 name: b-arch-qa
-description: Run a live Q&A exploration session about architecture, codebase structure, or technology choices. At session start, asks the user where to keep the discussion doc (default: `.context/discussions/{subject}.md`; Obsidian vault and custom paths supported). Answers questions by searching the web and/or exploring the codebase and builds a durable discussion document as the session progresses. Use when the user wants to understand how something works, compare approaches, or explore tradeoffs through back-and-forth conversation.
+description: Run a live Q&A exploration session about architecture, codebase structure, or technology choices. At session start, asks the user where to keep the discussion doc (default: `.context/discussions/{subject}.md`; Obsidian vault and custom paths supported). Answers questions by searching the web and/or exploring the codebase and builds a durable discussion document as the session progresses. Read-only — does not edit application code; hands implementation off to `b-build`. Use when the user wants to understand how something works, compare approaches, or explore tradeoffs through back-and-forth conversation.
 ---
 
 # arch-qa: Architecture Q&A Exploration
@@ -20,8 +20,17 @@ Run a live Q&A session that combines codebase exploration and web research, buil
 - User wants a one-off answer with no ongoing session — just answer and move on
 - User explicitly doesn't want a document
 - The question is purely about external technology with no codebase relevance — use `b-research` instead
+- User wants code changes **implemented**, not just discussed — use `b-build` or `b-iterate` instead (arch-qa is read-only)
 
 ## Behavior
+
+### Read-only — discussion and documentation, not implementation
+
+**Do not edit application code, config, tests, or infrastructure.** arch-qa answers questions and writes the discussion doc — nothing else. In scope: reading the codebase (`read`, `grep`, `glob`, `lsp`, `ast_grep`), web research, and writing **only** the discussion doc (plus sibling notes in Obsidian mode). Out of scope: any `edit` / `write` / `bash` mutation of the project under discussion.
+
+If the conversation surfaces work to do — a bug, a refactor, a config change — **do not start it here.** Record the finding in the discussion doc, file a backlog item if asked, and hand off to `b-build` / `b-iterate` with the discussion doc as context.
+
+When the user says "apply this", "let's do X", or "fix Y", read it as *analyze and document how X would work*, then **offer the hand-off to `b-build`** — do not implement inline. If it's ambiguous whether they want discussion-only or implementation, ask before editing anything other than the discussion doc.
 
 ### Session start
 
@@ -156,7 +165,7 @@ If the user wants both in-repo and Obsidian (e.g. project doc for the team, Obsi
 
 - After an arch-qa session, the Architecture section of the discussion doc is useful input to `b-plan` — reference it with `research:` in the plan frontmatter
 - Backlog items discovered during Q&A should be created with the standard backlog item format and referenced in the discussion doc
-- If the session surfaces a bug or regression, hand off to `b-fix` or `b-build` with the discussion doc as context
+- If the session surfaces a bug or regression, hand off to `b-build` or `b-iterate` with the discussion doc as context
 
 ## Success criteria
 

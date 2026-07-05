@@ -174,10 +174,29 @@ if (!chosenBaseArg) {
   process.exit(0);
 }
 
-// 7. Validate chosen base
-const chosenCandidate = baseCandidates.find((c) => c.name === chosenBaseArg);
+// 7. Validate chosen base — check candidate list first, then arbitrary refs
+let chosenCandidate = baseCandidates.find((c) => c.name === chosenBaseArg);
 if (!chosenCandidate) {
-  die(`base branch '${chosenBaseArg}' not found among candidates: ${baseCandidates.map((c) => c.name).join(", ")}`);
+  // Allow arbitrary branch names that exist as local or remote refs
+  let exists = false;
+  let remote = "";
+  try {
+    execFileSync("git", ["rev-parse", "--verify", `refs/remotes/origin/${chosenBaseArg}`], { stdio: "pipe" });
+    exists = true;
+    remote = "origin";
+  } catch {
+    try {
+      execFileSync("git", ["rev-parse", "--verify", `refs/heads/${chosenBaseArg}`], { stdio: "pipe" });
+      exists = true;
+      remote = "";
+    } catch {
+      exists = false;
+    }
+  }
+  if (!exists) {
+    die(`base branch '${chosenBaseArg}' not found among candidates or git refs: ${baseCandidates.map((c) => c.name).join(", ")}`);
+  }
+  chosenCandidate = { name: chosenBaseArg, exists: true, remote };
 }
 
 const baseRef = chosenCandidate.remote ? `${chosenCandidate.remote}/${chosenCandidate.name}` : chosenCandidate.name;
