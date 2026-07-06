@@ -1,4 +1,5 @@
 # Memory Index
+  - 2026-07-05 | `b-loop-skill-creation-2026-07-05.md` | domains: [skill, buck-workflow, omp] | topics: [b-loop, omp-execution, phased-plan, set-goal, advisory-stamp, slash-command-deferral, loop-agnostic, b-flow-deprecation, b-phase, scope-reduction, four-entrypoints, overview-mirror] | status: active
   - 2026-06-24 | `b-docs-living-documentation-2026-06-24.md` | domains: [skill, docs, buck-workflow, bootstrap] | topics: [b-docs, living-documentation, doc-sync, conventions, adr, context-md, b-review, canonical-locations, loop-agnostic, managed-block] | status: active
   - 2026-06-22 | `b-pr-skill-portable-path-2026-06-22.md` | domains: [skill, buck-workflow, docs] | topics: [b-pr, skill-path, skill_dir, context-artifacts, implementation-vs-research, omp-install, portable-skills] | status: completed
   - 2026-06-17 | `b-pr-review-2-issues-context-skip-2026-06-17.md` | domains: [skill, docs, buck-workflow] | topics: [b-pr-review-2-issues, pr-review, context-skip, secrets] | status: completed
