@@ -91,6 +91,10 @@ mkdir -p .omp && ln -s ../skills .omp/skills
 
 This makes all project skills load automatically on next OMP start. Pi does not need this — it scans `skills/` directly.
 
+## Available Skills
+
+**Vault-Native LLM Wiki** (`skills/llm-wiki-vault/`): Enables any agent to ingest sources, build interlinked research notes, and maintain the Obsidian knowledge base at `~/Documents/second brain` using the same vault-native LLM Wiki protocol Hermes uses. Agents load it automatically from this project's `skills/` directory. See the skill's Quick Agent Lookup block for invocation keys (`LLM-WIKI`, `INGEST`, `QUERY`, `LINT`, `WIKI-SCHEMA`, etc.).
+
 # Buck Workflow Steps
 
 Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → (fix issues / sync docs) → save → commit:
