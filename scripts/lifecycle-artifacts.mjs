@@ -162,3 +162,177 @@ export function reviewWriteBoundary(verdict) {
   }
   throw new Error(`unknown review verdict: ${verdict}`);
 }
+
+/**
+ * Apply the save-owned closeout transition to normalized lifecycle state.
+ * The input is never mutated; callers persist the returned state as one
+ * recoverable transaction.
+ *
+ * @param {Record<string, any>} input
+ * @returns {{
+ *   status: "applied" | "refused" | "noop",
+ *   reason: string,
+ *   state: Record<string, any>,
+ *   nextPhase: Record<string, any> | null
+ * }}
+ */
+export function closeAcceptedUnit(input) {
+  const state = structuredClone(input);
+  const refuse = (reason) => ({
+    status: "refused",
+    reason,
+    state,
+    nextPhase: null,
+  });
+  if (!state.reviewPass) {
+    return refuse("missing-review-pass");
+  }
+  if (
+    state.target.status === "completed" &&
+    state.reviewPass.status === "completed"
+  ) {
+    return {
+      status: "noop",
+      reason: "already-closed",
+      state,
+      nextPhase: null,
+    };
+  }
+  if (state.reviewPass.status !== "active") {
+    return refuse("inactive-review-pass");
+  }
+  if (state.reviewPass.target !== state.target.path) {
+    return refuse("review-pass-target-mismatch");
+  }
+  if (
+    state.reviewPass.verdict !== "pass" &&
+    state.reviewPass.verdict !== "pass-with-follow-up"
+  ) {
+    return refuse("invalid-review-verdict");
+  }
+  const targetBase = basename(state.target.path.replace(/\\/g, "/"));
+  const blockingIterate = state.iterates.some(
+    (iterate) =>
+      iterate.status === "active" &&
+      (iterate.addresses === state.target.path ||
+        iterate.addresses === targetBase)
+  );
+  if (blockingIterate) {
+    return refuse("active-iterate");
+  }
+  if (
+    !isFingerprintMatch(
+      state.reviewPass.fingerprint,
+      state.currentFingerprint
+    )
+  ) {
+    return refuse("stale-review-pass");
+  }
+  const isPhased = state.target.kind === "phase";
+  let nextPhase = null;
+  let isFinalPhase = false;
+  const current = isPhased
+    ? state.phases.find((phase) => phase.path === state.target.path)
+    : null;
+  if (isPhased && !current) {
+    return refuse("phase-target-not-found");
+  }
+  if (
+    isPhased &&
+    (state.target.status !== "in-progress" ||
+      current.status !== "in-progress")
+  ) {
+    return refuse("phase-not-in-progress");
+  }
+  const overviewRow = isPhased
+    ? state.overview?.rows.find((row) => row.phase === current.order)
+    : null;
+  if (isPhased && !overviewRow) {
+    return refuse("phase-overview-row-not-found");
+  }
+  if (
+    isPhased &&
+    !Object.prototype.hasOwnProperty.call(
+      state.backlog.items,
+      current.backlogPath
+    )
+  ) {
+    return refuse("phase-backlog-item-not-found");
+  }
+
+  state.target.status = "completed";
+  state.target.acceptance = state.target.acceptance.map(() => true);
+
+  if (isPhased) {
+    current.status = "completed";
+    overviewRow.status = "completed";
+
+    const completedOrders = new Set(
+      state.phases
+        .filter((phase) => phase.status === "completed")
+        .map((phase) => phase.order)
+    );
+    nextPhase =
+      [...state.phases]
+        .sort((a, b) => a.order - b.order)
+        .find(
+          (phase) =>
+            phase.status === "pending" &&
+            phase.dependsOn.every((dependency) =>
+              completedOrders.has(dependency)
+            )
+        ) ?? null;
+
+    const currentBacklogPath = current.backlogPath;
+    state.backlog.todo = state.backlog.todo.filter(
+      (path) => path !== currentBacklogPath
+    );
+    state.backlog.archived = [
+      ...new Set([...state.backlog.archived, currentBacklogPath]),
+    ];
+    state.backlog.items[currentBacklogPath] = {
+      ...state.backlog.items[currentBacklogPath],
+      status: "completed",
+      completed: state.date,
+    };
+    if (nextPhase) {
+      state.backlog.todo = [
+        ...new Set([...state.backlog.todo, nextPhase.backlogPath]),
+      ];
+    }
+
+    isFinalPhase = state.phases.every(
+      (phase) => phase.status === "completed"
+    );
+    if (isFinalPhase) {
+      state.overview.status = "completed";
+    }
+  }
+
+  if (!isPhased || isFinalPhase) {
+    state.parents = state.parents.map((parent) => ({
+      ...parent,
+      status: "completed",
+    }));
+    const hasOtherActiveUnit = state.otherUnits.some(
+      (unit) =>
+        unit.status !== "completed" && unit.status !== "superseded"
+    );
+    state.subject.status = hasOtherActiveUnit ? "active" : "completed";
+  }
+
+  state.memory.status = "completed";
+  state.reviewPass.status = "completed";
+  state.reviewPass.completed = state.date;
+
+  return {
+    status: "applied",
+    reason: !isPhased
+      ? "non-phased-closed"
+      : isFinalPhase
+        ? "final-phase-closed"
+        : "intermediate-phase-closed",
+    state,
+    nextPhase,
+  };
+}

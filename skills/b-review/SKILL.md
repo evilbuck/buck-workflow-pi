@@ -76,7 +76,7 @@ For each step, mark status:
 For `plan-*-phases.md` inputs:
 - Default to **current active phase** only (single `in-progress`, else first/sole non-completed in summary table)
 - User can ask for **all phases** to review the full plan
-- Do **not** mutate phase or overview status fields. Review writes evidence only; `b-save` closes state (Phase 2+).
+- Do **not** mutate phase or overview status fields. Review writes evidence only; `b-save` closes state after validating the matching review-pass.
 
 For `phase-*.md` inputs:
 - Review only that phase's scope and acceptance criteria
@@ -184,8 +184,8 @@ on the plan under review.
 
 When review finds **only** out-of-plan issues, the current plan still
 passes: close the accepted work first (`/b-docs` if documentation impact →
-`/b-save` → `/b-commit`), then start the follow-up `/b-plan` → `/b-build`
-as a separate cycle. Do not skip closing accepted work to chase follow-ups.
+`/b-save` → explicit stage → `/b-commit`), then start the follow-up `/b-plan`
+→ `/b-build` as a separate cycle. Do not chase follow-ups before closeout.
 
 ### Not the same as "out-of-scope changes"
 
@@ -289,7 +289,7 @@ When reviewing against a plan/spec/phase path, include:
 <Pass / Pass with warnings / Needs work> — driven by in-plan issues only; out-of-plan findings do not change this verdict
 
 ### Recommended Next Step
-<In-plan issues present → `/b-iterate`. Only out-of-plan issues → close accepted work (`/b-docs` if impact → `/b-save` → `/b-commit`), then follow-up `/b-plan` → `/b-build`. Clean → `/b-save` → `/b-commit`.>
+<In-plan issues present → `/b-iterate`. Only out-of-plan issues → close accepted work (`/b-docs` if impact → `/b-save` → explicit stage → `/b-commit`), then follow-up `/b-plan` → `/b-build`. Clean → `/b-save` → explicit stage → `/b-commit`.>
 </markdown>
 ```
 
@@ -394,13 +394,13 @@ For larger rework, use `/b-build` or `/b-build-hard`.
 Summary
 In-plan issues: <N or "none"> · Out-of-plan issues: <N or "none">
 Warnings
-Suggested next step: <`/b-iterate` if in-plan issues · close accepted work then `/b-plan` if only out-of-plan · `/b-save` → `/b-commit` if none>
+Suggested next step: <`/b-iterate` if in-plan issues · close accepted work then `/b-plan` if only out-of-plan · `/b-save` → explicit stage → `/b-commit` if none>
 ```
 
 ## History & Closeout
 
-After accepted work: if documentation impact was flagged, recommend `/b-docs` to update living docs first; then `/b-save` to record the session; then `/b-commit` to commit:
-- Check `.context/memory/index.md` to verify the work is recorded
-- Point user to `/b-save` if memory hasn't been updated
+After accepted work: if documentation impact was flagged, recommend `/b-docs` first; then `/b-save`, which validates the review-pass, closes state, and prints exact changed paths; explicitly stage those paths before `/b-commit`:
+- Check `.context/memory/index.md` and the completed review-pass to verify closeout was recorded
+- If save refuses, keep the target active and report its exact gate failure
 
-If review surfaced **only out-of-plan issues**, the current plan still passed: close it here (`/b-save` → `/b-commit`) before starting the follow-up `/b-plan` → `/b-build` as a new subject. Do not leave accepted work uncommitted to chase follow-ups.
+If review surfaced **only out-of-plan issues**, the current plan still passed: close it here (`/b-save` → explicit stage → `/b-commit`) before starting the follow-up `/b-plan` → `/b-build` as a new subject. Do not leave accepted work uncommitted to chase follow-ups.

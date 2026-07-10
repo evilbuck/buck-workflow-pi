@@ -50,7 +50,7 @@ Current autonomous-loop guidance lives in prompt/skill surfaces instead:
 - Use `b-plan` and `b-phase` for normal phase decomposition.
 - Use OMP's user-toggled primitives (`/goal set`, `orchestrate`, `workflow`)
   only when the plan/phase recommends `omp_execution`.
-- Use `/b-save` as a pure prompt/skill for durable session recordkeeping.
+- Use `/b-save` as a pure prompt/skill for durable session recordkeeping and save-owned closeout after a valid review-pass.
 
 Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
 archival reference, not as active user-facing setup.
@@ -132,7 +132,7 @@ for the decision log.
 
 ```
 # Standard phased plan with no omp opt-in (default)
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → explicit stage → /b-commit
 #                                                            ↺ (repeat per phase)
 
 # Large multi-phase plan that should fan out parallel work
@@ -296,7 +296,7 @@ flowchart LR
     end
     
     subgraph Save["💾 Save Phase"]
-        S1[/b-save\] --> S2[Memory + Index<br/>+ Backlog]
+        S1[/b-save\] --> S2[Closeout + Memory<br/>+ Index + Backlog]
     end
     
     Research --> Planning
@@ -374,7 +374,7 @@ decision.
 |---|---|---|
 | **`b-build`** | `pending → in-progress` on the active phase | Mark acceptance criteria passed; set `status: completed`; complete overview rows |
 | **`b-review`** | Verdict + one `review-pass` artifact with an implementation fingerprint | Mutate phase/plan/subject completion state |
-| **`b-save`** | Closeout: `in-progress → completed` after a valid, non-stale review-pass | Infer completion from chat, checkboxes, or a missing/stale pass |
+| **`b-save`** | Closeout: `in-progress → completed` after a valid, non-stale review-pass | Infer completion from chat, checkboxes, changed files, or a missing/stale pass |
 
 **Review-pass artifact**: when review finds no in-plan issues, it writes
 exactly one `review-pass-<target-stem>.md` in the target's subject folder.
@@ -386,6 +386,28 @@ are mutually exclusive for one review attempt.
 **Active phase selection**: a single `in-progress` phase always outranks
 later `pending` phases. No-argument review or build resolves the
 `in-progress` phase, never auto-advancing past it.
+
+**Save-owned closeout** (`skills/b-save/SKILL.md`, modeled by
+`closeAcceptedUnit` in `scripts/lifecycle-artifacts.mjs`):
+
+| Mode | When | Effect |
+|---|---|---|
+| **Checkpoint** | Interrupted work, missing/invalid/stale pass, or active iterate for the target | Memory and cross-links only; target/parent/overview/subject stay active |
+| **Accepted closeout** | Matching active review-pass (`pass` \| `pass-with-follow-up`), current fingerprint, no blocking iterate | Completes the unit and durable completion state |
+
+Intermediate phased closeout completes the phase + matching overview row +
+current backlog item, promotes exactly the first dependency-ready next phase,
+completes current session memory, and keeps parent plan/overview/subject
+`active`. Final phase or non-phased closeout also completes parents and the
+subject index only when no other unit remains active. The review-pass is
+completed **last** so it remains the recovery marker if save is interrupted.
+
+Save reports exact changed paths and a staging checklist but **does not
+stage**. Durable edge:
+
+```text
+/b-review → /b-docs (if flagged) → /b-save → explicit stage → /b-commit
+```
 
 Full contract: `skills/_shared/lifecycle-artifacts.md`.
 
@@ -411,7 +433,7 @@ Full contract: `skills/_shared/lifecycle-artifacts.md`.
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
-| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
+| [**b-save**](#b-save--save-owned-closeout) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Close accepted units from review-pass evidence; checkpoint memory when unreviewed |
 **Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -977,7 +999,7 @@ Suggested next step
 - `/b-build` — for normal-sized revisions
 - `/b-build-hard` — for larger or riskier rework
 
-**History Check**: After accepted work, recommends `/b-save` to record completed work in history.
+**History Check**: After accepted work, recommends `/b-save` (which validates the review-pass and closes state) then explicit stage before `/b-commit`.
 
 #### `/b-docs` — Living-Documentation Sync
 
@@ -1000,64 +1022,70 @@ Suggested next step
 
 **Read-only on `.context/`**: writes only to living docs; session memory is `/b-save`'s job.
 
-**Recommendations**: run before `/b-save` so doc changes land in the commit; then `/b-save` → `/b-commit`.
+**Recommendations**: run before `/b-save` so doc changes land in the commit; then `/b-save` → explicit stage → `/b-commit`.
 
 ### 5. Save Phase
 
-#### `/b-save` — Record History
+#### `/b-save` — Save-Owned Closeout
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Checkpoint session state and record completed work to the canonical history ledger.
+**Purpose**: Sole authoritative closer of accepted workflow state, and the
+durable session-memory checkpoint for interrupted or unreviewed work.
 
-**Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
-
-`/b-save` is a **pure prompt/skill command**. There is no extension handler.
-The model executes the prompt instructions directly, reads
-`.context/workflow/current-session.json` when it exists, and writes only to
-`.context/`.
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`,
+`commands/b-save.md`, `skills/b-save/SKILL.md`). The prompt is a thin loader;
+the skill is the only procedural authority. There is no extension handler.
 
 **Usage**:
 ```
 /b-save
 ```
 
-**11 Core Responsibilities**:
+**Two modes**:
 
-1. **Read Session State** — Read `.context/workflow/current-session.json` for context
-2. **Subject Folder** — Create if missing; consolidate loose artifacts
-3. **Memory Creation** — Create/update session memory file with proper frontmatter
-4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
-5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items (create item file + `todo.md` entry). Legacy fallback: `.context/backlog.md`
-6. **Spec Status Updates** — Set `status: completed` (no file moves)
-7. **Index Update** — Update `.context/memory/index.md`
-8. **QMD Re-index** — Make new memory searchable (if QMD available)
-9. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
-10. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
-11. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
+| Mode | Preconditions | Mutates completion state? |
+|---|---|---|
+| **Checkpoint** | No matching valid review-pass, fingerprint drift, active iterate, or interrupted work | No — memory/indexes/draft only; target stays active |
+| **Accepted closeout** | Matching active review-pass (`pass` \| `pass-with-follow-up`), current implementation fingerprint, no active iterate for the target | Yes — via the `closeAcceptedUnit` transaction |
+
+Never infer acceptance from chat, checked boxes, or changed files alone.
+
+**Accepted closeout responsibilities**:
+
+1. Resolve the exact subject/target (explicit path or single `in-progress` phase).
+2. Preflight the matching `review-pass-<target-stem>.md` (status, target, verdict, fingerprint).
+3. Intermediate phase: complete phase + overview row + backlog item; promote exactly the first dependency-ready next phase; leave parent/subject active; complete current memory.
+4. Final phase / non-phased: also complete parents; complete subject only when no other unit remains active.
+5. Complete the review-pass **last** (recovery marker for interrupted transactions).
+6. Path-keyed, idempotent backlog/archive/memory-index writes; rerun converges without duplicates.
+7. Report exact changed paths + staging checklist; **do not stage**.
+
+**Always (both modes)**: subject consolidation, session memory + index,
+cross-reference stitching, draft-commit update, optional QMD refresh
+(QMD absence never fails save), user-goal warning when applicable.
 
 **Memory Frontmatter**:
 ```yaml
 ---
 date: YYYY-MM-DD
 domains: [tooling, refactor]
-topics: [b-save, session-persistence]
-subject: YYYY-MM-DD.subject-name        # Subject folder linkage
-artifacts: [plan-oauth.md]              # Files touched this session
+topics: [b-save, closeout]
+subject: YYYY-MM-DD.subject-name
+artifacts: [plan-oauth.md]
 related: []
 priority: high
-status: active
+status: active   # completed only after accepted closeout
 ---
 ```
 
 **When to Use**:
-- After completing any significant work
-- Before `/new` to start fresh
-- Before context compaction
-- End of work session
-- Switching tasks mid-session
+- After `/b-review` accepts a unit (closeout)
+- Interrupted work / end of session / before compaction (checkpoint)
+- Switching tasks mid-session (checkpoint)
 
-**Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record.
+**Key Principle**: Plans are intent; memory is history; review-pass is
+acceptance evidence. Only `/b-save` closes accepted state.
 
 ### 6. Commit Phase
 
@@ -1065,7 +1093,7 @@ status: active
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Create a Conventional Commits message from staged changes and commit immediately. The final Buck workflow step after `/b-save` has recorded durable context.
+**Purpose**: Create a Conventional Commits message from staged changes and commit immediately. The final Buck workflow step after `/b-save` and an **explicit stage** of the paths save reported.
 
 **Pi/OMP primitive**: Prompt command (`prompts/b-commit.md` in Pi, `commands/b-commit.md` symlink in OMP), backed by `skills/git-commit/SKILL.md`.
 
@@ -1076,7 +1104,8 @@ status: active
 ```
 
 **When to use**:
-- After `/b-save` has recorded memory and updated artifacts
+- After `/b-save` has closed or checkpointed state and printed changed paths
+- After those paths have been **explicitly staged** (save never stages)
 - Each completed phase or body loop unit should produce its own commit
 - Execution sessions: run `/b-commit` before yielding the turn
 
@@ -1084,10 +1113,10 @@ status: active
 
 **Workflow completion sequence**:
 ```
-/b-build → /b-review → /b-iterate if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
+/b-build → /b-review → /b-iterate if in-plan issues → /b-docs if doc impact → /b-save → explicit stage → /b-commit
 ```
 
-**Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
+**Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → explicit stage → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
 
 **Safety**: Protected branches (main, master, develop) are guarded — use `force` only for hotfixes.
 
@@ -1231,7 +1260,7 @@ after the agent turn unless the user manually selected a different model.
 
 ### What is no longer extension-owned
 
-- `/b-save` is pure prompt/skill recordkeeping.
+- `/b-save` is pure prompt/skill closeout + recordkeeping (no extension handler).
 - There is no wired `/b-mode` command or plan-mode write guard.
 - There is no wired `/b-flow` or `/b-next` command.
 - Session-state injection and idle warnings are not part of the current
@@ -1273,25 +1302,25 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### New Work (Standard)
 
 ```
-/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → explicit stage → /b-commit
 ```
 
 ### New Work (with brainstorming)
 
 ```
-/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → explicit stage → /b-commit
 ```
 
 ### Complex/Risky Work
 
 ```
-/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → explicit stage → /b-commit
 ```
 
 ### Large Plan (Multi-Session)
 
 ```
-/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /skill:b-phase → /b-build → /b-review → /b-docs → /b-save → explicit stage → /b-commit
                                               ↺ (repeat per phase)
 ```
 
@@ -1304,7 +1333,7 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Review Fix Loop (in-plan issues only)
 
 ```
-/b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
+/b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → explicit stage → /b-commit
 ```
 
 This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.
@@ -1312,8 +1341,8 @@ This loop fixes **in-plan defects** — work the plan specified that is broken o
 ### Ad-Hoc Work (no planning)
 
 ```
-/b-build → /b-review → /b-docs → /b-save → /b-commit
-(Subject folder created automatically by b-save)
+/b-build → /b-review → /b-docs → /b-save → explicit stage → /b-commit
+(Subject folder created automatically by b-save when missing)
 ```
 
 ---
@@ -1331,7 +1360,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/b-present`
 - `/b-research`
 - `/b-review`
-- `/b-save` — pure prompt/skill recordkeeping command (run before `/b-commit`)
+- `/b-save` — pure prompt/skill closeout + recordkeeping (run before explicit stage and `/b-commit`)
 
 Also available:
 - `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)

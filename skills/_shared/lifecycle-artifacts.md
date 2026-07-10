@@ -1,6 +1,6 @@
 # Lifecycle Artifacts Contract
 
-Shared contract for review-gated phase/plan state. Consumed by `b-build`, `b-review`, and (from Phase 2) `b-save`. Machine classification lives in `scripts/context-artifact-schemas.mjs` and `scripts/lifecycle-artifacts.mjs`.
+Shared contract for review-gated phase/plan state. Consumed by `b-build`, `b-review`, and `b-save`. Machine classification and transition helpers live in `scripts/context-artifact-schemas.mjs` and `scripts/lifecycle-artifacts.mjs`.
 
 ## Ownership Split
 
@@ -8,7 +8,7 @@ Shared contract for review-gated phase/plan state. Consumed by `b-build`, `b-rev
 |---|---|---|
 | `b-build` | `pending → in-progress` on the active discrete phase; overview row may mirror `in-progress` | Mark acceptance criteria passed; set `status: completed`; complete overview rows |
 | `b-review` | Verdict + durable evidence for the exact reviewed target | Mutate phase/plan/subject completion state |
-| `b-save` (Phase 2+) | Closeout mutation: phase/overview/plan/subject/backlog/memory after a valid review-pass | Infer completion from chat, checkboxes, or a missing/stale pass |
+| `b-save` | Closeout mutation: phase/overview/plan/subject/backlog/memory after a valid review-pass | Infer completion from chat, checkboxes, changed files, or a missing/stale pass |
 
 In-plan failure and pass are mutually exclusive for one review attempt.
 
@@ -20,6 +20,35 @@ in-progress → completed (b-save only, after valid review-pass)
 ```
 
 Interrupted or unfinished work stays `in-progress`. Acceptance checkboxes remain unchecked until save closes a verified unit.
+
+## Save-Owned Closeout
+
+`b-save` has two modes:
+
+- **checkpoint**: preserve interrupted or unreviewed work as active while
+  recording memory and cross-references;
+- **accepted closeout**: mutate completion state only after a matching active
+  review-pass with `pass | pass-with-follow-up`, a current implementation
+  fingerprint, and no active iterate addressing the target.
+
+`closeAcceptedUnit` in `scripts/lifecycle-artifacts.mjs` models the normalized
+transaction. Refused closeout returns the original state. A rerun after the
+target and review-pass are completed is an idempotent no-op.
+
+| Target | Closeout result |
+|---|---|
+| Intermediate phase | Complete target + matching overview row + current backlog item + current memory; promote exactly the first dependency-ready phase; keep parent/overview/subject active |
+| Final phase | Complete target + overview + parent plan/spec + subject + memory; promote nothing |
+| Non-phased plan/spec | Complete reviewed target + linked parent + subject + memory; invent no phase |
+
+Mark the review-pass `completed` last. Until then it remains the recovery marker
+for an interrupted transaction. Every backlog, archive, memory-index, and
+cross-reference write is keyed by stable path so rerunning converges without
+duplicates.
+
+`b-save` must report exact changed paths and a staging checklist, but must not
+stage them. The durable edge is `review → docs if flagged → save → explicit
+stage → commit`.
 
 ## Active Phase Selection
 

@@ -220,9 +220,9 @@ If executing this phase inside an OMP execution session:
 1. Run the indicated Buck build command (`buck_hint`) for this phase only.
 2. Run `/b-review` against this phase file.
 3. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
-4. Run `/b-save` to consolidate memory, draft commits, and phase state.
-5. Run `/b-commit` to checkpoint durable state.
-6. If the phase is incomplete, leave `status: in-progress` so the session resumes here next turn.
+4. Run `/b-save`; it closes the phase only from the matching valid review-pass, promotes exactly the next dependency-ready phase, and prints the changed-path staging checklist.
+5. Explicitly stage the listed implementation and durable artifact paths, then run `/b-commit`.
+6. If the phase is incomplete or save refuses closeout, leave `status: in-progress` so the session resumes here next turn.
 
 If the phase's frontmatter declares `omp_execution: orchestrate | workflow | goal`,
 expand step 1 above with a one-liner **before** the build command runs:
@@ -234,7 +234,7 @@ expand step 1 above with a one-liner **before** the build command runs:
 | `goal` | "Run `/goal set <plan User Goal> --budget <omp_goal_budget>`, then begin the build. The active goal persists across turns and triggers the 6-step completion-audit on `goal({op:'complete'}).`" |
 ```
 
-**Status flow**: `pending` → `in-progress` (when b-build/b-build-hard picks it up) → `completed` (when all acceptance criteria pass)
+**Status flow**: `pending` → `in-progress` (b-build/b-build-hard) → review-pass evidence (b-review) → `completed` (b-save only)
 
 #### 5b. Phases Overview File (index + dependency matrix)
 
@@ -308,28 +308,28 @@ Phase 1 ──→ Phase 2 ──→ Phase 3
 
 ## Execution Order
 
-1. Complete Phase 1, verify acceptance criteria
-2. Update phase file: `status: completed`, check acceptance criteria
-3. Update this overview: change status to `completed` in summary table
-4. Queue Phase 2, repeat...
+1. Build Phase 1, leaving it `in-progress` with acceptance criteria unchecked
+2. Run `/b-review` against the exact phase until it writes a valid review-pass
+3. Run `/b-save`; save checks verified criteria, completes the phase and overview row, and promotes exactly the next dependency-ready backlog item
+4. Explicitly stage the reported paths, commit the phase, then repeat
 
 ## Execution Workflow
 
 Use this overview as the durable navigation map for an OMP execution session. For each phase:
-1. Read the first non-completed phase from the Phase Summary table.
+1. Select the single `in-progress` phase before any later `pending` phase.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. Run `/b-review` against the phase file after implementation.
 4. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
-5. Run `/b-save` to consolidate memory, draft commits, phase state, and review/iteration artifacts.
-6. Run `/b-commit` to checkpoint durable state before moving to the next phase.
-7. If interrupted mid-cycle, leave the phase file `status: in-progress`; the session resumes from that phase and any active `iterate-*.md` artifact.
-**Commit invariant**: one phase completion equals one commit. Do not batch multiple completed phases into a single commit; run `/b-save` → `/b-commit` after each phase, before queueing the next.
+5. Run `/b-save`; only a matching valid review-pass may complete the phase, update the overview/backlog, and promote the next dependency-ready phase.
+6. Explicitly stage the paths reported by save, then run `/b-commit` before building the promoted phase.
+7. If interrupted or save refuses closeout, leave the phase file `status: in-progress`; resume it with any active `iterate-*.md`.
+**Commit invariant**: one phase completion equals one commit. Never batch completed phases; save owns completion/promotion and commit follows the explicit staging gate.
 
 ## Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase N: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → stage → commit
+- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → stage → commit
+- [ ] Phase N: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → stage → commit
 
 
 ### Step 5c: Update Plan Status
@@ -353,22 +353,22 @@ Use this canonical text when creating execution-ready phased output. Adapt the p
 ## Execution Workflow
 
 Use this overview as the durable navigation map for an OMP execution session. For each phase:
-1. Read the first non-completed phase from the Phase Summary table.
+1. Select the single `in-progress` phase before any later `pending` phase.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
 3. If the phase's `omp_execution` is `orchestrate | workflow`, drop the matching keyword on the first turn before the build command. If it is `goal`, run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first instead. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.
-4. Run `/b-review` against the phase file after implementation.
-5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
-6. Run `/b-save` so memory, draft commits, phase state, and review/iteration artifacts are durable.
-7. Run `/b-commit` to checkpoint durable state.
-8. If interrupted mid-cycle, leave the phase file `status: in-progress`; the session resumes from that phase and any active `iterate-*.md` artifact.
+4. Run `/b-review` against the exact phase file after implementation.
+5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), route them separately. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
+6. Run `/b-save`; it requires the matching valid review-pass, owns completion/promotion, and prints the changed-path staging checklist.
+7. Explicitly stage the reported paths, then run `/b-commit`.
+8. If interrupted or save refuses closeout, leave the phase `in-progress` and resume it with any active iterate.
 
 ## Execution Checklist
 
-- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 1: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → stage → commit
+- [ ] Phase 2: <Name> — build → review → iterate if in-plan issues → docs if doc impact → save → stage → commit
 ```
 
-For a non-phased plan, use the same mini-cycle with the whole plan as a single unit: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
+For a non-phased plan, use the same mini-cycle with the whole plan as one unit: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → explicit stage → `/b-commit`. Save closes only from a matching valid review-pass. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
 
 ### Step 6: Update Backlog
 
@@ -426,17 +426,17 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 ## Integration with Buck Workflow
 
 - **After `b-plan`**: `b-plan` should recommend running `b-phase` if the plan exceeds 6 steps or touches 3+ domains
-- **Before `b-build`**: If a `plan-*-phases.md` overview exists, read it to find the first non-completed phase, then read that discrete phase file for implementation details
-- **During `b-build`/`b-build-hard`**: Mark the phase file `status: in-progress`, then `status: completed` when done; update the overview summary table
-- **OMP execution sessions**: An execution session can use the overview and discrete phase files as durable state. Each turn should execute the active phase mini-cycle, run `/b-docs` if `/b-review` flagged documentation impact, run `/b-save`, run `/b-commit`; incomplete phases remain `in-progress` for resume.
-- **After phase completion**: Run `/b-docs` if `/b-review` flagged documentation impact, then `/b-save` (which consolidates phase state), then `/b-commit`, then queue the next phase from the backlog
+- **Before `b-build`**: If a `plan-*-phases.md` overview exists, select the single `in-progress` phase before any later `pending` phase, then read its discrete file
+- **During `b-build`/`b-build-hard`**: Move only `pending → in-progress`; never check acceptance criteria or complete phase/overview state
+- **During `b-review`**: Record pass/iterate evidence for the exact target without mutating completion state
+- **After accepted work**: Run `/b-docs` if flagged, then `/b-save`; save alone completes verified state and promotes the next dependency-ready backlog item. Explicitly stage save's changed-path checklist before `/b-commit`
 
 ## Resume Behavior
 
 Any b-* command can pick up where work left off:
 1. Read the phases overview (`plan-*-phases.md`)
-2. Find the first non-completed phase in the summary table
-3. Read that discrete phase file for full implementation details
-4. Execute
+2. Prefer the single `in-progress` phase; never skip it for a later `pending` phase
+3. Read that discrete phase and any active iterate addressing it
+4. Resume its build/review/save cycle
 
 This works even with zero conversation history — a cold-start agent gets full context from the phase file.

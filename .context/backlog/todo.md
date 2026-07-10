@@ -1,6 +1,7 @@
 # Backlog
 
 - [x] [Phase 1: Review-gated phase state](archive/2026-07/phase-1-review-gated-phase-state.md) — completed 2026-07-10; review-pass + ADR 0001
+- [x] [Phase 2: Save-owned closeout transaction](archive/2026-07/phase-2-save-owned-closeout.md) — completed 2026-07-10; save-owned closeout + thin b-save
 - [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
 
 ## Buck Workflow Contract Remediation (2026-07-10)
@@ -15,7 +16,6 @@
 
 ### Upcoming Phases
 
-- [ ] [Phase 2: Save-owned closeout transaction](items/phase-2-save-owned-closeout.md)
 - [ ] [Phase 3: Stage and commit safety](items/phase-3-stage-commit-safety.md)
 - [ ] [Phase 4: OMP eval-kernel compatibility](items/phase-4-omp-eval-compatibility.md)
 - [ ] [Phase 5: Shared OMP execution contract](items/phase-5-shared-omp-execution-contract.md)
@@ -47,4 +47,3 @@
 - [x] [b-pr skill](items/b-pr-skill.md) — SKILL.md, pr-preflight.ts, prompt, command, dual-audience description — done 2026-06-11
 - [x] [b-pr: portable script path + .context-as-research](../2026-06-22.b-pr-skill-portable-path/index.md) — `<skill_dir>` resolution, impl/context file split, changed-only artifacts — done 2026-06-22
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
-

@@ -1,3 +1,4 @@
+- [x] Phase 2: Save-owned closeout transaction (2026-07-10) — `.context/2026-07-10.buck-workflow-implementation-audit/phase-2-save-owned-closeout.md`. `b-save` is sole closer; checkpoint vs accepted closeout; intermediate promotes Phase 3 once; 76 tests pass.
 - [x] Phase 1: Review-gated phase state (2026-07-10) — `.context/2026-07-10.buck-workflow-implementation-audit/phase-1-review-gated-phase-state.md`. Build leaves phases `in-progress`; review writes `review-pass-*.md` with fingerprint; save closes. ADR 0001. 64/64 tests pass.
 - [x] Implementation ledger absorbed by Phase 1 (2026-07-10) — superseded by `review-pass-*.md` artifact; no separate ledger created.
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign-phases.md`

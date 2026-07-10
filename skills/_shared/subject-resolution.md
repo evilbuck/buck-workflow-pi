@@ -94,6 +94,6 @@ Every subject folder's `index.md` carries an explicit `status:` field:
 **Who sets the status:**
 - `b-brainstorm` / `b-research` / `b-explore` → `status: draft` when creating the subject folder
 - `b-plan` → `status: active` when writing the first plan artifact
-- `b-save` → `status: completed` when all artifacts are completed
+- `b-save` → `status: completed` only after a valid review-pass closes the final active plan/spec/phase/iterate unit; intermediate or refused saves leave the subject `active`
 
 **Legacy fallback:** If `index.md` is absent or has no `status:` field, derive from artifact frontmatter. Classify as `active` if any artifact has `status: draft` or `active`.

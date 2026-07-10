@@ -268,7 +268,7 @@ Apply shared phase selection from `skills/_shared/lifecycle-artifacts.md` and `s
      If the user confirms they want to proceed with standard, continue normally.
    - **Hard mode, easy/medium phase**: Mention it but proceed — the user explicitly chose hard for a reason (risk tolerance, extra verification, etc.).
 5. **Scope to the active phase only** — implement only the current phase's steps and acceptance criteria, not the entire plan.
-6. **After implementation is ready for review**, leave the phase `in-progress` and recommend `/b-review` against the exact phase path. Do **not** complete the phase or overview row — review owns the verdict; `b-save` (Phase 2+) owns closeout.
+6. **After implementation is ready for review**, leave the phase `in-progress` and recommend `/b-review` against the exact phase path. Do **not** complete the phase or overview row — review owns the verdict; `b-save` alone owns closeout after a matching valid review-pass.
 
 ### Phase State Updates (Required)
 
@@ -282,7 +282,7 @@ When working on a phased plan with discrete phase files:
    b. **Keep** phase frontmatter `status: in-progress` (never set `completed` from build).
    c. **Do not** mark the phases overview summary row `completed`.
    d. Note that the phase is ready for `/b-review` on the exact phase path.
-5. Tell the user the phase remains `in-progress` pending review evidence, then `/b-save` → stage → `/b-commit`.
+5. Tell the user the phase remains `in-progress`: next run `/b-review` on the exact phase, `/b-docs` if flagged, `/b-save`, explicitly stage save's changed-path checklist, then `/b-commit`.
 
 Builder ownership is only `pending → in-progress`. Completion is **not** builder-owned.
 
@@ -310,7 +310,7 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 
 At COMPLETION:
 6. Do a final memory update
-7. Tell the user: "Run /b-review for validation, then /b-save to finalize, then /b-commit to commit."
+7. Tell the user: "Run /b-review for validation, then /b-docs if flagged, /b-save to finalize, explicitly stage the reported paths, then /b-commit."
 
 ## Execution Loop Awareness
 
@@ -318,7 +318,7 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
 
 1. If the active plan or phase cannot be completed in this turn, stop at a coherent boundary.
 2. For phased plans, leave the phase file `status: in-progress` and keep acceptance criteria unchecked until verified.
-3. Run `/b-save` to consolidate memory and draft commits, then `/b-commit` before yielding so memory, draft commit text, and artifact state are recoverable.
+3. Run `/b-save` in checkpoint mode to consolidate active memory and draft commits without closing unreviewed state; explicitly stage the reported paths before `/b-commit`.
 4. On the next turn, re-read the phases overview, the `in-progress` phase file, and any active `iterate-*.md` artifact before editing.
 5. Do not yield after a source change unless `/b-save` has written durable state.
 
@@ -343,4 +343,4 @@ After completing implementation, report:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit
+5. **Recommendation** — suggest `/b-review` for validation, `/b-docs` if flagged, `/b-save` to close only from valid review evidence, explicit staging, then `/b-commit`

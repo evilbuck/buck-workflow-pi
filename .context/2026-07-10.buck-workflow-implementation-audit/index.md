@@ -35,4 +35,4 @@ Read-only exploration of the Buck workflow as a whole: canonical skills, prompt/
 
 ## Current assessment
 
-The audit is now an active 14-phase remediation program. Phase 1 fixes review-gated state and durable pass evidence; lifecycle closeout, OMP compatibility, runtime ownership, portable build behavior, artifact integrity, package surfaces, and documentation follow through the dependency map in the phases overview.
+The audit is now an active 14-phase remediation program. Phase 1 (review-gated state) and Phase 2 (save-owned closeout) are completed; Phase 3 (stage/commit safety) is the next dependency-ready unit. Lifecycle, OMP compatibility, runtime ownership, portable build behavior, artifact integrity, package surfaces, and documentation continue through the dependency map in the phases overview.

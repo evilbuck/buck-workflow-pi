@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-buck-workflow-contract-remediation.md
@@ -17,17 +17,20 @@ files:
   - skills/b-build/SKILL.md
   - skills/b-review/SKILL.md
   - skills/b-phase/SKILL.md
+  - scripts/lifecycle-artifacts.mjs
+  - scripts/lifecycle-closeout.test.mjs
 from_plan_steps: [2]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] b-save closes a unit only when a matching valid review-pass exists and no active iterate blocks it"
-  - "[ ] Intermediate phase closeout completes the phase/overview row and promotes exactly the next backlog item while the subject stays active"
-  - "[ ] Final phase or non-phased closeout completes plan/spec/overview, subject index, and current session memory"
-  - "[ ] Missing or stale review-pass leaves work and memory active instead of inferring completion"
-  - "[ ] prompts/b-save.md is a thin wrapper over the canonical skill"
-completed_at: null
-completed_by: null
+  - "[x] b-save closes a unit only when a matching valid review-pass exists and no active iterate blocks it"
+  - "[x] Intermediate phase closeout completes the phase/overview row and promotes exactly the next backlog item while the subject stays active"
+  - "[x] Final phase or non-phased closeout completes plan/spec/overview, subject index, and current session memory"
+  - "[x] Missing or stale review-pass leaves work and memory active instead of inferring completion"
+  - "[x] prompts/b-save.md is a thin wrapper over the canonical skill"
+memory: [phase-2-save-owned-closeout-build-2026-07-10.md]
+completed_at: 2026-07-10
+completed_by: b-save
 ---
 
 # Phase 2: Save-owned Closeout Transaction
