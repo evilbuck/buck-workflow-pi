@@ -3,13 +3,14 @@ title: Multi-harness symlink installer (buck-workflow install)
 status: active
 priority: high
 created: 2026-06-12
-updated: 2026-06-12
+updated: 2026-07-10
 completed: null
 related:
   - .context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md
   - scripts/install.mjs
   - package.json
   - README.md
+  - .context/2026-07-10.buck-workflow-implementation-audit/phase-12-installer-surface-inventory.md
 ---
 
 # Multi-harness symlink installer
@@ -24,3 +25,7 @@ One `buck-workflow install` command (Node ESM bin) detects installed agent harne
 
 Plan: `.context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md`
 Pick up with `/b-build-hard` (per-harness unknowns warrant hard mode).
+
+## Phasing
+
+Phase 12 of the Buck Workflow contract remediation verifies the existing installer against this item's acceptance contract, adds generated surface inventory, and archives this item if the isolated-harness tests pass. Do not create a second installer implementation.
