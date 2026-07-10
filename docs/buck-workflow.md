@@ -362,6 +362,33 @@ flowchart TD
     C12 --> P12
 ```
 
+
+## Phase Lifecycle and State Ownership
+
+Phase status is split across three actors so no single step can silently
+advance or close work without durable evidence. See
+[ADR 0001](adr/0001-review-gated-lifecycle-ownership.md) for the full
+decision.
+
+| Actor | Owns | Must not |
+|---|---|---|
+| **`b-build`** | `pending → in-progress` on the active phase | Mark acceptance criteria passed; set `status: completed`; complete overview rows |
+| **`b-review`** | Verdict + one `review-pass` artifact with an implementation fingerprint | Mutate phase/plan/subject completion state |
+| **`b-save`** | Closeout: `in-progress → completed` after a valid, non-stale review-pass | Infer completion from chat, checkboxes, or a missing/stale pass |
+
+**Review-pass artifact**: when review finds no in-plan issues, it writes
+exactly one `review-pass-<target-stem>.md` in the target's subject folder.
+The artifact carries a completion matrix with evidence cites, verification
+results, and an implementation fingerprint (sha256 of reviewed implementation
+paths). In-plan defects instead produce an `iterate-*.md` — pass and iterate
+are mutually exclusive for one review attempt.
+
+**Active phase selection**: a single `in-progress` phase always outranks
+later `pending` phases. No-argument review or build resolves the
+`in-progress` phase, never auto-advancing past it.
+
+Full contract: `skills/_shared/lifecycle-artifacts.md`.
+
 ---
 
 ## Workflow Components Reference

@@ -1,0 +1,3 @@
+# Review-Gated Lifecycle Ownership
+
+Phase status transitions are split across three actors so that no single step can silently advance or close work without durable evidence. `b-build` owns only `pending → in-progress`; `b-review` owns the verdict and writes exactly one `review-pass` artifact with an implementation fingerprint; `b-save` owns closeout (`in-progress → completed`) and may only close a phase when a valid, non-stale review-pass exists. The alternative — letting `b-build` mark completion — was rejected because it claimed success before the mandatory review gate and left no durable evidence that a review occurred.

@@ -256,9 +256,9 @@ Whenever you load a plan (top-level or discrete phase), check for a `## User Goa
 
 If a `plan-*-phases.md` file exists in the subject folder:
 
-An OMP execution session may resume mid-phase. If a phase file is already `status: in-progress`, treat that as the active phase before selecting the first `pending` phase, and check for any active `iterate-*.md` artifact in the same subject folder.
+Apply shared phase selection from `skills/_shared/lifecycle-artifacts.md` and `skills/_shared/subject-resolution.md`. An OMP execution session may resume mid-phase. Prefer a single phase with `status: in-progress` before any later `pending` phase, and check for any active `iterate-*.md` artifact in the same subject folder.
 
-1. **Read it** and identify the current active phase (first non-completed phase in the summary table).
+1. **Read it** and identify the current active phase (single `in-progress`, else single non-completed, else ask).
 2. **Read the discrete phase file** linked in the summary table for full implementation details.
 3. **Surface the model hint** — tell the user at the start:
    > **Phase N: <name>** — difficulty: `<easy|medium|hard>` — model hint: `<description>` — executing via `/b-build` or `/b-build-hard`
@@ -268,21 +268,23 @@ An OMP execution session may resume mid-phase. If a phase file is already `statu
      If the user confirms they want to proceed with standard, continue normally.
    - **Hard mode, easy/medium phase**: Mention it but proceed — the user explicitly chose hard for a reason (risk tolerance, extra verification, etc.).
 5. **Scope to the active phase only** — implement only the current phase's steps and acceptance criteria, not the entire plan.
-6. **After completing the phase**, note which phase was finished and suggest the next step (queue next phase, run `/b-review`, or `/b-save`).
+6. **After implementation is ready for review**, leave the phase `in-progress` and recommend `/b-review` against the exact phase path. Do **not** complete the phase or overview row — review owns the verdict; `b-save` (Phase 2+) owns closeout.
 
 ### Phase State Updates (Required)
 
 When working on a phased plan with discrete phase files:
 
-1. **At start**: Read the phases overview to find the active phase (first non-completed). Read that phase file.
-2. **Mark phase in-progress**: Update the phase file's frontmatter `status: in-progress`.
+1. **At start**: Read the phases overview and apply active-phase selection (single `in-progress` wins). Read that phase file.
+2. **Mark phase in-progress**: Update the phase file's frontmatter `status: in-progress`. Optionally mirror `in-progress` on the matching overview summary row.
 3. **Implement**: Execute only the current phase's scope.
-4. **On completion**:
-   a. Update acceptance criteria checkboxes in the phase file: `[ ]` → `[x]`
-   b. Set `status: completed` and `completed_at: YYYY-MM-DD` in phase file frontmatter
-   c. Update the phases overview file (`plan-*-phases.md`): change the phase's status from `pending`/`in-progress` to `completed` in the summary table
-   d. Note the next phase to execute
-5. Tell the user which phase was completed and what's next.
+4. **On implementation complete (ready for review)**:
+   a. **Leave** acceptance criteria checkboxes unchecked — they are verified by review and closed by save.
+   b. **Keep** phase frontmatter `status: in-progress` (never set `completed` from build).
+   c. **Do not** mark the phases overview summary row `completed`.
+   d. Note that the phase is ready for `/b-review` on the exact phase path.
+5. Tell the user the phase remains `in-progress` pending review evidence, then `/b-save` → stage → `/b-commit`.
+
+Builder ownership is only `pending → in-progress`. Completion is **not** builder-owned.
 
 ### Legacy Phased Plans
 
@@ -330,7 +332,7 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
 After completing implementation, report:
 1. **Changed files** — list what was modified
 2. **Verification** — confirm the changes work (run tests: `npx vitest run` for unit, `npx playwright test` for browser)
-3. **Phase status** — if working from a phased plan, note which phase was completed
+3. **Phase status** — if working from a phased plan, report the phase remains `in-progress` (review-gated; not completed by build)
 4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Include a Conventional Commits message based on the staged changes:
 
    ```markdown

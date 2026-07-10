@@ -1,3 +1,5 @@
+- [x] Phase 1: Review-gated phase state (2026-07-10) — `.context/2026-07-10.buck-workflow-implementation-audit/phase-1-review-gated-phase-state.md`. Build leaves phases `in-progress`; review writes `review-pass-*.md` with fingerprint; save closes. ADR 0001. 64/64 tests pass.
+- [x] Implementation ledger absorbed by Phase 1 (2026-07-10) — superseded by `review-pass-*.md` artifact; no separate ledger created.
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign-phases.md`
 - [x] Redesign b-flow to use Pi SDK for isolated worker contexts (2026-05-30) — `.context/2026-05-30.b-flow-sdk-redesign/plan-b-flow-sdk-redesign.md`
 - [x] Extract b-save prompt into portable skill (2026-06-05) — slimmed extension to model auto-switch + TPS tracker; b-save became pure skill + prompt. Completed as part of `.context/2026-06-05.extension-slimdown/plan-extension-slimdown.md`

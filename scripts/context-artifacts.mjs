@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, relative } from "node:path";
+import {
+  ARTIFACT_SCHEMAS,
+  classifyRelativeContextPath,
+  toContextRelative,
+} from "./context-artifact-schemas.mjs";
 
-/** @typedef {"memory" | "subject-index" | "research" | "plan" | "backlog-item"} ArtifactKind */
+/** @typedef {import("./context-artifact-schemas.mjs").ArtifactKind} ArtifactKind */
 
 /**
  * @typedef {Object} ScannedArtifact
@@ -63,41 +68,8 @@ import { join, relative } from "node:path";
  * @property {string[]} related
  */
 
-/** @type {Record<ArtifactKind, { required: string[], enums: Record<string, string[]> }>} */
-const SCHEMAS = {
-  memory: {
-    required: ["date", "domains", "topics", "related", "priority", "status"],
-    enums: {
-      priority: ["high", "medium", "low"],
-      status: ["active", "completed", "superseded"],
-    },
-  },
-  "subject-index": {
-    required: ["status", "date", "subject"],
-    enums: {
-      status: ["active", "completed", "superseded", "draft"],
-    },
-  },
-  research: {
-    required: ["status", "date", "subject", "topics", "informs"],
-    enums: {
-      status: ["active", "completed", "superseded", "draft"],
-    },
-  },
-  plan: {
-    required: ["status", "date", "subject", "topics", "research", "memory"],
-    enums: {
-      status: ["active", "completed", "superseded", "draft"],
-    },
-  },
-  "backlog-item": {
-    required: ["title", "status", "priority", "created", "updated", "completed", "related"],
-    enums: {
-      priority: ["high", "medium", "low"],
-      status: ["active", "completed"],
-    },
-  },
-};
+/** @type {typeof ARTIFACT_SCHEMAS} */
+const SCHEMAS = ARTIFACT_SCHEMAS;
 
 /**
  * @param {string} raw
@@ -170,19 +142,7 @@ function toArray(value) {
  * @returns {ArtifactKind | null}
  */
 export function classifyArtifact(path) {
-  const normalized = path.replace(/\\/g, "/");
-  const marker = "/.context/";
-  const idx = normalized.indexOf(marker);
-  const rel = idx >= 0 ? normalized.slice(idx + marker.length) : normalized.replace(/^\.context\//, "");
-
-  if (rel === "memory/index.md") return null;
-  if (rel.startsWith("memory/")) return "memory";
-  if (/^\d{4}-\d{2}-\d{2}\.[^/]+\/index\.md$/.test(rel)) return "subject-index";
-  if (/^\d{4}-\d{2}-\d{2}\.[^/]+\/research-.*\.md$/.test(rel)) return "research";
-  if (/^\d{4}-\d{2}-\d{2}\.[^/]+\/plan-.*\.md$/.test(rel)) return "plan";
-  if (/^backlog\/items\/.*\.md$/.test(rel)) return "backlog-item";
-
-  return null;
+  return classifyRelativeContextPath(toContextRelative(path));
 }
 
 /**

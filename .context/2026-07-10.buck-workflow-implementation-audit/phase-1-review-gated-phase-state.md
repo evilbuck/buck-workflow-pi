@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 1
 order: 1
 plan: plan-buck-workflow-contract-remediation.md
@@ -20,13 +20,14 @@ from_plan_steps: [1]
 depends_on: []
 dependency_type: NONE
 acceptance_criteria:
-  - "[ ] b-build leaves a built discrete phase status: in-progress and does not complete its overview row"
-  - "[ ] No-argument review prefers the single in-progress phase over later pending phases"
-  - "[ ] Passing review writes exactly one target-specific review-pass artifact with completion and verification evidence"
-  - "[ ] In-plan review failure writes iterate evidence and no review-pass artifact"
-  - "[ ] Review-pass is recognized by context classification and validation"
-completed_at: null
-completed_by: null
+  - "[x] b-build leaves a built discrete phase status: in-progress and does not complete its overview row"
+  - "[x] No-argument review prefers the single in-progress phase over later pending phases"
+  - "[x] Passing review writes exactly one target-specific review-pass artifact with completion and verification evidence"
+  - "[x] In-plan review failure writes iterate evidence and no review-pass artifact"
+  - "[x] Review-pass is recognized by context classification and validation"
+completed_at: 2026-07-10
+completed_by: b-save
+memory: [phase-1-review-gated-phase-state-build-2026-07-10.md]
 ---
 
 # Phase 1: Review-gated Phase State

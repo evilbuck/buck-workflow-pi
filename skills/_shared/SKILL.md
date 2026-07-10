@@ -14,6 +14,7 @@ the sibling `.md` files in this directory; load them by filename.
 | File | Purpose |
 |---|---|
 | `subject-resolution.md` | Shared protocol all `b-*` skills use to find the active subject when invoked without an explicit path. **Read this when a skill says "apply the shared subject-resolution protocol."** |
+| `lifecycle-artifacts.md` | Review-gated phase state, review-pass / iterate write boundaries, fingerprint rules, and builder-vs-reviewer-vs-save ownership. **Read with phase/build/review/save work.** |
 
 ## Usage
 

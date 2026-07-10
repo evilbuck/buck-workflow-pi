@@ -5,7 +5,7 @@ subject: 2026-07-10.buck-workflow-implementation-audit
 topics: [buck-workflow, lifecycle, review-evidence, omp, portability, artifact-contracts, wrappers, packaging, documentation]
 research: [research-workflow-implementation-audit.md]
 iterations: []
-memory: [buck-workflow-contract-remediation-phasing-2026-07-10.md]
+memory: [buck-workflow-contract-remediation-phasing-2026-07-10.md, phase-1-review-gated-phase-state-build-2026-07-10.md]
 ---
 
 # Plan: Buck Workflow Contract Remediation

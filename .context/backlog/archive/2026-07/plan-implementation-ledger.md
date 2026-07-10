@@ -1,10 +1,10 @@
 ---
 title: Add plan-specific implementation ledger for b-review traceability
-status: active
+status: completed
 priority: medium
 created: 2026-05-17
 updated: 2026-07-10
-completed: null
+completed: 2026-07-10
 related:
   - .context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md
   - .context/2026-07-10.buck-workflow-implementation-audit/phase-1-review-gated-phase-state.md

@@ -1,6 +1,6 @@
 # Backlog
 
-- [ ] [Phase 1: Review-gated phase state](items/phase-1-review-gated-phase-state.md) — active entrypoint for the 14-phase Buck Workflow contract remediation
+- [x] [Phase 1: Review-gated phase state](archive/2026-07/phase-1-review-gated-phase-state.md) — completed 2026-07-10; review-pass + ADR 0001
 - [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
 
 ## Buck Workflow Contract Remediation (2026-07-10)
@@ -8,7 +8,7 @@
 - Program index: [Reconcile Buck workflow lifecycle and runtime contracts](items/reconcile-buck-workflow-contracts.md)
 - Phases overview: [Buck Workflow Contract Remediation](../2026-07-10.buck-workflow-implementation-audit/plan-buck-workflow-contract-remediation-phases.md)
 - Absorbed existing items:
-  - [Implementation ledger](items/plan-implementation-ledger.md) → Phase 1 review-pass evidence
+  - [Implementation ledger](archive/2026-07/plan-implementation-ledger.md) → Phase 1 review-pass evidence ✅ completed 2026-07-10
   - [b-commit final step](items/b-commit-final-step.md) → Phase 3 staging/draft safety
   - [Multi-harness installer](items/multi-harness-symlink-installer.md) → Phase 12 verification/inventory
   - [Test b-grill-auto extension](items/test-b-grill-auto-extension.md) → Phase 11 retirement decision

@@ -25,12 +25,14 @@ If no path is provided, fall back to **scope resolution order** below.
 
 ## Subject Resolution
 
-Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+Follow the shared protocol at `skills/_shared/subject-resolution.md` and lifecycle rules at `skills/_shared/lifecycle-artifacts.md`.
 If the protocol resolves a subject, use it for all downstream artifact discovery.
 After subject resolution, load the best matching artifact from the resolved subject:
-- `plan-*-phases.md` → current active phase (first non-completed) unless user asks for all phases
+- `plan-*-phases.md` → current active phase: **single `in-progress` outranks later `pending`**; else single non-completed; else ask. Never auto-advance past an `in-progress` phase.
 - `phase-*.md` → that specific phase only
 - `plan-*.md` (no phases) → the full plan
+
+No-argument review must prefer the single `in-progress` phase over any later pending phase.
 
 ## Work Discovery Protocol
 
@@ -72,12 +74,14 @@ For each step, mark status:
 ## Phased Plan Handling
 
 For `plan-*-phases.md` inputs:
-- Default to **current active phase** only (first non-completed phase in summary table)
+- Default to **current active phase** only (single `in-progress`, else first/sole non-completed in summary table)
 - User can ask for **all phases** to review the full plan
+- Do **not** mutate phase or overview status fields. Review writes evidence only; `b-save` closes state (Phase 2+).
 
 For `phase-*.md` inputs:
 - Review only that phase's scope and acceptance criteria
 - Do not require other phases to be complete
+- Leave phase `status` unchanged (typically `in-progress`)
 
 ## Goal-Mode Completion-Audit Protocol
 
@@ -291,19 +295,33 @@ When reviewing against a plan/spec/phase path, include:
 
 ### When review passes (no in-plan issues):
 
+**Write exactly one review-pass artifact** for the reviewed target before the user-facing summary. Full contract: `skills/_shared/lifecycle-artifacts.md`.
+
+Path: `<subject-folder>/review-pass-<target-stem>.md` where `<target-stem>` is the basename of the reviewed phase/plan/spec without `.md`.
+
+Required frontmatter: `status: active`, `date`, `subject`, `target` (repo-relative path), `verdict` (`pass` | `pass-with-follow-up`), `documentation_impact` (`none` | `flagged`), `fingerprint`, `topics`, `related`, `completed: null`.
+
+Required body: Source, Completion matrix (with evidence), Verification (commands + results), Out-of-plan follow-ups, Fingerprint (paths + value).
+
+Fingerprint **only** reviewed implementation paths (skills/scripts/source). **Exclude** later `.context/**` durability writes so `/b-save` cannot invalidate the pass by writing memory.
+
+Do **not** set phase/plan `status: completed`. Do **not** check acceptance boxes as closed. Verdict ownership stays with review; state closeout is save-owned.
+
 ```text
 Summary
 Documentation impact: <none | flagged — run /b-docs before /b-save>
+Review-pass: <path>
 Suggested next step
 ```
 
-This branch also covers **pass with out-of-plan follow-up** — the plan's own work is complete and correct, but review found new scope. Do **not** write an `iterate-*.md`. List out-of-plan issues in the conditional user-facing report (below), and recommend closing the accepted work (`/b-save` → `/b-commit`), then a follow-up `/b-plan` → `/b-build`.
+This branch also covers **pass with out-of-plan follow-up** — the plan's own work is complete and correct, but review found new scope. Write one review-pass with `verdict: pass-with-follow-up`. Do **not** write an `iterate-*.md`. List out-of-plan issues in the user-facing report, and recommend closing the accepted work (`/b-save` → stage → `/b-commit`), then a follow-up `/b-plan` → `/b-build`.
 
 ### When review finds in-plan issues needing iteration:
 
 **Write an iteration artifact** to the active subject folder before reporting — but **only for in-plan issues** (implementation defects against the plan under review).
-Only write this file when there are actual in-plan issues to address — do not create it for clean reviews.
-Out-of-plan issues (scope discoveries) are **never** written here — they are follow-up work surfaced in the report's `Recommended Next Step` (route to a fresh `/b-plan`), with no `iterate-*.md`. b-review writes no artifact for them, and they do not block the current plan.
+**Do not write a review-pass** for this attempt — pass and iterate are mutually exclusive.
+Only write iterate when there are actual in-plan issues — do not create it for clean reviews.
+Out-of-plan issues (scope discoveries) are **never** written here — they are follow-up work surfaced in the report's `Recommended Next Step` (route to a fresh `/b-plan`), with no `iterate-*.md`.
 Documentation impact (conventions, decisions, language) is also **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`.
 
 **Subject folder resolution:**

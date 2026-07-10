@@ -30,9 +30,10 @@ List all `.context/YYYY-MM-DD.*/` directories. For each, read **only** the `stat
 
 | Filename pattern | Classification |
 |------------------|---------------|
-| `plan-*-phases.md` + `phase-N-*.md` | `"phase N/M"` where N is first non-completed |
+| `plan-*-phases.md` + `phase-N-*.md` | `"phase N/M"` where N is the active phase: single `in-progress`, else first non-completed |
 | `plan-*.md` | `"plan"` |
 | `iterate-*.md` | `"iteration pending"` |
+| `review-pass-*.md` | `"review-pass present"` (informational; does not select subject alone) |
 | `research-*.md` only | `"research"` |
 | `brainstorm-*.md` only | `"brainstorm"` |
 | No recognized artifacts | `"active"` |
@@ -58,10 +59,12 @@ After user picks, proceed with that subject.
 
 ## Step 6: Phase Selection (If Phased)
 
-If the subject has `plan-*-phases.md`, read only phase filenames + their `status:` frontmatter line.
+If the subject has `plan-*-phases.md`, read only phase filenames + their `status:` frontmatter line. Apply the shared lifecycle rule from `skills/_shared/lifecycle-artifacts.md`:
 
-- **Exactly one non-completed phase** → use it silently.
-- **Multiple non-completed phases** → **STOP and present numbered menu. WAIT for user input.**
+1. **Exactly one `in-progress` phase** → use it silently (outranks any later `pending`).
+2. **Multiple `in-progress` phases** → **STOP and present numbered menu. WAIT for user input.**
+3. **No `in-progress`, exactly one non-completed (`pending`) phase** → use it silently.
+4. **Multiple non-completed without a single `in-progress`** → **STOP and present numbered menu. WAIT for user input.**
 
 ```
 Subject: b-flow-sdk-redesign
@@ -71,6 +74,8 @@ Phased plan found. Which phase?
 2. Phase 3: Test Coverage — easy — [pending]
 3. All phases (sequential execution)
 ```
+
+Never auto-select a later `pending` phase while an earlier or sibling phase remains `in-progress`.
 
 ## Step 7: Proceed with Skill Work
 

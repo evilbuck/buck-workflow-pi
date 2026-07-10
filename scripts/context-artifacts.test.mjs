@@ -152,6 +152,20 @@ describe("classifyArtifact", () => {
     ).toBe("backlog-item");
   });
 
+  it("classifies review-pass files", () => {
+    expect(
+      classifyArtifact(
+        ".context/2026-07-10.foo/review-pass-phase-1-review-gated-phase-state.md"
+      )
+    ).toBe("review-pass");
+  });
+
+  it("does not misclassify review-pass as plan", () => {
+    expect(
+      classifyArtifact(".context/2026-07-10.foo/review-pass-plan-bar.md")
+    ).toBe("review-pass");
+  });
+
   it("returns null for unknown paths", () => {
     expect(classifyArtifact(".context/index/foo.json")).toBe(null);
     expect(classifyArtifact("README.md")).toBe(null);
@@ -356,6 +370,80 @@ describe("validateArtifact — backlog-item", () => {
     const errors = validateArtifact(fm, "backlog-item");
     expect(errors).toContain(
       "backlog-item: 'priority' must be one of [high, medium, low], got 'urgent'"
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validateArtifact — review-pass
+// ---------------------------------------------------------------------------
+
+const VALID_REVIEW_PASS = `---
+status: active
+date: 2026-07-10
+subject: 2026-07-10.foo
+target: .context/2026-07-10.foo/phase-1-example.md
+verdict: pass
+documentation_impact: none
+fingerprint: sha256:abc123
+topics: [review, review-pass]
+related:
+  - .context/2026-07-10.foo/phase-1-example.md
+completed: null
+---
+
+# Review Pass: phase-1-example`;
+
+describe("validateArtifact — review-pass", () => {
+  it("passes valid review-pass frontmatter", () => {
+    const fm = parseFrontmatter(VALID_REVIEW_PASS);
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toEqual([]);
+  });
+
+  it("requires target field", () => {
+    const fm = parseFrontmatter(
+      `status: active\ndate: 2026-07-10\nsubject: foo\nverdict: pass\ndocumentation_impact: none\nfingerprint: sha256:x\ntopics: []\nrelated: []\ncompleted: null\n`
+    );
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toContain("review-pass: missing required field 'target'");
+  });
+
+  it("requires fingerprint field", () => {
+    const fm = parseFrontmatter(
+      `status: active\ndate: 2026-07-10\nsubject: foo\ntarget: t.md\nverdict: pass\ndocumentation_impact: none\ntopics: []\nrelated: []\ncompleted: null\n`
+    );
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toContain(
+      "review-pass: missing required field 'fingerprint'"
+    );
+  });
+
+  it("rejects invalid verdict enum", () => {
+    const fm = parseFrontmatter(
+      `status: active\ndate: 2026-07-10\nsubject: foo\ntarget: t.md\nverdict: needs-work\ndocumentation_impact: none\nfingerprint: sha256:x\ntopics: []\nrelated: []\ncompleted: null\n`
+    );
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toContain(
+      "review-pass: 'verdict' must be one of [pass, pass-with-follow-up], got 'needs-work'"
+    );
+  });
+
+  it("accepts pass-with-follow-up verdict", () => {
+    const fm = parseFrontmatter(
+      `status: active\ndate: 2026-07-10\nsubject: foo\ntarget: t.md\nverdict: pass-with-follow-up\ndocumentation_impact: flagged\nfingerprint: sha256:x\ntopics: []\nrelated: []\ncompleted: null\n`
+    );
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toEqual([]);
+  });
+
+  it("rejects invalid documentation_impact enum", () => {
+    const fm = parseFrontmatter(
+      `status: active\ndate: 2026-07-10\nsubject: foo\ntarget: t.md\nverdict: pass\ndocumentation_impact: maybe\nfingerprint: sha256:x\ntopics: []\nrelated: []\ncompleted: null\n`
+    );
+    const errors = validateArtifact(fm, "review-pass");
+    expect(errors).toContain(
+      "review-pass: 'documentation_impact' must be one of [none, flagged], got 'maybe'"
     );
   });
 });

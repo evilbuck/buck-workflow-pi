@@ -1,10 +1,10 @@
 ---
 title: "Phase 1: Review-gated phase state"
-status: active
+status: completed
 priority: high
 created: 2026-07-10
 updated: 2026-07-10
-completed: null
+completed: 2026-07-10
 related:
   - .context/2026-07-10.buck-workflow-implementation-audit/plan-buck-workflow-contract-remediation.md
   - .context/2026-07-10.buck-workflow-implementation-audit/plan-buck-workflow-contract-remediation-phases.md

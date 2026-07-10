@@ -5,7 +5,7 @@ subject: 2026-07-10.buck-workflow-implementation-audit
 topics: [phasing, buck-workflow, lifecycle, omp, portability, artifact-contracts, packaging, documentation]
 source_plan: plan-buck-workflow-contract-remediation.md
 research: [research-workflow-implementation-audit.md]
-memory: [buck-workflow-contract-remediation-phasing-2026-07-10.md]
+memory: [buck-workflow-contract-remediation-phasing-2026-07-10.md, phase-1-review-gated-phase-state-build-2026-07-10.md]
 phases: 14
 format: discrete
 ---
@@ -26,7 +26,7 @@ format: discrete
 
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
-| 1: Review-gated phase state | pending | hard | none | [phase-1-review-gated-phase-state.md](phase-1-review-gated-phase-state.md) |
+| 1: Review-gated phase state | completed | hard | none | [phase-1-review-gated-phase-state.md](phase-1-review-gated-phase-state.md) |
 | 2: Save-owned closeout transaction | pending | hard | none | [phase-2-save-owned-closeout.md](phase-2-save-owned-closeout.md) |
 | 3: Stage and commit safety | pending | hard | none | [phase-3-stage-commit-safety.md](phase-3-stage-commit-safety.md) |
 | 4: OMP eval-kernel compatibility | pending | hard | none | [phase-4-omp-eval-compatibility.md](phase-4-omp-eval-compatibility.md) |
@@ -129,7 +129,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Review-gated phase state — build → review → iterate if needed → docs if needed → save → stage → commit
+- [x] Phase 1: Review-gated phase state — build → review → docs → save → stage → commit
 - [ ] Phase 2: Save-owned closeout transaction — build → review → iterate if needed → docs if needed → save → stage → commit
 - [ ] Phase 3: Stage and commit safety — build → review → iterate if needed → docs if needed → save → stage → commit
 - [ ] Phase 4: OMP eval-kernel compatibility — build → review → iterate if needed → docs if needed → save → stage → commit
