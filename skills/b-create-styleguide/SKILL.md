@@ -1,18 +1,18 @@
 ---
 name: b-create-styleguide
-description: Guide an inexperienced user through creating a UX styleguide for their project from scratch, and idempotently keep it up-to-date on every re-run. Interviews about colors, format, scope, and reverse-engineering. Produces the styleguide, writes a managed block into AGENTS.md/CLAUDE.md so all agents reference and extend it, reconciles design-brief.json by component id on refresh, and deprecates rather than deletes missing components.
+description: Guide an inexperienced user through creating a UX styleguide for their project from scratch, and idempotently keep it up-to-date on every re-run. Interviews about colors, format, scope, and reverse-engineering. Produces the styleguide (including type, breakpoints/responsive, and interactions — not only components), writes a managed block into AGENTS.md/CLAUDE.md so all agents reference and extend it on any design-surface change, reconciles design-brief.json by component id on refresh, and deprecates rather than deletes missing components.
 ---
 
 # b-create-styleguide: Guided Styleguide Creation & Maintenance
 
-Walk a user — even one who has never heard the word "styleguide" — through creating one for their project. The skill explains what a styleguide is in plain terms, interviews the user through key decisions (colors, format, scope, codebase analysis), generates the artifacts, and wires AGENTS.md or CLAUDE.md so every future agent references and maintains it. **It is also a living keeper: re-running it idempotently reconciles the styleguide with the codebase, adding new components, updating changed ones, and deprecating missing ones.**
+Walk a user — even one who has never heard the word "styleguide" — through creating one for their project. The skill explains what a styleguide is in plain terms, interviews the user through key decisions (colors, format, scope, codebase analysis), generates the artifacts, and wires AGENTS.md or CLAUDE.md so every future agent references and maintains it whenever UI design surfaces change — components, fonts/type, breakpoints/responsive behavior, and interactions. **It is also a living keeper: re-running it idempotently reconciles the styleguide with the codebase, adding new components, updating changed ones, and deprecating missing ones.**
 
 **This is a guided, conversational skill.** It does not dump artifacts and walk away. It explains, asks, confirms, builds, and wires the result into the project's agent conventions — and keeps it in sync over time.
 
 **Two modes in one skill:**
 1. **Create mode** — first run. Full interview, full generation, full wiring.
 2. **Refresh/update mode** — re-run. Re-scan scope, reconcile by component `id`, update in place via managed blocks, deprecate missing components.
-Run it whenever you ship UI changes, add a component, or change the palette.
+Run it whenever you ship UI changes, add a component, change type/breakpoints/interactions, or change the palette.
 
 ## Use when
 
@@ -31,7 +31,7 @@ Run it whenever you ship UI changes, add a component, or change the palette.
 
 If the user is unfamiliar, explain it like this:
 
-> A styleguide is your project's visual dictionary. It lists every building block of your UI — buttons, inputs, cards, colors, spacing — and shows exactly what each one looks like, when to use it, and when not to. It keeps your app looking consistent as it grows, and it gives every developer (human or AI agent) a single reference so nobody invents their own version of a button.
+> A styleguide is your project's visual dictionary. It lists every building block of your UI — buttons, inputs, cards, colors, type, spacing, how layouts adapt to screen size, and how things behave on hover/focus/motion — and shows exactly what each one looks like, when to use it, and when not to. It keeps your app looking consistent as it grows, and it gives every developer (human or AI agent) a single reference so nobody invents their own version of a button, type size, or interaction.
 
 ## Procedure
 
@@ -73,8 +73,8 @@ On re-run, the skill MUST:
 #### Refresh/update mode workflow
 
 In refresh/update mode (re-run when the styleguide already exists), skip Phase 2's full interview. Ask only:
-- What has changed since last time? (new colors, new components, new scope, new constraints)
-- Should I re-scan the codebase for new components / changed files?
+- What has changed since last time? (new colors, new components, type/font changes, breakpoint or responsive behavior, interactions/motion/state, new scope, new constraints)
+- Should I re-scan the codebase for new components / changed files / foundation tokens?
 - Any components to deprecate manually?
 
 Then:
@@ -83,10 +83,14 @@ Then:
    - For each existing `id` still found in the codebase: update `locations`, append new `variants`/`states` discovered, preserve other fields.
    - For each new component discovered: add a fresh entry to the JSON, visual guide, and markdown reference.
    - For each existing `id` not found in the codebase: set `status: "deprecated"`, add a Deprecated badge to the visual guide, and add a "Removed in codebase" note. Do not delete the entry.
-3. **Update tokens** if the palette changed (add new scales, update hex values, preserve old values as aliases where possible).
-4. **Update the AGENTS.md managed block** in place if paths or the UI work trigger changed. Preserve any user-added notes inside the block.
-5. **Write a session memory entry** recording the refresh — what was added, deprecated, updated.
-6. **Report** a "refresh delta" in the closeout: `<N> added, <N> updated, <N> deprecated, <N> unchanged`.
+3. **Update foundation surfaces** if they changed — document and demo them in the visual guide (and tokens JSON) in the same refresh:
+   - **Fonts / type** — families, ramp, weights, stackable type classes
+   - **Screen sizes / responsive** — breakpoints used, mobile-first notes, height/viewport rules
+   - **Interactions** — hover/active/focus/disabled/ARIA state, motion, gestures, `prefers-reduced-motion`
+4. **Update tokens** if the palette or type/spacing scales changed (add new scales, update values, preserve old values as aliases where possible).
+5. **Update the AGENTS.md managed block** in place so the design-surface trigger list stays current (components, type, breakpoints, interactions). Paths and UI-work trigger text MUST match the template in Phase 5. Preserve any user-added notes outside the managed markers; inside the block, keep the mandatory trigger contract complete.
+6. **Write a session memory entry** recording the refresh — what was added, deprecated, updated (including foundation surfaces).
+7. **Report** a "refresh delta" in the closeout: `<N> added, <N> updated, <N> deprecated, <N> unchanged` plus foundation surfaces touched.
 
 The skill is therefore both a **creator** and a **keeper** — running it regularly is the recommended way to keep the styleguide in sync with the codebase.
 
@@ -131,8 +135,10 @@ Produce the deliverable(s) based on the format decision:
 Write a single self-contained HTML file at the agreed path. Contents:
 - **Header** — project name, scope badge, date
 - **Color palette** — swatches with hex values, dark/light variants if provided
-- **Typography** — font families, sizes, weights (derived from codebase or defaults)
+- **Typography** — font families, sizes, weights, and any stackable type classes (derived from codebase or defaults). Required section even if sparse.
 - **Spacing & radii** — spacing scale, border-radius tokens
+- **Breakpoints / responsive** — the viewport (and height, if used) breakpoints the project actually uses, with a short note on mobile-first vs desktop-first and any shell behavior that changes by size. Required section; if the codebase has only ad-hoc media queries, list those values rather than inventing a scale.
+- **Interactions / state** — canonical state vocabulary (`:hover`, `:active`, `:focus`, disabled, loading, ARIA), motion patterns, and `prefers-reduced-motion` policy. Live demos where cheap (button states); short notes where not. Required section.
 - **Components** — each component family rendered as a live visual section:
   - Component name, description, "when to use"
   - Visual examples of every variant (buttons, inputs, cards, badges, etc.)
@@ -176,8 +182,7 @@ Write the agreed JSON path (default `docs/styleguide-design-brief.json`) with th
     "version": 1,
     "lastUpdated": "YYYY-MM-DD"
   },
-  "meta": { "surface": "...", "generated": "YYYY-MM-DD", "format": "static-html|ejs|markdown", "palette": {...} },
-  "tokens": { "color": {...}, "typography": {...}, "spacing": {...}, "radii": {...}, "shadow": {...} },
+  "tokens": { "color": {...}, "typography": {...}, "spacing": {...}, "radii": {...}, "shadow": {...}, "breakpoints": {...}, "motion": {...} },
   "components": [
     {
       "id": "button-primary",
@@ -213,34 +218,42 @@ This is the step that makes the styleguide **living** rather than a dead doc.
 2. **Add a Styleguide section** (or update the existing one) that tells every agent:
    - Where the styleguide lives (file path + URL if route-served)
    - Where the JSON spec lives
-   - That they MUST reference the styleguide before implementing any UI component
-   - That they MUST update the styleguide when they create a new component or variant
+   - That they MUST reference the styleguide before implementing any UI / design-surface change
+   - That they MUST update the styleguide **in the same change** when they touch components, fonts/type, breakpoints/responsive behavior, or interactions — not leave it for a later pass
    - That they MUST NOT invent new UI patterns that contradict the styleguide
-   - How to add a new component to the styleguide (edit the JSON, add a section to the HTML/markdown, cite the new files)
+   - How to add a new component or foundation note to the styleguide (edit the JSON, add/update a section in the HTML/markdown, cite the new files)
 
-**The Styleguide section MUST be wrapped in a managed block** so the skill can locate, update, and preserve it on re-run without overwriting user edits or duplicating. **If the managed block already exists, update only its inner content — do NOT create a duplicate block.**
+**The Styleguide section MUST be wrapped in a managed block** so the skill can locate, update, and preserve it on re-run without overwriting user edits or duplicating. **If the managed block already exists, update only its inner content — do NOT create a duplicate block.** On every create or refresh, rewrite the managed block so it includes the full design-surface trigger contract below (merge project-specific paths/notes; never drop type / breakpoints / interactions from the trigger list).
 
 ```markdown
 <!-- BEGIN b-create-styleguide -->
 ## Styleguide
 
-This project has a UX styleguide. **Before implementing any UI component, read it.**
+This project has a UX styleguide. **Before implementing any UI or design-surface change, read it.**
 
 <Include only the artifacts that exist — omit lines for formats not generated:>
 - Visual styleguide: `<html-or-ejs-path>` (open in browser or visit route)
 - Machine-readable spec: `<json-path>`
 - Markdown reference: `<md-path>`
 
+**Keep the styleguide current (mandatory on design work).** If a session changes any of the following, update the styleguide artifacts that exist **in the same change** (add or refresh the live demo + short note). Do not leave the styleguide stale for a later pass:
+- **Components / surfaces** — new or restyled UI building blocks
+- **Fonts / type** — font family, type ramp, heading/body treatments, shared type classes
+- **Screen sizes / responsive** — breakpoints, layout that changes by viewport or height, mobile vs desktop shell behavior
+- **Interactions** — hover/active/disabled/focus/ARIA state, motion, gestures, `prefers-reduced-motion`, timing patterns
+
+When the change is shared foundation (type, breakpoints, interaction primitives), document it in the shared/foundation area of the styleguide. Audience- or surface-specific motion or layout stays with that surface's section.
+
 **UI work trigger — automatic reference:**
-For ANY change that touches views/templates, components, CSS, frontend JS, routes that serve UI, screenshots, or UI tests:
-1. Read the styleguide and JSON spec BEFORE writing any HTML, EJS, or CSS.
-2. Use documented component classes and patterns. Do not invent new button styles, input layouts, card variants, or color usage.
-3. If you add or modify a component, variant, or state, update the styleguide artifacts that exist:
-   - If a visual guide exists (HTML or EJS): add/update the component section.
-   - If a JSON spec exists: add/update the component entry in `components[]`.
-   - If a markdown reference exists: add/update the component section.
+For ANY change that touches views/templates, components, CSS, frontend JS, routes that serve UI, screenshots, UI tests, type tokens, media queries/breakpoints, or interaction/motion patterns:
+1. Read the styleguide and JSON spec BEFORE writing any HTML, template, or CSS.
+2. Use documented component classes, type, breakpoints, and interaction patterns. Do not invent new button styles, input layouts, card variants, type sizes, breakpoint values, or color usage.
+3. If you add or modify a component, variant, state, type treatment, breakpoint, or interaction pattern, update the styleguide artifacts that exist:
+   - If a visual guide exists (HTML or EJS): add/update the component or foundation section.
+   - If a JSON spec exists: add/update the component entry in `components[]` and/or `tokens` (typography, breakpoints, motion).
+   - If a markdown reference exists: add/update the matching section.
 4. If you deprecate a component, mark it deprecated in the styleguide and migrate callers.
-5. If the styleguide does not cover a component you need, document it first (add to JSON + visual guide + markdown), then implement.
+5. If the styleguide does not cover a component or foundation pattern you need, document it first (add to JSON + visual guide + markdown), then implement.
 
 **Do not invent UI patterns that contradict the styleguide.** When in doubt, read the styleguide first.
 <!-- END b-create-styleguide -->
@@ -264,10 +277,11 @@ Before yielding, confirm:
 1. The styleguide exists at the agreed path and is the correct format.
 2. The JSON spec parses as valid JSON and has at least one component entry.
 3. If reverse-engineered: the styleguide cites real file paths from the codebase.
-4. AGENTS.md or CLAUDE.md exists and contains the Styleguide section with correct file paths.
-5. The Styleguide section tells agents to reference it, update it, and not invent patterns.
-6. The user's palette (if provided) is reflected in the styleguide's color tokens.
-7. `.context/` subject folder, memory, and memory index are updated.
+4. AGENTS.md or CLAUDE.md exists and contains the Styleguide managed block with correct file paths.
+5. The Styleguide managed block requires same-change updates for **components, fonts/type, breakpoints/responsive, and interactions** (not components alone).
+6. The visual guide (when present) has foundation sections for **Typography**, **Breakpoints / responsive**, and **Interactions / state** (may be sparse, must exist).
+7. The user's palette (if provided) is reflected in the styleguide's color tokens.
+8. `.context/` subject folder, memory, and memory index are updated.
 
 ## Behavior rules
 
@@ -275,11 +289,11 @@ Before yielding, confirm:
 - **Ask one question at a time** during the interview. Batch only if the user answers multiple at once.
 - **Defaults are your friend.** If the user says "defaults" or "I don't know," use the recommended defaults and move on.
 - **Reverse-engineer by default** when the codebase has UI. It's faster and more useful than inventing from scratch.
-- **Always wire AGENTS.md/CLAUDE.md.** A styleguide without agent wiring is a dead doc. This step is mandatory.
+- **Always wire AGENTS.md/CLAUDE.md.** A styleguide without agent wiring is a dead doc. This step is mandatory. The managed block MUST include the full design-surface trigger list (components, fonts/type, breakpoints/responsive, interactions) on every create and refresh.
 - **Do not refactor views or migrate CSS.** The skill creates documentation and agent instructions. App wiring (registering `vite.config.mjs` entries and `server.js` routes for format (b) EJS/route-served mode) is explicitly allowed and expected.
 - **If the project has no UI** (API-only, CLI-only), say so and stop. A styleguide requires a visual surface.
 - **If the user provides a palette in an unusual format** (screenshot, description, CSS file), parse it or ask for clarification. Do not silently ignore it.
-- **Idempotent and living: safe to run repeatedly.** On re-run, detect existing styleguide and agent wiring via managed blocks; update in place rather than duplicate. Reconcile `design-brief.json` by stable component `id`: preserve existing entries, add new ones, update changed `locations`/`variants`/`states`, and mark no-longer-found components `status: "deprecated"` instead of deleting them. If nothing changed, confirm and exit with a no-op delta.
+- **Idempotent and living: safe to run repeatedly.** On re-run, detect existing styleguide and agent wiring via managed blocks; update in place rather than duplicate. Reconcile `design-brief.json` by stable component `id`: preserve existing entries, add new ones, update changed `locations`/`variants`/`states`, and mark no-longer-found components `status: "deprecated"` instead of deleting them. Always refresh foundation sections (type, breakpoints, interactions) and the AGENTS trigger contract when those surfaces drifted. If nothing changed, confirm and exit with a no-op delta.
 
 ## Closeout report format
 
@@ -298,7 +312,7 @@ Reverse-engineered: <yes / no>
 - <N> duplication hotspots flagged
 
 Agent wiring:
-- <AGENTS.md or CLAUDE.md> now requires all agents to reference the styleguide before implementing UI.
+- <AGENTS.md or CLAUDE.md> now requires all agents to reference the styleguide before UI work and to update it in the same change for components, type, breakpoints/responsive, and interactions.
 
 Context:
 - Subject: .context/YYYY-MM-DD.<surface>-styleguide/
@@ -319,6 +333,7 @@ Refresh delta:
 - Updated: <N components with new locations / variants / states>
 - Deprecated: <N components no longer found in codebase>
 - Unchanged: <N components>
+- Foundation: <type / breakpoints / interactions / none touched>
 
 Managed block status:
 - AGENTS.md: <updated in place / no changes>

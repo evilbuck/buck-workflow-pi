@@ -181,6 +181,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
+| `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
 | `git-commit` | Create a Conventional Commits message and commit |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
@@ -189,6 +190,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
 | `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
+| `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
 
 ### Extension (Runtime Hooks)
 
@@ -221,6 +223,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |
+| `/skill:fix-pr <pr>` | Action PR review comments — validate, then fix+push or file issues (skill-only) |
 | `/b-plan → /b-review → /b-docs → /b-save → /b-commit` | Plan and review without exploration |
 
 ### Ad-Hoc Work

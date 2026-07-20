@@ -15,7 +15,7 @@ import { join, resolve } from "node:path";
 // ---------- domain types ----------
 
 type ReviewSide = "LEFT" | "RIGHT";
-type ReviewEvent = "COMMENT" | "PENDING";
+type ReviewEvent = "COMMENT" | "APPROVE" | "REQUEST_CHANGES" | "PENDING";
 type FindingSeverity = "critical" | "warning";
 
 type Finding = {
@@ -54,7 +54,7 @@ type ExecError = Error & {
   stderr?: Buffer | string;
 };
 
-const REVIEW_EVENTS: readonly ReviewEvent[] = ["COMMENT", "PENDING"];
+const REVIEW_EVENTS: readonly ReviewEvent[] = ["COMMENT", "APPROVE", "REQUEST_CHANGES", "PENDING"];
 
 // ---------- small utilities ----------
 

@@ -7,7 +7,7 @@
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
 explore, research, plan, build, review, save, present, grill, commit, plus
-helper skills). The skills are plain Markdown following the
+helper skills such as `fix-pr`). The skills are plain Markdown following the
 [Agent Skills](https://agentskills.io) open standard, so the same content loads
 on every supported harness.
 
@@ -35,9 +35,11 @@ invocations on agents that use skill loaders):
 | `/b-phase` | Break a plan into sequential phases |
 | `/b-grill-me` | Stress-test a plan through structured interviewing |
 | `/git-commit` | Conventional Commits message + commit |
+| `/skill:fix-pr` | Validate PR review comments; fix+push or file issues (**skill-only** — no slash wrapper) |
 
 The skills themselves live in `skills/<name>/SKILL.md` of this repo and are
-agent-neutral.
+agent-neutral. Skill-only entries (no `prompts/` + `commands/` pair) are
+invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | Agent | Install method | Skills land at | Commands land at |
 |---|---|---|---|
 | **Pi** | `pi install git:github.com/buckleyrobinson/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |

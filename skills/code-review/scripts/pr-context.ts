@@ -5,11 +5,12 @@
 // emit pr-context.json + pr.diff. Zero deps. Requires bun, git, gh.
 //
 // Usage:
-//   bun skills/code-review/scripts/pr-context.ts <pr-url|owner/repo#N|N>
+//   bun skills/code-review/scripts/pr-context.ts <pr-url|owner/repo#N|#N|N>
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { matchPrRef } from "./pr-ref.js";
 
 // ---------- domain types ----------
 
@@ -206,33 +207,26 @@ function parseJson<T>(raw: string, guard: (v: unknown) => v is T, label: string)
 // ---------- argument parsing ----------
 
 function parsePrArg(arg: string): ParsedPr | null {
-  const url = arg.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/);
-  if (url && url[1] && url[2] && url[3]) {
-    return { owner: url[1], repo: url[2], number: Number(url[3]) };
+  const ref = matchPrRef(arg);
+  if (!ref) return null;
+
+  if (ref.kind !== "num") {
+    return { owner: ref.owner, repo: ref.repo, number: ref.number };
   }
 
-  const short = arg.match(/^([^/\s]+)\/([^/\s]+)#(\d+)$/);
-  if (short && short[1] && short[2] && short[3]) {
-    return { owner: short[1], repo: short[2], number: Number(short[3]) };
-  }
-
-  const num = arg.match(/^(\d+)$/);
-  if (num && num[1]) {
-    const repoRaw = execGh(["repo", "view", "--json", "nameWithOwner"]);
-    const repo = parseJson(repoRaw, isRepoView, "gh repo view");
-    const [owner, name] = repo.nameWithOwner.split("/");
-    if (!owner || !name) die(`unexpected nameWithOwner: ${repo.nameWithOwner}`);
-    return { owner, repo: name, number: Number(num[1]) };
-  }
-
-  return null;
+  // "#N" and bare "N": resolve owner/repo from the current checkout.
+  const repoRaw = execGh(["repo", "view", "--json", "nameWithOwner"]);
+  const repo = parseJson(repoRaw, isRepoView, "gh repo view");
+  const [owner, name] = repo.nameWithOwner.split("/");
+  if (!owner || !name) die(`unexpected nameWithOwner: ${repo.nameWithOwner}`);
+  return { owner, repo: name, number: ref.number };
 }
 
 // ---------- main ----------
 
 const arg = process.argv[2];
 if (!arg || arg === "--help" || arg === "-h") {
-  console.error("usage: pr-context <pr-url|owner/repo#N|N>");
+  console.error("usage: pr-context <pr-url|owner/repo#N|#N|N>");
   process.exit(arg ? 0 : 2);
 }
 

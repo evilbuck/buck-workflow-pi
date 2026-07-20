@@ -157,6 +157,7 @@ Links use filenames within same subject folder. Memory links use memory filename
 - New work: `b-research → b-plan → b-build → b-review → b-docs → b-save → b-commit`
 - Complex: `b-research → b-plan → b-build-hard → b-review → b-docs → b-save → b-commit`
 - Quick fix: `b-iterate → b-review → b-docs → b-save → b-commit`
+- PR review feedback: `fix-pr` (skill-only: `/skill:fix-pr <pr>`) — validate comments, then fix+push or file issues
 
 ### b-research: Always Delegate, Background When Helpful
 
@@ -192,7 +193,8 @@ Create `CONTEXT.md` and `docs/adr/` lazily — on first use. Do not invent paral
 | Architecture discovery | research |
 | Documentation writing | writing/documentation |
 | Code refactoring | refactor |
-| Code review | review |
+| Code review (authoring feedback) | review / `code-review-universal` |
+| PR review comments to action (fix or issues) | `fix-pr` (`/skill:fix-pr`) |
 
 Use environment-specific agents only when they actually exist.
 

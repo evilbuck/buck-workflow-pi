@@ -26,6 +26,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
+| `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
@@ -382,6 +383,7 @@ flowchart TD
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
+| [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
@@ -956,6 +958,39 @@ Suggested next step
 
 **History Check**: After accepted work, recommends `/b-save` to record completed work in history.
 
+
+#### `/skill:fix-pr` — Validate and Act on PR Review Comments
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Ingest review feedback on a GitHub PR, **validate** each comment against current code, size the collective of valid items, then either **fix + commit + push** in-session or **file GitHub issues**. Ask the engineer only when validity is genuinely unclear.
+
+**Pi/OMP primitive**: Skill only (`skills/fix-pr/SKILL.md`). **No** `prompts/fix-pr.md` and **no** `commands/fix-pr.md` symlink — invoke via `/skill:fix-pr` (or description match / skill-by-name on other harnesses).
+
+**Harness posture**: OMP-first tooling (`pr://`, GitHub helpers) with universal `gh` + `git` fallbacks. Procedure is agent-agnostic.
+
+**Not the same as**:
+- `code-review` / `code-review-universal` — *author* a review (read-only on product code except posting the review)
+- `b-pr-review-2-issues` — ingest comments into a **plan** artifact only (no code mutation, no issues)
+- `b-iterate` — small follow-ups from an `iterate-*.md` after `/b-review` of *your* implementation
+
+**Use when**:
+- A PR has review comments that need actioning
+- User says "fix the PR comments", "address review feedback", or passes a PR URL/number for fixes
+
+**Behavior**:
+1. Land on the PR head branch
+2. Inventory review bodies + inline comments (skip nits, resolved, `.context/**` noise)
+3. Validate each claim against HEAD → `valid` / `invalid` / `already_done` / `unsure` / `nit`
+4. Size gate on the collective of **valid** open items
+5. **Small** → fix root causes, narrow tests, commit, push
+6. **Large** → file themed GitHub issues with acceptance criteria + PR/comment links
+7. Write `.context/memory/` record + closeout table
+
+**Flags** (when invoked with args): `--issues-only`, `--fix-only`
+
+**Next Steps**: Re-request review on the PR; `/b-save` if more session bookkeeping remains; optional `/b-iterate` for leftover polish after your own review loop
+
 #### `/b-docs` — Living-Documentation Sync
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -1286,6 +1321,17 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 
 This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.
 
+### PR Review Feedback (validate → fix or issues)
+
+```
+/skill:fix-pr <pr-number-or-url>
+# small valid set → fix + commit + push on PR head
+# large valid set → file GitHub issues, link from PR
+```
+
+OMP-first; works on any agent with `gh` + `git`. Skill-only — no `/fix-pr` slash wrapper.
+
+
 ### Ad-Hoc Work (no planning)
 
 ```
@@ -1310,10 +1356,10 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/b-review`
 - `/b-save` — pure prompt/skill recordkeeping command (run before `/b-commit`)
 
-Also available:
 - `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)
 - `/skill:b-grill-me` — Stress-test a plan via interview with complexity tracking
 - `/skill:b-grill-with-docs` — Same as b-grill-me, plus domain doc awareness (CONTEXT.md, ADRs)
+- `/skill:fix-pr` — Validate PR review comments; fix+push in-session or file issues (skill-only, no slash wrapper)
 
 **OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
 - `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
@@ -1321,4 +1367,4 @@ Also available:
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-06-07
+Last updated: 2026-07-19
