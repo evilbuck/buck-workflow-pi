@@ -29,7 +29,7 @@ Structure when more detail is needed:
 ## Before/After Workflow
 
 **Before starting ANY task:**
-1. Read `.context/memory/index.md` (most recent 3-5 entries) and recent memory files
+1. Search prior work: `qmd search "<topic>"` (collection `buck-workflow-memory` — run `qmd collection add .context/memory --name buck-workflow-memory --mask '*.md'` once if missing) — semantic + keyword search across all history, not just the newest entries. Falls back to reading `.context/memory/index.md` (most recent 3-5 entries) if `qmd` is unavailable or unindexed.
 2. Read `.context/backlog/todo.md` for active priorities (legacy fallback: `.context/backlog.md`)
 3. If `.context/` missing: `mkdir -p .context/memory`
 

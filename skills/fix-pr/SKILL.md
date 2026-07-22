@@ -80,7 +80,7 @@ fix-pr <pr-number>
 fix-pr <pr-url>
 fix-pr <pr> --issues-only      # never fix; file issues for valid items
 fix-pr <pr> --fix-only        # never file issues; stop if too large
-```
+fix-pr <pr> --dry-run         # validate + inventory only; never mutate repo/PR
 
 If no PR is given: resolve open PR for the current branch via `gh pr view`;
 if none, ask for URL/number.
@@ -119,17 +119,31 @@ Do **not** file issues for nits.
 
    **Universal fallback:**
    ```bash
-   gh pr view <N> --json number,title,body,headRefName,baseRefName,state,url,reviews,comments
+   gh pr view <N> --repo <owner/repo> --json number,title,body,headRefName,baseRefName,state,url,files,reviews,comments
    gh api repos/{owner}/{repo}/pulls/<N>/comments
    gh api repos/{owner}/{repo}/issues/<N>/comments
    ```
 
-3. **Branch check**
-   - Current branch === `headRefName` → stay
-   - Else check out PR head (`gh pr checkout <N>`, OMP `pr_checkout`, or worktree).
-     **Do not fix on the wrong branch.**
-4. `git status` — if unrelated dirty work blocks you, stop and report; do not
-   clobber the user's tree.
+   `--repo <owner/repo>` is required when running out-of-tree or under `--dry-run`
+   (no checked-out PR head yet). For `--dry-run` on a third-party repo, pass it
+   explicitly: `gh pr view <N> --repo evilbuck/partypic --json ...`.
+
+   **Fast path (recommended when `gh` + `jq` are present):**
+   ```bash
+   bash skills/fix-pr/scripts/fetch-feedback.sh <owner/repo> <pr-number>
+   ```
+   Merges the three calls above into one ordered, commit-pinned feed ready for
+   the Phase 2 working table. Falls back silently to raw `gh` if the script or
+   `jq` is missing.
+
+   **Changed files & code at head:** Phase 3 needs both. Use `gh pr diff` for
+   the full diff and the contents API for a single file at head.
+   ```bash
+   gh pr diff <N> --repo <owner/repo>                          # full diff
+   gh api repos/{owner}/{repo}/contents/<path>?ref=<headRefName>  # one file at HEAD
+   ```
+   Gotcha: `gh pr diff <N> -- <path>` (path-filtered form) emits empty output
+   for some PRs even when the file is changed — use the contents API instead.
 
 ### Phase 2 — Inventory comments
 
@@ -139,18 +153,23 @@ Include:
 - Inline / file review comments and threads
 - Conversation comments that request changes
 
+When a PR has multiple reviews, sort by `submittedAt`; treat the latest review
+touching a file/line as authoritative. Tag each finding with its review's
+commit SHA so a fix landed in a later commit is detected as `stale` / `already_done`.
+
 | Class | Rule |
 |---|---|
 | `resolved` threads | Skip unless user asked to re-check |
 | `nit` / LGTM / pure style | Optional drive-by; no issue |
-| `duplicate` | Same claim or same root cause → one work item, cite all sources |
+| `duplicate` | Across all reviews + inline + conversation — same claim or root cause → one work item, cite every source incl. earliest `submittedAt` |
+| `stale` | Finding valid at an earlier review commit but superseded on HEAD → re-validate against HEAD; mark `already_done` with evidence, do not re-fix |
 | `.context/**` only | Skip (session artifacts), **except** leaked secrets → actionable |
 | Already fixed on HEAD | `already_done` + evidence; do not re-fix |
 | Out of scope / drive-by redesign | `out_of_scope`, or ask if product-ambiguous |
 
 Working table:
 
-`# | source | path:line | claim (one line) | status: pending_validation`
+`# | source | commit | path:line | claim | submittedAt | status: pending_validation`
 
 ### Phase 3 — Validate each item against code
 
@@ -193,6 +212,11 @@ Sum **valid** items still open (exclude `already_done`).
 | Too large and not `--fix-only` | Phase 5b Issues |
 | `--fix-only` but too large | Stop; report inventory + recommended issue split; no partial slog |
 | Zero valid | Report and stop (no commit) |
+| `--dry-run` (any valid count) | Stop after Phase 3; emit inventory + verdict table; no fix, issue, commit, or push |
+
+`--dry-run` short-circuits Phase 5 entirely; the memory artifact (Phase 6) is
+still written because the diagnosis is worth keeping, but the repo and PR are
+not touched.
 
 ### Phase 5a — Fix path
 
@@ -259,6 +283,10 @@ Follow-ups: <none | issue links>
 ```
 
 ## Behavior rules
+
+- **`--dry-run` is no-mutate.** Diagnosis only; never checkout-away dirty work,
+  commit, push, or open issues under `--dry-run`. (Checkout onto the PR head for
+  *reading* code is allowed; mutation is not.)
 
 - **Validate before mutating.** No drive-by "fixes" for unchecked comments.
 - **Evidence over deference.** Seniority does not validate a wrong comment.
