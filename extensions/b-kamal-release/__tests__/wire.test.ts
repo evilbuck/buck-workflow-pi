@@ -52,6 +52,12 @@ describe("parseArgs", () => {
     expect(o.allowDirty).toBe(false);
     expect(o.tag).toBeUndefined();
   });
+  it("does not let a value-flag eat a following flag (--tag --release)", () => {
+    expect(parseArgs("--tag --release").tag).toBeUndefined();
+    expect(parseArgs("--tag").tag).toBeUndefined();
+    expect(parseArgs("--destination --no-push").destination).toBeUndefined();
+  });
+
 });
 
 describe("semver", () => {
