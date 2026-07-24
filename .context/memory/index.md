@@ -1,6 +1,7 @@
 - 2026-07-20 — [b-create-styleguide stamps type/breakpoints/interactions into AGENTS managed block](b-create-styleguide-design-surface-contract-2026-07-20.md) — `completed`
 
 # Memory Index
+  - 2026-07-23 | `b-pr-improved-auto-push-2026-07-23.md` | domains: [implementation, testing, skill] | topics: [b-pr-improved, git-push, pull-request, remote-branch, force-with-lease] | status: completed
   - 2026-07-17 | `code-review-universal-workflow-fit-2026-07-17.md` | domains: [skill, buck-workflow, docs] | topics: [code-review-universal, pr-review, inline-comments, submit-review, frontmatter, workflow-integration] | status: completed
   - 2026-07-05 | `b-loop-skill-creation-2026-07-05.md` | domains: [skill, buck-workflow, omp] | topics: [b-loop, omp-execution, phased-plan, set-goal, advisory-stamp, slash-command-deferral, loop-agnostic, b-flow-deprecation, b-phase, scope-reduction, four-entrypoints, overview-mirror] | status: active
   - 2026-06-28 | `bootstrap-response-style-2026-06-28.md` | domains: [docs, bootstrap, agent] | topics: [global-agents, response-style, concise-default, semantic-summary] | status: completed

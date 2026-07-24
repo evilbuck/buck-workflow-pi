@@ -6,16 +6,16 @@
  * prose): it reuses skills/b-pr/scripts/pr-preflight.ts for the git/gh plumbing
  * (base cache, fetch, rebase, conflict detection, gather) and invokes the model
  * inline via createAgentSession for the two steps that need intelligence —
- * conflict resolution and PR-description synthesis — then creates the PR with gh.
+ * conflict resolution and PR-description synthesis — then pushes and creates the PR.
  *
  * Unlike the deprecated b-flow (xstate orchestration), this is a single
  * self-contained command, closer in spirit to b-grill-auto. The deterministic
- * core (cache / fetch / rebase / conflict-detect / gh) always works; the AI
- * steps degrade gracefully if no model is available.
+ * core (cache / fetch / rebase / conflict-detect / push / gh) always works;
+ * the AI steps degrade gracefully if no model is available.
  *
  * Cross-platform: under Pi/OMP with the extension loaded this runs the code
  * path. Without it, commands/b-pr-improved.md falls back to the b-pr skill,
- * which encodes the same deterministic procedure + script.
+ * which shares the same preflight procedure but leaves pushing to the caller.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -47,6 +47,30 @@ function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
     const err = e as Error & { stderr?: Buffer };
     throw new Error(`git ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`);
   }
+}
+
+export function pushBranchIfAhead(branch: string, cwd: string, allowForceWithLease = false): boolean {
+  const remoteRef = `refs/remotes/origin/${branch}`;
+  try {
+    execGit(["rev-parse", "--verify", remoteRef], cwd);
+  } catch {
+    execGit(["push", "-u", "origin", branch], cwd);
+    return true;
+  }
+
+  const [behind, ahead] = execGit(["rev-list", "--left-right", "--count", `${remoteRef}...${branch}`], cwd)
+    .trim()
+    .split(/\s+/)
+    .map(Number);
+  if (ahead === 0) return false;
+  if (behind > 0 && !allowForceWithLease) {
+    throw new Error(`${remoteRef} has ${behind} commit(s) missing locally; refusing to overwrite it`);
+  }
+
+  const args = ["push"];
+  if (behind > 0) args.push("--force-with-lease");
+  execGit([...args, "-u", "origin", branch], cwd);
+  return true;
 }
 
 function conflictedFiles(cwd: string): string[] {
@@ -281,6 +305,7 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: No
   if (opts.dryRun) pfArgs.push("--dry-run");
 
   let pf = runPreflight(pfArgs, cwd);
+  let rebased = pf.json?.rebased === true;
 
   // Cache miss → the script surfaced candidates but no chosen base. Ask once.
   if (pf.code === 0 && pf.json && !pf.json.chosen_base && pf.json.base_candidates) {
@@ -295,6 +320,7 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: No
     notify(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`, "info");
     const ok = await resolveRebaseConflicts(cwd, base, opts.model, notify);
     if (!ok) return;
+    rebased = true;
     const rerunArgs = opts.base ? ["--base", opts.base] : [];
     pf = runPreflight(rerunArgs, cwd);
     if (pf.code !== 0) {
@@ -314,6 +340,13 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: No
 
   if (opts.dryRun) {
     notify(`[dry-run] Would create PR: ${head} → ${base} (${(gather.commits as unknown[])?.length ?? 0} commits)`, "info");
+    return;
+  }
+
+  try {
+    if (pushBranchIfAhead(head, cwd, rebased)) notify(`Pushed ${head} to origin.`, "info");
+  } catch (e: unknown) {
+    notify(`Branch push failed: ${(e as Error).message}`, "warning");
     return;
   }
 
@@ -346,7 +379,7 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: No
 
 export function wire(pi: ExtensionAPI): void {
   pi.registerCommand("b-pr-improved", {
-    description: "Deterministic PR: cached base, auto-rebase, inline conflict resolution + description, then gh pr create",
+    description: "Deterministic PR: cached base, auto-rebase, push, inline conflict resolution + description, then gh pr create",
     getArgumentCompletions(prefix: string) {
       return ["--base", "--draft", "--dry-run", "--no-cache", "--model"]
         .filter((o) => o.startsWith(prefix))

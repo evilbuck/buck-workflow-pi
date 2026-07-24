@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { wire } from "../index.js";
+import { pushBranchIfAhead, wire } from "../index.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 // Minimal mock: only the ExtensionAPI surface b-pr-improved touches (registerCommand).
@@ -81,6 +81,35 @@ describe("b-pr-improved deterministic plumbing", () => {
       expect(calls[0][0]).toContain("main");
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pushBranchIfAhead", () => {
+  it("pushes only local commits and force-updates only after an explicit rebase", () => {
+    const dir = makeRepo();
+    const origin = mkdtempSync(join(tmpdir(), "bpr-origin-"));
+    const g = (a: string[]) => execFileSync("git", a, { cwd: dir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      execFileSync("git", ["init", "-q", "--bare", origin]);
+      g(["remote", "add", "origin", origin]);
+
+      expect(pushBranchIfAhead("feature/x", dir)).toBe(true);
+      expect(g(["rev-parse", "HEAD"]).trim()).toBe(g(["rev-parse", "origin/feature/x"]).trim());
+      expect(pushBranchIfAhead("feature/x", dir)).toBe(false);
+
+      writeFileSync(join(dir, "feature.txt"), "changed\n");
+      g(["add", "feature.txt"]);
+      g(["commit", "-qm", "feature"]);
+      expect(pushBranchIfAhead("feature/x", dir)).toBe(true);
+
+      g(["commit", "--amend", "-qm", "feature rebased"]);
+      expect(() => pushBranchIfAhead("feature/x", dir)).toThrow(/refusing to overwrite/);
+      expect(pushBranchIfAhead("feature/x", dir, true)).toBe(true);
+      expect(g(["rev-parse", "HEAD"]).trim()).toBe(g(["rev-parse", "origin/feature/x"]).trim());
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(origin, { recursive: true, force: true });
     }
   });
 });
