@@ -23,7 +23,6 @@ import { createAgentSession, SessionManager, SettingsManager } from "@mariozechn
 import { getModel } from "@mariozechner/pi-ai";
 import type { Model } from "@mariozechner/pi-ai";
 import { execFileSync } from "node:child_process";
-import { writeFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -356,22 +355,14 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: No
   const title = deriveTitle(gather);
 
   // 3. Create the PR via gh.
-  const bodyFile = join(cwd, ".git", `b-pr-body-${Date.now()}.md`);
-  writeFileSync(bodyFile, description, "utf-8");
   try {
-    const ghArgs = ["pr", "create", "--base", base, "--title", title, "--body-file", bodyFile];
+    const ghArgs = ["pr", "create", "--base", base, "--title", title, "--body", description];
     if (opts.draft) ghArgs.push("--draft");
     const out = execFileSync("gh", ghArgs, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
     notify(`✅ PR created: ${out}`, "info");
   } catch (e: unknown) {
     const err = e as Error & { stderr?: Buffer };
     notify(`gh pr create failed: ${err.stderr?.toString().trim() || err.message}`, "warning");
-  } finally {
-    try {
-      unlinkSync(bodyFile);
-    } catch {
-      // ignore
-    }
   }
 }
 
