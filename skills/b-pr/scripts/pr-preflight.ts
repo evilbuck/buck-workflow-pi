@@ -11,11 +11,11 @@
 //
 // Exit codes:
 //   0 = success
-//   1 = error (not a git repo, gh not auth, etc.)
-//   2 = feature branch is behind the base branch (needs rebase)
+//   2 = feature branch is behind the base (dry-run only — normally auto-rebased)
+//   3 = rebase onto the base produced conflicts (resolve, then re-run)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------- types ----------
@@ -63,7 +63,11 @@ interface PreflightOutput {
   context_files?: FileStat[];
   diff_stat?: string;
   context_artifacts?: ContextArtifact[];
+  base_source?: "candidates" | "cache" | "flag";
   needs_rebase?: boolean;
+  rebased?: boolean;
+  rebase_conflict?: boolean;
+  conflicted_files?: string[];
   error?: string;
 }
 
@@ -94,6 +98,21 @@ function execGh(args: readonly string[]): string {
   }
 }
 
+// Run git without dying — returns status for ops (like rebase) that may legitimately fail.
+function tryGit(args: readonly string[]): { ok: boolean; stdout: string; stderr: string } {
+  try {
+    const stdout = execFileSync("git", args, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    return { ok: true, stdout, stderr: "" };
+  } catch (e: unknown) {
+    const err = e as Error & { stderr?: Buffer; stdout?: Buffer };
+    return {
+      ok: false,
+      stdout: err.stdout?.toString() ?? "",
+      stderr: err.stderr?.toString().trim() || err.message,
+    };
+  }
+}
+
 // Classify a repo-relative .context/** path into an artifact type, or null.
 // rel looks like ".context/2026-06-11.b-pr-skill/plan-foo.md".
 function artifactType(rel: string): ContextArtifact["type"] | null {
@@ -115,11 +134,23 @@ function artifactType(rel: string): ContextArtifact["type"] | null {
 
 const args = process.argv.slice(2);
 const baseIdx = args.indexOf("--base");
-const chosenBaseArg = baseIdx !== -1 ? args[baseIdx + 1] : undefined;
+let chosenBaseArg = baseIdx !== -1 ? args[baseIdx + 1] : undefined;
+const dryRun = args.includes("--dry-run");
+const noCache = args.includes("--no-cache");
+let baseSource: "candidates" | "cache" | "flag" = chosenBaseArg ? "flag" : "candidates";
 
 // 1. Preflight: git repo
 execGit(["rev-parse", "--is-inside-work-tree"]);
 const repoRoot = execGit(["rev-parse", "--show-toplevel"]).trim();
+const gitDir = execGit(["rev-parse", "--git-dir"]).trim();
+const baseCacheFile = join(gitDir, "b-pr-base"); // base-branch cache (local, per-clone, never committed)
+
+// Bail if a rebase is already mid-flight (unresolved conflicts from a prior run).
+// Checked before the detached-HEAD check: a conflicted rebase leaves HEAD detached,
+// which would otherwise produce a misleading "switch to a feature branch" error.
+if (existsSync(join(gitDir, "rebase-merge")) || existsSync(join(gitDir, "rebase-apply"))) {
+  die(`a rebase is already in progress. Resolve conflicts, run \`git rebase --continue\` until "Successfully rebased", then re-run /b-pr.`);
+}
 
 // 2. Preflight: gh auth
 execGh(["auth", "status"]);
@@ -163,12 +194,29 @@ if (baseCandidates.length === 0) {
   die("no candidate base branches found (checked: main, master, dev, develop)");
 }
 
-// 6. If no --base arg, output candidates and exit
+// 6. Resolve the base: --base flag wins; else the cache; else surface candidates.
 if (!chosenBaseArg) {
+  const cached = noCache ? undefined : (existsSync(baseCacheFile) ? readFileSync(baseCacheFile, "utf-8").trim() || undefined : undefined);
+  if (cached) {
+    // Trust the cache only if the ref still exists locally or on origin.
+    const stillExists = tryGit(["rev-parse", "--verify", `refs/remotes/origin/${cached}`]).ok
+      || tryGit(["rev-parse", "--verify", `refs/heads/${cached}`]).ok;
+    if (stillExists) {
+      chosenBaseArg = cached;
+      baseSource = "cache";
+    } else {
+      try { unlinkSync(baseCacheFile); } catch { /* stale — forget it */ }
+    }
+  }
+}
+
+if (!chosenBaseArg) {
+  // Cache miss → hand candidates to the caller (the skill asks the user once).
   const output: PreflightOutput = {
     current_branch: currentBranch,
     repo_root: repoRoot,
     base_candidates: baseCandidates,
+    base_source: "candidates",
   };
   console.log(JSON.stringify(output, null, 2));
   process.exit(0);
@@ -199,28 +247,69 @@ if (!chosenCandidate) {
   chosenCandidate = { name: chosenBaseArg, exists: true, remote };
 }
 
+// Cache the confirmed base so subsequent runs skip the prompt.
+// (No-op in dry-run so a wrong preview never poisons the cache.)
+if (!dryRun) writeFileSync(baseCacheFile, chosenBaseArg! + "\n");
+
 const baseRef = chosenCandidate.remote ? `${chosenCandidate.remote}/${chosenCandidate.name}` : chosenCandidate.name;
 
 // 8. Check rebase status: is HEAD behind the base?
-const behindAhead = execGit(["rev-list", "--left-right", "--count", `${baseRef}...HEAD`]).trim();
-const [behindStr, aheadStr] = behindAhead.split("\t");
-const behindCount = parseInt(behindStr, 10);
-const aheadCount = parseInt(aheadStr, 10);
+let behindAhead = execGit(["rev-list", "--left-right", "--count", `${baseRef}...HEAD`]).trim();
+let [behindStr, aheadStr] = behindAhead.split("\t");
+let behindCount = parseInt(behindStr, 10);
+let aheadCount = parseInt(aheadStr, 10);
+let rebased = false;
 
 if (behindCount > 0) {
-  const output: PreflightOutput = {
-    current_branch: currentBranch,
-    repo_root: repoRoot,
-    base_candidates: baseCandidates,
-    chosen_base: chosenBaseArg,
-    chosen_base_remote: chosenCandidate.remote,
-    behind_count: behindCount,
-    ahead_count: aheadCount,
-    needs_rebase: true,
-    error: `Feature branch is ${behindCount} commit(s) behind ${baseRef}. Rebase before creating PR.`,
-  };
-  console.log(JSON.stringify(output, null, 2));
-  process.exit(2);
+  if (dryRun) {
+    // Don't mutate during a dry-run — report and stop.
+    const output: PreflightOutput = {
+      current_branch: currentBranch,
+      repo_root: repoRoot,
+      base_candidates: baseCandidates,
+      chosen_base: chosenBaseArg,
+      chosen_base_remote: chosenCandidate.remote,
+      behind_count: behindCount,
+      ahead_count: aheadCount,
+      base_source: baseSource,
+      needs_rebase: true,
+      error: `Feature branch is ${behindCount} commit(s) behind ${baseRef}. Rebase required (--dry-run won't rebase).`,
+    };
+    console.log(JSON.stringify(output, null, 2));
+    process.exit(2);
+  }
+
+  // Fetch already ran (step 4). Replay our commits onto the base.
+  const rebaseResult = tryGit(["rebase", baseRef]);
+  if (!rebaseResult.ok) {
+    const conflictRaw = tryGit(["diff", "--diff-filter=U", "--name-only"]).stdout.trim();
+    const conflictedFiles = conflictRaw ? conflictRaw.split("\n").filter(Boolean) : [];
+    if (conflictedFiles.length === 0) {
+      // Not a merge conflict — dirty tree, hooks, or other refusal. Abort cleanly.
+      die(`git rebase ${baseRef} failed (no merge conflicts detected — likely a dirty tree or hook): ${rebaseResult.stderr}`);
+    }
+    const output: PreflightOutput = {
+      current_branch: currentBranch,
+      repo_root: repoRoot,
+      base_candidates: baseCandidates,
+      chosen_base: chosenBaseArg,
+      chosen_base_remote: chosenCandidate.remote,
+      behind_count: behindCount,
+      ahead_count: aheadCount,
+      base_source: baseSource,
+      rebase_conflict: true,
+      conflicted_files: conflictedFiles,
+      error: `Rebase onto ${baseRef} conflicts in ${conflictedFiles.length} file(s): ${conflictedFiles.join(", ")}. Resolve, \`git add\`, \`git rebase --continue\` until done, then re-run /b-pr.`,
+    };
+    console.log(JSON.stringify(output, null, 2));
+    process.exit(3);
+  }
+  // Clean rebase — recompute counts against the new HEAD.
+  rebased = true;
+  behindAhead = execGit(["rev-list", "--left-right", "--count", `${baseRef}...HEAD`]).trim();
+  [behindStr, aheadStr] = behindAhead.split("\t");
+  behindCount = parseInt(behindStr, 10);
+  aheadCount = parseInt(aheadStr, 10);
 }
 
 // 9. Gather commit log
@@ -325,6 +414,8 @@ const output: PreflightOutput = {
   chosen_base: chosenBaseArg,
   chosen_base_remote: chosenCandidate.remote,
   behind_count: behindCount,
+  base_source: baseSource,
+  rebased,
   ahead_count: aheadCount,
   commits,
   implementation_files_count: implementationFiles.length,
