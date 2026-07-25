@@ -4,7 +4,7 @@
   "commands_run": [],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/b-kamal-release-extension-2026-07-24.md",
+  "memory_file": ".context/memory/b-commit-improved-2026-07-25.md",
   "files_modified": [
     "extensions/b-kamal-release/index.ts",
     "extensions/b-kamal-release/__tests__/wire.test.ts",

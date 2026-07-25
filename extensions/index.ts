@@ -7,6 +7,7 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 
 import { homedir } from "node:os";
 import { wire as wireTpsTracker } from "./tps-tracker.js";
 import { wire as wireBprImproved } from "./b-pr-improved/index.js";
+import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 
 // --- Model Auto-Switch Types ---
@@ -322,6 +323,8 @@ export default function (pi: ExtensionAPI) {
   wireTpsTracker(pi);
   // --- b-pr-improved: deterministic PR creation ---
   wireBprImproved(pi);
+  // --- b-commit-improved: deterministic Conventional Commit ---
+  wireBCommitImproved(pi);
   // --- b-kamal-release: tag + deploy with Kamal ---
   wireKamalRelease(pi);
 
