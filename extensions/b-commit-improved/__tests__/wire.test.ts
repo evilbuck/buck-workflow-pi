@@ -183,6 +183,25 @@ describe("b-commit-improved deterministic plumbing", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("picks the lexicographically-latest subject folder (regression: bash glob replaced with readdirSync)", () => {
+    const dir = makeProtectedRepo();
+    try {
+      // Three folders, latest by name wins. Also include a non-dated entry
+      // that must be ignored.
+      execFileSync("mkdir", ["-p", join(dir, ".context/2026-07-20.alpha")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      execFileSync("mkdir", ["-p", join(dir, ".context/2026-07-25.beta")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      execFileSync("mkdir", ["-p", join(dir, ".context/2026-07-22.gamma")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      execFileSync("mkdir", ["-p", join(dir, ".context/random-not-a-date")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      writeFileSync(join(dir, "a.txt"), "x\n");
+      execFileSync("git", ["add", "a.txt"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      const r = runScript(["--force"], dir);
+      expect(r.code).toBe(0);
+      expect(r.json?.subject_folder).toBe(".context/2026-07-25.beta");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("fallbackDraft", () => {

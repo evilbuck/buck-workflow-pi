@@ -426,10 +426,20 @@ async function runBCommitImproved(
       subjectFolder,
     );
     if (!drafted) {
-      // fallbackDraft was called inside draftFromModel (unless --dry-run, in
-      // which case no file is written and we surface the model error alone).
-      const path = draftPathFor(subjectFolder);
-      notify(`Drafted to ${path}. Re-run /b-commit-improved (or /b-commit) to commit.`, "info");
+      // In a normal run, fallbackDraft inside draftFromModel already wrote
+      // a stub draft-commit.md. In --dry-run, no file is written (per
+      // draftFromModel's contract), so the previous "Drafted to ${path}.
+      // Re-run ... to commit" message was misleading — it claimed a draft
+      // existed when it didn't. Tell the user the real story per mode.
+      if (opts.dryRun) {
+        notify(
+          `[dry-run] No model available and no draft on disk. Re-run /b-commit-improved (or /b-commit) once a model is available to draft.`,
+          "info",
+        );
+      } else {
+        const path = draftPathFor(subjectFolder);
+        notify(`Drafted to ${path}. Re-run /b-commit-improved (or /b-commit) to commit.`, "info");
+      }
       return;
     }
     title = drafted.title;

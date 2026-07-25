@@ -18,7 +18,7 @@
 //   1 = git itself is broken (not a repo, detached HEAD, etc.)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------- types ----------
@@ -130,14 +130,16 @@ try {
   die("detached HEAD state — switch to a feature branch first", 1);
 }
 
-// 4. Detect active subject folder (same `ls -dt` as the git-commit skill:31).
+// 4. Detect active subject folder. Filter to YYYY-MM-DD.* entries and take the
+//    most recent by name (date prefix sorts the same as creation order in
+//    practice). Pure Node — no shell glob, so untrusted .context/ names
+//    cannot steer the result.
 let subjectFolder: string | null = null;
 try {
-  const raw = execFileSync("bash", ["-c", "ls -dt .context/????-??-??.*/ 2>/dev/null | head -1"], {
-    encoding: "utf-8",
-    stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
-  if (raw) subjectFolder = raw.replace(/\/$/, "");
+  const dirs = readdirSync(".context/")
+    .filter((n) => /^\d{4}-\d{2}-\d{2}\./.test(n))
+    .sort();
+  if (dirs.length > 0) subjectFolder = `.context/${dirs[dirs.length - 1]}`;
 } catch {
   // no .context/ folder — leave null
 }

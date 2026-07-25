@@ -406,8 +406,12 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     notify(`Tag ${tag} already exists. Pass --force to overwrite or --tag <other>.`, "error");
     return;
   }
-  const version = tag.replace(/^v/, "");
-
+  // Use the resolved `tag` directly for --version= so the kamal image and
+  // the git tag stay in lock-step. Previously the leading 'v' was stripped
+  // here, so a project with v-prefixed tags (--tag 1.2.3 against a v1.0.0
+  // history) would tag v1.2.3 but deploy with --version=1.2.3 — a mismatch
+  // when the image is built as `app:v1.2.3`.
+  const version = tag;
   // Build a human-readable plan for dry-run / confirmation feedback.
   const plan = [
     `tag: ${tag}${opts.skipTag ? " (skipped)" : ""}`,
