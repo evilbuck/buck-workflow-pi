@@ -1,6 +1,6 @@
 ---
 name: b-pr
-description: Create a GitHub pull request from the current feature branch. Detects and verifies the base branch with the user, checks rebase status, generates a description from the implementation diff — using `.context/**` artifacts only as the research that informed the work (never as part of it) — optionally polishes via a parallel subagent, then creates the PR via `gh`.
+description: Create a GitHub pull request from the current feature branch. Resolves and caches the base branch, auto-rebases against it (resolving conflicts in-line), generates a description from the implementation diff — using `.context/**` artifacts only as the research that informed the work (never as part of it) — optionally polishes via a parallel subagent, then creates the PR via `gh` with no confirmation gate.
 ---
 
 # b-pr: Pull Request Agent
@@ -19,71 +19,69 @@ Create a GitHub pull request from the current feature branch with a well-crafted
 ## Invocation
 
 ```
-/b-pr              # interactive: detect base, confirm, gather, create
-/b-pr --base main  # skip base detection, use 'main' directly
+/b-pr              # resolve base (cached or detect), rebase, gather, create — no confirm gate
+/b-pr --base main  # override the cached base (re-caches 'main')
+/b-pr --no-cache   # ignore the cached base; re-prompt for the target
 /b-pr --draft      # create as draft PR
-/b-pr --dry-run    # show what would be created without creating it
+/b-pr --dry-run    # show what would be created; does NOT rebase or create
 ```
 
 ## Procedure
 
-### Phase 1: Preflight — Detect Base Branch
+### Phase 1: Resolve the Base Branch
 
-Run the preflight script **without** `--base` to detect candidates:
+Run the preflight with no `--base`. It resolves the base in priority order: `--base` flag → **cached base** → candidate detection.
 
 ```bash
 bun skills/b-pr/scripts/pr-preflight.ts
 ```
 
-The script outputs JSON with `base_candidates` — branches that exist as remote refs (main, master, dev, develop). It also reports the current branch.
+Branch on the output's `base_source`:
 
-**If `--base` was provided by the user**, skip ahead to Phase 2 with that value.
+- **`"cache"`** (output has `chosen_base`): a prior run remembered the pick in `.git/b-pr-base`. **Use it directly — do not re-ask.** This single run validated, rebased, and gathered — interpret its exit code per Phase 2 (on exit 0, proceed to Phase 3).
+- **`"candidates"`** (output has only `base_candidates`, no `chosen_base`): cache miss. Present the candidates and ask the user **once**:
 
-Otherwise, **STOP and present the candidates to the user**:
+  ```
+  Current branch: feature/my-thing
 
-```
-Current branch: feature/my-thing
+  Detected base branches:
+  1. main (origin/main)
 
-Detected base branches:
-1. main (origin/main)
-2. dev (origin/dev)
+  Which is the target base for this PR?
+  ```
 
-Which is the target base for this PR?
-```
+  The user may type a branch not in the list. Re-run with their pick — the script validates it and **writes it to the cache** on success, so later runs skip this prompt:
 
-**WAIT for user input.** Do not guess. The user may also type a branch name not in the list — accept it and validate in Phase 2.
+  ```bash
+  bun skills/b-pr/scripts/pr-preflight.ts --base <pick>
+  ```
 
-### Phase 2: Preflight — Full Gather + Rebase Check
+  Then interpret that run's exit code per Phase 2.
 
-Re-run the preflight script with the confirmed base:
+**The cache is the source of truth for "don't re-ask".** Override: `--base <name>` (re-caches) or `--no-cache` (re-prompt once). Clear it: `rm $(git rev-parse --git-dir)/b-pr-base`.
 
-```bash
-bun skills/b-pr/scripts/pr-preflight.ts --base <confirmed>
-```
+### Phase 2: Rebase + Gather
 
-The script now:
-1. Validates the chosen base exists
-2. Checks if the feature branch is **behind** the base (commits on base not in feature)
-3. If behind → exits with code 2 and `needs_rebase: true`
-4. If current → gathers commit log, `diff_stat`/`implementation_files[]` (the implementation), and `context_files[]` + `context_artifacts[]` (the `.context/**` research that informed it)
+Whenever the script runs with a resolved base (cache hit, or a `--base` re-run), it fetches origin (`git fetch --prune`) and — if the branch is behind the base — **rebases automatically** (`git rebase origin/<base>`). Act on the exit code:
 
-**If the script exits with code 2 (needs rebase):**
+| Exit | Meaning | Action |
+|---|---|---|
+| 0 | up to date, or clean rebase done | parse JSON, proceed to Phase 3 |
+| 1 | error (not a repo, gh unauth'd, rebase already in progress, dirty tree) | surface the message, stop |
+| 2 | behind, but `--dry-run` was passed | report, stop |
+| 3 | **rebase conflict** | resolve (below), then re-run this phase |
 
-```
-⚠️ Feature branch is N commit(s) behind <base>.
+**Exit 3 — conflict resolution (you are the model):** the JSON carries `rebase_conflict: true` and `conflicted_files[]`.
 
-Rebase before creating the PR:
-  git fetch origin
-  git rebase origin/<base>
+1. For each path in `conflicted_files[]`, read the file, reconcile both sides, strip the `<<<<<<<` / `=======` / `>>>>>>>` markers, and write the correct merged content.
+2. Stage: `git add <each resolved file>`.
+3. Continue, accepting default messages: `GIT_EDITOR=true git rebase --continue`.
+4. If it reports more conflicts, repeat from step 1. Loop until it prints `Successfully rebased`.
+5. Re-run the preflight. The branch is now up to date (`behind_count: 0`); the script proceeds to gather.
 
-Then re-run /b-pr.
-```
+**Never `git rebase --skip` a real conflict** — that drops work. If a conflict is genuinely unresolvable, stop and report it.
 
-**STOP. Do not create the PR.**
-
-**If the script exits with code 1 (error):** Surface the error message and stop.
-
-**If the script exits with code 0:** Parse the JSON output and proceed to Phase 3.
+**Exit 0:** the JSON has `commits[]`, `implementation_files[]`, `context_files[]`, `context_artifacts[]`, `diff_stat`. Proceed to Phase 3.
 
 ### Phase 3: Description Synthesis
 
@@ -230,48 +228,21 @@ Return ONLY the polished markdown description. No preamble, no explanation.
 
 **If no parallel subagent is available**, skip this phase — the description from Phase 3 is used directly. Do not block on this.
 
-### Phase 5: User Review
+### Phase 5: Create the PR
 
-Present the final description to the user:
+There is **no confirmation gate**: the base was resolved in Phase 1 and the branch is rebased and up to date after Phase 2, so create directly. Log the shape once for the record, then create:
 
 ```
-PR Draft:
-  Branch: feature/my-thing → main
-  Commits: N
-  Files changed: N
-
-Description:
-<paste the full description>
-
-Create this PR? [y/n/edit]
+Creating PR:
+  Branch: <head> → <base>
+  Commits: N   Files changed: N
 ```
 
-- **y** → proceed to Phase 6
-- **n** → abort
-- **edit** → let the user provide edits, then re-present
+**PR title**: first commit subject if descriptive, else synthesize a short title from the description's summary. Max 72 chars, Conventional Commits style if the commits use it.
 
-If `--draft` was specified, note it: `Create this draft PR? [y/n/edit]`
-
-If `--dry-run` was specified, stop here and report what would have been created.
-
-### Phase 6: Create the PR
-
-Build the `gh pr create` command:
+**Body**: write the description to a temp file and pass via `--body-file` to avoid shell quoting:
 
 ```bash
-gh pr create \
-  --base <confirmed-base> \
-  --title "<PR title>" \
-  --body "<PR description>" \
-  [--draft]  # only if --draft was specified
-```
-
-**PR title**: Use the first commit subject if it's descriptive, or synthesize a short title from the description's summary. Max 72 chars. Follow Conventional Commits style if the commits do.
-
-**Body**: Pass via `--body-file` to avoid shell quoting issues. Write the description to a temp file:
-
-```bash
-# Write description to temp file
 cat > /tmp/pr-body.md << 'PR_BODY_EOF'
 <description markdown>
 PR_BODY_EOF
@@ -279,12 +250,14 @@ PR_BODY_EOF
 gh pr create --base <base> --title "<title>" --body-file /tmp/pr-body.md [--draft]
 ```
 
+If `--dry-run` was specified, **stop before** `gh pr create` and report what would have been created.
+
 **If `gh pr create` fails**, surface the error. Common issues:
 - No commits between base and head → branch already merged or empty
 - Push required → `git push -u origin <branch>` first
 - Auth issue → `gh auth login`
 
-### Phase 7: Report
+### Phase 6: Report
 
 After successful creation, report:
 
@@ -296,18 +269,18 @@ After successful creation, report:
   Draft: yes/no
 ```
 
+
 ## Behavior Rules
 
-- **Never create a PR without user confirmation** of both the base branch and the description.
+- **The base branch is resolved once, then cached.** First run detects candidates and asks the user; the pick is written to `.git/b-pr-base` and reused without asking. Override with `--base <name>` (re-caches) or `--no-cache` (re-prompt once).
+- **There is no PR-creation confirmation gate.** The base is resolved in Phase 1 and the branch is rebased + current after Phase 2; Phase 5 creates directly. `--dry-run` is the preview escape hatch.
+- **The script rebases automatically.** Do not hand the user `git fetch && git rebase` — the preflight does it. Only exit 3 (conflict) needs you.
+- **Resolve rebase conflicts yourself, in full.** Never `git rebase --skip` to dodge one. Loop resolve → `git add` → `git rebase --continue` until `Successfully rebased`, then re-run the preflight.
 - **Never auto-push.** If the branch hasn't been pushed, tell the user to push first.
-- **Never create a PR against a protected branch** unless the user explicitly confirms it. If the base is `main`/`master`/`dev`/`develop`, add a warning:
-  ```
-  ⚠️ Target base is a protected branch (<base>). Are you sure? [y/n]
-  ```
-- **Do not create the PR if the branch needs rebasing.** Fix the rebase first.
+- **Never create a PR against a protected branch** the user did not choose. The first-run prompt is the confirmation; cached bases were confirmed on first use.
 - **Do not pad the description.** A short, accurate description beats a long one full of filler.
 - **The script is the source of truth** for branch names, commit counts, and the `implementation_files[]` / `context_files[]` split. Do not re-derive these from memory, and do not move `.context/**` files into "Files Changed".
-- **`--dry-run` never creates anything.** It stops after Phase 5 and reports.
+- **`--dry-run` never creates or rebases anything.** It reports what would be created and stops.
 
 ## `.context/**` Is Research, Not Implementation
 
