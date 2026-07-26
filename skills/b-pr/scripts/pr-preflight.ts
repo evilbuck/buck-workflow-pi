@@ -10,9 +10,10 @@
 //   bun skills/b-pr/scripts/pr-preflight.ts --base main  # full gather against chosen base
 //
 // Exit codes:
-//   0 = success
-//   2 = feature branch is behind the base (dry-run only — normally auto-rebased)
-//   3 = rebase onto the base produced conflicts (resolve, then re-run)
+//   0 = success (base resolved, gathered)
+//   1 = error (not a git repo, gh not auth, rebase in-progress, etc.)
+//   2 = behind + --dry-run (would rebase; reported and stopped)
+//   3 = rebase conflict (resolve, then re-run)
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
