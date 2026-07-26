@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { pushBranchIfAhead, wire } from "../index.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
@@ -79,6 +80,81 @@ describe("b-pr-improved deterministic plumbing", () => {
       expect(calls.length).toBe(1);
       expect(calls[0][0]).toMatch(/No cached base/);
       expect(calls[0][0]).toContain("main");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pr-preflight dirty-tree rebase", () => {
+  // Resolve the skill script the same way the extension does (repo-relative from this test file).
+  const PREFLIGHT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "skills", "b-pr", "scripts", "pr-preflight.ts");
+
+  function runPreflight(dir: string, args: string[]): { code: number; json: Record<string, unknown> | null; stderr: string } {
+    try {
+      const stdout = execFileSync("bun", [PREFLIGHT, ...args], {
+        cwd: dir,
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      return { code: 0, json: JSON.parse(stdout) as Record<string, unknown>, stderr: "" };
+    } catch (e: unknown) {
+      const err = e as Error & { status?: number; stdout?: string; stderr?: string };
+      const stdout = err.stdout?.toString() ?? "";
+      let json: Record<string, unknown> | null = null;
+      try {
+        json = stdout.trim() ? (JSON.parse(stdout) as Record<string, unknown>) : null;
+      } catch {
+        json = null;
+      }
+      return { code: typeof err.status === "number" ? err.status : 1, json, stderr: err.stderr?.toString() ?? "" };
+    }
+  }
+
+  it("rebases with unstaged tracked changes via --autostash and restores them", () => {
+    const dir = makeRepo();
+    const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+    const g = (a: string[]) => execFileSync("git", a, { cwd: dir, encoding: "utf-8", env, stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      // Feature commit first.
+      writeFileSync(join(dir, "feature.txt"), "feature\n");
+      g(["add", "feature.txt"]);
+      g(["commit", "-qm", "feature"]);
+
+      // Advance main so feature is behind (the condition that triggers rebase).
+      g(["checkout", "-q", "main"]);
+      writeFileSync(join(dir, "base.txt"), "base advance\n");
+      g(["add", "base.txt"]);
+      g(["commit", "-qm", "base advance"]);
+      g(["checkout", "-q", "feature/x"]);
+
+      // Dirty tracked file — this used to make plain `git rebase` refuse and exit 1.
+      writeFileSync(join(dir, "README.md"), "# test\nWIP local edit\n");
+
+      const result = runPreflight(dir, ["--base", "main"]);
+      expect(result.code).toBe(0);
+      expect(result.json).not.toBeNull();
+      expect(result.json!.rebased).toBe(true);
+      expect(result.json!.behind_count).toBe(0);
+      expect(result.json!.chosen_base).toBe("main");
+
+      // WIP must survive the autostash round-trip.
+      const readme = readFileSync(join(dir, "README.md"), "utf-8");
+      expect(readme).toContain("WIP local edit");
+      // Feature tip should now sit on top of the advanced main (throws if not ancestor).
+      expect(() => g(["merge-base", "--is-ancestor", "main", "HEAD"])).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("die() emits JSON on stdout so orchestrators can surface the message", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bpr-notgit-"));
+    try {
+      const result = runPreflight(dir, ["--base", "main"]);
+      expect(result.code).toBe(1);
+      expect(result.json).not.toBeNull();
+      expect(String(result.json!.error)).toMatch(/git /);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

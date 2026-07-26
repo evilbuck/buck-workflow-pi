@@ -74,7 +74,9 @@ interface PreflightOutput {
 // ---------- utilities ----------
 
 function die(msg: string, code = 1): never {
+  // stderr for humans; stdout JSON so orchestrators (b-pr-improved) can surface the message.
   console.error(`pr-preflight: error: ${msg}`);
+  console.log(JSON.stringify({ error: msg }));
   process.exit(code);
 }
 
@@ -280,13 +282,16 @@ if (behindCount > 0) {
   }
 
   // Fetch already ran (step 4). Replay our commits onto the base.
-  const rebaseResult = tryGit(["rebase", baseRef]);
+  // --autostash: dirty tracked files are stashed before the rebase and popped after,
+  // so local WIP never blocks an otherwise-clean rebase (the failure mode that used
+  // to surface as exit 1 "no output" in b-pr-improved).
+  const rebaseResult = tryGit(["rebase", "--autostash", baseRef]);
   if (!rebaseResult.ok) {
     const conflictRaw = tryGit(["diff", "--diff-filter=U", "--name-only"]).stdout.trim();
     const conflictedFiles = conflictRaw ? conflictRaw.split("\n").filter(Boolean) : [];
     if (conflictedFiles.length === 0) {
-      // Not a merge conflict — dirty tree, hooks, or other refusal. Abort cleanly.
-      die(`git rebase ${baseRef} failed (no merge conflicts detected — likely a dirty tree or hook): ${rebaseResult.stderr}`);
+      // Not a merge conflict — hook refusal, autostash apply failure, or other.
+      die(`git rebase --autostash ${baseRef} failed (no merge conflicts detected — hook or other refusal): ${rebaseResult.stderr}`);
     }
     const output: PreflightOutput = {
       current_branch: currentBranch,
