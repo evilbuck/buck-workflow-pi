@@ -277,7 +277,11 @@ function parseArgs(args: string): Options {
   const tokens = args.split(/\s+/).filter(Boolean);
   const get = (flag: string): string | undefined => {
     const i = tokens.indexOf(flag);
-    return i !== -1 ? tokens[i + 1] : undefined;
+    if (i === -1 || i + 1 >= tokens.length) return undefined;
+    const next = tokens[i + 1];
+    // Never consume another option as this one's value; fall through to detection.
+    if (next.startsWith("-")) return undefined;
+    return next;
   };
   return {
     base: get("--base"),

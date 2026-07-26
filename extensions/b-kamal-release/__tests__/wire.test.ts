@@ -179,7 +179,7 @@ function makeKamalRepo(destinations: string[] = []): string {
   const dir = makeRepo();
   mkdirSync(join(dir, "config"), { recursive: true });
   writeFileSync(join(dir, "config", "deploy.yml"), "service: app\nimage: app\n");
-  for (const d of destinations) writeFileSync(join(dir, "config", `deploy.${d}.yml`), "x: 1\n");
+  for (const d of destinations) writeFileSync(join(dir, "config", `deploy.${d}.yml`), `x: 1\n`);
   execFileSync("git", ["add", "-A"], { cwd: dir });
   execFileSync("git", ["commit", "-qm", "add kamal config"], { cwd: dir });
   return dir;
@@ -334,6 +334,24 @@ describe("runKamalRelease deterministic paths", () => {
       const joined = calls.map((c) => c[0]).join("\n");
       expect(joined).toMatch(/kamal deploy -d staging/);
       expect(joined).not.toMatch(/--version=/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("matches --version to the resolved tag prefix (v-prefixed project)", async () => {
+    // Regression: previously the `v` was stripped twice — once when resolving
+    // the tag (with prefix) and again right before the kamal deploy, so a
+    // project with v1.0.0 history got --version=1.2.3 while the git tag was
+    // v1.2.3. The image (app:v1.2.3) and the deploy arg (1.2.3) diverged.
+    const dir = makeKamalRepo([]);
+    execFileSync("git", ["tag", "-a", "v1.0.0", "-m", "prior"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      const calls: Array<[string, string?]> = [];
+      await runKamalRelease("--tag 1.2.3 --dry-run", { cwd: dir, hasUI: false, ui: { notify: (m, l) => calls.push([m, l]) } });
+      const joined = calls.map((c) => c[0]).join("\n");
+      expect(joined).toMatch(/tag: v1\.2\.3/);
+      expect(joined).toMatch(/--version=v1\.2\.3/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

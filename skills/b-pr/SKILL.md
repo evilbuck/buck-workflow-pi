@@ -62,12 +62,12 @@ Branch on the output's `base_source`:
 
 ### Phase 2: Rebase + Gather
 
-Whenever the script runs with a resolved base (cache hit, or a `--base` re-run), it fetches origin (`git fetch --prune`) and — if the branch is behind the base — **rebases automatically** (`git rebase origin/<base>`). Act on the exit code:
+Whenever the script runs with a resolved base (cache hit, or a `--base` re-run), it fetches origin (`git fetch --prune`) and — if the branch is behind the base — **rebases automatically** (`git rebase --autostash origin/<base>`). Dirty tracked files are stashed for the rebase and restored after; you do not need to clean the tree first. Act on the exit code:
 
 | Exit | Meaning | Action |
 |---|---|---|
 | 0 | up to date, or clean rebase done | parse JSON, proceed to Phase 3 |
-| 1 | error (not a repo, gh unauth'd, rebase already in progress, dirty tree) | surface the message, stop |
+| 1 | error (not a repo, gh unauth'd, rebase already in progress, hook failure) | surface `error` from the JSON (also on stderr), stop |
 | 2 | behind, but `--dry-run` was passed | report, stop |
 | 3 | **rebase conflict** | resolve (below), then re-run this phase |
 
@@ -274,7 +274,7 @@ After successful creation, report:
 
 - **The base branch is resolved once, then cached.** First run detects candidates and asks the user; the pick is written to `.git/b-pr-base` and reused without asking. Override with `--base <name>` (re-caches) or `--no-cache` (re-prompt once).
 - **There is no PR-creation confirmation gate.** The base is resolved in Phase 1 and the branch is rebased + current after Phase 2; Phase 5 creates directly. `--dry-run` is the preview escape hatch.
-- **The script rebases automatically.** Do not hand the user `git fetch && git rebase` — the preflight does it. Only exit 3 (conflict) needs you.
+- **The script rebases automatically** with `--autostash`. Do not hand the user `git fetch && git rebase` or ask them to stash first — the preflight does both. Only exit 3 (conflict) needs you.
 - **Resolve rebase conflicts yourself, in full.** Never `git rebase --skip` to dodge one. Loop resolve → `git add` → `git rebase --continue` until `Successfully rebased`, then re-run the preflight.
 - **Never auto-push.** If the branch hasn't been pushed, tell the user to push first.
 - **Never create a PR against a protected branch** the user did not choose. The first-run prompt is the confirmation; cached bases were confirmed on first use.

@@ -1,7 +1,15 @@
+- 2026-07-26 — [b-pr preflight dirty-tree autostash](b-pr-preflight-autostash-2026-07-26.md) — `completed`
+- 2026-07-26 — [fix-pr: PR #3 exit-code comment fix](fix-pr-3-exit-code-comment-2026-07-26.md) — `completed`
+
+- 2026-07-25 — [b-commit-improved — deterministic Conventional Commits](b-commit-improved-2026-07-25.md) — `completed`
+- 2026-07-25 — [fix-pr: PR #3 review comments](fix-pr-3-2026-07-25.md) — `completed`
 - 2026-07-20 — [b-create-styleguide stamps type/breakpoints/interactions into AGENTS managed block](b-create-styleguide-design-surface-contract-2026-07-20.md) — `completed`
 
-# Memory Index
-  - 2026-07-24 | `b-kamal-release-extension-2026-07-24.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-kamal-release, kamal, deploy, git-tag, semver, release, destinations, pi-extension, omp, ctx-ui] | status: active
+  - 2026-07-26 | `b-pr-preflight-autostash-2026-07-26.md` | domains: [debugging, implementation, testing, skill] | topics: [b-pr, b-pr-improved, pr-preflight, autostash, rebase, dirty-tree, json-error] | status: completed
+  - 2026-07-26 | `fix-pr-3-exit-code-comment-2026-07-26.md` | domains: [review, fixes, docs] | topics: [fix-pr, pr-3, b-pr, pr-preflight, exit-codes, comment-update] | status: completed
+  - 2026-07-25 | `b-commit-improved-2026-07-25.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-commit-improved, git-commit, conventional-commits, draft-commit, pi-extension, omp, deterministic-script, bun-script, exit-code-contract] | status: completed
+  - 2026-07-25 | `fix-pr-3-2026-07-25.md` | domains: [review, fixes] | topics: [fix-pr, pr-3, kamal, b-commit-improved, commit-preflight, security-hardening, semver-prefix] | status: completed
+   - 2026-07-24 | `b-kamal-release-extension-2026-07-24.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-kamal-release, kamal, deploy, git-tag, semver, release, destinations, pi-extension, omp, ctx-ui] | status: active
   - 2026-07-24 | `b-pr-improved-worktree-enotdir-2026-07-24.md` | domains: [debugging, implementation, testing, extensions, git] | topics: [b-pr-improved, linked-worktree, enotdir, git-dir, gh-cli, pull-request] | status: completed
   - 2026-07-23 | `b-pr-improved-auto-push-2026-07-23.md` | domains: [implementation, testing, skill] | topics: [b-pr-improved, git-push, pull-request, remote-branch, force-with-lease] | status: completed
   - 2026-07-17 | `code-review-universal-workflow-fit-2026-07-17.md` | domains: [skill, buck-workflow, docs] | topics: [code-review-universal, pr-review, inline-comments, submit-review, frontmatter, workflow-integration] | status: completed
