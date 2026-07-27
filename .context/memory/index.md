@@ -1,3 +1,5 @@
+- 2026-07-26 — [b-init-guardrails review iteration](b-init-guardrails-iteration-2026-07-26.md) — `completed`
+
 - 2026-07-26 — [b-pr preflight dirty-tree autostash](b-pr-preflight-autostash-2026-07-26.md) — `completed`
 - 2026-07-26 — [fix-pr: PR #3 exit-code comment fix](fix-pr-3-exit-code-comment-2026-07-26.md) — `completed`
 

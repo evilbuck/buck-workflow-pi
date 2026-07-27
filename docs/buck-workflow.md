@@ -376,6 +376,8 @@ flowchart TD
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
 | [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
+| [**b-init-guardrails**](#b-init-guardrails--quality-guardrails-init) | Prompt template | `/b-init-guardrails` | `prompts/b-init-guardrails.md` + `skills/b-init-guardrails/SKILL.md` | One-shot, idempotent initialization of quality guardrails (tests, coverage, cyclomatic complexity) with a brownfield ratchet |
+| [**b-guardrails-check**](#b-guardrails-check--guardrails-measurement) | Prompt template | `/b-guardrails-check` | `prompts/b-guardrails-check.md` + `skills/b-guardrails-check/SKILL.md` | Measure coverage and cyclomatic complexity, compare against gates, return structured verdict. Measures only — never edits |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
@@ -572,6 +574,44 @@ informs: []  # Plans/specs this research fed into
 **Next Steps**: `/b-plan` (to formalize), `/skill:b-phase` (if phasing recommended)
 
 ---
+#### `/b-init-guardrails` — Quality Guardrails Init
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Initialize tests, coverage, and cyclomatic-complexity guardrails in greenfield or brownfield repos without failing existing debt on day one.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-init-guardrails.md` in Pi, `commands/b-init-guardrails.md` symlink in OMP) backed by `skills/b-init-guardrails/SKILL.md`.
+
+**Behavior**:
+- Detects the repo stack and existing quality tooling.
+- Proposes missing tooling/config changes and waits for approval before modifying manifests.
+- Measures the current coverage and complexity baseline.
+- Writes `guardrails.json` with a patch-coverage gate plus monotonic global ratchet.
+- Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
+
+**Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes.
+
+---
+
+#### `/b-guardrails-check` — Guardrails Measurement
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Measure coverage and cyclomatic complexity against `guardrails.json`, then return a structured verdict. Measures only; never edits.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-guardrails-check.md` in Pi, `commands/b-guardrails-check.md` symlink in OMP) backed by `skills/b-guardrails-check/SKILL.md`.
+
+**Behavior**:
+- Resolves `guardrails.json`.
+- Runs recorded coverage and complexity commands.
+- Applies the patch gate, global ratchet, and baseline-aware complexity gate.
+- Reports pass/fail gates plus proposed ratchet updates for the caller to apply at a coherent point.
+- Can be dispatched asynchronously by OMP callers or run synchronously by portable callers.
+
+**Next Steps**: Fix failing gates, apply approved ratchet improvements, then re-run `/b-guardrails-check`.
+
+---
+
 
 #### `/b-plan` — Create Bounded Plan
 
