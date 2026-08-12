@@ -1,3 +1,6 @@
+- 2026-08-12 — [npm publish readiness (blocked on test gate)](npm-publish-readiness-2026-08-12.md) — `active`
+- 2026-08-12 — [Standalone B-Plan bootstrap build](standalone-b-plan-bootstrap-build-2026-08-12.md) — `completed`
+
 - 2026-07-26 — [b-init-guardrails review iteration](b-init-guardrails-iteration-2026-07-26.md) — `completed`
 
 - 2026-07-26 — [b-pr preflight dirty-tree autostash](b-pr-preflight-autostash-2026-07-26.md) — `completed`
