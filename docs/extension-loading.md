@@ -106,7 +106,7 @@ ln -s ../prompts/b-newcommand.md commands/b-newcommand.md
 
 ```
 buck-workflow-pi/
-  package.json              # @buckleyrobinson/buck-workflow
+  package.json              # buck-workflow
                             # `pi` and `omp` keys: extensions entry point
   extensions/
     index.ts                # Model auto-switch for phased plans + TPS tracker

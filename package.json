@@ -1,15 +1,44 @@
 {
-  "name": "@buckleyrobinson/buck-workflow",
+  "name": "buck-workflow",
   "version": "0.2.0",
   "description": "Buck workflow for structured AI-assisted development — plan, build, review, save with durable context management",
   "bin": {
     "buck-workflow": "./scripts/install.mjs"
   },
   "type": "module",
+  "files": [
+    "skills",
+    "prompts",
+    "commands",
+    "extensions",
+    "scripts",
+    "docs",
+    "README.md",
+    "agent-install_instructions.md",
+    "GLOBAL_OR_PROJECT-AGENTS.md"
+  ],
   "keywords": [
-    "pi-package"
+    "pi-package",
+    "ai-agent",
+    "workflow",
+    "skills",
+    "agent-skills"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/evilbuck/buck-workflow-pi.git"
+  },
+  "homepage": "https://github.com/evilbuck/buck-workflow-pi#readme",
+  "bugs": {
+    "url": "https://github.com/evilbuck/buck-workflow-pi/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "pi": {
     "extensions": [
       "./extensions/index.ts"
@@ -39,6 +68,14 @@
     "@mariozechner/pi-coding-agent": "*",
     "@sinclair/typebox": "*"
   },
+  "peerDependenciesMeta": {
+    "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@sinclair/typebox": {
+      "optional": true
+    }
+  },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
@@ -51,10 +88,16 @@
     "playwright:install": "playwright install chromium",
     "playwright:report": "npx playwright show-report",
     "context:index": "node scripts/context-artifacts.mjs index",
-    "context:validate": "node scripts/context-artifacts.mjs validate"
+    "context:validate": "node scripts/context-artifacts.mjs validate",
+    "prepublishOnly": "npm test",
+    "release": "node scripts/publish.mjs"
   },
   "devDependencies": {
+    "@mariozechner/pi-ai": "0.73.1",
+    "@mariozechner/pi-coding-agent": "0.73.1",
+    "@mariozechner/pi-tui": "0.73.1",
     "@playwright/test": "^1.60.0",
+    "@sinclair/typebox": "^0.34.52",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
