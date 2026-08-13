@@ -170,6 +170,9 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 ### Skills
 
 | Skill | Purpose |
+|-------|---------|
+| `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
+| `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
 | `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |

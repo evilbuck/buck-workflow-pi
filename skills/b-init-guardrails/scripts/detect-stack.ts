@@ -195,8 +195,8 @@ function resolveFunctionalSignals(signals: RepoSignals, ecosystem: string): stri
     return null;
   }
   if (ecosystem === "python") {
-    if (signals.files.includes("tests/e2e")) return "pytest tests/e2e";
-    if (signals.files.includes("tests/functional")) return "pytest tests/functional";
+    if (existsSync(join(signals.root, "tests/e2e"))) return "pytest tests/e2e";
+    if (existsSync(join(signals.root, "tests/functional"))) return "pytest tests/functional";
     return null;
   }
   if (ecosystem === "go") {
@@ -215,8 +215,8 @@ function resolveFunctionalSignals(signals: RepoSignals, ecosystem: string): stri
     return integration ? "go test -tags=integration ./..." : null;
   }
   if (ecosystem === "ruby") {
-    if (signals.files.includes("spec/system")) return "rspec spec/system";
-    if (signals.files.includes("spec/features")) return "rspec spec/features";
+    if (existsSync(join(signals.root, "spec/system"))) return "rspec spec/system";
+    if (existsSync(join(signals.root, "spec/features"))) return "rspec spec/features";
     return null;
   }
   if (ecosystem === "java" || ecosystem === "kotlin") {
