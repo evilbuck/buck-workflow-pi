@@ -14,23 +14,71 @@ Turn the user's request into a bounded implementation plan using:
 
 **Do not require an existing `research-*.md` file to proceed.**
 
+## Active Capability Probe (Run First)
+
+This is the first executable step. Run it **before** Subject Resolution and
+before reading `_shared`, sibling skills, repository documentation, OMP
+examples, package manifests, or installer files.
+
+Probe the active harness's loader-native skill catalog or exact-name resolver
+for these canonical sentinels:
+
+- `b-build`
+- `b-review`
+- `b-save`
+
+An injected "available skills" catalog, a loader API that resolves an exact
+skill name for the current session, or a harness command that reports
+session-resolved skills is authoritative. A source checkout, readable
+`SKILL.md`, package manifest, harness executable, `.context/` directory,
+bootstrap `AGENTS.md`/`CLAUDE.md`, or install record is **not** evidence that a
+skill is loaded. Do not shell-scan known global skill directories and do not
+read sentinel files merely to prove they exist.
+
+**Hard evidence gate:** when the session context already injects an available
+skills catalog, use it directly without tool calls. Record a `probe_source`
+such as `system available-skills catalog` or the exact loader-native resolver.
+If the only possible check would use filesystem listing, globbing, file reads,
+package metadata, environment variables, or install directories, set
+`probe_source: unavailable` and classify `unknown`; do not run those checks.
+
+
+Classify the result deterministically:
+
+| State | Evidence | Mode |
+|---|---|---|
+| `full` | All 3 sentinels resolve in an authoritative active-session probe | Full Buck Workflow |
+| `partial` | 1–2 sentinels resolve in an authoritative probe | Standalone mini workflow; name the missing sentinels and offer repair guidance |
+| `standalone` | 0 sentinels resolve in an authoritative probe | Standalone mini workflow; offer installation guidance |
+| `unknown` | The runtime exposes no reliable inventory or resolver | Standalone mini workflow; make installation guidance conditional and never claim absence |
+
+State the result and its evidence once near the start. The current skill proves
+only that B-Plan is available. If the probe is `unknown`, do not turn a
+successful filesystem read into `full`, `partial`, or `standalone`.
+
+In `full` mode, continue through the existing full-workflow sections below.
+Optional companions such as `b-phase`, `b-explore`, and `b-research` still
+require their own loader-native availability check before recommendation. In
+every other state, use only the self-contained mini workflow and installation
+handoff below; do not touch full-workflow-only dependencies.
+
 ## Write Boundary
 
 - You may write to `.context/**` and temporary scratch locations using native file tools (write/edit).
 - Save plans where the user can reuse them outside the context window.
 - Do not modify source files outside `.context/`.
-- **Allowed**: Native `write` and `edit` tools for `.context/**` files.
-- **Allowed**: Bash commands for `.context/**` directory operations (mkdir, find, cat, ls).
+- **Allowed**: Native directory, listing, read, write, and edit tools for relevant `.context/**` artifacts and temporary scratch files.
 - **Blocked**: Bash redirects (`>`) and file modifications outside `.context/**`.
 
-## Subject Folder Creation (Required)
+## Subject Folder Use (Required)
 
-**Every b-plan session creates a subject folder.** This is not opt-in.
+**Every b-plan session uses a subject folder.** Reuse the explicitly selected
+active subject when appropriate; otherwise create one:
 
-1. **Infer subject name** from the conversation topic (kebab-case)
-2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
-3. **Create `index.md`** with `status: active` (plan now exists, work is underway)
-4. **Write plan file inside**: `plan-<topic>.md`
+1. Infer a subject name from the conversation topic (kebab-case).
+2. Create `.context/YYYY-MM-DD.<subject-name>/`.
+3. Create `index.md` with `status: active`.
+4. Write `plan-<topic>.md` inside it.
 
 **Example:**
 ```
@@ -42,9 +90,30 @@ Turn the user's request into a bounded implementation plan using:
 
 ## Subject Resolution
 
+### Full mode
+
 Follow the shared protocol at `skills/_shared/subject-resolution.md`.
-If the protocol resolves a subject, use it for all downstream artifact discovery.
-If the protocol finds no subject, proceed as a fresh session.
+If it resolves a subject, use it for all downstream artifact discovery. If it
+finds no subject, proceed as a fresh session.
+
+### Partial, standalone, or unknown mode
+
+Do **not** read `skills/_shared/subject-resolution.md`. Resolve locally:
+
+1. Use an explicit subject path/name from the user when provided.
+2. If `.context/workflow/current-session.json` exists, use its memory file's
+   `subject:` only when that subject folder exists and its `index.md` is still
+   `status: active`; a stale pointer is not selection evidence.
+3. Inspect the `status:` in each present
+   `.context/YYYY-MM-DD.<subject>/index.md`. A generated
+   `.context/index/subjects.json` may be used only as a cache when its
+   freshness is verifiable; the subject `index.md` files remain canonical.
+4. Zero active subjects means create a fresh folder. Exactly one may be
+   selected silently. For multiple active subjects, present **every** active
+   subject in a numbered list and wait for selection. A tool's option cap is
+   not permission to truncate or rank the list: use a plain menu or paginate.
+   Never infer that the newest active folder is the intended subject.
+
 
 After subject resolution, gather planning context from these additional sources:
 
@@ -59,6 +128,53 @@ After subject resolution, gather planning context from these additional sources:
 4. **Relevant code** — read the code/config/tests needed to make the plan concrete
 
 Use these sources together. Artifacts are helpful inputs, not prerequisites.
+
+## Standalone Mini Workflow
+
+When the capability state is `partial`, `standalone`, or `unknown`, B-Plan
+still completes the planning deliverable:
+
+1. Start from explicit user and session context. Inspect only relevant local
+   code and `.context/` artifacts that actually exist.
+2. Use the Clarification Interview Protocol and User Goal Requirement below.
+   Ask only questions that materially change scope, acceptance criteria,
+   risks, or verification.
+3. Resolve or create the subject folder with the local protocol above.
+4. Write `index.md` with `status: active` and a `plan-*.md` using the Plan
+   Frontmatter Template. The plan must include User Goal, Goal, context and
+   assumptions, scope and out-of-scope, affected files, implementation steps,
+   acceptance criteria, verification, and risks.
+5. Do not create or update backlog, memory, phase, eval-cell, review, or commit
+   artifacts. Do not recommend unavailable Buck skills as executable next
+   steps.
+6. Finish with the saved plan path, detected state, missing sentinels when
+   known, the applicable install/repair handoff, and the post-reload sentinel
+   verification.
+
+This mini workflow is the boundary: it does not emulate build, review, save,
+documentation, phasing, or commit behavior.
+
+## Installation and Repair Handoff
+
+Do not install automatically. For `partial`, call this a **repair**; for
+`standalone`, call it an **installation**; for `unknown`, make it conditional
+on the user wanting the full workflow.
+
+| Harness | GitHub handoff |
+|---|---|
+| Pi | `pi install git:github.com/evilbuck/buck-workflow-pi` |
+| OMP | `omp install git:github.com/evilbuck/buck-workflow-pi` |
+| Claude Code | Clone `https://github.com/evilbuck/buck-workflow-pi` to a durable path, then run `<clone>/scripts/install.mjs --source <clone> --harness claude`. |
+| OpenCode | Clone the same repository to a durable path, then run `<clone>/scripts/install.mjs --source <clone> --harness opencode`. |
+| Codex | Clone `https://github.com/evilbuck/buck-workflow-pi` to a durable path and link each `<clone>/skills/<name>/` into `~/.agents/skills/<name>/`; the current installer wires Codex bootstrap instructions only. |
+| Unknown/other | First identify the harness, then use `https://github.com/evilbuck/buck-workflow-pi/blob/master/agent-install_instructions.md`; do not guess a global directory. |
+
+For symlink-based installs, preserve real destination files and use the
+installer's default non-force behavior (or `--dry-run`) first. Never point
+links into an ephemeral clone. After install/repair, restart or reload the
+agent session and repeat the exact `b-build`/`b-review`/`b-save` probe. Report
+`full` only when all three resolve in the refreshed active session.
+
 
 ## Clarification Interview Protocol
 
@@ -119,9 +235,10 @@ When the Light Grill runs, add a `## Light Grill` section to the plan body with 
 
 The Q&A lives in the plan itself — no separate session file. The distinction from `b-grill-me` is intentional: `b-grill-me` writes a separate `grill-session-*.md` because it is a multi-session, threshold-tracking artifact; the Light Grill is a one-shot planning step whose audit trail belongs inside the plan. If a more exhaustive interview is later needed, run `b-grill-me` separately and stitch its session file to the plan via the "Context used / assumptions" section.
 
-## Cross-Reference Stitching
+## Cross-Reference Stitching (Full Mode Only)
 
-When creating a plan:
+Run this section only when the active capability state is `full`. When creating
+a plan:
 
 1. Check for related artifacts in the chosen subject folder.
 2. **Research is optional**:
@@ -161,12 +278,21 @@ Downstream skills read the user goal as the user-facing intent. A missing user g
 - Write tactical implementation plans as `plan-*.md` in the subject folder.
 - Write strategic specs as `spec-*.md` in the subject folder (for multi-session epics/PRDs).
 - If a spec already exists in the subject folder, reference it in the plan.
-- Create backlog items only for **clear near-term actionable units** of work that emerge from the plan. One backlog item = one pickup-able unit of work. Do not auto-expand specs/plans into a large queue.
-- When creating backlog items: create the backing item file `.context/backlog/items/<slug>.md` with frontmatter (`title`, `status: active`, `priority`, `created`, `updated`, `completed: null`, `related`) and add a linked checkbox to `.context/backlog/todo.md`. If only `.context/backlog.md` exists (legacy), use that format instead.
-- Recommend `b-build` for straightforward work and `b-build-hard` for ambiguous or high-risk work.
-- Recommend `b-explore` when missing code or architecture understanding prevents a good plan.
-- Recommend `b-research` when missing external information (APIs, libraries, documentation) prevents a good plan.
-- **Recommend `b-phase`** if the plan exceeds any of these thresholds:
+- In `full` mode, create backlog items only for **clear near-term actionable
+  units** that emerge from the plan. One backlog item = one pickup-able unit
+  of work. Do not auto-expand specs/plans into a large queue.
+- When creating full-mode backlog items, create the backing item file
+  `.context/backlog/items/<slug>.md` with frontmatter (`title`,
+  `status: active`, `priority`, `created`, `updated`, `completed: null`,
+  `related`) and add a linked checkbox to `.context/backlog/todo.md`. If only
+  `.context/backlog.md` exists (legacy), use that format instead.
+- In `full` mode, recommend `b-build` for straightforward work and
+  `b-build-hard` for ambiguous or high-risk work.
+- Recommend `b-explore` or `b-research` only when the relevant skill is
+  loader-discoverable and missing local or external understanding prevents a
+  good plan.
+- **Recommend `b-phase` only in `full` mode, only when it is
+  loader-discoverable, and only if the plan exceeds any of these thresholds:**
   - More than ~8 implementation steps
   - Touches more than ~5 distinct files or directories
   - Spans multiple architectural layers (DB + API + UI)
@@ -174,7 +300,11 @@ Downstream skills read the user goal as the user-facing intent. A missing user g
   - Contains significant unknowns or research spikes
   - Verification alone would exhaust a single session
   - Phrasing: *"This plan looks large enough to benefit from phasing. Run `/skill:b-phase` to break it into sequential OMP-ready execution phases with dependency analysis, per-phase model hints, and resume-safe execution instructions."*
-- If the user wants an automated execution session but the plan does **not** need phasing, keep the plan non-phased and add a minimal **Execution Instructions** section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate` if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit`. Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle, not an iterate loop.
+- Only in `full` mode, when the user wants an automated execution session but
+  the plan does **not** need phasing, add a minimal **Execution Instructions**
+  section for the single-unit cycle: `/b-build` → `/b-review` → `/b-iterate`
+  if in-plan issues → `/b-docs` if doc impact → `/b-save` → `/b-commit`.
+  Out-of-plan findings spawn a separate `/b-plan` → `/b-build` cycle.
 
 ## Plan Frontmatter Template
 
@@ -191,9 +321,13 @@ memory: []                    # Filled by b-save after execution
 ---
 ```
 
-## Non-Phased Execution-Ready Plans
+## Non-Phased Execution-Ready Plans (Full Mode Only)
 
-Not every execution-session task needs `b-phase`. If the plan is small enough for one build/review cycle but the user wants an automated session to drive it, add a short **Execution Instructions** section to the plan itself. Treat the whole plan as one unit and use the same durable mini-cycle documented in `b-phase`'s Execution Instructions Template.
+Run this section only in `full` mode. Not every execution-session task needs
+`b-phase`. If the plan is small enough for one build/review cycle but the user
+wants an automated session to drive it, add a short **Execution Instructions**
+section to the plan itself. Treat the whole plan as one unit and use the same
+durable mini-cycle documented in `b-phase`'s Execution Instructions Template.
 
 Recommended wording:
 
@@ -210,6 +344,9 @@ This is a non-phased execution-ready plan. Treat the whole plan as one unit:
 ```
 
 ## OMP Execution Recommendation
+This section is full-mode-only. Do not read its linked repository docs or emit
+OMP recommendations from the standalone mini workflow.
+
 
 `b-plan` does **not** auto-set the `omp_execution` field. It surfaces a
 recommendation in the plan's "Execution Instructions" section based on the
@@ -254,6 +391,9 @@ This is a phased execution-ready plan. Treat each phase as one unit:
 ```
 
 ## Eval Cell Template for `workflow` Plans
+This section is full-mode-only and applies only when the active OMP capability
+needed for `workflow` plans is available.
+
 
 When the recommendation above is `workflow`, `b-plan` writes a starter
 `.context/<subject>/eval-<topic>.py` file into the subject folder. The
@@ -397,11 +537,11 @@ if budget.remaining() is not None and budget.remaining() < 5_000:
 > OMP-only — on other harnesses the prelude is absent and the cell degrades to
 > a no-op via the runtime probe above.
 
-### Example cells
-Two real example cells live in `.context/2026-06-06.omp-integration-buck-workflow/`.
+Two real example cells live in
+`.context/2026-06-06.omp-integration-buck-workflow/`. In `full` mode, read them
+before authoring a cell; in every other mode, do not probe for or read them.
 They fill the placeholders in the F6 template above and demonstrate two
-different fan-out shapes. **Read them before authoring your own cell** —
-they are the most concrete documentation of the eval-kernel pattern.
+different fan-out shapes.
 | Cell | Pattern | When to use |
 |---|---|---|
 | `eval-review-audit.py` | `parallel()` per phase → `pipeline()` log → `llm()` judge | Plan is phased; you want one review subagent per phase and a single go/no-go verdict at the end. |
@@ -450,11 +590,15 @@ requested, swap `prelude` imports for `tool.eval-py` and re-emit in JS.
 ## Implementation steps
 1. ...
 
+
+## Acceptance criteria
+- [ ] ...
+
 ## Verification
 - ...
 
 ## Execution Instructions
-<!-- Optional: include when the user wants an automated execution session on a non-phased plan. Reference b-phase's Execution Instructions Template and use the single-unit cycle. -->
+<!-- Full mode only. Optional when the user wants an automated execution session on a non-phased plan. -->
 
 ## Risks
 - ...
@@ -470,7 +614,7 @@ What is ambiguous
 Question(s) for the user
 ```
 
-After saving a plan:
+After saving a plan, always report:
 
 ```text
 Goal
@@ -479,7 +623,14 @@ Affected files
 Implementation steps
 Verification
 Inputs used: [user context, session context, brainstorm: X, research: Y, spec: Z]
-Subject folder created: .context/YYYY-MM-DD.<subject>/
+Subject folder used: .context/YYYY-MM-DD.<subject>/
 Plan saved: plan-<topic>.md
+Buck capability: <full|partial|standalone|unknown>
+Probe source: <loader-native source or unavailable>
+Missing sentinels: <names, none, or unknown>
 Recommended next step
 ```
+
+For `partial`, `standalone`, or `unknown`, replace unavailable Buck handoffs
+with the relevant Installation and Repair Handoff plus the reload-and-reprobe
+verification. For `full`, preserve the existing downstream recommendations.

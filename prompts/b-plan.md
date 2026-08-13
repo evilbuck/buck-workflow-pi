@@ -1,5 +1,5 @@
 ---
-description: Turn user-provided context, session context, and optional artifacts into a bounded implementation plan with scope, risks, and verification
+description: Create a bounded implementation plan; works standalone and detects or bootstraps the full Buck Workflow when unavailable
 ---
 
 # B-Plan

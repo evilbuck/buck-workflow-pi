@@ -48,17 +48,48 @@ The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workfl
 > **ask the user which harness they're on** (Pi, OMP, Codex, OpenCode, or
 > Claude Code) before running any install commands.
 
-### 1. Install the Buck Workflow Package
+### Standalone B-Plan
+
+`b-plan` can be installed and used by itself as the planning subset of Buck
+Workflow. At startup it checks the active harness's loader-native skill catalog
+for `b-build`, `b-review`, and `b-save`:
+
+| State | Active-session result | B-Plan behavior |
+|---|---|---|
+| `full` | All three resolve | Preserve the full subject, stitching, phasing, and handoff workflow |
+| `partial` | One or two resolve | Write the plan through the mini workflow and name the missing companions |
+| `standalone` | None resolve in an authoritative catalog | Write the plan and offer harness-specific installation |
+| `unknown` | No reliable catalog/resolver exists | Write the plan and make installation guidance conditional |
+
+The mini workflow still creates
+`.context/YYYY-MM-DD.<subject>/index.md` and a complete `plan-*.md`; it does not
+pretend to provide unavailable build, review, save, phasing, or commit stages.
+A detected harness, Buck checkout, `.context/` directory, bootstrap file, or
+package record does **not** prove the full workflow is loaded. After install or
+repair, reload the agent and repeat the three-sentinel probe.
+
+### 1. Install the Buck Workflow Skills
+
+Pi:
 
 ```bash
-pi install /path/to/buck-workflow
-# or from git:
-pi install git:github.com/buckleyrobinson/buck-workflow-pi
+pi install git:github.com/evilbuck/buck-workflow-pi
 ```
 
-### 2. Run the Multi-Harness Installer
+OMP:
 
-The installer detects which agent harnesses are installed on your machine and symlinks the bootstrap instructions + skill/command trees into each harness's expected locations. One command, every harness, always in sync:
+```bash
+omp install git:github.com/evilbuck/buck-workflow-pi
+```
+
+Claude Code, OpenCode, and Codex use a durable clone plus harness-specific
+links. Follow the canonical commands in
+[`agent-install_instructions.md`](./agent-install_instructions.md).
+
+### 2. Wire Supported Harness Surfaces
+
+The installer detects which agent harnesses are present and symlinks only the
+surfaces declared for each harness:
 
 ```bash
 npx buck-workflow install
@@ -128,7 +159,7 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **Pi** | Prompt templates (`prompts/`) | `/b-plan` loads `prompts/b-plan.md` | `pi install` (package) |
 | **OMP** | Command mirror (`commands/`) | `/b-plan` loads `commands/b-plan.md` → `../prompts/b-plan.md` | Package manifest |
 | **Claude Code** | Commands (`.claude/commands/`) | `/b-plan` loads the same prompt template | `buck-workflow install` |
-| **Codex** | Bootstrap only (no slash commands) | `AGENTS.md` auto-loaded | `buck-workflow install` |
+| **Codex** | Skill invocation | `$b-plan` after linking the skill | Installer is bootstrap-only; skills are linked separately |
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 
@@ -148,7 +179,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
-| `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
+| `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
@@ -178,7 +209,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
-| `b-plan` | Turn context into a bounded implementation plan |
+| `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-review` | Review implementation for correctness and regressions |
@@ -288,16 +319,24 @@ Artifacts link to each other via frontmatter fields:
 
 ## Requirements
 - An AI coding agent — any supported harness (see [Compatibility](#compatibility))
-- The agent bootstrap instructions installed (via `buck-workflow install` or manually)
+- The `b-plan` skill for standalone planning, or the three sentinel companions
+  (`b-build`, `b-review`, `b-save`) for the minimum full workflow
 - A `.context/` directory in your project (created automatically on first use)
-- For slash commands: Pi with `prompts/` loaded, or OMP with `commands/` mirror, or any harness wired by the installer
+- For slash commands: Pi with `prompts/` loaded, OMP with the `commands/`
+  mirror, or another harness with its native skill/command surface wired
+- Optional: the bootstrap instructions for cross-session durability conventions
 - Optional: [qmd](https://github.com/qmd-project/qmd) for semantic search over memory files
 
 ## Compatibility
 
 **Buck workflow runs on all major agent harnesses.**
 
-The multi-harness installer (`buck-workflow install`) handles path placement and wrapper wiring automatically. Pi and OMP are the maintained targets with full test coverage. Claude Code, Codex, OpenCode, and Cursor are wired by the installer but may have behavioral differences:
+The multi-harness installer wires the surfaces declared for each detected
+harness. Pi and OMP load skills through their package installers; Claude Code
+and OpenCode receive skill/command links from the multi-harness installer;
+Codex receives bootstrap instructions there but needs separate skill links.
+Pi and OMP are the maintained targets with full test coverage. Harnesses may
+still differ in:
 
 1. **Tool availability** — Some agents may not support all tools referenced by skills (e.g., `ast_grep`, `debug`)
 2. **Schema compliance** — Frontmatter parsing and file conventions may vary
