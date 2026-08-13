@@ -159,7 +159,7 @@ Links use filenames within same subject folder. Memory links use memory filename
 - Quick fix: `b-iterate → b-review → b-docs → b-save → b-commit`
 - PR review feedback: `fix-pr` (skill-only: `/skill:fix-pr <pr>`) — validate comments, then fix+push or file issues
 
-### b-research: Always Delegate, Background When Helpful
+`/b-init-guardrails` (once per repo) creates the contract; `/b-guardrails-check` runs it. The completion gate above depends on both.
 
 - **Always delegate to a subagent.** `b-research` is a heavy, multi-source investigation — offload it. Never bundle external research into the main agent's context.
 - **Trigger when research is needed** — info beyond the local codebase (libraries, APIs, external services, standards, unfamiliar domains) or verification against authoritative sources. Default to delegating; the main agent should not be the one hitting the docs.
@@ -206,13 +206,27 @@ Before closing significant work:
 - [ ] Memory written with required frontmatter
 - [ ] Memory index updated
 - [ ] Backlog updated (completed/new items)
-- [ ] Plan/spec status updated if completed
 - [ ] Verification results recorded
+- [ ] Deterministic check contract resolved and passing — required when the session touched code (see § Deterministic Check Contract)
 - [ ] Living docs updated via `/b-docs` when conventions, decisions, or domain language changed
 - [ ] UI changes verified in browser when applicable
-- [ ] Commit created via `/b-commit` when completing a Buck loop unit
 
----
+## Deterministic Check Contract
+
+Before claiming any task complete, if the session touched code, the project's check contract MUST be resolved, run, and passing.
+
+**Code-touching predicate.** Collect the session's changed paths: `git status --porcelain` plus, when an upstream exists, `git diff --name-only @{u}..HEAD`. The session is **docs-only** iff every changed path either ends in `.md`, `.mdx`, or `.txt`, or is `LICENSE`, or starts with `.context/`, `docs/`, or `presentations/`. Any other path — source, `package.json`, a lockfile, CI YAML — makes the session code-touching. Docs-only → skip the gate and say so in one line.
+
+**Resolution order** (first hit wins; never writes a file):
+1. `guardrails.json` at repo root → authoritative. Run `/b-guardrails-check`.
+2. Managed `<!-- BEGIN b-init-guardrails -->` block present but `guardrails.json` missing → warn that the contract is broken, then continue to 3.
+3. `b-init-guardrails`' `scripts/detect-stack.ts` → ephemeral contract; run lint and test gates only (no coverage/complexity without a baseline). Warn that no durable contract exists.
+4. No ecosystem detected → surface any `README.md` testing/development command block as **unverified suggestions**. Do not execute them.
+5. Nothing found → warn: no deterministic check contract exists. Offer `/b-init-guardrails`.
+
+**Enforcement.** A `fail` verdict blocks completion. Fix it, or get an explicit user override — and record the override, the failing gate, and the reason in session memory. Never soften a gate, widen a lint ignore, delete a test, or record `null` to silence a suite. A `skipped` or `advisory` gate is reported, not fixed. Cases 2–5 always produce a visible warning plus the `/b-init-guardrails` offer; they never silently pass.
+
+Full chain: `skills/b-guardrails-check/docs/contract-resolution.md`.
 
 ## Templates & Reference
 

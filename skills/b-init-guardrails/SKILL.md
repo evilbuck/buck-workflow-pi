@@ -1,6 +1,6 @@
 ---
 name: b-init-guardrails
-description: One-shot, idempotent initialization of quality guardrails (tests, coverage, cyclomatic complexity) with a brownfield ratchet. Detects the stack, proposes tooling, measures the baseline, writes guardrails.json, and installs a managed AGENTS.md block.
+description: One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet. Detects the stack, proposes tooling, measures the baseline, writes guardrails.json, and installs a managed AGENTS.md block.
 ---
 
 # b-init-guardrails: Quality Guardrails Initialization
@@ -32,7 +32,8 @@ Initialize quality guardrails in any codebase — greenfield or brownfield. Dete
 
 Check if `guardrails.json` exists at the repo root.
 
-- **If exists**: enter **refresh mode** — re-detect the stack, re-measure with the recorded/approved commands, and apply only asymmetric improvements: raise `ratchet.baseline_coverage`, shrink complexity inventory, never lower the coverage baseline, never add new complexity debt without explicit user approval.
+- **If exists and `version == 1`**: enter **refresh mode** with a v1→v2 upgrade. Re-detect the stack, run the v1→v2 field upgrade through the Phase 2 propose-then-approve flow, then re-measure with the recorded/approved commands, and apply only asymmetric improvements: raise `ratchet.baseline_coverage`, shrink complexity inventory, never lower the coverage baseline, never add new complexity debt without explicit user approval. The `lint_cmd: null`, `lint_accepts_paths: false`, `functional_test_cmd: null`, and `ratchet.baseline_lint_clean: null` placeholders for v1 are filled by the same Phase 2 flow.
+- **If exists and `version == 2`**: enter **refresh mode** — re-detect the stack, re-measure with the recorded/approved commands, and apply only asymmetric improvements.
 - **If absent**: enter **create mode** — proceed to Phase 1.
 
 ### Phase 1: Detect Stack
@@ -57,43 +58,44 @@ When `git_compare_branch` is `null`, show `Patch gate compare branch: not resolv
 
 ### Phase 2: Propose and Confirm Tooling
 
-Before measuring, resolve the commands needed for tests, coverage, patch coverage, and cyclomatic complexity.
-
-**Never silently mutate a manifest.** Show the user exactly what will be added/changed:
+Before measuring, resolve the commands needed for tests, coverage, lint, patch coverage, and cyclomatic complexity. The resolved candidates from `detect-stack.ts` are presented as a per-ecosystem proposal:
 
 ```
-Proposed tooling setup:
+Proposed tooling setup for <ecosystem>:
 
-1. Install diff-cover (patch gate):
-   uv tool install diff-cover
-   # or: pipx install diff-cover
-
-2. Add coverage script to package.json:
-   "scripts": {
-     "test:coverage": "vitest --coverage --coverage.reporter=lcov"
-   }
-
-3. Add complexity command:
-   lizard -C 10 -w --csv -x "*/.git/*" -x "*/.context/*" -x "*/.venv/*" -x "*/coverage/*" -x "*/dist/*" -x "*/build/*" -x "*/node_modules/*" -x "*/vendor/*" -x "*/target/*" -x "*/.next/*" -x "*/.nuxt/*" -x "*/.turbo/*" .
-
-4. Add patch gate command (for CI / manual check):
-   diff-cover coverage/lcov.info --compare-branch=<git_compare_branch> --fail-under=90
-
-Apply these changes? [y/N]
+1. Test runner: <test_runner>
+2. Coverage: <coverage_tool> --coverage-reporter=<coverage_format>
+3. Lint: <lint_cmd> (accepts paths: <true|false>)
+4. Functional tests: <functional_test_cmd or "none detected">
+5. Patch gate: diff-cover <coverage.xml> --compare-branch=<git_compare_branch> --fail-under=90
+6. Complexity: <complexity_cmd>
 ```
 
-Use the actual resolved `git_compare_branch` value from Phase 1 detection in place of the placeholder above (e.g. `origin/master`), not the literal token. If `git_compare_branch` is `null`, omit step 4 entirely and note in the proposal that the patch gate cannot run without a resolvable compare branch (the global ratchet still applies).
+When `lint_cmd` is `null`, the proposal must ask: `No lint tool resolved for <ecosystem>. Enter a lint command, or leave blank to skip the lint gate.` Same prompt shape for `functional_test_cmd` when `null` and a detection signal was absent — leave blank to skip the functional-test gate.
+
+Use the actual resolved `git_compare_branch` value from Phase 1 detection in place of the placeholder above (e.g. `origin/master`), not the literal token. If `git_compare_branch` is `null`, omit step 5 entirely and note in the proposal that the patch gate cannot run without a resolvable compare branch (the global ratchet still applies).
 
 WAIT for user approval before modifying files. If the user declines a tool, record that ecosystem's missing command as `null` and report which verification gates cannot run yet.
 
 ### Phase 3: Measure Baseline
 
-For each detected ecosystem with approved/available commands, run the recorded coverage and complexity commands:
+For each detected ecosystem with approved/available commands, run the recorded commands:
 
 ```bash
+<test_runner>
+<functional_test_cmd>          # when non-null
 <coverage_tool>
+# Run lint once over the whole repo to record ratchet.baseline_lint_clean (do not record a lint error count).
+<lint_cmd>
 <complexity_cmd>
 ```
+
+For each step:
+
+- `test_runner` exit non-zero → blocker. Report which suite failed; require the user to fix the suite or explicitly record `null` to disable the unit-test gate. Init never records a "known failing" state.
+- `functional_test_cmd` exit non-zero → same blocker rule as the unit suite.
+- `lint_cmd` exit code is recorded in `ratchet.baseline_lint_clean` (true/false). Do not record a lint error count.
+- Coverage and complexity parse as below.
 
 Parse the output and extract:
 - Current coverage percentage (global)
@@ -108,7 +110,8 @@ Record these as the baseline in `guardrails.json`:
     "baseline_complexity_inventory": [
       {"file": "src/foo.ts", "function": "bar", "complexity": 18}
     ],
-    "complexity_baseline_file": null
+    "complexity_baseline_file": null,
+    "baseline_lint_clean": true
   }
 }
 ```
@@ -137,11 +140,16 @@ Guardrails initialized.
 Current state:
 - Coverage: 42.5% (baseline) → target: 75%
 - Complexity hotspots: 12 functions > 10 (baseline) → goal: 0
+- Lint: <test_runner> exit 0; <functional_test_cmd> exit 0 / "none detected"; lint_cmd "<lint_cmd>" recorded; baseline_lint_clean: <true|false>
+- Lint mode: <diff-scoped | whole-repo-enforced | whole-repo-advisory | skipped>
 
 Gradual improvement path:
 1. Patch gate is active now: all new/changed code must be ≥90% covered.
 2. Global ratchet: coverage baseline can increase monotonically as you add tests.
-3. Complexity burn-down: refactor the 12 hotspots; the next coherent update shrinks the baseline.
+3. Unit-test gate: runs <test_runner>; exit 0 required.
+4. Functional-test gate: runs <functional_test_cmd>; exit 0 required (or "none detected").
+5. Lint gate: diff-scoped when lint_accepts_paths is true; whole-repo-enforced only when baseline_lint_clean is true; otherwise advisory.
+6. Complexity burn-down: refactor the 12 hotspots; the next coherent update shrinks the baseline.
 
 Next steps:
 - Run /b-guardrails-check to verify guardrails are working

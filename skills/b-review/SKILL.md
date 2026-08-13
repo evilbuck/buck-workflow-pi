@@ -92,9 +92,9 @@ evidence; the audit is a one-time pass at the end.
    gate from `b-build` applies).
 2. **Map each deliverable to evidence.** Each acceptance criterion
    needs a file path, line range, test name, or run-command output.
-   "Looks right" is not evidence.
-3. **Inspect the actual current state.** Read the code. Run the tests.
-   Do not trust checkboxes, status fields, or commit messages.
+3. **Inspect the actual current state.** Read the code. Run the project's
+   deterministic check contract (`/b-guardrails-check`), not an ad-hoc
+   test command. Do not trust checkboxes, status fields, or commit messages.
 4. **Match verification scope to claim scope.** If the plan claims
    browser behavior, run a browser test. If it claims CLI behavior, run
    the CLI. What you can run is what counts.
@@ -119,6 +119,15 @@ Apply these rules when filling out the matrix:
 - **`⚠️ not-verifiable`** must include the reason verification was
   impossible (env missing, fixture absent, permission denied, etc.).
   The fix is to remove the blocker, not to soften the verdict.
+
+### Deterministic check contract
+
+The completion audit must use the project's deterministic check contract, not an ad-hoc smoke test. Run `/b-guardrails-check` (or skip the gate with a one-line explanation when the session is docs-only per `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
+
+- The verdict must appear in the review report (see `### Guardrails Verdict` below).
+- A `fail` verdict makes the review `❌ missing` on verification regardless of the rest of the matrix.
+- A `contract: "none"` or `contract: "suggested"` result is a review **finding** (the repo needs `/b-init-guardrails` to record a durable contract), not a review failure.
+- A `skipped` or `advisory` gate is reported, not fixed.
 
 ### When the active session is in goal mode
 
@@ -255,16 +264,20 @@ When reviewing against a plan/spec/phase path, include:
 
 | Step | Status | Evidence |
 |------|--------|----------|
-| Step 1 | ✅ complete | <file> changed, behavior verified |
-| Step 2 | 🔄 partial | <file> changed but <missing> |
-| Step 3 | ❌ missing | No evidence found |
-| ... | ... | ... |
+- Out-of-scope changes: <list if any>
+
 
 ### Verification Status
 - Goal achieved: <yes/no/partial>
 - User goal: <met / partially met / not met> — <evidence from implementation>
 - Scope adhered: <yes/no/exceptions>
 - Out-of-scope changes: <list if any>
+
+### Guardrails Verdict
+- Contract: <durable | ephemeral | suggested | none>
+- Contract version: <1 | 2>
+- Status: <pass | fail | — (docs-only)>
+- Gates: <unit_test_gate>=<value>, <functional_test_gate>=<value>, <lint_gate>=<value>, <patch_gate>=<value>, <global_ratchet>=<value>, <complexity_gate>=<value>
 
 ### User Goal Analysis
 - Goal: <the user goal text, or "Not defined in plan">

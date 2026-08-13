@@ -1,7 +1,6 @@
 ---
-description: Measure coverage and cyclomatic complexity, compare against guardrails.json gates, and return a structured verdict. Measures and reports only — never edits.
+description: Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity; compare against guardrails.json gates; return a structured verdict. Measures and reports only — never edits.
 ---
-
 # B-GUARDRAILS-CHECK
 
 $ARGUMENTS

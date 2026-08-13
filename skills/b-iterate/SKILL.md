@@ -22,7 +22,7 @@ When an `iterate-*.md` artifact is found, follow its issues in priority order (C
 
 - Prefer tiny, focused changes.
 - Escalate to `b-build` if the work spreads.
-- Re-run lightweight verification.
+- Re-run the light subset of the deterministic check contract for code-touching work: lint and unit-test gates only. Skip coverage, patch, and complexity gates — those need a coherent full-build point. This keeps `b-iterate` genuinely quick.
 - Hand back to `b-review` when done.
 
 ## Session Awareness Protocol

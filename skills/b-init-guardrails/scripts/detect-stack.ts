@@ -21,6 +21,9 @@ interface EcosystemDetection {
   test_runner: string | null;
   coverage_tool: string | null;
   coverage_format: string | null;
+  lint_cmd: string | null;
+  lint_accepts_paths: boolean;
+  functional_test_cmd: string | null;
   complexity_tool: string | null;
   complexity_cmd: string | null;
   detection_signals: string[];
@@ -178,6 +181,56 @@ function firstAvailable(root: string, commands: string[]): string | null {
   return commands.find((command) => checkToolPresence(root, commandToken(command))) ?? null;
 }
 
+function resolveLint(root: string, candidates: Array<[cmd: string, acceptsPaths: boolean]>): { lint_cmd: string | null; lint_accepts_paths: boolean } {
+  for (const [cmd, acceptsPaths] of candidates) {
+    if (checkToolPresence(root, commandToken(cmd))) return { lint_cmd: cmd, lint_accepts_paths: acceptsPaths };
+  }
+  return { lint_cmd: null, lint_accepts_paths: false };
+}
+
+function resolveFunctionalSignals(signals: RepoSignals, ecosystem: string): string | null {
+  if (ecosystem === "typescript") {
+    if (signals.files.some((file) => /^playwright\.config\.(js|ts|mjs|cjs)$/.test(file))) return "playwright test";
+    if (signals.files.some((file) => /^cypress\.config\.(js|ts|mjs|cjs)$/.test(file))) return "cypress run";
+    return null;
+  }
+  if (ecosystem === "python") {
+    if (signals.files.includes("tests/e2e")) return "pytest tests/e2e";
+    if (signals.files.includes("tests/functional")) return "pytest tests/functional";
+    return null;
+  }
+  if (ecosystem === "go") {
+    const integration = signals.files
+      .filter((file) => file.endsWith("_test.go"))
+      .slice(0, 50)
+      .some((file) => {
+        try {
+          const content = readFileSync(join(signals.root, file), "utf8");
+          const first5 = content.split("\n").slice(0, 5).join("\n");
+          return first5.includes("//go:build integration");
+        } catch {
+          return false;
+        }
+      });
+    return integration ? "go test -tags=integration ./..." : null;
+  }
+  if (ecosystem === "ruby") {
+    if (signals.files.includes("spec/system")) return "rspec spec/system";
+    if (signals.files.includes("spec/features")) return "rspec spec/features";
+    return null;
+  }
+  if (ecosystem === "java" || ecosystem === "kotlin") {
+    if (fileContains(signals.root, "pom.xml", "maven-failsafe-plugin")) return "mvn failsafe:integration-test";
+    const gradleFile = signals.files.find((file) => /^build\.gradle/.test(file));
+    if (gradleFile && fileContains(signals.root, gradleFile, "integrationTest")) return "./gradlew integrationTest";
+    return null;
+  }
+  if (ecosystem === "rust") {
+    return signals.files.some((file) => file.startsWith("tests/") && file.endsWith(".rs")) ? "cargo test --test '*'" : null;
+  }
+  return null;
+}
+
 function addTools(tools: Set<string>, commands: Array<string | null>): void {
   for (const command of commands) {
     if (command) tools.add(commandToken(command));
@@ -221,11 +274,17 @@ function detectTypeScript(signals: RepoSignals, tools: Set<string>): EcosystemDe
           ? "deno test --coverage && deno coverage --lcov"
           : null;
 
-  addTools(tools, [...candidates, coverageTool, "diff-cover", "lizard"]);
-
   const configuredNotInstalled = configuredCandidates
     .map((command) => commandToken(command))
     .filter((tool) => !checkToolPresence(signals.root, tool));
+
+  const lint = resolveLint(signals.root, [
+    ["eslint --format stylish", true],
+    ["oxlint", true],
+  ]);
+  const functionalTestCmd = resolveFunctionalSignals(signals, "typescript");
+
+  addTools(tools, [...candidates, coverageTool, "diff-cover", "lizard", lint.lint_cmd, lint.lint_cmd ? commandToken(lint.lint_cmd) : null, "eslint", "oxlint", functionalTestCmd]);
 
   return {
     name: "typescript",
@@ -233,6 +292,9 @@ function detectTypeScript(signals: RepoSignals, tools: Set<string>): EcosystemDe
     test_runner: testRunner,
     coverage_tool: coverageTool,
     coverage_format: coverageTool ? "lcov" : null,
+    lint_cmd: lint.lint_cmd,
+    lint_accepts_paths: lint.lint_accepts_paths,
+    functional_test_cmd: functionalTestCmd,
     complexity_tool: "lizard",
     complexity_cmd: LIZARD_CMD,
     detection_signals: detectionSignals,
@@ -268,7 +330,13 @@ function detectPython(signals: RepoSignals, tools: Set<string>): EcosystemDetect
     ? "coverage run -m unittest discover && coverage xml"
     : null;
 
-  addTools(tools, ["pytest", "python", "coverage", coverageTool, "diff-cover", "lizard"]);
+  const lint = resolveLint(signals.root, [
+    ["ruff check", true],
+    ["flake8", true],
+  ]);
+  const functionalTestCmd = resolveFunctionalSignals(signals, "python");
+
+  addTools(tools, ["pytest", "python", "coverage", coverageTool, "diff-cover", "lizard", "ruff", "flake8", lint.lint_cmd, functionalTestCmd]);
 
   const configuredNotInstalled = pytestConfigured && !usesPytest ? ["pytest"] : [];
 
@@ -278,6 +346,9 @@ function detectPython(signals: RepoSignals, tools: Set<string>): EcosystemDetect
     test_runner: usesPytest ? "pytest" : testRunner ? "python -m unittest discover" : null,
     coverage_tool: coverageTool,
     coverage_format: coverageTool ? "cobertura" : null,
+    lint_cmd: lint.lint_cmd,
+    lint_accepts_paths: lint.lint_accepts_paths,
+    functional_test_cmd: functionalTestCmd,
     complexity_tool: "lizard",
     complexity_cmd: LIZARD_CMD,
     detection_signals: [
@@ -297,7 +368,9 @@ function detectShell(signals: RepoSignals, tools: Set<string>): EcosystemDetecti
 
   const testRunner = firstAvailable(signals.root, ["bats"]);
   const coverageTool = firstAvailable(signals.root, ["kcov"]);
-  addTools(tools, ["bats", "kcov", coverageTool, "diff-cover"]);
+  const lint = resolveLint(signals.root, [["shellcheck", true]]);
+
+  addTools(tools, ["bats", "kcov", coverageTool, "diff-cover", "shellcheck", lint.lint_cmd]);
 
   const configuredNotInstalled = batsConfigured && !testRunner ? ["bats"] : [];
 
@@ -307,6 +380,9 @@ function detectShell(signals: RepoSignals, tools: Set<string>): EcosystemDetecti
     test_runner: testRunner ? "bats" : null,
     coverage_tool: coverageTool ? "kcov" : null,
     coverage_format: coverageTool ? "cobertura" : null,
+    lint_cmd: lint.lint_cmd,
+    lint_accepts_paths: lint.lint_accepts_paths,
+    functional_test_cmd: null,
     complexity_tool: null,
     complexity_cmd: null,
     detection_signals: [hasExt(signals, [".sh"]) ? "*.sh" : null, hasExt(signals, [".bash"]) ? "*.bash" : null, hasExt(signals, [".bats"]) ? "*.bats" : null].filter((signal): signal is string => Boolean(signal)),
@@ -326,7 +402,13 @@ function detectJvm(signals: RepoSignals, tools: Set<string>): EcosystemDetection
     const gradlewPresent = existsSync(join(signals.root, "gradlew"));
     const testRunner = gradle ? (gradlewPresent ? "./gradlew test" : "gradle test") : "mvn test";
     const coverageTool = gradle ? (hasKotlin ? "./gradlew koverXmlReport" : "./gradlew jacocoTestReport") : "mvn test jacoco:report";
-    addTools(tools, [testRunner, coverageTool, "diff-cover", "lizard"]);
+    const lint = gradle
+      ? resolveLint(signals.root, [["./gradlew checkstyleMain", false]])
+      : fileContains(signals.root, "pom.xml", "checkstyle")
+        ? resolveLint(signals.root, [["mvn checkstyle:check", false]])
+        : { lint_cmd: null, lint_accepts_paths: false };
+    const functionalTestCmd = resolveFunctionalSignals(signals, hasKotlin ? "kotlin" : "java");
+    addTools(tools, [testRunner, coverageTool, "diff-cover", "lizard", lint.lint_cmd, functionalTestCmd]);
     const configuredNotInstalled = gradle
       ? (gradlewPresent || checkToolPresence(signals.root, "gradle") ? [] : ["gradle"])
       : (checkToolPresence(signals.root, "mvn") ? [] : ["mvn"]);
@@ -336,6 +418,9 @@ function detectJvm(signals: RepoSignals, tools: Set<string>): EcosystemDetection
       test_runner: testRunner,
       coverage_tool: coverageTool,
       coverage_format: "xml",
+      lint_cmd: lint.lint_cmd,
+      lint_accepts_paths: lint.lint_accepts_paths,
+      functional_test_cmd: functionalTestCmd,
       complexity_tool: hasKotlin ? "detekt" : "lizard",
       complexity_cmd: hasKotlin ? "detekt --input src --report checkstyle:reports/detekt.xml" : LIZARD_CMD,
       detection_signals: [hasMaven ? "pom.xml" : null, hasGradle ? "build.gradle*" : null, hasKotlin ? "*.kt" : null, hasExt(signals, [".java"]) ? "*.java" : null].filter((signal): signal is string => Boolean(signal)),
@@ -344,13 +429,17 @@ function detectJvm(signals: RepoSignals, tools: Set<string>): EcosystemDetection
   }
 
   if (hasScala) {
-    addTools(tools, ["sbt", "diff-cover", "lizard"]);
+    const lint = resolveLint(signals.root, [["sbt scalastyle", false]]);
+    addTools(tools, ["sbt", "diff-cover", "lizard", lint.lint_cmd]);
     ecosystems.push({
       name: "scala",
       detected: true,
       test_runner: "sbt test",
       coverage_tool: "sbt clean coverage test coverageReport",
       coverage_format: "xml",
+      lint_cmd: lint.lint_cmd,
+      lint_accepts_paths: lint.lint_accepts_paths,
+      functional_test_cmd: null,
       complexity_tool: "lizard",
       complexity_cmd: LIZARD_CMD,
       detection_signals: [hasBasename(signals, "build.sbt") ? "build.sbt" : null, hasExt(signals, [".scala"]) ? "*.scala" : null].filter((signal): signal is string => Boolean(signal)),
@@ -361,32 +450,38 @@ function detectJvm(signals: RepoSignals, tools: Set<string>): EcosystemDetection
   return ecosystems;
 }
 
+type SimpleEcosystemConfig = {
+  name: string;
+  detected: boolean;
+  runner: string;
+  coverage: string;
+  format: string;
+  complexityTool: string | null;
+  complexityCmd: string | null;
+  lint: Array<[cmd: string, acceptsPaths: boolean]>;
+  functional: string | null;
+  signals: string[];
+};
+
 function detectSimple(signals: RepoSignals, tools: Set<string>): EcosystemDetection[] {
-  const configs: Array<{
-    name: string;
-    detected: boolean;
-    runner: string;
-    coverage: string;
-    format: string;
-    complexityTool: string | null;
-    complexityCmd: string | null;
-    signals: string[];
-  }> = [
-    { name: "ruby", detected: hasBasename(signals, "Gemfile") || hasExt(signals, [".rb"]), runner: "rspec", coverage: "simplecov", format: "json", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["Gemfile", "*.rb"] },
-    { name: "php", detected: hasBasename(signals, "composer.json") || hasExt(signals, [".php"]), runner: "phpunit", coverage: "phpunit --coverage-cobertura", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["composer.json", "*.php"] },
-    { name: "dart", detected: hasBasename(signals, "pubspec.yaml") || hasExt(signals, [".dart"]), runner: "dart test", coverage: "flutter test --coverage", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["pubspec.yaml", "*.dart"] },
-    { name: "go", detected: hasBasename(signals, "go.mod") || hasExt(signals, [".go"]), runner: "go test", coverage: "go test -coverprofile=cover.out", format: "coverprofile", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["go.mod", "*.go"] },
-    { name: "rust", detected: hasBasename(signals, "Cargo.toml") || hasExt(signals, [".rs"]), runner: "cargo test", coverage: "cargo llvm-cov", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["Cargo.toml", "*.rs"] },
-    { name: "cpp", detected: hasBasename(signals, "CMakeLists.txt") || hasBasename(signals, "Makefile") || hasExt(signals, [".c", ".cc", ".cpp", ".h", ".hpp"]), runner: "ctest", coverage: "gcovr", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["CMakeLists.txt", "Makefile", "*.c", "*.cpp"] },
-    { name: "swift", detected: hasBasename(signals, "Package.swift") || hasExt(signals, [".swift"]) || signals.files.some((file) => file.endsWith(".xcodeproj") || file.endsWith(".xcworkspace")), runner: "swift test", coverage: "swift test --enable-code-coverage", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["Package.swift", "*.xcodeproj", "*.xcworkspace", "*.swift"] },
-    { name: "csharp", detected: signals.files.some((file) => file.endsWith(".sln") || file.endsWith(".csproj") || file.endsWith(".cs")), runner: "dotnet test", coverage: "dotnet test --collect:\"XPlat Code Coverage\"", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, signals: ["*.sln", "*.csproj", "*.cs"] },
-    { name: "elixir", detected: hasBasename(signals, "mix.exs") || hasExt(signals, [".ex", ".exs"]), runner: "mix test", coverage: "mix test --cover", format: "html", complexityTool: "credo", complexityCmd: "mix credo --format json", signals: ["mix.exs", "*.ex", "*.exs"] },
+  const configs: SimpleEcosystemConfig[] = [
+    { name: "ruby", detected: hasBasename(signals, "Gemfile") || hasExt(signals, [".rb"]), runner: "rspec", coverage: "simplecov", format: "json", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["rubocop", true]], functional: "ruby", signals: ["Gemfile", "*.rb"] },
+    { name: "php", detected: hasBasename(signals, "composer.json") || hasExt(signals, [".php"]), runner: "phpunit", coverage: "phpunit --coverage-cobertura", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["phpcs", true], ["phpstan analyse --no-progress", false]], functional: null, signals: ["composer.json", "*.php"] },
+    { name: "dart", detected: hasBasename(signals, "pubspec.yaml") || hasExt(signals, [".dart"]), runner: "dart test", coverage: "flutter test --coverage", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["dart analyze", true]], functional: null, signals: ["pubspec.yaml", "*.dart"] },
+    { name: "go", detected: hasBasename(signals, "go.mod") || hasExt(signals, [".go"]), runner: "go test", coverage: "go test -coverprofile=cover.out", format: "coverprofile", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["golangci-lint run", false], ["go vet ./...", false]], functional: "go", signals: ["go.mod", "*.go"] },
+    { name: "rust", detected: hasBasename(signals, "Cargo.toml") || hasExt(signals, [".rs"]), runner: "cargo test", coverage: "cargo llvm-cov", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["cargo clippy --all-targets -- -D warnings", false]], functional: "rust", signals: ["Cargo.toml", "*.rs"] },
+    { name: "cpp", detected: hasBasename(signals, "CMakeLists.txt") || hasBasename(signals, "Makefile") || hasExt(signals, [".c", ".cc", ".cpp", ".h", ".hpp"]), runner: "ctest", coverage: "gcovr", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["cppcheck --enable=warning,style --error-exitcode=1", true]], functional: null, signals: ["CMakeLists.txt", "Makefile", "*.c", "*.cpp"] },
+    { name: "swift", detected: hasBasename(signals, "Package.swift") || hasExt(signals, [".swift"]) || signals.files.some((file) => file.endsWith(".xcodeproj") || file.endsWith(".xcworkspace")), runner: "swift test", coverage: "swift test --enable-code-coverage", format: "lcov", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["swiftlint lint --strict", true]], functional: null, signals: ["Package.swift", "*.xcodeproj", "*.xcworkspace", "*.swift"] },
+    { name: "csharp", detected: signals.files.some((file) => file.endsWith(".sln") || file.endsWith(".csproj") || file.endsWith(".cs")), runner: "dotnet test", coverage: "dotnet test --collect:\"XPlat Code Coverage\"", format: "cobertura", complexityTool: "lizard", complexityCmd: LIZARD_CMD, lint: [["dotnet format --verify-no-changes", false]], functional: null, signals: ["*.sln", "*.csproj", "*.cs"] },
+    { name: "elixir", detected: hasBasename(signals, "mix.exs") || hasExt(signals, [".ex", ".exs"]), runner: "mix test", coverage: "mix test --cover", format: "html", complexityTool: "credo", complexityCmd: "mix credo --format json", lint: [["mix credo --strict", false]], functional: null, signals: ["mix.exs", "*.ex", "*.exs"] },
   ];
 
   const detections: EcosystemDetection[] = [];
   for (const config of configs) {
     if (!config.detected) continue;
-    addTools(tools, [config.runner, config.coverage, config.complexityCmd, "diff-cover", config.complexityTool]);
+    const lintResolved = resolveLint(signals.root, config.lint);
+    const functionalTestCmd = config.functional ? resolveFunctionalSignals(signals, config.functional) : null;
+    addTools(tools, [config.runner, config.coverage, config.complexityCmd, "diff-cover", config.complexityTool, lintResolved.lint_cmd, functionalTestCmd]);
     const runnerInstalled = checkToolPresence(signals.root, commandToken(config.runner));
     detections.push({
       name: config.name,
@@ -394,6 +489,9 @@ function detectSimple(signals: RepoSignals, tools: Set<string>): EcosystemDetect
       test_runner: config.runner,
       coverage_tool: config.coverage,
       coverage_format: config.format,
+      lint_cmd: lintResolved.lint_cmd,
+      lint_accepts_paths: lintResolved.lint_accepts_paths,
+      functional_test_cmd: functionalTestCmd,
       complexity_tool: config.complexityTool,
       complexity_cmd: config.complexityCmd,
       detection_signals: config.signals.filter((signal) => signal.includes("*") ? hasExt(signals, [signal.slice(1)]) : hasBasename(signals, signal)),

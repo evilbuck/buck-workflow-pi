@@ -145,6 +145,8 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
 | `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
+| `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
+| `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
 | `/b-plan` | `b-plan` | Create bounded implementation plan with scope and risks |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
@@ -168,10 +170,9 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 ### Skills
 
 | Skill | Purpose |
-|-------|---------|
-| `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
-| `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
+| `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
+| `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-plan` | Turn context into a bounded implementation plan |
