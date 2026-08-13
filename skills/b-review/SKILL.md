@@ -264,8 +264,10 @@ When reviewing against a plan/spec/phase path, include:
 
 | Step | Status | Evidence |
 |------|--------|----------|
-- Out-of-scope changes: <list if any>
-
+| Step 1 | ✅ complete | <file> changed, behavior verified |
+| Step 2 | 🔄 partial | <file> changed but <missing> |
+| Step 3 | ❌ missing | No evidence found |
+| ... | ... | ... |
 
 ### Verification Status
 - Goal achieved: <yes/no/partial>
