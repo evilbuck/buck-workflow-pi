@@ -1,3 +1,5 @@
+- 2026-08-13 — [fix-pr: PR #6 review comments](fix-pr-6-2026-08-13.md) — `completed`
+
 - 2026-07-26 — [b-init-guardrails review iteration](b-init-guardrails-iteration-2026-07-26.md) — `completed`
 
 - 2026-07-26 — [b-pr preflight dirty-tree autostash](b-pr-preflight-autostash-2026-07-26.md) — `completed`
@@ -7,6 +9,7 @@
 - 2026-07-25 — [fix-pr: PR #3 review comments](fix-pr-3-2026-07-25.md) — `completed`
 - 2026-07-20 — [b-create-styleguide stamps type/breakpoints/interactions into AGENTS managed block](b-create-styleguide-design-surface-contract-2026-07-20.md) — `completed`
 
+  - 2026-08-13 | `fix-pr-6-2026-08-13.md` | domains: [review, fixes, skill, docs] | topics: [fix-pr, pr-6, guardrails, detect-stack, functional-test-detection, b-init-guardrails, doc-regressions] | status: completed
   - 2026-07-26 | `b-pr-preflight-autostash-2026-07-26.md` | domains: [debugging, implementation, testing, skill] | topics: [b-pr, b-pr-improved, pr-preflight, autostash, rebase, dirty-tree, json-error] | status: completed
   - 2026-07-26 | `fix-pr-3-exit-code-comment-2026-07-26.md` | domains: [review, fixes, docs] | topics: [fix-pr, pr-3, b-pr, pr-preflight, exit-codes, comment-update] | status: completed
   - 2026-07-25 | `b-commit-improved-2026-07-25.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-commit-improved, git-commit, conventional-commits, draft-commit, pi-extension, omp, deterministic-script, bun-script, exit-code-contract] | status: completed
