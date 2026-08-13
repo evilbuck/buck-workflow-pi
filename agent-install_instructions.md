@@ -386,7 +386,7 @@ Once this repo publishes a Claude Code marketplace entry:
 
 ```
 /plugin marketplace add evilbuck/buck-workflow-pi
-/plugin install buck-workflow@buckleyrobinson
+/plugin install buck-workflow@evilbuck
 ```
 
 Or install a local clone directly:
