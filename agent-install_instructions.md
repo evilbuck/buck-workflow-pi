@@ -12,8 +12,39 @@ helper skills such as `fix-pr`). The skills are plain Markdown following the
 on every supported harness.
 
 The canonical source lives at
-<https://github.com/buckleyrobinson/buck-workflow-pi>. Every agent installs the
+<https://github.com/evilbuck/buck-workflow-pi>. Every agent installs the
 **same content** — only the install mechanism differs.
+
+## Detect active capabilities before installing
+
+Installation state and active-session capability are different signals:
+
+| Signal | What it proves |
+|---|---|
+| Harness directory/executable detected | The harness exists on the machine |
+| Buck source checkout present | Files are available somewhere |
+| Package/install record present | An install command previously registered the package |
+| Skill resolves in the active loader catalog | The current session can use that capability |
+
+B-Plan probes the active loader for `b-build`, `b-review`, and `b-save` before
+using full-workflow behavior:
+
+| State | Active-session result | Handoff |
+|---|---|---|
+| `full` | All three resolve | Continue with the full workflow |
+| `partial` | One or two resolve | Repair the installation; name the missing skills |
+| `standalone` | None resolve and the loader inventory is authoritative | Install the full workflow if wanted |
+| `unknown` | The harness exposes no reliable skill inventory/resolver | Continue planning; make install guidance conditional |
+
+Filesystem paths, `.context/`, bootstrap instructions, package manifests, and
+install records must not upgrade a session to `full`. B-Plan works by itself
+in every non-full state: it writes an active subject index and bounded plan,
+then gives the applicable GitHub handoff. It does not install automatically.
+
+After installation or repair, start a refreshed agent session and repeat the
+same three-sentinel probe. A successful command or source checkout is
+supporting evidence, not proof that the refreshed session loaded the skills.
+
 
 ## What you get
 
@@ -25,7 +56,7 @@ invocations on agents that use skill loaders):
 | `/b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-explore` | Map unfamiliar codebases, trace architecture |
 | `/b-research` | External/web research, source collection, evidence capture |
-| `/b-plan` | Turn context into a bounded implementation plan |
+| `/b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `/b-build` | Standard implementation — smallest safe code change |
 | `/b-build-hard` | Complex/ambiguous/higher-risk implementation |
 | `/b-iterate` | Quick follow-up fixes, polish, review-loop edits |
@@ -42,11 +73,11 @@ agent-neutral. Skill-only entries (no `prompts/` + `commands/` pair) are
 invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | Agent | Install method | Skills land at | Commands land at |
 |---|---|---|---|
-| **Pi** | `pi install git:github.com/buckleyrobinson/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
-| **OMP** | `omp install git:github.com/buckleyrobinson/buck-workflow-pi` | per-plugin skill dir | per-plugin command dir |
-| **Codex** | Symlink or copy the `skills/` directory | `~/.agents/skills/buck-workflow/` | n/a — invoke as `$buck-plan` (skill name) |
-| **OpenCode** | Symlink or copy the `skills/` and `commands/` directories | `~/.config/opencode/skills/buck-workflow/` | `~/.config/opencode/commands/` |
-| **Claude Code** | Symlink/copy the `skills/` directory, or use the marketplace | `~/.claude/skills/buck-workflow/` | derived from skill name (`/b-plan` etc.) |
+| **Pi** | `pi install git:github.com/evilbuck/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
+| **OMP** | `omp install git:github.com/evilbuck/buck-workflow-pi` | per-plugin skill dir | per-plugin command dir |
+| **Codex** | Symlink or copy each skill directory | `~/.agents/skills/<name>/` | n/a — invoke by skill name |
+| **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
+| **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 
 ---
 
@@ -61,13 +92,13 @@ prompts, and extensions.
 From npm (when published):
 
 ```bash
-pi install npm:@buckleyrobinson/buck-workflow
+pi install npm:buck-workflow
 ```
 
 From git (today):
 
 ```bash
-pi install git:github.com/buckleyrobinson/buck-workflow-pi
+pi install git:github.com/evilbuck/buck-workflow-pi
 ```
 
 From a local clone (development / offline):
@@ -85,7 +116,7 @@ auto-reconcile for any teammate who trusts the project.
 For one-off use without modifying settings:
 
 ```bash
-pi -e git:github.com/buckleyrobinson/buck-workflow-pi
+pi -e git:github.com/evilbuck/buck-workflow-pi
 ```
 
 ### Where things go
@@ -121,7 +152,7 @@ discovers them from `prompts/`.
 From git:
 
 ```bash
-omp install git:github.com/buckleyrobinson/buck-workflow-pi
+omp install git:github.com/evilbuck/buck-workflow-pi
 ```
 
 From a local clone:
@@ -135,7 +166,7 @@ for teams that want to share the same plugin set without forcing it
 globally):
 
 ```bash
-omp install -l git:github.com/buckleyrobinson/buck-workflow-pi
+omp install -l git:github.com/evilbuck/buck-workflow-pi
 ```
 
 If/when a marketplace entry is published, install by short name:
@@ -174,11 +205,19 @@ discovers skills both implicitly (by `description` match) and explicitly via
 
 ### Install
 
+Use a durable clone path: every symlink below points back into the checkout.
+Do not use a temporary clone that may disappear after installation. If the
+checkout does not already exist:
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+```
+
 User scope (applies to every repo):
 
 ```bash
 mkdir -p ~/.agents/skills
-for d in /path/to/buck-workflow-pi/skills/*/; do
+for d in "$HOME"/.local/share/buck-workflow-pi/skills/*/; do
   ln -s "$d" ~/.agents/skills/"$(basename "$d")"
 done
 ```
@@ -187,7 +226,7 @@ Project scope (this repo only, safe to commit):
 
 ```bash
 mkdir -p .agents/skills
-for d in /path/to/buck-workflow-pi/skills/*/; do
+for d in "$HOME"/.local/share/buck-workflow-pi/skills/*/; do
   ln -s "$d" .agents/skills/"$(basename "$d")"
 done
 ```
@@ -208,7 +247,7 @@ Codex doesn't expose a `/b-plan` style slash command for arbitrary skills.
 Invoke a Buck skill by its name:
 
 ```
-$buck-plan
+$b-plan
 ```
 
 Or let Codex match the `description` automatically — describing a planning
@@ -229,7 +268,7 @@ itself.
 In a Codex session:
 
 ```
-$buck-plan
+$b-plan
 ```
 
 Or run `/skills` to list every loaded skill and confirm the Buck set is
@@ -246,6 +285,18 @@ OpenCode has no package install command. It scans well-known directories for
 edits to this repo flow through live.
 
 ### Install
+
+Recommended user-scope install from a durable clone:
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+~/.local/share/buck-workflow-pi/scripts/install.mjs \
+  --source ~/.local/share/buck-workflow-pi --harness opencode
+```
+
+If that clone already exists, update it in place instead of cloning over it.
+The installer's default non-force behavior preserves real destination files.
+The manual equivalent is:
 
 Global (available in every project):
 
@@ -299,9 +350,9 @@ In the OpenCode TUI:
 /b-plan
 ```
 
-If the command expands, install worked. The TUI's `skill` tool description
-also lists every loaded skill — you should see entries for `b-plan`,
-`b-build`, `b-review`, etc.
+Command expansion proves only that B-Plan resolves. The TUI's loader-native
+`skill` catalog must also resolve `b-build`, `b-review`, and `b-save` before
+the session reports `full`.
 
 Reference: <https://opencode.ai/docs/skills/> and <https://opencode.ai/docs/commands/>
 
@@ -314,26 +365,28 @@ Claude Code follows the [Agent Skills](https://agentskills.io) standard. A
 (when its `description` matches the task) and as a `/<directory-name>`
 command (when invoked explicitly).
 
-### Install — manual (recommended today)
+### Install — durable clone + installer (recommended)
 
 ```bash
-mkdir -p ~/.claude/skills
-for d in /path/to/buck-workflow-pi/skills/*/; do
-  ln -s "$d" ~/.claude/skills/"$(basename "$d")"
-done
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+~/.local/share/buck-workflow-pi/scripts/install.mjs \
+  --source ~/.local/share/buck-workflow-pi --harness claude
 ```
 
-User scope puts skills under `~/.claude/skills/` (available in all
-projects). Project scope puts them under `.claude/skills/` in the current
-repo. Claude Code picks them up live — no restart needed for edits.
+If that clone already exists, update it in place instead of cloning over it.
+The checkout must remain at a durable path because the installer creates
+symlinks into it. Its default non-force behavior preserves real destination
+files; use `--dry-run` first when reconciling an existing setup. User scope
+lands under `~/.claude/`; for project-only scope, link the same skill
+directories under `.claude/skills/` in the project.
 
 ### Install — via the plugin marketplace (when the marketplace entry ships)
 
 Once this repo publishes a Claude Code marketplace entry:
 
 ```
-/plugin marketplace add buckleyrobinson/buck-workflow-pi
-/plugin install buck-workflow@buckleyrobinson
+/plugin marketplace add evilbuck/buck-workflow-pi
+/plugin install buck-workflow@evilbuck
 ```
 
 Or install a local clone directly:
@@ -362,9 +415,9 @@ In a Claude Code session:
 /b-plan
 ```
 
-If you see the planning workflow, install worked. `/skills` lists every
-loaded skill — confirm `b-plan`, `b-build`, `b-review`, `b-save` are
-present.
+Seeing the planning workflow proves only that B-Plan resolves. Use Claude
+Code's loader-native skill catalog to confirm `b-build`, `b-review`, and
+`b-save` before the session reports `full`.
 
 Reference: <https://code.claude.com/docs/en/skills>
 
@@ -393,16 +446,20 @@ works as-is on every harness.
 
 ## Verify it worked
 
-After install, run a quick smoke test from any agent:
+After install or repair:
 
-1. Type `/b-plan` (or `$buck-plan` on Codex) and confirm the planning
-   skill loads.
-2. Run a small task — for example, `/b-plan "Add a CONTRIBUTING.md"` —
-   and confirm the agent creates `.context/<date>.<subject>/plan-*.md`.
-3. Run `/b-save` and confirm it writes a memory file under
+1. Restart/reload the agent so the active skill catalog refreshes.
+2. Use the harness's loader-native catalog/resolver to check the exact names
+   `b-build`, `b-review`, and `b-save`. All three must resolve before reporting
+   `full`.
+3. Type `/b-plan` (or invoke `b-plan` by skill name on Codex), run a small task
+   such as planning `CONTRIBUTING.md`, and confirm it creates
+   `.context/<date>.<subject>/index.md` plus `plan-*.md`.
+4. In a `full` session, run `/b-save` and confirm it writes a memory file under
    `.context/memory/`.
 
-If all three work, the install is complete.
+Package listings and files on disk may help diagnose an install, but they do
+not replace the active-session sentinel check.
 
 ## Troubleshooting
 
@@ -414,9 +471,10 @@ If all three work, the install is complete.
 - **Path collision with another skill of the same name** — Pi, Claude
   Code, and OpenCode all keep the first skill found and warn. Rename
   with care, or remove the conflicting copy.
-- **Live edits not picked up** — Pi, OpenCode, and Claude Code watch
-  skill directories; changes flow through. Codex requires a restart
-  after editing `~/.agents/skills/`.
+- **Live edits or installs not picked up** — even on harnesses that watch skill
+  directories, start a refreshed session after installation or repair before
+  repeating the sentinel probe. Codex always requires a restart after editing
+  `~/.agents/skills/`.
 - **Symlinks broken after a repo move** — re-run the `for d in ...` loop
   from the new path. Symlinks are cheap; replace, don't fix.
 - **Permission prompts on Claude Code** — Buck skills are read-mostly
