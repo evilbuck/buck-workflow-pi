@@ -327,11 +327,9 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
 
 ## Closeout
 
-After completing implementation, report:
-1. **Changed files** — list what was modified
-2. **Verification** — confirm the changes work (run tests: `npx vitest run` for unit, `npx playwright test` for browser)
-3. **Phase status** — if working from a phased plan, note which phase was completed
-4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Include a Conventional Commits message based on the staged changes:
+1. **Verification** — confirm the changes work. For code-touching work, the project's deterministic check contract (`/b-guardrails-check`) is the closeout gate; an ad-hoc `npx vitest run` / `npx playwright test` is the TDD inner-loop proof, not the closeout proof. Keep those commands as the inner-loop examples in `### 2. Red Phase` / `### 3. Green Phase` — the contract is what closes the implementation. Docs-only sessions skip the contract with one line of explanation.
+2. **Phase status** — if working from a phased plan, note which phase was completed
+3. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Include a Conventional Commits message based on the staged changes:
 
    ```markdown
    ## Title
@@ -341,4 +339,4 @@ After completing implementation, report:
    <why this change was made, key constraints, notable behavior changes>
    ```
 
-5. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit
+4. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit

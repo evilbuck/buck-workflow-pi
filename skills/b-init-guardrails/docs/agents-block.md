@@ -19,15 +19,31 @@ The **mainline agent** owns dispatch. Run a guardrails check **at coherent point
 - Before committing
 - When the mainline agent is about to yield
 
+If the session touched code, the check is **blocking** for completion. A session is docs-only when every changed path is `.md`, `.mdx`, `.txt`, `LICENSE`, or under `.context/`, `docs/`, or `presentations/` — those skip the gate with one line of explanation. Any other change (source, `package.json`, lockfiles, CI YAML) makes the session code-touching and the gate mandatory.
+
 Do **not** run mid-edit; the working tree may be in an inconsistent state and yield false failures. `b-guardrails-check` only measures — it never dispatches itself and never edits.
 
 ## How to Read a Verdict
 
-`/b-guardrails-check` returns a structured verdict:
+`/b-guardrails-check` resolves its contract via `skills/b-guardrails-check/docs/contract-resolution.md` and returns a structured verdict:
 
 ```json
 {
   "status": "pass",
+  "contract": "durable",
+  "contract_version": 2,
+  "tests": {
+    "unit_gate": "pass",
+    "unit_exit_code": 0,
+    "functional_gate": "skipped",
+    "functional_exit_code": null
+  },
+  "lint": {
+    "lint_gate": "pass",
+    "mode": "diff-scoped",
+    "files_linted": 3,
+    "exit_code": 0
+  },
   "coverage": {
     "current": 45.2,
     "baseline": 42.5,
@@ -44,6 +60,9 @@ Do **not** run mid-edit; the working tree may be in an inconsistent state and yi
     "complexity_gate": "pass"
   },
   "gates": {
+    "unit_test_gate": "pass",
+    "functional_test_gate": "skipped",
+    "lint_gate": "pass",
     "patch_gate": "pass",
     "global_ratchet": "pass",
     "complexity_gate": "pass"
@@ -60,9 +79,18 @@ Do **not** run mid-edit; the working tree may be in an inconsistent state and yi
 
 - `status: pass` — all gates passed. Continue.
 - `status: fail` — one or more gates failed. The verdict shows which gate failed and by how much.
+- `contract` — one of `durable`, `ephemeral`, `suggested`, `none`. A `none` or `suggested` result means the repo needs `/b-init-guardrails` to record a real contract.
 - `ratchet_update` — a proposed update only. The check skill is read-only; the mainline agent or `/b-init-guardrails` refresh applies approved baseline raises and complexity-inventory shrinkage at a coherent point.
 
 ## What to Do on Failure
+
+**Unit / functional test failure** (gate `fail`):
+- Fix the test or the code under test before committing.
+- Never delete the test, never record `null` to silence the gate, never widen ignores.
+
+**Lint gate failure** (gate `fail`, mode `diff-scoped` or `whole-repo-enforced`):
+- Fix the reported lint errors in the files you changed.
+- Never widen the lint ignore config to silence the gate. If a lint_cmd is genuinely wrong, re-run `/b-init-guardrails` to refresh.
 
 **Patch gate failure** (changed lines < 90% covered):
 - Add tests for the changed lines before committing.
@@ -75,6 +103,21 @@ Do **not** run mid-edit; the working tree may be in an inconsistent state and yi
 **Complexity violation** (new function > 10 cyclomatic):
 - Refactor the function before committing.
 - If the function is legitimately complex, document the exception and add it to the baseline via explicit re-baseline (manual opt-in).
+
+**v1 contract detected** (`contract_version: 1`):
+- Run `/b-init-guardrails` to upgrade to v2 and add lint and functional-test gates.
+
+## Contract Resolution
+
+`/b-guardrails-check` resolves the check contract in this order, first hit wins. **Resolution never writes a file.**
+
+1. `guardrails.json` at repo root → authoritative. Run all gates. Verdict `contract: "durable"`.
+2. Managed block present but `guardrails.json` missing → warn the contract is broken, continue to step 3.
+3. `b-init-guardrails`' `scripts/detect-stack.ts` reports ≥ 1 ecosystem → ephemeral contract; run lint and test gates only. Verdict `contract: "ephemeral"`.
+4. No ecosystem detected → surface any `README.md` testing/development command block as unverified suggestions. Do not execute them. Verdict `contract: "suggested"`.
+5. Nothing found → warn and offer `/b-init-guardrails`. Verdict `contract: "none"`.
+
+Full chain: `skills/b-guardrails-check/docs/contract-resolution.md`.
 
 ## Dispatch Modes
 

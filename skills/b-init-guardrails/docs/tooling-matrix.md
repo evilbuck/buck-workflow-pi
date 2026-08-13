@@ -54,6 +54,13 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | bun test | `bun test --coverage --coverage-reporter=lcov` | lcov | Thresholds in `bunfig.toml`: `coverageThreshold = 0.9`. |
 | deno test + coverage | `deno test --coverage` then `deno coverage --lcov` | lcov | Two-step. CLI `--threshold` is whole-number %. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| ESLint | `eslint --format stylish` | Behavior expanded via `.eslintrc*`. Promoted from complexity vehicle. | yes |
+| Oxlint | `oxlint` | Rust-based, fast. Newer ecosystem. | yes |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -84,7 +91,15 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | coverage.py | `coverage run -m pytest` then `coverage xml --fail-under=N` | Cobertura XML, LCOV (since 6.3) | `--fail-under=MIN` exits status **2** if total % < MIN. |
 | pytest-cov | `pytest --cov=PKG --cov-report=xml --cov-fail-under=N` | xml, json, lcov | Wraps coverage.py. LCOV needs coverage.py ≥6.3. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| ruff | `ruff check` | Fast, modern, ruff-config. Promoted from complexity vehicle. | yes |
+| flake8 | `flake8` | Older stdlib. Promoted from complexity vehicle. | yes |
+
 ### Cyclomatic Complexity
+
 
 | Tool | Invocation | Notes |
 |------|------------|-------|
@@ -113,6 +128,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | Tool | Invocation (machine-readable) | Output format | Notes |
 |------|-------------------------------|---------------|-------|
 | SimpleCov | Require in test helper; `SimpleCov.start` | HTML (default), JSON, LCOV (via `simplecov-lcov` gem) | Thresholds: `SimpleCov.minimum_coverage 90`. |
+
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| RuboCop | `rubocop` | Behavior expanded via `.rubocop.yml`. Promoted from complexity vehicle. | yes |
 
 ### Cyclomatic Complexity
 
@@ -143,6 +164,13 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 |------|-------------------------------|---------------|-------|
 | PHPUnit (PCOV or Xdebug) | `phpunit --coverage-cobertura cobertura.xml` | Clover XML, Cobertura XML | **Requires** Xdebug or PCOV extension. [UNVERIFIED built-in `--coverage-fail-under` flag]. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| phpcs | `phpcs` | PHP Code Sniffer. Introduced in v2. | yes |
+| phpstan | `phpstan analyse --no-progress` | Static analysis. Introduced in v2. | no |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -172,7 +200,14 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | flutter test --coverage | `flutter test --coverage` | LCOV (`coverage/lcov.info`) | First-choice for Flutter. [UNVERIFIED first-party `--fail-under` flag]. |
 | package:coverage | `dart pub global run coverage:test_with_coverage` | JSON + LCOV | Use when not on Flutter tool. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| dart analyze | `dart analyze` | Built-in. Promoted from complexity-vehicle file. | yes |
+
 ### Cyclomatic Complexity
+
 
 **Free `dart_code_metrics` is discontinued.** Metrics moved to **commercial DCM** (https://dcm.dev/pricing/). `dart analyze` does **not** provide cyclomatic complexity thresholds.
 
@@ -199,7 +234,15 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | `gocover-cobertura` | `gocover-cobertura < cover.out > coverage.xml` | Cobertura XML | Stdin coverprofile → Cobertura XML. |
 | `go-test-coverage` | `go-test-coverage --config=.testcoverage.yml` | text (CI exit code) | Standard fail-under **idiom** when Go itself cannot gate. Config keys: `threshold.total` (0–100). |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| golangci-lint | `golangci-lint run` | Driver for many linters. Promoted from complexity vehicle. | no |
+| `go vet` | `go vet ./...` | Built-in. Introduced in v2. | no |
+
 ### Cyclomatic Complexity
+
 
 | Tool | Invocation | Notes |
 |------|------------|-------|
@@ -228,6 +271,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | `cargo-llvm-cov` | `cargo llvm-cov --lcov --output-path lcov.info --fail-under-lines N` | lcov, JSON, Cobertura XML | Verified flags in upstream README. |
 | `cargo-tarpaulin` | `cargo tarpaulin --out Lcov --fail-under N` | Lcov, Xml, Json, Html | Config: `tarpaulin.toml` `fail-under`. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| clippy | `cargo clippy --all-targets -- -D warnings` | Treat warnings as errors. Promoted from complexity vehicle. | no |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -240,8 +289,6 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 ---
 
 ## C / C++
-
-**Detection signals**: `CMakeLists.txt`, `meson.build`, `Makefile`, `*.c`/`*.cpp`/`*.h`/`*.hpp`, `compile_commands.json`
 
 ### Test Runners
 
@@ -258,6 +305,13 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | `gcov` + `lcov` | Build with `-fprofile-arcs -ftest-coverage` then `lcov --capture --directory . --output-file coverage.info` | lcov `.info` | Classic GCC path. |
 | `llvm-cov export` | `llvm-cov export -format=lcov -instr-profile=default.profdata ./binary > lcov.info` | lcov, JSON | Pair with Clang `-fprofile-instr-generate -fcoverage-mapping`. |
 | `gcovr` | `gcovr --cobertura -o cobertura.xml --fail-under-line N` | Cobertura XML, JSON, HTML | `--fail-under-line MIN` exits status **2**. [UNVERIFIED all gcovr config filenames]. |
+
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| cppcheck | `cppcheck --enable=warning,style --error-exitcode=1` | Static analysis. Promoted from complexity vehicle. | yes |
+| clang-tidy | `clang-tidy ...` | C++ linter. Promoted from complexity vehicle. | yes |
 
 ### Cyclomatic Complexity
 
@@ -290,6 +344,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | `swift test --enable-code-coverage` + `llvm-cov` | `swift test --enable-code-coverage` then `llvm-cov export -format=lcov` | profdata + lcov/JSON | **No native fail-under** — gate via parsed lcov. |
 | `xcodebuild` + `xccov` | `xcodebuild test -enableCodeCoverage YES -resultBundlePath TestResults.xcresult` then `xcrun xccov view --report --json TestResults.xcresult` | xcresult, JSON | `--report --json` on `.xcresult` is the modern CI form. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| SwiftLint | `swiftlint lint --strict` | Promoted from complexity vehicle. | yes |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -316,6 +376,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 |------|-------------------------------|---------------|-------|
 | Coverlet collector | `dotnet test --collect:"XPlat Code Coverage;Format=cobertura"` | default **cobertura** XML | Package: `coverlet.collector`. |
 | Coverlet MSBuild | `dotnet test /p:CollectCoverage=true /p:Threshold=N /p:ThresholdType=line` | json, lcov, opencover, cobertura | **Threshold gating is on the MSBuild driver**, not the collector string alone. |
+
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| dotnet format | `dotnet format --verify-no-changes` | Verify-only. Introduced in v2. | no |
 
 ### Cyclomatic Complexity
 
@@ -345,6 +411,13 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | JaCoCo Maven | `mvn test jacoco:report` / `mvn jacoco:check` | HTML + XML + CSV | Plugin: `org.jacoco:jacoco-maven-plugin`. |
 | JaCoCo Gradle | `./gradlew jacocoTestReport` / `jacocoTestCoverageVerification` | XML/CSV/HTML | Verification is **opt-in** (not part of `check` unless wired). |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| Checkstyle (Maven) | `mvn checkstyle:check` | Promoted from complexity vehicle. | no |
+| Checkstyle (Gradle) | `./gradlew checkstyleMain` | Promoted from complexity vehicle. | no |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -373,6 +446,13 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | JaCoCo (same as Java) | `./gradlew jacocoTestReport` | XML/HTML/CSV | Works for Kotlin bytecode. |
 | Kover | `./gradlew koverXmlReport` / `koverVerify` | XML (JaCoCo-compatible) | DSL: `kover { reports { verify { rule { minBound(N) } } } }`. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| detekt | `detekt --input src` | Static analysis. Promoted from complexity vehicle. | no |
+| detekt (Gradle) | `./gradlew detekt` | Gradle form. Fallback to detekt CLI. | no |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -398,6 +478,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | Tool | Invocation (machine-readable) | Output format | Notes |
 |------|-------------------------------|---------------|-------|
 | sbt-scoverage | `sbt clean coverage test coverageReport` | HTML + XML | [UNVERIFIED exact default Cobertura filename in latest sbt-scoverage]. |
+
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| scalastyle | `sbt scalastyle` | Promoted from complexity vehicle. | no |
 
 ### Cyclomatic Complexity
 
@@ -426,6 +512,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 | Built-in `mix test --cover` | `mix test --cover` | OTP cover HTML | `test_coverage: [summary: [threshold: N]]` in `mix.exs`. |
 | excoveralls | `mix coveralls.cobertura` | JSON, Cobertura XML | Fail under: `"minimum_coverage": N` in `coveralls.json`. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| Credo | `mix credo --strict` | Static analysis. Promoted from complexity vehicle. | no |
+
 ### Cyclomatic Complexity
 
 | Tool | Invocation | Notes |
@@ -452,6 +544,12 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 |------|-------------------------------|---------------|-------|
 | kcov | `kcov /path/to/outdir bats test/` | Cobertura XML, JSON | [UNVERIFIED if a `--threshold` flag exists in latest kcov]. |
 
+### Lint
+
+| Tool | Invocation | Notes | Accepts paths |
+|------|------------|-------|---------------|
+| shellcheck | `shellcheck` | Static analysis/lint (bugs, style, POSIX). | yes |
+
 ### Cyclomatic Complexity
 
 **shellcheck does NOT compute cyclomatic complexity** — it is a static analysis/lint tool (bugs, style, POSIX), not a CCN tool.
@@ -459,6 +557,26 @@ For Elixir: use native `credo` (`Credo.Check.Refactor.CyclomaticComplexity`).
 **lizard does not officially support Shell/Bash** (no reader in `lizard_languages/`). Fallback remains lizard for polyglot consistency, but expect weak/empty shell function metrics.
 
 **Status**: Shell is **complexity-unsupported**. Document explicitly.
+
+---
+
+## Functional / E2E Detection
+
+Only the signals below produce a non-null `functional_test_cmd`. Everything else is `null` and `/b-init-guardrails` Phase 2 asks the user.
+
+| Ecosystem | Signal | `functional_test_cmd` |
+|---|---|---|
+| typescript | `playwright.config.{js,ts,mjs,cjs}` at repo root | `playwright test` |
+| typescript | `cypress.config.{js,ts,mjs,cjs}` at repo root | `cypress run` |
+| python | directory `tests/e2e/` or `tests/functional/` exists | `pytest <that dir>` |
+| go | any `*_test.go` whose first 5 lines contain `//go:build integration` | `go test -tags=integration ./...` |
+| ruby | directory `spec/system/` (preferred) or `spec/features/` | `rspec <that dir>` |
+| java / kotlin | `pom.xml` contains `maven-failsafe-plugin` | `mvn failsafe:integration-test` |
+| java / kotlin | `build.gradle*` contains `integrationTest` | `./gradlew integrationTest` |
+| rust | `tests/*.rs` exists | `cargo test --test '*'` |
+| all others | — | `null` |
+
+Precedence within an ecosystem is top-to-bottom; first match wins.
 
 ---
 

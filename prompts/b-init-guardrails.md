@@ -1,7 +1,6 @@
 ---
-description: One-shot, idempotent initialization of quality guardrails (tests, coverage, cyclomatic complexity) with a brownfield ratchet.
+description: One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet.
 ---
-
 # B-INIT-GUARDRAILS
 
 $ARGUMENTS
