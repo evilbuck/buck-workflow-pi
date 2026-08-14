@@ -8,6 +8,9 @@ security-audit-report.json
 # Fallback: .context/draft-commit.md
 .context/draft-commit.md
 .context/*/draft-commit.md
+# Local Hindsight import skip-state (per-machine); document_id upsert remains idempotent
+.context/memory/.omp-hindsight-import-manifest.json
+
 
 __pycache__
 

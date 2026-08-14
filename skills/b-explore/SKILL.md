@@ -62,7 +62,7 @@ If the protocol finds no subject, proceed as a fresh session.
 - Use symbol search and code outline tools to navigate efficiently.
 - Prefer targeted reads over full-file reads when the codebase is large.
 - Use GitNexus (when available) for dependency/caller analysis.
-- For QMD usage, read `~/.agents/skills/qmd/SKILL.md` for proper command syntax and collection management.
+- Prior session decisions (optional): if OMP `recall`/`reflect` tools exist, use them for past workflow/architecture choices; else optional `qmd` over `.context/memory` if installed; else `.context/memory/index.md`. Do not require qmd for exploration.
 
 ### Write-Gate Protocol (Required)
 

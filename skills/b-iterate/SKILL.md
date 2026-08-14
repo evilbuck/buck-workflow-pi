@@ -32,23 +32,24 @@ The Buck workflow plugin tracks your session automatically. You are responsible 
 At the START of your work:
 1. Read `.context/workflow/current-session.json` if it exists
 2. Read the memory file listed in session state (if any) for prior context
-3. Apply **Context Resolution** (above) to find an `iterate-*.md` artifact
-4. If an iteration artifact is found, read it fully and work through its issues in order
+3. Optional: if OMP `recall` is available, recall decisions tied to the iterate subject (background only)
+4. Apply **Context Resolution** (above) to find an `iterate-*.md` artifact
+5. If an iteration artifact is found, read it fully and work through its issues in order
 
 At EACH NATURAL STOP (you finished a coherent unit of work):
-5. Read the current session memory file
-6. Rewrite it in-place with consolidated, current information:
+6. Read the current session memory file
+7. Rewrite it in-place with consolidated, current information:
    - Add new decisions made since last update
    - Move abandoned approaches to an "Abandoned Approaches" section with reasons
    - Update "Files Modified" to reflect actual current state
    - Remove duplicates and superseded entries
    - Update frontmatter topics/domains if scope shifted
-7. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
+8. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-8. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
-9. Do a final memory update
-10. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before yielding the execution session).
+9. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
+10. Do a final memory update
+11. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before yielding the execution session).
 
 ## Closeout
 

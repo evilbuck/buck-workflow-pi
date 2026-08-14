@@ -78,6 +78,17 @@ OMP adds to Pi's settings:
 |---|---|
 | Plugins | `omp plugin install <package-name>` |
 | MCP integration | Via extensions |
-| Hindsight memory | Compresses sessions into persistent project model |
+| Hindsight / mnemopi memory | `memory.backend` in `~/.omp/agent/config.yml` — exposes `retain` / `recall` / `reflect` (and optional `learn`) |
 | Subagents | Parallel task delegation |
 | GitHub as filesystem | Read issues, PRs, diffs natively |
+
+## Buck workflow × OMP memory
+
+Buck keeps **two layers**:
+
+1. **`.context/memory`** — git-portable session records written by `/b-save` (all harnesses).
+2. **OMP LTM** — when `memory.backend` is `hindsight` or `mnemopi`, `/b-save` also `retain`s structured session facts via the native tools (not a separate Hindsight client in the skill).
+
+**Prior-work search** (bootstrap): `recall`/`reflect` first → optional `qmd` → `.context/memory/index.md`.
+
+**Bulk backfill** of an existing markdown tree into Hindsight: `skills/b-memory-import` (`bun …/import-context-memory.ts`). Routine sessions do not run the importer.

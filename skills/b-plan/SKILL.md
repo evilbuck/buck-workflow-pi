@@ -126,6 +126,7 @@ After subject resolution, gather planning context from these additional sources:
    - `spec-*.md`
    - existing `plan-*.md` when refining or replacing a plan
 4. **Relevant code** — read the code/config/tests needed to make the plan concrete
+5. **Prior decisions (optional)** — if OMP `recall`/`reflect` exist, query durable project decisions related to the topic; treat as background and verify against code/artifacts. Do not require qmd.
 
 Use these sources together. Artifacts are helpful inputs, not prerequisites.
 

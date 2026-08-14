@@ -1,13 +1,13 @@
 ---
 name: b-save
-description: Record session history — checkpoint memory, backlog, and cross-references
+description: Record session history — checkpoint memory, backlog, cross-references, and optional OMP retain
 triggers:
   - /b-save
 ---
 
 # b-save: Session Record Checkpoint
 
-Record the current session's work into durable `.context/` artifacts. Run at natural stopping points and at session end.
+Record the current session's work into durable `.context/` artifacts. Optionally mirror key facts into OMP native memory (`retain` / `learn`) when those tools exist. Run at natural stopping points and at session end.
 
 ## When to Use
 
@@ -22,7 +22,7 @@ Record the current session's work into durable `.context/` artifacts. Run at nat
 
 When invoked, the LLM receives the prompt instructions and executes them directly. No extension coordination or state injection is required.
 
-## The 11 Responsibilities
+## The 12 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -31,15 +31,24 @@ When invoked, the LLM receives the prompt instructions and executes them directl
 5. **Backlog Update** — Mark completed items, add new/deferred items
 6. **Spec Status Updates** — Set `status: completed` on finished specs
 7. **Index Update** — Update `.context/memory/index.md` with entry at top
-8. **QMD Re-index** — Ensure the memory collection is indexed for search
-9. **Phase State Consolidation** — Verify phased plan file states match reality
-10. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
+8. **Native agent memory (OMP)** — If `retain` is available, retain 1–N self-contained session facts (decisions, conventions, risks, paths). If only `learn` exists, learn one reusable lesson. Skip when neither tool exists. Do not call Hindsight HTTP; do not run full `b-memory-import` on routine saves.
+9. **QMD re-index (optional)** — Best-effort only when `qmd` is on PATH; never required; failures must not block save
+10. **Phase State Consolidation** — Verify phased plan file states match reality
+11. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
+12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
 
-11. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
+## Two memory layers
+
+| Layer | Role |
+|-------|------|
+| `.context/memory/*.md` | Git-portable, reviewable session record (required) |
+| OMP `retain` / `learn` | Harness LTM for next-session recall (optional mirror) |
+
+Bulk seed of existing markdown into Hindsight: `skills/b-memory-import` (deterministic script), not this skill.
 
 ## Key Principle
 
-Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record.
+Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record, then optionally mirrors into harness memory.
 
 
 ## Commit Integration
@@ -53,9 +62,11 @@ Plans live in subject folders (intent). History lives in `.context/memory/` (rec
 Out-of-plan findings (new scope beyond the plan) do not iterate — close accepted work, then start a separate `/b-plan` → `/b-build`.
 
 Run `/b-save` before `/b-commit` so that memory and draft-commit artifacts are included in the commit.
+
 ## Related
 
 - `prompts/b-save.md` — the prompt body executed when `/b-save` is invoked
+- `skills/b-memory-import/SKILL.md` — bulk `.context/memory` → Hindsight import
 - `skills/b-build/SKILL.md` — recommends `/b-save` at session end
 - `skills/b-review/SKILL.md` — recommends `/b-save` after review
 - Global AGENTS.md — defines memory frontmatter, backlog, and cross-reference conventions
