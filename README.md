@@ -196,7 +196,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 
 | Command | Purpose |
 |---------|---------|
-| `/b-save` | Record session history to `.context/memory/`, update workflow state, stitch cross-references, and update backlog/spec status |
+| `/b-save` | Write `.context/memory` + backlog/index/cross-refs; on OMP, also `retain` session facts when tools exist; optional qmd re-index |
 
 ### Skills
 
@@ -214,6 +214,8 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
+| `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional qmd |
+| `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
 | `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
@@ -325,7 +327,8 @@ Artifacts link to each other via frontmatter fields:
 - For slash commands: Pi with `prompts/` loaded, OMP with the `commands/`
   mirror, or another harness with its native skill/command surface wired
 - Optional: the bootstrap instructions for cross-session durability conventions
-- Optional: [qmd](https://github.com/qmd-project/qmd) for semantic search over memory files
+- Optional (OMP): `memory.backend: hindsight` or `mnemopi` so `/b-save` can `retain` and agents can `recall`/`reflect` prior work
+- Optional: [qmd](https://github.com/tobi/qmd) for local markdown search over `.context/memory` (never required; demoted behind OMP native memory)
 
 ## Compatibility
 

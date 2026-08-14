@@ -17,6 +17,8 @@ JSON remains the source of truth for machine-owned state:
 - `.context/workflow/current-session.json`
 - other operational/session caches
 
+**Harness LTM is not a `.context/` source.** OMP `retain`/`recall`/`reflect` (Hindsight/mnemopi) mirror durable facts for agent recall. They do not replace markdown memory files or the generated JSON indexes. Bulk seed: `skills/b-memory-import`.
+
 ## Generated indexes
 
 Run:

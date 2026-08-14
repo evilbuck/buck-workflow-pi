@@ -29,7 +29,10 @@ Structure when more detail is needed:
 ## Before/After Workflow
 
 **Before starting ANY task:**
-1. Search prior work: `qmd search "<topic>" -c <project>-memory` — semantic + keyword search across all history, not just the newest entries. qmd collection names are **global**, so each project indexes its `.context/memory` under a per-project name (`<project>-memory`); check the project's `AGENTS.md` for the exact name, or register once: `qmd collection add .context/memory --name <project>-memory --mask '*.md'`. Falls back to reading `.context/memory/index.md` (most recent 3-5 entries) if `qmd` is unavailable or unindexed.
+1. Search prior work (first match wins):
+   - **OMP native memory** — if `recall` / `reflect` tools exist: `recall` (or `reflect` for synthesis) for decisions, conventions, and past outcomes. Treat results as background; verify against the repo.
+   - **qmd** (optional) — if `qmd` is on PATH: `qmd search "<topic>" -c <project>-memory`. Collection names are global; register once with `qmd collection add .context/memory --name <project>-memory --mask '*.md'` (or the name in the project's `AGENTS.md`).
+   - **Ledger fallback** — read `.context/memory/index.md` (most recent 3–5 entries) and open relevant memory files.
 2. Read `.context/backlog/todo.md` for active priorities (legacy fallback: `.context/backlog.md`)
 3. If `.context/` missing: `mkdir -p .context/memory`
 
@@ -39,7 +42,8 @@ Structure when more detail is needed:
 3. Update `.context/memory/index.md` with entry for the session file
 4. Update backlog: mark completed items, add new items
 5. Update spec/plan status to `completed` if finished
-6. Run `/b-commit` to commit durable state
+6. Prefer `/b-save` (writes the above and, on OMP, `retain`s session facts when tools exist)
+7. Run `/b-commit` to commit durable state
 
 ---
 

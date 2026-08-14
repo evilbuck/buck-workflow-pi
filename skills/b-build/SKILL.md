@@ -292,23 +292,24 @@ If the phases overview has no `format: discrete` frontmatter (legacy single-file
 
 The Buck workflow plugin tracks your session automatically. You are responsible for the living memory — the plugin handles the rest.
 
-At the START of your work:
+At SESSION START:
 1. Read `.context/workflow/current-session.json` if it exists
 2. Read the memory file listed in session state (if any) for prior context
+3. Optional: if OMP `recall` is available, recall the active subject / user goal for durable decisions (background only; prefer plan + repo)
 
 At EACH NATURAL STOP (you finished a coherent unit of work):
-3. Read the current session memory file
-4. Rewrite it in-place with consolidated, current information:
+4. Read the current session memory file
+5. Rewrite it in-place with consolidated, current information:
    - Add new decisions made since last update
    - Move abandoned approaches to an "Abandoned Approaches" section with reasons
    - Update "Files Modified" to reflect actual current state
    - Remove duplicates and superseded entries
    - Update frontmatter topics/domains if scope shifted
-5. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
+6. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-6. Do a final memory update
-7. Tell the user: "Run /b-review for validation, then /b-save to finalize, then /b-commit to commit."
+7. Do a final memory update
+8. Tell the user: "Run /b-review for validation, then /b-save to finalize, then /b-commit to commit."
 
 ## Execution Loop Awareness
 

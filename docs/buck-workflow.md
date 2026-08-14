@@ -23,7 +23,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | Most `/b-*` workflow entrypoints | Prompt templates | Slash commands | `prompts/b-*.md`; `commands/b-*.md` symlinks |
 | Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
-| `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` |
+| `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` (+ optional OMP retain) |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
@@ -297,7 +297,7 @@ flowchart LR
     end
     
     subgraph Save["💾 Save Phase"]
-        S1[/b-save\] --> S2[Memory + Index<br/>+ Backlog]
+        S1[/b-save\] --> S2[Memory + Index + Backlog<br/>+ optional OMP retain]
     end
     
     Research --> Planning
@@ -388,7 +388,9 @@ flowchart TD
 | [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
-| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state |
+| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional qmd |
+| [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
+
 **Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -854,8 +856,9 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 **Session Awareness Protocol**:
 1. Read `.context/workflow/current-session.json` at start
-2. Update living memory file at each natural stop
-3. Tell user "Run /b-save to finalize" at completion
+2. Optional: OMP `recall` for subject/user-goal decisions (background only)
+3. Update living memory file at each natural stop
+4. Tell user "Run /b-save to finalize" at completion (on OMP, save also `retain`s when tools exist)
 
 **Model Routing + Auto-Switch** (b-build):
 - If no `buckModelMapping` configured → soft suggestion notification (based on plan step/file count)
@@ -1055,21 +1058,22 @@ Suggested next step
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Checkpoint session state and record completed work to the canonical history ledger.
+**Purpose**: Checkpoint session state and record completed work to the canonical history ledger. On OMP, also mirror durable facts into harness LTM when `retain`/`learn` tools exist.
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
 `/b-save` is a **pure prompt/skill command**. There is no extension handler.
 The model executes the prompt instructions directly, reads
-`.context/workflow/current-session.json` when it exists, and writes only to
-`.context/`.
+`.context/workflow/current-session.json` when it exists, and writes durable
+files under `.context/`. Step 8 may call harness memory tools (`retain` /
+`learn`) when present — that is intentional, not a second HTTP client.
 
 **Usage**:
 ```
 /b-save
 ```
 
-**11 Core Responsibilities**:
+**12 Core Responsibilities**:
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
@@ -1078,10 +1082,20 @@ The model executes the prompt instructions directly, reads
 5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items (create item file + `todo.md` entry). Legacy fallback: `.context/backlog.md`
 6. **Spec Status Updates** — Set `status: completed` (no file moves)
 7. **Index Update** — Update `.context/memory/index.md`
-8. **QMD Re-index** — Make new memory searchable (if QMD available)
-9. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
-10. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
-11. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
+8. **Native agent memory (OMP)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM; skip otherwise. Not a Hindsight HTTP client; bulk seed uses `b-memory-import`
+9. **QMD re-index (optional)** — Best-effort when `qmd` is available; never required
+10. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
+11. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
+12. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
+
+**Memory layers**:
+
+| Layer | Required | Role |
+|-------|----------|------|
+| `.context/memory/*.md` | Yes | Git-portable, multi-harness session record |
+| OMP `retain` / `learn` | No | Harness LTM mirror for next-session recall |
+| qmd index | No | Optional local markdown search |
+| `b-memory-import` | No | One-shot/backfill of existing markdown into Hindsight |
 
 **Memory Frontmatter**:
 ```yaml
@@ -1104,7 +1118,22 @@ status: active
 - End of work session
 - Switching tasks mid-session
 
-**Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record.
+**Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). Harness LTM is a mirror for agent recall — not a replacement for git-portable markdown. `/b-save` turns intent into record, then optionally mirrors.
+
+**Related**: `skills/b-memory-import` for bulk seeding an existing `.context/memory` tree into Hindsight.
+
+#### `b-memory-import` — Hindsight backfill
+
+**Purpose**: Deterministic one-shot/backfill of project `.context/memory/**/*.md` into the configured Hindsight bank. Not part of the every-session loop.
+
+**Run** (from the target project root, or pass `--root`):
+
+```bash
+bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.ts --dry-run
+bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.ts
+```
+
+Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.*`. Idempotent via stable `document_id` + local `.omp-hindsight-import-manifest.json` (gitignored).
 
 ### 6. Commit Phase
 

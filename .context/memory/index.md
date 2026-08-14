@@ -1,3 +1,7 @@
+- 2026-08-14 — [OMP context memory × Hindsight / b-memory-import / b-save](omp-context-memory-hindsight-2026-08-14.md) — `completed`
+
+  - 2026-08-14 | `omp-context-memory-hindsight-2026-08-14.md` | domains: [tooling, buck-workflow, omp, docs, memory] | topics: [b-save, b-memory-import, hindsight, retain, recall, qmd, omp-memory] | status: completed
+
 - 2026-08-13 — [fix-pr: PR #6 review comments](fix-pr-6-2026-08-13.md) — `completed`
 - 2026-08-13 — [fix-pr: PR #5 review comments](fix-pr-5-2026-08-13.md) — `completed`
 
