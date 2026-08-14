@@ -16,7 +16,7 @@
 //   3 = rebase conflict (resolve, then re-run)
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "node:fs";
+import { accessSync, closeSync, constants, existsSync, openSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------- types ----------
@@ -81,22 +81,91 @@ function die(msg: string, code = 1): never {
   process.exit(code);
 }
 
+/** Read a small head of a PATH candidate (for detecting shell wrappers). */
+function readFileHead(path: string, maxBytes = 512): string {
+  try {
+    const fd = openSync(path, "r");
+    try {
+      const buf = Buffer.alloc(maxBytes);
+      const n = readSync(fd, buf, 0, maxBytes, 0);
+      return buf.subarray(0, n).toString("utf8");
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * True when PATH entry is a shell script that re-execs the same command name.
+ * Example hang (Bun PATH puts ~/.local/bin ahead of mise installs):
+ *   #!/bin/bash
+ *   mise use -g "gh"
+ *   exec "gh" "$@"
+ * That wrapper re-finds itself on PATH → infinite mise spam / hang under non-TTY spawn.
+ */
+function isSelfReexecWrapper(path: string, name: string): boolean {
+  const head = readFileHead(path);
+  if (!head.startsWith("#!")) return false;
+  // exec gh / exec "gh" / exec 'gh'
+  const reexec = new RegExp(String.raw`\bexec\s+["']?${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\b`);
+  if (reexec.test(head)) return true;
+  if (/\bmise\s+use\b/.test(head) && head.includes(name)) return true;
+  return false;
+}
+
+/**
+ * Resolve a real binary from PATH, skipping self-reexec shell wrappers.
+ * Falls back to bare `name` (execvp PATH search) when nothing better is found.
+ */
+function resolveCmd(name: string): string {
+  const pathEnv = process.env.PATH ?? "";
+  for (const dir of pathEnv.split(":")) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    try {
+      if (!existsSync(candidate)) continue;
+      const st = statSync(candidate);
+      // Accept regular files and symlinks-to-files (mise shims → /usr/bin/mise are fine).
+      if (!st.isFile() && !st.isSymbolicLink()) continue;
+      accessSync(candidate, constants.X_OK);
+    } catch {
+      continue;
+    }
+    if (isSelfReexecWrapper(candidate, name)) continue;
+    return candidate;
+  }
+  return name;
+}
+
+const GH_BIN = resolveCmd("gh");
+const GIT_BIN = resolveCmd("git");
+
+const EXEC_OPTS = {
+  encoding: "utf-8" as const,
+  // ignore stdin: some CLIs behave differently when stdin is a pipe.
+  stdio: ["ignore", "pipe", "pipe"] as ["ignore", "pipe", "pipe"],
+  // Hard ceiling so a bad wrapper never wedges the agent session again.
+  timeout: 60_000,
+};
+
 function execGit(args: readonly string[]): string {
   try {
-    return execFileSync("git", args, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    return execFileSync(GIT_BIN, args as string[], EXEC_OPTS);
   } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    const stderr = err.stderr?.toString().trim() || err.message;
+    const err = e as Error & { stderr?: Buffer | string };
+    const stderr = (typeof err.stderr === "string" ? err.stderr : err.stderr?.toString())?.trim() || err.message;
     die(`git ${args.join(" ")} failed: ${stderr}`);
   }
 }
 
 function execGh(args: readonly string[]): string {
   try {
-    return execFileSync("gh", args, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    return execFileSync(GH_BIN, args as string[], EXEC_OPTS);
   } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    const stderr = err.stderr?.toString().trim() || err.message;
+    const err = e as Error & { stderr?: Buffer | string };
+    const stderr = (typeof err.stderr === "string" ? err.stderr : err.stderr?.toString())?.trim() || err.message;
     die(`gh ${args.join(" ")} failed: ${stderr}`);
   }
 }
@@ -104,15 +173,13 @@ function execGh(args: readonly string[]): string {
 // Run git without dying — returns status for ops (like rebase) that may legitimately fail.
 function tryGit(args: readonly string[]): { ok: boolean; stdout: string; stderr: string } {
   try {
-    const stdout = execFileSync("git", args, { encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
+    const stdout = execFileSync(GIT_BIN, args as string[], EXEC_OPTS);
     return { ok: true, stdout, stderr: "" };
   } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer; stdout?: Buffer };
-    return {
-      ok: false,
-      stdout: err.stdout?.toString() ?? "",
-      stderr: err.stderr?.toString().trim() || err.message,
-    };
+    const err = e as Error & { stderr?: Buffer | string; stdout?: Buffer | string };
+    const stdout = typeof err.stdout === "string" ? err.stdout : err.stdout?.toString() ?? "";
+    const stderr = (typeof err.stderr === "string" ? err.stderr : err.stderr?.toString())?.trim() || err.message;
+    return { ok: false, stdout, stderr };
   }
 }
 
@@ -166,7 +233,7 @@ if (currentBranch === "HEAD") {
 
 // 4. Fetch latest remote refs (best-effort, don't fail on network issues)
 try {
-  execFileSync("git", ["fetch", "--prune"], { stdio: "pipe" });
+  execFileSync(GIT_BIN, ["fetch", "--prune"], EXEC_OPTS);
 } catch {
   // Network issue — continue with local refs
 }
@@ -175,22 +242,13 @@ try {
 const candidateNames = ["main", "master", "dev", "develop"];
 const baseCandidates: CandidateBase[] = candidateNames.map((name) => {
   // Check remote refs first, then local
-  let exists = false;
-  let remote = "origin";
-  try {
-    execFileSync("git", ["rev-parse", "--verify", `refs/remotes/origin/${name}`], { stdio: "pipe" });
-    exists = true;
-    remote = "origin";
-  } catch {
-    try {
-      execFileSync("git", ["rev-parse", "--verify", `refs/heads/${name}`], { stdio: "pipe" });
-      exists = true;
-      remote = ""; // local only
-    } catch {
-      exists = false;
-    }
+  if (tryGit(["rev-parse", "--verify", `refs/remotes/origin/${name}`]).ok) {
+    return { name, exists: true, remote: "origin" };
   }
-  return { name, exists, remote };
+  if (tryGit(["rev-parse", "--verify", `refs/heads/${name}`]).ok) {
+    return { name, exists: true, remote: "" }; // local only
+  }
+  return { name, exists: false, remote: "origin" };
 }).filter((c) => c.exists);
 
 if (baseCandidates.length === 0) {
@@ -231,18 +289,12 @@ if (!chosenCandidate) {
   // Allow arbitrary branch names that exist as local or remote refs
   let exists = false;
   let remote = "";
-  try {
-    execFileSync("git", ["rev-parse", "--verify", `refs/remotes/origin/${chosenBaseArg}`], { stdio: "pipe" });
+  if (tryGit(["rev-parse", "--verify", `refs/remotes/origin/${chosenBaseArg}`]).ok) {
     exists = true;
     remote = "origin";
-  } catch {
-    try {
-      execFileSync("git", ["rev-parse", "--verify", `refs/heads/${chosenBaseArg}`], { stdio: "pipe" });
-      exists = true;
-      remote = "";
-    } catch {
-      exists = false;
-    }
+  } else if (tryGit(["rev-parse", "--verify", `refs/heads/${chosenBaseArg}`]).ok) {
+    exists = true;
+    remote = "";
   }
   if (!exists) {
     die(`base branch '${chosenBaseArg}' not found among candidates or git refs: ${baseCandidates.map((c) => c.name).join(", ")}`);
