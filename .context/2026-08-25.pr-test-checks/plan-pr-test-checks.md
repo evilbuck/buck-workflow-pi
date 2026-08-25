@@ -52,6 +52,9 @@ Classify each current `npm test` failure before changing code:
   against the process cwd, contradicting the function's explicit `cwd`
   argument. The assertion now checks that supplied repository root while
   retaining fallback-draft coverage.
+- **Valid CI isolation tests:** b-pr preflight only uses Git state; requiring
+  GitHub authentication made base-candidate discovery and rebase checks depend
+  on a developer's local login. The unused authentication probe was removed.
 
 ## Verification
 

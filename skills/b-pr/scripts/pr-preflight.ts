@@ -11,7 +11,7 @@
 //
 // Exit codes:
 //   0 = success (base resolved, gathered)
-//   1 = error (not a git repo, gh not auth, rebase in-progress, etc.)
+//   1 = error (not a git repo, rebase in-progress, etc.)
 //   2 = behind + --dry-run (would rebase; reported and stopped)
 //   3 = rebase conflict (resolve, then re-run)
 
@@ -139,7 +139,6 @@ function resolveCmd(name: string): string {
   return name;
 }
 
-const GH_BIN = resolveCmd("gh");
 const GIT_BIN = resolveCmd("git");
 
 const EXEC_OPTS = {
@@ -160,15 +159,6 @@ function execGit(args: readonly string[]): string {
   }
 }
 
-function execGh(args: readonly string[]): string {
-  try {
-    return execFileSync(GH_BIN, args as string[], EXEC_OPTS);
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer | string };
-    const stderr = (typeof err.stderr === "string" ? err.stderr : err.stderr?.toString())?.trim() || err.message;
-    die(`gh ${args.join(" ")} failed: ${stderr}`);
-  }
-}
 
 // Run git without dying — returns status for ops (like rebase) that may legitimately fail.
 function tryGit(args: readonly string[]): { ok: boolean; stdout: string; stderr: string } {
@@ -222,23 +212,21 @@ if (existsSync(join(gitDir, "rebase-merge")) || existsSync(join(gitDir, "rebase-
   die(`a rebase is already in progress. Resolve conflicts, run \`git rebase --continue\` until "Successfully rebased", then re-run /b-pr.`);
 }
 
-// 2. Preflight: gh auth
-execGh(["auth", "status"]);
 
-// 3. Current branch
+// 2. Current branch
 const currentBranch = execGit(["rev-parse", "--abbrev-ref", "HEAD"]).trim();
 if (currentBranch === "HEAD") {
   die("detached HEAD state — switch to a feature branch first");
 }
 
-// 4. Fetch latest remote refs (best-effort, don't fail on network issues)
+// 3. Fetch latest remote refs (best-effort, don't fail on network issues)
 try {
   execFileSync(GIT_BIN, ["fetch", "--prune"], EXEC_OPTS);
 } catch {
   // Network issue — continue with local refs
 }
 
-// 5. Detect candidate base branches
+// 4. Detect candidate base branches
 const candidateNames = ["main", "master", "dev", "develop"];
 const baseCandidates: CandidateBase[] = candidateNames.map((name) => {
   // Check remote refs first, then local
@@ -255,7 +243,7 @@ if (baseCandidates.length === 0) {
   die("no candidate base branches found (checked: main, master, dev, develop)");
 }
 
-// 6. Resolve the base: --base flag wins; else the cache; else surface candidates.
+// 5. Resolve the base: --base flag wins; else the cache; else surface candidates.
 if (!chosenBaseArg) {
   const cached = noCache ? undefined : (existsSync(baseCacheFile) ? readFileSync(baseCacheFile, "utf-8").trim() || undefined : undefined);
   if (cached) {
@@ -283,7 +271,7 @@ if (!chosenBaseArg) {
   process.exit(0);
 }
 
-// 7. Validate chosen base — check candidate list first, then arbitrary refs
+// 6. Validate chosen base — check candidate list first, then arbitrary refs
 let chosenCandidate = baseCandidates.find((c) => c.name === chosenBaseArg);
 if (!chosenCandidate) {
   // Allow arbitrary branch names that exist as local or remote refs
@@ -308,7 +296,7 @@ if (!dryRun) writeFileSync(baseCacheFile, chosenBaseArg! + "\n");
 
 const baseRef = chosenCandidate.remote ? `${chosenCandidate.remote}/${chosenCandidate.name}` : chosenCandidate.name;
 
-// 8. Check rebase status: is HEAD behind the base?
+// 7. Check rebase status: is HEAD behind the base?
 let behindAhead = execGit(["rev-list", "--left-right", "--count", `${baseRef}...HEAD`]).trim();
 let [behindStr, aheadStr] = behindAhead.split("\t");
 let behindCount = parseInt(behindStr, 10);
@@ -370,7 +358,7 @@ if (behindCount > 0) {
   aheadCount = parseInt(aheadStr, 10);
 }
 
-// 9. Gather commit log
+// 8. Gather commit log
 const logFormat = "--format=%H%n%s%n%an%n%ai%n---";
 const logRaw = execGit(["log", `${baseRef}..HEAD`, logFormat]).trim();
 const commits: CommitInfo[] = [];

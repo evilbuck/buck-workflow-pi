@@ -29,6 +29,9 @@ lockfile with `npm ci`, and executes that single contract.
 - The root fallback-draft failure was an **invalid assertion** against the
   process cwd; it now checks the `cwd` argument documented by the function and
   retains behavior coverage.
+- b-pr preflight’s GitHub-authentication probe was an **invalid dependency**:
+  it is not used by candidate discovery or rebase preflight, and made the
+  otherwise deterministic tests depend on developer credentials. Removed it.
 
 ## Verification
 
