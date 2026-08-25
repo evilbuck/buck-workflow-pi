@@ -9,6 +9,7 @@
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [docs/eval-kernel.md omits async task/hub job contract](items/eval-kernel-async-task-doc-gap.md)
 - [ ] [Make active-subject discovery deterministic, exhaustive, and resilient to stale state](items/active-subject-discovery.md)
+- [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
 
 ## b-flow SDK Redesign Phases
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — see `.context/backlog/archive/2026-05/phase-3-test-coverage.md`

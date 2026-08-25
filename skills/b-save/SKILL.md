@@ -31,8 +31,8 @@ When invoked, the LLM receives the prompt instructions and executes them directl
 5. **Backlog Update** — Mark completed items, add new/deferred items
 6. **Spec Status Updates** — Set `status: completed` on finished specs
 7. **Index Update** — Update `.context/memory/index.md` with entry at top
-8. **Native agent memory (OMP)** — If `retain` is available, retain 1–N self-contained session facts (decisions, conventions, risks, paths). If only `learn` exists, learn one reusable lesson. Skip when neither tool exists. Do not call Hindsight HTTP; do not run full `b-memory-import` on routine saves.
-9. **QMD re-index (optional)** — Best-effort only when `qmd` is on PATH; never required; failures must not block save
+8. **Native agent memory (OMP only)** — If running in OMP and `retain` is available, retain 1–N self-contained session facts (decisions, conventions, risks, paths). If only `learn` exists, learn one reusable lesson. Skip when neither tool exists or not in OMP. Do not call Hindsight HTTP; do not run full `b-memory-import` on routine saves.
+9. **Memory skill re-index (non-OMP, optional)** — Best-effort only when a memory skill is configured in the project's `AGENTS.md` and the agent is not OMP; never required; failures must not block save
 10. **Phase State Consolidation** — Verify phased plan file states match reality
 11. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
 12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.

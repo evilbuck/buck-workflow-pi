@@ -29,10 +29,10 @@ Structure when more detail is needed:
 ## Before/After Workflow
 
 **Before starting ANY task:**
-1. Search prior work (first match wins):
-   - **OMP native memory** — if `recall` / `reflect` tools exist: `recall` (or `reflect` for synthesis) for decisions, conventions, and past outcomes. Treat results as background; verify against the repo.
-   - **qmd** (optional) — if `qmd` is on PATH: `qmd search "<topic>" -c <project>-memory`. Collection names are global; register once with `qmd collection add .context/memory --name <project>-memory --mask '*.md'` (or the name in the project's `AGENTS.md`).
-   - **Ledger fallback** — read `.context/memory/index.md` (most recent 3–5 entries) and open relevant memory files.
+1. Search prior work:
+   - **If OMP** (when `recall` / `reflect` tools exist): use `recall` (or `reflect` for synthesis) for decisions, conventions, and past outcomes. Treat results as background; verify against the repo.
+   - **Else** (non-OMP agents): use the configured memory skill. The skill path is specified in the project's `AGENTS.md` under "Memory Search Tool" (see configuration below). Load that skill and follow its search protocol.
+   - **Fallback** (if no memory skill is configured or available): read `.context/memory/index.md` (most recent 3–5 entries) and open relevant memory files.
 2. Read `.context/backlog/todo.md` for active priorities (legacy fallback: `.context/backlog.md`)
 3. If `.context/` missing: `mkdir -p .context/memory`
 
@@ -44,6 +44,27 @@ Structure when more detail is needed:
 5. Update spec/plan status to `completed` if finished
 6. Prefer `/b-save` (writes the above and, on OMP, `retain`s session facts when tools exist)
 7. Run `/b-commit` to commit durable state
+
+
+### Memory Search Tool Configuration (non-OMP agents)
+
+Projects using non-OMP agents (Claude Code, Codex, Pi, etc.) should specify their memory search skill in the project's `AGENTS.md`:
+
+```markdown
+## Memory Search Tool
+
+For non-OMP agents, use: `~/.agents/skills/qmd/SKILL.md`
+```
+
+Or for agent-specific tooling:
+
+```markdown
+## Memory Search Tool
+
+For non-OMP agents, use: `.claude/skills/memory-search/SKILL.md`
+```
+
+If no memory search tool is configured, agents fall back to reading `.context/memory/index.md`.
 
 ---
 

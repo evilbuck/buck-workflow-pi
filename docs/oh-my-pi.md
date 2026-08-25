@@ -89,6 +89,6 @@ Buck keeps **two layers**:
 1. **`.context/memory`** — git-portable session records written by `/b-save` (all harnesses).
 2. **OMP LTM** — when `memory.backend` is `hindsight` or `mnemopi`, `/b-save` also `retain`s structured session facts via the native tools (not a separate Hindsight client in the skill).
 
-**Prior-work search** (bootstrap): `recall`/`reflect` first → optional `qmd` → `.context/memory/index.md`.
+**Prior-work search** (bootstrap, conditional): if OMP → `recall`/`reflect`; else → configured memory skill; fallback → `.context/memory/index.md`.
 
 **Bulk backfill** of an existing markdown tree into Hindsight: `skills/b-memory-import` (`bun …/import-context-memory.ts`). Routine sessions do not run the importer.

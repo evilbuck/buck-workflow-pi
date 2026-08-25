@@ -96,7 +96,7 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 **Vault-Native LLM Wiki** (`skills/llm-wiki-vault/`): Enables any agent to ingest sources, build interlinked research notes, and maintain the Obsidian knowledge base at `~/Documents/second brain` using the same vault-native LLM Wiki protocol Hermes uses. Agents load it automatically from this project's `skills/` directory. See the skill's Quick Agent Lookup block for invocation keys (`LLM-WIKI`, `INGEST`, `QUERY`, `LINT`, `WIKI-SCHEMA`, etc.).
 
 **Session memory** (`skills/b-save/`, `skills/b-memory-import/`):
-- `/b-save` always writes git-portable `.context/memory` (+ backlog/index). On OMP, when `retain`/`learn` tools exist, it also mirrors durable session facts into harness LTM. qmd re-index is optional best-effort only.
+- `/b-save` always writes git-portable `.context/memory` (+ backlog/index). On OMP, when `retain`/`learn` tools exist, it also mirrors durable session facts into harness LTM. Non-OMP agents optionally re-index via the configured Memory Search Tool.
 - `b-memory-import` is a **one-shot/backfill** Bun script that pushes existing `.context/memory/**/*.md` into Hindsight via retain HTTP (stable `document_id`, local manifest). Not part of the every-session loop.
 
 # Buck Workflow Steps
@@ -122,10 +122,17 @@ The skills, prompts, and extensions are designed to have a loose coupling. Each 
 
 buck-workflow plans and phase files are omp-aware — see [docs/buck-workflow.md § OMP Autonomous Loops](docs/buck-workflow.md#omp-autonomous-loops) for the full description. Three primitives (`/goal set`, the `orchestrate` keyword, the `workflow` keyword) are user-toggled; the workflow only *recommends* them via the `omp_execution` phase field, the `eval-<topic>.py` template for `workflow` plans, and the `b-review` 6-step completion-audit. Slash-command stubs at `prompts/omp-{orchestrate,workflow,goal}.md` document each contract. Background: `.context/2026-06-06.omp-integration-buck-workflow/`. The b-flow deprecation (`.context/2026-06-01.deprecate-b-flow/`) is the lesson: no new extension-based orchestration, prompt-level / skill-level only.
 
-**Memory layers (OMP):**
+**Memory layers:**
 1. **`.context/memory`** — required, git-portable session record (all harnesses).
-2. **Harness LTM** — when `memory.backend` is `hindsight` or `mnemopi`, agents use `retain` / `recall` / `reflect` (and optional `learn`). `/b-save` mirrors checkpoint facts via those tools; do not call Hindsight HTTP from skills except `b-memory-import`'s deterministic importer.
-3. **qmd** — optional local index over markdown; never required when OMP memory tools exist.
+2. **Harness LTM (OMP only)** — when `memory.backend` is `hindsight` or `mnemopi`, agents use `retain` / `recall` / `reflect` (and optional `learn`). `/b-save` mirrors checkpoint facts via those tools; do not call Hindsight HTTP from skills except `b-memory-import`'s deterministic importer.
+3. **Memory skill (non-OMP)** — optional local search/index tool for non-OMP agents. Configure the skill path in the project's `AGENTS.md` under "Memory Search Tool".
 
-Prior-work search order is defined in installable bootstrap (`GLOBAL_OR_PROJECT-AGENTS.md`): OMP recall/reflect → optional qmd → `.context/memory/index.md`.
+Prior-work search is **conditional** (defined in installable bootstrap `GLOBAL_OR_PROJECT-AGENTS.md`):
+- **If OMP**: use native memory tools (`recall`/`reflect`)
+- **Else**: use configured memory skill (see "Memory Search Tool" section below)
+- **Fallback**: read `.context/memory/index.md`
+
+## Memory Search Tool
+
+For non-OMP agents, use: `~/.agents/skills/qmd/SKILL.md`
 

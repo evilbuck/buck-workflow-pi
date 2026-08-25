@@ -388,7 +388,7 @@ flowchart TD
 | [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
-| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional qmd |
+| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 
 **Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
@@ -1082,8 +1082,8 @@ files under `.context/`. Step 8 may call harness memory tools (`retain` /
 5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items (create item file + `todo.md` entry). Legacy fallback: `.context/backlog.md`
 6. **Spec Status Updates** — Set `status: completed` (no file moves)
 7. **Index Update** — Update `.context/memory/index.md`
-8. **Native agent memory (OMP)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM; skip otherwise. Not a Hindsight HTTP client; bulk seed uses `b-memory-import`
-9. **QMD re-index (optional)** — Best-effort when `qmd` is available; never required
+8. **Native agent memory (OMP only)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM; skip otherwise. Not a Hindsight HTTP client; bulk seed uses `b-memory-import`
+9. **Memory skill re-index (non-OMP, optional)** — Best-effort when a memory skill is configured in non-OMP agents; never required
 10. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
 11. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
 12. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
@@ -1094,7 +1094,7 @@ files under `.context/`. Step 8 may call harness memory tools (`retain` /
 |-------|----------|------|
 | `.context/memory/*.md` | Yes | Git-portable, multi-harness session record |
 | OMP `retain` / `learn` | No | Harness LTM mirror for next-session recall |
-| qmd index | No | Optional local markdown search |
+| Memory skill (non-OMP) | No | Optional configured local search/index |
 | `b-memory-import` | No | One-shot/backfill of existing markdown into Hindsight |
 
 **Memory Frontmatter**:

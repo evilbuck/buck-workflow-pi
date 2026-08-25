@@ -62,7 +62,7 @@ If the protocol finds no subject, proceed as a fresh session.
 - Use symbol search and code outline tools to navigate efficiently.
 - Prefer targeted reads over full-file reads when the codebase is large.
 - Use GitNexus (when available) for dependency/caller analysis.
-- Prior session decisions (optional): if OMP `recall`/`reflect` tools exist, use them for past workflow/architecture choices; else optional `qmd` over `.context/memory` if installed; else `.context/memory/index.md`. Do not require qmd for exploration.
+- Prior session decisions (optional): if OMP `recall`/`reflect` tools exist, use them for past workflow/architecture choices; else if a memory skill is configured in the project's `AGENTS.md`, load that skill and use it to search `.context/memory`; else read `.context/memory/index.md`. Do not require a memory skill for exploration.
 
 ### Write-Gate Protocol (Required)
 

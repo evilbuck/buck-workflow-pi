@@ -1,3 +1,7 @@
+- 2026-08-23 — [Conditional memory search (OMP native vs configured skill)](memory-search-agnostic-2026-08-23.md) — `completed`
+
+  - 2026-08-23 | `memory-search-agnostic-2026-08-23.md` | domains: [docs, buck-workflow, memory] | topics: [memory-search, omp, qmd, b-save, agents-bootstrap] | status: completed
+
 - 2026-08-14 — [OMP context memory × Hindsight / b-memory-import / b-save](omp-context-memory-hindsight-2026-08-14.md) — `completed`
 
   - 2026-08-14 | `omp-context-memory-hindsight-2026-08-14.md` | domains: [tooling, buck-workflow, omp, docs, memory] | topics: [b-save, b-memory-import, hindsight, retain, recall, qmd, omp-memory] | status: completed
