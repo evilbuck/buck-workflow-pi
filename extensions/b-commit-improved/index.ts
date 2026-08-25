@@ -32,6 +32,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createProgress, execFileCaptured } from "../command-progress.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Single source of truth for git plumbing — same pattern as b-pr-improved.
@@ -82,20 +83,8 @@ interface Preflight {
   json: Record<string, unknown> | null;
 }
 
-function runPreflight(args: string[], cwd: string): Preflight {
-  let stdout = "";
-  let code = 0;
-  try {
-    stdout = execFileSync("bun", [PREFLIGHT, ...args], {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stdout?: Buffer; status?: number };
-    stdout = err.stdout?.toString() ?? "";
-    code = typeof err.status === "number" ? err.status : 1;
-  }
+async function runPreflight(args: string[], cwd: string): Promise<Preflight> {
+  const { code, stdout } = await execFileCaptured("bun", [PREFLIGHT, ...args], cwd);
   let json: Record<string, unknown> | null = null;
   try {
     json = stdout.trim() ? (JSON.parse(stdout) as Record<string, unknown>) : null;
@@ -362,23 +351,32 @@ async function draftFromModel(
 
 // ---------- command handler ----------
 
-type Notify = (msg: string, level: "info" | "warning") => void;
+type Notify = (msg: string, level?: "info" | "warning" | "error") => void;
+
+interface CommandUI {
+  notify: Notify;
+  setStatus?: (key: string, text?: string) => void;
+  setWorkingMessage?: (message?: string) => void;
+}
 
 async function runBCommitImproved(
   args: string,
-  ctx: { cwd: string; ui: { notify: Notify } },
+  ctx: { cwd: string; ui: CommandUI },
 ): Promise<void> {
   const cwd = ctx.cwd;
   const notify = ctx.ui.notify;
   const opts = parseArgs(args);
+  const progress = createProgress(ctx, "b-commit-improved");
 
+  try {
   // 1. Preflight
   const pfArgs: string[] = [];
   if (opts.force) pfArgs.push("--force");
   if (opts.noDraft) pfArgs.push("--no-draft");
   if (opts.dryRun) pfArgs.push("--dry-run");
 
-  const pf = runPreflight(pfArgs, cwd);
+  progress.step("preflight…");
+  const pf = await runPreflight(pfArgs, cwd);
   if (pf.code === 2) {
     const branch = (pf.json?.current_branch as string) ?? "unknown";
     notify(`Protected branch '${branch}' — re-run with --force to commit here directly.`, "warning");
@@ -419,6 +417,7 @@ async function runBCommitImproved(
     body = draftFromDisk.body;
     source = "draft";
   } else {
+    progress.step("Drafting commit message…");
     const drafted = await draftFromModel(
       cwd,
       diff,
@@ -469,6 +468,7 @@ async function runBCommitImproved(
   }
 
   // 5. Commit. Hooks may have auto-staged files — retry once on failure if so.
+  progress.step("Committing…");
   const commitArgs = body ? ["commit", "-m", title, "-m", body] : ["commit", "-m", title];
   try {
     execGit(commitArgs, cwd);
@@ -522,6 +522,9 @@ async function runBCommitImproved(
   if (status.ok) notify(status.stdout.trimEnd(), "info");
   const log = tryGit(["log", "-1", "--oneline"], cwd);
   if (log.ok) notify(log.stdout.trimEnd(), "info");
+  } finally {
+    progress.clear();
+  }
 }
 
 // ---------- wiring ----------
@@ -534,7 +537,7 @@ export function wire(pi: ExtensionAPI): void {
         .filter((o) => o.startsWith(prefix))
         .map((o) => ({ value: o, label: o }));
     },
-    handler: async (args: string, ctx: { cwd: string; ui: { notify: Notify } }) => {
+    handler: async (args: string, ctx: { cwd: string; ui: CommandUI }) => {
       await runBCommitImproved(args, ctx);
     },
   });

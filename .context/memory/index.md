@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 - 2026-08-25 — [PR #8: contain OMP plan artifact paths](fix-pr-8-2026-08-25.md) — `completed` (round 2: canonicalize symlinks)
 
   - 2026-08-25 | `fix-pr-8-2026-08-25.md` | domains: [security, extensions, testing] | topics: [pr-8, plan-artifact, path-traversal, local-uri, symlink] | status: completed
@@ -14,6 +15,13 @@
 
   - 2026-08-23 | `memory-search-agnostic-2026-08-23.md` | domains: [docs, buck-workflow, memory] | topics: [memory-search, omp, qmd, b-save, agents-bootstrap] | status: completed
 
+=======
+- 2026-08-23 — [Live TUI progress for deterministic slash commands](deterministic-extension-progress-2026-08-23.md) — `active`
+
+  - 2026-08-23 | `deterministic-extension-progress-2026-08-23.md` | domains: [extensions, tui, testing] | topics: [b-pr-improved, b-commit-improved, b-kamal-release, command-progress, execFile, spawn] | status: active
+
+- 2026-08-17 | `b-hindsight-source-dirs-2026-08-17.md` | domains: [infra, tooling, memory] | topics: [buck-workflow, hindsight, source-dirs, classifier, framing, multi-kind] | status: completed
+>>>>>>> a8c7da9 (feat(extensions): show live phase progress on deterministic slash commands)
 - 2026-08-14 — [OMP context memory × Hindsight / b-memory-import / b-save](omp-context-memory-hindsight-2026-08-14.md) — `completed`
 
   - 2026-08-14 | `omp-context-memory-hindsight-2026-08-14.md` | domains: [tooling, buck-workflow, omp, docs, memory] | topics: [b-save, b-memory-import, hindsight, retain, recall, qmd, omp-memory] | status: completed

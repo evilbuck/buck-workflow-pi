@@ -5,8 +5,10 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   buildRetainItem,
+  classify,
   computeBankScope,
   documentIdFor,
+  framingFor,
   listMemoryMarkdown,
   parseArgs,
   parseFrontmatter,
@@ -16,6 +18,7 @@ import {
   splitFrontmatter,
   type MemoryFile,
 } from "./import-context-memory";
+
 describe("splitFrontmatter", () => {
   test("splits yaml and body", () => {
     const text = `---
@@ -23,6 +26,7 @@ date: 2026-08-14
 topics: [a, b]
 ---
 # Title
+
 
 Body line.
 `;
@@ -135,8 +139,9 @@ describe("buildRetainItem", () => {
     },
     body: "# Sample\n\nDecision: use retain.\n",
     title: "Sample",
+    kind: "memory" as const,
+    sourceDir: ".context/memory",
   };
-
   test("sets document_id tags metadata timestamp", () => {
     const item = buildRetainItem(file, ["project:demo"]);
     expect(item.document_id).toBe(documentIdFor(file.relPath));
@@ -160,8 +165,9 @@ describe("planImport", () => {
     frontmatter: { raw: {} },
     body: "x",
     title: rel,
+    kind: "memory" as const,
+    sourceDir: ".context/memory",
   });
-
   test("skips unchanged sha", () => {
     const files = [mk("a.md", "aaa"), mk("b.md", "bbb")];
     const manifest = {
@@ -232,9 +238,118 @@ describe("list integration light", () => {
       `---\ndate: 2026-01-01\n---\n# One\n`,
     );
     writeFileSync(join(mem, "index.md"), "# index\n");
-    const files = listMemoryMarkdown(mem, root);
+    const files = listMemoryMarkdown(
+      [{ rel: ".context/memory", abs: mem, kind: "memory" }],
+      root,
+    );
     expect(files).toHaveLength(1);
     expect(files[0].relPath).toBe(".context/memory/one.md");
     expect(files[0].frontmatter.date).toBe("2026-01-01");
+    expect(files[0].kind).toBe("memory");
+  });
+});
+
+describe("source-dir classifier + framing", () => {
+  test("classify routes by source dir", () => {
+    expect(classify(".context/memory/x.md", ".context/memory")).toBe("memory");
+    expect(classify(".context/memory/sub/y.md", ".context/memory")).toBe("memory");
+    expect(classify(".context/backlog/items/z.md", ".context/backlog/items")).toBe("backlog");
+    expect(() =>
+      classify(".context/specs/w.md", ".context/memory"),
+    ).toThrow(/not under sourceDir/);
+  });
+
+  test("framingFor returns distinct framings", () => {
+    expect(framingFor("memory")).toContain("session record");
+    expect(framingFor("backlog")).toContain("backlog item");
+    expect(framingFor("memory")).not.toBe(framingFor("backlog"));
+  });
+
+  test("parseArgs default is memory-only", () => {
+    const a = parseArgs(["--root", "/tmp/proj"]);
+    expect(a.sourceDirs).toHaveLength(1);
+    expect(a.sourceDirs[0].rel).toBe(".context/memory");
+    expect(a.sourceDirs[0].kind).toBe("memory");
+  });
+
+  test("parseArgs --source-dirs accepts comma list + greedy flag-repeat", () => {
+    const a = parseArgs([
+      "--source-dirs", ".context/memory,.context/backlog/items",
+    ]);
+    expect(a.sourceDirs).toHaveLength(2);
+    expect(a.sourceDirs.map((sd) => sd.rel)).toEqual([
+      ".context/memory",
+      ".context/backlog/items",
+    ]);
+    expect(a.sourceDirs[1].kind).toBe("backlog");
+  });
+
+  test("parseArgs rejects unknown source dir", () => {
+    expect(() => parseArgs(["--source-dirs", ".context/specs"])).toThrow(
+      /unrecognized source dir/,
+    );
+  });
+});
+
+describe("listMemoryMarkdown multi-dir", () => {
+  test("walks both memory and backlog", () => {
+    const root = mkdtempSync(join(tmpdir(), "bmem-multi-"));
+    const mem = join(root, ".context", "memory");
+    const backlog = join(root, ".context", "backlog", "items");
+    mkdirSync(mem, { recursive: true });
+    mkdirSync(backlog, { recursive: true });
+    writeFileSync(
+      join(mem, "session.md"),
+      `---\ndate: 2026-08-01\n---\n# Session\nContent.`,
+    );
+    writeFileSync(
+      join(backlog, "item.md"),
+      `---\ntitle: Do the thing\nstatus: active\npriority: high\n---\n# Item\n`,
+    );
+    // No frontmatter on memory file -> should be skipped with a warning.
+    writeFileSync(join(mem, "no-fm.md"), "# Just a title\nNo frontmatter here.\n");
+    // Backlog item missing `title` -> should be skipped.
+    writeFileSync(
+      join(backlog, "no-title.md"),
+      `---\nstatus: active\n---\n# Item\n`,
+    );
+
+    const warnings: string[] = [];
+    const files = listMemoryMarkdown(
+      [
+        { rel: ".context/memory", abs: mem, kind: "memory" },
+        { rel: ".context/backlog/items", abs: backlog, kind: "backlog" },
+      ],
+      root,
+      warnings,
+    );
+
+    expect(files).toHaveLength(2);
+    expect(files.map((f) => f.kind).sort()).toEqual(["backlog", "memory"]);
+    expect(files.find((f) => f.kind === "memory")?.sourceDir).toBe(".context/memory");
+    expect(files.find((f) => f.kind === "backlog")?.sourceDir).toBe(".context/backlog/items");
+    expect(warnings.length).toBe(2);
+    expect(warnings.some((w) => w.includes("no-fm.md"))).toBe(true);
+    expect(warnings.some((w) => w.includes("no-title.md"))).toBe(true);
+  });
+
+  test("missing source dirs are silently skipped (not an error)", () => {
+    const root = mkdtempSync(join(tmpdir(), "bmem-missing-"));
+    const backlog = join(root, ".context", "backlog", "items");
+    mkdirSync(backlog, { recursive: true });
+    writeFileSync(
+      join(backlog, "item.md"),
+      `---\ntitle: Real\nstatus: active\n---\n# Item\n`,
+    );
+
+    const files = listMemoryMarkdown(
+      [
+        { rel: ".context/memory", abs: join(root, ".context", "memory"), kind: "memory" },
+        { rel: ".context/backlog/items", abs: backlog, kind: "backlog" },
+      ],
+      root,
+    );
+    expect(files).toHaveLength(1);
+    expect(files[0].kind).toBe("backlog");
   });
 });

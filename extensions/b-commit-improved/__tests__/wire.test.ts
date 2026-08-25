@@ -54,6 +54,23 @@ describe("b-commit-improved wire", () => {
   });
 });
 
+describe("b-commit-improved progress", () => {
+  it("emits a preflight status line before the bun child result is used", async () => {
+    const dir = makeRepo();
+    try {
+      const { api, commands } = createMockApi();
+      wire(api);
+      const cmd = commands.get("b-commit-improved") as { handler: (args: string, ctx: unknown) => Promise<void> };
+      const calls: string[] = [];
+      await cmd.handler("", { cwd: dir, ui: { notify: (m: string) => calls.push(m) } });
+      expect(calls[0]).toMatch(/preflight/i);
+      expect(calls.some((m) => /Nothing staged/i.test(m))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
 // Build a throwaway git repo on a non-protected branch with a commit already on
 // the branch, so the preflight script can resolve a HEAD ref.
 function makeRepo(branchName = "feature/x"): string {
@@ -239,7 +256,10 @@ describe("fallbackDraft", () => {
     try {
       execFileSync("mkdir", ["-p", join(dir, ".context")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
       const written = fallbackDraft(dir, null, "diff --git\n+x", ["x.txt"], "", "model error");
+<<<<<<< HEAD
       expect(written).toBe(".context/draft-commit.md");
+=======
+>>>>>>> a8c7da9 (feat(extensions): show live phase progress on deterministic slash commands)
       expect(existsSync(join(dir, written))).toBe(true);
       const content = readFileSync(join(dir, written), "utf-8");
       expect(content).toContain("## Title");

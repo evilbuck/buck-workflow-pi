@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
@@ -354,6 +354,42 @@ describe("runKamalRelease deterministic paths", () => {
       expect(joined).toMatch(/--version=v1\.2\.3/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("runKamalRelease deploy failures", () => {
+  it("reports a signal-terminated deploy as a failure", async () => {
+    const dir = makeKamalRepo();
+    const fakeBin = mkdtempSync(join(tmpdir(), "kamal-signal-bin-"));
+    try {
+      const fakeKamal = join(fakeBin, "kamal");
+      writeFileSync(
+        fakeKamal,
+        ['#!/bin/sh', 'if [ "$1" = "--version" ]; then exit 0; fi', "kill -TERM $$"].join("\n"),
+      );
+      chmodSync(fakeKamal, 0o755);
+
+      // Dynamic import is intentional: the child must load after its fake Kamal PATH is injected.
+      const runner = [
+        `const { runKamalRelease } = await import(${JSON.stringify(new URL("../index.ts", import.meta.url).href)});`,
+        "const calls = [];",
+        'await runKamalRelease("--tag 1.0.0 --no-push", { cwd: process.argv[1], hasUI: false, ui: { notify: (message, level) => calls.push([message, level]) } });',
+        "process.stdout.write(JSON.stringify(calls));",
+      ].join("\n");
+      const stdout = execFileSync("bun", ["-e", runner, dir], {
+        cwd: dir,
+        encoding: "utf-8",
+        env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      const calls = JSON.parse(stdout) as Array<[string, string?]>;
+
+      expect(calls.some(([message]) => /✅ Deployed/.test(message))).toBe(false);
+      expect(calls.some(([message, level]) => level === "error" && /signal SIGTERM/.test(message))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(fakeBin, { recursive: true, force: true });
     }
   });
 });

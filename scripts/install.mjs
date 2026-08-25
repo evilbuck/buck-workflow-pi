@@ -88,6 +88,16 @@ export const HARNESSES = [
     surfaces: {},
     note: "Cursor requires project-scoped .cursor/rules/ setup. No global install available.",
   },
+  {
+    id: "grok",
+    name: "Grok Build",
+    detectDir: ".grok",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".grok/rules/buck-workflow.md" },
+      commands:  { src: "prompts", dest: ".grok/commands" },
+      skills:    { src: "skills",  dest: ".grok/skills" },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
