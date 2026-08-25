@@ -250,4 +250,17 @@ describe("wire (integration)", () => {
     expect(existsSync(join(cwd, ".context"))).toBe(false);
     expect(pi.appendEntry).not.toHaveBeenCalled();
   });
+  it("rejects a plan URL that traverses outside the session local directory", async () => {
+    const { pi, handlers, ctx, cwd } = setupSession("unused-plan.md");
+    writeFileSync(join(TEST_ROOT, "secret.md"), "# Secret");
+    ctx.sessionManager.getEntries = vi.fn(() => [
+      modeChange("e1", "plan", { planFilePath: "local://../../secret.md" }),
+      modeChange("e2", "none"),
+    ] as unknown[]);
+
+    await fireTurnEnd(handlers, ctx);
+
+    expect(existsSync(join(cwd, ".context"))).toBe(false);
+    expect(pi.appendEntry).not.toHaveBeenCalled();
+  });
 });

@@ -7,8 +7,8 @@ priority: medium
 status: completed
 subject: 2026-08-25.omp-plan-artifact-extension
 artifacts: [extensions/plan-artifact.ts, extensions/plan-artifact.test.ts, extensions/index.ts, docs/oh-my-pi.md]
-memory: [omp-plan-artifact-extension-2026-08-25.md]
-iterations: [iterate-omp-plan-artifact-extension.md]
+memory: [omp-plan-artifact-extension-2026-08-25.md, fix-pr-8-2026-08-25.md]
+iterations: [iterate-omp-plan-artifact-extension.md, iterate-plan-artifact-path-containment.md]
 ---
 
 # OMP plan-mode → durable `.context` artifact (opt-in extension)

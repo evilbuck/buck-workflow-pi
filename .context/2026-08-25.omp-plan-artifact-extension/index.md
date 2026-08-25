@@ -11,4 +11,6 @@ Opt-in extension that persists OMP plan mode plans into the buck-workflow `.cont
 
 - [plan-omp-plan-artifact-extension.md](plan-omp-plan-artifact-extension.md) — `completed`
 - [iterate-omp-plan-artifact-extension.md](iterate-omp-plan-artifact-extension.md) — `completed`
+- [iterate-plan-artifact-path-containment.md](iterate-plan-artifact-path-containment.md) — `completed`
 - Memory: `.context/memory/omp-plan-artifact-extension-2026-08-25.md`
+- Memory: `.context/memory/fix-pr-8-2026-08-25.md`

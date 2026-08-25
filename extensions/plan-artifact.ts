@@ -30,7 +30,7 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join, relative } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 
 const MARKER_TYPE = "plan-artifact";
@@ -122,20 +122,36 @@ export function withFrontmatter(
   );
 }
 
-/** Resolve a `local://<name>` URL to its on-disk path for this session. */
+/** Resolve a `local://<name>` URL without allowing it to escape local/. */
 function resolvePlanDiskPath(
   url: string,
   ctx: { sessionManager: { getArtifactsDir?: () => string | null; getSessionFile?: () => string | undefined } },
 ): string | null {
-  const name = url.replace(/^local:\/\//, "");
+  if (!url.startsWith("local://")) return null;
+  const name = url.slice("local://".length);
+  if (!name || isAbsolute(name)) return null;
+
   const artifactsDir = ctx.sessionManager.getArtifactsDir?.();
-  if (artifactsDir) return join(artifactsDir, "local", name);
-  // Fallback: local/ lives in a directory named after the session file stem.
-  const sessionFile = ctx.sessionManager.getSessionFile?.();
-  if (sessionFile) {
-    return join(dirname(sessionFile), basename(sessionFile, ".jsonl"), "local", name);
+  let localRoot: string | null = null;
+  if (artifactsDir) {
+    localRoot = join(artifactsDir, "local");
+  } else {
+    const sessionFile = ctx.sessionManager.getSessionFile?.();
+    if (sessionFile) localRoot = join(dirname(sessionFile), basename(sessionFile, ".jsonl"), "local");
   }
-  return null;
+  if (!localRoot) return null;
+
+  const planPath = resolve(localRoot, name);
+  const planRelative = relative(localRoot, planPath);
+  if (
+    !planRelative ||
+    planRelative === ".." ||
+    planRelative.startsWith(`..${sep}`) ||
+    isAbsolute(planRelative)
+  ) {
+    return null;
+  }
+  return planPath;
 }
 
 /**
