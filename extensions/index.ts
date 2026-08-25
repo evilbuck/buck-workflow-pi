@@ -9,6 +9,7 @@ import { wire as wireTpsTracker } from "./tps-tracker.js";
 import { wire as wireBprImproved } from "./b-pr-improved/index.js";
 import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
+import { wire as wirePlanArtifact } from "./plan-artifact.js";
 
 // --- Model Auto-Switch Types ---
 
@@ -327,6 +328,8 @@ export default function (pi: ExtensionAPI) {
   wireBCommitImproved(pi);
   // --- b-kamal-release: tag + deploy with Kamal ---
   wireKamalRelease(pi);
+  // --- plan-artifact: durable .context persistence for OMP plan mode (opt-in) ---
+  wirePlanArtifact(pi);
 
   // --- Session lifecycle ---
 

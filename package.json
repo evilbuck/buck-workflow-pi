@@ -77,8 +77,9 @@
     }
   },
   "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "npm run test:vitest && npm run test:bun",
+    "test:vitest": "vitest run",
+    "test:bun": "bun test skills/b-memory-import/scripts/import-context-memory.test.ts skills/b-auto-fix/scripts/auto-fix.test.ts",
     "test:ui": "vitest --ui",
     "test:e2e": "npx playwright test",
     "test:e2e:ui": "npx playwright test --ui",

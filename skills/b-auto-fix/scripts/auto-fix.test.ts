@@ -416,7 +416,7 @@ describe("worktree management", () => {
     writeFileSync(join(dir, "README.md"), "# test", "utf-8");
     const add = Bun.spawn({ cmd: ["git", "add", "."], cwd: dir, stdout: "pipe", stderr: "pipe" });
     await add.exited;
-    const commit = Bun.spawn({ cmd: ["git", "commit", "-m", "init"], cwd: dir, stdout: "pipe", stderr: "pipe" });
+    const commit = Bun.spawn({ cmd: ["git", "-c", "user.name=test", "-c", "user.email=test@example.com", "commit", "-m", "init"], cwd: dir, stdout: "pipe", stderr: "pipe" });
     await commit.exited;
     // Detect actual branch name
     const branch = Bun.spawn({ cmd: ["git", "branch", "--show-current"], cwd: dir, stdout: "pipe", stderr: "pipe" });
