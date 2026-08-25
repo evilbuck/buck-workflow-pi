@@ -65,3 +65,6 @@ Classify each current `npm test` failure before changing code:
   tests.
 - The workflow installs Bun before Node dependencies and invokes that same
   `npm test` contract for every pull request.
+- GitHub Actions run [#32882718854](https://github.com/evilbuck/buck-workflow-pi/actions/runs/32882718854)
+  passed the `Unit tests` job (checkout, Bun setup, Node setup, `npm ci`, and
+  `npm test`).

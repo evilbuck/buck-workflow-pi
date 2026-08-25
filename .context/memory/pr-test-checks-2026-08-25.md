@@ -38,7 +38,9 @@ lockfile with `npm ci`, and executes that single contract.
 
 ## Verification
 
-`npm ci && npm test` passed: 19 Vitest files / 311 tests and 63 Bun tests.
+- `npm ci && npm test` passed: 19 Vitest files / 311 tests and 63 Bun tests.
+- GitHub Actions run [#32882718854](https://github.com/evilbuck/buck-workflow-pi/actions/runs/32882718854)
+  passed its `Unit tests` job on PR #8.
 
 ## Files modified
 
@@ -52,4 +54,6 @@ lockfile with `npm ci`, and executes that single contract.
 - `.context/backlog/items/first-npm-publish.md`
 - `.context/memory/index.md`
 - `.context/workflow/current-session.json`
+- `skills/b-pr/scripts/pr-preflight.ts`
+- `skills/b-auto-fix/scripts/auto-fix.test.ts`
 

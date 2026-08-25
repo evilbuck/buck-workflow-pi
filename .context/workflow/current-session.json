@@ -12,6 +12,8 @@
     "vite.config.ts",
     "extensions/b-kamal-release/index.ts",
     "extensions/b-commit-improved/__tests__/wire.test.ts",
+    "skills/b-pr/scripts/pr-preflight.ts",
+    "skills/b-auto-fix/scripts/auto-fix.test.ts",
     ".context/2026-08-25.pr-test-checks/plan-pr-test-checks.md",
     ".context/2026-08-25.pr-test-checks/index.md",
     ".context/backlog/items/first-npm-publish.md",
