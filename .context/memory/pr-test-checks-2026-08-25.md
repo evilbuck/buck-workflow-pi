@@ -32,6 +32,9 @@ lockfile with `npm ci`, and executes that single contract.
 - b-pr preflight’s GitHub-authentication probe was an **invalid dependency**:
   it is not used by candidate discovery or rebase preflight, and made the
   otherwise deterministic tests depend on developer credentials. Removed it.
+- Auto-fix worktree coverage was **valid**, but its fixture had an invalid
+  assumption that global Git identity existed. It now supplies a
+  commit-scoped test identity.
 
 ## Verification
 

@@ -55,6 +55,9 @@ Classify each current `npm test` failure before changing code:
 - **Valid CI isolation tests:** b-pr preflight only uses Git state; requiring
   GitHub authentication made base-candidate discovery and rebase checks depend
   on a developer's local login. The unused authentication probe was removed.
+- **Valid worktree tests:** their temporary repositories must not inherit a
+  developer's Git identity. The fixture now supplies a commit-scoped identity
+  explicitly, removing the CI-only dependency.
 
 ## Verification
 
