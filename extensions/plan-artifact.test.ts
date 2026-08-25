@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, existsSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, existsSync, rmSync, writeFileSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import buckWorkflowExtension from "./index.js";
 import { wire, findPlanExit, slugFromPlanUrl, withFrontmatter } from "./plan-artifact.js";
@@ -262,5 +262,56 @@ describe("wire (integration)", () => {
 
     expect(existsSync(join(cwd, ".context"))).toBe(false);
     expect(pi.appendEntry).not.toHaveBeenCalled();
+  });
+
+  it("rejects a plan URL that is a symlink escaping the session local directory", async () => {
+    const { pi, handlers, ctx, cwd } = setupSession("unused-plan.md");
+    const secret = join(TEST_ROOT, "secret.md");
+    writeFileSync(secret, "# Secret");
+    symlinkSync(secret, join(TEST_ROOT, "session-artifacts", "local", "evil-plan.md"));
+    ctx.sessionManager.getEntries = vi.fn(() => [
+      modeChange("e1", "plan", { planFilePath: "local://evil-plan.md" }),
+      modeChange("e2", "none"),
+    ] as unknown[]);
+
+    await fireTurnEnd(handlers, ctx);
+
+    expect(existsSync(join(cwd, ".context"))).toBe(false);
+    expect(pi.appendEntry).not.toHaveBeenCalled();
+  });
+
+  it("rejects a plan URL under a directory symlink that escapes local/", async () => {
+    const { pi, handlers, ctx, cwd } = setupSession("unused-plan.md");
+    const outsideDir = join(TEST_ROOT, "outside");
+    mkdirSync(outsideDir, { recursive: true });
+    writeFileSync(join(outsideDir, "leaked-plan.md"), "# Secret");
+    symlinkSync(outsideDir, join(TEST_ROOT, "session-artifacts", "local", "alias"));
+    ctx.sessionManager.getEntries = vi.fn(() => [
+      modeChange("e1", "plan", { planFilePath: "local://alias/leaked-plan.md" }),
+      modeChange("e2", "none"),
+    ] as unknown[]);
+
+    await fireTurnEnd(handlers, ctx);
+
+    expect(existsSync(join(cwd, ".context"))).toBe(false);
+    expect(pi.appendEntry).not.toHaveBeenCalled();
+  });
+
+  it("persists a plan URL that is a symlink staying inside local/", async () => {
+    const { pi, handlers, ctx, cwd } = setupSession("widget-plan.md");
+    symlinkSync(
+      join(TEST_ROOT, "session-artifacts", "local", "widget-plan.md"),
+      join(TEST_ROOT, "session-artifacts", "local", "alias-plan.md"),
+    );
+    ctx.sessionManager.getEntries = vi.fn(() => [
+      modeChange("e1", "plan", { planFilePath: "local://alias-plan.md" }),
+      modeChange("e2", "none"),
+    ] as unknown[]);
+
+    await fireTurnEnd(handlers, ctx);
+
+    const subjectDir = join(cwd, ".context", `${new Date().toISOString().slice(0, 10)}.alias`);
+    expect(existsSync(join(subjectDir, "plan-alias.md"))).toBe(true);
+    expect(pi.appendEntry).toHaveBeenCalledTimes(1);
   });
 });

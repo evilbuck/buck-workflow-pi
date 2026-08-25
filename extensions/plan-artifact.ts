@@ -29,7 +29,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 
@@ -122,6 +122,12 @@ export function withFrontmatter(
   );
 }
 
+/** True when `candidate` is empty, `..`, outside `root`, or an absolute relative. */
+function pathEscapesRoot(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return !rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+}
+
 /** Resolve a `local://<name>` URL without allowing it to escape local/. */
 function resolvePlanDiskPath(
   url: string,
@@ -142,16 +148,19 @@ function resolvePlanDiskPath(
   if (!localRoot) return null;
 
   const planPath = resolve(localRoot, name);
-  const planRelative = relative(localRoot, planPath);
-  if (
-    !planRelative ||
-    planRelative === ".." ||
-    planRelative.startsWith(`..${sep}`) ||
-    isAbsolute(planRelative)
-  ) {
+  if (pathEscapesRoot(localRoot, planPath)) return null;
+  if (!existsSync(planPath)) return null;
+
+  let canonicalRoot: string;
+  let canonicalPlan: string;
+  try {
+    canonicalRoot = realpathSync(localRoot);
+    canonicalPlan = realpathSync(planPath);
+  } catch {
     return null;
   }
-  return planPath;
+  if (pathEscapesRoot(canonicalRoot, canonicalPlan)) return null;
+  return canonicalPlan;
 }
 
 /**
