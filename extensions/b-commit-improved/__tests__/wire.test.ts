@@ -240,8 +240,8 @@ describe("fallbackDraft", () => {
       execFileSync("mkdir", ["-p", join(dir, ".context")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
       const written = fallbackDraft(dir, null, "diff --git\n+x", ["x.txt"], "", "model error");
       expect(written).toBe(".context/draft-commit.md");
-      expect(existsSync(written)).toBe(true);
-      const content = readFileSync(written, "utf-8");
+      expect(existsSync(join(dir, written))).toBe(true);
+      const content = readFileSync(join(dir, written), "utf-8");
       expect(content).toContain("## Title");
       expect(content).toContain("## Body");
       expect(content).toContain("model error");

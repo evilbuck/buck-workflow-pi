@@ -1,3 +1,11 @@
+- 2026-08-25 — [PR #8: contain OMP plan artifact paths](fix-pr-8-2026-08-25.md) — `completed`
+
+  - 2026-08-25 | `fix-pr-8-2026-08-25.md` | domains: [security, extensions, testing] | topics: [pr-8, plan-artifact, path-traversal, local-uri] | status: completed
+
+- 2026-08-25 — [GitHub pull-request test checks](pr-test-checks-2026-08-25.md) — `completed`
+
+  - 2026-08-25 | `pr-test-checks-2026-08-25.md` | domains: [ci, testing, github] | topics: [pull-requests, github-actions, vitest, bun, test-gate] | status: completed
+
 - 2026-08-25 — [OMP plan-mode → durable .context artifact (opt-in extension)](omp-plan-artifact-extension-2026-08-25.md) — `completed`
 
   - 2026-08-25 | `omp-plan-artifact-extension-2026-08-25.md` | domains: [omp, buck-workflow, extensions] | topics: [plan-mode, hooks, plan-artifact, context-artifacts, opt-in-extension] | status: completed

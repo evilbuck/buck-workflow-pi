@@ -3,20 +3,21 @@ title: First npm publish of buck-workflow (blocked on test gate)
 status: active
 priority: high
 created: 2026-08-12
-updated: 2026-08-12
+updated: 2026-08-25
 completed: null
-related: [package.json, scripts/publish.mjs]
+related: [package.json, scripts/publish.mjs, .github/workflows/test.yml]
 ---
 
 # First npm publish of buck-workflow
 
-Package is publish-ready as unscoped `buck-workflow`, but `npm publish` is blocked by the
-`prepublishOnly: npm test` gate. Resolve that first.
+Package is publish-ready as unscoped `buck-workflow`. Its `prepublishOnly:
+npm test` gate is now green; release remains pending publish credentials and
+execution.
 
 ## Tasks
-- [ ] **BLOCKER:** green `npm test` (31 pre-existing failures / 3 files) OR scope `prepublishOnly`
-      to the publishable surface. Failing files: `skills/b-auto-fix/scripts/auto-fix.test.ts`,
-      `extensions/b-kamal-release/__tests__/wire.test.ts` (needs `kamal`), `extensions/b-commit-improved/__tests__/wire.test.ts`.
+- [x] **BLOCKER resolved 2026-08-25:** `npm test` runs the Node-compatible
+      suite under Vitest and the Bun-dependent suites under Bun.
+- [x] The PR `Unit tests` check runs this same green contract.
 - [ ] `npm login` (one time; agent cannot do this)
 - [ ] `npm run release -- --dry-run` to preview
 - [ ] `npm run release` to publish `--access public`, tag, push (or `-- none` for `0.2.0` verbatim)

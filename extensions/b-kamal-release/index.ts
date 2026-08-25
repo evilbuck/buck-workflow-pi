@@ -354,10 +354,6 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     notify("Not a git repository. Run from the project root.", "error");
     return;
   }
-  if (!hasBin("kamal")) {
-    notify("kamal is not installed or not on PATH. Install with `gem install kamal`.", "error");
-    return;
-  }
   const env = detectKamalEnv(cwd);
   if (!env.configured) {
     notify("No config/deploy.yml found — this isn't a Kamal project. Run `kamal init` first.", "error");
@@ -422,6 +418,13 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
 
   if (opts.dryRun) {
     notify("[dry-run] No changes made.", "info");
+    return;
+  }
+
+  // Validate the executable only once the dry-run path has exited, but before
+  // creating or pushing a tag. Dry-runs need only the repository configuration.
+  if (!hasBin("kamal")) {
+    notify("kamal is not installed or not on PATH. Install with `gem install kamal`.", "error");
     return;
   }
 
