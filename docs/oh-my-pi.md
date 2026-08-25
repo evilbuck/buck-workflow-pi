@@ -47,6 +47,28 @@ Same TypeScript extension system as Pi, but under `~/.omp/`:
 | Global | `~/.omp/agent/extensions/*.ts` |
 | Project | `.omp/extensions/*.ts` |
 
+### `plan-artifact` (bundled with buck-workflow, opt-in)
+
+OMP plan mode has **no exit hook** (no `mode_change` event, no `plan_approved`;
+goal mode got `goal_updated`, plan mode got nothing — verified against
+pi-coding-agent 18.0.4). The bundled `extensions/plan-artifact.ts` infers the
+exit instead: on each `turn_end` it scans session entries for a
+`mode_change → "none"` transition whose preceding active mode was `plan`,
+then copies the plan the agent wrote at `local://<slug>-plan.md` into the
+buck-workflow subject convention `.context/<date>.<slug>/plan-<slug>.md`
+(b-plan frontmatter included, so `/b-build` subject resolution finds it).
+
+Disabled by default. Enable via project `.omp/settings.json` (or `.pi/`, or
+the global `~/{.pi,.omp}/agent/settings.json`):
+
+```json
+{ "buckPlanArtifact": { "enabled": true } }
+```
+
+`BUCK_PLAN_ARTIFACT=1|0` overrides all files. Fires at the first `turn_end`
+after the exit — abort exits with no follow-up turn are skipped. Dedupes via a
+`plan-artifact` session entry, so it is reload-safe and never double-writes.
+
 ## Settings
 
 Global: `~/.omp/agent/settings.json`  

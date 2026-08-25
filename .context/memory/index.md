@@ -1,3 +1,7 @@
+- 2026-08-25 — [OMP plan-mode → durable .context artifact (opt-in extension)](omp-plan-artifact-extension-2026-08-25.md) — `completed`
+
+  - 2026-08-25 | `omp-plan-artifact-extension-2026-08-25.md` | domains: [omp, buck-workflow, extensions] | topics: [plan-mode, hooks, plan-artifact, context-artifacts, opt-in-extension] | status: completed
+
 - 2026-08-23 — [Conditional memory search (OMP native vs configured skill)](memory-search-agnostic-2026-08-23.md) — `completed`
 
   - 2026-08-23 | `memory-search-agnostic-2026-08-23.md` | domains: [docs, buck-workflow, memory] | topics: [memory-search, omp, qmd, b-save, agents-bootstrap] | status: completed
