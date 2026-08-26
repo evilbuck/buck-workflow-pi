@@ -259,10 +259,7 @@ describe("fallbackDraft", () => {
     try {
       execFileSync("mkdir", ["-p", join(dir, ".context")], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
       const written = fallbackDraft(dir, null, "diff --git\n+x", ["x.txt"], "", "model error");
-<<<<<<< HEAD
       expect(written).toBe(".context/draft-commit.md");
-=======
->>>>>>> a8c7da9 (feat(extensions): show live phase progress on deterministic slash commands)
       expect(existsSync(join(dir, written))).toBe(true);
       const content = readFileSync(join(dir, written), "utf-8");
       expect(content).toContain("## Title");

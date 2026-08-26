@@ -430,7 +430,6 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     return;
   }
 
-<<<<<<< HEAD
   // Validate the executable only once the dry-run path has exited, but before
   // creating or pushing a tag. Dry-runs need only the repository configuration.
   if (!hasBin("kamal")) {
@@ -438,24 +437,11 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     return;
   }
 
-  // 5. Tag.
-  if (!opts.skipTag) {
-    try {
-      if (opts.force) execGit(["tag", "-d", tag], cwd);
-      execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
-      notify(`Tagged ${tag}.`, "info");
-    } catch (e: unknown) {
-      notify(`Failed to create tag ${tag}: ${(e as Error).message}`, "error");
-      return;
-    }
-    if (!opts.noPush) {
-=======
   // 5. Tag + deploy — long children only after the dry-run gate.
   const progress = createProgress(ctx, "b-kamal-release");
   try {
     if (!opts.skipTag) {
       progress.step(`Tagging ${tag}…`);
->>>>>>> a8c7da9 (feat(extensions): show live phase progress on deterministic slash commands)
       try {
         if (opts.force) execGit(["tag", "-d", tag], cwd);
         execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
@@ -479,10 +465,6 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     }
 
     // 6. Deploy.
-    if (!hasBin("kamal")) {
-      notify("kamal is not installed or not on PATH. Install with `gem install kamal`.", "error");
-      return;
-    }
     progress.step(`Deploying ${tag}…`);
     const deployArgs = ["deploy", ...destFlag];
     if (!opts.noVersion) deployArgs.push(`--version=${version}`);
