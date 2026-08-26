@@ -28,7 +28,7 @@ the extension is the deterministic implementation.
 
 - Never commit to `main`, `master`, `dev`, or `develop` unless `--force` is set.
 - If nothing is staged, do not commit. Stage changes first.
-- Never commit a message that contains the literal `$TITLE` or `$BODY` placeholder.
+- Never commit a message that contains `$TITLE`, `$BODY`, or leftover `<short summary>`. Unfilled drafts use `$TITLE` / `$BODY` only; angle brackets are format docs, not file contents.
 - On commit failure, retry once if a hook auto-staged new files; otherwise
   surface the error and stop without deleting the draft.
 

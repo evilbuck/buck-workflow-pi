@@ -58,8 +58,8 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
 6. **Commit NOW:**
 
    Use the Bash tool to run `git commit` immediately. This is NOT a dry run. Do NOT output the command as a suggestion. Do NOT wrap it in a code block. Do NOT ask the user to run it themselves. Run it. Right now.
-   - Title should NOT contain the string `$TITLE`
-   - Body should NOT contain the string `$BODY`
+   - Title should NOT contain `$TITLE` or leftover `<short summary>`
+   - Body should NOT contain `$BODY`
 
    Use multiple `-m` flags for multi-line messages. If no body is needed, use a single `-m` with just the title.
    ```bash
@@ -91,7 +91,7 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
     git log -1 --format='%B'
     ```
 
-    If the message contains literal `$TITLE` or `$BODY`:
+    If the message contains `$TITLE`, `$BODY`, or leftover `<short summary>`:
     - Amend with the correct message:
     ```bash
     git commit --amend -m "actual title" -m "actual body"

@@ -1,3 +1,5 @@
+- [x] Stop b-commit-improved committing leftover draft placeholders (2026-08-26) — `.context/2026-08-26.b-commit-placeholder-sentinels/index.md`. Dollar-sign sentinels only; leftover angle-bracket titles refused. 16/16 tests.
+
 - [x] Run /b-init-guardrails on this repo (2026-08-26) — `.context/2026-08-26.b-init-guardrails-on-repo/index.md`. Durable `guardrails.json` v2; first check failed patch gate on pre-existing branch diffs.
 
 - [x] Make b-commit deterministic — b-commit-improved (2026-07-25) — `.context/2026-07-25.git-commit-improved/plan-git-commit-improved.md`. Skill, preflight script (4 exit codes), Pi extension (orchestrator + `fallbackDraft`), 10/10 vitest pass, OMP + Pi cross-platform fallbacks, 2-line wire-up. 0 tsc errors in new files.

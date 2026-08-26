@@ -60,14 +60,14 @@ After completing iteration:
    - Update `updated: YYYY-MM-DD` (if not already set to today)
 2. **Changed files** — list what was modified
 3. **Verification** — confirm the fixes work
-4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Include a Conventional Commits message for the follow-up changes:
+4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Replace `$TITLE` with a Conventional Commits subject; replace `$BODY` with why. Do not leave angle-bracket hints in the file.
 
    ```markdown
    ## Title
-   <type>(<scope>): <short summary>
+   $TITLE
 
    ## Body
-   <why this change was made, key constraints, notable behavior changes>
+   $BODY
    ```
 
 5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." Inside an OMP execution session, do not yield until review passes and `/b-save` has durable state.

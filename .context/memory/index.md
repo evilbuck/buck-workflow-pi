@@ -1,5 +1,6 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 - 2026-08-25 — [PR #8: contain OMP plan artifact paths](fix-pr-8-2026-08-25.md) — `completed` (round 2: canonicalize symlinks)
 
   - 2026-08-25 | `fix-pr-8-2026-08-25.md` | domains: [security, extensions, testing] | topics: [pr-8, plan-artifact, path-traversal, local-uri, symlink] | status: completed
@@ -18,6 +19,12 @@
 
 =======
 =======
+=======
+- 2026-08-26 — [b-commit-improved $TITLE/$BODY sentinels](b-commit-improved-placeholder-sentinels-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `b-commit-improved-placeholder-sentinels-2026-08-26.md` | domains: [extensions, git, testing] | topics: [b-commit-improved, draft-commit, placeholders, sentinels] | status: completed
+
+>>>>>>> 6713b9a (fix(b-commit-improved): refuse unfilled draft sentinels)
 - 2026-08-26 — [Init quality guardrails contract on this repo](b-init-guardrails-on-repo-2026-08-26.md) — `completed` (first check: patch gate 51%)
 
   - 2026-08-26 | `b-init-guardrails-on-repo-2026-08-26.md` | domains: [quality, tooling, testing] | topics: [b-init-guardrails, guardrails.json, vitest, lizard, coverage, patch-gate] | status: completed
