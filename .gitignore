@@ -18,6 +18,7 @@ __pycache__
 
 playwright-report
 test-results
+coverage/
 .gitnexus
 gitnexus
 CURRENT-TASK.md

@@ -45,8 +45,8 @@ The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workfl
 
 > **For installing agents:** Read
 > [`agent-install_instructions.md`](./agent-install_instructions.md) and
-> **ask the user which harness they're on** (Pi, OMP, Codex, OpenCode, or
-> Claude Code) before running any install commands.
+> **ask the user which harness they're on** (Pi, OMP, Codex, OpenCode,
+> Claude Code, or Grok Build) before running any install commands.
 
 ### Standalone B-Plan
 
@@ -96,7 +96,7 @@ npx buck-workflow install
 ```
 
 **What it does:**
-- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor)
+- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor, Grok Build)
 - Symlinks `GLOBAL_OR_PROJECT-AGENTS.md` as bootstrap instructions for each
 - Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode
 - Symlinks `skills/<name>/` directories for Claude Code, OpenCode
@@ -122,6 +122,7 @@ npx buck-workflow install
 | **Codex** | ✅ → `AGENTS.md` | ❌ (no commands) | — | Bootstrap-only; Codex has no slash commands |
 | **OpenCode** | ✅ → `AGENTS.md` | ✅ `~/.config/opencode/commands/` | ✅ `~/.config/opencode/skills/` | |
 | **Cursor** | — | — | — | Project-scoped only (`.cursor/rules/`); no global install |
+| **Grok Build** | ✅ → `~/.grok/rules/buck-workflow.md` | ✅ `~/.grok/commands/` | ✅ `~/.grok/skills/` | Native Grok surfaces; do not rely on Claude-compat |
 
 **Bootstrap drift fix:** The installer uses symlinks instead of copies, so `git pull` + re-run keeps every harness in sync. No more manual re-copying when the bootstrap file changes.
 
@@ -162,6 +163,7 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **Codex** | Skill invocation | `$b-plan` after linking the skill | Installer is bootstrap-only; skills are linked separately |
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
+| **Grok Build** | Skills + commands (`~/.grok/`) | `/b-plan` loads the same prompt template | `buck-workflow install --harness grok` |
 
 Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic. The installer wires each harness's native loading mechanism to the shared source of truth.
 

@@ -31,10 +31,12 @@ All work landed in this session:
 ## Memory
 
 - `.context/memory/b-commit-improved-2026-07-25.md`
+- `.context/memory/b-commit-improved-placeholder-sentinels-2026-08-26.md` (2026-08-26 follow-up)
 
 ## Status
 
 - 0 tsc errors in new files (5 pre-existing in `extensions/index.ts` baseline)
 - 10/10 vitest pass on the new test file
+- Follow-up 2026-08-26: unfilled drafts use dollar-sign sentinels; leftover angle-bracket titles refused. See `.context/2026-08-26.b-commit-placeholder-sentinels/`
 - Manual smoke test: all 4 exit codes (0/1/2/3) confirmed end-to-end
-- **Not committed** — `/b-commit-improved` is the natural next step
+- **Not committed** (original 2026-07-25 closeout note)

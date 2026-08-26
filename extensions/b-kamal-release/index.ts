@@ -23,6 +23,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { once } from "node:events";
+import { createLineRing, createProgress, execFileCaptured, KAMAL_TAIL_LINES } from "../command-progress.js";
 
 // ---------- exec helpers ----------
 
@@ -270,7 +271,6 @@ interface CommandContext {
   ui: UI;
 }
 
-type Notify = UI["notify"];
 
 // ---------- interactive prompts (deterministic when headless) ----------
 
@@ -324,20 +324,29 @@ async function resolveDestination(destinations: string[], opts: Options, ctx: Co
 
 // ---------- deploy ----------
 
-async function runKamal(args: string[], cwd: string, notify: Notify): Promise<{ code: number; output: string }> {
-  notify(`$ kamal ${args.join(" ")}`, "info");
+async function runKamal(
+  args: string[],
+  cwd: string,
+): Promise<{ code: number; output: string; signal: NodeJS.Signals | null }> {
   const child = spawn("kamal", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
-  let output = "";
+  const ring = createLineRing(KAMAL_TAIL_LINES);
   const append = (chunk: Buffer): void => {
-    output += chunk.toString();
+    ring.push(chunk.toString());
   };
   child.stdout.on("data", append);
   child.stderr.on("data", append);
   child.on("error", (err) => {
-    output += `\nspawn error: ${err.message}`;
+    ring.push(`spawn error: ${err.message}`);
   });
-  const [code] = await once(child, "close");
-  return { code: (code as number) ?? 0, output };
+  const [code, signal] = (await once(child, "close")) as [
+    number | null,
+    NodeJS.Signals | null,
+  ];
+  return {
+    code: code ?? 1,
+    output: ring.finish().join("\n"),
+    signal,
+  };
 }
 
 // ---------- orchestrator ----------
@@ -428,43 +437,46 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     return;
   }
 
-  // 5. Tag.
-  if (!opts.skipTag) {
-    try {
-      if (opts.force) execGit(["tag", "-d", tag], cwd);
-      execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
-      notify(`Tagged ${tag}.`, "info");
-    } catch (e: unknown) {
-      notify(`Failed to create tag ${tag}: ${(e as Error).message}`, "error");
-      return;
-    }
-    if (!opts.noPush) {
+  // 5. Tag + deploy — long children only after the dry-run gate.
+  const progress = createProgress(ctx, "b-kamal-release");
+  try {
+    if (!opts.skipTag) {
+      progress.step(`Tagging ${tag}…`);
       try {
-        execGit(["push", "origin", `refs/tags/${tag}`], cwd);
-        notify(`Pushed tag ${tag} to origin.`, "info");
+        if (opts.force) execGit(["tag", "-d", tag], cwd);
+        execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
+        notify(`Tagged ${tag}.`, "info");
       } catch (e: unknown) {
-        notify(
-          `Could not push tag ${tag} (${(e as Error).message}). Tagged locally; deploy will continue. Pass --no-push to silence.`,
-          "warning",
-        );
+        notify(`Failed to create tag ${tag}: ${(e as Error).message}`, "error");
+        return;
+      }
+      if (!opts.noPush) {
+        progress.step(`Pushing tag ${tag}…`);
+        const pushed = await execFileCaptured("git", ["push", "origin", `refs/tags/${tag}`], cwd);
+        if (pushed.code !== 0) {
+          notify(
+            `Could not push tag ${tag} (${pushed.stderr.trim() || pushed.stdout.trim() || "unknown"}). Tagged locally; deploy will continue. Pass --no-push to silence.`,
+            "warning",
+          );
+        } else {
+          notify(`Pushed tag ${tag} to origin.`, "info");
+        }
       }
     }
-  }
 
-  // 6. Deploy.
-  ctx.ui.setWorkingMessage?.(`Deploying ${tag} via kamal…`);
-  try {
+    // 6. Deploy.
+    progress.step(`Deploying ${tag}…`);
     const deployArgs = ["deploy", ...destFlag];
     if (!opts.noVersion) deployArgs.push(`--version=${version}`);
-    const result = await runKamal(deployArgs, cwd, notify);
+    const result = await runKamal(deployArgs, cwd);
     if (result.code === 0) {
-      notify(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`, "info");
+      progress.done(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`);
     } else {
-      const tailed = result.output.split("\n").filter((l) => l.length).slice(-20).join("\n");
-      notify(`kamal deploy failed (exit ${result.code}):\n${tailed}`, "error");
+      const reason = result.signal ? `signal ${result.signal}` : `exit ${result.code}`;
+      notify(`kamal deploy failed (${reason}):\n${result.output}`, "error");
     }
   } finally {
-    ctx.ui.setWorkingMessage?.();
+    progress.clear();
   }
 }
 

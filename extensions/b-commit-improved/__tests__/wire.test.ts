@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from "no
 import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
-import { fallbackDraft, wire } from "../index.js";
+import { fallbackDraft, hasCommitPlaceholders, wire } from "../index.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 // Minimal mock: only the ExtensionAPI surface b-commit-improved touches (registerCommand).
@@ -51,6 +51,23 @@ describe("b-commit-improved wire", () => {
     const result = cmd.handler("--dry-run", { cwd: "/nonexistent", ui: { notify: () => {} } });
     expect(result).toBeInstanceOf(Promise);
     await result;
+  });
+});
+
+describe("b-commit-improved progress", () => {
+  it("emits a preflight status line before the bun child result is used", async () => {
+    const dir = makeRepo();
+    try {
+      const { api, commands } = createMockApi();
+      wire(api);
+      const cmd = commands.get("b-commit-improved") as { handler: (args: string, ctx: unknown) => Promise<void> };
+      const calls: string[] = [];
+      await cmd.handler("", { cwd: dir, ui: { notify: (m: string) => calls.push(m) } });
+      expect(calls[0]).toMatch(/preflight/i);
+      expect(calls.some((m) => /Nothing staged/i.test(m))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -227,7 +244,10 @@ describe("fallbackDraft", () => {
         expect(content).toContain("## Title");
         expect(content).toContain("## Body");
         expect(content).toContain(diff);
-        expect(content).toContain("Re-run this skill to commit");
+        expect(content).toContain("Replace $TITLE and $BODY");
+        expect(content).toMatch(/^## Title\n\n\$TITLE$/m);
+        expect(content).toContain("$BODY");
+        expect(content).not.toContain("feat: <short summary>");
         expect(content).toContain("no model available");
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -245,6 +265,111 @@ describe("fallbackDraft", () => {
       expect(content).toContain("## Title");
       expect(content).toContain("## Body");
       expect(content).toContain("model error");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+function headSubject(cwd: string): string {
+  return execFileSync("git", ["log", "-1", "--format=%s"], {
+    cwd,
+    encoding: "utf-8",
+    stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+}
+
+function commitCount(cwd: string): number {
+  return Number(
+    execFileSync("git", ["rev-list", "--count", "HEAD"], {
+      cwd,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim(),
+  );
+}
+
+describe("hasCommitPlaceholders", () => {
+  it("treats $TITLE/$BODY as sentinels and leftover <short summary> as unusable", () => {
+    expect(hasCommitPlaceholders("$TITLE")).toBe(true);
+    expect(hasCommitPlaceholders("$BODY")).toBe(true);
+    expect(hasCommitPlaceholders("feat: <short summary>")).toBe(true);
+    expect(hasCommitPlaceholders("feat: add retry")).toBe(false);
+    expect(hasCommitPlaceholders("feat: parse List<T>")).toBe(false);
+  });
+});
+
+describe("b-commit-improved refuses placeholder drafts", () => {
+  it("does not commit a fallback draft whose title is still $TITLE", async () => {
+    const dir = makeRepo();
+    try {
+      writeFileSync(join(dir, "a.txt"), "x\n");
+      execFileSync("git", ["add", "a.txt"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      const subject = ".context/2026-08-26.placeholder-leak";
+      execFileSync("mkdir", ["-p", join(dir, subject)], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      fallbackDraft(dir, subject, "diff --git a/a.txt b/a.txt\n+x\n", ["a.txt"], "", "no model available");
+
+      const { api, commands } = createMockApi();
+      wire(api);
+      const cmd = commands.get("b-commit-improved") as {
+        handler: (args: string, ctx: unknown) => Promise<void>;
+      };
+      await cmd.handler("", { cwd: dir, ui: { notify: () => {} } });
+
+      expect(headSubject(dir)).toBe("init");
+      expect(commitCount(dir)).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not commit a legacy feat: <short summary> draft title", async () => {
+    const dir = makeRepo();
+    try {
+      writeFileSync(join(dir, "a.txt"), "x\n");
+      execFileSync("git", ["add", "a.txt"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      const subject = ".context/2026-08-26.legacy-bracket";
+      execFileSync("mkdir", ["-p", join(dir, subject)], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      writeFileSync(
+        join(dir, subject, "draft-commit.md"),
+        "## Title\n\nfeat: <short summary>\n\n## Body\n\nwhy\n",
+      );
+
+      const { api, commands } = createMockApi();
+      wire(api);
+      const cmd = commands.get("b-commit-improved") as {
+        handler: (args: string, ctx: unknown) => Promise<void>;
+      };
+      await cmd.handler("", { cwd: dir, ui: { notify: () => {} } });
+
+      expect(headSubject(dir)).toBe("init");
+      expect(commitCount(dir)).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("commits a filled draft title", async () => {
+    const dir = makeRepo();
+    try {
+      writeFileSync(join(dir, "a.txt"), "x\n");
+      execFileSync("git", ["add", "a.txt"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      const subject = ".context/2026-08-26.filled-draft";
+      execFileSync("mkdir", ["-p", join(dir, subject)], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      writeFileSync(
+        join(dir, subject, "draft-commit.md"),
+        "## Title\n\nfeat: hello\n\n## Body\n\nwhy this change\n",
+      );
+
+      const { api, commands } = createMockApi();
+      wire(api);
+      const cmd = commands.get("b-commit-improved") as {
+        handler: (args: string, ctx: unknown) => Promise<void>;
+      };
+      await cmd.handler("", { cwd: dir, ui: { notify: () => {} } });
+
+      expect(headSubject(dir)).toBe("feat: hello");
+      expect(commitCount(dir)).toBe(2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

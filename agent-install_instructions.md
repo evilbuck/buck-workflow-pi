@@ -1,9 +1,9 @@
 # Agent Install Instructions — Buck Workflow
 
 > **For the installing agent:** Before running any install command, **ask the
-> user which agent they're installing for** — Pi, OMP, Codex, OpenCode, or
-> Claude Code. Then jump to that section and run only those commands.
-> Do **not** blast through every section in sequence.
+> user which agent they're installing for** — Pi, OMP, Codex, OpenCode,
+> Claude Code, or Grok Build. Then jump to that section and run only those
+> commands. Do **not** blast through every section in sequence.
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
 explore, research, plan, build, review, save, present, grill, commit, plus
@@ -78,6 +78,7 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **Codex** | Symlink or copy each skill directory | `~/.agents/skills/<name>/` | n/a — invoke by skill name |
 | **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
+| **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
 
 ---
 
@@ -423,6 +424,71 @@ Reference: <https://code.claude.com/docs/en/skills>
 
 ---
 
+## Grok Build (`grok`)
+
+Grok Build follows the [Agent Skills](https://agentskills.io) standard and
+scans `~/.grok/skills/` plus `~/.grok/commands/` natively. It also reads
+Claude / `.agents` skill dirs for compatibility, but that is not a complete
+install — use the Grok surfaces below so `/b-plan` and companions resolve
+from this checkout.
+
+### Install — durable clone + installer (recommended)
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+~/.local/share/buck-workflow-pi/scripts/install.mjs \
+  --source ~/.local/share/buck-workflow-pi --harness grok
+```
+
+From an existing checkout (this machine):
+
+```bash
+/path/to/buck-workflow-pi/scripts/install.mjs \
+  --source /path/to/buck-workflow-pi --harness grok
+```
+
+If that clone already exists, update it in place instead of cloning over it.
+The checkout must remain at a durable path because the installer creates
+symlinks into it.
+
+### Install — plugin (optional)
+
+Grok can also load the repo as a plugin (`skills/` + `commands/` at the
+root). Plugin copies are not live-linked to the checkout:
+
+```bash
+grok plugin install /absolute/path/to/buck-workflow-pi --trust
+```
+
+Then enable it in `~/.grok/config.toml` under `[plugins].enabled` if it does
+not appear after install. Prefer the symlink installer for a local checkout.
+
+### Where things go
+
+| Surface | Location |
+|---|---|
+| Skills (user) | `~/.grok/skills/<name>/SKILL.md` |
+| Commands (user) | `~/.grok/commands/<name>.md` |
+| Bootstrap (recommended) | `~/.grok/rules/buck-workflow.md` (Grok home rules) |
+| Skills (project) | `.grok/skills/<name>/SKILL.md` or `.agents/skills/` |
+
+### Verify
+
+```bash
+grok inspect
+```
+
+Confirm `b-build`, `b-review`, and `b-save` list with source path under
+`~/.grok/skills/`. In a refreshed Grok session, type `/b-plan`.
+
+Command expansion proves only that B-Plan resolves. All three sentinels must
+resolve before the session reports `full`.
+
+Reference: Grok user guide — Skills (`~/.grok/docs/user-guide/08-skills.md`)
+and Plugins (`09-plugins.md`).
+
+---
+
 ## Companion bootstrap (`.context/` conventions)
 
 Buck workflow is durable by design — the skills write session memory,
@@ -440,6 +506,7 @@ Install it once per agent:
 | Codex | `~/.codex/AGENTS.md` (or any ancestor of cwd) | `./AGENTS.md` |
 | OpenCode | `~/.config/opencode/AGENTS.md` (or any ancestor) | `./AGENTS.md` |
 | Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
+| Grok Build | `~/.grok/rules/buck-workflow.md` | `./AGENTS.md` |
 
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.

@@ -1,6 +1,6 @@
 # git-commit-improved: deterministic Conventional Commit plugin
 
-**memory:** [../memory/b-commit-improved-2026-07-25.md](../memory/b-commit-improved-2026-07-25.md)
+**memory:** [../memory/b-commit-improved-2026-07-25.md](../memory/b-commit-improved-2026-07-25.md), [../memory/b-commit-improved-placeholder-sentinels-2026-08-26.md](../memory/b-commit-improved-placeholder-sentinels-2026-08-26.md)
 
 ## Context
 

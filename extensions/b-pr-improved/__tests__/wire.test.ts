@@ -76,10 +76,9 @@ describe("b-pr-improved deterministic plumbing", () => {
       const handler = cmd.handler as (args: string, ctx: unknown) => Promise<void>;
       const calls: Array<[string, string]> = [];
       await handler("", { cwd: dir, ui: { notify: (m: string, l: string) => calls.push([m, l]) } });
-      // No cached base → the handler surfaces candidates and returns without touching the model.
-      expect(calls.length).toBe(1);
-      expect(calls[0][0]).toMatch(/No cached base/);
-      expect(calls[0][0]).toContain("main");
+      expect(calls[0][0]).toMatch(/preflight/i);
+      expect(calls.some(([m]) => /No cached base/.test(m))).toBe(true);
+      expect(calls.some(([m]) => m.includes("main"))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -162,7 +161,7 @@ describe("pr-preflight dirty-tree rebase", () => {
 });
 
 describe("pushBranchIfAhead", () => {
-  it("pushes only local commits and force-updates only after an explicit rebase", () => {
+  it("pushes only local commits and force-updates only after an explicit rebase", async () => {
     const dir = makeRepo();
     const origin = mkdtempSync(join(tmpdir(), "bpr-origin-"));
     const g = (a: string[]) => execFileSync("git", a, { cwd: dir, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] });
@@ -170,18 +169,18 @@ describe("pushBranchIfAhead", () => {
       execFileSync("git", ["init", "-q", "--bare", origin]);
       g(["remote", "add", "origin", origin]);
 
-      expect(pushBranchIfAhead("feature/x", dir)).toBe(true);
+      expect(await pushBranchIfAhead("feature/x", dir)).toBe(true);
       expect(g(["rev-parse", "HEAD"]).trim()).toBe(g(["rev-parse", "origin/feature/x"]).trim());
-      expect(pushBranchIfAhead("feature/x", dir)).toBe(false);
+      expect(await pushBranchIfAhead("feature/x", dir)).toBe(false);
 
       writeFileSync(join(dir, "feature.txt"), "changed\n");
       g(["add", "feature.txt"]);
       g(["commit", "-qm", "feature"]);
-      expect(pushBranchIfAhead("feature/x", dir)).toBe(true);
+      expect(await pushBranchIfAhead("feature/x", dir)).toBe(true);
 
       g(["commit", "--amend", "-qm", "feature rebased"]);
-      expect(() => pushBranchIfAhead("feature/x", dir)).toThrow(/refusing to overwrite/);
-      expect(pushBranchIfAhead("feature/x", dir, true)).toBe(true);
+      await expect(pushBranchIfAhead("feature/x", dir)).rejects.toThrow(/refusing to overwrite/);
+      expect(await pushBranchIfAhead("feature/x", dir, true)).toBe(true);
       expect(g(["rev-parse", "HEAD"]).trim()).toBe(g(["rev-parse", "origin/feature/x"]).trim());
     } finally {
       rmSync(dir, { recursive: true, force: true });

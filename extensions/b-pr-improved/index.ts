@@ -25,6 +25,7 @@ import type { Model } from "@mariozechner/pi-ai";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createProgress, execFileCaptured } from "../command-progress.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The deterministic plumbing lives in one place — the b-pr skill's script.
@@ -48,12 +49,19 @@ function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
   }
 }
 
-export function pushBranchIfAhead(branch: string, cwd: string, allowForceWithLease = false): boolean {
+async function execGitPush(args: string[], cwd: string): Promise<void> {
+  const result = await execFileCaptured("git", args, cwd);
+  if (result.code !== 0) {
+    throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim() || result.stdout.trim() || "unknown"}`);
+  }
+}
+
+export async function pushBranchIfAhead(branch: string, cwd: string, allowForceWithLease = false): Promise<boolean> {
   const remoteRef = `refs/remotes/origin/${branch}`;
   try {
     execGit(["rev-parse", "--verify", remoteRef], cwd);
   } catch {
-    execGit(["push", "-u", "origin", branch], cwd);
+    await execGitPush(["push", "-u", "origin", branch], cwd);
     return true;
   }
 
@@ -68,7 +76,7 @@ export function pushBranchIfAhead(branch: string, cwd: string, allowForceWithLea
 
   const args = ["push"];
   if (behind > 0) args.push("--force-with-lease");
-  execGit([...args, "-u", "origin", branch], cwd);
+  await execGitPush([...args, "-u", "origin", branch], cwd);
   return true;
 }
 
@@ -84,21 +92,8 @@ interface Preflight {
   json: Record<string, unknown> | null;
 }
 
-function runPreflight(args: string[], cwd: string): Preflight {
-  let stdout = "";
-  let code = 0;
-  try {
-    stdout = execFileSync("bun", [PREFLIGHT, ...args], {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch (e: unknown) {
-    // Non-zero exit: the script still prints JSON to stdout before exiting.
-    const err = e as Error & { stdout?: Buffer; status?: number };
-    stdout = err.stdout?.toString() ?? "";
-    code = typeof err.status === "number" ? err.status : 1;
-  }
+async function runPreflight(args: string[], cwd: string): Promise<Preflight> {
+  const { code, stdout } = await execFileCaptured("bun", [PREFLIGHT, ...args], cwd);
   let json: Record<string, unknown> | null = null;
   try {
     json = stdout.trim() ? (JSON.parse(stdout) as Record<string, unknown>) : null;
@@ -294,79 +289,93 @@ function parseArgs(args: string): Options {
 
 // ---------- command handler ----------
 
-type Notify = (msg: string, level: "info" | "warning") => void;
+type Notify = (msg: string, level?: "info" | "warning" | "error") => void;
 
-async function runBprImproved(args: string, ctx: { cwd: string; ui: { notify: Notify } }): Promise<void> {
+interface CommandUI {
+  notify: Notify;
+  setStatus?: (key: string, text?: string) => void;
+  setWorkingMessage?: (message?: string) => void;
+}
+
+async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI }): Promise<void> {
   const cwd = ctx.cwd;
   const notify = ctx.ui.notify;
   const opts = parseArgs(args);
+  const progress = createProgress(ctx, "b-pr-improved");
 
-  // 1. Resolve + rebase + gather via the preflight script.
-  const pfArgs: string[] = [];
-  if (opts.base) pfArgs.push("--base", opts.base);
-  if (opts.noCache) pfArgs.push("--no-cache");
-  if (opts.dryRun) pfArgs.push("--dry-run");
+  try {
+    // 1. Resolve + rebase + gather via the preflight script.
+    const pfArgs: string[] = [];
+    if (opts.base) pfArgs.push("--base", opts.base);
+    if (opts.noCache) pfArgs.push("--no-cache");
+    if (opts.dryRun) pfArgs.push("--dry-run");
 
-  let pf = runPreflight(pfArgs, cwd);
-  let rebased = pf.json?.rebased === true;
+    progress.step("preflight…");
+    let pf = await runPreflight(pfArgs, cwd);
+    let rebased = pf.json?.rebased === true;
 
-  // Cache miss → the script surfaced candidates but no chosen base. Ask once.
-  if (pf.code === 0 && pf.json && !pf.json.chosen_base && pf.json.base_candidates) {
-    const names = (pf.json.base_candidates as Array<{ name: string }>).map((c) => c.name).join(", ");
-    notify(`No cached base. Re-run: /b-pr-improved --base <branch> (candidates: ${names})`, "info");
-    return;
-  }
-
-  // Conflict → resolve in-line, then re-run the preflight to gather.
-  if (pf.code === 3 && pf.json?.conflicted_files) {
-    const base = (pf.json.chosen_base as string) ?? "base";
-    notify(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`, "info");
-    const ok = await resolveRebaseConflicts(cwd, base, opts.model, notify);
-    if (!ok) return;
-    rebased = true;
-    const rerunArgs = opts.base ? ["--base", opts.base] : [];
-    pf = runPreflight(rerunArgs, cwd);
-    if (pf.code !== 0) {
-      notify(`Preflight after rebase failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "unknown"}`, "warning");
+    // Cache miss → the script surfaced candidates but no chosen base. Ask once.
+    if (pf.code === 0 && pf.json && !pf.json.chosen_base && pf.json.base_candidates) {
+      const names = (pf.json.base_candidates as Array<{ name: string }>).map((c) => c.name).join(", ");
+      notify(`No cached base. Re-run: /b-pr-improved --base <branch> (candidates: ${names})`, "info");
       return;
     }
-  }
 
-  if (pf.code !== 0 || !pf.json) {
-    notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
-    return;
-  }
+    // Conflict → resolve in-line, then re-run the preflight to gather.
+    if (pf.code === 3 && pf.json?.conflicted_files) {
+      const base = (pf.json.chosen_base as string) ?? "base";
+      progress.step(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`);
+      const ok = await resolveRebaseConflicts(cwd, base, opts.model, notify);
+      if (!ok) return;
+      rebased = true;
+      const rerunArgs = opts.base ? ["--base", opts.base] : [];
+      progress.step("preflight…");
+      pf = await runPreflight(rerunArgs, cwd);
+      if (pf.code !== 0) {
+        notify(`Preflight after rebase failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "unknown"}`, "warning");
+        return;
+      }
+    }
 
-  const gather = pf.json;
-  const base = gather.chosen_base as string;
-  const head = gather.current_branch as string;
+    if (pf.code !== 0 || !pf.json) {
+      notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
+      return;
+    }
 
-  if (opts.dryRun) {
-    notify(`[dry-run] Would create PR: ${head} → ${base} (${(gather.commits as unknown[])?.length ?? 0} commits)`, "info");
-    return;
-  }
+    const gather = pf.json;
+    const base = gather.chosen_base as string;
+    const head = gather.current_branch as string;
 
-  try {
-    if (pushBranchIfAhead(head, cwd, rebased)) notify(`Pushed ${head} to origin.`, "info");
-  } catch (e: unknown) {
-    notify(`Branch push failed: ${(e as Error).message}`, "warning");
-    return;
-  }
+    if (opts.dryRun) {
+      notify(`[dry-run] Would create PR: ${head} → ${base} (${(gather.commits as unknown[])?.length ?? 0} commits)`, "info");
+      return;
+    }
 
-  // 2. Synthesize description + title (model; degrades to a template).
-  notify("Synthesizing PR description…", "info");
-  const description = await synthesizeDescription(cwd, gather, opts.model);
-  const title = deriveTitle(gather);
+    try {
+      progress.step(`Pushing ${head}…`);
+      if (await pushBranchIfAhead(head, cwd, rebased)) notify(`Pushed ${head} to origin.`, "info");
+    } catch (e: unknown) {
+      notify(`Branch push failed: ${(e as Error).message}`, "warning");
+      return;
+    }
 
-  // 3. Create the PR via gh.
-  try {
+    // 2. Synthesize description + title (model; degrades to a template).
+    progress.step("Synthesizing PR description…");
+    const description = await synthesizeDescription(cwd, gather, opts.model);
+    const title = deriveTitle(gather);
+
+    // 3. Create the PR via gh.
+    progress.step("Creating PR with gh…");
     const ghArgs = ["pr", "create", "--base", base, "--title", title, "--body", description];
     if (opts.draft) ghArgs.push("--draft");
-    const out = execFileSync("gh", ghArgs, { cwd, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
-    notify(`✅ PR created: ${out}`, "info");
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    notify(`gh pr create failed: ${err.stderr?.toString().trim() || err.message}`, "warning");
+    const gh = await execFileCaptured("gh", ghArgs, cwd);
+    if (gh.code !== 0) {
+      notify(`gh pr create failed: ${gh.stderr.trim() || gh.stdout.trim() || "unknown"}`, "warning");
+      return;
+    }
+    progress.done(`✅ PR created: ${gh.stdout.trim()}`);
+  } finally {
+    progress.clear();
   }
 }
 
@@ -380,7 +389,7 @@ export function wire(pi: ExtensionAPI): void {
         .filter((o) => o.startsWith(prefix))
         .map((o) => ({ value: o, label: o }));
     },
-    handler: async (args: string, ctx: { cwd: string; ui: { notify: Notify } }) => {
+    handler: async (args: string, ctx: { cwd: string; ui: CommandUI }) => {
       await runBprImproved(args, ctx);
     },
   });

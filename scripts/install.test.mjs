@@ -43,13 +43,14 @@ function setupFixtures() {
     "# b-plan skill\n",
   );
 
-  // Home: all 6 harness dirs detected
+  // Home: all 7 harness dirs detected
   mkdirSync(join(home, ".pi", "agent"), { recursive: true });
   mkdirSync(join(home, ".omp", "agent"), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
   mkdirSync(join(home, ".codex"), { recursive: true });
   mkdirSync(join(home, ".config", "opencode"), { recursive: true });
   mkdirSync(join(home, ".cursor"), { recursive: true });
+  mkdirSync(join(home, ".grok"), { recursive: true });
 
   return { repo, home };
 }
@@ -58,8 +59,8 @@ function setupFixtures() {
 // Registry
 // ---------------------------------------------------------------------------
 describe("HARNESSES registry", () => {
-  it("has 6 harness entries", () => {
-    expect(HARNESSES).toHaveLength(6);
+  it("has 7 harness entries", () => {
+    expect(HARNESSES).toHaveLength(7);
   });
 
   it("has unique ids", () => {
@@ -104,6 +105,16 @@ describe("HARNESSES registry", () => {
     const h = HARNESSES.find((h) => h.id === "cursor");
     expect(Object.keys(h.surfaces)).toHaveLength(0);
     expect(h.note).toBeDefined();
+  });
+
+  it("Grok Build has bootstrap + commands + skills", () => {
+    const h = HARNESSES.find((h) => h.id === "grok");
+    expect(Object.keys(h.surfaces).sort()).toEqual([
+      "bootstrap",
+      "commands",
+      "skills",
+    ]);
+    expect(h.surfaces.bootstrap.dest).toBe(".grok/rules/buck-workflow.md");
   });
 });
 
@@ -251,7 +262,7 @@ describe("detectHarnesses", () => {
     expect(detected).toEqual([]);
   });
 
-  it("detects all six when all dirs present", () => {
+  it("detects all seven when all dirs present", () => {
     const home = join(TEST_ROOT, "home");
     mkdirSync(join(home, ".pi", "agent"), { recursive: true });
     mkdirSync(join(home, ".omp", "agent"), { recursive: true });
@@ -259,10 +270,11 @@ describe("detectHarnesses", () => {
     mkdirSync(join(home, ".codex"), { recursive: true });
     mkdirSync(join(home, ".config", "opencode"), { recursive: true });
     mkdirSync(join(home, ".cursor"), { recursive: true });
+    mkdirSync(join(home, ".grok"), { recursive: true });
 
     const detected = detectHarnesses(home);
 
-    expect(detected).toHaveLength(6);
+    expect(detected).toHaveLength(7);
   });
 });
 
@@ -327,6 +339,32 @@ describe("install", () => {
     expect(
       readlinkSync(join(home, ".claude", "skills", "b-plan")),
     ).toBe(join(repo, "skills", "b-plan"));
+  });
+
+  it("Grok Build gets bootstrap + commands + skills", () => {
+    const { repo, home } = setupFixtures();
+
+    install({ source: repo, home, harnessIds: ["grok"] });
+
+    const grokBootstrap = join(home, ".grok", "rules", "buck-workflow.md");
+    expect(existsSync(grokBootstrap)).toBe(true);
+    expect(readlinkSync(grokBootstrap)).toBe(
+      join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"),
+    );
+
+    expect(readlinkSync(join(home, ".grok", "commands", "b-build.md"))).toBe(
+      join(repo, "prompts", "b-build.md"),
+    );
+    expect(readlinkSync(join(home, ".grok", "commands", "b-plan.md"))).toBe(
+      join(repo, "prompts", "b-plan.md"),
+    );
+
+    expect(readlinkSync(join(home, ".grok", "skills", "b-build"))).toBe(
+      join(repo, "skills", "b-build"),
+    );
+    expect(readlinkSync(join(home, ".grok", "skills", "b-plan"))).toBe(
+      join(repo, "skills", "b-plan"),
+    );
   });
 
   it("dryRun reports actions but writes nothing", () => {

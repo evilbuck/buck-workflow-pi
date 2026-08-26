@@ -8,6 +8,7 @@ export default defineConfig({
       "dist",
       "skills/b-auto-fix/scripts/auto-fix.test.ts",
       "skills/b-memory-import/scripts/import-context-memory.test.ts",
+      "skills/b-hindsight-import-projects/scripts/import-projects.test.ts",
     ],
   },
 });

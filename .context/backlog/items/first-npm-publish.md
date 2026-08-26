@@ -3,7 +3,7 @@ title: First npm publish of buck-workflow (blocked on test gate)
 status: active
 priority: high
 created: 2026-08-12
-updated: 2026-08-25
+updated: 2026-08-26
 completed: null
 related: [package.json, scripts/publish.mjs, .github/workflows/test.yml]
 ---
@@ -17,6 +17,8 @@ execution.
 ## Tasks
 - [x] **BLOCKER resolved 2026-08-25:** `npm test` runs the Node-compatible
       suite under Vitest and the Bun-dependent suites under Bun.
+      As of 2026-08-26 `vite.config.ts` also excludes `import-projects.test.ts`
+      (bun:test). Those bun suites stay out of `prepublishOnly`.
 - [x] The PR `Unit tests` check runs this same green contract.
 - [ ] `npm login` (one time; agent cannot do this)
 - [ ] `npm run release -- --dry-run` to preview
