@@ -9,9 +9,9 @@ research:
   - research-tooling-jvm-and-fallback.md
   - research-ratchet-and-thresholds.md
   - research-harness-gate-mechanics.md
-iterations: []
+iterations: [iterate-b-init-guardrails.md]
 spec:
-memory: []
+memory: [b-init-guardrails-on-repo-2026-08-26.md]
 ---
 
 # Plan: b-init-guardrails — language-agnostic quality guardrails with brownfield ratchet

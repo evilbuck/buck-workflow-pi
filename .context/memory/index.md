@@ -1,4 +1,5 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 - 2026-08-25 — [PR #8: contain OMP plan artifact paths](fix-pr-8-2026-08-25.md) — `completed` (round 2: canonicalize symlinks)
 
   - 2026-08-25 | `fix-pr-8-2026-08-25.md` | domains: [security, extensions, testing] | topics: [pr-8, plan-artifact, path-traversal, local-uri, symlink] | status: completed
@@ -16,6 +17,12 @@
   - 2026-08-23 | `memory-search-agnostic-2026-08-23.md` | domains: [docs, buck-workflow, memory] | topics: [memory-search, omp, qmd, b-save, agents-bootstrap] | status: completed
 
 =======
+=======
+- 2026-08-26 — [Init quality guardrails contract on this repo](b-init-guardrails-on-repo-2026-08-26.md) — `completed` (first check: patch gate 51%)
+
+  - 2026-08-26 | `b-init-guardrails-on-repo-2026-08-26.md` | domains: [quality, tooling, testing] | topics: [b-init-guardrails, guardrails.json, vitest, lizard, coverage, patch-gate] | status: completed
+
+>>>>>>> 30e0849 (feat: <short summary>)
 - 2026-08-23 — [Live TUI progress for deterministic slash commands](deterministic-extension-progress-2026-08-23.md) — `active`
 
   - 2026-08-23 | `deterministic-extension-progress-2026-08-23.md` | domains: [extensions, tui, testing] | topics: [b-pr-improved, b-commit-improved, b-kamal-release, command-progress, execFile, spawn] | status: active

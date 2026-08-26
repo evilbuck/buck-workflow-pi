@@ -1,0 +1,241 @@
+{
+  "version": 2,
+  "targets": {
+    "coverage_min": 60,
+    "coverage_target": 75,
+    "cyclomatic_max": 10,
+    "cyclomatic_hard_ceiling": 15,
+    "patch_coverage_min": 90
+  },
+  "ratchet": {
+    "baseline_coverage": 54.9,
+    "baseline_complexity_inventory": [
+      {
+        "file": "skills/b-hindsight-import-projects/scripts/import-projects.ts",
+        "function": "parseArgs",
+        "complexity": 66
+      },
+      {
+        "file": "extensions/b-commit-improved/index.ts",
+        "function": "runBCommitImproved",
+        "complexity": 36
+      },
+      {
+        "file": "extensions/b-flow/chunk-queue-machine.ts",
+        "function": "createChunkQueueMachine",
+        "complexity": 32
+      },
+      {
+        "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
+        "function": "detectJvm",
+        "complexity": 30
+      },
+      {
+        "file": "skills/pi-rpc/scripts/pi-prompt.py",
+        "function": "main",
+        "complexity": 30
+      },
+      {
+        "file": "extensions/index.ts",
+        "function": "offerModelMappingSetup",
+        "complexity": 28
+      },
+      {
+        "file": "extensions/b-kamal-release/index.ts",
+        "function": "runKamalRelease",
+        "complexity": 26
+      },
+      {
+        "file": "skills/b-auto-fix/scripts/auto-fix.ts",
+        "function": "parseFlags",
+        "complexity": 26
+      },
+      {
+        "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
+        "function": "detectTypeScript",
+        "complexity": 26
+      },
+      {
+        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
+        "function": "parse_diff",
+        "complexity": 26
+      },
+      {
+        "file": "skills/b-memory-import/scripts/import-context-memory.ts",
+        "function": "parseArgs",
+        "complexity": 25
+      },
+      {
+        "file": "extensions/b-pr-improved/index.ts",
+        "function": "runBprImproved",
+        "complexity": 21
+      },
+      {
+        "file": "extensions/b-flow/index.ts",
+        "function": "handler",
+        "complexity": 19
+      },
+      {
+        "file": "skills/pi-rpc/scripts/pi-prompt.py",
+        "function": "main.handle_event",
+        "complexity": 19
+      },
+      {
+        "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
+        "function": "commandToken",
+        "complexity": 18
+      },
+      {
+        "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
+        "function": "detectPython",
+        "complexity": 18
+      },
+      {
+        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
+        "function": "identify_risk_factors",
+        "complexity": 18
+      },
+      {
+        "file": "extensions/b-flow/queue-builder.ts",
+        "function": "buildQueue",
+        "complexity": 17
+      },
+      {
+        "file": "extensions/b-grill-auto/grill-state.ts",
+        "function": "buildSessionBody",
+        "complexity": 17
+      },
+      {
+        "file": "skills/b-auto-fix/scripts/auto-fix.ts",
+        "function": "main",
+        "complexity": 17
+      },
+      {
+        "file": "scripts/context-artifacts.mjs",
+        "function": "generateIndexes",
+        "complexity": 16
+      },
+      {
+        "file": "scripts/install.mjs",
+        "function": "main",
+        "complexity": 16
+      },
+      {
+        "file": "skills/code-review/scripts/pr-context.ts",
+        "function": "isHeadRepository",
+        "complexity": 16
+      },
+      {
+        "file": "skills/code-review/scripts/pr-context.ts",
+        "function": "isPrView",
+        "complexity": 16
+      },
+      {
+        "file": "extensions/grill-me-dialog.ts",
+        "function": "renderResult",
+        "complexity": 15
+      },
+      {
+        "file": "scripts/context-artifacts.mjs",
+        "function": "runCli",
+        "complexity": 15
+      },
+      {
+        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
+        "function": "generate_suggestions",
+        "complexity": 15
+      },
+      {
+        "file": "extensions/b-kamal-release/index.ts",
+        "function": "resolveVersion",
+        "complexity": 14
+      },
+      {
+        "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
+        "function": "detectSimple",
+        "complexity": 14
+      },
+      {
+        "file": "extensions/grill-me-dialog.ts",
+        "function": "handleWait",
+        "complexity": 13
+      },
+      {
+        "file": "skills/b-pr/scripts/pr-preflight.ts",
+        "function": "artifactType",
+        "complexity": 13
+      },
+      {
+        "file": "skills/code-review/scripts/submit-review.ts",
+        "function": "parseArgs",
+        "complexity": 13
+      },
+      {
+        "file": "extensions/tps-tracker.ts",
+        "function": "(anonymous)",
+        "complexity": 12
+      },
+      {
+        "file": "extensions/b-flow/machine.ts",
+        "function": "next",
+        "complexity": 11
+      }
+    ],
+    "complexity_baseline_file": null,
+    "baseline_lint_clean": null
+  },
+  "ecosystems": [
+    {
+      "name": "typescript",
+      "detected": true,
+      "test_runner": "vitest run",
+      "coverage_tool": "vitest run --coverage --coverage.reporter=lcov",
+      "coverage_format": "lcov",
+      "complexity_tool": "lizard",
+      "complexity_cmd": "lizard -C 10 -w --csv -x \"*/.git/*\" -x \"*/.context/*\" -x \"*/.venv/*\" -x \"*/coverage/*\" -x \"*/dist/*\" -x \"*/build/*\" -x \"*/node_modules/*\" -x \"*/vendor/*\" -x \"*/target/*\" -x \"*/.next/*\" -x \"*/.nuxt/*\" -x \"*/.turbo/*\" .",
+      "lint_cmd": null,
+      "lint_accepts_paths": false,
+      "functional_test_cmd": null,
+      "configured_not_installed": [],
+      "detection_signals": [
+        "package.json",
+        "tsconfig.json",
+        "*.ts"
+      ]
+    },
+    {
+      "name": "python",
+      "detected": true,
+      "test_runner": null,
+      "coverage_tool": null,
+      "coverage_format": null,
+      "complexity_tool": null,
+      "complexity_cmd": null,
+      "lint_cmd": null,
+      "lint_accepts_paths": false,
+      "functional_test_cmd": null,
+      "configured_not_installed": [],
+      "detection_signals": [
+        "*.py"
+      ]
+    },
+    {
+      "name": "shell",
+      "detected": true,
+      "test_runner": null,
+      "coverage_tool": null,
+      "coverage_format": null,
+      "complexity_tool": null,
+      "complexity_cmd": null,
+      "lint_cmd": null,
+      "lint_accepts_paths": false,
+      "functional_test_cmd": null,
+      "configured_not_installed": [],
+      "detection_signals": [
+        "*.sh"
+      ]
+    }
+  ],
+  "git_compare_branch": "origin/master",
+  "complexity_baseline": []
+}

@@ -99,6 +99,7 @@
     "@mariozechner/pi-tui": "0.73.1",
     "@playwright/test": "^1.60.0",
     "@sinclair/typebox": "^0.34.52",
+    "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
