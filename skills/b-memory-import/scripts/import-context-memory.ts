@@ -278,7 +278,7 @@ export function parseArgs(argv: string[]): CliArgs {
           parts.push(argv[++i]);
         }
         if (parts.length === 0) throw new Error(`missing value for ${a}`);
-        sourceDirsRaw = parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean));
+        sourceDirsRaw.push(...parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean)));
         break;
       }
       case "--memory-dir":

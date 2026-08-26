@@ -126,7 +126,9 @@ Hindsight config (same precedence as the inner script):
   --omp-config <path>   OMP config.yml (default: ~/.omp/agent/config.yml).
 
 Other:
-  --concurrency <n>     Projects to run in parallel (default: 1).
+  --source-dirs <list>  Source dirs under .context/ (comma-separated and
+                        repeatable). Default: .context/memory.
+  --concurrency <n>     Projects to run in parallel (finite integer >= 1; default: 1).
   -h, --help            Show this help.
 
 Exit codes:
@@ -135,7 +137,7 @@ Exit codes:
   2 = one or more projects had retain errors`;
 }
 
-function parseArgs(argv: string[]): CliArgs {
+export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     roots: [],
     mode: "all",
@@ -209,9 +211,14 @@ function parseArgs(argv: string[]): CliArgs {
           throw new Error(`--limit must be a non-negative number`);
         }
         break;
-      case "--concurrency":
-        out.concurrency = Math.max(1, Number(next()));
+      case "--concurrency": {
+        const n = Number(next());
+        if (!Number.isInteger(n) || n < 1) {
+          throw new Error(`--concurrency must be a finite integer >= 1`);
+        }
+        out.concurrency = n;
         break;
+      }
       case "--api-url":
         out.apiUrl = next();
         break;
@@ -227,8 +234,10 @@ function parseArgs(argv: string[]): CliArgs {
           parts.push(argv[++i]);
         }
         if (parts.length === 0) throw new Error(`missing value for ${a}`);
-        out.sourceDirs = parts.flatMap((s) =>
-          s.split(",").map((p) => p.trim()).filter(Boolean),
+        out.sourceDirs.push(
+          ...parts.flatMap((s) =>
+            s.split(",").map((p) => p.trim()).filter(Boolean),
+          ),
         );
         break;
       }

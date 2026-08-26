@@ -273,15 +273,23 @@ describe("source-dir classifier + framing", () => {
   });
 
   test("parseArgs --source-dirs accepts comma list + greedy flag-repeat", () => {
-    const a = parseArgs([
+    const comma = parseArgs([
       "--source-dirs", ".context/memory,.context/backlog/items",
     ]);
-    expect(a.sourceDirs).toHaveLength(2);
-    expect(a.sourceDirs.map((sd) => sd.rel)).toEqual([
+    expect(comma.sourceDirs.map((sd) => sd.rel)).toEqual([
       ".context/memory",
       ".context/backlog/items",
     ]);
-    expect(a.sourceDirs[1].kind).toBe("backlog");
+
+    const repeated = parseArgs([
+      "--source-dirs", ".context/memory",
+      "--source-dirs", ".context/backlog/items",
+    ]);
+    expect(repeated.sourceDirs.map((sd) => sd.rel)).toEqual([
+      ".context/memory",
+      ".context/backlog/items",
+    ]);
+    expect(repeated.sourceDirs[1].kind).toBe("backlog");
   });
 
   test("parseArgs rejects unknown source dir", () => {

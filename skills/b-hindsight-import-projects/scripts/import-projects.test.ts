@@ -17,13 +17,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawn } from "bun";
+import { parseArgs } from "./import-projects.ts";
 
 const HERE = import.meta.dir;
 const SKILL_DIR = resolve(HERE, "..");
-
-// We don't import the wrapper's internals directly (it has no exports);
-// instead, exercise behavior end-to-end via `bun run import-projects.ts`.
-// This keeps the test aligned with how the script is actually invoked.
 
 const WRAPPER = join(HERE, "import-projects.ts");
 
@@ -90,6 +87,39 @@ Smoke test memory file.
     "utf-8",
   );
 }
+
+describe("parseArgs", () => {
+  test("repeated --source-dirs flags append, they do not replace", () => {
+    const a = parseArgs([
+      "--source-dirs", ".context/memory",
+      "--source-dirs", ".context/backlog/items",
+    ]);
+    expect(a.sourceDirs).toEqual([".context/memory", ".context/backlog/items"]);
+  });
+
+  test("comma list and a second --source-dirs both land", () => {
+    const a = parseArgs([
+      "--source-dirs", ".context/memory,.context/backlog/items",
+      "--source-dirs", ".context/memory",
+    ]);
+    expect(a.sourceDirs).toEqual([
+      ".context/memory",
+      ".context/backlog/items",
+      ".context/memory",
+    ]);
+  });
+
+  test("rejects non-finite, non-integer, or <1 --concurrency", () => {
+    for (const value of ["NaN", "Infinity", "-Infinity", "0", "-1", "1.5", "foo", ""]) {
+      expect(() => parseArgs(["--concurrency", value])).toThrow(/--concurrency must be a finite integer >= 1/);
+    }
+  });
+
+  test("accepts integer --concurrency >= 1", () => {
+    expect(parseArgs(["--concurrency", "1"]).concurrency).toBe(1);
+    expect(parseArgs(["--concurrency", "4"]).concurrency).toBe(4);
+  });
+});
 
 describe("import-projects.ts", () => {
   test("--help exits 0 and prints usage", async () => {
@@ -267,5 +297,38 @@ describe("import-projects.ts", () => {
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
+  });
+
+  test("two separate --source-dirs flags scan both directories", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "imp-"));
+    try {
+      const projRoot = join(tmp, "demo");
+      mkdirSync(join(projRoot, ".context", "memory"), { recursive: true });
+      mkdirSync(join(projRoot, ".context", "backlog", "items"), { recursive: true });
+      makeMemoryFile(join(projRoot, ".context", "memory"), "m.md", "2026-08-16", "M");
+      writeFileSync(
+        join(projRoot, ".context", "backlog", "items", "b.md"),
+        "---\ntitle: B\nstatus: active\npriority: low\n---\n# B\n",
+      );
+      const { stdout, exitCode } = await runWrapper([
+        "--root", tmp,
+        "--include", "demo",
+        "--source-dirs", ".context/memory",
+        "--source-dirs", ".context/backlog/items",
+        "--dry-run",
+      ]);
+      expect(exitCode).toBe(0);
+      const j = JSON.parse(stdout) as Summary;
+      expect(j.results[0].scanned).toBe(2);
+      expect(j.results[0].planned).toBe(2);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test("invalid --concurrency exits 1", async () => {
+    const { exitCode, stderr } = await runWrapper(["--concurrency", "Infinity"]);
+    expect(exitCode).toBe(1);
+    expect(stderr).toContain("--concurrency");
   });
 });
