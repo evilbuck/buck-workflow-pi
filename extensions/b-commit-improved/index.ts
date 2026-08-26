@@ -424,15 +424,6 @@ async function runBCommitImproved(
   let body = "";
   let source: "draft" | "model" = "draft";
 
-  if (
-    draftFromDisk &&
-    !opts.noDraft &&
-    (hasCommitPlaceholders(draftFromDisk.title) || hasCommitPlaceholders(draftFromDisk.body))
-  ) {
-    notify("Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.", "warning");
-    return;
-  }
-
   if (draftFromDisk && draftFromDisk.title.trim() !== "" && !opts.noDraft) {
     title = draftFromDisk.title;
     body = draftFromDisk.body;
