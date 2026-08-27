@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync,
+  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync,
 } from "node:fs";
 import {
   readFrontmatter, setFrontmatterFields, appendFrontmatterListItem, planMemoryRefStyle, extractTitle,
@@ -16,7 +16,6 @@ const dryRun = process.argv.includes("--dry-run");
 const archiveInferred = process.argv.includes("--archive-inferred");
 const report: Report = { applied: [], staged_inferred: [], errors: [] };
 const cwd = () => process.cwd();
-const absolute = (path: string) => join(cwd(), path);
 const BACKLOG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function isBacklogSlug(value: unknown): value is string {
@@ -28,20 +27,32 @@ function pathEscapesRoot(root: string, candidate: string): boolean {
   return rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
 }
 
+function lexists(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function rejectIfEscapes(root: string, candidate: string, path: string): string {
+  if (pathEscapesRoot(root, candidate)) throw new Error(`path escapes .context: ${path}`);
+  return candidate;
+}
+
 function containedContextPath(path: string): string {
   const root = resolve(cwd(), ".context");
   const full = resolve(cwd(), path);
-  if (pathEscapesRoot(root, full)) throw new Error(`path escapes .context: ${path}`);
-  if (existsSync(root) && existsSync(dirname(full))) {
-    try {
-      const canonFull = join(realpathSync(dirname(full)), basename(full));
-      if (pathEscapesRoot(realpathSync(root), canonFull)) throw new Error(`path escapes .context: ${path}`);
-      return canonFull;
-    } catch (error) {
-      if (error instanceof Error && error.message.startsWith("path escapes")) throw error;
-    }
+  rejectIfEscapes(root, full, path);
+  const rootCanon = lexists(root) ? realpathSync(root) : root;
+  if (lexists(full)) {
+    if (lstatSync(full).isSymbolicLink()) throw new Error(`path escapes .context: ${path}`);
+    return rejectIfEscapes(rootCanon, realpathSync(full), path);
   }
-  return full;
+  const parent = dirname(full);
+  if (!lexists(parent)) return full;
+  return rejectIfEscapes(rootCanon, join(realpathSync(parent), basename(full)), path);
 }
 
 function containedUnder(rootRel: string, path: string): string {
@@ -104,8 +115,12 @@ function block(key: string, values: unknown): string[] {
   const list = Array.isArray(values) ? values : [];
   return list.length ? [`${key}:`, ...list.map((x) => `  - ${yamlScalar(x)}`)] : [`${key}: []`];
 }
+function asStringList(value: unknown): string[] {
+  if (value == null) return [];
+  return (Array.isArray(value) ? value : [value]).map(String);
+}
 function union(...values: unknown[]): string[] {
-  return [...new Set(values.flatMap((v) => Array.isArray(v) ? v.map(String) : []))];
+  return [...new Set(values.flatMap(asStringList))];
 }
 
 function evidenceLines(items: AnyRecord[]): string[] {
@@ -189,11 +204,12 @@ function applyCrossrefs(payload: AnyRecord): void {
 function applySpecPlans(payload: AnyRecord): void {
   for (const ref of payload.spec_plans) {
     const path = subjectFile(payload, ref.spec);
-    if (!existsSync(absolute(path))) {
+    const full = containedContextPath(path);
+    if (!existsSync(full)) {
       record(ref.spec, "skipped", "spec file not found");
       continue;
     }
-    const old = readFileSync(absolute(path), "utf8");
+    const old = readFileSync(full, "utf8");
     const next = appendFrontmatterListItem(old, "plans", ref.plan);
     if (next !== old) mutate(path, next, "link plan from spec");
   }
@@ -210,7 +226,7 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
   const rewritten = setFrontmatterFields(original, { status: "completed", completed: payload.today, updated: payload.today });
   const archivePath = `.context/backlog/archive/${payload.today.slice(0, 7)}/${item.slug}.md`;
   const destination = containedUnder(".context/backlog/archive", archivePath);
-  const todo = existsSync(absolute(todoPath)) ? readFileSync(absolute(todoPath), "utf8") : "";
+  const todo = existsSync(containedContextPath(todoPath)) ? readFileSync(containedContextPath(todoPath), "utf8") : "";
   const nextTodo = todo.split(/(?<=\n)/).filter((line) => !(line.startsWith("- [ ]") && line.includes(`items/${item.slug}.md`))).join("");
   if (nextTodo !== todo) mutate(todoPath, nextTodo, `remove completed backlog item ${item.slug}`);
   if (!dryRun) {
@@ -220,7 +236,7 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
   }
   record(archivePath, "moved", `archive completed backlog item ${item.slug}`);
   const completedPath = ".context/backlog/archive/completed.md";
-  const completed = existsSync(absolute(completedPath)) ? readFileSync(absolute(completedPath), "utf8") : "";
+  const completed = existsSync(containedContextPath(completedPath)) ? readFileSync(containedContextPath(completedPath), "utf8") : "";
   const line = `- [x] ${title} (${payload.today}) — \`${payload.subject.name}/index.md\`. ${item.outcome}`;
   if (!completed.includes(line)) mutate(completedPath, `${completed.replace(/\s*$/, "")}\n\n${line}\n`, `log completed backlog item ${item.slug}`);
 }
@@ -228,12 +244,16 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
 function newBacklogItem(payload: AnyRecord, item: AnyRecord): void {
   if (!isBacklogSlug(item.slug)) throw new Error(`invalid backlog slug: ${String(item.slug)}`);
   const path = `.context/backlog/items/${item.slug}.md`;
-  containedUnder(".context/backlog/items", path);
+  const full = containedUnder(".context/backlog/items", path);
+  if (existsSync(full)) {
+    record(path, "skipped", `backlog item exists: ${item.slug}`);
+    return;
+  }
   const related = block("related", item.related);
   const text = ["---", `title: ${yamlScalar(item.title)}`, "status: active", `priority: ${yamlScalar(item.priority)}`, `created: ${payload.today}`, `updated: ${payload.today}`, "completed: null", ...related, "---", "", `# ${item.title}`, "", String(item.body ?? "").trim(), ""].join("\n");
   mutate(path, text, `create backlog item ${item.slug}`);
   const todoPath = ".context/backlog/todo.md";
-  const old = existsSync(absolute(todoPath)) ? readFileSync(absolute(todoPath), "utf8") : "# Backlog\n\n";
+  const old = existsSync(containedContextPath(todoPath)) ? readFileSync(containedContextPath(todoPath), "utf8") : "# Backlog\n\n";
   const line = `- [ ] [${item.title}](items/${item.slug}.md) — ${item.priority} priority`;
   if (!old.includes(`items/${item.slug}.md`)) {
     const match = old.match(/^# Backlog\r?\n(?:\r?\n)?/);
@@ -243,18 +263,18 @@ function newBacklogItem(payload: AnyRecord, item: AnyRecord): void {
 }
 
 function updateFile(path: string, fields: AnyRecord, reason: string): void {
-  const old = readFileSync(absolute(path), "utf8");
+  const old = readFileSync(containedContextPath(path), "utf8");
   const next = setFrontmatterFields(old, fields);
   if (next !== old) mutate(path, next, reason);
 }
 
 function fixPhaseTables(payload: AnyRecord): void {
   if (!payload.phase_table_fixes.length) return;
-  const folder = absolute(payload.subject.path);
+  const folder = containedContextPath(payload.subject.path);
   const overview = existsSync(folder) ? readdirSync(folder).find((x) => /phases\.md$/.test(x)) : undefined;
   if (!overview) throw new Error("phase overview not found");
   const path = join(payload.subject.path, overview);
-  let text = readFileSync(absolute(path), "utf8");
+  let text = readFileSync(containedContextPath(path), "utf8");
   for (const fix of payload.phase_table_fixes) {
     text = text.split("\n").map((line) => {
       if (!line.includes(`[${fix.file}](${fix.file})`)) return line;
@@ -279,7 +299,7 @@ function applyIterates(payload: AnyRecord): void {
     updateFile(subjectFile(payload, iterate.path), { status: "completed", completed: payload.today }, "complete iterate artifact");
     if (!iterate.addresses) continue;
     const planPath = subjectFile(payload, iterate.addresses);
-    const old = readFileSync(absolute(planPath), "utf8");
+    const old = readFileSync(containedContextPath(planPath), "utf8");
     const next = appendFrontmatterListItem(old, "iterations", basename(iterate.path));
     if (next !== old) mutate(planPath, next, "link completed iterate");
   }
@@ -351,11 +371,11 @@ function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
     topics: union(fm.topics),
     memory: [memoryFile],
   };
-  if (!existsSync(absolute(path))) {
+  if (!existsSync(containedContextPath(path))) {
     mutate(path, createSubjectIndexText(fields, payload, memoryFile), "create subject index");
     return;
   }
-  const old = readFileSync(absolute(path), "utf8");
+  const old = readFileSync(containedContextPath(path), "utf8");
   const parsed = readFrontmatter(old);
   const merged = setFrontmatterFields(old, {
     status: fields.status,

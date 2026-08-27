@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
@@ -380,4 +380,104 @@ describe("runApply in-process", () => {
     }
   });
 
+
+  it("refuses to write through a leaf symlink pointing outside .context", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    const outside = join(root, "outside.md");
+    writeFileSync(outside, "secret\n");
+    symlinkSync(outside, join(root, ".context/memory/b-save-improved-2026-08-26.md"));
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload())).toBe(1);
+      expect(readFileSync(outside, "utf8")).toBe("secret\n");
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses to rename a loose artifact that is a leaf symlink", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    const outside = join(root, "secret.md");
+    writeFileSync(outside, "secret\n");
+    symlinkSync(outside, join(root, ".context/plan-orphan.md"));
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload({ loose_artifacts: [".context/plan-orphan.md"] }))).toBe(1);
+      expect(readFileSync(outside, "utf8")).toBe("secret\n");
+      expect(existsSync(join(root, ".context/2026-08-26.save/plan-orphan.md"))).toBe(false);
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a new file when its parent directory is a symlink outside .context", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    const outsideDir = join(root, "outside-mem");
+    mkdirSync(outsideDir);
+    rmSync(join(root, ".context/memory"), { recursive: true, force: true });
+    symlinkSync(outsideDir, join(root, ".context/memory"));
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload())).toBe(1);
+      expect(existsSync(join(outsideDir, "b-save-improved-2026-08-26.md"))).toBe(false);
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("skips a new backlog item whose slug already exists", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    write(root, ".context/backlog/todo.md", "# Backlog\n\n- [ ] [Y](items/y.md) — medium priority\n");
+    write(root, ".context/backlog/items/y.md", "---\ntitle: Y\nstatus: active\n---\n\n# Y\n\nORIGINAL\n");
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload({
+        backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug: "y", title: "Y", priority: "medium", related: [], body: "Later." }] },
+      }))).toBe(0);
+      expect(readFileSync(join(root, ".context/backlog/items/y.md"), "utf8")).toContain("ORIGINAL");
+      expect(readFileSync(join(root, ".context/backlog/items/y.md"), "utf8")).not.toContain("Later.");
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps scalar frontmatter lists when merging memory", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    write(root, ".context/memory/b-save-improved-2026-08-26.md", `---
+date: 2026-08-26
+domains: [extensions]
+topics: determinism
+subject: 2026-08-26.save
+artifacts: []
+related: []
+priority: high
+status: completed
+---
+
+# Deterministic b-save
+
+Prior body.
+`);
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload())).toBe(0);
+      const topics = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8")
+        .split("\n")
+        .find((line) => line.startsWith("topics:"));
+      expect(topics).toContain("determinism");
+      expect(topics).toContain("b-save-improved");
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
