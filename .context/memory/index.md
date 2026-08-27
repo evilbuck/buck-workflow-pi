@@ -1,3 +1,7 @@
+- 2026-08-27 — [fix-pr: PR #10 remaining blockers](fix-pr-10-blockers-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-blockers-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-containment, apply-failure, yaml-frontmatter] | status: completed
+
 - 2026-08-27 — [fix-pr: PR #10 leaf symlink containment](fix-pr-10-2026-08-27.md) — `completed`
 
   - 2026-08-27 | `fix-pr-10-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, leaf-symlink] | status: completed
