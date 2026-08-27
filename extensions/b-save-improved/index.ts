@@ -207,6 +207,33 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+const BACKLOG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isBacklogSlug(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 80 && BACKLOG_SLUG.test(value);
+}
+
+function parseCompleteItem(item: unknown): { slug: string; outcome: string; evidence?: string } | null {
+  const rec = asRecord(item);
+  if (!rec || !isBacklogSlug(rec.slug) || typeof rec.outcome !== "string") return null;
+  const parsed: { slug: string; outcome: string; evidence?: string } = { slug: rec.slug, outcome: rec.outcome };
+  if (typeof rec.evidence === "string") parsed.evidence = rec.evidence;
+  return parsed;
+}
+
+function parseNewItem(item: unknown): ScribeOutput["backlog"]["new_items"][number] | null {
+  const rec = asRecord(item);
+  if (!rec || !isBacklogSlug(rec.slug) || typeof rec.title !== "string" || typeof rec.priority !== "string") return null;
+  return {
+    slug: rec.slug,
+    title: rec.title,
+    priority: rec.priority,
+    related: isStringArray(rec.related) ? rec.related : [],
+    body: typeof rec.body === "string" ? rec.body : "",
+  };
+}
+
+
 function listOrEmpty<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
@@ -222,9 +249,18 @@ function parseScribeMemory(mem: Record<string, unknown>, idx: Record<string, unk
     },
     index_entry: { summary: idx.summary.trim() },
     backlog: {
-      complete_explicit: listOrEmpty(back.complete_explicit),
-      complete_inferred: listOrEmpty(back.complete_inferred),
-      new_items: listOrEmpty(back.new_items),
+      complete_explicit: listOrEmpty(back.complete_explicit).flatMap((item) => {
+        const parsed = parseCompleteItem(item);
+        return parsed ? [{ slug: parsed.slug, outcome: parsed.outcome }] : [];
+      }),
+      complete_inferred: listOrEmpty(back.complete_inferred).flatMap((item) => {
+        const parsed = parseCompleteItem(item);
+        return parsed ? [parsed] : [];
+      }),
+      new_items: listOrEmpty(back.new_items).flatMap((item) => {
+        const parsed = parseNewItem(item);
+        return parsed ? [parsed] : [];
+      }),
     },
     retain_facts: isStringArray(facts) ? facts : [],
   };
@@ -324,6 +360,10 @@ function buildScribePrompt(digest: string, preflight: Record<string, unknown>): 
     "- backlog.complete_inferred: [{ slug, outcome, evidence }] for likely-done items without an explicit session statement",
     "- backlog.new_items: [{ slug, title, priority, related, body }]",
     "- retain_facts: string[] of self-contained facts including artifact paths",
+    "- memory.body headings (omit a section only when empty): ## User Goal, ## What happened, ## Decision, ## What shipped, ## Verification, ## Leftover, ## Related",
+    "- artifacts: subject-folder filenames and .context/memory paths only — not implementation source",
+    "- related: other memory filenames, not source paths",
+    "- backlog slugs: kebab-case [a-z0-9]+(-[a-z0-9]+)* (max 80); never paths or ..",
     "",
     "Subject:",
     JSON.stringify(preflight.subject ?? null),

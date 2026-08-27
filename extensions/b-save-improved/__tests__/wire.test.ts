@@ -165,6 +165,23 @@ describe("parseScribeResponse / parseAuditorResponse", () => {
     expect(parseScribeResponse('{"memory":{}}')).toBeNull();
   });
 
+  it("drops path-like backlog slugs from scribe output", () => {
+    const parsed = parseScribeResponse(JSON.stringify({
+      memory: { frontmatter: {}, title: "T", body: "B" },
+      index_entry: { summary: "S" },
+      backlog: {
+        complete_explicit: [{ slug: "../x", outcome: "nope" }, { slug: "ok-item", outcome: "done" }],
+        complete_inferred: [{ slug: "/tmp/x", outcome: "nope" }],
+        new_items: [{ slug: "..", title: "X", priority: "high", body: "nope" }, { slug: "new-item", title: "N", priority: "low" }],
+      },
+      retain_facts: [],
+    }));
+    expect(parsed?.backlog.complete_explicit).toEqual([{ slug: "ok-item", outcome: "done" }]);
+    expect(parsed?.backlog.complete_inferred).toEqual([]);
+    expect(parsed?.backlog.new_items).toEqual([{ slug: "new-item", title: "N", priority: "low", related: [], body: "" }]);
+  });
+
+
 describe("lastAssistantText", () => {
   const json = '{"memory":{"frontmatter":{"domains":["x"],"topics":["y"],"priority":"high","status":"completed"},"title":"T","body":"B"},"index_entry":{"summary":"S"},"backlog":{}}';
 

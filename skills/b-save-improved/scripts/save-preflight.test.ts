@@ -140,10 +140,16 @@ describe("save-preflight", () => {
       const plan = join(dir, "plan-work.md");
       const text = "---\nstatus: active\nmemory: [../memory/a.md]\n---\n# Plan\n\n## User Goal\n\n";
       writeFileSync(plan, text);
+      writeFileSync(join(f.root, ".context/backlog.md"), "# legacy\n");
+      writeFileSync(join(f.root, ".context/Research_Memory_Index.md"), "# idx\n");
+      writeFileSync(join(f.root, ".context/_QRPRO.md"), "");
+      writeFileSync(join(f.root, ".context/plan-orphan.md"), "# plan\n");
+      writeFileSync(join(f.root, ".context/draft-commit.md"), "# draft\n");
       const before = statSync(plan).mtimeMs;
       const payload = run(f.root, f.home).payload;
       expect(payload.user_goal.missing).toContain("plan-work.md");
       expect(payload.plans[0]).toMatchObject({ path: "plan-work.md", memory_ref_style: "yaml", memory_refs: ["../memory/a.md"] });
+      expect(payload.loose_artifacts).toEqual([".context/draft-commit.md", ".context/plan-orphan.md"]);
       expect(readFileSync(plan, "utf8")).toBe(text);
       expect(statSync(plan).mtimeMs).toBe(before);
     } finally { f.cleanup(); }

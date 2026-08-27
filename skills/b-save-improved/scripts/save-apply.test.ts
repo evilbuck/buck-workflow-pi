@@ -66,6 +66,59 @@ describe("save-apply", () => {
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
+  it("does not duplicate an index entry that is no longer first", () => {
+    const root = fixture();
+    try {
+      const payload = basePayload();
+      run(root, payload);
+      const index = join(root, ".context/memory/index.md");
+      writeFileSync(index, "- 2026-08-27 — [Later](later-2026-08-27.md) — `completed`\n\n" + readFileSync(index, "utf8"));
+      run(root, payload);
+      const text = readFileSync(index, "utf8");
+      expect([...text.matchAll(/\[Deterministic b-save\]/g)]).toHaveLength(1);
+      expect(text.startsWith("- 2026-08-27 — [Later](later-2026-08-27.md)")).toBe(true);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("enriches subject index frontmatter without clobbering an existing body", () => {
+    const root = fixture();
+    try {
+      run(root, basePayload({ subject_index_status: "completed" }));
+      const text = readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8");
+      expect(text).toContain("# Save");
+      expect(text).toContain("topics: [b-save-improved, determinism]");
+      expect(text).toContain("memory: [b-save-improved-2026-08-26.md]");
+      expect(text).toContain("status: completed");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("fills an empty subject index body from memory sections", () => {
+    const root = fixture();
+    try {
+      write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n");
+      run(root, basePayload({
+        subject_index_status: "completed",
+        memory: {
+          path: ".context/memory/b-save-improved-2026-08-26.md",
+          frontmatter: {
+            date: "2026-08-26", domains: ["extensions", "tooling"], topics: ["b-save-improved", "determinism"],
+            subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+          },
+          title: "Deterministic b-save",
+          body: "## User Goal\n\nCheckpoint the session.\n\n## What shipped\n\nDeterministic checkpoint.\n\n## Verification\n\nbun test\n",
+        },
+      }));
+      const text = readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8");
+      expect(text).toContain("# Deterministic b-save");
+      expect(text).toContain("## User Goal");
+      expect(text).toContain("Checkpoint the session.");
+      expect(text).toContain("## What shipped");
+      expect(text).toContain("## Verification");
+      expect(text).toContain("Memory: `.context/memory/b-save-improved-2026-08-26.md`");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+
   it("appends a bold-line cross-reference idempotently", () => {
     const root = fixture();
     try {
@@ -178,4 +231,50 @@ describe("runApply in-process", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("rejects backlog slugs that would write outside the items directory", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    const outside = resolve(root, "pwned.md");
+    try {
+      process.chdir(root);
+      for (const slug of ["../pwned", "/tmp/pwned", "..", "HasCaps", "has spaces"]) {
+        const code = runApply(basePayload({
+          backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug, title: "X", priority: "high", related: [], body: "nope" }] },
+        }));
+        expect(code).toBe(1);
+      }
+      expect(existsSync(outside)).toBe(false);
+      expect(existsSync(join(root, ".context/pwned.md"))).toBe(false);
+      expect(existsSync("/tmp/pwned.md")).toBe(false);
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a memory path that resolves outside .context", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    try {
+      process.chdir(root);
+      const code = runApply(basePayload({
+        memory: {
+          path: ".context/../escaped-memory.md",
+          frontmatter: {
+            date: "2026-08-26", domains: ["x"], topics: ["y"],
+            subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+          },
+          title: "T",
+          body: "B",
+        },
+      }));
+      expect(code).toBe(1);
+      expect(existsSync(join(root, "escaped-memory.md"))).toBe(false);
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
 });

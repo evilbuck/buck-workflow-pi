@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
-import { basename, dirname, join } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
-  existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync,
+  existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync,
 } from "node:fs";
 import {
   readFrontmatter, setFrontmatterFields, appendFrontmatterListItem, planMemoryRefStyle, extractTitle,
@@ -17,6 +17,39 @@ const archiveInferred = process.argv.includes("--archive-inferred");
 const report: Report = { applied: [], staged_inferred: [], errors: [] };
 const cwd = () => process.cwd();
 const absolute = (path: string) => join(cwd(), path);
+const BACKLOG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isBacklogSlug(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && value.length <= 80 && BACKLOG_SLUG.test(value);
+}
+
+function pathEscapesRoot(root: string, candidate: string): boolean {
+  const rel = relative(root, candidate);
+  return rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
+}
+
+function containedContextPath(path: string): string {
+  const root = resolve(cwd(), ".context");
+  const full = resolve(cwd(), path);
+  if (pathEscapesRoot(root, full)) throw new Error(`path escapes .context: ${path}`);
+  if (existsSync(root) && existsSync(dirname(full))) {
+    try {
+      const canonFull = join(realpathSync(dirname(full)), basename(full));
+      if (pathEscapesRoot(realpathSync(root), canonFull)) throw new Error(`path escapes .context: ${path}`);
+      return canonFull;
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("path escapes")) throw error;
+    }
+  }
+  return full;
+}
+
+function containedUnder(rootRel: string, path: string): string {
+  const full = containedContextPath(path);
+  if (pathEscapesRoot(resolve(cwd(), rootRel), full)) throw new Error(`path escapes ${rootRel}: ${path}`);
+  return full;
+}
+
 
 function missingSubject(payload: AnyRecord): string | null {
   if (!payload.subject || typeof payload.subject.name !== "string" || typeof payload.subject.path !== "string") {
@@ -50,7 +83,7 @@ function record(path: string, action: Applied["action"], reason: string): void {
 }
 
 function mutate(path: string, content: string, reason: string): void {
-  const full = absolute(path);
+  const full = containedContextPath(path);
   const action = existsSync(full) ? "updated" : "created";
   if (!dryRun) {
     mkdirSync(dirname(full), { recursive: true });
@@ -88,7 +121,7 @@ function memoryDocument(frontmatter: AnyRecord, title: string, body: string): st
 function applyMemory(payload: AnyRecord): AnyRecord {
   const fm = { ...payload.memory.frontmatter };
   fm.artifacts = union(fm.artifacts, payload.iterates_complete.map((x: AnyRecord) => basename(x.path)));
-  const full = absolute(payload.memory.path);
+  const full = containedContextPath(payload.memory.path);
   if (!existsSync(full)) {
     mutate(payload.memory.path, memoryDocument(fm, payload.memory.title, payload.memory.body), "write session memory");
     return fm;
@@ -107,16 +140,17 @@ function applyMemory(payload: AnyRecord): AnyRecord {
 
 function applyIndex(payload: AnyRecord, fm: AnyRecord): void {
   const indexPath = ".context/memory/index.md";
-  const old = existsSync(absolute(indexPath)) ? readFileSync(absolute(indexPath), "utf8") : "";
+  const full = containedContextPath(indexPath);
+  const old = existsSync(full) ? readFileSync(full, "utf8") : "";
   const file = basename(payload.memory.path);
-  if (old.split(/\r?\n/, 1)[0]?.includes(`](${file})`)) return;
+  if (old.includes(`](${file})`)) return;
   const entry = `- ${payload.today} — [${payload.index_entry.summary}](${file}) — \`${payload.index_entry.status}\`\n\n  - ${payload.today} | \`${file}\` | domains: ${inline(fm.domains)} | topics: ${inline(fm.topics)} | status: ${payload.index_entry.status}\n\n`;
   mutate(indexPath, entry + old, "prepend normalized memory index entry");
 }
 
 function applyCrossrefs(payload: AnyRecord): void {
   for (const ref of payload.crossrefs) {
-    const full = absolute(ref.path);
+    const full = containedContextPath(ref.path);
     const old = readFileSync(full, "utf8");
     const style = planMemoryRefStyle(old);
     let next = old;
@@ -129,21 +163,23 @@ function applyCrossrefs(payload: AnyRecord): void {
 }
 
 function archiveItem(payload: AnyRecord, item: AnyRecord): void {
+  if (!isBacklogSlug(item.slug)) throw new Error(`invalid backlog slug: ${String(item.slug)}`);
   const todoPath = ".context/backlog/todo.md";
   const itemPath = `.context/backlog/items/${item.slug}.md`;
-  const source = absolute(itemPath);
+  const source = containedUnder(".context/backlog/items", itemPath);
   if (!existsSync(source)) throw new Error(`backlog item missing: ${itemPath}`);
   const original = readFileSync(source, "utf8");
   const title = String(readFrontmatter(original).data.title ?? extractTitle(readFrontmatter(original).body, item.slug));
   const rewritten = setFrontmatterFields(original, { status: "completed", completed: payload.today, updated: payload.today });
   const archivePath = `.context/backlog/archive/${payload.today.slice(0, 7)}/${item.slug}.md`;
+  const destination = containedUnder(".context/backlog/archive", archivePath);
   const todo = existsSync(absolute(todoPath)) ? readFileSync(absolute(todoPath), "utf8") : "";
   const nextTodo = todo.split(/(?<=\n)/).filter((line) => !(line.startsWith("- [ ]") && line.includes(`items/${item.slug}.md`))).join("");
   if (nextTodo !== todo) mutate(todoPath, nextTodo, `remove completed backlog item ${item.slug}`);
   if (!dryRun) {
-    mkdirSync(dirname(absolute(archivePath)), { recursive: true });
+    mkdirSync(dirname(destination), { recursive: true });
     writeFileSync(source, rewritten);
-    renameSync(source, absolute(archivePath));
+    renameSync(source, destination);
   }
   record(archivePath, "moved", `archive completed backlog item ${item.slug}`);
   const completedPath = ".context/backlog/archive/completed.md";
@@ -153,7 +189,9 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
 }
 
 function newBacklogItem(payload: AnyRecord, item: AnyRecord): void {
+  if (!isBacklogSlug(item.slug)) throw new Error(`invalid backlog slug: ${String(item.slug)}`);
   const path = `.context/backlog/items/${item.slug}.md`;
+  containedUnder(".context/backlog/items", path);
   const related = block("related", item.related);
   const text = ["---", `title: ${yamlScalar(item.title)}`, "status: active", `priority: ${yamlScalar(item.priority)}`, `created: ${payload.today}`, `updated: ${payload.today}`, "completed: null", ...related, "---", "", `# ${item.title}`, "", String(item.body ?? "").trim(), ""].join("\n");
   mutate(path, text, `create backlog item ${item.slug}`);
@@ -220,41 +258,112 @@ function applyBacklog(payload: AnyRecord): void {
   for (const item of payload.backlog.new_items) newBacklogItem(payload, item);
 }
 
+function markdownSection(body: string, heading: string): string {
+  const match = body.match(new RegExp(`^## ${heading}\\s*\\r?\\n([\\s\\S]*?)(?=^## |$)`, "m"));
+  return match?.[1]?.trim() ?? "";
+}
+
+function subjectIndexBody(payload: AnyRecord, memoryFile: string): string {
+  const body = String(payload.memory.body ?? "");
+  const parts = [`# ${payload.memory.title}`, ""];
+  for (const heading of ["User Goal", "What shipped", "Verification"]) {
+    const text = markdownSection(body, heading);
+    if (text) {
+      parts.push(`## ${heading}`, "", text, "");
+    }
+  }
+  parts.push("## Related", "", `Memory: \`.context/memory/${memoryFile}\``, "");
+  return parts.join("\n");
+}
+
+function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
+  const path = join(payload.subject.path, "index.md");
+  const memoryFile = basename(payload.memory.path);
+  const fields = {
+    status: payload.subject_index_status ?? "completed",
+    date: payload.today,
+    subject: payload.subject.name,
+    topics: union(fm.topics),
+    memory: [memoryFile],
+  };
+  if (!existsSync(absolute(path))) {
+    const text = [
+      "---",
+      `status: ${yamlScalar(fields.status)}`,
+      `date: ${yamlScalar(fields.date)}`,
+      `subject: ${yamlScalar(fields.subject)}`,
+      `topics: ${inline(fields.topics)}`,
+      `memory: ${inline(fields.memory)}`,
+      "---",
+      "",
+      subjectIndexBody(payload, memoryFile),
+    ].join("\n");
+    mutate(path, text.endsWith("\n") ? text : `${text}\n`, "create subject index");
+    return;
+  }
+  const old = readFileSync(absolute(path), "utf8");
+  const parsed = readFrontmatter(old);
+  const merged = setFrontmatterFields(old, {
+    status: fields.status,
+    date: fields.date,
+    subject: fields.subject,
+    topics: union(parsed.data.topics, fields.topics),
+    memory: union(parsed.data.memory, fields.memory),
+  });
+  if (parsed.body.trim()) {
+    if (merged !== old) mutate(path, merged, "update subject index frontmatter");
+    return;
+  }
+  const filled = `${merged.trimEnd()}\n\n${subjectIndexBody(payload, memoryFile)}`;
+  mutate(path, filled.endsWith("\n") ? filled : `${filled}\n`, "fill subject index");
+}
+
 function applyStatuses(payload: AnyRecord): void {
   for (const path of payload.specs_complete) updateFile(subjectFile(payload, path), { status: "completed" }, "complete spec");
   for (const path of payload.phases_complete) {
     updateFile(join(payload.subject.path, path), { status: "completed", completed_at: `"${payload.today}"` }, "complete phase");
   }
   fixPhaseTables(payload);
-  if (payload.subject.create || !payload.subject_index_status) return;
-  const path = join(payload.subject.path, "index.md");
-  const data = readFrontmatter(readFileSync(absolute(path), "utf8")).data;
-  if (data.status !== payload.subject_index_status) updateFile(path, { status: payload.subject_index_status }, "update subject status");
 }
 
 function applyLoose(payload: AnyRecord): void {
   for (const loose of payload.loose_artifacts) {
-    const destination = join(payload.subject.path, basename(loose));
-    if (existsSync(absolute(destination))) {
-      record(loose, "skipped", `destination exists: ${destination}`);
+    const source = containedContextPath(loose);
+    const destination = containedContextPath(join(payload.subject.path, basename(loose)));
+    if (existsSync(destination)) {
+      record(loose, "skipped", `destination exists: ${join(payload.subject.path, basename(loose))}`);
       continue;
     }
     if (!dryRun) {
-      mkdirSync(dirname(absolute(destination)), { recursive: true });
-      renameSync(absolute(loose), absolute(destination));
+      mkdirSync(dirname(destination), { recursive: true });
+      renameSync(source, destination);
     }
-    record(destination, "moved", `consolidate loose artifact ${loose}`);
+    record(join(payload.subject.path, basename(loose)), "moved", `consolidate loose artifact ${loose}`);
+  }
+}
+
+function validatePayload(payload: AnyRecord): void {
+  for (const item of [...payload.backlog.new_items, ...payload.backlog.complete_explicit, ...payload.backlog.complete_inferred]) {
+    const slug = item && typeof item === "object" ? (item as AnyRecord).slug : undefined;
+    if (!isBacklogSlug(slug)) throw new Error(`invalid backlog slug: ${String(slug)}`);
+  }
+  containedContextPath(payload.memory.path);
+  containedContextPath(payload.subject.path);
+  for (const ref of payload.crossrefs) {
+    if (!ref || typeof ref.path !== "string") throw new Error("crossref path is required");
+    containedContextPath(ref.path);
+  }
+  for (const loose of payload.loose_artifacts) {
+    if (typeof loose !== "string") throw new Error(`invalid loose artifact: ${String(loose)}`);
+    containedContextPath(loose);
   }
 }
 
 function applyAll(payload: AnyRecord): void {
-  if (payload.subject.create) {
-    if (!dryRun) mkdirSync(absolute(payload.subject.path), { recursive: true });
-    const index = `---\nstatus: ${payload.subject_index_status ?? "active"}\ndate: ${payload.today}\nsubject: ${payload.subject.name}\n---\n`;
-    mutate(join(payload.subject.path, "index.md"), index, "create subject index");
-  }
+  if (payload.subject.create && !dryRun) mkdirSync(containedContextPath(payload.subject.path), { recursive: true });
   applyIterates(payload);
   const fm = applyMemory(payload);
+  applySubjectIndex(payload, fm);
   applyIndex(payload, fm);
   applyCrossrefs(payload);
   applyBacklog(payload);
@@ -294,8 +403,10 @@ export function runApply(payload: AnyRecord): number {
   const invalid = required(payload);
   if (invalid) return failSchema(invalid);
   defaults(payload);
-  try { applyAll(payload); }
-  catch (error) { report.errors.push(error instanceof Error ? error.message : String(error)); }
+  try {
+    validatePayload(payload);
+    applyAll(payload);
+  } catch (error) { report.errors.push(error instanceof Error ? error.message : String(error)); }
   console.log(JSON.stringify(report));
   return report.errors.length ? 1 : 0;
 }

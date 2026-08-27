@@ -1,3 +1,7 @@
+- 2026-08-26 — [fix-pr: PR #10 path containment, index idempotency, save fidelity](fix-pr-10-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `fix-pr-10-2026-08-26.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, memory-index, fidelity] | status: completed
+
 - 2026-08-26 — [Deterministic b-save-improved: skill + extension + command added, shared omp-models/context-helpers extracted, context-artifacts migrated to TS (264+/486-).](deterministic-bsave-2026-08-26.md) — `completed`
 
   - 2026-08-26 | `deterministic-bsave-2026-08-26.md` | domains: [extensions, testing, tooling] | topics: [b-save-improved, deterministic-checkpoint, shared-helpers, typescript-migration] | status: completed

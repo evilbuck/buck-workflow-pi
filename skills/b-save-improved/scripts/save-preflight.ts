@@ -16,6 +16,8 @@ import {
 } from "../../_shared/scripts/context-helpers.js";
 
 const CONTEXT = ".context";
+const LOOSE_ARTIFACT_NAME = /^(?:(?:plan|spec|research|iterate|brainstorm|phase)-.+\.md|draft-commit\.md)$/;
+
 const STALE_REASON = "no writer since the 2026-06-05 extension slim-down";
 
 function emit(payload: unknown, code: number): never {
@@ -237,7 +239,7 @@ function main(): void {
     userGoal[userGoalState(text(join(subjectPath, name)))].push(name);
   }
 
-  const looseArtifacts = readdirSync(CONTEXT, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => join(CONTEXT, entry.name)).sort();
+  const looseArtifacts = readdirSync(CONTEXT, { withFileTypes: true }).filter((entry) => entry.isFile() && LOOSE_ARTIFACT_NAME.test(entry.name)).map((entry) => join(CONTEXT, entry.name)).sort();
   const output = {
     code: 0,
     today,

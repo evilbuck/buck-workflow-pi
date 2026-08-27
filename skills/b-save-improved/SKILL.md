@@ -44,8 +44,12 @@ this skill does not replace it.
   `--archive-inferred` is set. Explicit completions always archive.
 - A missing `## User Goal` section in a plan is a warning, never a block.
 - `--dry-run` writes nothing — verify with `git status --porcelain` afterwards.
-- Subject status is authoritative; "lexically latest folder wins" shortcuts
-  that ignore status are forbidden.
+- Subject status is authoritative; "lexically latest folder wins" shortcuts that ignore status are forbidden.
+- Model-derived backlog slugs must match `^[a-z0-9]+(?:-[a-z0-9]+)*$` (max 80). Apply refuses any path that resolves outside `.context/`.
+- Memory index prepend is idempotent on the memory filename appearing in any entry, not only the first line.
+- Loose artifacts are session-shaped files at `.context/` root (`plan|spec|research|iterate|brainstorm|phase-*.md`, `draft-commit.md`) — never `backlog.md` or other infrastructure files.
+- Subject `index.md` gets `topics`, `memory`, and (when the body is empty) a synopsis from the memory file. Existing index bodies are not clobbered.
+
 
 ## Procedure
 
