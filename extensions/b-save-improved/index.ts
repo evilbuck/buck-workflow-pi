@@ -54,6 +54,7 @@ export function parseArgs(raw: string): SaveArgs {
 interface DigestPiece {
   always: boolean;
   text: string;
+  role?: "user" | "assistant";
 }
 
 function stringContent(value: unknown): string {
@@ -96,7 +97,7 @@ function classifyChat(rec: Record<string, unknown>): DigestPiece | null {
   if (role !== "user" && role !== "assistant") return null;
   const text = stringContent(rec.content).trim();
   if (!text) return null;
-  return { always: false, text: `${role}: ${text}` };
+  return { always: false, role, text: `${role}: ${text}` };
 }
 
 function toolNameOf(rec: Record<string, unknown>): string {
@@ -113,8 +114,22 @@ function toolArgsOf(rec: Record<string, unknown>): unknown {
   return asRecord(rec.function)?.arguments;
 }
 
+function toolCommand(args: unknown): string {
+  if (!args || typeof args !== "object") return "";
+  const rec = args as Record<string, unknown>;
+  for (const key of ["command", "cmd", "script"]) {
+    if (typeof rec[key] === "string") return rec[key];
+  }
+  return "";
+}
+
 function classifyTool(rec: Record<string, unknown>): DigestPiece | null {
   const toolName = toolNameOf(rec);
+  if (/^bash$/i.test(toolName)) {
+    const command = toolCommand(toolArgsOf(rec)).replace(/\s+/g, " ").trim();
+    if (!command) return null;
+    return { always: false, text: `bash ${command.slice(0, 120)}` };
+  }
   if (!/^(write|edit|read)$/i.test(toolName)) return null;
   const path = toolPath(toolArgsOf(rec));
   if (!path) return null;
@@ -127,17 +142,28 @@ function classifyEntry(entry: unknown): DigestPiece | null {
   return classifyCompaction(rec) ?? classifyChat(rec) ?? classifyTool(rec);
 }
 
+function collectPieces(entries: unknown[]): DigestPiece[] {
+  const pieces: DigestPiece[] = [];
+  let pinnedGoal = false;
+  for (const entry of entries) {
+    const piece = classifyEntry(entry);
+    if (!piece) continue;
+    if (piece.role === "user" && !pinnedGoal) {
+      pinnedGoal = true;
+      piece.always = true;
+    }
+    pieces.push(piece);
+  }
+  return pieces;
+}
+
 export function buildDigest(
   entries: unknown[],
   gitStatus: string,
   gitDiffStat: string,
   cap = DIGEST_CAP,
 ): string {
-  const pieces: DigestPiece[] = [];
-  for (const entry of entries) {
-    const piece = classifyEntry(entry);
-    if (piece) pieces.push(piece);
-  }
+  const pieces = collectPieces(entries);
   const footer = [
     "",
     "## git status",
@@ -418,6 +444,25 @@ export function assembleApplyPayload(
     ...((phases.files ?? []).map((f) => f.path).filter((p) => completePaths.has(p))),
   ];
   const uniquePhases = [...new Set(phasesComplete)];
+  const plans = Array.isArray(preflight.plans)
+    ? preflight.plans as Array<{ path: string; spec?: string | null }>
+    : [];
+  const crossrefs = plans.map((plan) => ({
+    path: `${subject?.path}/${plan.path}`,
+    key: "memory",
+    value: `../memory/${memoryFile}`,
+  }));
+  const specPlans: Array<{ spec: string; plan: string }> = [];
+  for (const plan of plans) {
+    const spec = typeof plan.spec === "string" ? plan.spec.trim() : "";
+    if (!spec) continue;
+    crossrefs.push({
+      path: `${subject?.path}/${spec}`,
+      key: "memory",
+      value: `../memory/${memoryFile}`,
+    });
+    specPlans.push({ spec, plan: plan.path.replace(/^.*\//, "") });
+  }
   return {
     today,
     subject: { name: subject?.name, path: subject?.path, create: Boolean(subject?.created) },
@@ -428,11 +473,11 @@ export function assembleApplyPayload(
       body: scribe.memory.body,
     },
     index_entry: { summary: scribe.index_entry.summary, status: String(fm.status ?? "completed") },
-    crossrefs: (Array.isArray(preflight.plans) ? preflight.plans as Array<{ path: string }> : []).map((plan) => ({
-      path: `${subject?.path}/${plan.path}`,
-      key: "memory",
-      value: `../memory/${memoryFile}`,
-    })),
+    crossrefs,
+    verification_evidence: verdicts
+      .filter((v) => v.verdict === "complete" && v.evidence.trim())
+      .map((v) => ({ path: v.path, evidence: v.evidence.trim() })),
+    spec_plans: specPlans,
     backlog: scribe.backlog,
     specs_complete: specs.map((s) => s.path).filter((p) => completePaths.has(p)),
     phases_complete: uniquePhases,

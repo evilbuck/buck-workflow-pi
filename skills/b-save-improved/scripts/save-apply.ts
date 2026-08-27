@@ -108,6 +108,28 @@ function union(...values: unknown[]): string[] {
   return [...new Set(values.flatMap((v) => Array.isArray(v) ? v.map(String) : []))];
 }
 
+function evidenceLines(items: AnyRecord[]): string[] {
+  return items
+    .filter((x) => x && typeof x === "object" && typeof x.path === "string" && typeof x.evidence === "string" && x.path.trim() && x.evidence.trim())
+    .map((x) => `- \`${x.path.trim()}\` — ${x.evidence.trim().replace(/\s+/g, " ")}`);
+}
+
+function appendVerificationEvidence(body: string, lines: string[]): string {
+  const missing = lines.filter((line) => !body.includes(line));
+  if (!missing.length) return body;
+  const headings = [...body.matchAll(/^## Verification[ \t]*$/gm)];
+  if (!headings.length) {
+    return `${body.replace(/\s+$/, "")}\n\n## Verification\n\n${missing.join("\n")}`;
+  }
+  const at = headings[headings.length - 1];
+  const headEnd = (at.index ?? 0) + at[0].length;
+  const after = body.slice(headEnd);
+  const next = after.match(/^## [^\n]*$/m);
+  const chunk = (next ? after.slice(0, next.index) : after).trim();
+  const inserted = `\n\n${[chunk, missing.join("\n")].filter(Boolean).join("\n\n")}\n\n`;
+  return `${body.slice(0, headEnd)}${inserted}${next ? after.slice(next.index) : ""}`;
+}
+
 function memoryDocument(frontmatter: AnyRecord, title: string, body: string): string {
   const lines = [
     "---", `date: ${yamlScalar(frontmatter.date)}`, `domains: ${inline(frontmatter.domains)}`,
@@ -121,6 +143,7 @@ function memoryDocument(frontmatter: AnyRecord, title: string, body: string): st
 function applyMemory(payload: AnyRecord): AnyRecord {
   const fm = { ...payload.memory.frontmatter };
   fm.artifacts = union(fm.artifacts, payload.iterates_complete.map((x: AnyRecord) => basename(x.path)));
+  payload.memory.body = appendVerificationEvidence(String(payload.memory.body ?? ""), evidenceLines(payload.verification_evidence));
   const full = containedContextPath(payload.memory.path);
   if (!existsSync(full)) {
     mutate(payload.memory.path, memoryDocument(fm, payload.memory.title, payload.memory.body), "write session memory");
@@ -131,9 +154,10 @@ function applyMemory(payload: AnyRecord): AnyRecord {
   for (const key of ["domains", "topics", "artifacts", "related"]) fm[key] = union(parsed.data[key], fm[key]);
   const title = extractTitle(parsed.body, payload.memory.title);
   const priorBody = parsed.body.replace(/^\s*# .*\r?\n?/, "").trim();
+  const nextBody = payload.memory.body.trim();
   const updateHeading = `## ${payload.today} update`;
-  const addition = `${updateHeading}\n\n${payload.memory.body.trim()}`;
-  const body = priorBody.includes(addition) ? priorBody : `${priorBody}\n\n${addition}`.trim();
+  const addition = `${updateHeading}\n\n${nextBody}`;
+  const body = priorBody.includes(addition) || priorBody.includes(nextBody) ? priorBody : `${priorBody}\n\n${addition}`.trim();
   mutate(payload.memory.path, memoryDocument(fm, title, body), "merge session memory");
   return fm;
 }
@@ -159,6 +183,19 @@ function applyCrossrefs(payload: AnyRecord): void {
       if (!old.includes(ref.value)) next = old.replace(/^(\*\*memory:\*\*[^\r\n]*)/m, `$1, [${ref.value}](${ref.value})`);
     } else next = appendFrontmatterListItem(old, ref.key, ref.value);
     if (next !== old) mutate(ref.path, next, "add memory cross-reference");
+  }
+}
+
+function applySpecPlans(payload: AnyRecord): void {
+  for (const ref of payload.spec_plans) {
+    const path = subjectFile(payload, ref.spec);
+    if (!existsSync(absolute(path))) {
+      record(ref.spec, "skipped", "spec file not found");
+      continue;
+    }
+    const old = readFileSync(absolute(path), "utf8");
+    const next = appendFrontmatterListItem(old, "plans", ref.plan);
+    if (next !== old) mutate(path, next, "link plan from spec");
   }
 }
 
@@ -275,6 +312,34 @@ function subjectIndexBody(payload: AnyRecord, memoryFile: string): string {
   parts.push("## Related", "", `Memory: \`.context/memory/${memoryFile}\``, "");
   return parts.join("\n");
 }
+function subjectIndexSections(payload: AnyRecord, memoryFile: string, existing: string): string[] {
+  const sections: string[] = [];
+  const body = String(payload.memory.body ?? "");
+  for (const heading of ["What shipped", "Verification"]) {
+    if (new RegExp(`^## ${heading}[ \\t]*$`, "m").test(existing)) continue;
+    const text = markdownSection(body, heading);
+    if (text) sections.push(`## ${heading}\n\n${text}`);
+  }
+  if (!/^## Related[ \t]*$/m.test(existing)) {
+    sections.push(`## Related\n\nMemory: \`.context/memory/${memoryFile}\``);
+  }
+  return sections;
+}
+
+function createSubjectIndexText(fields: AnyRecord, payload: AnyRecord, memoryFile: string): string {
+  const text = [
+    "---",
+    `status: ${yamlScalar(fields.status)}`,
+    `date: ${yamlScalar(fields.date)}`,
+    `subject: ${yamlScalar(fields.subject)}`,
+    `topics: ${inline(fields.topics)}`,
+    `memory: ${inline(fields.memory)}`,
+    "---",
+    "",
+    subjectIndexBody(payload, memoryFile),
+  ].join("\n");
+  return text.endsWith("\n") ? text : `${text}\n`;
+}
 
 function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
   const path = join(payload.subject.path, "index.md");
@@ -287,18 +352,7 @@ function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
     memory: [memoryFile],
   };
   if (!existsSync(absolute(path))) {
-    const text = [
-      "---",
-      `status: ${yamlScalar(fields.status)}`,
-      `date: ${yamlScalar(fields.date)}`,
-      `subject: ${yamlScalar(fields.subject)}`,
-      `topics: ${inline(fields.topics)}`,
-      `memory: ${inline(fields.memory)}`,
-      "---",
-      "",
-      subjectIndexBody(payload, memoryFile),
-    ].join("\n");
-    mutate(path, text.endsWith("\n") ? text : `${text}\n`, "create subject index");
+    mutate(path, createSubjectIndexText(fields, payload, memoryFile), "create subject index");
     return;
   }
   const old = readFileSync(absolute(path), "utf8");
@@ -311,7 +365,9 @@ function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
     memory: union(parsed.data.memory, fields.memory),
   });
   if (parsed.body.trim()) {
-    if (merged !== old) mutate(path, merged, "update subject index frontmatter");
+    const sections = subjectIndexSections(payload, memoryFile, merged);
+    const next = sections.length ? `${merged.trimEnd()}\n\n${sections.join("\n\n")}\n` : merged;
+    if (next !== old) mutate(path, next, sections.length ? "append subject index sections" : "update subject index frontmatter");
     return;
   }
   const filled = `${merged.trimEnd()}\n\n${subjectIndexBody(payload, memoryFile)}`;
@@ -342,21 +398,49 @@ function applyLoose(payload: AnyRecord): void {
   }
 }
 
-function validatePayload(payload: AnyRecord): void {
-  for (const item of [...payload.backlog.new_items, ...payload.backlog.complete_explicit, ...payload.backlog.complete_inferred]) {
+function validateBacklog(payload: AnyRecord): void {
+  const items = [...payload.backlog.new_items, ...payload.backlog.complete_explicit, ...payload.backlog.complete_inferred];
+  for (const item of items) {
     const slug = item && typeof item === "object" ? (item as AnyRecord).slug : undefined;
     if (!isBacklogSlug(slug)) throw new Error(`invalid backlog slug: ${String(slug)}`);
   }
-  containedContextPath(payload.memory.path);
-  containedContextPath(payload.subject.path);
+}
+
+function validateCrossrefs(payload: AnyRecord): void {
   for (const ref of payload.crossrefs) {
     if (!ref || typeof ref.path !== "string") throw new Error("crossref path is required");
     containedContextPath(ref.path);
   }
+}
+
+function validateSpecPlans(payload: AnyRecord): void {
+  for (const ref of payload.spec_plans) {
+    if (!ref || typeof ref.spec !== "string" || typeof ref.plan !== "string") throw new Error("spec_plans entries need spec and plan strings");
+    containedContextPath(subjectFile(payload, ref.spec));
+  }
+}
+
+function validateEvidence(items: AnyRecord[]): void {
+  for (const item of items) {
+    if (!item || typeof item.path !== "string" || typeof item.evidence !== "string") throw new Error("verification_evidence entries need path and evidence strings");
+  }
+}
+
+function validateLoose(payload: AnyRecord): void {
   for (const loose of payload.loose_artifacts) {
     if (typeof loose !== "string") throw new Error(`invalid loose artifact: ${String(loose)}`);
     containedContextPath(loose);
   }
+}
+
+function validatePayload(payload: AnyRecord): void {
+  validateBacklog(payload);
+  containedContextPath(payload.memory.path);
+  containedContextPath(payload.subject.path);
+  validateCrossrefs(payload);
+  validateSpecPlans(payload);
+  validateEvidence(payload.verification_evidence);
+  validateLoose(payload);
 }
 
 function applyAll(payload: AnyRecord): void {
@@ -366,6 +450,7 @@ function applyAll(payload: AnyRecord): void {
   applySubjectIndex(payload, fm);
   applyIndex(payload, fm);
   applyCrossrefs(payload);
+  applySpecPlans(payload);
   applyBacklog(payload);
   applyStatuses(payload);
   applyLoose(payload);
@@ -386,6 +471,8 @@ function defaults(payload: AnyRecord): void {
   ensureArray(payload, "phase_table_fixes");
   ensureArray(payload, "iterates_complete");
   ensureArray(payload, "loose_artifacts");
+  ensureArray(payload, "verification_evidence");
+  ensureArray(payload, "spec_plans");
 }
 
 function failSchema(message: string): number {

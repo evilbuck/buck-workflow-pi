@@ -187,6 +187,109 @@ describe("save-apply", () => {
       expect(existsSync(join(root, ".context/backlog/items/y.md"))).toBe(false);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
+
+  it("lands auditor evidence under ## Verification and stays idempotent on re-run", () => {
+    const root = fixture();
+    try {
+      const payload = basePayload({
+        verification_evidence: [{ path: "spec-x.md", evidence: "extensions/a.ts:42 proves completion" }],
+      });
+      run(root, payload);
+      const file = join(root, ".context/memory/b-save-improved-2026-08-26.md");
+      const once = readFileSync(file, "utf8");
+      expect(once).toContain("## Verification");
+      expect(once).toContain("- `spec-x.md` — extensions/a.ts:42 proves completion");
+      run(root, payload);
+      const twice = readFileSync(file, "utf8");
+      expect((twice.match(/extensions\/a\.ts:42/g) ?? []).length).toBe(1);
+      expect((twice.match(/^## Verification$/gm) ?? []).length).toBe(1);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("inserts evidence inside an existing ## Verification section, creating it when the scribe omitted it", () => {
+    const root = fixture();
+    try {
+      run(root, basePayload({
+        memory: {
+          path: ".context/memory/b-save-improved-2026-08-26.md",
+          frontmatter: {
+            date: "2026-08-26", domains: ["extensions"], topics: ["b-save-improved"],
+            subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+          },
+          title: "T",
+          body: "## What shipped\n\nX.\n\n## Verification\n\nScribe line.\n\n## Related\n\n- none",
+        },
+        verification_evidence: [{ path: "spec-y.md", evidence: "skills/b.ts:7" }],
+      }));
+      const withSection = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8");
+      expect(withSection).toMatch(/^## Verification\n\nScribe line\.\n\n- `spec-y\.md` — skills\/b\.ts:7$/m);
+      expect(withSection).toContain("## Related\n\n- none");
+
+      const root2 = fixture();
+      try {
+        run(root2, basePayload({
+          memory: {
+            path: ".context/memory/b-save-improved-2026-08-26.md",
+            frontmatter: {
+              date: "2026-08-26", domains: ["extensions"], topics: ["b-save-improved"],
+              subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+            },
+            title: "T",
+            body: "## What shipped\n\nNo verification section.",
+          },
+          verification_evidence: [{ path: "spec-y.md", evidence: "skills/b.ts:7" }],
+        }));
+        const created = readFileSync(join(root2, ".context/memory/b-save-improved-2026-08-26.md"), "utf8");
+        expect(created).toContain("## Verification\n\n- `spec-y.md` — skills/b.ts:7");
+      } finally { rmSync(root2, { recursive: true, force: true }); }
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("appends missing sections to an existing subject index body without duplicating headings", () => {
+    const root = fixture();
+    try {
+      write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n\n# Save\n\n## What shipped\n\nOld text.\n");
+      run(root, basePayload({
+        subject_index_status: "completed",
+        memory: {
+          path: ".context/memory/b-save-improved-2026-08-26.md",
+          frontmatter: {
+            date: "2026-08-26", domains: ["extensions", "tooling"], topics: ["b-save-improved", "determinism"],
+            subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+          },
+          title: "Deterministic b-save",
+          body: "## User Goal\n\nG.\n\n## What shipped\n\nNew text.\n\n## Verification\n\nRan tests.\n",
+        },
+      }));
+      const text = readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8");
+      expect((text.match(/^## What shipped$/gm) ?? []).length).toBe(1);
+      expect(text).toContain("Old text.");
+      expect(text).not.toContain("New text.");
+      expect(text).toContain("## Verification");
+      expect(text).toContain("Ran tests.");
+      expect((text.match(/^## Related$/gm) ?? []).length).toBe(1);
+      expect(text).toContain(`## Related\n\nMemory: \`.context/memory/b-save-improved-2026-08-26.md\``);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("back-fills spec memory links and plans entries from spec_plans, skipping missing specs", () => {
+    const root = fixture();
+    try {
+      write(root, ".context/2026-08-26.save/spec-x.md", "---\nstatus: active\nplans: []\n---\n\n# S\n");
+      const payload = basePayload({
+        crossrefs: [{ path: ".context/2026-08-26.save/spec-x.md", key: "memory", value: "../memory/b-save-improved-2026-08-26.md" }],
+        spec_plans: [{ spec: "spec-x.md", plan: "plan-x.md" }, { spec: "spec-gone.md", plan: "plan-x.md" }],
+      });
+      const report = run(root, payload);
+      expect(report.errors).toEqual([]);
+      const spec = readFileSync(join(root, ".context/2026-08-26.save/spec-x.md"), "utf8");
+      expect(spec).toContain("memory: [../memory/b-save-improved-2026-08-26.md]");
+      expect(spec).toContain("plans: [plan-x.md]");
+      expect(report.applied).toContainEqual(expect.objectContaining({ path: "spec-gone.md", action: "skipped" }));
+      run(root, payload);
+      expect((readFileSync(join(root, ".context/2026-08-26.save/spec-x.md"), "utf8").match(/plan-x\.md/g) ?? []).length).toBe(1);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
 });
 
 describe("runApply in-process", () => {

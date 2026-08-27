@@ -49,6 +49,20 @@ this skill does not replace it.
 - Memory index prepend is idempotent on the memory filename appearing in any entry, not only the first line.
 - Loose artifacts are session-shaped files at `.context/` root (`plan|spec|research|iterate|brainstorm|phase-*.md`, `draft-commit.md`) — never `backlog.md` or other infrastructure files.
 - Subject `index.md` gets `topics`, `memory`, and (when the body is empty) a synopsis from the memory file. Existing index bodies are not clobbered.
+- The session digest pins the **first user message** (the session goal) against
+  cap truncation; only middle entries are dropped. `bash` calls enter the digest
+  as one-liners (command truncated to ~120 chars) so test/build activity reaches
+  the scribe.
+- Auditor `evidence` from `complete` verdicts is quoted into the memory body's
+  `## Verification` as ``- `<path>` — <evidence>`` lines (deterministic, in
+  apply). The section is created when the scribe omitted it; re-runs never
+  duplicate a line.
+- Plans carrying a `spec:` frontmatter field are stitched bidirectionally: the
+  spec gains the memory back-fill **and** the plan filename in its `plans:`
+  array. Plans without `spec:` are skipped silently (b-save behavior).
+- Existing subject `index.md` bodies gain any missing `## What shipped` /
+  `## Verification` / `## Related` sections on re-save, extracted from the
+  memory body. Headings already present are never duplicated or rewritten.
 
 
 ## Procedure

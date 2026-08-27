@@ -138,7 +138,7 @@ describe("save-preflight", () => {
     try {
       const dir = subject(f.root, "2026-08-20.work", "active");
       const plan = join(dir, "plan-work.md");
-      const text = "---\nstatus: active\nmemory: [../memory/a.md]\n---\n# Plan\n\n## User Goal\n\n";
+      const text = "---\nstatus: active\nmemory: [../memory/a.md]\nspec: spec-work.md\n---\n# Plan\n\n## User Goal\n\n";
       writeFileSync(plan, text);
       writeFileSync(join(f.root, ".context/backlog.md"), "# legacy\n");
       writeFileSync(join(f.root, ".context/Research_Memory_Index.md"), "# idx\n");
@@ -148,7 +148,7 @@ describe("save-preflight", () => {
       const before = statSync(plan).mtimeMs;
       const payload = run(f.root, f.home).payload;
       expect(payload.user_goal.missing).toContain("plan-work.md");
-      expect(payload.plans[0]).toMatchObject({ path: "plan-work.md", memory_ref_style: "yaml", memory_refs: ["../memory/a.md"] });
+      expect(payload.plans[0]).toMatchObject({ path: "plan-work.md", memory_ref_style: "yaml", memory_refs: ["../memory/a.md"], spec: "spec-work.md" });
       expect(payload.loose_artifacts).toEqual([".context/draft-commit.md", ".context/plan-orphan.md"]);
       expect(readFileSync(plan, "utf8")).toBe(text);
       expect(statSync(plan).mtimeMs).toBe(before);

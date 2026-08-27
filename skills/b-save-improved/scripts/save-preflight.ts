@@ -224,7 +224,12 @@ function main(): void {
     const contents = text(join(subjectPath, name));
     const parsed = readFrontmatter(contents);
     const style = planMemoryRefStyle(contents);
-    return { path: name, memory_ref_style: style, memory_refs: style === "yaml" ? toArray(parsed.data.memory) : style === "bold-line" ? markdownMemoryRefs(contents) : [] };
+    return {
+      path: name,
+      memory_ref_style: style,
+      memory_refs: style === "yaml" ? toArray(parsed.data.memory) : style === "bold-line" ? markdownMemoryRefs(contents) : [],
+      spec: stringValue(parsed.data.spec),
+    };
   });
   const iterates = subjectFiles.filter((name) => /^iterate-.*\.md$/.test(name)).map((name) => {
     const parsed = readFrontmatter(text(join(subjectPath, name)));
