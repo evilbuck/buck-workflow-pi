@@ -1,3 +1,12 @@
+- 2026-08-26 — [Deterministic b-save-improved: skill + extension + command added, shared omp-models/context-helpers extracted, context-artifacts migrated to TS (264+/486-).](deterministic-bsave-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `deterministic-bsave-2026-08-26.md` | domains: [extensions, testing, tooling] | topics: [b-save-improved, deterministic-checkpoint, shared-helpers, typescript-migration] | status: completed
+
+- 2026-08-26 — [OMP catalog for nested createAgentSession](omp-catalog-for-nested-sessions-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `omp-catalog-for-nested-sessions-2026-08-26.md` | domains: [extensions, omp, models] | topics: [omp-models, modelRoles, createAgentSession, getModel] | status: completed
+
+
 - 2026-08-26 — [fix-pr: PR #9 committed conflict markers](fix-pr-9-2026-08-26.md) — `completed`
 
   - 2026-08-26 | `fix-pr-9-2026-08-26.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-9, merge-conflicts, b-kamal-release, b-commit-improved, vite] | status: completed

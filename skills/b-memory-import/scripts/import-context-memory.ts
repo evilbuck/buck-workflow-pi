@@ -30,6 +30,14 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import {
+  extractTitle,
+  parseSimpleYaml,
+  splitFrontmatter,
+  unquote,
+} from "../../_shared/scripts/context-helpers.js";
+
+export { splitFrontmatter, parseSimpleYaml, extractTitle };
 
 // ---------- constants ----------
 
@@ -338,88 +346,6 @@ export function parseArgs(argv: string[]): CliArgs {
   out.memoryDir = out.sourceDirs[0].abs;
   return out;
 }
-/** Minimal YAML frontmatter split — body after first --- pair. */
-export function splitFrontmatter(text: string): { yaml: string | null; body: string } {
-  if (!text.startsWith("---\n") && !text.startsWith("---\r\n")) {
-    return { yaml: null, body: text };
-  }
-  const nl = text.startsWith("---\r\n") ? "\r\n" : "\n";
-  const close = text.indexOf(`${nl}---`, 4);
-  if (close === -1) return { yaml: null, body: text };
-  const yaml = text.slice(4, close).replace(/^\r?\n/, "");
-  let body = text.slice(close + nl.length + 3);
-  if (body.startsWith("\r\n")) body = body.slice(2);
-  else if (body.startsWith("\n")) body = body.slice(1);
-  return { yaml, body };
-}
-
-/** Tiny YAML subset for memory frontmatter (scalars + string arrays). */
-export function parseSimpleYaml(yaml: string): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  let currentKey: string | null = null;
-  let currentList: string[] | null = null;
-
-  const flushList = () => {
-    if (currentKey && currentList) result[currentKey] = currentList;
-    currentKey = null;
-    currentList = null;
-  };
-
-  for (const rawLine of yaml.split(/\r?\n/)) {
-    if (!rawLine.trim() || rawLine.trimStart().startsWith("#")) continue;
-
-    const listItem = rawLine.match(/^\s+-\s+(.*)$/);
-    if (listItem && currentList) {
-      currentList.push(unquote(listItem[1].trim()));
-      continue;
-    }
-
-    const kv = rawLine.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
-    if (!kv) continue;
-
-    flushList();
-    const key = kv[1];
-    const rest = kv[2].trim();
-    if (rest === "" || rest === "|" || rest === ">") {
-      currentKey = key;
-      currentList = [];
-      continue;
-    }
-    if (rest.startsWith("[") && rest.endsWith("]")) {
-      const inner = rest.slice(1, -1).trim();
-      result[key] = inner
-        ? inner.split(",").map((s) => unquote(s.trim())).filter(Boolean)
-        : [];
-      continue;
-    }
-    result[key] = coerceScalar(unquote(rest));
-  }
-  flushList();
-  return result;
-}
-
-function unquote(s: string): string {
-  if (
-    (s.startsWith('"') && s.endsWith('"')) ||
-    (s.startsWith("'") && s.endsWith("'"))
-  ) {
-    return s.slice(1, -1);
-  }
-  return s;
-}
-
-function coerceScalar(s: string): string | number | boolean | null {
-  if (s === "null" || s === "~") return null;
-  if (s === "true") return true;
-  if (s === "false") return false;
-  if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s);
-  return s;
-}
-
-function toPosix(p: string): string {
-  return p.split(sep).join("/");
-}
-
 export function parseFrontmatter(text: string): { frontmatter: Frontmatter; body: string } {
   const { yaml, body } = splitFrontmatter(text);
   if (!yaml) {
@@ -447,12 +373,8 @@ export function parseFrontmatter(text: string): { frontmatter: Frontmatter; body
   };
 }
 
-export function extractTitle(body: string, fallback: string): string {
-  for (const line of body.split(/\r?\n/)) {
-    const m = line.match(/^#\s+(.+)$/);
-    if (m) return m[1].trim();
-  }
-  return fallback;
+function toPosix(p: string): string {
+  return p.split(sep).join("/");
 }
 
 export function sha256Hex(content: string | Uint8Array): string {

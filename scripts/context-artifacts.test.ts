@@ -7,7 +7,8 @@ import {
   classifyArtifact,
   validateArtifact,
   generateIndexes,
-} from "./context-artifacts.mjs";
+  runCli,
+} from "./context-artifacts.js";
 
 const TEST_ROOT = join("/tmp", "context-artifacts-test-" + process.pid);
 function mkfile(fullPath, content) {
@@ -98,12 +99,12 @@ describe("parseFrontmatter", () => {
 
   it("extracts array values from inline YAML", () => {
     const fm = parseFrontmatter(`topics: [foo, bar-baz, qux]\n`);
-    expect(fm.topics).toBe("[foo, bar-baz, qux]");
+    expect(fm.topics).toEqual(["foo", "bar-baz", "qux"]);
   });
 
   it("extracts null values", () => {
     const fm = parseFrontmatter(`completed: null\n`);
-    expect(fm.completed).toBe("null");
+    expect(fm.completed).toBeNull();
   });
 
   it("handles empty frontmatter block", () => {
@@ -111,9 +112,9 @@ describe("parseFrontmatter", () => {
     expect(fm).toEqual({});
   });
 
-  it("stops at first blank line or non-key line", () => {
+  it("skips blank and comment lines and keeps later keys", () => {
     const fm = parseFrontmatter(`status: active\n\n# Body\nstatus: in-body`);
-    expect(fm.status).toBe("active");
+    expect(fm.status).toBe("in-body");
   });
 });
 
@@ -560,5 +561,32 @@ describe("generateIndexes", () => {
     const subjects = indexes.subjects;
     expect(subjects[0].subject).toBe("2026-05-01.bar");
     expect(subjects[1].subject).toBe("2026-06-13.context-format-research");
+  });
+});
+
+describe("runCli", () => {
+  const origArgv = process.argv.slice();
+  afterEach(() => {
+    process.argv = origArgv.slice();
+    rmSync(TEST_ROOT, { recursive: true, force: true });
+  });
+
+  it("prints help and indexes a fixture tree", () => {
+    process.argv = ["bun", "scripts/context-artifacts.ts", "help"];
+    expect(runCli()).toBe(0);
+    mkfile(join(TEST_ROOT, ".context/memory/test-2026-06-13.md"), VALID_MEMORY);
+    process.argv = ["bun", "scripts/context-artifacts.ts", "index", TEST_ROOT];
+    expect(runCli()).toBe(0);
+    process.argv = ["bun", "scripts/context-artifacts.ts", "validate", TEST_ROOT];
+    expect(runCli()).toBe(0);
+    process.argv = ["bun", "scripts/context-artifacts.ts", "nope", TEST_ROOT];
+    expect(runCli()).toBe(1);
+  });
+
+  it("reports validation warnings and hard errors", () => {
+    mkfile(join(TEST_ROOT, ".context/memory/bad.md"), "---\nstatus: active\n---\n# Bad\n");
+    mkfile(join(TEST_ROOT, ".context/memory/enum.md"), "---\ndate: 2026-01-01\ndomains: []\ntopics: []\nrelated: []\npriority: urgent\nstatus: active\n---\n# E\n");
+    process.argv = ["bun", "scripts/context-artifacts.ts", "validate", TEST_ROOT];
+    expect(runCli()).toBe(1);
   });
 });

@@ -262,10 +262,11 @@ describe("Model auto-switch", () => {
     await sendInput(handlers, "/b-build", ctx);
 
     // Fire before_agent_start — handleModelSwitch runs
-    // (behavior depends on whether buckModelMapping is configured:
-    //  - no mapping → offerModelMappingSetup (no models → "No models" warning)
+    // (behavior depends on whether OMP modelRoles / leftover Pi mapping exist:
+    //  - no mapping → offerModelMappingSetup (OMP config.yml warning)
     //  - mapping exists → findActivePhaseDifficulty → no phase → suggestModelForNonPhasedPlan → no plan → silent)
     // Either way, setModel should NOT be called because no phase difficulty is found
+
     const setModelSpy = vi.mocked(api.setModel);
     setModelSpy.mockClear();
 

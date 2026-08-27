@@ -1,0 +1,181 @@
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { describe, expect, it } from "vitest";
+import { runApply } from "./save-apply.js";
+
+const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
+const LEGACY = "- 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, orchestration] | topics: [grill-auto, rpc, pi-extension] | status: completed\n";
+
+function write(root: string, path: string, text: string): void {
+  const full = join(root, path);
+  mkdirSync(resolve(full, ".."), { recursive: true });
+  writeFileSync(full, text);
+}
+
+function basePayload(overrides: Record<string, unknown> = {}) {
+  return {
+    today: "2026-08-26",
+    subject: { name: "2026-08-26.save", path: ".context/2026-08-26.save", create: false },
+    memory: {
+      path: ".context/memory/b-save-improved-2026-08-26.md",
+      frontmatter: {
+        date: "2026-08-26", domains: ["extensions", "tooling"], topics: ["b-save-improved", "determinism"],
+        subject: "2026-08-26.save", artifacts: [], related: [], priority: "high", status: "completed",
+      },
+      title: "Deterministic b-save",
+      body: "## What shipped\n\nDeterministic checkpoint.",
+    },
+    index_entry: { summary: "Deterministic b-save", status: "completed" },
+    ...overrides,
+  };
+}
+
+function fixture(): string {
+  const root = mkdtempSync(join(tmpdir(), "save-apply-"));
+  write(root, ".context/memory/index.md", LEGACY);
+  write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n\n# Save\n");
+  return root;
+}
+
+function run(root: string, payload: unknown, args: string[] = []) {
+  return JSON.parse(execFileSync("bun", [SCRIPT, ...args], {
+    cwd: root, input: JSON.stringify(payload), encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"],
+  }));
+}
+
+function backlog(root: string, related = "related:\n  - extensions/x.ts"): void {
+  write(root, ".context/backlog/todo.md", "# Backlog\n\n- [ ] [X](items/x.md) — high priority\n\n## Later\n");
+  write(root, ".context/backlog/items/x.md", `---\ntitle: X\nstatus: active\npriority: high\ncreated: 2026-08-01\nupdated: 2026-08-01\ncompleted: null\n${related}\n---\n\n# X\n`);
+  write(root, ".context/backlog/archive/completed.md", "# Completed\n");
+}
+
+describe("save-apply", () => {
+  it("prepends the exact normalized two-line index entry once and preserves the legacy line", () => {
+    const root = fixture();
+    try {
+      const payload = basePayload();
+      run(root, payload);
+      const once = readFileSync(join(root, ".context/memory/index.md"), "utf8");
+      const expected = "- 2026-08-26 — [Deterministic b-save](b-save-improved-2026-08-26.md) — `completed`\n\n  - 2026-08-26 | `b-save-improved-2026-08-26.md` | domains: [extensions, tooling] | topics: [b-save-improved, determinism] | status: completed\n";
+      expect(once.startsWith(expected)).toBe(true);
+      expect(once.split("\n").filter(Boolean).at(-1) + "\n").toBe(LEGACY);
+      run(root, payload);
+      expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(once);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("appends a bold-line cross-reference idempotently", () => {
+    const root = fixture();
+    try {
+      const path = ".context/2026-08-26.save/plan-x.md";
+      write(root, path, "# Title\n\n**memory:** [../memory/a.md](../memory/a.md)\n");
+      const payload = basePayload({ crossrefs: [{ path, key: "memory", value: "../memory/b.md" }] });
+      run(root, payload);
+      const once = readFileSync(join(root, path), "utf8");
+      expect(once).toContain("**memory:** [../memory/a.md](../memory/a.md), [../memory/b.md](../memory/b.md)");
+      run(root, payload);
+      expect(readFileSync(join(root, path), "utf8")).toBe(once);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("archives an explicit backlog item and preserves block related style", () => {
+    const root = fixture();
+    try {
+      backlog(root);
+      run(root, basePayload({ backlog: { complete_explicit: [{ slug: "x", outcome: "Shipped." }], complete_inferred: [], new_items: [] } }));
+      expect(readFileSync(join(root, ".context/backlog/todo.md"), "utf8")).not.toContain("items/x.md");
+      expect(existsSync(join(root, ".context/backlog/items/x.md"))).toBe(false);
+      const archived = readFileSync(join(root, ".context/backlog/archive/2026-08/x.md"), "utf8");
+      expect(archived).toContain("status: completed");
+      expect(archived).toContain("completed: 2026-08-26");
+      expect(archived).toContain("related:\n  - extensions/x.ts");
+      expect(readFileSync(join(root, ".context/backlog/archive/completed.md"), "utf8")).toMatch(/- \[x\] X \(2026-08-26\) — `2026-08-26\.save\/index\.md`\. Shipped\.\s*$/);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("stages inferred completions unless --archive-inferred is passed", () => {
+    const root = fixture();
+    try {
+      backlog(root);
+      const payload = basePayload({ backlog: { complete_explicit: [], complete_inferred: [{ slug: "x", outcome: "Observed.", evidence: "x.ts:1" }], new_items: [] } });
+      const staged = run(root, payload);
+      expect(staged.staged_inferred).toEqual([expect.objectContaining({ slug: "x" })]);
+      expect(readFileSync(join(root, ".context/backlog/todo.md"), "utf8")).toContain("items/x.md");
+      expect(existsSync(join(root, ".context/backlog/items/x.md"))).toBe(true);
+      run(root, payload, ["--archive-inferred"]);
+      expect(readFileSync(join(root, ".context/backlog/todo.md"), "utf8")).not.toContain("items/x.md");
+      expect(existsSync(join(root, ".context/backlog/archive/2026-08/x.md"))).toBe(true);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("preserves inline related style during backlog archival", () => {
+    const root = fixture();
+    try {
+      backlog(root, "related: [extensions/x.ts, package.json]");
+      run(root, basePayload({ backlog: { complete_explicit: [{ slug: "x", outcome: "Shipped." }], complete_inferred: [], new_items: [] } }));
+      expect(readFileSync(join(root, ".context/backlog/archive/2026-08/x.md"), "utf8")).toContain("related: [extensions/x.ts, package.json]");
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("dry-run reports intended actions without changing any files", () => {
+    const root = fixture();
+    try {
+      backlog(root);
+      const before = readFileSync(join(root, ".context/backlog/todo.md"), "utf8");
+      const report = run(root, basePayload({
+        backlog: { complete_explicit: [{ slug: "x", outcome: "Shipped." }], complete_inferred: [], new_items: [{ slug: "y", title: "Y", priority: "medium", related: [], body: "Later." }] },
+        loose_artifacts: [".context/loose.md"],
+      }), ["--dry-run"]);
+      expect(report.applied.length).toBeGreaterThan(3);
+      expect(readFileSync(join(root, ".context/backlog/todo.md"), "utf8")).toBe(before);
+      expect(existsSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"))).toBe(false);
+      expect(existsSync(join(root, ".context/backlog/items/y.md"))).toBe(false);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+});
+
+describe("runApply in-process", () => {
+  it("returns 2 on a schema mismatch", () => {
+    expect(runApply({})).toBe(2);
+  });
+
+  it("archives, cross-refs, completes phases, and moves loose files", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    try {
+      backlog(root);
+      write(root, ".context/loose.md", "# loose\n");
+      write(root, ".context/2026-08-26.save/plan-x.md", "# Plan\n\n**memory:** [../memory/a.md](../memory/a.md)\n");
+      write(root, ".context/2026-08-26.save/phase-1.md", "---\nstatus: in-progress\nacceptance_criteria:\n  - \"[x] done\"\n---\n# P\n");
+      write(root, ".context/2026-08-26.save/plan-x-phases.md", "## Phase Summary\n\n| Phase | Status | Difficulty | File |\n|---|---|---|---|\n| 1 | pending | easy | [phase-1.md](phase-1.md) |\n");
+      write(root, ".context/2026-08-26.save/spec-x.md", "---\nstatus: active\n---\n# S\n");
+      write(root, ".context/2026-08-26.save/iterate-x.md", "---\nstatus: active\naddresses: plan-x.md\n---\n# I\n");
+      process.chdir(root);
+      const code = runApply(basePayload({
+        crossrefs: [{ path: ".context/2026-08-26.save/plan-x.md", key: "memory", value: "../memory/b-save-improved-2026-08-26.md" }],
+        backlog: {
+          complete_explicit: [{ slug: "x", outcome: "Shipped." }],
+          complete_inferred: [{ slug: "nope", outcome: "maybe" }],
+          new_items: [{ slug: "y", title: "Y", priority: "medium", related: ["a.ts"], body: "Later." }],
+        },
+        specs_complete: ["spec-x.md"],
+        phases_complete: ["phase-1.md"],
+        phase_table_fixes: [{ file: "phase-1.md", status: "completed" }],
+        iterates_complete: [{ path: "iterate-x.md", addresses: "plan-x.md" }],
+        loose_artifacts: [".context/loose.md"],
+        subject_index_status: "completed",
+      }));
+      expect(code).toBe(0);
+      expect(existsSync(join(root, ".context/backlog/archive/2026-08/x.md"))).toBe(true);
+      expect(existsSync(join(root, ".context/2026-08-26.save/y.md"))).toBe(false);
+      expect(existsSync(join(root, ".context/backlog/items/y.md"))).toBe(true);
+      expect(existsSync(join(root, ".context/2026-08-26.save/loose.md"))).toBe(true);
+      expect(readFileSync(join(root, ".context/2026-08-26.save/plan-x.md"), "utf8")).toContain("b-save-improved-2026-08-26.md");
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});

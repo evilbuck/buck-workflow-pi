@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -29,6 +29,33 @@ export async function execFileCaptured(
       stderr: typeof err.stderr === "string" ? err.stderr : "",
     };
   }
+}
+
+export async function execFileCapturedWithStdin(
+  bin: string,
+  args: string[],
+  cwd: string,
+  stdin: string,
+): Promise<CapturedExec> {
+  const { promise, resolve } = Promise.withResolvers<CapturedExec>();
+  const child = spawn(bin, args, { cwd, stdio: ["pipe", "pipe", "pipe"] });
+  let stdout = "";
+  let stderr = "";
+  child.stdout?.on("data", (chunk: Buffer | string) => {
+    stdout += chunk.toString();
+  });
+  child.stderr?.on("data", (chunk: Buffer | string) => {
+    stderr += chunk.toString();
+  });
+  child.on("error", (err) => {
+    resolve({ code: 1, stdout, stderr: stderr || err.message });
+  });
+  child.on("close", (code) => {
+    resolve({ code: code ?? 1, stdout, stderr });
+  });
+  child.stdin?.write(stdin);
+  child.stdin?.end();
+  return promise;
 }
 
 export type ProgressLevel = "info" | "warning" | "error";
@@ -80,6 +107,28 @@ export function createProgress(ctx: ProgressCtx, key: string): Progress {
       callSafe(() => ui.setWorkingMessage?.());
     },
   };
+}
+
+const ERROR_MESSAGE_CAP = 500;
+
+export function recordCommandError(
+  pi: { appendEntry: (customType: string, data?: unknown) => void },
+  command: string,
+  step: string,
+  message: string,
+  code?: number,
+): void {
+  const clipped = message.length > ERROR_MESSAGE_CAP ? `${message.slice(0, ERROR_MESSAGE_CAP)}…` : message;
+  try {
+    pi.appendEntry(`${command}-error`, {
+      at: new Date().toISOString(),
+      step,
+      ...(code !== undefined ? { code } : {}),
+      message: clipped,
+    });
+  } catch {
+    // session write optional
+  }
 }
 
 export const KAMAL_TAIL_LINES = 20;

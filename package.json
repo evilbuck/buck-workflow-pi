@@ -88,8 +88,8 @@
     "playwright": "playwright",
     "playwright:install": "playwright install chromium",
     "playwright:report": "npx playwright show-report",
-    "context:index": "node scripts/context-artifacts.mjs index",
-    "context:validate": "node scripts/context-artifacts.mjs validate",
+    "context:index": "bun scripts/context-artifacts.ts index",
+    "context:validate": "bun scripts/context-artifacts.ts validate",
     "prepublishOnly": "npm test",
     "release": "node scripts/publish.mjs"
   },

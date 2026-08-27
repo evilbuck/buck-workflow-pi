@@ -1,15 +1,16 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { DynamicBorder } from "@mariozechner/pi-coding-agent";
-import { Container, type SelectItem, SelectList, Text } from "@mariozechner/pi-tui";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { wire as wireTpsTracker } from "./tps-tracker.js";
 import { wire as wireBprImproved } from "./b-pr-improved/index.js";
 import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
+import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
+import { mappingFromOmpRoles } from "./omp-models.js";
+
 
 // --- Model Auto-Switch Types ---
 
@@ -30,7 +31,6 @@ interface ModelSwitchState {
 interface ModelSwitchContext {
   ui: {
     notify: (message: string, level: string) => void;
-    custom: <T>(factory: (tui: unknown, theme: UiTheme, kb: unknown, done: (result: T | null) => void) => TuiComponent) => Promise<T | null>;
   };
   model: { provider: string; id: string } | undefined;
   modelRegistry: {
@@ -40,20 +40,13 @@ interface ModelSwitchContext {
   };
 }
 
-interface UiTheme {
-  fg: (kind: string, text: string) => string;
-}
-
-interface TuiComponent {
-  render: (width: number) => string;
-  invalidate: () => void;
-  handleInput: (data: string) => void;
-}
 
 // --- Model Auto-Switch Helpers ---
 
 function readModelMapping(projectDir: string): ModelMapping | null {
-  // Read from project .pi/settings.json first, then global ~/.pi/agent/settings.json
+  const fromOmp = mappingFromOmpRoles(projectDir);
+  if (fromOmp) return fromOmp;
+
   const paths = [
     join(projectDir, ".pi", "settings.json"),
     join(homedir(), ".pi", "agent", "settings.json"),
@@ -73,6 +66,7 @@ function readModelMapping(projectDir: string): ModelMapping | null {
   }
   return null;
 }
+
 
 function parseModelId(modelId: string): { provider: string; id: string } | null {
   const slashIdx = modelId.indexOf("/");
@@ -330,6 +324,8 @@ export default function (pi: ExtensionAPI) {
   wireKamalRelease(pi);
   // --- plan-artifact: durable .context persistence for OMP plan mode (opt-in) ---
   wirePlanArtifact(pi);
+  // --- b-save-improved: deterministic session-record checkpoint ---
+  wireBSaveImproved(pi);
 
   // --- Session lifecycle ---
 
@@ -476,186 +472,16 @@ export default function (pi: ExtensionAPI) {
   }
 
   /**
-   * Offer the user a grouped model picker to configure buckModelMapping.
-   * Groups available models by tier (easy/medium/hard based on any current
-   * mapping config), lets them pick one model per tier, then writes the
-   * result to ~/.pi/agent/settings.json.
+   * No OMP modelRoles (and no leftover Pi buckModelMapping). Point at
+   * ~/.omp/agent/config.yml instead of writing ~/.pi/agent/settings.json.
    */
   async function offerModelMappingSetup(ctx: ModelSwitchContext): Promise<void> {
-    const settingsPath = join(homedir(), ".pi", "agent", "settings.json");
-
-    // Read current mapping to know which tier each model belongs to
-    let currentMapping: ModelMapping | null = null;
-    try {
-      if (existsSync(settingsPath)) {
-        const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
-        const m = raw?.buckModelMapping;
-        if (m?.easy && m?.medium && m?.hard) {
-          currentMapping = m as ModelMapping;
-        }
-      }
-    } catch { /* ignore */ }
-
-    // Collect available models from registry
-    let availableModels: Array<{ id: string; label: string; tier: string }> = [];
-    try {
-      const models = ctx.modelRegistry.getAvailable();
-      availableModels = models.map((m) => {
-        const fullId = `${m.provider}/${m.id}`;
-        let tier = "unassigned";
-        if (currentMapping) {
-          if (fullId === currentMapping.easy) tier = "easy";
-          else if (fullId === currentMapping.medium) tier = "medium";
-          else if (fullId === currentMapping.hard) tier = "hard";
-        }
-        return { id: fullId, label: `${m.provider}/${m.id}`, tier };
-      });
-    } catch (e) {
-      console.error("[buck-workflow] Could not read model registry:", e);
-    }
-
-    if (availableModels.length === 0) {
-      ctx.ui.notify(
-        "No models with API keys found. Configure models in Pi settings first.",
-        "warning",
-      );
-      return;
-    }
-
-    // Group by tier
-    const groups: Record<string, Array<{ id: string; label: string; tier: string }>> = {
-      easy: [], medium: [], hard: [], unassigned: [],
-    };
-    for (const m of availableModels) {
-      groups[m.tier].push(m);
-    }
-
-    const tiers: ReadonlyArray<"easy" | "medium" | "hard"> = ["easy", "medium", "hard"];
-    const selected: Record<string, string | null> = {
-      easy: null, medium: null, hard: null,
-    };
-
-    // Pre-select current choices
-    for (const tier of tiers) {
-      if (groups[tier].length > 0) {
-        selected[tier] = groups[tier][0].id;
-      }
-    }
-
-    const pickModelForTier = async (
-      tier: "easy" | "medium" | "hard",
-      choices: string[],
-      current: string | null,
-    ): Promise<string | undefined> => {
-      const items: SelectItem[] = choices.map((choice) => ({
-        value: choice,
-        label: choice,
-        description: choice === current ? "(current choice)" : undefined,
-      }));
-
-      return await ctx.ui.custom<string>((tui: unknown, theme: UiTheme, _kb: unknown, done: (result: string | null) => void) => {
-        const container = new Container();
-        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-        container.addChild(new Text(theme.fg("accent", `Pick the ${tier.toUpperCase()} model`), 1, 0));
-
-        const selectList = new SelectList(items, Math.min(items.length, 10), {
-          selectedPrefix: (text: string) => theme.fg("accent", text),
-          selectedText: (text: string) => theme.fg("accent", text),
-          description: (text: string) => theme.fg("muted", text),
-          scrollInfo: (text: string) => theme.fg("dim", text),
-          noMatch: (text: string) => theme.fg("warning", text),
-        });
-
-        if (current) {
-          const currentIndex = items.findIndex((item) => item.value === current);
-          if (currentIndex !== -1) {
-            selectList.setSelectedIndex(currentIndex);
-          }
-        }
-
-        selectList.onSelect = (item) => done(item.value);
-        selectList.onCancel = () => done(null);
-
-        container.addChild(selectList);
-        container.addChild(new Text(theme.fg("dim", "↑↓ navigate • Enter select • Esc cancel"), 1, 0));
-        container.addChild(new DynamicBorder((s: string) => theme.fg("accent", s)));
-
-        return {
-          render(width: number) {
-            return container.render(width);
-          },
-          invalidate() {
-            container.invalidate();
-          },
-          handleInput(data: string) {
-            selectList.handleInput(data);
-            (tui as { requestRender: () => void }).requestRender();
-          },
-        } satisfies TuiComponent;
-      });
-    };
-
-    // Show a picker per tier
-    for (const tier of tiers) {
-      let choices = groups[tier].map((m) => m.label);
-      if (choices.length === 0) {
-        // This tier has no models yet — pull from unassigned pool
-        if (groups.unassigned.length > 0) {
-          choices = groups.unassigned.map((m) => m.label);
-        } else {
-          choices = availableModels.map((m) => m.label);
-        }
-      }
-
-      const current = selected[tier];
-      if (current && choices.includes(current)) {
-        choices = [current, ...choices.filter((choice) => choice !== current)];
-      }
-      choices = [...new Set(choices)];
-
-      const choice = await pickModelForTier(tier, choices, current);
-      if (!choice) {
-        ctx.ui.notify("Model mapping setup skipped.", "info");
-        return; // User cancelled
-      }
-      selected[tier] = choice;
-    }
-
-    // Write the mapping to settings.json
-    const newMapping: ModelMapping = {
-      easy: selected.easy ?? "zai-glm/glm-4.7-flash",
-      medium: selected.medium ?? "anthropic/claude-sonnet-4-6",
-      hard: selected.hard ?? "anthropic/claude-opus-4-7",
-    };
-
-    let settings: Record<string, unknown> = {};
-    try {
-      if (existsSync(settingsPath)) {
-        settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
-      }
-    } catch { /* start fresh */ }
-
-    settings["buckModelMapping"] = newMapping;
-
-    try {
-      const dir = join(homedir(), ".pi", "agent");
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      ctx.ui.notify(`Failed to write settings: ${msg}`, "error");
-      return;
-    }
-
     ctx.ui.notify(
-      `\u2713 buckModelMapping saved to ~/.pi/agent/settings.json\n` +
-      `   easy:   ${newMapping.easy}\n` +
-      `   medium: ${newMapping.medium}\n` +
-      `   hard:   ${newMapping.hard}\n` +
-      `Run /reload to activate.`,
-      "success",
+      "No OMP modelRoles configured. Add default/slow/smol to ~/.omp/agent/config.yml (or .omp/config.yml) to enable phase-based model switching.",
+      "warning",
     );
   }
+
 
   async function suggestModelForNonPhasedPlan(
     ctx: ModelSwitchContext,
