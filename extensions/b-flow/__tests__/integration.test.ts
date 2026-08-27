@@ -18,11 +18,8 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
   SettingsManager: { inMemory: vi.fn(() => ({})) },
 }));
 
-vi.mock("@mariozechner/pi-ai", () => ({
-  getModel: vi.fn((_provider: string, id: string) => ({ id, provider: _provider })),
-}));
-
 import { createAgentSession } from "@mariozechner/pi-coding-agent";
+
 
 const TEST_ROOT = join("/tmp", "bflow-test-" + Date.now());
 

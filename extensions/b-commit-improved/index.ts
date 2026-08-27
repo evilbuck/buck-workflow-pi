@@ -25,14 +25,13 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { createAgentSession, SessionManager, SettingsManager } from "@mariozechner/pi-coding-agent";
-import { getModel } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
 import { execFileSync } from "node:child_process";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createProgress, execFileCaptured } from "../command-progress.js";
+import { runOmpModelSession } from "../omp-models.js";
+
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Single source of truth for git plumbing — same pattern as b-pr-improved.
@@ -96,27 +95,6 @@ async function runPreflight(args: string[], cwd: string): Promise<Preflight> {
 
 // ---------- inline model invocation ----------
 
-function lastAssistantText(messages: Array<{ role?: string; content?: string }>): string {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role === "assistant" && typeof m.content === "string" && m.content.trim()) {
-      return m.content.trim();
-    }
-  }
-  return "";
-}
-
-function resolveModel(override?: string): Model<any> | undefined {
-  if (override) {
-    const slash = override.indexOf("/");
-    if (slash > 0 && slash < override.length - 1) {
-      const m = getModel(override.slice(0, slash) as never, override.slice(slash + 1) as never);
-      if (m) return m as Model<any>;
-    }
-  }
-  return undefined;
-}
-
 async function runModelSession(
   cwd: string,
   tools: string[],
@@ -124,29 +102,9 @@ async function runModelSession(
   modelOverride?: string,
   timeoutMs = 60_000,
 ): Promise<string> {
-  const created = await createAgentSession({
-    cwd,
-    model: resolveModel(modelOverride),
-    thinkingLevel: "off",
-    tools,
-    sessionManager: SessionManager.inMemory(cwd),
-    settingsManager: SettingsManager.inMemory({
-      compaction: { enabled: false },
-      retry: { enabled: true, maxRetries: 2 },
-    }),
-  });
-  const session = created.session;
-  const timer = setTimeout(() => {
-    void session.abort();
-  }, timeoutMs);
-  try {
-    await session.prompt(prompt);
-    return lastAssistantText(session.messages as Array<{ role?: string; content?: string }>);
-  } finally {
-    clearTimeout(timer);
-    session.dispose();
-  }
+  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs });
 }
+
 
 // ---------- draft I/O ----------
 

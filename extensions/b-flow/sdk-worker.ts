@@ -1,9 +1,9 @@
 /**
- * SDK-based worker using Pi's createAgentSession().
+ * SDK-based worker using createAgentSession() against OMP's catalog.
  *
  * Replaces the subprocess worker with an in-process SDK session that:
  * - Creates an isolated AgentSession per chunk
- * - Selects model based on chunk difficulty tier
+ * - Selects model from OMP modelRoles by chunk difficulty
  * - Scopes tools (read-only for iterate, full coding for build)
  * - Captures tool calls and extracts changed files
  * - Writes result/audit files compatible with verifyResult
@@ -17,75 +17,26 @@ import {
   SessionManager,
   SettingsManager,
 } from "@mariozechner/pi-coding-agent";
-import { getModel } from "@mariozechner/pi-ai";
-import type { Model } from "@mariozechner/pi-ai";
 import type { ChunkQueueItem } from "./types.js";
 import type { WorkerOptions, WorkerResult } from "./worker.js";
+import { mappingFromOmpRoles, ompAgentDir } from "../omp-models.js";
 
 // ---------------------------------------------------------------------------
 // Model selection
 // ---------------------------------------------------------------------------
 
-const BUCK_MODEL_FALLBACKS: Record<string, Array<{ provider: string; id: string }>> = {
-  easy: [
-    { provider: "anthropic", id: "claude-haiku-4-20250414" },
-    { provider: "openai", id: "gpt-4o-mini" },
-  ],
-  medium: [
-    { provider: "anthropic", id: "claude-sonnet-4-20250514" },
-    { provider: "openai", id: "gpt-4o" },
-  ],
-  hard: [
-    { provider: "anthropic", id: "claude-opus-4-20250514" },
-    { provider: "anthropic", id: "claude-sonnet-4-20250514" },
-  ],
-};
-
-interface ResolvedModel {
-  model: Model<any> | undefined;
-  label: string;
-}
-
-function parseModelOverride(override?: string): { provider: string; id: string } | null {
-  if (!override) return null;
-  const slashIdx = override.indexOf("/");
-  if (slashIdx <= 0 || slashIdx === override.length - 1) return null;
-  return {
-    provider: override.slice(0, slashIdx),
-    id: override.slice(slashIdx + 1),
-  };
-}
-
-/**
- * Select a model based on chunk difficulty. Returns the first model that exists
- * in the local registry for the override or difficulty fallback chain.
- */
-function selectModel(
+function selectModelPattern(
+  projectRoot: string,
   difficulty: string | undefined,
   override?: string,
-): ResolvedModel {
-  const tier = difficulty ?? "medium";
-  const fallbackCandidates = BUCK_MODEL_FALLBACKS[tier] ?? BUCK_MODEL_FALLBACKS.medium;
-  const overrideCandidate = parseModelOverride(override);
-  const candidates = overrideCandidate
-    ? [overrideCandidate, ...fallbackCandidates]
-    : fallbackCandidates;
-
-  for (const candidate of candidates) {
-    const model = getModel(candidate.provider as any, candidate.id as any);
-    if (model) {
-      return {
-        model,
-        label: `${candidate.provider}/${candidate.id}`,
-      };
-    }
-  }
-
-  return {
-    model: undefined,
-    label: override ?? `${fallbackCandidates[0]?.provider ?? "unknown"}/${fallbackCandidates[0]?.id ?? "unknown"}`,
-  };
+): { pattern?: string; label: string } {
+  if (override) return { pattern: override, label: override };
+  const mapping = mappingFromOmpRoles(projectRoot);
+  const tier = difficulty === "easy" || difficulty === "hard" ? difficulty : "medium";
+  const pattern = mapping?.[tier];
+  return { pattern, label: pattern ?? `omp:${tier}` };
 }
+
 
 // ---------------------------------------------------------------------------
 // Tool scoping
@@ -232,13 +183,13 @@ export async function runSDKWorker(
   if (!existsSync(auditDir)) mkdirSync(auditDir, { recursive: true });
   const auditFile = join(auditDir, `${timestamp}-${chunk.id}-audit.json`);
 
-  const selectedModel = selectModel(chunk.difficulty, modelOverride);
+  const selectedModel = selectModelPattern(projectRoot, chunk.difficulty, modelOverride);
   const auditBase = {
     chunkId: chunk.id,
     chunkType: chunk.type,
     chunkPath: chunk.path,
     startedAt,
-    model: modelOverride ?? selectedModel.label,
+    model: selectedModel.label,
     resultFile,
   };
 
@@ -251,9 +202,12 @@ export async function runSDKWorker(
   try {
     const tools = selectTools(chunk);
 
-    const created = await createAgentSession({
+    const sessionOpts: Parameters<typeof createAgentSession>[0] & {
+      agentDir?: string;
+      modelPattern?: string;
+    } = {
       cwd: projectRoot,
-      model: selectedModel.model,
+      agentDir: ompAgentDir(),
       thinkingLevel: "off",
       tools,
       sessionManager: SessionManager.inMemory(projectRoot),
@@ -261,7 +215,10 @@ export async function runSDKWorker(
         compaction: { enabled: false },
         retry: { enabled: true, maxRetries: 2 },
       }),
-    });
+    };
+    if (selectedModel.pattern) sessionOpts.modelPattern = selectedModel.pattern;
+    const created = await createAgentSession(sessionOpts);
+
     session = created.session;
 
     session.subscribe((event) => {

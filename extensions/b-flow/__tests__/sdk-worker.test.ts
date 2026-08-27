@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { rmSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { rmSync, mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ChunkQueueItem } from "../types.js";
+
 import type { WorkerOptions, WorkerResult } from "../worker.js";
 import { verifyResult } from "../verify-result.js";
 
@@ -47,13 +48,9 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
   },
 }));
 
-vi.mock("@mariozechner/pi-ai", () => ({
-  getModel: vi.fn((_provider: string, id: string) => ({ id, provider: _provider })),
-}));
-
 // Import after mocks
 import { createAgentSession } from "@mariozechner/pi-coding-agent";
-import { getModel } from "@mariozechner/pi-ai";
+
 
 const TEST_ROOT = join("/tmp", "bflow-sdk-test-" + Date.now());
 
@@ -86,8 +83,19 @@ describe("runSDKWorker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
-    mkdirSync(TEST_ROOT, { recursive: true });
+    mkdirSync(join(TEST_ROOT, ".omp"), { recursive: true });
+    writeFileSync(
+      join(TEST_ROOT, ".omp", "config.yml"),
+      [
+        "modelRoles:",
+        "  default: xai-oauth/grok-4.6:xhigh",
+        "  slow: zai-glm/glm-5.3:max",
+        "  smol: minimax-code/MiniMax-M3:minimal",
+        "",
+      ].join("\n"),
+    );
   });
+
 
   afterEach(() => {
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
@@ -145,7 +153,7 @@ describe("runSDKWorker", () => {
 
   // --- Model selection ---
 
-  it("selects model based on chunk difficulty", async () => {
+  it("selects OMP modelRoles by chunk difficulty", async () => {
     const fakeSession = createFakeSession();
     vi.mocked(createAgentSession).mockResolvedValue({
       session: fakeSession as any,
@@ -157,21 +165,16 @@ describe("runSDKWorker", () => {
     const { runSDKWorker } = await import("../sdk-worker.js");
     await runSDKWorker(makeChunk({ difficulty: "hard" }), makeOptions());
 
-    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0];
-    expect(callOpts?.model).toBeDefined();
-    expect((callOpts?.model as any)?.id).toBe("claude-opus-4-20250514");
+    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0] as { modelPattern?: string; agentDir?: string };
+    expect(callOpts.modelPattern).toBe("xai-oauth/grok-4.6:xhigh");
+    expect(callOpts.agentDir).toMatch(/\.omp\/agent$/);
   });
 
-  it("falls back to the next configured model when the first candidate is unavailable", async () => {
+  it("maps easy difficulty to the smol role", async () => {
     const fakeSession = createFakeSession();
     vi.mocked(createAgentSession).mockResolvedValue({
       session: fakeSession as any,
       extensionsResult: { extensions: [], errors: [], runtime: {} as any },
-    });
-
-    vi.mocked(getModel).mockImplementation((provider: string, id: string) => {
-      if (provider === "anthropic" && id === "claude-haiku-4-20250414") return undefined as any;
-      return { provider, id } as any;
     });
 
     mockMessages.push({ role: "assistant", content: "Done" });
@@ -179,9 +182,8 @@ describe("runSDKWorker", () => {
     const { runSDKWorker } = await import("../sdk-worker.js");
     await runSDKWorker(makeChunk({ difficulty: "easy" }), makeOptions());
 
-    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0];
-    expect((callOpts?.model as any)?.provider).toBe("openai");
-    expect((callOpts?.model as any)?.id).toBe("gpt-4o-mini");
+    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0] as { modelPattern?: string };
+    expect(callOpts.modelPattern).toBe("minimax-code/MiniMax-M3:minimal");
   });
 
   it("prefers explicit model override over difficulty mapping", async () => {
@@ -196,10 +198,10 @@ describe("runSDKWorker", () => {
     const { runSDKWorker } = await import("../sdk-worker.js");
     await runSDKWorker(makeChunk({ difficulty: "easy" }), makeOptions({ model: "anthropic/claude-opus-4-20250514" }));
 
-    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0];
-    expect(callOpts?.model).toBeDefined();
-    expect((callOpts?.model as any)?.id).toBe("claude-opus-4-20250514");
+    const callOpts = vi.mocked(createAgentSession).mock.calls[0][0] as { modelPattern?: string };
+    expect(callOpts.modelPattern).toBe("anthropic/claude-opus-4-20250514");
   });
+
 
   // --- Session lifecycle ---
 
@@ -257,7 +259,8 @@ describe("runSDKWorker", () => {
     const audit = JSON.parse(readFileSync(join(auditDir, auditFile!), "utf-8"));
     expect(audit.chunkId).toBe("audit-test");
     expect(audit.workerType).toBe("sdk");
-    expect(audit.model).toBe("anthropic/claude-sonnet-4-20250514");
+    expect(audit.model).toBe("zai-glm/glm-5.3:max");
+
     expect(audit.completedAt).toBeDefined();
     expect(audit.exitCode).toBe(0);
   });

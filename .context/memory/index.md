@@ -1,3 +1,36 @@
+- 2026-08-27 — [fix-pr: PR #10 remaining blockers](fix-pr-10-blockers-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-blockers-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-containment, apply-failure, yaml-frontmatter] | status: completed
+
+- 2026-08-27 — [fix-pr: PR #10 leaf symlink containment](fix-pr-10-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, leaf-symlink] | status: completed
+
+- 2026-08-27 — [b-save-improved parity: hardened extension/skill wiring with expanded preflight+apply+wire tests; complexity override recorded.](deterministic-bsave-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `deterministic-bsave-2026-08-27.md` | domains: [extensions, testing, workflow] | topics: [b-save-improved, deterministic-checkpoint, scribe-auditor, parity, guardrails-override] | status: completed
+
+- 2026-08-27 — [Review: b-save-improved artifact parity](bsave-improved-parity-review-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `bsave-improved-parity-review-2026-08-27.md` | domains: [review, extensions, testing, quality] | topics: [b-save-improved, parity, guardrails, completion-audit] | status: completed
+
+- 2026-08-27 — [Guardrails override — complexity gate (b-save-improved parity session)](guardrails-override-complexity-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `guardrails-override-complexity-2026-08-27.md` | domains: [tooling, quality] | topics: [guardrails, complexity-gate, override, b-save-improved-parity] | status: completed
+
+- 2026-08-26 — [fix-pr: PR #10 path containment, index idempotency, save fidelity](fix-pr-10-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `fix-pr-10-2026-08-26.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, memory-index, fidelity] | status: completed
+
+- 2026-08-26 — [Deterministic b-save-improved: skill + extension + command added, shared omp-models/context-helpers extracted, context-artifacts migrated to TS (264+/486-).](deterministic-bsave-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `deterministic-bsave-2026-08-26.md` | domains: [extensions, testing, tooling] | topics: [b-save-improved, deterministic-checkpoint, shared-helpers, typescript-migration] | status: completed
+
+- 2026-08-26 — [OMP catalog for nested createAgentSession](omp-catalog-for-nested-sessions-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `omp-catalog-for-nested-sessions-2026-08-26.md` | domains: [extensions, omp, models] | topics: [omp-models, modelRoles, createAgentSession, getModel] | status: completed
+
+
 - 2026-08-26 — [fix-pr: PR #9 committed conflict markers](fix-pr-9-2026-08-26.md) — `completed`
 
   - 2026-08-26 | `fix-pr-9-2026-08-26.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-9, merge-conflicts, b-kamal-release, b-commit-improved, vite] | status: completed
