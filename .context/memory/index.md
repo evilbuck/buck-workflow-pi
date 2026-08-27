@@ -1,3 +1,7 @@
+- 2026-08-27 — [fix-pr: PR #10 leaf symlink containment](fix-pr-10-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, leaf-symlink] | status: completed
+
 - 2026-08-27 — [b-save-improved parity: hardened extension/skill wiring with expanded preflight+apply+wire tests; complexity override recorded.](deterministic-bsave-2026-08-27.md) — `completed`
 
   - 2026-08-27 | `deterministic-bsave-2026-08-27.md` | domains: [extensions, testing, workflow] | topics: [b-save-improved, deterministic-checkpoint, scribe-auditor, parity, guardrails-override] | status: completed
