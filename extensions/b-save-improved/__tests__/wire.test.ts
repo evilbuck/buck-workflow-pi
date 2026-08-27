@@ -214,6 +214,13 @@ describe("parseScribeResponse / parseAuditorResponse", () => {
     expect(parsed?.backlog.new_items).toEqual([{ slug: "new-item", title: "N", priority: "low", related: [], body: "" }]);
   });
 
+  it("parses auditor verdicts and ignores malformed rows", () => {
+    const parsed = parseAuditorResponse(
+      `prose {"verdicts":[{"path":"spec.md","verdict":"complete","evidence":"a:1"},{"path":"bad","verdict":"nope"}]}`,
+    );
+    expect(parsed).toEqual([{ path: "spec.md", verdict: "complete", evidence: "a:1" }]);
+  });
+});
 
 describe("lastAssistantText", () => {
   const json = '{"memory":{"frontmatter":{"domains":["x"],"topics":["y"],"priority":"high","status":"completed"},"title":"T","body":"B"},"index_entry":{"summary":"S"},"backlog":{}}';
@@ -237,14 +244,6 @@ describe("lastAssistantText", () => {
       role: "assistant",
       content: [{ type: "thinking", thinking: "no text" }],
     }])).toBe("");
-  });
-});
-
-  it("parses auditor verdicts and ignores malformed rows", () => {
-    const parsed = parseAuditorResponse(
-      `prose {"verdicts":[{"path":"spec.md","verdict":"complete","evidence":"a:1"},{"path":"bad","verdict":"nope"}]}`,
-    );
-    expect(parsed).toEqual([{ path: "spec.md", verdict: "complete", evidence: "a:1" }]);
   });
 });
 
