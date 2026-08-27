@@ -657,6 +657,7 @@ async function runBSaveImproved(
         ? String(report.errors[0])
         : `apply exited ${applied.code}`;
       recordCommandError(pi, "b-save-improved", "apply", first, applied.code);
+      return;
     }
     for (const row of report.applied ?? []) {
       notify(ctx, `${row.action} ${row.path}${row.reason ? ` — ${row.reason}` : ""}`);

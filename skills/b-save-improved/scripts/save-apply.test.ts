@@ -430,6 +430,24 @@ describe("runApply in-process", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
+  it("rejects a new backlog item below an outside ancestor symlink", () => {
+    const root = fixture();
+    const prev = process.cwd();
+    const outsideDir = join(root, "outside-backlog");
+    mkdirSync(outsideDir);
+    rmSync(join(root, ".context/backlog"), { recursive: true, force: true });
+    symlinkSync(outsideDir, join(root, ".context/backlog"));
+    try {
+      process.chdir(root);
+      expect(runApply(basePayload({
+        backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug: "new-item", title: "New item", priority: "high", related: [], body: "" }] },
+      }))).toBe(1);
+      expect(existsSync(join(outsideDir, "items", "new-item.md"))).toBe(false);
+    } finally {
+      process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 
   it("skips a new backlog item whose slug already exists", () => {
     const root = fixture();
@@ -445,6 +463,19 @@ describe("runApply in-process", () => {
       expect(readFileSync(join(root, ".context/backlog/items/y.md"), "utf8")).not.toContain("Later.");
     } finally {
       process.chdir(prev);
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+  it("quotes multiline frontmatter scalars without creating a YAML fence", () => {
+    const root = fixture();
+    try {
+      const payload = basePayload();
+      payload.memory.frontmatter.priority = "high\n---\nstatus: active";
+      run(root, payload);
+      const memory = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8");
+      expect(memory).toContain('priority: "high\\n---\\nstatus: active"');
+      expect(memory.match(/^---$/gm)).toHaveLength(2);
+    } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });

@@ -280,8 +280,8 @@ describe("b-save-improved handler", () => {
 
   });
 
-  it("records a partial apply without aborting", async () => {
-    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+  it("records a failed apply and skips post-apply side effects", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify({ ...preflightOk, memory_backend: { backend: null, expect_retain: false } }), stderr: "" });
     execFileCapturedWithStdin.mockResolvedValue({
       code: 1,
       stdout: JSON.stringify({
@@ -300,7 +300,7 @@ describe("b-save-improved handler", () => {
       sessionManager: { getEntries: () => [] },
       ui: { notify: (m: string) => notes.push(m) },
     });
-    expect(notes.some((n) => n.includes("created m.md"))).toBe(true);
+    expect(notes).toEqual([]);
     expect(recordCommandError).toHaveBeenCalledWith(
       expect.anything(),
       "b-save-improved",
@@ -308,6 +308,7 @@ describe("b-save-improved handler", () => {
       "EACCES: permission denied",
       1,
     );
-    expect(sendMessage).toHaveBeenCalled();
+    expect(execFileCaptured).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

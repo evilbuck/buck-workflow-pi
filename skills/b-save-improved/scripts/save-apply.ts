@@ -50,9 +50,10 @@ function containedContextPath(path: string): string {
     if (lstatSync(full).isSymbolicLink()) throw new Error(`path escapes .context: ${path}`);
     return rejectIfEscapes(rootCanon, realpathSync(full), path);
   }
-  const parent = dirname(full);
-  if (!lexists(parent)) return full;
-  return rejectIfEscapes(rootCanon, join(realpathSync(parent), basename(full)), path);
+  let ancestor = full;
+  while (!lexists(ancestor)) ancestor = dirname(ancestor);
+  const candidate = resolve(realpathSync(ancestor), relative(ancestor, full));
+  return rejectIfEscapes(rootCanon, candidate, path);
 }
 
 function containedUnder(rootRel: string, path: string): string {
@@ -105,7 +106,7 @@ function mutate(path: string, content: string, reason: string): void {
 
 function yamlScalar(value: unknown): string {
   if (value === null) return "null";
-  if (typeof value === "string" && (/[:#\[\]{},]|^\s|\s$/.test(value))) return JSON.stringify(value);
+  if (typeof value === "string" && (/[:#\[\]{},\r\n]|^\s|\s$/.test(value))) return JSON.stringify(value);
   return String(value);
 }
 function inline(values: unknown): string {
