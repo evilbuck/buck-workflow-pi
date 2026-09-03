@@ -1,3 +1,7 @@
+- 2026-09-03 — [b-save-improved: default scribe role, actionable model errors, and smol fallback](b-save-improved-empty-scribe-2026-09-03.md) — `completed`
+
+  - 2026-09-03 | `b-save-improved-empty-scribe-2026-09-03.md` | domains: [extensions, omp, testing] | topics: [b-save-improved, scribe-model, model-roles, empty-response, model-fallback] | status: completed
+
 - 2026-08-27 — [fix-pr: PR #10 remaining blockers](fix-pr-10-blockers-2026-08-27.md) — `completed`
 
   - 2026-08-27 | `fix-pr-10-blockers-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-containment, apply-failure, yaml-frontmatter] | status: completed

@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  EmptyModelResponseError,
   lastAssistantText,
   mappingFromOmpRoles,
   parseModelRoles,
@@ -119,5 +120,19 @@ describe("lastAssistantText", () => {
         { type: "text", text: "kept" },
       ],
     }])).toBe("kept");
+  });
+});
+
+describe("EmptyModelResponseError", () => {
+  it("reports an absent assistant message and provider diagnostics", () => {
+    expect(new EmptyModelResponseError([]).message).toBe("Model completed without an assistant message.");
+    expect(new EmptyModelResponseError([{
+      role: "assistant",
+      content: [{ type: "thinking" }],
+      stopReason: "error",
+      errorMessage: "model missing",
+    }]).message).toBe(
+      "Model returned no text (stop reason: error; error: model missing; content blocks: thinking).",
+    );
   });
 });

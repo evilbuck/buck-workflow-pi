@@ -196,7 +196,7 @@ export function buildDigest(
 }
 
 export function resolveRoleModel(cwd: string, role: "scribe" | "auditor"): string | undefined {
-  return resolveOmpRole(cwd, role === "scribe" ? "slow" : "smol");
+  return resolveOmpRole(cwd, role === "scribe" ? "default" : "smol");
 }
 
 
@@ -367,6 +367,8 @@ function fail(pi: ExtensionAPI, ctx: CommandCtx, step: string, message: string, 
   notify(ctx, message, "error");
 }
 
+
+
 function preflightArgList(opts: SaveArgs, subjectOverride?: string): string[] {
   const args: string[] = [];
   const subject = subjectOverride ?? opts.subject;
@@ -526,6 +528,48 @@ export function buildRetainInstruction(
   ].join("\n");
 }
 
+async function draftScribe(
+  pi: ExtensionAPI,
+  ctx: CommandCtx,
+  opts: SaveArgs,
+  digest: string,
+  preflight: Record<string, unknown>,
+): Promise<ScribeOutput | null> {
+  const scribeModel = opts.model ?? resolveRoleModel(ctx.cwd, "scribe");
+  let scribeRaw = "";
+  try {
+    scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), scribeModel, 120_000);
+  } catch (error) {
+    const modelError = error instanceof Error ? error.message : String(error);
+    const failure = `Scribe model ${scribeModel ?? "OMP default"} failed (${modelError}).`;
+    const recovery = "Change its OMP model role or re-run with --model <provider/model>.";
+    const fallbackModel = opts.model ? undefined : resolveOmpRole(ctx.cwd, "smol");
+    if (!fallbackModel || fallbackModel === scribeModel) {
+      fail(pi, ctx, "scribe", `${failure} ${recovery}`);
+      return null;
+    }
+    notify(ctx, `${failure} Retrying with fallback ${fallbackModel}.`, "warning");
+    try {
+      scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), fallbackModel, 120_000);
+    } catch (fallbackError) {
+      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
+      fail(pi, ctx, "scribe", `${failure} Fallback model ${fallbackModel} also failed (${fallbackMessage}). ${recovery}`);
+      return null;
+    }
+  }
+  const scribe = parseScribeResponse(scribeRaw);
+  if (scribe) return scribe;
+  fail(
+    pi,
+    ctx,
+    "scribe",
+    scribeRaw.trim()
+      ? "Could not draft the session record. Scribe output was not valid JSON. Fall back to /b-save."
+      : "Could not draft the session record. Model returned no text. Fall back to /b-save.",
+  );
+  return null;
+}
+
 async function runBSaveImproved(
   rawArgs: string,
   ctx: CommandCtx,
@@ -594,27 +638,8 @@ async function runBSaveImproved(
     const digest = buildDigest(entries, git.status_porcelain ?? "", git.diff_stat ?? "");
 
     progress.step("Drafting session record…");
-    const scribeModel = opts.model ?? resolveRoleModel(ctx.cwd, "scribe");
-    let scribe: ScribeOutput | null = null;
-    let scribeRaw = "";
-    try {
-      scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), scribeModel, 120_000);
-      scribe = parseScribeResponse(scribeRaw);
-    } catch (error) {
-      fail(pi, ctx, "scribe", `Could not draft the session record: ${error instanceof Error ? error.message : String(error)}`);
-      return;
-    }
-    if (!scribe) {
-      fail(
-        pi,
-        ctx,
-        "scribe",
-        scribeRaw.trim()
-          ? "Could not draft the session record. Scribe output was not valid JSON. Fall back to /b-save."
-          : "Could not draft the session record. Model returned no text. Fall back to /b-save.",
-      );
-      return;
-    }
+    const scribe = await draftScribe(pi, ctx, opts, digest, preflight);
+    if (!scribe) return;
 
     const phases = (preflight.phases ?? {}) as { needs_adjudication?: unknown[] };
     const specs = preflight.specs as unknown[] | undefined;
