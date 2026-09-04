@@ -378,6 +378,7 @@ flowchart TD
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
 | [**b-init-guardrails**](#b-init-guardrails--quality-guardrails-init) | Prompt template | `/b-init-guardrails` | `prompts/b-init-guardrails.md` + `skills/b-init-guardrails/SKILL.md` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet |
 | [**b-guardrails-check**](#b-guardrails-check--guardrails-measurement) | Prompt template | `/b-guardrails-check` | `prompts/b-guardrails-check.md` + `skills/b-guardrails-check/SKILL.md` | Resolve the check contract by the resolution chain, run lint/unit/functional/coverage/complexity gates, return structured verdict. Measures only — never edits |
+| [**b-nasa-prd**](#b-nasa-prd--nasa-standard-prd-authoringaudit) | Prompt template + Skill | `/b-nasa-prd` | `prompts/b-nasa-prd.md` + `skills/b-nasa-prd/` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C, bundled locally) |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
@@ -523,6 +524,27 @@ informs: []  # Plans/specs this research fed into
 **Output**: Brainstorm draft in subject folder (e.g., `brainstorm-add-oauth-login.md`)
 
 **Next Step**: `/b-plan` to formalize into bounded plan
+
+---
+
+#### `/b-nasa-prd` — NASA-Standard PRD Authoring/Audit
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Pi/OMP primitives**: Prompt command (`prompts/b-nasa-prd.md` / `commands/b-nasa-prd.md`) + Skill (`skills/b-nasa-prd/SKILL.md`)
+
+**Source**: NASA Systems Engineering Handbook, Appendix C ("How to Write a Good Requirement") — bundled verbatim at `skills/b-nasa-prd/references/nasa-appendix-c.md`; the skill never refetches it.
+
+**Two modes**:
+
+- **Author mode** — converts gathered need/goals/scope/constraints/flows/assumptions into a requirements artifact. Requirement grammar: `The <product> shall <verb> <object> <qualifier with tolerance>.` Uniquely numbered rows (`REQ-NNN`) with rationale, verification method (test / demo / inspection / analysis), and trace to a goal.
+- **Review mode** — audits an existing PRD/spec against the distilled checklist (`references/requirement-quality-checklist.md`, citable rule IDs). Emits a findings table with severities and suggested rewrites; does not silently rewrite.
+
+**Core rules enforced**: `shall`=requirement / `will`=fact / `should`=goal (C.1); active voice, tolerances on every value, WHAT-not-HOW (C.2); positive statements, TBR register instead of scattered TBDs, rationale per requirement (C.3); one thought per requirement, traceable, verifiable, banned-word scan (`user-friendly`, `fast`, `robust`, `etc.`, …) (C.4).
+
+**Output**: PRD with need/goals, scope, user flows, constraints, assumptions, requirements table, TBR register, and traceability matrix.
+
+**Workflow position**: after discovery (`/b-research`), before `/b-plan` — the plan traces to the PRD's requirements. Also hardens an existing `spec-*.md` in place.
 
 ---
 

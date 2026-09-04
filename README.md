@@ -181,6 +181,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
+| `/b-nasa-prd` | `b-nasa-prd` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C) |
 | `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
@@ -211,6 +212,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
+| `b-nasa-prd` | NASA-standard PRD authoring and audit — shall/will/should, tolerances, traceable and verifiable requirements (bundled Appendix C source) |
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
