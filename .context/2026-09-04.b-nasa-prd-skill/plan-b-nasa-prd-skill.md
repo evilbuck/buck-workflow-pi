@@ -11,6 +11,12 @@ priority: medium
 
 # Plan: Build the b-nasa-prd skill
 
+## User Goal
+
+Pull down NASA's "Appendix C: How to Write a Good Requirement" (https://www.nasa.gov/reference/appendix-c-how-to-write-a-good-requirement/) for local reference, and distill it into a new skill `b-nasa-prd` that writes the clearest, best PRD to NASA standards.
+
+## Summary
+
 **Goal**: Distill NASA SEH Appendix C into a `b-nasa-prd` skill that authors and audits PRDs to NASA's requirement-quality standard, with the source document bundled locally.
 
 ## Deliverables and acceptance criteria
