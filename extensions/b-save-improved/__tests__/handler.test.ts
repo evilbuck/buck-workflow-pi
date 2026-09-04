@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as OmpModels from "../../omp-models.js";
 
 const execFileCaptured = vi.fn();
 const execFileCapturedWithStdin = vi.fn();
 const createAgentSession = vi.fn();
 const recordCommandError = vi.fn();
+const { resolveOmpRole } = vi.hoisted(() => ({ resolveOmpRole: vi.fn() }));
 
 vi.mock("../../command-progress.js", () => ({
   createProgress: () => ({ step: vi.fn(), clear: vi.fn(), fail: vi.fn(), done: vi.fn() }),
@@ -16,6 +18,11 @@ vi.mock("@mariozechner/pi-coding-agent", () => ({
   createAgentSession: (...args: unknown[]) => createAgentSession(...args),
   SessionManager: { inMemory: () => ({}) },
   SettingsManager: { inMemory: () => ({}) },
+}));
+
+vi.mock("../../omp-models.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof OmpModels>()),
+  resolveOmpRole,
 }));
 
 
@@ -77,6 +84,12 @@ describe("b-save-improved handler", () => {
     execFileCapturedWithStdin.mockReset();
     createAgentSession.mockReset();
     recordCommandError.mockReset();
+    resolveOmpRole.mockReset();
+    resolveOmpRole.mockImplementation((_cwd: string, role: string) => {
+      if (role === "slow") return "anthropic/slow";
+      if (role === "smol") return "openai/smol";
+      return "cursor/default";
+    });
   });
 
   it("notifies when .context is missing", async () => {
@@ -113,6 +126,95 @@ describe("b-save-improved handler", () => {
     expect(notes.some((n) => n.includes("created m.md"))).toBe(true);
     expect(sendMessage).not.toHaveBeenCalled();
     expect(recordCommandError).not.toHaveBeenCalled();
+  });
+
+  it("uses a restricted OMP child session for the scribe", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ applied: [], staged_inferred: [], errors: [] }),
+      stderr: "",
+    });
+    createAgentSession.mockResolvedValue(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: vi.fn() },
+    });
+    expect(createAgentSession).toHaveBeenCalledWith(expect.objectContaining({
+      toolNames: [],
+      restrictToolNames: true,
+      disableExtensionDiscovery: true,
+      enableMCP: false,
+      enableLsp: false,
+      agentId: expect.stringMatching(/^b-save-improved-model-/),
+    }));
+    expect(createAgentSession.mock.calls[0][0].settingsManager).toBeUndefined();
+    expect(createAgentSession.mock.calls[0][0].taskDepth).toBeUndefined();
+  });
+
+  it("retries a failed default scribe with the configured smol fallback", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ applied: [], staged_inferred: [], errors: [] }),
+      stderr: "",
+    });
+    createAgentSession
+      .mockResolvedValueOnce(sessionWith(""))
+      .mockResolvedValueOnce(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const notes: string[] = [];
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (m: string) => notes.push(m) },
+    });
+    expect(createAgentSession.mock.calls.map(([options]) => options.modelPattern))
+      .toEqual(["cursor/default", "openai/smol"]);
+    expect(notes.join(" ")).toMatch(/cursor\/default failed.*Retrying.*openai\/smol/i);
+    expect(execFileCapturedWithStdin).toHaveBeenCalled();
+    expect(recordCommandError).not.toHaveBeenCalled();
+  });
+
+  it("does not override an explicit model after failure", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    createAgentSession.mockResolvedValue(sessionWith(""));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const notes: string[] = [];
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain --model provider/pinned", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (m: string) => notes.push(m) },
+    });
+    expect(createAgentSession).toHaveBeenCalledTimes(1);
+    expect(createAgentSession.mock.calls[0][0].modelPattern).toBe("provider/pinned");
+    expect(notes.join(" ")).toMatch(/provider\/pinned failed.*Change.*--model/i);
+    expect(execFileCapturedWithStdin).not.toHaveBeenCalled();
+    expect(recordCommandError).toHaveBeenCalled();
+  });
+
+  it("names both failed models and how to recover when fallback is exhausted", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    createAgentSession
+      .mockResolvedValueOnce(sessionWith(""))
+      .mockResolvedValueOnce(sessionWith(""));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const notes: string[] = [];
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (m: string) => notes.push(m) },
+    });
+    expect(createAgentSession).toHaveBeenCalledTimes(2);
+    expect(notes.join(" ")).toMatch(/cursor\/default failed.*Fallback model openai\/smol also failed.*Change.*--model/i);
+    expect(execFileCapturedWithStdin).not.toHaveBeenCalled();
+    expect(recordCommandError).toHaveBeenCalled();
   });
 
   it("falls back to /b-save when the scribe returns nothing usable", async () => {

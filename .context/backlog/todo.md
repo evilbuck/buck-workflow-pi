@@ -36,4 +36,5 @@
 - [x] [b-pr: portable script path + .context-as-research](../2026-06-22.b-pr-skill-portable-path/index.md) — `<skill_dir>` resolution, impl/context file split, changed-only artifacts — done 2026-06-22
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
+- [ ] [Locate Pi coding-agent runtime source in clean worktrees](items/pi-runtime-source-clean-worktree.md) — medium priority
 

@@ -156,7 +156,7 @@ describe("buildDigest", () => {
 });
 
 describe("resolveRoleModel", () => {
-  it("maps scribe→slow and auditor→smol from project OMP config.yml", () => {
+  it("maps scribe→default and auditor→smol from project OMP config.yml", () => {
     const dir = mkdtempSync(join(tmpdir(), "bsave-role-"));
     try {
       mkdirSync(join(dir, ".omp"), { recursive: true });
@@ -175,7 +175,7 @@ describe("resolveRoleModel", () => {
         join(dir, ".pi", "agent", "settings.json"),
         JSON.stringify({ buckModelMapping: { easy: "pi/easy", medium: "pi/medium", hard: "pi/hard" } }),
       );
-      expect(resolveRoleModel(dir, "scribe")).toBe("zai/glm-5.3:max");
+      expect(resolveRoleModel(dir, "scribe")).toBe("xai-oauth/grok-4.6:xhigh");
       expect(resolveRoleModel(dir, "auditor")).toBe("minimax-code/MiniMax-M3:minimal");
     } finally {
       rmSync(dir, { recursive: true, force: true });
