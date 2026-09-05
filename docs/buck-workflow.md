@@ -1127,7 +1127,6 @@ Suggested next step
 
 ### 5. Save Phase
 
-
 #### `/b-save` — Record History
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
