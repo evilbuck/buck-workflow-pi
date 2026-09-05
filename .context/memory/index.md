@@ -1,3 +1,7 @@
+- 2026-09-04 — [b-nasa-prd skill built from NASA SEH Appendix C](b-nasa-prd-skill-2026-09-04.md) — `completed`
+
+  - 2026-09-04 | `b-nasa-prd-skill-2026-09-04.md` | domains: [skill, buck-workflow, docs] | topics: [b-nasa-prd, nasa, prd, requirements, appendix-c, skill-creation] | status: completed
+
 - 2026-09-03 — [b-save-improved: default scribe role, actionable model errors, and smol fallback](b-save-improved-empty-scribe-2026-09-03.md) — `completed`
 
   - 2026-09-03 | `b-save-improved-empty-scribe-2026-09-03.md` | domains: [extensions, omp, testing] | topics: [b-save-improved, scribe-model, model-roles, empty-response, model-fallback] | status: completed
