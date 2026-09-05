@@ -44,7 +44,8 @@ When reconstructing the session narrative, apply this strict precedence order:
      `No material direction changes; work progressed along the initial plan.`
 4. **Select Important Files (3–6 Paths)**:
    - Identify representative changed or added files that bear behavior, crucial configuration, verification tests, or primary documentation.
-   - Provide one concise clause per path explaining its role.
+   - **Group closely related paths** (e.g., a skill + its prompt wrapper + command symlink, or a catalog row in README + docs) and treat the group as one representative item. This prevents related surfaces from blowing past the 3–6 cap.
+   - Provide one concise clause per path (or group) explaining its role.
    - If no files were touched in the session, state: `No session-attributable file changes found.`
 5. **Capture Latest Request & Current State**:
    - Extract the last substantive request made by the user before invoking `/b-recap`.

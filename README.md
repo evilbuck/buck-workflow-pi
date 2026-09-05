@@ -302,6 +302,67 @@ All artifacts are organized in dated subject folders:
 Narrative `.context/` artifacts stay in Markdown. Machine query views are generated under `.context/index/`.
 
 Commands:
+```bash
+npm run context:index
+npm run context:validate
+```
+
+Generated files:
+
+- `.context/index/subjects.json`
+- `.context/index/memory.json`
+- `.context/index/backlog.json`
+- `.context/index/artifacts.json`
+
+`context:validate` is strict on enum/value errors and currently reports legacy missing-field drift as warnings so older artifacts do not block adoption. `context:index` rebuilds the JSON views from Markdown source; never hand-edit the generated JSON.
+## Cross-Reference System
+
+Artifacts link to each other via frontmatter fields:
+
+- **Research** → `informs: [plan-file.md]`
+- **Plan** → `research: [research-file.md]`, `spec: spec-file.md`, `memory: []`
+- **Spec** → `plans: [plan-file.md]`, `memory: []`
+- **Memory** → `subject: YYYY-MM-DD.name`, `artifacts: [files...]`
+
+`/b-save` stitches cross-references by executing the prompt/skill instructions directly.
+
+## Requirements
+- An AI coding agent — any supported harness (see [Compatibility](#compatibility))
+- The `b-plan` skill for standalone planning, or the three sentinel companions
+  (`b-build`, `b-review`, `b-save`) for the minimum full workflow
+- A `.context/` directory in your project (created automatically on first use)
+- For slash commands: Pi with `prompts/` loaded, OMP with the `commands/`
+  mirror, or another harness with its native skill/command surface wired
+- Optional: the bootstrap instructions for cross-session durability conventions
+- Optional (OMP): `memory.backend: hindsight` or `mnemopi` so `/b-save` can `retain` and agents can `recall`/`reflect` prior work
+- Optional (non-OMP agents): configure a memory search skill (e.g., [qmd](https://github.com/tobi/qmd)) in the project's `AGENTS.md` for local markdown search over `.context/memory`. OMP agents use native memory tools instead.
+
+## Compatibility
+
+**Buck workflow runs on all major agent harnesses.**
+
+The multi-harness installer wires the surfaces declared for each detected
+harness. Pi and OMP load skills through their package installers; Claude Code
+and OpenCode receive skill/command links from the multi-harness installer;
+Codex receives bootstrap instructions there but needs separate skill links.
+Pi and OMP are the maintained targets with full test coverage. Harnesses may
+still differ in:
+
+1. **Tool availability** — Some agents may not support all tools referenced by skills (e.g., `ast_grep`, `debug`)
+2. **Schema compliance** — Frontmatter parsing and file conventions may vary
+3. **Context injection** — How agents load and prioritize `AGENTS.md`/`CLAUDE.md` differs
+4. **Cursor** — Global install not supported; requires project-scoped `.cursor/rules/` setup
+
+### Contributing
+
+Pull requests are welcome and encouraged:
+- Bug fixes from testing on other harnesses
+- Installer improvements and new harness support
+- Documentation corrections
+
+The skills are the portable core — if you can load a Markdown file and follow instructions, you can make Buck workflow run on any agent.
 
 
-[Showing lines 1-300 of 303. Use :301 to continue]
+## License
+
+MIT

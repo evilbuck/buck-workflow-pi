@@ -1094,9 +1094,7 @@ Suggested next step
 
 **Recommendations**: run before `/b-save` so doc changes land in the commit; then `/b-save` → `/b-commit`.
 
-### 5. Save Phase
-
-#### `/b-recap` — Session Recap
+### `/b-recap` — Session Recap
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -1126,6 +1124,9 @@ Suggested next step
 3. **Direction Changes** — Note material pivots, or state that work progressed along the initial plan.
 4. **Important Files** — 3–6 representative session-attributable paths with significance notes.
 5. **Latest Request & Current State** — Last substantive user request before `/b-recap` and current progress.
+
+### 5. Save Phase
+
 
 #### `/b-save` — Record History
 
