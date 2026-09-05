@@ -75,7 +75,7 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 |---|---|---|---|
 | **Pi** | `pi install git:github.com/evilbuck/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
 | **OMP** | `omp install git:github.com/evilbuck/buck-workflow-pi` | per-plugin skill dir | per-plugin command dir |
-| **Codex** | Symlink or copy each skill directory | `~/.agents/skills/<name>/` | n/a — invoke by skill name |
+| **Codex** | Add the repository marketplace, then install **Buck Workflow** | plugin cache managed by Codex | n/a — invoke by skill name |
 | **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 | **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
@@ -199,48 +199,48 @@ Reference: <https://omp.sh/docs/plugins>
 
 ## Codex (`developers.openai.com/codex`)
 
-Codex also follows the [Agent Skills](https://agentskills.io) standard. The
-shared `.agents/skills/` directory is the simplest install path. Codex
-discovers skills both implicitly (by `description` match) and explicitly via
-`$skill-name`.
+Install Buck Workflow as a Codex plugin. The repository marketplace packages
+the supported skills together and lets Codex manage the installed copy.
 
-### Install
+### Install the plugin
 
-Use a durable clone path: every symlink below points back into the checkout.
-Do not use a temporary clone that may disappear after installation. If the
-checkout does not already exist:
+Use a durable clone so the local marketplace remains available after the
+installation command finishes:
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+codex plugin marketplace add ~/.local/share/buck-workflow-pi
+codex plugin marketplace list
 ```
 
-User scope (applies to every repo):
+Restart the Codex desktop app, open the **Plugins Directory**, select the
+**Personal** marketplace, and install **Buck Workflow**. Start a new Codex
+session after installing so the bundled skills are discovered.
+
+To test the plugin from a checkout already open in a terminal, add that
+checkout as the marketplace instead:
+
+```bash
+codex plugin marketplace add .
+```
+
+After pulling an update to the clone, run `codex plugin marketplace upgrade`,
+restart the app, and update or reinstall **Buck Workflow** from the Plugins
+Directory.
+
+### Development fallback — direct skill links
+
+Use direct links only when developing skills without the plugin install flow.
+Choose this or the plugin installation above; loading both copies can create
+duplicate skills. The link target is the plugin release bundle, not the
+repository's broader canonical `skills/` source tree:
 
 ```bash
 mkdir -p ~/.agents/skills
-for d in "$HOME"/.local/share/buck-workflow-pi/skills/*/; do
+for d in "$HOME"/.local/share/buck-workflow-pi/plugins/buck-workflow/skills/*/; do
   ln -s "$d" ~/.agents/skills/"$(basename "$d")"
 done
 ```
-
-Project scope (this repo only, safe to commit):
-
-```bash
-mkdir -p .agents/skills
-for d in "$HOME"/.local/share/buck-workflow-pi/skills/*/; do
-  ln -s "$d" .agents/skills/"$(basename "$d")"
-done
-```
-
-### Alternative — plugin installer
-
-Codex ships a built-in skill installer that fetches from a marketplace:
-
-```
-$skill-installer buck-workflow
-```
-
-This works once a marketplace entry is published.
 
 ### Invocation
 
@@ -259,23 +259,25 @@ itself.
 
 | Surface | Location |
 |---|---|
-| Skills (user) | `~/.agents/skills/<name>/SKILL.md` |
-| Skills (repo) | `<cwd>/.agents/skills/<name>/SKILL.md` (walks up to git root) |
-| Skills (admin) | `/etc/codex/skills/<name>/SKILL.md` |
+| Marketplace catalog | `<repo>/.agents/plugins/marketplace.json` |
+| Plugin source | `<repo>/plugins/buck-workflow/` |
+| Installed plugin | Codex-managed plugin cache |
+| Development fallback | `~/.agents/skills/<name>/SKILL.md` |
 | Bootstrap (recommended) | place `AGENTS.md` in the repo root; Codex discovers it automatically |
 
 ### Verify
 
-In a Codex session:
+First confirm the marketplace is registered:
 
 ```
-$b-plan
+codex plugin marketplace list
 ```
 
-Or run `/skills` to list every loaded skill and confirm the Buck set is
-present.
+Then start a new Codex session, run `/skills`, and confirm `b-plan`, `b-build`,
+`b-review`, and `b-save` are present. Invoke `$b-plan` to verify that the
+installed workflow loads.
 
-Reference: <https://developers.openai.com/codex/skills>
+Reference: <https://developers.openai.com/plugins/build/plugins>
 
 ---
 ## OpenCode (`opencode.ai`)

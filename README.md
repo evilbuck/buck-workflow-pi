@@ -82,9 +82,18 @@ OMP:
 omp install git:github.com/evilbuck/buck-workflow-pi
 ```
 
-Claude Code, OpenCode, and Codex use a durable clone plus harness-specific
-links. Follow the canonical commands in
-[`agent-install_instructions.md`](./agent-install_instructions.md).
+Claude Code and OpenCode use a durable clone plus harness-specific links.
+Codex installs Buck Workflow from this repository's local marketplace:
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+codex plugin marketplace add ~/.local/share/buck-workflow-pi
+```
+
+Restart the Codex desktop app, then install **Buck Workflow** from the
+**Personal** marketplace in the Plugins Directory. See
+[`agent-install_instructions.md`](./agent-install_instructions.md#codex-developersopenai-comcodex)
+for verification and update steps.
 
 ### 2. Wire Supported Harness Surfaces
 
@@ -119,7 +128,7 @@ npx buck-workflow install
 | **Pi** | ✅ symlink | ❌ (package) | ❌ (package) | Skills/commands loaded via `pi install` |
 | **OMP** | ✅ symlink | ❌ (package) | ❌ (package) | Skills/commands loaded via package manifest |
 | **Claude Code** | ✅ → `CLAUDE.md` | ✅ `~/.claude/commands/` | ✅ `~/.claude/skills/` | |
-| **Codex** | ✅ → `AGENTS.md` | ❌ (no commands) | — | Bootstrap-only; Codex has no slash commands |
+| **Codex** | ✅ → `AGENTS.md` | ❌ (no commands) | Plugin-managed | Install **Buck Workflow** from the repository marketplace; invoke skills with `$name` |
 | **OpenCode** | ✅ → `AGENTS.md` | ✅ `~/.config/opencode/commands/` | ✅ `~/.config/opencode/skills/` | |
 | **Cursor** | — | — | — | Project-scoped only (`.cursor/rules/`); no global install |
 | **Grok Build** | ✅ → `~/.grok/rules/buck-workflow.md` | ✅ `~/.grok/commands/` | ✅ `~/.grok/skills/` | Native Grok surfaces; do not rely on Claude-compat |
@@ -160,7 +169,7 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **Pi** | Prompt templates (`prompts/`) | `/b-plan` loads `prompts/b-plan.md` | `pi install` (package) |
 | **OMP** | Command mirror (`commands/`) | `/b-plan` loads `commands/b-plan.md` → `../prompts/b-plan.md` | Package manifest |
 | **Claude Code** | Commands (`.claude/commands/`) | `/b-plan` loads the same prompt template | `buck-workflow install` |
-| **Codex** | Skill invocation | `$b-plan` after linking the skill | Installer is bootstrap-only; skills are linked separately |
+| **Codex** | Plugin skill invocation | `$b-plan` after installing Buck Workflow | Repository marketplace + Plugins Directory |
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 | **Grok Build** | Skills + commands (`~/.grok/`) | `/b-plan` loads the same prompt template | `buck-workflow install --harness grok` |
@@ -339,7 +348,8 @@ Artifacts link to each other via frontmatter fields:
 The multi-harness installer wires the surfaces declared for each detected
 harness. Pi and OMP load skills through their package installers; Claude Code
 and OpenCode receive skill/command links from the multi-harness installer;
-Codex receives bootstrap instructions there but needs separate skill links.
+Codex receives bootstrap instructions there and Buck Workflow skills through
+the repository marketplace.
 Pi and OMP are the maintained targets with full test coverage. Harnesses may
 still differ in:
 

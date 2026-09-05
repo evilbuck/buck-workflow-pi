@@ -1,0 +1,33 @@
+{
+  "name": "buck-workflow",
+  "version": "0.1.0",
+  "description": "Structured, durable workflows for AI-assisted software development.",
+  "author": {
+    "name": "Buck Workflow",
+    "url": "https://github.com/evilbuck"
+  },
+  "homepage": "https://buck-workflow-site.vercel.app/",
+  "repository": "https://github.com/evilbuck/buck-workflow-pi",
+  "license": "MIT",
+  "keywords": ["coding", "workflow", "planning", "code-review", "durable-context"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Buck Workflow",
+    "shortDescription": "Plan, build, review, and preserve durable engineering context.",
+    "longDescription": "Buck Workflow gives Codex focused skills for scoping, planning, implementation, review, documentation, and durable session records.",
+    "developerName": "Buck Workflow",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://buck-workflow-site.vercel.app/",
+    "privacyPolicyURL": "https://github.com/evilbuck/buck-workflow-pi/blob/main/docs/privacy-policy.md",
+    "termsOfServiceURL": "https://github.com/evilbuck/buck-workflow-pi/blob/main/docs/terms-of-service.md",
+    "defaultPrompt": [
+      "Help me scope and plan a change in this repository.",
+      "Implement this approved plan with tests and a review.",
+      "Review my changes and record the session outcome."
+    ],
+    "brandColor": "#6C8CFF",
+    "composerIcon": "./assets/buck-workflow.svg",
+    "logo": "./assets/buck-workflow.svg"
+  }
+}

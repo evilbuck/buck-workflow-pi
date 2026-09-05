@@ -3,6 +3,30 @@
 > OpenAI's coding agent. CLI, IDE extension, and app. ~4M weekly active users (April 2026).  
 > <https://developers.openai.com/codex> · <https://github.com/openai/codex>
 
+## Buck Workflow plugin
+
+Buck Workflow is distributed to Codex through this repository's local plugin
+marketplace. Install it from a durable clone:
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+codex plugin marketplace add ~/.local/share/buck-workflow-pi
+codex plugin marketplace list
+```
+
+Restart the Codex desktop app, open the **Plugins Directory**, choose the
+**Personal** marketplace, and install **Buck Workflow**. Start a new Codex
+session afterward. The core workflows are available as `$b-plan`, `$b-build`,
+`$b-build-hard`, `$b-review`, `$b-save`, and `$b-commit`; Codex can also select
+the matching skill from a normal request.
+
+For a checkout under active development, run `codex plugin marketplace add .`
+from the repository root. After updating the clone, run
+`codex plugin marketplace upgrade`, restart the app, and update or reinstall
+the plugin from the Plugins Directory. See
+[`agent-install_instructions.md`](../agent-install_instructions.md#codex-developersopenai-comcodex)
+for the development-only direct-link fallback.
+
 ## Context Files
 
 | File | Scope | Purpose |
@@ -39,7 +63,7 @@ Codex implements the [Agent Skills standard](https://agentskills.io/specificatio
 | USER | `$HOME/.agents/skills` | Personal, all repos |
 | ADMIN | `/etc/codex/skills` | Machine-wide |
 | SYSTEM | Bundled by OpenAI | Built-in (skill-creator, plan, etc.) |
-| Plugin | Via `codex/plugins` | Distributable packages |
+| Plugin | Codex-managed plugin cache | Distributable packages installed from a marketplace |
 
 ### Structure
 
