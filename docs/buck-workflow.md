@@ -25,6 +25,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` (+ optional OMP retain) |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
+| `/b-howto` | Prompt template | Slash command symlink | `prompts/b-howto.md`; `commands/b-howto.md`; `skills/b-howto/SKILL.md` |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
 
@@ -388,6 +389,7 @@ flowchart TD
 | [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
+| [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 
@@ -1047,6 +1049,22 @@ Suggested next step
 - `README.md` → read-only (flag only)
 
 **ADR gate**: an ADR is written only when the decision is hard to reverse, surprising without context, and the result of a real trade-off.
+
+**Sibling:** `/b-howto`. If a user-facing action now needs a how-to, `b-docs` loads and follows `b-howto` in the same session. It does not write `docs/howto/` itself. Once-each: if `b-howto` started this run, do not follow back.
+
+#### `/b-howto` — How-to Guides
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Write Diátaxis how-to guides — task-oriented steps for someone already at work. One action per file, numbered steps, last step **Eat** (the check that it worked). Records *how*; `/b-docs` records *why*.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-howto.md`, `commands/b-howto.md`, `skills/b-howto/SKILL.md`)
+
+**Conditional**: `/b-howto` runs only when `/b-review` flags how-to impact (a new or changed user-facing action with no how-to). Most changes skip it.
+
+**Canonical location**: `docs/howto/` — format in `skills/b-howto/HOWTO-FORMAT.md`. Not tutorials. Not ADRs.
+
+**Sibling:** `/b-docs`. If the sequence depends on an unwritten decision, `b-howto` loads and follows `b-docs` first (why before how), then writes the how-tos so they can link the ADR. Once-each: if `b-docs` started this run, do not follow back.
 
 **Read-only on `.context/`**: writes only to living docs; session memory is `/b-save`'s job.
 

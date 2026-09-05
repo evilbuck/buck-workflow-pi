@@ -196,7 +196,7 @@ Links use filenames within same subject folder. Memory links use memory filename
 
 ## Canonical Documentation Locations
 
-Living documentation (what the code *means*) lives in fixed locations, separate from `.context/` (which records what *happened*). `/b-docs` keeps these in sync after implementation, when `/b-review` flags documentation impact. `/b-save` records the session *event* in `.context/`; `/b-docs` records the *meaning* in living docs. Run `/b-docs` before `/b-save`.
+Living documentation (what the code *means*) lives in fixed locations, separate from `.context/` (which records what *happened*). `/b-docs` keeps these in sync after implementation, when `/b-review` flags documentation impact. `/b-howto` writes task-oriented how-tos when `/b-review` flags how-to impact. `/b-save` records the session *event* in `.context/`; `/b-docs` records the *meaning*; `/b-howto` records the *sequence*. Run `/b-docs` and `/b-howto` before `/b-save`. If both are needed, run `/b-docs` first — it will follow `b-howto`. Either may load the other once in-session; they do not write each other's files.
 
 | What | Where | Notes |
 |---|---|---|
@@ -205,6 +205,7 @@ Living documentation (what the code *means*) lives in fixed locations, separate 
 | Agent & dev conventions | Managed block in `AGENTS.md` / `CLAUDE.md` | Idempotent `<!-- BEGIN b-docs:conventions -->` block; preserve hand-authored content outside it |
 | Architecture narrative | `docs/` | Structure, data flow, module boundaries |
 | README | `README.md` | Hand-authored; `/b-docs` flags needed changes, does not rewrite prose |
+| How-to guides | `docs/howto/` | Diátaxis how-tos (one action per file). Owned by `/b-howto`, not `/b-docs`. |
 
 Create `CONTEXT.md` and `docs/adr/` lazily — on first use. Do not invent parallel doc trees.
 

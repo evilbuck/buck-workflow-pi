@@ -188,6 +188,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
+| `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### OMP Command Mirror
@@ -216,6 +217,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
+| `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-present` | Generate async-readable presentation package from artifacts |
@@ -250,7 +252,7 @@ Buck workflow is not a rigid pipeline. You choose which stages to run based on t
 ```
 
 Starting from a vague idea through to durable completion. Every artifact survives the session.
-`/b-docs` is conditional — it runs only when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language). Most changes skip it.
+`/b-docs` is conditional — it runs only when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language). `/b-howto` is conditional the same way for user-facing how-tos. Most changes skip both. If both are flagged, `/b-docs` first (it follows `b-howto`); you do not have to invoke both.
 
 ### Partial Workflows
 

@@ -72,7 +72,7 @@ For the full rationale and migration details, see `.context/2026-05-12.prompt-to
 ## Project Structure
 
 ```
-skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-docs, b-save, b-memory-import, b-present, b-phase, fix-pr, git-clean-orphans, git-commit, b-grill*, run-in-idle-pane, …)
+skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-docs, b-howto, b-save, b-memory-import, b-present, b-phase, fix-pr, git-clean-orphans, git-commit, b-grill*, run-in-idle-pane, …)
 extensions/      # Pi extensions for runtime automation (b-flow, b-grill-auto)
 prompts/         # Pi prompt templates — thin wrappers that invoke skills (including b-commit wrapping git-commit skill)
 docs/            # Documentation
@@ -111,6 +111,7 @@ Buck workflow commands follow a discoverable `/b-` prefix. The completion sequen
 
 `/b-commit` is the final step after durable state has been recorded via `/b-save`. It uses the `git-commit` skill to create a Conventional Commits message and commit.
 `/b-docs` is a conditional step: when `/b-review` flags documentation impact (new conventions, architecture decisions, or domain language), run it to update the project's living docs before `/b-save`. See `skills/b-docs/SKILL.md` for the canonical doc locations.
+`/b-howto` is a conditional step: when `/b-review` flags how-to impact (a new or changed user-facing action with no how-to), run it to write `docs/howto/` before `/b-save`. See `skills/b-howto/SKILL.md`. Distinct from `/b-docs` (how vs why). If both are flagged, run `/b-docs` first — it will load and follow `b-howto`. Either skill may follow the other once in the same session; they do not write each other's files.
 
 **PR review feedback** (external comments on a PR, not your own `/b-review` loop): load `fix-pr` via `/skill:fix-pr <pr-url-or-number>`. Skill-only — no `prompts/`/`commands/` wrapper. Validates each comment against code, then fixes+pushes in-session or files GitHub issues. See `skills/fix-pr/SKILL.md`.
 

@@ -1,6 +1,6 @@
 ---
 name: b-docs
-description: Update the project's living documentation from implementation — domain language, architecture decisions, conventions, and architecture narrative. Runs after b-review flags documentation impact. Writes to canonical doc locations (CONTEXT.md, docs/adr/, docs/, AGENTS.md/CLAUDE.md conventions block), never to .context/.
+description: Update the project's living documentation from implementation — domain language, architecture decisions, conventions, and architecture narrative. Runs after b-review flags documentation impact. Writes to canonical doc locations (CONTEXT.md, docs/adr/, docs/, AGENTS.md/CLAUDE.md conventions block), never to .context/. May load and follow b-howto in the same session when a user-facing action now needs a how-to.
 ---
 
 # b-docs: Living-Documentation Sync
@@ -12,8 +12,10 @@ to reverse-engineer it from code.
 
 `b-save` records the **event** (what happened this session) into `.context/`.
 `b-docs` records the **meaning** (what the code now is) into the project's
-canonical doc locations. They are complementary. Run `b-docs` **before**
-`/b-save` so doc changes are included in the commit.
+canonical doc locations. `b-howto` records the **sequence** a human runs.
+They are complementary. Run `b-docs` **before** `/b-save` so doc changes
+are included in the commit. If a user-facing action now needs a how-to,
+load and follow `b-howto` in this session — do not only recommend it.
 
 ## When to Use
 
@@ -45,6 +47,12 @@ prohibited. Reuse the formats that already exist:
 | **Agent & dev conventions** | Managed block in `AGENTS.md` / `CLAUDE.md` | idempotent managed block (see below) |
 | **Architecture narrative** (structure, data flow, module boundaries) | `docs/` | free-form; extend existing docs, don't fork |
 | **README** | `README.md` | **read-only** — flag needed changes in the report; do not rewrite hand-authored prose |
+
+User-facing **how-tos** (keybindings, CLI, everyday actions) are **not**
+`b-docs` work. They live in `docs/howto/` and are owned by `b-howto`.
+Do not write `docs/howto/` from this skill. If a new human action has
+no how-to, follow the Sibling rule below and load `b-howto` — do not
+only flag it for later.
 
 Create files **lazily** — only when you have something to write. `CONTEXT.md`
 and `docs/adr/` are created on first use, same as `b-grill-with-docs`.
@@ -136,6 +144,33 @@ Follow [`CONTEXT-FORMAT.md`](../b-grill-with-docs/CONTEXT-FORMAT.md) exactly:
 - Be opinionated: pick one canonical term, list others as `_Avoid_`.
 - Create the file lazily on first term.
 
+## Sibling: `b-howto`
+
+`b-docs` owns *why*. `b-howto` owns *how*. Separate files, separate
+skills — but either may **load and follow** the other in the same
+session when the other kind of work is sitting in front of you.
+
+**Follow `b-howto` after your own writes when any of these are true:**
+- You just recorded a decision or convention about a *user-facing
+  action* (keybinding, CLI, everyday sequence) and `docs/howto/` has
+  no matching how-to, or the how-to has drifted.
+- `/b-review` flagged how-to impact as well as documentation impact.
+- The user asked to "document this" without splitting why vs how, and
+  a human now *does* something new.
+
+**Do not follow `b-howto` when:**
+- This run was itself started by `b-howto` (once-each guard).
+- Nothing a human *does* changed.
+- The change is agent-only (conventions, domain terms, internal APIs).
+
+**How:** load `skills/b-howto/SKILL.md` and execute it for the actions
+you discovered. Do not write `docs/howto/` yourself. After it returns,
+do not re-enter `b-docs`. If more why-work appeared, name it in
+closeout.
+
+**Order:** why before how. You already ran. `b-howto` will link the
+ADRs you just wrote.
+
 ## Behavior
 
 1. Resolve subject; read diff, plan, and any `b-review` finding.
@@ -147,6 +182,10 @@ Follow [`CONTEXT-FORMAT.md`](../b-grill-with-docs/CONTEXT-FORMAT.md) exactly:
    - Architecture narrative → extend existing `docs/` file
 4. For `README.md` changes, **flag in the report only** — do not edit.
 5. Stay read-only on application code. `b-docs` edits docs, never source.
+6. After your writes, follow the Sibling rule. If `b-howto` is warranted
+   and this run was not started by `b-howto`, load
+   `skills/b-howto/SKILL.md` and execute it for the actions you
+   discovered. Then stop — do not re-enter `b-docs`.
 
 ## Closeout
 
@@ -162,11 +201,15 @@ Living docs updated:
 Flagged (not auto-applied):
 - README.md: setup section needs the new env var
 
+How-tos (if b-howto also ran):
+- docs/howto/<action>.md: <one line — the Eat check>
+
 Next: /b-save to record the session, then /b-commit.
 ```
 
-If nothing needed updating: say "No living-doc updates needed" and recommend
-`/b-save` → `/b-commit`.
+If nothing needed updating: say "No living-doc updates needed". If
+`b-howto` is still warranted (and you were not started by it), follow
+it instead of stopping. Otherwise recommend `/b-save` → `/b-commit`.
 
 ## Related
 
@@ -174,4 +217,5 @@ If nothing needed updating: say "No living-doc updates needed" and recommend
 - `skills/b-grill-with-docs/ADR-FORMAT.md` — ADR format (source of truth)
 - `skills/b-review/SKILL.md` — produces the documentation-impact finding that triggers this skill
 - `skills/b-save/SKILL.md` — records the session event in `.context/` (complementary, not overlapping)
+- `skills/b-howto/SKILL.md` — user-facing how-tos in `docs/howto/` (how, not why)
 - Global `AGENTS.md` — declares these canonical locations as project policy
