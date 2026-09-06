@@ -257,7 +257,10 @@ The installer (`scripts/install.mjs`) handles the **external fan-out** that the 
 
 For **Pi and OMP**, the installer symlinks **bootstrap only** (`GLOBAL_OR_PROJECT-AGENTS.md` → harness AGENTS.md). Skills and commands are already loaded by the package system (`pi install` / OMP auto-discovery). Duplicating them via installer symlinks would cause double-loading.
 
-For **Claude Code, OpenCode, and Codex**, the installer symlinks bootstrap + commands + skills (where applicable), because these harnesses don't use Pi/OMP's package system and have no other way to discover the content.
+For **Claude Code** and **OpenCode**, the installer symlinks bootstrap +
+commands + skills because these harnesses do not use Pi/OMP's package system.
+For **Codex**, it symlinks bootstrap instructions only; Buck Workflow skills
+are installed from this repository's Codex plugin marketplace.
 
 **Cursor** is project-scoped only — the installer detects it but does not create global symlinks.
 

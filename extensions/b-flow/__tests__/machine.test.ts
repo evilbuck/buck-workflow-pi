@@ -1,10 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createActor } from "xstate";
 import { rmSync, mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBuckMachine } from "../machine.js";
 import { readProjection } from "../persistence.js";
 import { scanContext } from "../scan-context.js";
+
+// These tests cover the parent machine's routing. Keep an active phase in the
+// executing state instead of depending on a locally installed `pi` subprocess;
+// worker execution and result handling have their own focused tests.
+vi.mock("../worker.js", () => ({
+  runWorker: () => new Promise(() => {}),
+}));
 
 const TEST_ROOT = join("/tmp", "bflow-machine-test-" + Date.now());
 
@@ -39,7 +46,7 @@ function trackStates(actor: ReturnType<typeof createActor>) {
   return states;
 }
 
-/** Wait for actor to settle (no state changes for 100ms). */
+/** Wait for actor to settle (no state changes for 250ms). */
 function settle(actor: ReturnType<typeof createActor>, timeoutMs = 2_000): Promise<string> {
   return new Promise((resolve) => {
     const start = Date.now();
@@ -54,7 +61,7 @@ function settle(actor: ReturnType<typeof createActor>, timeoutMs = 2_000): Promi
         stableMs = 0;
       } else {
         stableMs += 25;
-        if (stableMs >= 100) {
+        if (stableMs >= 250) {
           clearTimeout(timer);
           resolve(current);
           return;

@@ -1,0 +1,80 @@
+---
+name: b-iterate
+description: Quick follow-up fixes, polish, and review-loop edits. Use for small changes after b-review, rename/string fixes, lint cleanup, or lightweight diagnostics.
+---
+
+# b-iterate: Quick Fix Agent
+
+Handle quick follow-up fixes, polish, and review-loop edits.
+
+## Subject Resolution
+
+Follow the shared protocol at `skills/_shared/subject-resolution.md`.
+If the protocol resolves a subject, use it for all downstream artifact discovery.
+If the protocol finds no subject, work from the user's inline description.
+After subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
+
+Also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
+
+When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Treat any active (`status: active` / `completed: null`) iterate artifact as blocking until review passes; read `status` as the source of truth.
+
+## Behavior
+
+- Prefer tiny, focused changes.
+- Escalate to `b-build` if the work spreads.
+- Re-run the light subset of the deterministic check contract for code-touching work: lint and unit-test gates only. Skip coverage, patch, and complexity gates — those need a coherent full-build point. This keeps `b-iterate` genuinely quick.
+- Hand back to `b-review` when done.
+
+## Session Awareness Protocol
+
+The Buck workflow plugin tracks your session automatically. You are responsible for the living memory — the plugin handles the rest.
+
+At the START of your work:
+1. Read `.context/workflow/current-session.json` if it exists
+2. Read the memory file listed in session state (if any) for prior context
+3. Optional: if OMP `recall` is available, recall decisions tied to the iterate subject (background only)
+4. Apply **Context Resolution** (above) to find an `iterate-*.md` artifact
+5. If an iteration artifact is found, read it fully and work through its issues in order
+
+At EACH NATURAL STOP (you finished a coherent unit of work):
+6. Read the current session memory file
+7. Rewrite it in-place with consolidated, current information:
+   - Add new decisions made since last update
+   - Move abandoned approaches to an "Abandoned Approaches" section with reasons
+   - Update "Files Modified" to reflect actual current state
+   - Remove duplicates and superseded entries
+   - Update frontmatter topics/domains if scope shifted
+8. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
+
+At COMPLETION:
+9. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
+10. Do a final memory update
+11. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before yielding the execution session).
+
+## Closeout
+
+After completing iteration:
+1. **Update iteration artifact** — if working from an `iterate-*.md` file:
+   - Set `status: completed`
+   - Set `completed: YYYY-MM-DD` (today's date)
+   - Update `updated: YYYY-MM-DD` (if not already set to today)
+2. **Changed files** — list what was modified
+3. **Verification** — confirm the fixes work
+4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Replace `$TITLE` with a Conventional Commits subject; replace `$BODY` with why. Do not leave angle-bracket hints in the file.
+
+   ```markdown
+   ## Title
+   $TITLE
+
+   ## Body
+   $BODY
+   ```
+
+5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." Inside an OMP execution session, do not yield until review passes and `/b-save` has durable state.
+
+## Best For
+
+- Rename and string fixes
+- Lint or formatting cleanup
+- Small follow-up edits from review
+- Lightweight diagnostics or logging
