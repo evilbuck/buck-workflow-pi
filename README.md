@@ -190,6 +190,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
+| `/b-recap` | `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
 | `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### OMP Command Mirror
@@ -220,6 +221,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
+| `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation; does not replace `/b-save` |
 | `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-present` | Generate async-readable presentation package from artifacts |
@@ -300,7 +302,6 @@ All artifacts are organized in dated subject folders:
 Narrative `.context/` artifacts stay in Markdown. Machine query views are generated under `.context/index/`.
 
 Commands:
-
 ```bash
 npm run context:index
 npm run context:validate

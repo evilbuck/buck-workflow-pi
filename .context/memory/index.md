@@ -1,3 +1,7 @@
+- 2026-09-05 — [fix-pr: PR #14 review fixes (README truncation, grouping rule, section placement)](fix-pr-14-2026-09-05.md) — `completed`
+
+  - 2026-09-05 | `fix-pr-14-2026-09-05.md` | domains: [workflow, review] | topics: [fix-pr, b-recap, pr-review] | status: completed
+
 - 2026-09-04 — [b-nasa-prd skill built from NASA SEH Appendix C](b-nasa-prd-skill-2026-09-04.md) — `completed`
 
   - 2026-09-04 | `b-nasa-prd-skill-2026-09-04.md` | domains: [skill, buck-workflow, docs] | topics: [b-nasa-prd, nasa, prd, requirements, appendix-c, skill-creation] | status: completed

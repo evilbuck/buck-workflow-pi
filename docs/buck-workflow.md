@@ -26,6 +26,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` (+ optional OMP retain) |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-howto` | Prompt template | Slash command symlink | `prompts/b-howto.md`; `commands/b-howto.md`; `skills/b-howto/SKILL.md` |
+| `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session recap) |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
 
@@ -391,6 +392,7 @@ flowchart TD
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
+| [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 
@@ -1091,6 +1093,37 @@ Suggested next step
 **Read-only on `.context/`**: writes only to living docs; session memory is `/b-save`'s job.
 
 **Recommendations**: run before `/b-save` so doc changes land in the commit; then `/b-save` → `/b-commit`.
+
+### `/b-recap` — Session Recap
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Summarize the current session in one scan-friendly page (<500 words) for immediate orientation: initial purpose, why it mattered, work covered, direction changes, important files, and latest user request.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-recap.md`, `commands/b-recap.md`, `skills/b-recap/SKILL.md`)
+
+`/b-recap` is **read-only** and produces chat output only. It never writes files, alters memory, or modifies workflow state. Use it mid-session or when returning to an existing session to quickly orient yourself before continuing work or running `/b-save`.
+
+**Key Differences from `/b-save`**:
+
+| Dimension | `/b-recap` | `/b-save` |
+|---|---|---|
+| **Role** | Immediate orientation | Durable checkpoint |
+| **Output** | Chat output only (<500 words) | Durable files in `.context/` (+ optional LTM retain) |
+| **Mutation** | Strictly read-only | Writes memory, updates backlog, updates index |
+| **Timing** | Anytime mid-session or at resumption | At session end or when closing significant work |
+
+**Usage**:
+```
+/b-recap
+```
+
+**Synthesis Rules**:
+1. **Initial Purpose & Why** — Earliest substantive request and motivation.
+2. **Work Covered** — Grouped into 2–4 objective-level areas, emphasizing the latest focus.
+3. **Direction Changes** — Note material pivots, or state that work progressed along the initial plan.
+4. **Important Files** — 3–6 representative session-attributable paths with significance notes.
+5. **Latest Request & Current State** — Last substantive user request before `/b-recap` and current progress.
 
 ### 5. Save Phase
 
