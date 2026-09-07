@@ -225,7 +225,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-capture` | `b-capture` | Note-taking mode — dump as we go via subagent; no polish until told |
 | `/b-nasa-prd` | `b-nasa-prd` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C) |
 | `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
-| `/b-present` | `b-present` | Generate async-readable presentation package |
+| `/b-plan-update` | `b-plan-update` | Apply new context, artifacts, and scope changes to an existing plan in place |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
@@ -260,7 +260,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-nasa-prd` | NASA-standard PRD authoring and audit — shall/will/should, tolerances, traceable and verifiable requirements (bundled Appendix C source) |
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
-| `b-build` | Implement well-defined work (standard or hard mode) |
+| `b-plan-update` | Update an existing plan in place — interweave additions, remove with review, revision log |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
