@@ -173,6 +173,7 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 | **Grok Build** | Skills + commands (`~/.grok/`) | `/b-plan` loads the same prompt template | `buck-workflow install --harness grok` |
+| **Goose** | Summon skills | Load `b-init-factory` (or other `b-*` skills) by name | Manual (Summon); no installer surface |
 
 Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic. The installer wires each harness's native loading mechanism to the shared source of truth.
 
@@ -188,8 +189,10 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
 | `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
 | `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
+| `/b-init-factory` | `b-init-factory` | Initialize a nested agent software factory — factory-scoped AGENTS.md in a named folder, project default, or asked choice (never assume `.claude/`) |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
+| `/b-capture` | `b-capture` | Note-taking mode — dump as we go via subagent; no polish until told |
 | `/b-nasa-prd` | `b-nasa-prd` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C) |
 | `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
@@ -220,8 +223,10 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
 | `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
+| `b-init-factory` | Nested agent software factory init — factory-scoped AGENTS.md + empty factory `docs/`; target is told, project default, or asked |
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
+| `b-capture` | Note-taking mode — user dumps, subagent writes messy notes as-we-go; polish deferred until told |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-nasa-prd` | NASA-standard PRD authoring and audit — shall/will/should, tolerances, traceable and verifiable requirements (bundled Appendix C source) |
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
@@ -274,6 +279,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-brainstorm → /b-plan → /b-build` | Idea to implementation in one session |
 | `/b-plan → /b-build → /b-review → /b-docs → /b-save → /b-commit` | You already know what to build |
 | `/b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit` | Complex/risky work |
+| `/b-capture` → user says tidy → polish | Live notes; write first, clean later |
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |

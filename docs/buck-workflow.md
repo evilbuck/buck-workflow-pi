@@ -375,10 +375,12 @@ flowchart TD
 |-----------|-------------------|------------------|--------------|---------|
 | [**b-explore**](#1-discovery-phase) | Prompt template | `/b-explore` | `prompts/b-explore.md` | Explore codebases, trace architecture, map data flows |
 | [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
+| [**b-capture**](#b-capture--note-taking-mode) | Prompt template + Skill | `/b-capture` | `prompts/b-capture.md` + `skills/b-capture/SKILL.md` | Note-taking mode — dump as we go via subagent; no polish until told |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
 | [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
 | [**b-init-guardrails**](#b-init-guardrails--quality-guardrails-init) | Prompt template | `/b-init-guardrails` | `prompts/b-init-guardrails.md` + `skills/b-init-guardrails/SKILL.md` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet |
+| [**b-init-factory**](#b-init-factory--nested-agent-software-factory) | Prompt template + Skill | `/b-init-factory` | `prompts/b-init-factory.md` + `skills/b-init-factory/SKILL.md` | Initialize a nested agent software factory: write factory-scoped AGENTS.md in a told path, project default, or asked choice — never assume `.claude/` |
 | [**b-guardrails-check**](#b-guardrails-check--guardrails-measurement) | Prompt template | `/b-guardrails-check` | `prompts/b-guardrails-check.md` + `skills/b-guardrails-check/SKILL.md` | Resolve the check contract by the resolution chain, run lint/unit/functional/coverage/complexity gates, return structured verdict. Measures only — never edits |
 | [**b-nasa-prd**](#b-nasa-prd--nasa-standard-prd-authoringaudit) | Prompt template + Skill | `/b-nasa-prd` | `prompts/b-nasa-prd.md` + `skills/b-nasa-prd/` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C, bundled locally) |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
@@ -505,6 +507,30 @@ informs: []  # Plans/specs this research fed into
 
 ---
 
+#### `/b-capture` — Note-Taking Mode
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: How we take notes. The user dumps thoughts (often dictated). The agent is the scribe. Write messy durable notes *this turn* via a subagent. Do not tidy until the user says so. Topic-agnostic.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-capture.md` in Pi, `commands/b-capture.md` symlink in OMP)
+
+**Behavior**:
+- Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/` (or a path the user named)
+- Scaffolds `index.md` (`status: draft`), `notes/raw-capture-log.md`, `glossary.md`, `open-questions.md`
+- Every dump is written down on the turn it arrives by a subagent — never batched
+- Claim tags: `[verified]` `[unverified]` `[inference]` `[conflict]` `[question]`
+- Speech-to-text garble is repaired by context; two plausible readings are both recorded
+- Contradictions are recorded, not resolved. Wrong turns are struck through, not deleted
+
+**When to use**: Live note-taking, word-vomit dictation, "write the notes as we go", "I'll tell you when to tidy".
+
+**When not to use**: Agent should investigate (`/b-research`, `/b-explore`); user wants a plan (`/b-plan`); user asked to tidy *now*.
+
+**Next Steps**: Stay in note-taking mode until the user says tidy / refine / synthesize. Then polish from the notes tree. `/b-save` records the session; it does not synthesize.
+
+---
+
 #### `/b-brainstorm` — Interview-Style Intake
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -618,6 +644,24 @@ informs: []  # Plans/specs this research fed into
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
 
 **Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes. Each phase's contract is the blocking v2 completion gate (see `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
+
+#### `/b-init-factory` — Nested Agent Software Factory
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Treat a harness folder as its own project — a generic software factory that builds portable skills and commands — and write a simplistic factory-scoped `AGENTS.md` there. Factory-local `docs/` is created empty; documenting the factory is a later pass.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-init-factory.md` / `commands/b-init-factory.md`) + Skill (`skills/b-init-factory/SKILL.md`).
+
+**Other harnesses**: Claude Code / OpenCode / Grok via `buck-workflow install` (`/b-init-factory`); Codex `$b-init-factory` from the plugin bundle; Goose Summon / skill load; Cursor loads `SKILL.md` from project rules.
+
+**Behavior**:
+- Resolve factory root in order: told path → wrapping `factory_root` / `.factory-root` / exactly one well-known harness dir → ask. Never default to `.claude/`.
+- Write `<root>/AGENTS.md` from `references/factory-agents.md` (agent-agnostic, not wrapping-project context). Idempotent unless `refresh`.
+- Ensure `<root>/docs/` exists; do not populate it.
+- Always use `AGENTS.md` even under `.claude/` — do not substitute `CLAUDE.md`.
+
+**Next Steps**: Document the factory inside `<root>/docs/`; then start producing portable skills and thin per-harness wrappers.
 
 #### `/b-guardrails-check` — Guardrails Measurement
 
