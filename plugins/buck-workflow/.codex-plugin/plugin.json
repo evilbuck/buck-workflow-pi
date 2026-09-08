@@ -1,6 +1,6 @@
 {
   "name": "buck-workflow",
-  "version": "0.1.0",
+  "version": "0.1.0+codex.20260905213040",
   "description": "Structured, durable workflows for AI-assisted software development.",
   "author": {
     "name": "Buck Workflow",
@@ -9,7 +9,13 @@
   "homepage": "https://buck-workflow-site.vercel.app/",
   "repository": "https://github.com/evilbuck/buck-workflow-pi",
   "license": "MIT",
-  "keywords": ["coding", "workflow", "planning", "code-review", "durable-context"],
+  "keywords": [
+    "coding",
+    "workflow",
+    "planning",
+    "code-review",
+    "durable-context"
+  ],
   "skills": "./skills/",
   "interface": {
     "displayName": "Buck Workflow",
@@ -17,7 +23,10 @@
     "longDescription": "Buck Workflow gives Codex focused skills for scoping, planning, implementation, review, documentation, and durable session records.",
     "developerName": "Buck Workflow",
     "category": "Productivity",
-    "capabilities": ["Read", "Write"],
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
     "websiteURL": "https://buck-workflow-site.vercel.app/",
     "privacyPolicyURL": "https://github.com/evilbuck/buck-workflow-pi/blob/main/docs/privacy-policy.md",
     "termsOfServiceURL": "https://github.com/evilbuck/buck-workflow-pi/blob/main/docs/terms-of-service.md",
