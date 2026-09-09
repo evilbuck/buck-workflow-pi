@@ -197,7 +197,16 @@ function classifyExistingLink(dest, src, { sourceRoot, relPath }) {
  * @returns {{ action: 'created'|'skipped'|'replaced'|'conflict', message: string, crossRoot?: boolean, oldRoot?: string }}
  */
 export function ensureSymlink(src, dest, { dryRun = false, force = false, sourceRoot = null, relPath = null } = {}) {
-  if (!existsSync(dest)) {
+  // lstat, not existsSync: existsSync follows the link, so a dangling
+  // symlink looks absent and symlinkSync then throws EEXIST.
+  let destStat = null;
+  try {
+    destStat = lstatSync(dest);
+  } catch (err) {
+    if (err.code !== "ENOENT") throw err;
+  }
+
+  if (!destStat) {
     if (!dryRun) {
       mkdirSync(dirname(dest), { recursive: true });
       symlinkSync(src, dest);
@@ -205,7 +214,7 @@ export function ensureSymlink(src, dest, { dryRun = false, force = false, source
     return { action: "created", message: `Linked ${dest} → ${src}` };
   }
 
-  if (lstatSync(dest).isSymbolicLink()) {
+  if (destStat.isSymbolicLink()) {
     const link = classifyExistingLink(dest, src, { sourceRoot, relPath });
     if (link.match) {
       return { action: "skipped", message: `Already linked: ${dest}` };

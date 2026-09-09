@@ -183,6 +183,18 @@ describe("ensureSymlink", () => {
     expect(readlinkSync(dest)).toBe(src);
   });
 
+  it("replaces a dangling symlink instead of throwing EEXIST", () => {
+    const src = join(TEST_ROOT, "source.txt");
+    const dest = join(TEST_ROOT, "link.txt");
+    writeFileSync(src, "content");
+    symlinkSync(join(TEST_ROOT, "gone.txt"), dest);
+
+    const result = ensureSymlink(src, dest);
+
+    expect(result.action).toBe("replaced");
+    expect(readlinkSync(dest)).toBe(src);
+  });
+
   it("returns conflict when dest is a real file and force=false", () => {
     const src = join(TEST_ROOT, "source.txt");
     const dest = join(TEST_ROOT, "real.txt");
@@ -698,6 +710,21 @@ describe("verifySurfaces", () => {
 
     expect(result.results[0].state).toBe("dangling");
     expect(result.exitCode).toBe(1);
+  });
+
+  it("install repairs a dangling link that verify reported", () => {
+    const { repo, home } = setupFixtures();
+    const dest = join(home, ".pi", "agent", "AGENTS.md");
+    symlinkSync(join(TEST_ROOT, "gone.md"), dest);
+
+    const verified = verifySurfaces({ source: repo, home, harnessIds: ["pi"] });
+    expect(verified.results[0].state).toBe("dangling");
+    expect(verified.exitCode).toBe(1);
+
+    const result = install({ source: repo, home, harnessIds: ["pi"] });
+
+    expect(result.exitCode).toBe(0);
+    expect(readlinkSync(dest)).toBe(join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"));
   });
 
   it("reports uninstalled surfaces as missing without failing", () => {
