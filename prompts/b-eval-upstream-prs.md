@@ -6,13 +6,13 @@ description: Evaluate upstream PRs locally — triage, validate, and produce a m
 
 $ARGUMENTS
 
-You may optionally provide an upstream repo (default: the fork's parent), an output path, and the validation posture. Examples:
+You may optionally provide an upstream repo (default: the fork's parent) and an output path. Examples:
 
-- `/b-eval-upstream-prs` (defaults to current fork's `upstream` remote)
+- `/b-eval-upstream-prs` (defaults to the current fork's parent repository)
 - `/b-eval-upstream-prs FelixKratz/JankyBorders`
 - `/b-eval-upstream-prs --output .context/2026-09-06.upstream-prs/plan-upstream-prs.md`
 
-Local-only by default — no remote comments, no upstream pushes. After evaluation, hand off to `b-build` / `b-iterate` to actually adopt a PR, or `b-pr` to push the bundled result.
+Local-only — no remote comments, no upstream pushes. After evaluation, hand off to `b-build` / `b-iterate` to actually adopt a PR, or `b-pr` to push the bundled result.
 
 Load and follow the `b-eval-upstream-prs` skill:
 

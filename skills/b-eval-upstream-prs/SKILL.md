@@ -5,18 +5,19 @@ description: >
   parent or another vendor project). Triage each PR on Importance / Friction
   / Risk, run an isolated per-PR validation pass (worktree + build + tests +
   coverage + complexity + diff-scoped lint), and produce a written evaluation
-  plan with bucket rankings and a conflict-avoiding merge order. Local-only
-  by default — no remote comments, no upstream pushes. Use when a fork
+  plan with bucket rankings and a conflict-avoiding merge order. Local-only —
+  no remote comments, no upstream pushes. Use when a fork
   maintainer says "evaluate the upstream PRs", "triage the open PRs",
   "what should we pull from upstream", or similar.
 ---
 
 # b-eval-upstream-prs: Upstream PR Evaluation
 
-A **read-only evaluation skill** for fork maintainers (or any agent weighing
+A **local evaluation skill** for fork maintainers (or any agent weighing
 in on a vendor's open PR queue). It does NOT adopt, merge, push, comment, or
-otherwise mutate remote state. Its single durable output is a written plan at
-`.context/plans/upstream-pr-evaluation.md` (or wherever the user prefers).
+otherwise mutate remote state. It writes only to `.context/plans/` (the
+evaluation plan) and per-PR validation worktrees
+(`../worktrees/<owner>-<repo>-pr-<n>`).
 
 ## When to use
 
@@ -34,12 +35,12 @@ otherwise mutate remote state. Its single durable output is a written plan at
 - Reviewing *your own* PR or PR comments → use `b-review` / `fix-pr`.
 - Code-reviewing a single PR in depth → use `code-review` / `code-review-universal`.
 
-## Posture: local-only by default
+## Posture: local-only
 
 **Hard rule.** This skill writes only to:
 
 - The local checkout's `.context/plans/` (the evaluation plan).
-- Per-PR validation worktrees (created with `git worktree add ../worktrees/pr-<n>`).
+- Per-PR validation worktrees (created with `git worktree add --detach ../worktrees/<owner>-<repo>-pr-<n>`).
 - `gh` reads via `pr://` URLs, `issue://`, or `gh pr view` / `gh pr list`.
 
 It MUST NOT:
@@ -56,11 +57,10 @@ If the user wants any of the above after evaluation, hand off to `b-pr`,
 
 | Input | Example | Behavior |
 |---|---|---|
-| Repo | `FelixKratz/JankyBorders` | Default upstream (other than current fork's origin) |
+| Repo | `FelixKratz/JankyBorders` | Selected GitHub `owner/repo`. Default: current fork's parent |
 | `git_compare_branch` | `origin/main` | What to diff PRs against (for "what would this PR change *in our fork*") |
 | Validation surface | `make test`, `make coverage`, `./scripts/lint`, `uvx lizard==1.24.0` | Pulled from project's `guardrails.json` or AGENTS-managed block |
 | Output path | `.context/plans/upstream-pr-evaluation.md` | Default; user may override |
-| Author posture | "comment on remote", "local-only" | Defaults to local-only |
 
 If the user invokes interactively with no arguments, ask which upstream repo to
 scan, where to write the plan, and whether validation should run (build/tests
@@ -87,21 +87,35 @@ Rate each PR on three axes, then bucket:
 
 ### Phase 1 — Inventory
 
-1. List open PRs against the upstream:
+1. Resolve the target repository to a fetch URL. Never assume a git remote
+   named `upstream`.
+
+   - Repo from `$ARGUMENTS` (`owner/repo`), else the current fork's parent:
+     `gh repo view --json parent --jq '.parent.owner.login + "/" + .parent.name'`
+   - `FETCH_URL`: an existing local remote whose URL refers to that
+     `owner/repo` (ssh or https), **or** `https://github.com/<owner>/<repo>.git`
+     if none matches. Do not `git remote add` / `git remote set-url` unless
+     the user asked.
+   - Inventory (`gh --repo`) and validation (`git fetch`) both use this same
+     `UPSTREAM_REPO` / `FETCH_URL`. A fork with no `upstream` remote, or an
+     explicit vendor repo other than the configured upstream, must still
+     validate.
+
+2. List open PRs against that repo:
    ```sh
-   gh pr list --repo <upstream> --state open --limit 200 \
+   gh pr list --repo "$UPSTREAM_REPO" --state open --limit 200 \
      --json number,title,author,createdAt,updatedAt,isDraft,labels,
             baseRefName,headRefName,additions,deletions,changedFiles,
             comments,reviewDecision,mergeable,url \
      > /tmp/upstream_prs.json
    ```
-2. Capture recent closed/merged for context:
+3. Capture recent closed/merged for context:
    ```sh
-   gh pr list --repo <upstream> --state closed --limit 100 \
+   gh pr list --repo "$UPSTREAM_REPO" --state closed --limit 100 \
      --json number,title,author,createdAt,updatedAt,mergedAt,state \
      > /tmp/upstream_closed_prs.json
    ```
-3. Identify the fork's `git_compare_branch` (default: `origin/main`); record it
+4. Identify the fork's `git_compare_branch` (default: `origin/main`); record it
    for the diff step.
 
 ### Phase 2 — Triage table
@@ -119,16 +133,24 @@ Keep it short. The plan file gets this verbatim.
 Each PR gets its own worktree so validation can't pollute the working tree.
 
 ```sh
-git fetch upstream 'refs/pull/<n>/head:refs/heads/upstream-pr-<n>'
+# UPSTREAM_REPO and FETCH_URL from Phase 1. Never a hardcoded remote named `upstream`.
+# Namespace ref + worktree by repo so PR #<n> from two vendors cannot collide.
+# --force so an upstream force-push replaces a stale ref; --detach so no
+# persistent local branch is left behind.
+REF=refs/eval/<owner>/<repo>/pr-<n>
+WT=../worktrees/<owner>-<repo>-pr-<n>
+
+git fetch --force "$FETCH_URL" "refs/pull/<n>/head:$REF"
 mkdir -p ../worktrees
-git worktree add ../worktrees/pr-<n> upstream-pr-<n>
+git worktree remove --force "$WT" 2>/dev/null || true
+git worktree add --detach "$WT" "$REF"
 ```
 
 **Restore the fork's validation plumbing** into each worktree. The upstream
 PR branch usually lacks the fork's test/lint setup, so copy:
 
 ```sh
-# From inside ../worktrees/pr-<n>:
+# From inside ../worktrees/<owner>-<repo>-pr-<n>:
 git show origin/<fork-base>:makefile             > makefile
 git show origin/<fork-base>:test/test_main.c     > test/test_main.c
 for f in test/unity/unity.c test/unity/unity.h test/unity/unity_internals.h; do
@@ -172,8 +194,8 @@ plumbing. Skipping it makes `make test` look broken when the project isn't.
   revert version bumps (e.g. MINOR 9 → 8). Always check `src/main.c` or
   equivalent for the version constants after diffing.
 - **CONFLICTING is often a false positive.** `gh` reports CONFLICTING when the
-  PR base drifted. Locally you can usually `git fetch upstream pull/<n>/head`
-  and `git worktree add` cleanly. Don't drop the PR without trying locally.
+  PR base drifted. Locally you can usually fetch the PR head via `$FETCH_URL`
+  (Phase 3) and `git worktree add` cleanly. Don't drop the PR without trying locally.
 - **Test API drift.** PRs that change struct fields (e.g. moving `blacklist`
   out of `struct settings` into globals) break the fork's `test_main.c`. The
   PR is fine; the fork's test needs a follow-up rewrite. Track this as
@@ -223,12 +245,15 @@ three-state status (draft/active/completed).
 
 ### Phase 6 — Stop
 
-This skill ends at the plan. Adoption is a separate handoff:
+This skill ends at the plan. It MUST NOT comment, approve, merge, close, or
+push — even if the user asks mid-session. Hand off:
 
 - "Adopt PR #N" → load `b-iterate` (small) or `b-build` (medium) on a topic branch.
 - "Open a PR with these upstream PRs bundled" → load `b-pr`.
-- "Comment / approve on the upstream PR" → load `gh` CLI directly; **only if
-  the user explicitly authorizes remote writes**.
+- "Comment / approve / request changes on a remote PR" → out of scope here.
+  Load `code-review` / `code-review-universal` (upstream) or `fix-pr` (this
+  fork) as a **separate** skill. Never `gh pr comment` / `gh pr review` from
+  this one.
 
 ## Failure modes
 
@@ -238,7 +263,7 @@ This skill ends at the plan. Adoption is a separate handoff:
 | `test/unity/unity.c: No such file` | Copy loop interrupted | Re-run the per-file `git show` for each unity file |
 | `make coverage: error: no member named 'X' in struct` | PR changed struct shape; fork's test references old shape | Record as integration cost; don't reject the PR |
 | `lizard: command not found` | `lizard` not on PATH | `uvx lizard==<pinned>` per project AGENTS-managed guardrails block |
-| CONFLICTING marker from `gh pr list` | upstream base drift | `git fetch upstream pull/<n>/head` then `git worktree add`; usually clean |
+| CONFLICTING marker from `gh pr list` | upstream base drift | Phase 3 fetch via `$FETCH_URL` then `git worktree add`; usually clean |
 | Coverage drops 2-3% with new code paths | Refactor adds uncovered lines | Either ratchet baseline (explicit user approval) or add a targeted test |
 | Pre-existing analyzer errors in `src/windows.c:374` etc. | Deferred debt documented in `.context/backlog/items/` | Diff-scoped lint ignores them; whole-tree lint lists them — out of scope for this skill |
 
@@ -262,7 +287,7 @@ contract exists.
 
 | Skill | Relationship |
 |---|---|
-| `b-pr` | Opens a PR from this fork's branches (write side; this skill is read-only) |
+| `b-pr` | Opens a PR from this fork's branches (write side; this skill is local-only) |
 | `b-pr-review-2-issues` | Ingests PR *review comments* into a plan; this skill evaluates the PR itself |
 | `b-build` / `b-iterate` | Implements the work this skill recommends |
 | `b-review` | Reviews changes after they're built |
