@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mkdirSync,
   rmSync,
@@ -6,15 +6,26 @@ import {
   existsSync,
   readlinkSync,
   readFileSync,
+  readdirSync,
   symlinkSync,
+  unlinkSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import {
   HARNESSES,
   ensureSymlink,
   detectHarnesses,
   install,
   parseArgs,
+  isInsideRoot,
+  verifySurfaces,
+  summarize,
+  isMainModule,
+  runList,
+  runVerify,
+  runInstall,
 } from "./install.mjs";
 
 const TEST_ROOT = join("/tmp", "install-test-" + process.pid);
@@ -414,6 +425,38 @@ describe("install", () => {
     expect(existsSync(join(home, ".claude", "CLAUDE.md"))).toBe(false);
     expect(result.exitCode).toBe(0);
   });
+
+  it("reports a copied bootstrap as a copy, not a generic conflict", () => {
+    const { repo, home } = setupFixtures();
+    writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# stale copy\n");
+
+    const result = install({ source: repo, home, harnessIds: ["pi"] });
+    const pi = result.results[0];
+
+    expect(pi.action).toBe("conflict");
+    expect(pi.message).toContain("Copied bootstrap detected");
+    expect(pi.message).toContain("--force");
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("marks a relink from another checkout as cross-root", () => {
+    const { repo, home } = setupFixtures();
+    const repoB = join(TEST_ROOT, "repoB");
+    mkdirSync(repoB, { recursive: true });
+    writeFileSync(join(repoB, "GLOBAL_OR_PROJECT-AGENTS.md"), "# B\n");
+    mkdirSync(join(home, ".pi", "agent"), { recursive: true });
+    symlinkSync(
+      join(repoB, "GLOBAL_OR_PROJECT-AGENTS.md"),
+      join(home, ".pi", "agent", "AGENTS.md"),
+    );
+
+    const result = install({ source: repo, home, harnessIds: ["pi"] });
+    const pi = result.results[0];
+
+    expect(pi.action).toBe("replaced");
+    expect(pi.crossRoot).toBe(true);
+    expect(pi.oldRoot).toBe(repoB);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -428,8 +471,13 @@ describe("parseArgs", () => {
       source: null,
       harnessIds: null,
       list: false,
+      verify: false,
       help: false,
     });
+  });
+
+  it("parses --verify", () => {
+    expect(parseArgs(["--verify"]).verify).toBe(true);
   });
 
   it("parses --dry-run", () => {
@@ -466,5 +514,390 @@ describe("parseArgs", () => {
       force: true,
       harnessIds: ["opencode"],
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isInsideRoot
+// ---------------------------------------------------------------------------
+describe("isInsideRoot", () => {
+  it("treats the root itself as inside", () => {
+    expect(isInsideRoot("/x/repo", "/x/repo")).toBe(true);
+  });
+
+  it("accepts a path under the root", () => {
+    expect(isInsideRoot("/x/repo/skills/b-plan", "/x/repo")).toBe(true);
+  });
+
+  it("rejects a sibling that shares the root's name prefix", () => {
+    expect(isInsideRoot("/x/repo-old/skills/b-plan", "/x/repo")).toBe(false);
+  });
+
+  it("normalizes both paths before comparing", () => {
+    expect(isInsideRoot("/x/repo/../repo/prompts", "/x/repo")).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ensureSymlink — source-root awareness
+// ---------------------------------------------------------------------------
+describe("ensureSymlink source-root awareness", () => {
+  beforeEach(() => mkdirSync(TEST_ROOT, { recursive: true }));
+  afterEach(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
+
+  const BOOTSTRAP = "GLOBAL_OR_PROJECT-AGENTS.md";
+
+  /** Create a repo fixture with a bootstrap file, return its root. */
+  function makeRepo(name) {
+    const root = join(TEST_ROOT, name);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, BOOTSTRAP), `# ${name}\n`);
+    return root;
+  }
+
+  it("does not flag a stale link that still points inside the same source root", () => {
+    const root = makeRepo("repoA");
+    writeFileSync(join(root, "OLD-BOOTSTRAP.md"), "# old\n");
+    const dest = join(TEST_ROOT, "home", "AGENTS.md");
+
+    ensureSymlink(join(root, "OLD-BOOTSTRAP.md"), dest, {});
+    const res = ensureSymlink(join(root, BOOTSTRAP), dest, {
+      sourceRoot: root,
+      relPath: BOOTSTRAP,
+    });
+
+    expect(res.action).toBe("replaced");
+    expect(res.crossRoot).toBeFalsy();
+  });
+
+  it("flags a link resolving to a different source root and names both roots", () => {
+    const rootA = makeRepo("repoA");
+    const rootB = makeRepo("repoB");
+    const dest = join(TEST_ROOT, "home", "AGENTS.md");
+
+    ensureSymlink(join(rootB, BOOTSTRAP), dest, {});
+    const res = ensureSymlink(join(rootA, BOOTSTRAP), dest, {
+      sourceRoot: rootA,
+      relPath: BOOTSTRAP,
+    });
+
+    expect(res.action).toBe("replaced");
+    expect(res.crossRoot).toBe(true);
+    expect(res.oldRoot).toBe(rootB);
+    expect(res.message).toContain(rootB);
+    expect(res.message).toContain(rootA);
+    expect(readlinkSync(dest)).toBe(join(rootA, BOOTSTRAP));
+  });
+
+  it("resolves a relative link target before classifying it", () => {
+    const rootA = makeRepo("repoA");
+    const rootB = makeRepo("repoB");
+    const dest = join(TEST_ROOT, "home", "AGENTS.md");
+    mkdirSync(join(TEST_ROOT, "home"), { recursive: true });
+    symlinkSync(join("..", "repoB", BOOTSTRAP), dest);
+
+    const res = ensureSymlink(join(rootA, BOOTSTRAP), dest, {
+      sourceRoot: rootA,
+      relPath: BOOTSTRAP,
+    });
+
+    expect(res.crossRoot).toBe(true);
+    expect(res.oldRoot).toBe(rootB);
+  });
+
+  it("keeps the original behavior when no sourceRoot is supplied", () => {
+    const rootA = makeRepo("repoA");
+    const rootB = makeRepo("repoB");
+    const dest = join(TEST_ROOT, "home", "AGENTS.md");
+
+    ensureSymlink(join(rootB, BOOTSTRAP), dest, {});
+    const res = ensureSymlink(join(rootA, BOOTSTRAP), dest, {});
+
+    expect(res.action).toBe("replaced");
+    expect(res.crossRoot).toBeFalsy();
+    expect(res.message).toContain("Replaced stale link");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifySurfaces
+// ---------------------------------------------------------------------------
+describe("verifySurfaces", () => {
+  beforeEach(() => mkdirSync(TEST_ROOT, { recursive: true }));
+  afterEach(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
+
+  const BOOTSTRAP = "GLOBAL_OR_PROJECT-AGENTS.md";
+
+  /** Every entry under `dir`, with symlink targets, sorted — for write detection. */
+  function snapshotTree(dir) {
+    const out = [];
+    const walk = (d, prefix) => {
+      for (const entry of readdirSync(d, { withFileTypes: true })) {
+        const full = join(d, entry.name);
+        const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+        if (entry.isSymbolicLink()) out.push(`${rel} -> ${readlinkSync(full)}`);
+        else if (entry.isDirectory()) {
+          out.push(`${rel}/`);
+          walk(full, rel);
+        } else out.push(rel);
+      }
+    };
+    walk(dir, "");
+    return out.sort();
+  }
+
+  it("reports every surface as linked-here after a clean install", () => {
+    const { repo, home } = setupFixtures();
+    install({ source: repo, home });
+
+    const result = verifySurfaces({ source: repo, home });
+
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(result.results.every((r) => r.state === "linked-here")).toBe(true);
+    expect(result.roots).toEqual([repo]);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("flags a harness pointed at a second checkout and names both roots", () => {
+    const { repo, home } = setupFixtures();
+    const repoB = join(TEST_ROOT, "repoB");
+    mkdirSync(repoB, { recursive: true });
+    writeFileSync(join(repoB, BOOTSTRAP), "# B\n");
+
+    install({ source: repo, home });
+    const codexDest = join(home, ".codex", "AGENTS.md");
+    unlinkSync(codexDest);
+    symlinkSync(join(repoB, BOOTSTRAP), codexDest);
+
+    const result = verifySurfaces({ source: repo, home });
+    const codex = result.results.find((r) => r.harness === "codex");
+
+    expect(codex.state).toBe("linked-elsewhere");
+    expect(codex.root).toBe(repoB);
+    expect(result.roots.slice().sort()).toEqual([repo, repoB].sort());
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("flags a copied bootstrap as a real file", () => {
+    const { repo, home } = setupFixtures();
+    writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# stale copy\n");
+
+    const result = verifySurfaces({ source: repo, home, harnessIds: ["pi"] });
+
+    expect(result.results).toHaveLength(1);
+    expect(result.results[0].state).toBe("real-file");
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("flags a symlink whose target no longer exists", () => {
+    const { repo, home } = setupFixtures();
+    install({ source: repo, home, harnessIds: ["pi"] });
+    rmSync(join(repo, BOOTSTRAP));
+
+    const result = verifySurfaces({ source: repo, home, harnessIds: ["pi"] });
+
+    expect(result.results[0].state).toBe("dangling");
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("reports uninstalled surfaces as missing without failing", () => {
+    const { repo, home } = setupFixtures();
+
+    const result = verifySurfaces({ source: repo, home });
+
+    expect(result.results.every((r) => r.state === "missing")).toBe(true);
+    expect(result.roots).toEqual([]);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("writes nothing — no links, no parent directories", () => {
+    const { repo, home } = setupFixtures();
+    const before = snapshotTree(home);
+
+    verifySurfaces({ source: repo, home });
+
+    expect(snapshotTree(home)).toEqual(before);
+  });
+
+  it("honors the harness filter", () => {
+    const { repo, home } = setupFixtures();
+    install({ source: repo, home });
+
+    const result = verifySurfaces({ source: repo, home, harnessIds: ["pi"] });
+
+    expect(result.results.map((r) => r.harness)).toEqual(["pi"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// summarize
+// ---------------------------------------------------------------------------
+describe("summarize", () => {
+  it("counts every action, not just created and skipped", () => {
+    const counts = summarize([
+      { action: "created" },
+      { action: "replaced" },
+      { action: "replaced", crossRoot: true },
+      { action: "skipped" },
+      { action: "skipped" },
+      { action: "conflict" },
+    ]);
+
+    expect(counts).toEqual({
+      created: 1,
+      replaced: 2,
+      skipped: 2,
+      conflict: 1,
+      moved: 1,
+    });
+  });
+
+  it("returns zeros for an empty run", () => {
+    expect(summarize([])).toEqual({
+      created: 0,
+      replaced: 0,
+      skipped: 0,
+      conflict: 0,
+      moved: 0,
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isMainModule
+// ---------------------------------------------------------------------------
+describe("isMainModule", () => {
+  beforeEach(() => mkdirSync(TEST_ROOT, { recursive: true }));
+  afterEach(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
+
+  it("matches when the invoked path traverses a symlinked directory", () => {
+    const real = join(TEST_ROOT, "realdir");
+    mkdirSync(real, { recursive: true });
+    const file = join(real, "install.mjs");
+    writeFileSync(file, "// script\n");
+    const linkDir = join(TEST_ROOT, "linkdir");
+    symlinkSync(real, linkDir);
+
+    expect(isMainModule(join(linkDir, "install.mjs"), file)).toBe(true);
+  });
+
+  it("does not match a different file", () => {
+    expect(isMainModule("/x/a.mjs", "/x/b.mjs")).toBe(false);
+  });
+
+  it("returns false when there is no invoked path", () => {
+    expect(isMainModule(undefined, "/x/a.mjs")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI command handlers
+// ---------------------------------------------------------------------------
+describe("CLI handlers", () => {
+  let out;
+
+  beforeEach(() => {
+    mkdirSync(TEST_ROOT, { recursive: true });
+    out = [];
+    vi.spyOn(console, "log").mockImplementation((...a) => out.push(a.join(" ")));
+    vi.spyOn(console, "error").mockImplementation((...a) => out.push(a.join(" ")));
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    rmSync(TEST_ROOT, { recursive: true, force: true });
+  });
+
+  const text = () => out.join("\n");
+
+  /** Repoint one already-installed destination at a second checkout. */
+  function splitOff(home, repoBName, relDest) {
+    const repoB = join(TEST_ROOT, repoBName);
+    mkdirSync(repoB, { recursive: true });
+    writeFileSync(join(repoB, "GLOBAL_OR_PROJECT-AGENTS.md"), "# B\n");
+    const dest = join(home, relDest);
+    mkdirSync(dirname(dest), { recursive: true });
+    if (existsSync(dest)) unlinkSync(dest);
+    symlinkSync(join(repoB, "GLOBAL_OR_PROJECT-AGENTS.md"), dest);
+    return repoB;
+  }
+
+  it("verify succeeds on a single-root install", () => {
+    const { repo, home } = setupFixtures();
+    install({ source: repo, home });
+
+    expect(runVerify({ harnessIds: null }, home, repo)).toBe(0);
+    expect(text()).toContain("Source roots in use: 1");
+  });
+
+  it("verify fails with a split verdict naming the foreign root", () => {
+    const { repo, home } = setupFixtures();
+    install({ source: repo, home });
+    const repoB = splitOff(home, "repoB", ".codex/AGENTS.md");
+
+    expect(runVerify({ harnessIds: null }, home, repo)).toBe(1);
+    expect(text()).toContain("Source roots in use: 2");
+    expect(text()).toContain("Split detected");
+    expect(text()).toContain(repoB);
+  });
+
+  it("verify fails on a copied bootstrap and says it is a copy", () => {
+    const { repo, home } = setupFixtures();
+    writeFileSync(join(home, ".pi", "agent", "AGENTS.md"), "# copy\n");
+
+    expect(runVerify({ harnessIds: ["pi"] }, home, repo)).toBe(1);
+    expect(text()).toContain("real file");
+  });
+
+  it("install reports how many destinations moved between roots", () => {
+    const { repo, home } = setupFixtures();
+    const repoB = splitOff(home, "repoB", ".pi/agent/AGENTS.md");
+
+    const code = runInstall({ harnessIds: ["pi"] }, home, repo);
+
+    expect(code).toBe(0);
+    expect(text()).toContain(repoB);
+    expect(text()).toContain("1 moved from another source root");
+  });
+
+  it("both commands fail when no harness is installed", () => {
+    const { repo } = setupFixtures();
+    const home = join(TEST_ROOT, "empty-home");
+    mkdirSync(home, { recursive: true });
+
+    expect(runVerify({ harnessIds: null }, home, repo)).toBe(1);
+    expect(runInstall({ harnessIds: null }, home, repo)).toBe(1);
+  });
+
+  it("list reports the source the links would resolve from", () => {
+    const { repo, home } = setupFixtures();
+
+    expect(runList(home, repo)).toBe(0);
+    expect(text()).toContain(repo);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CLI end-to-end — the script must actually run when invoked
+// ---------------------------------------------------------------------------
+describe("CLI entry point", () => {
+  beforeEach(() => mkdirSync(TEST_ROOT, { recursive: true }));
+  afterEach(() => rmSync(TEST_ROOT, { recursive: true, force: true }));
+
+  const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "install.mjs");
+
+  it("runs when invoked through a symlinked directory", () => {
+    // Regression guard: comparing argv[1] to import.meta.url without
+    // resolving real paths made the CLI exit 0 having done nothing.
+    const linkDir = join(TEST_ROOT, "linked-scripts");
+    symlinkSync(dirname(SCRIPT), linkDir);
+    const { home } = setupFixtures();
+
+    const proc = spawnSync(process.execPath, [join(linkDir, "install.mjs"), "--list"], {
+      env: { ...process.env, HOME: home },
+      encoding: "utf8",
+    });
+
+    expect(proc.status).toBe(0);
+    expect(proc.stdout).toContain("Detected harnesses");
   });
 });

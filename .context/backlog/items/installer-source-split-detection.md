@@ -6,6 +6,7 @@ created: 2026-09-09
 updated: 2026-09-09
 completed: null
 related:
+  - .context/2026-09-09.installer-source-integrity/plan-installer-source-integrity.md
   - scripts/install.mjs
   - scripts/install.test.mjs
   - agent-install_instructions.md

@@ -119,13 +119,26 @@ node scripts/install.mjs
 - Symlinks `skills/<name>/` directories for Claude Code, OpenCode
 - Idempotent — re-run anytime, existing correct symlinks are skipped
 
+**Check what you actually have:**
+
+```bash
+node scripts/install.mjs --verify
+```
+
+Read-only. Prints every managed destination that is not a symlink into this
+checkout, a per-harness tally, and the number of distinct source roots in use.
+Exits `1` when it finds a split, a copied bootstrap, or a dangling link — so it
+works as a guard in a script.
+
 **Rules:**
 - Never run the installer from a package-manager cache (`npx`, `pnpm dlx`) or a
   temp dir — the symlinks would point into a directory that gets evicted.
 - Never `cp` the bootstrap file. Copies stop tracking the repo and drift silently.
+  A copied bootstrap is a real file, so a normal re-run *skips* it; `--force`
+  converts it back to a symlink.
 - Use one source checkout for every harness. The source defaults to the
-  installer's own location, so running it from two checkouts splits the install
-  with no warning.
+  installer's own location, so running it from two checkouts moves harnesses
+  between roots — the run warns and names both, and `--verify` reports the split.
 
 **Flags:**
 
@@ -136,6 +149,7 @@ node scripts/install.mjs
 | `--source <path>` | Repo root symlinks resolve from (default: auto-detect) |
 | `--harness <id,...>` | Wire only named harnesses (comma-separated) |
 | `--list` | Print detected harnesses and exit |
+| `--verify` | Report what each harness resolves to; write nothing (exit 1 on problems) |
 
 **Per-harness behavior:**
 

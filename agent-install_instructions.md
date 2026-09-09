@@ -114,12 +114,21 @@ Rules:
   or a package-manager cache (`npx`, `pnpm dlx`, `/tmp`) — those get evicted and
   leave dangling links.
 - **Use one source root for every harness.** The installer's source defaults to
-  its own location, so running it from two different checkouts splits the
-  install across both with no warning. Audit with:
-  `ls -l ~/.claude/CLAUDE.md ~/.omp/agent/AGENTS.md ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md`
+  its own location, so running it from two different checkouts moves harnesses
+  between roots. Such a move is reported at install time, naming both roots.
 - A real file at the destination is preserved, not clobbered. Re-run with
   `--force` to replace it with a symlink — that is how you repair a bootstrap
   that was previously copied.
+
+Audit an existing install at any time — read-only, exits `1` on a problem:
+
+```bash
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs --verify
+```
+
+It reports each destination that is not a symlink into the given checkout
+(`linked-elsewhere`, `real-file`, `dangling`, `missing`) and counts the distinct
+source roots in use. More than one root means the harnesses are split.
 
 ---
 
