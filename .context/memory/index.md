@@ -1,4 +1,4 @@
-- 2026-09-09 — [fix-pr: PR #18 dangling-symlink repair](fix-pr-18-2026-09-09.md) — `completed`
+- 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 
 - 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`
 
