@@ -1,3 +1,17 @@
+- 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
+
+- 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `install-source-consolidation-2026-09-09.md` | domains: [install, docs, tooling] | topics: [installer, symlink, bootstrap-drift, source-root, agent-install-instructions, harness-wiring] | status: completed
+
+- 2026-09-09 — [Response-style consolidation in the global bootstrap](response-style-consolidation-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `response-style-consolidation-2026-09-09.md` | domains: [agent-instructions, bootstrap, docs] | topics: [response-style, global-agents-bootstrap, consolidation, bootstrap-drift, symlink-install] | status: completed
+
+- 2026-09-08 — [b-init-factory skill and cross-harness command](b-init-factory-2026-09-08.md) — `completed`
+
+  - 2026-09-08 | `b-init-factory-2026-09-08.md` | domains: [skill, buck-workflow, docs] | topics: [b-init-factory, software-factory, agents-md, cross-harness] | status: completed
+
 - 2026-09-05 — [fix-pr: PR #14 review fixes (README truncation, grouping rule, section placement)](fix-pr-14-2026-09-05.md) — `completed`
 
   - 2026-09-05 | `fix-pr-14-2026-09-05.md` | domains: [workflow, review] | topics: [fix-pr, b-recap, pr-review] | status: completed

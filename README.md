@@ -98,10 +98,18 @@ for verification and update steps.
 ### 2. Wire Supported Harness Surfaces
 
 The installer detects which agent harnesses are present and symlinks only the
-surfaces declared for each harness:
+surfaces declared for each harness. Run it **from a durable checkout** — every
+symlink it creates resolves back to wherever the installer itself lives:
 
 ```bash
-npx buck-workflow install
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs
+```
+
+Already have a clone (development)? Run it from there instead of cloning again:
+
+```bash
+node scripts/install.mjs
 ```
 
 **What it does:**
@@ -110,6 +118,27 @@ npx buck-workflow install
 - Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode
 - Symlinks `skills/<name>/` directories for Claude Code, OpenCode
 - Idempotent — re-run anytime, existing correct symlinks are skipped
+
+**Check what you actually have:**
+
+```bash
+node scripts/install.mjs --verify
+```
+
+Read-only. Prints every managed destination that is not a symlink into this
+checkout, a per-harness tally, and the number of distinct source roots in use.
+Exits `1` when it finds a split, a copied bootstrap, or a dangling link — so it
+works as a guard in a script.
+
+**Rules:**
+- Never run the installer from a package-manager cache (`npx`, `pnpm dlx`) or a
+  temp dir — the symlinks would point into a directory that gets evicted.
+- Never `cp` the bootstrap file. Copies stop tracking the repo and drift silently.
+  A copied bootstrap is a real file, so a normal re-run *skips* it; `--force`
+  converts it back to a symlink.
+- Use one source checkout for every harness. The source defaults to the
+  installer's own location, so running it from two checkouts moves harnesses
+  between roots — the run warns and names both, and `--verify` reports the split.
 
 **Flags:**
 
@@ -120,6 +149,7 @@ npx buck-workflow install
 | `--source <path>` | Repo root symlinks resolve from (default: auto-detect) |
 | `--harness <id,...>` | Wire only named harnesses (comma-separated) |
 | `--list` | Print detected harnesses and exit |
+| `--verify` | Report what each harness resolves to; write nothing (exit 1 on problems) |
 
 **Per-harness behavior:**
 
@@ -173,6 +203,7 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 | **Grok Build** | Skills + commands (`~/.grok/`) | `/b-plan` loads the same prompt template | `buck-workflow install --harness grok` |
+| **Goose** | Summon skills | Load `b-init-factory` (or other `b-*` skills) by name | Manual (Summon); no installer surface |
 
 Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic. The installer wires each harness's native loading mechanism to the shared source of truth.
 
@@ -188,8 +219,10 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
 | `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
 | `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
+| `/b-init-factory` | `b-init-factory` | Initialize a nested agent software factory — factory-scoped AGENTS.md in a named folder, project default, or asked choice (never assume `.claude/`) |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
+| `/b-capture` | `b-capture` | Note-taking mode — dump as we go via subagent; no polish until told |
 | `/b-nasa-prd` | `b-nasa-prd` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C) |
 | `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
@@ -220,8 +253,10 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
 | `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
+| `b-init-factory` | Nested agent software factory init — factory-scoped AGENTS.md + empty factory `docs/`; target is told, project default, or asked |
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
+| `b-capture` | Note-taking mode — user dumps, subagent writes messy notes as-we-go; polish deferred until told |
 | `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
 | `b-nasa-prd` | NASA-standard PRD authoring and audit — shall/will/should, tolerances, traceable and verifiable requirements (bundled Appendix C source) |
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
@@ -274,6 +309,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-brainstorm → /b-plan → /b-build` | Idea to implementation in one session |
 | `/b-plan → /b-build → /b-review → /b-docs → /b-save → /b-commit` | You already know what to build |
 | `/b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit` | Complex/risky work |
+| `/b-capture` → user says tidy → polish | Live notes; write first, clean later |
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |

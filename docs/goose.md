@@ -116,6 +116,8 @@ Control which files/directories goose can access (similar to `.gitignore` syntax
 
 Goose reads the standard `AGENTS.md` file, making it compatible with projects that already have context files for Codex or Claude Code. The `.goosehints` file is Goose-specific and directory-scoped.
 
+Buck Workflow skills (`skills/*/SKILL.md`) load via the Summon extension. There is no slash-command installer surface; invoke by skill name (e.g. `b-init-factory`).
+
 The Goose repo itself demonstrates cross-harness skill placement:
 ```
 .claude/skills/       # Claude Code skills
