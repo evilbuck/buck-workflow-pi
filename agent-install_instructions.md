@@ -71,6 +71,7 @@ invocations on agents that use skill loaders):
 The skills themselves live in `skills/<name>/SKILL.md` of this repo and are
 agent-neutral. Skill-only entries (no `prompts/` + `commands/` pair) are
 invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
+
 | Agent | Install method | Skills land at | Commands land at |
 |---|---|---|---|
 | **Pi** | `pi install git:github.com/evilbuck/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
@@ -79,6 +80,46 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 | **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
+
+---
+
+## Bootstrap wiring — symlink, never copy
+
+Every harness reads the same bootstrap file (`GLOBAL_OR_PROJECT-AGENTS.md`)
+under a harness-specific name. Wire it as a **symlink into a durable
+checkout**, produced by the installer.
+
+Installing from GitHub (the normal case):
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs                  # every detected harness
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs --harness pi,omp # or a subset
+```
+
+Already have the repo checked out locally (development)? Point the installer
+at that checkout — do not clone a second copy:
+
+```bash
+node scripts/install.mjs                                  # source = this checkout
+node scripts/install.mjs --source /abs/path/to/checkout    # or an explicit root
+```
+
+Rules:
+
+- **Never `cp` the bootstrap.** A copy stops tracking the repo, so the harness
+  keeps running stale instructions until someone notices. A symlink updates on
+  `git pull`.
+- **The source checkout must be durable.** Never install from a temp directory
+  or a package-manager cache (`npx`, `pnpm dlx`, `/tmp`) — those get evicted and
+  leave dangling links.
+- **Use one source root for every harness.** The installer's source defaults to
+  its own location, so running it from two different checkouts splits the
+  install across both with no warning. Audit with:
+  `ls -l ~/.claude/CLAUDE.md ~/.omp/agent/AGENTS.md ~/.pi/agent/AGENTS.md ~/.codex/AGENTS.md`
+- A real file at the destination is preserved, not clobbered. Re-run with
+  `--force` to replace it with a symlink — that is how you repair a bootstrap
+  that was previously copied.
 
 ---
 
@@ -127,7 +168,7 @@ pi -e git:github.com/evilbuck/buck-workflow-pi
 | Skills | discovered from the package's `skills/` dir (per `pi.skills` in `package.json`) |
 | Prompts (slash commands) | discovered from the package's `prompts/` dir (per `pi.prompts` in `package.json`) |
 | Extensions | `./extensions/index.ts` (per `pi.extensions`) |
-| Bootstrap (recommended) | copy `GLOBAL_OR_PROJECT-AGENTS.md` to `~/.pi/agent/AGENTS.md` |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.pi/agent/AGENTS.md` — `scripts/install.mjs --harness pi` |
 
 ### Verify
 
@@ -183,7 +224,7 @@ omp install buck-workflow@buck-workflow
 | Skills | per-plugin skill dir under OMP's plugin store |
 | Commands | per-plugin command dir (mirrored from this repo's `commands/`) |
 | Extensions | loaded from the package's `extensions/index.ts` (per `omp.extensions`) |
-| Bootstrap (recommended) | copy `GLOBAL_OR_PROJECT-AGENTS.md` to `~/.omp/agent/AGENTS.md` |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.omp/agent/AGENTS.md` — `scripts/install.mjs --harness omp` |
 
 ### Verify
 
@@ -263,7 +304,7 @@ itself.
 | Plugin source | `<repo>/plugins/buck-workflow/` |
 | Installed plugin | Codex-managed plugin cache |
 | Development fallback | `~/.agents/skills/<name>/SKILL.md` |
-| Bootstrap (recommended) | place `AGENTS.md` in the repo root; Codex discovers it automatically |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.codex/AGENTS.md` — `scripts/install.mjs --harness codex`; a project-root `AGENTS.md` still layers on top |
 
 ### Verify
 
@@ -343,7 +384,7 @@ done
 | Skills (agent compat) | `~/.agents/skills/<name>/SKILL.md` (auto-loaded) |
 | Commands (global) | `~/.config/opencode/commands/<name>.md` |
 | Commands (project) | `.opencode/commands/<name>.md` |
-| Bootstrap (recommended) | place `AGENTS.md` in project root; OpenCode walks up from cwd |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.config/opencode/AGENTS.md` — `scripts/install.mjs --harness opencode`; a project-root `AGENTS.md` still layers on top |
 
 ### Verify
 
@@ -405,7 +446,7 @@ Or install a local clone directly:
 | Skills (user) | `~/.claude/skills/<name>/SKILL.md` |
 | Skills (project) | `.claude/skills/<name>/SKILL.md` |
 | Skills (legacy commands) | `~/.claude/commands/<name>.md` (still supported) |
-| Bootstrap (recommended) | copy `GLOBAL_OR_PROJECT-AGENTS.md` to `~/.claude/CLAUDE.md` |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.claude/CLAUDE.md` — created by the installer above |
 
 Claude Code uses `CLAUDE.md` for its global memory file, not `AGENTS.md`.
 The bootstrap content is identical; the file name differs.

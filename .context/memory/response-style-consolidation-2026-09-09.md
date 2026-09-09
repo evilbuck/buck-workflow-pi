@@ -51,4 +51,4 @@ Second pass confirmed all four findings and every inline comment in `review-resp
 
 ## Follow-up
 
-`~/.local/share/buck-workflow-pi` needs one more `git pull` after this lands on `master`, or the Claude Code bootstrap stays one commit behind.
+**Superseded same day.** Rather than re-pulling that clone, all harnesses were repointed at the dev repo via `node scripts/install.mjs`, and the install docs were corrected to mandate symlinks into a durable checkout. See [`install-source-consolidation-2026-09-09.md`](install-source-consolidation-2026-09-09.md).

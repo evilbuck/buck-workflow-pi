@@ -98,10 +98,18 @@ for verification and update steps.
 ### 2. Wire Supported Harness Surfaces
 
 The installer detects which agent harnesses are present and symlinks only the
-surfaces declared for each harness:
+surfaces declared for each harness. Run it **from a durable checkout** — every
+symlink it creates resolves back to wherever the installer itself lives:
 
 ```bash
-npx buck-workflow install
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs
+```
+
+Already have a clone (development)? Run it from there instead of cloning again:
+
+```bash
+node scripts/install.mjs
 ```
 
 **What it does:**
@@ -110,6 +118,14 @@ npx buck-workflow install
 - Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode
 - Symlinks `skills/<name>/` directories for Claude Code, OpenCode
 - Idempotent — re-run anytime, existing correct symlinks are skipped
+
+**Rules:**
+- Never run the installer from a package-manager cache (`npx`, `pnpm dlx`) or a
+  temp dir — the symlinks would point into a directory that gets evicted.
+- Never `cp` the bootstrap file. Copies stop tracking the repo and drift silently.
+- Use one source checkout for every harness. The source defaults to the
+  installer's own location, so running it from two checkouts splits the install
+  with no warning.
 
 **Flags:**
 
