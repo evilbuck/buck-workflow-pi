@@ -47,7 +47,8 @@ Create:
 ```
 <notes-root>/
   index.md                 # status: draft; what this is; file map
-  notes/raw-capture-log.md # the spine — append-only, newest at bottom
+  notes/raw-capture-log.md # the spine — append-only pointers, newest at bottom
+  notes/entries/           # one immutable file per dump; never rewritten
   glossary.md
   open-questions.md
 ```
@@ -72,14 +73,14 @@ Keep that comment the last line forever.
 
 State the five-point contract in a few lines. Invite the first dump.
 
-If `$ARGUMENTS` is already a dump (multiple sentences), scaffold then write it as Entry 1 in the same turn.
+If `$ARGUMENTS` is already a dump (multiple sentences), scaffold then write `notes/entries/001.md` and a log pointer as Entry 1 in the same turn.
 
 ## Every later turn — dispatch, don't transcribe yourself
 
 1. Repair obvious garble.
-2. Spawn **one** subagent for this dump. Brief: verbatim dump, entry number, target file, tag legend, "append — never rewrite", "do not synthesize", files other in-flight agents own (do not touch), acceptance = one new entry above the marker.
+2. Allocate the next unused `notes/entries/<NNN>.md` (zero-pad, never reuse a path an in-flight agent owns). Spawn **one** subagent for this dump. Brief: verbatim dump, entry number, that exclusive target file, tag legend, "write this file only — never rewrite it, never touch any other file", "do not synthesize". Acceptance = that file exists with one tagged entry.
 3. Do not idle. Cheap `[verified]` checks on the main thread are fine.
-4. One subagent, one exclusive file. Shared files (log, glossary, open-questions, index) are mainline-only unless a single subagent is the sole writer this turn.
+4. Mainline owns shared files. Append one pointer above the log marker (`- Entry N → notes/entries/NNN.md`). Do not wait for the subagent. Never let a subagent write the log, glossary, open-questions, or index. Glossary / open-questions / index updates wait until no other dump is in flight, or happen on a later turn.
 5. Split a subject into `notes/<subject>.md` only when it has earned the page. Leave a pointer in the log. Update the index map.
 6. Operator testimony is ground truth for symptoms. Verify *why*, don't re-measure what the user reported.
 

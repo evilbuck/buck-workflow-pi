@@ -517,8 +517,8 @@ informs: []  # Plans/specs this research fed into
 
 **Behavior**:
 - Creates **subject folder** automatically: `.context/YYYY-MM-DD.<subject-name>/` (or a path the user named)
-- Scaffolds `index.md` (`status: draft`), `notes/raw-capture-log.md`, `glossary.md`, `open-questions.md`
-- Every dump is written down on the turn it arrives by a subagent — never batched
+- Scaffolds `index.md` (`status: draft`), `notes/raw-capture-log.md`, `notes/entries/`, `glossary.md`, `open-questions.md`
+- Every dump is an immutable `notes/entries/<NNN>.md`; the log holds pointers only. Written the turn it arrives by a subagent — never batched
 - Claim tags: `[verified]` `[unverified]` `[inference]` `[conflict]` `[question]`
 - Speech-to-text garble is repaired by context; two plausible readings are both recorded
 - Contradictions are recorded, not resolved. Wrong turns are struck through, not deleted
