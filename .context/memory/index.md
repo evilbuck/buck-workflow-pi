@@ -12,6 +12,10 @@
 
   - 2026-09-08 | `b-init-factory-2026-09-08.md` | domains: [skill, buck-workflow, docs] | topics: [b-init-factory, software-factory, agents-md, cross-harness] | status: completed
 
+- 2026-09-09 — [fix-pr: PR #16 catalog row restorations](fix-pr-16-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `fix-pr-16-2026-09-09.md` | domains: [docs, review] | topics: [fix-pr, b-plan-update, catalog, pr-review] | status: completed
+
 - 2026-09-07 — [b-plan-update skill shipped: in-place plan revision, removal-review gates, revision log, phase-drift flag](b-plan-update-skill-2026-09-07.md) — `completed`
 
   - 2026-09-07 | `b-plan-update-skill-2026-09-07.md` | domains: [skill, buck-workflow, docs] | topics: [b-plan-update, plan-revision, in-place-edit, revision-log, sibling-skill, removal-review, mockups, artifacts, phase-drift, catalog] | status: completed
