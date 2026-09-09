@@ -385,6 +385,7 @@ flowchart TD
 | [**b-nasa-prd**](#b-nasa-prd--nasa-standard-prd-authoringaudit) | Prompt template + Skill | `/b-nasa-prd` | `prompts/b-nasa-prd.md` + `skills/b-nasa-prd/` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C, bundled locally) |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-plan-update**](#b-plan-update--update-existing-plan) | Prompt template + Skill | `/b-plan-update` | `prompts/b-plan-update.md` + `skills/b-plan-update/` | Apply new context, artifacts, and scope changes to an existing plan in place |
+| [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
