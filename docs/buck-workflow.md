@@ -384,6 +384,7 @@ flowchart TD
 | [**b-guardrails-check**](#b-guardrails-check--guardrails-measurement) | Prompt template | `/b-guardrails-check` | `prompts/b-guardrails-check.md` + `skills/b-guardrails-check/SKILL.md` | Resolve the check contract by the resolution chain, run lint/unit/functional/coverage/complexity gates, return structured verdict. Measures only — never edits |
 | [**b-nasa-prd**](#b-nasa-prd--nasa-standard-prd-authoringaudit) | Prompt template + Skill | `/b-nasa-prd` | `prompts/b-nasa-prd.md` + `skills/b-nasa-prd/` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C, bundled locally) |
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
+| [**b-plan-update**](#b-plan-update--update-existing-plan) | Prompt template + Skill | `/b-plan-update` | `prompts/b-plan-update.md` + `skills/b-plan-update/` | Apply new context, artifacts, and scope changes to an existing plan in place |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
@@ -724,6 +725,37 @@ memory: []                    # Filled by b-save after execution
 - **Also**: `/skill:b-phase` if plan exceeds ~8 steps, ~5 files, or multiple domains
 
 ---
+
+#### `/b-plan-update` — Update Existing Plan
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Apply new context, new prompts, and new artifacts (mockups, screenshots, research) to an existing plan in place — interweaving additions, removing features with warning and review when implicit, and appending a revision log.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-plan-update.md` in Pi, `commands/b-plan-update.md` symlink in OMP)
+
+**Behavior**:
+- **Subject resolution + plan target selection**: follow the shared subject-resolution protocol; scan the subject folder for `plan-*.md`, exclude `plan-*-phases.md` (owned by `b-phase`), prefer formal plans over `plan-draft-*.md`. One → use silently; multiple → numbered menu; zero → stop with "no plan to update".
+- **Three input channels**: explicit request/`$ARGUMENTS`; established session context; new artifacts (mockups, screenshots, briefs, research). Artifacts outside the subject folder are copied in (binaries to `assets/`, markdown to subject root) and referenced by relative path.
+- **Interweave, do not append**: additions and modifications land inside the plan's existing sections (User Goal, Goal, Scope, Out of scope, Affected files, Implementation steps, Acceptance criteria, Verification, Risks). Implementation steps get renumbered when insertions land mid-sequence. Never produce a separate "delta" section.
+- **Removal gates**:
+  - **Explicit** removals (user said "drop X") → remove immediately, log `Removed: … (explicit)`.
+  - **Implicit** removals (new info invalidates a feature) → present a numbered removal-review list with evidence; never remove silently. Confirmed → remove + log `(reviewed: confirmed)`. Rejected → keep and record the tension under assumptions/open questions. Deferred → flag inline with `⚠️ pending removal review — <reason>` + log `(reviewed: deferred)`.
+- **Structural consistency**: re-scan the plan body for references to removed features and prune their acceptance criteria, verification items, and affected-files entries in the same update.
+- **Frontmatter**: set `updated: YYYY-MM-DD`; keep original `date`; append new entries to `research:` / `iterations:` when new artifacts informed the update; back-fill `informs:` on newly referenced research files.
+- **Revision log**: append a single entry to `## Revision Log` (create if absent) with shape `### YYYY-MM-DD — <summary>` plus Added/Modified/Removed/Inputs bullets.
+- **User goal handling**: rewrite `## User Goal` if the update changes it. If the plan lacks `## User Goal`, ask once; on refusal mark it as a soft gap in the output (do not block).
+- **Spec guard**: if the plan's frontmatter sets `spec:` and the update diverges from that spec, flag the conflict in the output and recommend resolving at spec level first. Never silently diverge.
+- **Phase drift**: if `plan-*-phases.md` or `phase-N-*.md` exist, never edit them; emit a prominent warning that phases are stale and recommend re-running `/skill:b-phase` (phrased conditionally on loader discoverability).
+
+**When to Use**:
+- New design context (mockups, screenshots) arriving mid-implementation.
+- Spec or requirement changes that touch existing features.
+- Re-scoping after discovery (`/b-explore` or `/b-research` findings).
+- Pre-build revision before `/b-phase` or `/b-build`.
+- Implicit conflicts surfaced by research the plan did not anticipate.
+
+**Next Steps**: `/b-build` (default), `/b-build-hard` (if update added ambiguity/risk), `/skill:b-phase` re-run when drift was flagged. All conditional on the active loader's slash-command catalog.
 
 #### `/skill:b-phase` — Plan Phasing
 
@@ -1532,6 +1564,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/b-explore`
 - `/b-iterate`
 - `/b-plan`
+- `/b-plan-update`
 - `/b-present`
 - `/b-research`
 - `/b-review`
