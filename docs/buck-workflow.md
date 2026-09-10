@@ -29,6 +29,8 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session recap) |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
+| `/b-diagnose` | Prompt template | Slash command symlink | `prompts/b-diagnose.md`; `commands/b-diagnose.md`; `skills/b-diagnose/SKILL.md` |
+| `codebase-design` (skill-only) | Skill | Skill | `skills/codebase-design/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:codebase-design` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
@@ -391,6 +393,8 @@ flowchart TD
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
+| [**b-diagnose**](#b-diagnose--diagnosing-hard-bugs) | Prompt template + Skill | `/b-diagnose` | `prompts/b-diagnose.md` + `skills/b-diagnose/` | Diagnosis loop for hard bugs — red-capable loop gate before any hypothesis |
+| [**codebase-design**](#codebase-design--deep-module-vocabulary) | Skill | `/skill:codebase-design` | `skills/codebase-design/SKILL.md` | Deep-module design vocabulary; seam/depth/adapter language for design and testability (no slash wrapper) |
 | [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
@@ -1038,6 +1042,24 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 ---
 
+#### `/b-diagnose` — Diagnosing Hard Bugs
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Own the gap between "it's broken and we don't know why" and a written-down defect. Six-phase diagnosis loop for hard bugs and performance regressions: (1) build a tight, red-capable feedback loop — **blocking gate**, the skill refuses to hypothesize before a named command has gone red on the reported bug; (2) reproduce + minimise; (3) 3–5 ranked, falsifiable hypotheses; (4) instrument with tagged logs; (5) fix + regression test at a correct seam; (6) cleanup.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-diagnose.md` in Pi, `commands/b-diagnose.md` symlink in OMP) + `skills/b-diagnose/SKILL.md`
+
+**Load-bearing rule**: Phase 1 is the skill. No red-capable command, no hypotheses. Ten ranked loop constructions (failing test → curl/HTTP → CLI fixture → headless browser → trace replay → throwaway harness → property/fuzz → bisection → differential → HITL script), cheapest first.
+
+**Seam vocabulary**: links to `skills/codebase-design/SKILL.md` — never restates it.
+
+**Exits**: `b-iterate` (fix in place), `b-plan` (architectural finding), `code-smells` (Phase 5 "no correct seam exists" is itself the finding).
+
+**Use when**: user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow and the cause is unknown. Not for known fixes (`b-build`) or already-written-down defects (`b-iterate`).
+
+---
+
 ### 4. Review Phase
 
 #### `/b-review` — Implementation Validation
@@ -1130,6 +1152,18 @@ Suggested next step
 **Flags** (when invoked with args): `--issues-only`, `--fix-only`
 
 **Next Steps**: Re-request review on the PR; `/b-save` if more session bookkeeping remains; optional `/b-iterate` for leftover polish after your own review loop
+
+#### `/skill:codebase-design` — Deep-Module Vocabulary
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Shared vocabulary for designing deep modules — a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Defines the seven terms (**module, interface, depth, seam, adapter, leverage, locality**), depth-as-leverage, the deletion test, and "one adapter is hypothetical, two is real."
+
+**Pi/OMP primitive**: Skill only (`skills/codebase-design/SKILL.md`). **No** `prompts/` or `commands/` wrapper — invoke via `/skill:codebase-design` (precedent: `fix-pr`). Model-invoked reference: other skills (`b-diagnose` Phase 5, `b-build`'s seams gate) link to it rather than restating the definitions.
+
+**Fan-out files**: `DEEPENING.md` (dependency categories, seam discipline, replace-don't-layer testing), `DESIGN-IT-TWICE.md` (parallel sub-agent pattern for exploring radically different interfaces).
+
+**Use when**: designing or improving a module's interface, finding deepening opportunities, deciding where a seam goes, making code more testable or AI-navigable.
 
 #### `/b-docs` — Living-Documentation Sync
 

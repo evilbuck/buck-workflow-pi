@@ -76,6 +76,34 @@ amended in the phase file.
 
 ## Next
 
-Phase 2: Design Vocabulary & b-diagnose (hard, `/b-build-hard`) — A1
-`codebase-design` then A2 `b-diagnose`; catalog rows in README +
-docs/buck-workflow.md (serialize, re-read tails).
+~~Phase 2: Design Vocabulary & b-diagnose~~ — DONE (see below). Next:
+Phase 3: Loop Composition Patches (medium, `/b-build`) — C1 b-review parallel
+standards axis, C2 b-build seams gate.
+
+## Phase 2: Design Vocabulary & b-diagnose — COMPLETED 2026-09-10
+
+Built via `/b-build-hard`, sequential A1 → A2.
+
+- **A1** `skills/codebase-design/{SKILL,DEEPENING,DESIGN-IT-TWICE}.md` — ported
+  from upstream, repo conventions, seven terms + deletion test +
+  one-adapter rule. Skill-only (no wrapper; fix-pr precedent).
+- **A2** `skills/b-diagnose/SKILL.md` + `prompts/b-diagnose.md` +
+  `commands/b-diagnose.md` symlink. 6 phases; Phase-1 refusal gate preserved
+  verbatim in intent ("No red-capable command, no Phase 2"). Exits wired to
+  b-iterate / b-plan / code-smells. Seam language links to codebase-design.
+- `THIRD-PARTY-NOTICES.md` extended with both ports.
+- Catalog: README prompt-table + skills-table rows; docs/buck-workflow.md
+  primitives + quick-reference rows + 2 full section bodies. **The catalog
+  clobber hazard fired for real**: two edit-tool calls truncated README.md and
+  docs/buck-workflow.md mid-session; both restored from git and reapplied via
+  python with anchor-count assertions. Final diffs additive-only, tails
+  byte-identical.
+- Verification: behavioral fixture test (broken `average()` in
+  /tmp/b-diagnose-fixture) — agent built red loop first, zero hypotheses
+  before red, quoted the governing line. Installer dry-run
+  (`node scripts/install.mjs --dry-run`) picks up both skills + the command;
+  full reload-probe requires re-running the installer (recorded, not done).
+- Review `review-phase-2.md`: **Pass with warnings** (13/14 criteria direct
+  evidence; loader-reload criterion structurally verified via installer
+  dry-run). Docs-only phase: guardrails contract skipped (no scripts/ or
+  package.json changes).

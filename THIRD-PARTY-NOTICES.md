@@ -13,6 +13,14 @@ Derived files in this repository (derived from upstream `skills/engineering/doma
 - `skills/b-grill-with-docs/CONTEXT-FORMAT.md`
 - `skills/b-grill-with-docs/ADR-FORMAT.md`
 
+Files ported (rewritten to this repository's conventions, with substantial
+prose lifted) from upstream `skills/`:
+
+- `skills/codebase-design/SKILL.md`, `DEEPENING.md`, `DESIGN-IT-TWICE.md`
+  (from upstream `skills/engineering/codebase-design/`)
+- `skills/b-diagnose/SKILL.md`
+  (from upstream `skills/engineering/diagnosing-bugs/`)
+
 Upstream license text (included verbatim, as required by the MIT license for
 substantial portions):
 

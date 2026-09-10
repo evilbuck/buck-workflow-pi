@@ -230,6 +230,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `/b-diagnose` | `b-diagnose` | Diagnose hard bugs/regressions — tight red-capable loop before any hypothesis |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
@@ -264,6 +265,8 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-plan-update` | Update an existing plan in place — interweave additions, remove with review, revision log |
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `b-diagnose` | Diagnosis loop for hard bugs/regressions — Phase 1 red-capable-loop gate, ranked falsifiable hypotheses, regression test at a correct seam |
+| `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |

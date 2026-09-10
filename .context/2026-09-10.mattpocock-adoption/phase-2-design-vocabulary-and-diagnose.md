@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-mattpocock-findings-remediation.md
@@ -20,22 +20,22 @@ from_plan_steps: [4, 5, 13]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] A1: skills/codebase-design/SKILL.md defines the seven terms (module, interface, depth, seam, adapter, leverage, locality), depth-as-leverage, the deletion test, and 'one adapter is hypothetical, two is real'"
-  - "[ ] A1: DESIGN-IT-TWICE.md fan-out exists and is referenced from SKILL.md"
-  - "[ ] A1: codebase-design has NO prompts/ or commands/ wrapper (model-invoked reference; fix-pr is the precedent)"
-  - "[ ] A2: skills/b-diagnose/SKILL.md has 6 phases with Phase 1 (a tight, red-capable loop) as a blocking gate"
-  - "[ ] A2: the skill REFUSES to state a hypothesis before a named command has gone red on the reported bug — this is the load-bearing rule and must survive the port verbatim in intent"
-  - "[ ] A2: 10 ranked loop constructions, 3–5 falsifiable hypotheses, instrument step, regression test, and cleanup of tagged logs are all present"
-  - "[ ] A2: exits are wired — b-iterate (fix in place), b-plan (architectural), code-smells (Phase 5 'no correct seam exists' is itself the finding)"
-  - "[ ] A2: b-diagnose's seam language links to skills/codebase-design/SKILL.md rather than restating the definitions"
-  - "[ ] Wiring: prompts/b-diagnose.md exists; commands/b-diagnose.md is a symlink to ../prompts/b-diagnose.md"
-  - "[ ] Catalog: b-diagnose has a row in README '### Prompt Templates' AND '### Skills'; codebase-design has a row in '### Skills' only"
-  - "[ ] Catalog: docs/buck-workflow.md updated at the primitives table (~L28), the quick-reference table (~L393), and a full section body"
-  - "[ ] Both skills resolve BY NAME in a reloaded session (loader-native resolution — a readable SKILL.md is not evidence it loaded)"
-  - "[ ] /b-diagnose driven against a deliberately broken fixture blocks at Phase 1 with no red command"
-  - "[ ] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
-completed_at: null
-completed_by: null
+  - "[x] A1: skills/codebase-design/SKILL.md defines the seven terms (module, interface, depth, seam, adapter, leverage, locality), depth-as-leverage, the deletion test, and 'one adapter is hypothetical, two is real'"
+  - "[x] A1: DESIGN-IT-TWICE.md fan-out exists and is referenced from SKILL.md"
+  - "[x] A1: codebase-design has NO prompts/ or commands/ wrapper (model-invoked reference; fix-pr is the precedent)"
+  - "[x] A2: skills/b-diagnose/SKILL.md has 6 phases with Phase 1 (a tight, red-capable loop) as a blocking gate"
+  - "[x] A2: the skill REFUSES to state a hypothesis before a named command has gone red on the reported bug — this is the load-bearing rule and must survive the port verbatim in intent"
+  - "[x] A2: 10 ranked loop constructions, 3–5 falsifiable hypotheses, instrument step, regression test, and cleanup of tagged logs are all present"
+  - "[x] A2: exits are wired — b-iterate (fix in place), b-plan (architectural), code-smells (Phase 5 'no correct seam exists' is itself the finding)"
+  - "[x] A2: b-diagnose's seam language links to skills/codebase-design/SKILL.md rather than restating the definitions"
+  - "[x] Wiring: prompts/b-diagnose.md exists; commands/b-diagnose.md is a symlink to ../prompts/b-diagnose.md"
+  - "[x] Catalog: b-diagnose has a row in README '### Prompt Templates' AND '### Skills'; codebase-design has a row in '### Skills' only"
+  - "[x] Catalog: docs/buck-workflow.md updated at the primitives table (~L28), the quick-reference table (~L393), and a full section body"
+  - "[x] Both skills resolve BY NAME in a reloaded session (loader-native resolution — a readable SKILL.md is not evidence it loaded)"
+  - "[x] /b-diagnose driven against a deliberately broken fixture blocks at Phase 1 with no red command"
+  - "[x] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
+completed_at: 2026-09-10
+completed_by: omp-execution-session
 ---
 
 # Phase 2: Design Vocabulary & b-diagnose
