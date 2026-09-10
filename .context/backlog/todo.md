@@ -22,14 +22,14 @@
 ## mattpocock Remediation Phases (2026-09-10)
 
 Overview: [`plan-mattpocock-findings-remediation-phases.md`](../2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md).
-Only Phase 1 is in the active queue above; Phases 2–5 are gated on it (Tier-0 policy gate).
-Umbrella item for Phases 2–5: [Adopt mattpocock/skills capability gaps](items/mattpocock-adoptions.md) — medium.
+All 5 phases shipped 2026-09-10.
+Umbrella item: [Adopt mattpocock/skills capability gaps](items/mattpocock-adoptions.md) — done 2026-09-10.
 
 - [x] Phase 1: Live Defects — medium, `orchestrate` — [phase-1-live-defects.md](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md) — done 2026-09-10
-- [ ] Phase 2: Design Vocabulary & b-diagnose — hard — [phase-2-design-vocabulary-and-diagnose.md](../2026-09-10.mattpocock-adoption/phase-2-design-vocabulary-and-diagnose.md)
-- [ ] Phase 3: Loop Composition Patches — medium — [phase-3-loop-composition-patches.md](../2026-09-10.mattpocock-adoption/phase-3-loop-composition-patches.md)
-- [ ] Phase 4: Independent New Members — medium, `orchestrate` — [phase-4-independent-new-members.md](../2026-09-10.mattpocock-adoption/phase-4-independent-new-members.md)
-- [ ] Phase 5: Tracker Init & Triage — hard — [phase-5-tracker-init-and-triage.md](../2026-09-10.mattpocock-adoption/phase-5-tracker-init-and-triage.md)
+- [x] Phase 2: Design Vocabulary & b-diagnose — hard — [phase-2-design-vocabulary-and-diagnose.md](../2026-09-10.mattpocock-adoption/phase-2-design-vocabulary-and-diagnose.md) — done 2026-09-10
+- [x] Phase 3: Loop Composition Patches — medium — [phase-3-loop-composition-patches.md](../2026-09-10.mattpocock-adoption/phase-3-loop-composition-patches.md) — done 2026-09-10
+- [x] Phase 4: Independent New Members — medium, `orchestrate` — [phase-4-independent-new-members.md](../2026-09-10.mattpocock-adoption/phase-4-independent-new-members.md) — done 2026-09-10
+- [x] Phase 5: Tracker Init & Triage — hard — [phase-5-tracker-init-and-triage.md](../2026-09-10.mattpocock-adoption/phase-5-tracker-init-and-triage.md) — done 2026-09-10
 
 ### Tier 4 deferred (2026-09-10 mattpocock adoption)
 

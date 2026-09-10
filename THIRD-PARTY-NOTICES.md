@@ -26,6 +26,11 @@ prose lifted) from upstream `skills/`:
   (from upstream `skills/productivity/writing-for-agents/`)
 - `skills/b-wizard/SKILL.md`, `template.sh`
   (from upstream `skills/engineering/wizard/`)
+- `skills/b-init-tracker/SKILL.md`, `issue-tracker-github.md`,
+  `issue-tracker-gitlab.md`, `issue-tracker-local.md`, `triage-labels-seed.md`
+  (from upstream `skills/engineering/setup-matt-pocock-skills/`, Sections A+B only)
+- `skills/b-triage/SKILL.md`, `AGENT-BRIEF.md`, `OUT-OF-SCOPE.md`
+  (from upstream `skills/engineering/triage/`)
 
 Upstream license text (included verbatim, as required by the MIT license for
 substantial portions):

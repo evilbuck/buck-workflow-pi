@@ -277,3 +277,17 @@ If a check fails, re-verify before escalating:
 3. If it fails again, treat it as a real failure and act on the verdict.
 
 <!-- END b-init-guardrails -->
+<!-- BEGIN b-init-tracker -->
+## Agent Skills: Issue Tracker
+
+Managed by `b-init-tracker`. Do not edit manually; re-run the skill to refresh.
+
+### Issue tracker
+
+GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `issue://<N>` internal references. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+`ready-for-agent` and `needs-triage` state labels plus a `bug`/`enhancement`/`documentation` category axis; neither state label is guaranteed to exist in the tracker yet (`gh label list` first). See `docs/agents/triage-labels.md`.
+<!-- END b-init-tracker -->
+

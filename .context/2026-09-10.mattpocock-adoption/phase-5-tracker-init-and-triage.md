@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-mattpocock-findings-remediation.md
@@ -24,19 +24,19 @@ from_plan_steps: [10, 11, 13]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] N3: b-init-tracker covers Sections A (tracker) + B (labels) ONLY — Section C (domain docs) is out of scope; that is b-docs + CONTEXT.md"
-  - "[ ] N3: writes an idempotent managed block mirroring b-init-guardrails' <!-- BEGIN/END --> pattern"
-  - "[ ] N3: run against THIS repo before N4 starts, and it does NOT clobber the hand-written docs/agents/*.md from Phase 1 — re-running is a no-op or a clean merge"
-  - "[ ] N4: b-triage runs redundancy/prior-rejection check → verify the claim (reproduce/checkout) → grill → durable behavioural agent brief → .out-of-scope/ KB"
-  - "[ ] N4: the agent brief is BEHAVIOURAL — no file paths, no line numbers"
-  - "[ ] N4: b-triage produces the ready-for-agent state that b-auto-fix consumes as input, using the vocabulary in docs/agents/triage-labels.md"
-  - "[ ] Wiring: prompts/ + commands/ symlinks exist for both b-init-tracker and b-triage"
-  - "[ ] Catalog: both have rows in README '### Prompt Templates' AND '### Skills'"
-  - "[ ] Catalog: both appear at docs/buck-workflow.md primitives table, quick-reference table, and a full section body"
-  - "[ ] Both skills resolve BY NAME in a reloaded session (loader-native resolution)"
-  - "[ ] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
-completed_at: null
-completed_by: null
+  - "[x] N3: b-init-tracker covers Sections A (tracker) + B (labels) ONLY — Section C (domain docs) is out of scope; that is b-docs + CONTEXT.md"
+  - "[x] N3: writes an idempotent managed block mirroring b-init-guardrails' <!-- BEGIN/END --> pattern"
+  - "[x] N3: run against THIS repo before N4 starts, and it does NOT clobber the hand-written docs/agents/*.md from Phase 1 — re-running is a no-op or a clean merge"
+  - "[x] N4: b-triage runs redundancy/prior-rejection check → verify the claim (reproduce/checkout) → grill → durable behavioural agent brief → .out-of-scope/ KB"
+  - "[x] N4: the agent brief is BEHAVIOURAL — no file paths, no line numbers"
+  - "[x] N4: b-triage produces the ready-for-agent state that b-auto-fix consumes as input, using the vocabulary in docs/agents/triage-labels.md"
+  - "[x] Wiring: prompts/ + commands/ symlinks exist for both b-init-tracker and b-triage"
+  - "[x] Catalog: both have rows in README '### Prompt Templates' AND '### Skills'"
+  - "[x] Catalog: both appear at docs/buck-workflow.md primitives table, quick-reference table, and a full section body"
+  - "[x] Both skills resolve BY NAME in a reloaded session (loader-native resolution)"
+  - "[x] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
+completed_at: 2026-09-10
+completed_by: omp-execution-session
 ---
 
 # Phase 5: Tracker Init & Triage

@@ -179,3 +179,57 @@ mainline owned README + docs/buck-workflow.md catalog rows serially).
   new-vs-baseline + 1 worsened hotspot, all untouched by this phase);
   unit 499/499 pass, ratchet pass (72.9% > 54.9%), template.sh complexity
   unmeasurable (lizard has no shell scope) — noted, not a gate failure.
+
+## Phase 5: Tracker Init & Triage — COMPLETED 2026-09-10
+
+Built via `/b-build-hard`, sequential N3 -> N4.
+
+- **N3** `skills/b-init-tracker/SKILL.md` (+ `issue-tracker-github.md`,
+  `issue-tracker-gitlab.md`, `issue-tracker-local.md`,
+  `triage-labels-seed.md`) + prompt/command. Sections A+B only of upstream
+  `setup-matt-pocock-skills` (domain docs explicitly out of scope). Writes
+  an idempotent `<!-- BEGIN b-init-tracker -->` managed `AGENTS.md` block,
+  sibling to (not nested in) `b-init-guardrails`'s block.
+- **Exercised against this repo** (required by the phase): detected
+  Phase 1's hand-written `docs/agents/{issue-tracker,triage-labels}.md`
+  and preserved them byte-for-byte (`git diff --stat docs/agents/` empty);
+  only wrote the new `AGENTS.md` summary block. Second derivation of the
+  same block from unchanged source docs was byte-identical -- idempotent,
+  no-op on re-run, proven without a second full run.
+- **N4** `skills/b-triage/SKILL.md` (+ `AGENT-BRIEF.md`, `OUT-OF-SCOPE.md`)
+  + prompt/command. Five-stage flow (redundancy/prior-rejection ->
+  verify -> grill -> behavioural brief -> `.out-of-scope/` KB). Agent-brief
+  template and both good examples contain no file paths/line numbers.
+  Output state `ready-for-agent` matches `b-auto-fix`'s consumed label.
+- **Catalog**: README prompt+skills rows for both (slash-invoked); full
+  sections at docs/buck-workflow.md (b-init-tracker after b-init-guardrails,
+  b-triage after fix-pr).
+- **Review round 1**: Needs work — 2 in-plan P2 defects: (1) b-triage's
+  verification step was advisory, not a hard gate ("an unverified claim is
+  not triaged" from the phase contract was never stated as a rule); (2)
+  b-init-tracker's "if either doc exists, already configured" rule could
+  permanently strand a repo missing only `triage-labels.md` (Section B is
+  conditional on a triage skill being installed, creating a partial-config
+  trap with no self-heal path).
+- **Fixes applied**: b-triage now states an explicit gate (failed/skipped
+  verification blocks `ready-for-agent`/brief-writing, maintainer override
+  excepted); b-init-tracker now evaluates the two doc files independently
+  (missing one still gets its section run even if the sibling exists).
+  Also fixed 3 P3 nits: GitLab seed's "MRs as a request surface" aligned to
+  the literal "PRs as a request surface" phrase b-triage's gate checks;
+  AGENTS.md's label summary corrected to match `docs/agents/triage-labels.md`
+  (2 state labels + category axis, not "five roles mapped 1:1");
+  `triage-labels-seed.md` gained the missing category-axis section.
+- **Review round 2**: Pass (confidence 0.93). Idempotency re-derived
+  against the corrected block wording -- both summary lines recompute
+  fully from `docs/agents/*.md`, no seed-vocabulary dependency remaining.
+- THIRD-PARTY-NOTICES.md extended with these two ports (deferred correctly
+  from Phase 4 to avoid a premature dangling reference).
+- Docs-only phase: guardrails skipped.
+
+## Plan complete — all 5 phases shipped 2026-09-10
+
+Commits: 9f82a3d (Phase 1), 661a795 (Phase 2), e33b0a8 (Phase 3), 6f33737
+(Phase 4), + Phase 5 (this commit). All 12 overall acceptance criteria in
+`plan-mattpocock-findings-remediation.md` verified against final repo state
+before push.

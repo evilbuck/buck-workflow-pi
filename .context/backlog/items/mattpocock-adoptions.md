@@ -1,10 +1,10 @@
 ---
 title: Adopt mattpocock/skills capability gaps (b-diagnose, review fan-out, 5 new skills)
-status: active
+status: completed
 priority: medium
 created: 2026-09-10
 updated: 2026-09-10
-completed: null
+completed: 2026-09-10
 related:
   - .context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md
   - .context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md
