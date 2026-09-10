@@ -49,6 +49,51 @@ After subject resolution, load the best matching artifact from the resolved subj
 
 When baseline-inference is noisy (long-lived branches), state the baseline/evidence used and fall back to source-state verification.
 
+## Two Review Axes (Parallel Standards Pass)
+
+Every review runs on **two independent axes**. Neither axis may mask the
+other.
+
+| Axis | Question | Owner |
+|---|---|---|
+| **Spec / acceptance-contract** | Does the implementation satisfy the plan/spec/phase under review? | The mainline review agent (you) |
+| **Standards** | Is the diff good engineering by this repo's standards guides? | A **separate parallel `task` sub-agent** |
+
+### Standards axis fan-out (default)
+
+Spawn the standards pass as a parallel sub-agent (OMP: the `task` tool) seeded
+with:
+
+- the `code-review-universal` guides relevant to the diff's languages
+  (`skills/code-review-universal/`) — for a docs-only diff or one with no
+  matching language guide, seed with the general
+  `code-review-best-practices.md` and `code-quality-universal.md` guides
+  instead, and
+- a **diff-scoped subset** of the `code-smells` catalog — only the smells that
+  could plausibly fire on this diff's languages and change shape, **not** the
+  full catalog.
+
+**Context isolation is the point.** The standards agent runs in its own
+context so style findings cannot pollute the acceptance-contract reasoning.
+The spec axis stays in the mainline agent with the plan/spec/phase as its
+contract.
+
+### No-reranking rule
+
+Report the worst finding **per axis**. Never merge the two axes into a single
+ranked list — a merged ranking lets a loud standards nit outrank a quiet spec
+violation, which is exactly the masking this split exists to prevent. The
+review report presents findings grouped by axis, each axis with its own worst
+finding and verdict input.
+
+### Portable fallback (no background dispatch)
+
+Harnesses without background sub-agent dispatch run the standards pass as a
+**second, explicitly-scoped sequential pass** after the spec-axis pass, with
+the same seeding (relevant `code-review-universal` guides + diff-scoped
+`code-smells` subset) and the same no-reranking, per-axis output shape. The
+fallback changes concurrency, never the contract.
+
 ## Plan Completion Review Protocol
 
 When reviewing against a plan (`plan-*.md`), parse these fields and produce a **completion matrix**:
@@ -270,6 +315,11 @@ When reviewing against a plan/spec/phase path, include:
 | Step 2 | 🔄 partial | <file> changed but <missing> |
 | Step 3 | ❌ missing | No evidence found |
 | ... | ... | ... |
+
+### Review Axes
+- Spec axis worst finding: <finding or "none">
+- Standards axis worst finding: <finding or "none"> (parallel sub-agent, or sequential fallback pass — state which)
+- Cross-axis ranking: none (per-axis reporting only — never merge into one ranked list)
 
 ### Verification Status
 - Goal achieved: <yes/no/partial>

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-mattpocock-findings-remediation.md
@@ -16,16 +16,16 @@ from_plan_steps: [6, 7]
 depends_on: [2]
 dependency_type: SOFT
 acceptance_criteria:
-  - "[ ] C1: b-review spawns the standards axis as a separate parallel `task` sub-agent, seeded with code-review-universal guides and a DIFF-SCOPED subset of the code-smells catalog"
-  - "[ ] C1: the standards agent runs in its own context so it cannot pollute the acceptance-contract (spec) axis"
-  - "[ ] C1: the no-reranking rule is explicit — report the worst finding PER AXIS, never a single merged ranking"
-  - "[ ] C1: the portable (no-background-dispatch) fallback is named, not assumed"
-  - "[ ] C2: skills/b-build/references/seams.md exists and links to skills/codebase-design/SKILL.md for the seam definition rather than restating it"
-  - "[ ] C2: b-build's TDD Plan step requires named, confirmed seams before the first RED"
-  - "[ ] C2: the tautological-test anti-pattern is named — an assertion that recomputes the expected value the way the code does"
-  - "[ ] Verified on a real diff: two agent outputs, per-axis findings, no cross-axis ranking"
-completed_at: null
-completed_by: null
+  - "[x] C1: b-review spawns the standards axis as a separate parallel `task` sub-agent, seeded with code-review-universal guides and a DIFF-SCOPED subset of the code-smells catalog"
+  - "[x] C1: the standards agent runs in its own context so it cannot pollute the acceptance-contract (spec) axis"
+  - "[x] C1: the no-reranking rule is explicit — report the worst finding PER AXIS, never a single merged ranking"
+  - "[x] C1: the portable (no-background-dispatch) fallback is named, not assumed"
+  - "[x] C2: skills/b-build/references/seams.md exists and links to skills/codebase-design/SKILL.md for the seam definition rather than restating it"
+  - "[x] C2: b-build's TDD Plan step requires named, confirmed seams before the first RED"
+  - "[x] C2: the tautological-test anti-pattern is named — an assertion that recomputes the expected value the way the code does"
+  - "[x] Verified on a real diff: two agent outputs, per-axis findings, no cross-axis ranking"
+completed_at: 2026-09-10
+completed_by: omp-execution-session
 ---
 
 # Phase 3: Loop Composition Patches

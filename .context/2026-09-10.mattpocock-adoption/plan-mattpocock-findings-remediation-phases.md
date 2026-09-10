@@ -26,7 +26,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Live Defects | completed | medium | orchestrate | [phase-1-live-defects.md](phase-1-live-defects.md) |
 | 2: Design Vocabulary & b-diagnose | completed | hard | none | [phase-2-design-vocabulary-and-diagnose.md](phase-2-design-vocabulary-and-diagnose.md) |
-| 3: Loop Composition Patches | pending | medium | none | [phase-3-loop-composition-patches.md](phase-3-loop-composition-patches.md) |
+| 3: Loop Composition Patches | completed | medium | none | [phase-3-loop-composition-patches.md](phase-3-loop-composition-patches.md) |
 | 4: Independent New Members | pending | medium | orchestrate | [phase-4-independent-new-members.md](phase-4-independent-new-members.md) |
 | 5: Tracker Init & Triage | pending | hard | none | [phase-5-tracker-init-and-triage.md](phase-5-tracker-init-and-triage.md) |
 
@@ -102,7 +102,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Live Defects — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Design Vocabulary & b-diagnose — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Loop Composition Patches — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Loop Composition Patches — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Independent New Members — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: Tracker Init & Triage — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
