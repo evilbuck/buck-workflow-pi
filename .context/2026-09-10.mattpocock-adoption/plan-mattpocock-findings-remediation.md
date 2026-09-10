@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-10
 subject: 2026-09-10.mattpocock-adoption
 topics: [mattpocock-skills, adoption, provenance, license, b-diagnose, b-review, skill-catalog]
@@ -182,25 +182,25 @@ tracker integration). Rejected outright (audit §08): `implement`, `to-spec`, `r
 
 ## Acceptance criteria
 
-- [ ] `grep -ri 'mattpocock' .` returns matches in `THIRD-PARTY-NOTICES.md`, both format files, and
+- [x] `grep -ri 'mattpocock' .` returns matches in `THIRD-PARTY-NOTICES.md`, both format files, and
       `skills/b-grill-with-docs/SKILL.md`; the upstream MIT copyright line is present verbatim.
-- [ ] `npm pack --dry-run` lists `THIRD-PARTY-NOTICES.md`.
-- [ ] `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` exist; `b-issue-create` reads
+- [x] `npm pack --dry-run` lists `THIRD-PARTY-NOTICES.md`.
+- [x] `docs/agents/issue-tracker.md` and `docs/agents/triage-labels.md` exist; `b-issue-create` reads
       them conditionally; no skill references a path that does not exist.
-- [ ] `skills/b-research/SKILL.md` states background-subagent dispatch as the default and matches
+- [x] `skills/b-research/SKILL.md` states background-subagent dispatch as the default and matches
       `GLOBAL_OR_PROJECT-AGENTS.md` § b-research verbatim in intent.
-- [ ] `/b-diagnose` resolves in a reloaded session and refuses to hypothesize before a named command
+- [x] `/b-diagnose` resolves in a reloaded session and refuses to hypothesize before a named command
       has gone red on the reported bug.
-- [ ] `b-review` spawns the standards axis as a separate agent and reports per-axis findings with no
+- [x] `b-review` spawns the standards axis as a separate agent and reports per-axis findings with no
       cross-axis ranking.
-- [ ] `b-build`'s TDD Plan step requires named, confirmed seams before the first RED.
-- [ ] Every new skill resolves by name in a reloaded session and appears in both README tables and
+- [x] `b-build`'s TDD Plan step requires named, confirmed seams before the first RED.
+- [x] Every new skill resolves by name in a reloaded session and appears in both README tables and
       all three `docs/buck-workflow.md` sites.
-- [ ] `README.md` and `docs/buck-workflow.md` tails are intact after every table edit (byte-compare
+- [x] `README.md` and `docs/buck-workflow.md` tails are intact after every table edit (byte-compare
       against `HEAD` for unrelated sections).
-- [ ] Tier 4 has one backlog item per deliverable, each linked from `todo.md`.
-- [ ] `/b-guardrails-check` verdict recorded; repo currently returns `contract: "none"` — record it,
-      do not silently pass.
+- [x] Tier 4 has one backlog item per deliverable, each linked from `todo.md`.
+- [x] `/b-guardrails-check` verdict recorded (durable v2 contract — the "none" premise was stale;
+      recorded verbatim for Phases 1 and 4, see session memory).
 
 ## Verification
 
