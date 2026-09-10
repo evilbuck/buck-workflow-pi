@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>mattpocock/skills — overlap &amp; adoption report · buck-workflow-pi</title>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "base",
+    securityLevel: "loose",
+    themeVariables: {
+      background: "#0d1117",
+      primaryColor: "#161b22",
+      primaryTextColor: "#e6edf3",
+      primaryBorderColor: "#30363d",
+      lineColor: "#7d8590",
+      secondaryColor: "#1f2937",
+      tertiaryColor: "#111827",
+      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+      fontSize: "13px"
+    }
+  });
+</script>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#11161d; --panel2:#161b22; --line:#262d36; --line2:#30363d;
+    --fg:#e6edf3; --dim:#9aa4b2; --dim2:#6e7781;
+    --accent:#7ee787; --accent2:#79c0ff; --warn:#f0b429; --bad:#ff7b72; --good:#3fb950;
+    --violet:#d2a8ff;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:15px/1.62 ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto;padding:0 28px 120px}
+  code,kbd,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.88em}
+  code{background:#1b2230;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:#cfe1ff}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* header */
+  header.masthead{
+    border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#131a24 0%, #0d1117 100%);
+    padding:56px 0 40px;margin-bottom:0;
+  }
+  header.masthead .wrap{padding-bottom:0}
+  .eyebrow{font:600 11px/1 ui-monospace,monospace;letter-spacing:.18em;text-transform:uppercase;color:var(--dim2)}
+  h1{font:700 40px/1.12 ui-serif,Georgia,"Times New Roman",serif;margin:14px 0 10px;letter-spacing:-.015em}
+  h1 .sub{color:var(--dim);font-weight:400}
+  .lede{color:var(--dim);max-width:74ch;font-size:16px;margin:0 0 22px}
+  .facts{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+  .fact{
+    border:1px solid var(--line2);border-radius:999px;padding:5px 13px;
+    font:500 12px/1 ui-monospace,monospace;color:var(--dim);background:#141a22;
+  }
+  .fact b{color:var(--fg);font-weight:600}
+
+  /* nav */
+  nav.toc{
+    position:sticky;top:0;z-index:20;background:rgba(13,17,23,.93);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);margin:0 0 44px;padding:11px 0;
+  }
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+  nav.toc a{font:500 12px/1 ui-monospace,monospace;color:var(--dim);padding:6px 10px;border-radius:5px;display:block}
+  nav.toc a:hover{background:#1b2230;color:var(--fg);text-decoration:none}
+
+  h2{
+    font:700 26px/1.2 ui-serif,Georgia,serif;margin:62px 0 6px;letter-spacing:-.01em;
+    padding-top:14px;border-top:1px solid var(--line);
+  }
+  h2 .n{color:var(--dim2);font-family:ui-monospace,monospace;font-size:15px;font-weight:600;margin-right:12px}
+  h3{font:650 17px/1.3 ui-sans-serif,system-ui,sans-serif;margin:34px 0 8px}
+  h4{font:650 14px/1.3 ui-sans-serif,system-ui,sans-serif;margin:20px 0 6px;color:var(--dim)}
+  .h2sub{color:var(--dim);margin:0 0 24px;max-width:78ch}
+  p{max-width:82ch}
+
+  /* callouts */
+  .call{border-left:3px solid var(--line2);background:var(--panel);border-radius:0 8px 8px 0;padding:15px 18px;margin:20px 0}
+  .call.bad{border-left-color:var(--bad);background:#1d1416}
+  .call.warn{border-left-color:var(--warn);background:#1d1a12}
+  .call.good{border-left-color:var(--good);background:#0f1a13}
+  .call.info{border-left-color:var(--accent2);background:#101823}
+  .call .t{font:650 13px/1 ui-sans-serif,sans-serif;letter-spacing:.02em;text-transform:uppercase;margin-bottom:8px}
+  .call.bad .t{color:var(--bad)} .call.warn .t{color:var(--warn)}
+  .call.good .t{color:var(--good)} .call.info .t{color:var(--accent2)}
+  .call p{margin:6px 0}
+  .call p:last-child{margin-bottom:0}
+
+  /* tables */
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:10px;margin:22px 0;background:var(--panel)}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th{
+    text-align:left;font:600 11px/1.3 ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--dim2);padding:12px 14px;border-bottom:1px solid var(--line2);background:#0f141b;white-space:nowrap;
+  }
+  td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;color:#cbd5e1}
+  tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#141a23}
+  td.mono,th.mono{font-family:ui-monospace,monospace;font-size:12.5px}
+  td strong{color:var(--fg)}
+
+  /* badges */
+  .b{display:inline-block;font:600 10.5px/1 ui-monospace,monospace;letter-spacing:.05em;
+     text-transform:uppercase;padding:4px 8px;border-radius:4px;white-space:nowrap;border:1px solid}
+  .b-dup{color:#ff9492;border-color:#5c2b2b;background:#2a1618}
+  .b-strong{color:#f0b429;border-color:#5c4718;background:#241d10}
+  .b-partial{color:#79c0ff;border-color:#1f4a75;background:#0f1c2b}
+  .b-adj{color:#d2a8ff;border-color:#43307a;background:#1a1328}
+  .b-none{color:#7ee787;border-color:#255c33;background:#0f2016}
+  .b-p0{color:#0d1117;background:#7ee787;border-color:#7ee787}
+  .b-p1{color:#0d1117;background:#79c0ff;border-color:#79c0ff}
+  .b-p2{color:#0d1117;background:#d2a8ff;border-color:#d2a8ff}
+  .b-skip{color:var(--dim2);border-color:var(--line2);background:#12171e}
+  .b-loop{color:#7ee787;border-color:#255c33;background:#0f2016}
+  .b-solo{color:#d2a8ff;border-color:#43307a;background:#1a1328}
+  .b-patch{color:#f0b429;border-color:#5c4718;background:#241d10}
+
+  /* cards */
+  .grid{display:grid;gap:16px;margin:24px 0}
+  .grid.two{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .grid.three{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+  .card{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:18px 20px}
+  .card h3{margin:0 0 4px;font-size:16px}
+  .card .k{font:600 10.5px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);margin:14px 0 5px}
+  .card p{margin:0;font-size:13.5px;color:#c4cfdc}
+  .card ul{margin:4px 0 0;padding-left:18px;font-size:13.5px;color:#c4cfdc}
+  .card li{margin:4px 0}
+  .card .hdr{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+
+  .pair{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin:12px 0}
+  .pair>div{padding:13px 16px}
+  .pair>div:first-child{border-right:1px solid var(--line);background:#131820}
+  .pair .lbl{font:600 10.5px/1 ui-monospace,monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--dim2);margin-bottom:7px}
+  .pair p{font-size:13px;margin:0;color:#c4cfdc}
+
+  .mer{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:20px;margin:24px 0;overflow-x:auto}
+  .mer .cap{font:600 11px/1 ui-monospace,monospace;letter-spacing:.09em;text-transform:uppercase;color:var(--dim2);margin-bottom:14px}
+  .mer .mermaid svg{min-width:880px}
+
+  ul.tight{padding-left:20px;max-width:82ch}
+  ul.tight li{margin:7px 0}
+  ol.steps{padding-left:22px;max-width:82ch}
+  ol.steps li{margin:9px 0}
+
+  footer{margin-top:70px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim2);font-size:12.5px}
+  .kv{display:grid;grid-template-columns:150px 1fr;gap:5px 16px;font-size:13px;margin:12px 0}
+  .kv dt{color:var(--dim2);font-family:ui-monospace,monospace;font-size:12px}
+  .kv dd{margin:0;color:#c4cfdc}
+
+  @media (max-width:720px){
+    .wrap{padding:0 16px 80px}
+    h1{font-size:29px}
+    .pair{grid-template-columns:1fr}
+    .pair>div:first-child{border-right:none;border-bottom:1px solid var(--line)}
+  }
+  @media print{
+    body{background:#fff;color:#111}
+    .card,.tw,.mer,.call{break-inside:avoid}
+    nav.toc{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="wrap">
+    <div class="eyebrow">External skill library audit · 2026-09-10</div>
+    <h1>mattpocock/skills <span class="sub">× buck-workflow-pi</span></h1>
+    <p class="lede">
+      Overlap analysis of 37 upstream skills (18 engineering) against this repo's 54 canonical skills,
+      plus an adoption plan classifying each candidate as <em>fold into the buck loop</em>,
+      <em>new loop member</em>, <em>standalone reference</em>, or <em>skip</em>.
+    </p>
+    <div class="facts">
+      <span class="fact">upstream <b>3cca18b</b> · 2026-09-04</span>
+      <span class="fact">local <b>f797174</b> · 2026-09-09</span>
+      <span class="fact">upstream skills <b>37</b></span>
+      <span class="fact">local skills <b>54</b></span>
+      <span class="fact">duplicate / strong overlap <b>11</b></span>
+      <span class="fact">genuine gaps <b>9</b></span>
+      <span class="fact">recommended adoptions <b>10</b></span>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap" style="padding-bottom:0;padding-top:0">
+    <ol>
+      <li><a href="#tldr">TL;DR</a></li>
+      <li><a href="#provenance">Provenance</a></li>
+      <li><a href="#matrix">Overlap matrix</a></li>
+      <li><a href="#deep">Overlap deep-dives</a></li>
+      <li><a href="#gaps">Gaps</a></li>
+      <li><a href="#integration">Integration map</a></li>
+      <li><a href="#plan">Adoption plan</a></li>
+      <li><a href="#skip">Rejected</a></li>
+      <li><a href="#method">Method</a></li>
+    </ol>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="tldr"><span class="n">01</span>TL;DR</h2>
+<p class="h2sub">Six findings that decide everything below.</p>
+
+<div class="grid two">
+  <div class="card">
+    <div class="hdr"><h3>The workflow spine is already ours</h3><span class="b b-strong">strong overlap</span></div>
+    <p>Upstream's main flow — <code>grill → to-spec → to-tickets → implement → code-review</code> — maps almost 1:1 onto
+    <code>b-grill → b-plan/b-nasa-prd → b-phase → b-build → b-review</code>. Ours is deeper at every station
+    (subject folders, cross-references, guardrails ratchet, phased state machine, memory). <strong>Do not port the spine.</strong></p>
+  </div>
+  <div class="card">
+    <div class="hdr"><h3>Part of it is already ported — unattributed</h3><span class="b b-dup">provenance</span></div>
+    <p><code>skills/b-grill-with-docs/CONTEXT-FORMAT.md</code> and <code>ADR-FORMAT.md</code> are near-verbatim copies of
+    upstream <code>engineering/domain-modeling/</code>. Zero attribution anywhere in the repo. Fix before publishing.</p>
+  </div>
+  <div class="card">
+    <div class="hdr"><h3>Two skills read config nothing writes</h3><span class="b b-none">dangling dep</span></div>
+    <p><code>b-issue-create</code> and <code>fix-pr</code> both consume <code>docs/agents/issue-tracker.md</code>,
+    <code>docs/agents/triage-labels.md</code>, and the <code>ready-for-agent</code>/<code>needs-triage</code> vocabulary.
+    <strong>None of those files exist here</strong>, and no skill produces them. Upstream's
+    <code>setup-matt-pocock-skills</code> is the missing producer.</p>
+  </div>
+  <div class="card">
+    <div class="hdr"><h3>We have no debugging skill at all</h3><span class="b b-p0">P0 gap</span></div>
+    <p>The global bootstrap routes "reproducible bug, runtime error" to a <em>systematic-debugger</em> role that does not exist
+    as a skill. Upstream <code>diagnosing-bugs</code> is the single highest-value adoption in the repo.</p>
+  </div>
+  <div class="card">
+    <div class="hdr"><h3>Review is split across four skills, none two-axis</h3><span class="b b-patch">patch b-review</span></div>
+    <p>Upstream runs <strong>Standards</strong> and <strong>Spec</strong> as parallel sub-agents so neither masks the other.
+    We have the Spec axis (<code>b-review</code>, single-agent) and the Standards axis
+    (<code>code-review-universal</code>, <code>code-smells</code>) in different skills that never run together.</p>
+  </div>
+  <div class="card">
+    <div class="hdr"><h3>This repo is a skills factory with no writing standard</h3><span class="b b-p1">P1 gap</span></div>
+    <p><code>writing-for-agents</code> is a reference for authoring skills and <code>AGENTS.md</code> — context pointers,
+    the two loads, progressive disclosure, leading words, no-op hunting. We ship 54 skills and have no such reference.
+    It also directly serves the ongoing bootstrap-consolidation work.</p>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="provenance"><span class="n">02</span>Provenance findings</h2>
+<p class="h2sub">Two facts that need action independent of any adoption decision.</p>
+
+<div class="call bad">
+  <div class="t">Unattributed derivation</div>
+  <p><code>diff engineering/domain-modeling/CONTEXT-FORMAT.md skills/b-grill-with-docs/CONTEXT-FORMAT.md</code> differs only by
+  em-dash restyling plus three additive sections (<em>Relationships</em>, <em>Example dialogue</em>, <em>Flagged ambiguities</em>).
+  <code>ADR-FORMAT.md</code> differs by punctuation alone — the three-condition ADR gate
+  ("hard to reverse / surprising without context / result of a real trade-off") is verbatim.</p>
+  <p>The subagent that read <code>b-grill-with-docs/SKILL.md</code> reported the origin as
+  <em>"internal composition, no external attribution"</em> — which is exactly the failure mode: the skill body claims
+  it is "<code>b-grill-me</code> plus doc awareness" and names no upstream. Skill name, reference filenames, and
+  the ADR gate all come from <code>mattpocock/skills</code>.</p>
+  <p><strong>Action:</strong> add a one-line provenance note to <code>skills/b-grill-with-docs/SKILL.md</code> and both format
+  files. The upstream repo is public; the cost is a sentence.</p>
+</div>
+
+<div class="call warn">
+  <div class="t">Dangling configuration dependency</div>
+  <p>Grep evidence in this repo:</p>
+  <ul class="tight">
+    <li><code>skills/b-issue-create/SKILL.md:37-39</code> — reads <code>docs/agents/issue-tracker.md</code> and <code>docs/agents/triage-labels.md</code></li>
+    <li><code>skills/b-issue-create/SKILL.md:177-191</code> — prefers label <code>ready-for-agent</code>, else <code>needs-triage</code></li>
+    <li><code>skills/fix-pr/SKILL.md:247</code> — same label vocabulary</li>
+  </ul>
+  <p>Filesystem check: <code>docs/agents/issue-tracker.md</code> <strong>missing</strong>,
+  <code>docs/agents/triage-labels.md</code> <strong>missing</strong>, <code>docs/agents/domain.md</code> <strong>missing</strong>,
+  <code>docs/adr/</code> <strong>missing</strong>, <code>CONTEXT.md</code> present.</p>
+  <p><strong>Action:</strong> either write those files for this repo, or port a trimmed
+  <code>setup-matt-pocock-skills</code> as <code>b-init-tracker</code>. Cheapest correct fix in the whole report.</p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="matrix"><span class="n">03</span>Overlap matrix</h2>
+<p class="h2sub">
+  <span class="b b-dup">duplicate</span> same job, same mechanics ·
+  <span class="b b-strong">strong</span> same job, ours or theirs materially deeper ·
+  <span class="b b-partial">partial</span> job split across several of ours ·
+  <span class="b b-adj">adjacent</span> neighbouring job, different output ·
+  <span class="b b-none">none</span> no local counterpart
+</p>
+
+<h3>Engineering (18)</h3>
+<div class="tw">
+<table>
+<thead><tr>
+  <th class="mono">upstream</th><th>does</th><th class="mono">local counterpart</th><th>overlap</th><th>verdict</th>
+</tr></thead>
+<tbody>
+<tr><td class="mono"><strong>diagnosing-bugs</strong></td><td>6-phase bug loop: build a <em>tight red-capable feedback loop</em> first, minimise, 3–5 falsifiable hypotheses, instrument, regression-test, clean up tagged logs</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-p0">adopt P0</span></td></tr>
+<tr><td class="mono"><strong>code-review</strong></td><td>Two-axis diff review since a fixed point (Standards + Spec) as parallel sub-agents; 12 Fowler smells as fixed baseline; never re-ranks across axes</td><td class="mono">b-review · code-review-universal · code-smells</td><td><span class="b b-strong">strong</span></td><td><span class="b b-patch">patch b-review</span></td></tr>
+<tr><td class="mono"><strong>tdd</strong></td><td>Reference for the red-green loop: what a good test is, seams, three anti-patterns, "refactoring is not part of the loop"</td><td class="mono">b-build (§TDD Plan / Red / Green / Refactor)</td><td><span class="b b-strong">strong</span></td><td><span class="b b-patch">steal seams gate</span></td></tr>
+<tr><td class="mono"><strong>domain-modeling</strong></td><td>Active glossary discipline: challenge terms, invent boundary scenarios, cross-check code, update <code>CONTEXT.md</code>/ADRs inline</td><td class="mono">b-grill-with-docs · b-docs</td><td><span class="b b-dup">duplicate</span></td><td><span class="b b-skip">already ported</span></td></tr>
+<tr><td class="mono"><strong>grill-with-docs</strong></td><td>Two-line router: <code>grilling</code> + <code>domain-modeling</code></td><td class="mono">b-grill-with-docs</td><td><span class="b b-dup">duplicate</span></td><td><span class="b b-skip">have it</span></td></tr>
+<tr><td class="mono"><strong>research</strong></td><td>Background agent, primary sources only, one cited markdown file in repo convention</td><td class="mono">b-research</td><td><span class="b b-strong">strong (ours deeper)</span></td><td><span class="b b-patch">fix background drift</span></td></tr>
+<tr><td class="mono"><strong>resolving-merge-conflicts</strong></td><td>Hunk-by-hunk by intent traced to primary sources; run checks; finish; never <code>--abort</code></td><td class="mono">b-fix-rebase-conflict</td><td><span class="b b-strong">strong (ours deeper)</span></td><td><span class="b b-skip">skip</span></td></tr>
+<tr><td class="mono"><strong>implement</strong></td><td>9 lines: drive <code>/tdd</code>, typecheck, full suite once, <code>/code-review</code>, commit</td><td class="mono">b-build · b-build-hard</td><td><span class="b b-strong">strong (ours deeper)</span></td><td><span class="b b-skip">skip</span></td></tr>
+<tr><td class="mono"><strong>to-spec</strong></td><td>Conversation → spec (problem, solution, long user-story list, implementation/testing decisions, out-of-scope) → publish to tracker</td><td class="mono">b-plan · b-nasa-prd · b-issue-create</td><td><span class="b b-strong">strong</span></td><td><span class="b b-skip">skip, steal 2 rules</span></td></tr>
+<tr><td class="mono"><strong>to-tickets</strong></td><td>Spec → tracer-bullet vertical slices, each declaring <em>blocking edges</em>; work the ready frontier; expand–contract for wide refactors</td><td class="mono">b-phase (HARD/SOFT/NONE deps)</td><td><span class="b b-partial">partial</span></td><td><span class="b b-patch">steal frontier</span></td></tr>
+<tr><td class="mono"><strong>improve-codebase-architecture</strong></td><td>Scan hot spots for shallow modules → self-contained HTML report of deepening candidates → grill the chosen one</td><td class="mono">code-smells (audit+report) · b-blueprint (HTML)</td><td><span class="b b-partial">partial</span></td><td><span class="b b-p2">merge idea</span></td></tr>
+<tr><td class="mono"><strong>ask-matt</strong></td><td>Router skill over the library: main flow, on-ramps, standalone, phase-boundary decision tree</td><td class="mono">README + docs/buck-workflow.md (docs, not a skill)</td><td><span class="b b-partial">partial</span></td><td><span class="b b-p1">adopt adapted</span></td></tr>
+<tr><td class="mono"><strong>triage</strong></td><td>Inbound issues/external PRs through a 5-state × 2-category machine; verify the claim; grill; write durable agent briefs; <code>.out-of-scope/</code> KB</td><td class="mono">— (fix-pr and b-pr-review-2-issues are <em>outbound</em>)</td><td><span class="b b-none">none</span></td><td><span class="b b-p1">adopt adapted</span></td></tr>
+<tr><td class="mono"><strong>wizard</strong></td><td>Generates an interactive bash script driving a <em>human</em> through steps only they can do (dashboards, secrets, cutovers); ships <code>template.sh</code></td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-p1">adopt</span></td></tr>
+<tr><td class="mono"><strong>codebase-design</strong></td><td>Deep-module vocabulary: module, interface, depth, seam, adapter, leverage, locality; deletion test; design-it-twice fan-out</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-p1">adopt as reference</span></td></tr>
+<tr><td class="mono"><strong>prototype</strong></td><td>Throwaway code answering one design question — single shareable HTML (logic/state) or N switchable UI variants; kept as a primary source on a branch</td><td class="mono">design-brief · b-create-ux-guide (adjacent)</td><td><span class="b b-adj">adjacent</span></td><td><span class="b b-p2">adopt</span></td></tr>
+<tr><td class="mono"><strong>wayfinder</strong></td><td>Fog-of-war map of <em>decision</em> tickets on the tracker for efforts too big for one session; resolves one per session; produces decisions, not deliverables</td><td class="mono">b-phase (execution phases) · b-arch-qa</td><td><span class="b b-adj">adjacent</span></td><td><span class="b b-p2">evaluate</span></td></tr>
+<tr><td class="mono"><strong>setup-matt-pocock-skills</strong></td><td>Per-repo config: <code>docs/agents/issue-tracker.md</code>, triage labels, domain-doc layout, <code>## Agent skills</code> block</td><td class="mono">— (but consumed by b-issue-create, fix-pr)</td><td><span class="b b-none">none</span></td><td><span class="b b-p0">adopt trimmed</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Productivity, misc, in-progress (19)</h3>
+<div class="tw">
+<table>
+<thead><tr><th class="mono">upstream</th><th>bucket</th><th class="mono">local counterpart</th><th>overlap</th><th>verdict</th></tr></thead>
+<tbody>
+<tr><td class="mono">grilling</td><td>productivity</td><td class="mono">b-grill (core loop)</td><td><span class="b b-dup">duplicate</span></td><td><span class="b b-patch">steal round-frontier</span></td></tr>
+<tr><td class="mono">grill-me</td><td>productivity</td><td class="mono">b-grill-me</td><td><span class="b b-dup">duplicate</span></td><td><span class="b b-skip">have it</span></td></tr>
+<tr><td class="mono"><strong>writing-for-agents</strong></td><td>productivity</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-p1">adopt</span></td></tr>
+<tr><td class="mono"><strong>handoff</strong></td><td>productivity</td><td class="mono">b-recap (chat-only) · b-save (durable record)</td><td><span class="b b-adj">adjacent</span></td><td><span class="b b-p1">adopt small</span></td></tr>
+<tr><td class="mono">to-questionnaire</td><td>productivity</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-p2">optional</span></td></tr>
+<tr><td class="mono">wait-what</td><td>productivity</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (one-line prompt)</span></td></tr>
+<tr><td class="mono">teach</td><td>productivity</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (off-mission)</span></td></tr>
+<tr><td class="mono">setup-pre-commit</td><td>misc</td><td class="mono">b-init-guardrails</td><td><span class="b b-partial">partial (ours deeper)</span></td><td><span class="b b-skip">skip</span></td></tr>
+<tr><td class="mono">git-guardrails-claude-code</td><td>misc</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (CC hooks only)</span></td></tr>
+<tr><td class="mono">migrate-to-shoehorn</td><td>misc</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (TS-lib specific)</span></td></tr>
+<tr><td class="mono">scaffold-exercises</td><td>misc</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (courseware)</span></td></tr>
+<tr><td class="mono"><strong>implement-spec</strong></td><td>in-progress</td><td class="mono">b-auto-fix (sequential worktree per issue)</td><td><span class="b b-partial">partial</span></td><td><span class="b b-p2">steal frontier fan-out</span></td></tr>
+<tr><td class="mono"><strong>retro</strong></td><td>in-progress (stub)</td><td class="mono">b-save · learn/retain</td><td><span class="b b-adj">adjacent</span></td><td><span class="b b-p2">adopt idea</span></td></tr>
+<tr><td class="mono">setup-ts-deep-modules</td><td>in-progress</td><td class="mono">—</td><td><span class="b b-none">none</span></td><td><span class="b b-skip">skip (niche)</span></td></tr>
+<tr><td class="mono">claude-handoff</td><td>in-progress</td><td class="mono">OMP <code>task</code>/<code>agent()</code></td><td><span class="b b-adj">adjacent</span></td><td><span class="b b-skip">skip (harness has it)</span></td></tr>
+<tr><td class="mono">loop-me</td><td>in-progress</td><td class="mono">b-grill · b-loop</td><td><span class="b b-partial">partial</span></td><td><span class="b b-skip">skip (name collision)</span></td></tr>
+<tr><td class="mono">writing-beats / -fragments / -shape</td><td>in-progress</td><td class="mono">b-writer</td><td><span class="b b-partial">partial</span></td><td><span class="b b-skip">skip</span></td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="deep"><span class="n">04</span>Overlap deep-dives</h2>
+<p class="h2sub">The five overlaps where the difference is load-bearing, not cosmetic.</p>
+
+<h3>1 · Code review — we have both axes, never in parallel</h3>
+<div class="pair">
+  <div>
+    <div class="lbl">upstream <code>code-review</code></div>
+    <p>Pins a fixed point, resolves the spec from commit-message issue refs, then spawns <strong>two sub-agents in parallel</strong>:
+    Standards (repo standards + 12 Fowler smells pasted in full) and Spec (missing / scope-creep / wrong-implementation, quoting the spec line).
+    Aggregates <em>without merging or re-ranking</em> — the separation is the point. Both under 400 words.</p>
+  </div>
+  <div>
+    <div class="lbl">local</div>
+    <p><code>b-review</code> is the Spec axis and the workflow gate: completion matrix with evidence tiers, guardrails contract,
+    in-plan vs out-of-plan routing, <code>iterate-*.md</code>. Single-agent, no fan-out.
+    <code>code-review-universal</code> is the Standards axis with 20+ language guides but no spec contract and no gate.
+    <code>code-smells</code> has 23 smells (superset of the 12) but audits a <em>codebase</em>, not a diff.</p>
+  </div>
+</div>
+<div class="call info">
+  <div class="t">Take</div>
+  <p>Ours is stronger per axis and weaker in composition. Two concrete patches to <code>b-review</code>:
+  (a) run the standards pass as a parallel <code>task</code> sub-agent seeded with <code>code-review-universal</code>'s
+  reference guides so it cannot pollute the acceptance-contract context;
+  (b) adopt the <strong>no-reranking rule</strong> — report per-axis worst finding, never a single winner.
+  A diff-scoped subset of the <code>code-smells</code> catalog is the natural Standards baseline; it already exists.</p>
+</div>
+
+<h3>2 · TDD — we have the loop, they have the seam gate</h3>
+<div class="pair">
+  <div>
+    <div class="lbl">upstream <code>tdd</code></div>
+    <p>Reference, not a procedure. Three rules that bite: <strong>test only at pre-agreed seams</strong> ("no test is written at
+    an unconfirmed seam"); three named anti-patterns (implementation-coupled, <strong>tautological</strong>, horizontal slicing);
+    and "refactoring is not part of the loop — it belongs to review".</p>
+  </div>
+  <div>
+    <div class="lbl">local <code>b-build</code></div>
+    <p>Mandatory red-green-refactor, one test per behaviour, Playwright-first for UI with a verified RED phase, phased-plan state
+    machine, guardrails closeout. Has a TDD Plan step with user approval on behaviours — but confirms <em>behaviours</em>,
+    not <em>seams</em>, and refactor lives inside the loop.</p>
+  </div>
+</div>
+<div class="call info">
+  <div class="t">Take</div>
+  <p>Add <code>skills/b-build/references/seams.md</code> and one line to the TDD Plan step: name the seams under test and
+  confirm them before the first RED. The tautological-test anti-pattern is worth lifting verbatim — the global bootstrap
+  bans padding tests but never names <em>this</em> failure, where the assertion recomputes the expected value the way the code does.</p>
+</div>
+
+<h3>3 · Grilling — one question at a time vs the whole frontier</h3>
+<div class="pair">
+  <div>
+    <div class="lbl">upstream <code>grilling</code></div>
+    <p>Works the design tree in <strong>rounds</strong>. The frontier is every decision whose prerequisites are settled;
+    ask <em>the whole frontier in one round</em>, numbered, each with a recommended answer. "Finding facts is your job, never the user's" —
+    dispatch a sub-agent for environment facts and only block the questions downstream of it. Done when the frontier is empty.</p>
+  </div>
+  <div>
+    <div class="lbl">local <code>b-grill*</code></div>
+    <p>One question at a time with a recommended answer. Adds what upstream lacks: question taxonomy, decision-domain tracking,
+    a soft assessment threshold (default 20) that triggers a separation-of-concerns evaluation feeding <code>b-phase</code>,
+    durable <code>grill-session-*.md</code>, an auto-mode that answers via a <em>different model</em> over Pi RPC and records divergence.</p>
+  </div>
+</div>
+<div class="call info">
+  <div class="t">Take</div>
+  <p>Ours is the richer skill; upstream has the better <em>pacing primitive</em>. Round batching cuts a 20-question grill from
+  20 turns to ~5 without losing dependency ordering, and the "facts are the agent's job, dispatch a sub-agent, don't block the
+  rest of the frontier" rule is a straight improvement. Offer it as a mode, not a replacement — one-at-a-time is better for
+  dictation-style sessions.</p>
+</div>
+
+<h3>4 · Tickets — dependency typing vs a grabbable frontier</h3>
+<div class="pair">
+  <div>
+    <div class="lbl">upstream <code>to-tickets</code> + <code>implement-spec</code></div>
+    <p>Vertical tracer-bullet slices, each sized to one fresh context window, each declaring blocking edges as
+    <em>native tracker links</em> so the frontier renders in the tracker UI. <code>implement-spec</code> then runs implementer
+    sub-agents across the ready frontier in parallel worktrees, merges each into one PR branch, recomputes the frontier,
+    and runs <code>/code-review</code> at the end. Wide refactors get an explicit expand–contract sequence.</p>
+  </div>
+  <div>
+    <div class="lbl">local <code>b-phase</code> + <code>b-auto-fix</code></div>
+    <p><code>b-phase</code> is the only local skill that types dependencies (HARD / SOFT / NONE), writes a dependency matrix,
+    sets <code>depends_on</code>, and notes parallel opportunities — but execution is still "phase N, then N+1".
+    <code>b-auto-fix</code> runs <em>one issue per worktree, sequentially</em> through research→plan→build→review.</p>
+  </div>
+</div>
+<div class="call info">
+  <div class="t">Take</div>
+  <p>We already compute the graph and then throw the parallelism away. Two cheap wins:
+  (a) <code>b-phase</code> emits an explicit <em>ready frontier</em> (phases with all HARD deps satisfied) instead of only a linear order;
+  (b) <code>b-auto-fix</code> gains a frontier mode that runs the NONE-dependency set concurrently and merges per completion.
+  The expand–contract recipe for wide refactors has no local equivalent and is worth a section in <code>b-phase</code>.</p>
+</div>
+
+<h3>5 · Research — the skill contradicts the bootstrap</h3>
+<div class="call warn">
+  <div class="t">Live drift</div>
+  <p>The global bootstrap says: "<em>b-research — Always delegate to a subagent. Never bundle external research into the main
+  agent's context. Run asynchronously when helpful.</em>" <code>skills/b-research/SKILL.md</code> describes no background or
+  sub-agent dispatch at all — it reads as a foreground procedure. Upstream <code>research</code> is three sentences and its
+  <em>first</em> word is "Spin up a background agent".</p>
+  <p>Ours is otherwise far deeper (incremental write-gate, source dictionary, <code>sources-*.md</code> with access dates and
+  quotes, canonical consolidation every 3–5 sources, <code>informs:</code> cross-refs). Only the dispatch mode is missing.
+  <strong>Nothing to port — a drift to close.</strong></p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="gaps"><span class="n">05</span>Genuine gaps</h2>
+<p class="h2sub">Nine capabilities upstream has that this repo has no counterpart for.</p>
+
+<div class="grid two">
+
+  <div class="card">
+    <div class="hdr"><h3>diagnosing-bugs</h3><span class="b b-p0">P0</span></div>
+    <p><strong>Why it matters here:</strong> the global bootstrap's task-routing table sends "reproducible bug, runtime error"
+    to <em>systematic debugging</em> — a role with no skill behind it. <code>b-build</code> assumes you know what to build;
+    <code>b-iterate</code> assumes the defect is already written down in <code>iterate-*.md</code>.
+    Nothing owns <em>"it's broken and we don't know why"</em>.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Phase 1 is the whole skill: refuse to hypothesise until one named command already went red on <em>this</em> bug —
+    tight, deterministic, fast, agent-runnable. Ten ranked ways to construct one, from failing test down to a
+    human-in-the-loop bash driver.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> New on-ramp <code>/b-diagnose</code>. Feeds <code>b-iterate</code> (fix in place)
+    or <code>b-plan</code> (architectural). Its Phase 5 "no correct seam exists — that itself is the finding" hands off to
+    <code>code-smells</code>, exactly like upstream hands off to <code>improve-codebase-architecture</code>.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>triage</h3><span class="b b-p1">P1</span></div>
+    <p><strong>Why it matters here:</strong> every issue-facing skill we own points <em>outward</em> —
+    <code>b-issue-create</code> publishes, <code>fix-pr</code> and <code>b-pr-review-2-issues</code> consume our own PR feedback,
+    <code>b-auto-fix</code> executes already-ready issues. Nothing turns a raw inbound report into a
+    <code>ready-for-agent</code> issue, which is precisely the state <code>b-auto-fix</code> requires as input.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Redundancy + prior-rejection checks before anything else; <em>verify the claim</em> (reproduce the bug, check out the PR)
+    before grilling; durable agent briefs written behaviourally with no file paths or line numbers because the issue may sit for weeks;
+    a <code>.out-of-scope/</code> knowledge base so the same rejected request is not re-litigated.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> Inbound on-ramp: <code>/b-triage</code> → <code>b-issue-create</code> (or direct label)
+    → <code>b-auto-fix</code>. Closes the loop we currently only half-own. Depends on the tracker config below.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>writing-for-agents</h3><span class="b b-p1">P1</span></div>
+    <p><strong>Why it matters here:</strong> this repo's entire product is documents agents consume. It also directly serves the
+    open bootstrap-consolidation work (<code>GLOBAL_OR_PROJECT-AGENTS.md</code> duplicate-policy audits).</p>
+    <div class="k">the load-bearing idea</div>
+    <p><em>Context load</em> (tokens every turn) vs <em>cognitive load</em> (the human as index); the information hierarchy
+    (in-file step → in-file reference → disclosed reference); completion criteria graded on clarity and demand;
+    <em>leading words</em> that recruit pretrained priors; and the <strong>no-op test</strong> — does this sentence change behaviour
+    versus the default? Plus: negation makes the forbidden behaviour <em>more</em> available, so prompt the positive.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-solo">standalone</span> Model-invoked reference. Pull it in from <code>b-init-factory</code> and from any
+    session editing <code>AGENTS.md</code>/<code>SKILL.md</code>. No loop position.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>codebase-design</h3><span class="b b-p1">P1</span></div>
+    <p><strong>Why it matters here:</strong> <code>b-plan</code>, <code>b-build</code>, <code>code-smells</code> and
+    <code>b-arch-qa</code> all discuss module shape with no shared vocabulary, so each session re-invents "service" /
+    "component" / "boundary".</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Seven terms used exactly (module, interface, implementation, depth, seam, adapter, leverage, locality); depth defined as
+    <em>leverage at the interface</em>, explicitly rejecting Ousterhout's line-ratio; the <strong>deletion test</strong>;
+    "the interface is the test surface"; "one adapter is a hypothetical seam, two is a real one".
+    <code>DESIGN-IT-TWICE.md</code> adds a 3–4 way parallel sub-agent interface bake-off.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-solo">standalone</span> Vocabulary reference underneath <code>b-plan</code>, <code>b-build</code> (seams),
+    <code>code-smells</code>, and any adopted <code>b-diagnose</code>. Pairs with the seams gate above.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>wizard</h3><span class="b b-p1">P1</span></div>
+    <p><strong>Why it matters here:</strong> zero local skills generate a runnable script for a <em>human</em>.
+    Every credential setup, dashboard walk, and one-off cutover is currently re-explained to an agent from scratch.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>The UX is pre-solved in <code>template.sh</code> (8.5 KB: staged progress, confirmation gates, cross-platform URL open
+    including WSL, hidden secret entry, idempotent <code>.env</code> upserts, <code>gh secret</code> writes). The skill only scopes
+    stages and authors them. Verified statically — never run end-to-end, since it blocks on human input.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-solo">standalone</span> Model-invoked; fires when an agent hits a wall only a human can pass.
+    Optional tie-in: <code>b-init-guardrails</code> could emit a wizard when tooling needs credentials.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>setup-matt-pocock-skills → <code>b-init-tracker</code></h3><span class="b b-p0">P0</span></div>
+    <p><strong>Why it matters here:</strong> it is the missing producer for config <code>b-issue-create</code> and
+    <code>fix-pr</code> already read. Adopting a trimmed version costs an hour and removes a live inconsistency.</p>
+    <div class="k">trim to</div>
+    <p>Section A (issue tracker: GitHub / GitLab / local markdown / other) and Section B (triage labels) only.
+    Section C (domain-doc layout) is already covered by <code>b-docs</code> + <code>CONTEXT.md</code>.
+    Its <code>## Agent skills</code> managed block is the same idempotent-marker pattern <code>b-init-guardrails</code> uses.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> One-shot repo init beside <code>b-init-guardrails</code>.
+    Hard prerequisite for an adopted <code>b-triage</code>.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>handoff</h3><span class="b b-p1">P1</span></div>
+    <p><strong>Why it matters here:</strong> <code>b-recap</code> is chat-only orientation and explicitly not a checkpoint;
+    <code>b-save</code> is a durable <em>historical record</em>, not a bootstrap prompt. Neither produces a portable document that
+    seeds a fresh agent — cross-harness (OMP → Claude Code), cross-directory, or cross-machine.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Write to the OS temp dir, <em>not</em> the workspace. Include a "suggested skills" section naming what the next agent should
+    load. Reference specs/plans/ADRs/commits by path or URL rather than duplicating them. Redact secrets.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> Sits at the session boundary next to <code>b-recap</code> and <code>b-save</code>.
+    Cheap: ~40 lines. Also unlocks the prototype detour (out-and-back handoff).</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>prototype</h3><span class="b b-p2">P2</span></div>
+    <p><strong>Why it matters here:</strong> <code>b-brainstorm</code>, <code>b-grill</code>, and <code>b-arch-qa</code> all try to
+    settle design questions in prose. Some questions ("does this state machine feel right?", "what should this look like?")
+    are not settleable in prose, and we have no cheap escape hatch — <code>design-brief</code> and <code>b-create-ux-guide</code>
+    document intent, they do not produce something to react to.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Branch on the question: state/logic → one shareable HTML file with free-play buttons and guided walkthroughs a
+    non-developer can drive; UI → several radically different variants on one route, switched by a URL param.
+    Throwaway is a constraint on <em>how it's written</em>, not a promise to destroy it — the artifact is kept as a
+    primary source on a <code>prototype/&lt;name&gt;</code> branch.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> Detour from <code>b-brainstorm</code>/<code>b-grill</code>, returning via
+    <code>b-handoff</code>. Its output is a decision that feeds <code>b-plan</code>.</p>
+  </div>
+
+  <div class="card">
+    <div class="hdr"><h3>wayfinder</h3><span class="b b-p2">P2 — evaluate</span></div>
+    <p><strong>Why it matters here:</strong> <code>b-phase</code> decomposes <em>execution</em> once the shape is known.
+    Nothing decomposes <em>uncertainty</em> when it isn't. The gap shows up as sprawling <code>b-brainstorm</code> sessions on
+    greenfield work.</p>
+    <div class="k">the load-bearing idea</div>
+    <p>Name the destination first (it fixes scope). Tickets are <em>decisions</em>, not slices. Four ticket types
+    (research AFK, prototype HITL, grilling HITL, task). <strong>Fog of war</strong>: don't chart what you can't phrase sharply yet —
+    ticket when the question is sharp even if blocked, fog when it isn't. Never resolve more than one ticket per session.
+    When the map clears, hand off to <code>to-spec</code>; do not loop straight into implementation.</p>
+    <div class="k">integration</div>
+    <p><span class="b b-loop">buck loop</span> if adopted: pre-<code>b-plan</code> on-ramp for multi-session efforts, terminating in
+    <code>b-plan</code>. <strong>Caveat:</strong> heaviest skill in the library, tracker-dependent, and overlaps
+    <code>b-brainstorm</code> + <code>b-grill</code> + <code>b-phase</code>. Adopt only after <code>b-triage</code> proves the
+    tracker integration works.</p>
+  </div>
+
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="integration"><span class="n">06</span>Integration map</h2>
+<p class="h2sub">Where each recommended adoption attaches. Green = new loop member, amber = patch to an existing skill, violet = standalone reference with no loop position.</p>
+
+<div class="mer">
+  <div class="cap">buck-workflow loop with proposed insertions</div>
+  <pre class="mermaid">
+flowchart TB
+  subgraph ONRAMP["on-ramps (new)"]
+    TRI["/b-triage<br/><i>inbound issues → ready-for-agent</i>"]
+    DIA["/b-diagnose<br/><i>tight red loop → cause → fix</i>"]
+  end
+
+  subgraph INTAKE["intake"]
+    BRA["/b-brainstorm"]
+    RES["/b-research"]
+    GRI["/b-grill*"]
+    PRO["/b-prototype<br/><i>new detour</i>"]
+  end
+
+  subgraph PLAN["plan"]
+    PLN["/b-plan · /b-nasa-prd"]
+    PHA["/b-phase"]
+    ISS["/b-issue-create"]
+  end
+
+  subgraph BUILD["build + verify"]
+    BLD["/b-build"]
+    REV["/b-review"]
+    ITR["/b-iterate"]
+    AUT["/b-auto-fix"]
+  end
+
+  subgraph CLOSE["close"]
+    DOC["/b-docs · /b-howto"]
+    HND["/b-handoff<br/><i>new</i>"]
+    SAV["/b-save → /b-commit"]
+  end
+
+  subgraph REF["standalone references (model-invoked)"]
+    CD["codebase-design<br/><i>seam vocabulary</i>"]
+    WFA["writing-for-agents"]
+    WIZ["/b-wizard"]
+    INIT["/b-init-tracker<br/><i>one-shot repo config</i>"]
+  end
+
+  TRI --> ISS
+  DIA --> ITR
+  DIA -.->|no seam exists| SMELL["code-smells"]
+  BRA --> GRI --> PLN
+  RES --> PLN
+  GRI -.->|unsettleable in prose| PRO
+  PRO -.->|decision| PLN
+  PLN --> PHA --> BLD
+  PLN --> ISS --> AUT
+  BLD --> REV
+  REV -->|in-plan| ITR --> REV
+  REV -->|out-of-plan| PLN
+  REV --> DOC --> SAV
+  REV --> SAV
+  SAV -.->|cross-harness| HND
+  INIT -.-> TRI
+  INIT -.-> ISS
+  CD -.-> BLD
+  CD -.-> SMELL
+  WFA -.-> REF2["AGENTS.md / SKILL.md edits"]
+
+  classDef new fill:#0f2016,stroke:#3fb950,color:#7ee787
+  classDef patch fill:#241d10,stroke:#f0b429,color:#f0b429
+  classDef solo fill:#1a1328,stroke:#8957e5,color:#d2a8ff
+  class TRI,DIA,PRO,HND,INIT new
+  class REV,BLD,PHA,RES,AUT,GRI patch
+  class CD,WFA,WIZ solo
+  </pre>
+</div>
+
+<div class="grid three">
+  <div class="card">
+    <div class="k">fold into existing skills</div>
+    <ul>
+      <li><code>b-review</code> — parallel Standards axis + no-reranking rule + diff-scoped Fowler baseline</li>
+      <li><code>b-build</code> — pre-agreed seams gate + tautological-test anti-pattern</li>
+      <li><code>b-research</code> — background dispatch (close bootstrap drift)</li>
+      <li><code>b-grill*</code> — optional round-frontier batching + sub-agent fact-finding</li>
+      <li><code>b-phase</code> — emit ready frontier; add expand–contract recipe for wide refactors</li>
+      <li><code>b-auto-fix</code> — frontier mode, concurrent worktrees, merger step</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="k">new loop members</div>
+    <ul>
+      <li><code>b-diagnose</code> — on-ramp before iterate/plan</li>
+      <li><code>b-triage</code> — inbound on-ramp before issue-create/auto-fix</li>
+      <li><code>b-prototype</code> — detour from brainstorm/grill</li>
+      <li><code>b-handoff</code> — session boundary beside recap/save</li>
+      <li><code>b-init-tracker</code> — one-shot config beside init-guardrails</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="k">standalone, no loop position</div>
+    <ul>
+      <li><code>codebase-design</code> — vocabulary consulted by others</li>
+      <li><code>writing-for-agents</code> — authoring reference</li>
+      <li><code>b-wizard</code> — fires when a human must act</li>
+      <li><code>b-retro</code> (optional) — improves the environment, not the code</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="plan"><span class="n">07</span>Adoption plan</h2>
+<p class="h2sub">Ordered by value ÷ effort. Effort assumes this repo's skill conventions: <code>skills/&lt;name&gt;/SKILL.md</code> + optional <code>references/</code>, <code>prompts/</code> wrapper, <code>commands/</code> symlink, README and <code>docs/buck-workflow.md</code> catalog rows, <code>.context/</code> artifacts.</p>
+
+<div class="tw">
+<table>
+<thead><tr><th>#</th><th class="mono">deliverable</th><th>type</th><th>why now</th><th>effort</th></tr></thead>
+<tbody>
+<tr><td><span class="b b-p0">P0</span></td><td class="mono">attribution note in <code>b-grill-with-docs</code></td><td><span class="b b-patch">patch</span></td><td>Verbatim upstream reference docs shipped with no credit in a public repo.</td><td class="mono">10 min</td></tr>
+<tr><td><span class="b b-p0">P0</span></td><td class="mono">b-init-tracker</td><td><span class="b b-loop">new</span></td><td>Two shipped skills read <code>docs/agents/*.md</code> that nothing writes and that do not exist here.</td><td class="mono">1–2 h</td></tr>
+<tr><td><span class="b b-p0">P0</span></td><td class="mono">b-diagnose</td><td><span class="b b-loop">new</span></td><td>Largest capability hole; the bootstrap already routes to a role with no skill.</td><td class="mono">3–4 h</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-review two-axis + no-rerank</td><td><span class="b b-patch">patch</span></td><td>Both axes already exist in separate skills; only composition is missing.</td><td class="mono">2–3 h</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-research background dispatch</td><td><span class="b b-patch">patch</span></td><td>Closes a live contradiction between the bootstrap and the skill body.</td><td class="mono">30 min</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-build seams gate + anti-patterns</td><td><span class="b b-patch">patch</span></td><td>Turns "confirm behaviours" into "confirm seams"; names the tautological test.</td><td class="mono">1–2 h</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">codebase-design</td><td><span class="b b-solo">reference</span></td><td>Prerequisite vocabulary for the seams gate, code-smells, and b-diagnose Phase 5.</td><td class="mono">1 h (port)</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">writing-for-agents</td><td><span class="b b-solo">reference</span></td><td>This repo authors skills for a living and has no standard; serves bootstrap consolidation.</td><td class="mono">1 h (port)</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-handoff</td><td><span class="b b-loop">new</span></td><td>Cross-harness/directory continuity that neither b-recap nor b-save provides.</td><td class="mono">45 min</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-triage</td><td><span class="b b-loop">new</span></td><td>Only missing inbound stage; feeds b-auto-fix its required input state. Needs b-init-tracker first.</td><td class="mono">3–4 h</td></tr>
+<tr><td><span class="b b-p1">P1</span></td><td class="mono">b-wizard (+ template.sh)</td><td><span class="b b-solo">reference</span></td><td>Template does the work; skill is thin. High leverage per line.</td><td class="mono">1–2 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-phase ready frontier + expand–contract</td><td><span class="b b-patch">patch</span></td><td>Graph is already computed and then discarded.</td><td class="mono">2 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-prototype</td><td><span class="b b-loop">new</span></td><td>Escape hatch for design questions prose can't settle.</td><td class="mono">2–3 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-grill round-frontier mode</td><td><span class="b b-patch">patch</span></td><td>~4× fewer turns per grill; keep one-at-a-time as the default for dictation.</td><td class="mono">1–2 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-auto-fix frontier concurrency</td><td><span class="b b-patch">patch</span></td><td>Sequential worktrees are the current throughput ceiling.</td><td class="mono">4 h+</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">code-smells depth axis + HTML</td><td><span class="b b-patch">patch</span></td><td>Add shallow-module detection and reuse b-blueprint for before/after visuals.</td><td class="mono">2–3 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-which (router)</td><td><span class="b b-solo">reference</span></td><td>54 skills, no in-agent router. Generate it from the catalog so it can't drift.</td><td class="mono">2 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">b-retro</td><td><span class="b b-solo">reference</span></td><td>Post-session environment improvement (navigation, checks, no-ops) — distinct from b-save's record.</td><td class="mono">1–2 h</td></tr>
+<tr><td><span class="b b-p2">P2</span></td><td class="mono">wayfinder</td><td><span class="b b-loop">evaluate</span></td><td>Real gap (decision decomposition) but heavy and overlapping. Gate on b-triage success.</td><td class="mono">defer</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="call good">
+  <div class="t">Suggested first slice</div>
+  <p>The three P0s plus the two 30–45 minute patches (<code>b-research</code> dispatch, <code>b-handoff</code>) are one session:
+  they remove two live inconsistencies and add the biggest missing capability. Everything else can be backlogged per item.</p>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="skip"><span class="n">08</span>Rejected, with reasons</h2>
+
+<div class="tw">
+<table>
+<thead><tr><th class="mono">upstream</th><th>reason</th></tr></thead>
+<tbody>
+<tr><td class="mono">implement</td><td>Nine lines. <code>b-build</code> already does everything it describes plus phased state, guardrails closeout, Playwright-first UI, and draft commits.</td></tr>
+<tr><td class="mono">to-spec</td><td><code>b-plan</code> + <code>b-nasa-prd</code> are stronger on requirement rigor. Worth stealing two rules only: exhaustive user-story lists, and "no file paths or code snippets in a spec — they go stale".</td></tr>
+<tr><td class="mono">resolving-merge-conflicts</td><td><code>b-fix-rebase-conflict</code> is a strict superset (analyze script, ours/theirs inversion table for rebase vs merge, confidence ratings, manual gate). The one upstream idea we lack is deliberate: they finish the rebase, we stop at a gate.</td></tr>
+<tr><td class="mono">domain-modeling · grill-with-docs · grill-me · grilling</td><td>Already ported into <code>b-grill*</code>. Only the round-frontier pacing is worth taking.</td></tr>
+<tr><td class="mono">setup-pre-commit</td><td><code>b-init-guardrails</code> supersedes it: stack detection, brownfield ratchet, coverage/complexity baselines, managed AGENTS.md block, idempotent refresh.</td></tr>
+<tr><td class="mono">git-guardrails-claude-code</td><td>Claude Code hook mechanism specifically; not portable to Pi/OMP/Codex, which is this repo's whole premise.</td></tr>
+<tr><td class="mono">migrate-to-shoehorn · scaffold-exercises · setup-ts-deep-modules</td><td>Single-library or courseware-specific. <code>setup-ts-deep-modules</code> is interesting as a dependency-cruiser recipe but is a per-repo action, not a workflow skill.</td></tr>
+<tr><td class="mono">teach · wait-what</td><td>Off-mission (<code>teach</code>) or a one-line prompt that needs no skill (<code>wait-what</code>).</td></tr>
+<tr><td class="mono">claude-handoff</td><td>OMP already has <code>task</code>/<code>agent()</code>/<code>hub</code> for background continuation. A generic <code>b-handoff</code> document covers the portable case.</td></tr>
+<tr><td class="mono">loop-me</td><td>Overlaps <code>b-grill</code> and collides with <code>b-loop</code>'s established meaning (OMP execution primitives).</td></tr>
+<tr><td class="mono">writing-beats / -fragments / -shape</td><td><code>b-writer</code> covers the long-form workshop with vault integration and persona selection.</td></tr>
+<tr><td class="mono">to-questionnaire</td><td>Genuine gap but low frequency for this repo. Cheap to add later if the need appears.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ─────────────────────────────────────────── -->
+<h2 id="method"><span class="n">09</span>Method &amp; sources</h2>
+
+<dl class="kv">
+  <dt>upstream</dt><dd><a href="https://github.com/mattpocock/skills">github.com/mattpocock/skills</a> — shallow clone at <code>3cca18b</code> (2026-09-04), 37 <code>SKILL.md</code> files across <code>engineering/</code>, <code>productivity/</code>, <code>misc/</code>, <code>in-progress/</code>.</dd>
+  <dt>local</dt><dd><code>buck-workflow-pi</code> at <code>f797174</code> (2026-09-09), 54 canonical skills, 12,246 lines of <code>SKILL.md</code>.</dd>
+  <dt>upstream read</dt><dd>All 18 engineering <code>SKILL.md</code> read in full, plus <code>HTML-REPORT.md</code>, <code>DESIGN-IT-TWICE.md</code>, <code>AGENT-BRIEF.md</code>, <code>CONTEXT-FORMAT.md</code>, <code>ADR-FORMAT.md</code>, and the four category READMEs. Productivity: <code>grilling</code>, <code>handoff</code>, <code>writing-for-agents</code>, <code>to-questionnaire</code>. In-progress: <code>implement-spec</code>, <code>retro</code>, <code>setup-ts-deep-modules</code>. Misc: <code>setup-pre-commit</code>.</dd>
+  <dt>local read</dt><dd>Four parallel read-only scouts produced invocation / input / procedure / output / workflow-position / distinctive-mechanics / gaps contracts for 32 local skills across the build-review, plan-ticket, grill-docs, and research-ops clusters.</dd>
+  <dt>provenance check</dt><dd><code>diff</code> of both format files against upstream; <code>grep</code> for <code>mattpocock|aihero|total-typescript</code> (no matches) and for <code>docs/agents/*</code>, <code>ready-for-agent</code>, <code>needs-triage</code> (matches in <code>b-issue-create</code>, <code>fix-pr</code>); filesystem existence check of the referenced config paths.</dd>
+  <dt>limits</dt><dd>Overlap buckets are qualitative judgements over skill <em>contracts</em>, not runtime behaviour. Effort estimates assume no new tooling. Nothing in this repo was modified to produce this report beyond writing it and its <code>.context/</code> research artifact.</dd>
+</dl>
+
+<footer>
+  Generated 2026-09-10 · buck-workflow-pi · <code>presentations/2026-09-10.mattpocock-skills-overlap/index.html</code><br />
+  Durable research artifact: <code>.context/2026-09-10.mattpocock-skills-overlap/research-mattpocock-skills-overlap.md</code>
+</footer>
+
+</div>
+</body>
+</html>

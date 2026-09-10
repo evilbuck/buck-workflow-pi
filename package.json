@@ -90,6 +90,7 @@
     "playwright:report": "npx playwright show-report",
     "context:index": "bun scripts/context-artifacts.ts index",
     "context:validate": "bun scripts/context-artifacts.ts validate",
+    "presentations:serve": "bun scripts/serve-presentations.ts",
     "prepublishOnly": "npm test",
     "release": "node scripts/publish.mjs"
   },
