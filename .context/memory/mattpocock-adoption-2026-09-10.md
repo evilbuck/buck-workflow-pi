@@ -107,3 +107,75 @@ Built via `/b-build-hard`, sequential A1 → A2.
   evidence; loader-reload criterion structurally verified via installer
   dry-run). Docs-only phase: guardrails contract skipped (no scripts/ or
   package.json changes).
+
+## Phase 3: Loop Composition Patches — COMPLETED 2026-09-10
+
+Built via `/b-build`.
+
+- **C1** `skills/b-review/SKILL.md` gained "Two Review Axes (Parallel Standards
+  Pass)" (+50 lines): standards axis = separate parallel `task` sub-agent
+  seeded with `code-review-universal` guides + diff-scoped `code-smells`
+  subset (with a named fallback for docs-only diffs); context isolation
+  rationale; no-reranking rule (worst finding per axis, never merged); named
+  portable sequential fallback. Report template gained a `### Review Axes`
+  block.
+- **C2** `skills/b-build/references/seams.md` (new) links to
+  `codebase-design` for the seam definition (does not restate it); names the
+  tautological-test anti-pattern with example. `skills/b-build/SKILL.md` TDD
+  Plan step gained exactly one line requiring named, confirmed seams before
+  the first RED.
+- **Smoke test**: the Phase 3 review itself ran under the patched two-axis
+  contract on a real diff — two agent outputs (spec axis mainline, standards
+  axis parallel sub-agent), per-axis worst findings, no merged ranking.
+  Fan-out cost measured: ~1m21s sub-agent wall time, ~10-15K tokens, 77% of
+  the code-smells catalog skipped by diff-scoping.
+- Review `review-phase-3.md`: **Pass** (confidence 0.92). 3 non-blocking
+  polish findings; 2 applied immediately (name the anti-padding-rules source
+  as "harness global bootstrap"; name the standards-seed fallback for
+  no-matching-language diffs). Docs-only phase: guardrails skipped.
+
+## Phase 4: Independent New Members — COMPLETED 2026-09-10
+
+Built via `/b-build` with 3-way fan-out (N1, N2, N5 — disjoint skill bodies;
+mainline owned README + docs/buck-workflow.md catalog rows serially).
+
+- **N1** `skills/b-handoff/SKILL.md` + `prompts/b-handoff.md` +
+  `commands/b-handoff.md` symlink — writes to OS temp dir (verified: wrote
+  to `$TMPDIR`, confirmed outside the repo workspace, no secret-shaped
+  strings), suggested-skills section, references artifacts by path/URL,
+  redacts secrets. Routing table vs `b-recap`/`b-save`.
+- **N2** `skills/writing-for-agents/SKILL.md` + `SKILL-MECHANICS.md` —
+  model-invoked reference (no wrapper, confirmed no prompts/commands
+  files). Covers all 6 required concepts (context vs cognitive load,
+  information hierarchy, completion criteria, leading words, no-op test,
+  prompt-the-positive).
+- **N5** `skills/b-wizard/SKILL.md` (thin) + `template.sh` (206 lines, +x)
+  + prompts/commands wrapper. Implements staged progress, WSL-aware URL
+  open (wslview→explorer.exe→cmd.exe/c start→xdg-open→open), hidden secret
+  entry, idempotent `.env` upsert, `gh secret`/`gh variable` write.
+- **Catalog**: README prompt+skills rows for b-handoff/b-wizard, skills-only
+  row for writing-for-agents; docs/buck-workflow.md primitives + quickref +
+  3 full sections — all additive, tails verified intact.
+- **Review round 1**: Needs work — 3 in-plan defects: (1)
+  THIRD-PARTY-NOTICES.md missing the 2 new ports, (2) b-wizard SKILL.md
+  overstated "confirms at every stage" vs template.sh's actual header-only
+  `stage()`, (3) standards-axis worst finding: `write_env`'s `mktemp` not
+  same-directory (cross-filesystem `mv` risk) plus unescaped grep-key
+  interpolation (regex metacharacters could corrupt `.env`).
+- **Fixes applied**: THIRD-PARTY-NOTICES.md extended with exactly the
+  Phase 4 ports (caught and reverted an over-eager first pass that also
+  added Phase 5's not-yet-committed b-init-tracker/b-triage — would have
+  been a dangling reference); softened b-wizard's confirm-gate prose;
+  `write_env`/`_existing` now use `mktemp "${ENV_FILE}.XXXXXX"` (atomic
+  same-directory rename) and escape the key for all ERE metacharacters
+  (`[][\.|$(){}?+*^]`) in both grep sites; `set_var` now pipes its value
+  via stdin like `set_secret` instead of argv. Smoke-tested with
+  `FOO.BAR` and `FOO+BAR` keys: no cross-contamination, clean
+  replace-in-place both times.
+- **Review round 2**: Pass (confidence 0.95). One non-blocking P3 note
+  (BRE-vs-ERE metachar coverage) — the fix already covers the realistic
+  class; not applied further.
+- Guardrails: complexity_gate fail is pre-existing drift at e33b0a8 (6
+  new-vs-baseline + 1 worsened hotspot, all untouched by this phase);
+  unit 499/499 pass, ratchet pass (72.9% > 54.9%), template.sh complexity
+  unmeasurable (lizard has no shell scope) — noted, not a gate failure.

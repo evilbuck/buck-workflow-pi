@@ -231,6 +231,10 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `/b-diagnose` | `b-diagnose` | Diagnose hard bugs/regressions — tight red-capable loop before any hypothesis |
+| `/b-handoff` | `b-handoff` | Portable cross-harness/-directory/-machine handoff doc (OS temp dir, redacted secrets) |
+| `/b-wizard` | `b-wizard` | Generate an interactive bash wizard for human-only setup steps (credentials, dashboards, cutovers) |
+| `/b-init-tracker` | `b-init-tracker` | Configure this repo's issue tracker + triage labels (idempotent) |
+| `/b-triage` | `b-triage` | Triage an inbound issue/PR — verify, grill if needed, write a behavioural agent brief |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
@@ -267,6 +271,11 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-diagnose` | Diagnosis loop for hard bugs/regressions — Phase 1 red-capable-loop gate, ranked falsifiable hypotheses, regression test at a correct seam |
 | `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |
+| `b-handoff` | Portable seed doc for a different agent/harness/machine — writes to OS temp dir, suggested-skills section, redacts secrets |
+| `writing-for-agents` | Reference for authoring skills/AGENTS.md/CLAUDE.md — context vs cognitive load, information hierarchy, completion criteria, leading words, no-op test, prompt-the-positive (skill-only, no slash wrapper) |
+| `b-wizard` | Generates a bash wizard walking a human through credential/dashboard/cutover steps only they can perform; `template.sh` does the work |
+| `b-init-tracker` | Configures docs/agents/issue-tracker.md + triage-labels.md and an idempotent AGENTS.md managed block (Sections A+B of the upstream setup skill; domain docs are b-docs' job) |
+| `b-triage` | Redundancy/prior-rejection check → verify the claim → grill → durable behavioural agent brief (no file paths/line numbers) → produces the ready-for-agent state b-auto-fix consumes |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |

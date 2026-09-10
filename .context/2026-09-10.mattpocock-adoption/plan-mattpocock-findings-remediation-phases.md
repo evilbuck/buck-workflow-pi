@@ -27,7 +27,7 @@ format: discrete
 | 1: Live Defects | completed | medium | orchestrate | [phase-1-live-defects.md](phase-1-live-defects.md) |
 | 2: Design Vocabulary & b-diagnose | completed | hard | none | [phase-2-design-vocabulary-and-diagnose.md](phase-2-design-vocabulary-and-diagnose.md) |
 | 3: Loop Composition Patches | completed | medium | none | [phase-3-loop-composition-patches.md](phase-3-loop-composition-patches.md) |
-| 4: Independent New Members | pending | medium | orchestrate | [phase-4-independent-new-members.md](phase-4-independent-new-members.md) |
+| 4: Independent New Members | completed | medium | orchestrate | [phase-4-independent-new-members.md](phase-4-independent-new-members.md) |
 | 5: Tracker Init & Triage | pending | hard | none | [phase-5-tracker-init-and-triage.md](phase-5-tracker-init-and-triage.md) |
 
 **Tier → phase map**: Tier 0 (D1–D3) + Tier 4 backlog capture → Phase 1 · Tier 1 (A1, A2) → Phase 2 · Tier 2 (C1, C2) → Phase 3 · Tier 3 independent (N1, N2, N5) → Phase 4 · Tier 3 dependent (N3, N4) → Phase 5.
@@ -103,7 +103,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [x] Phase 1: Live Defects — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Design Vocabulary & b-diagnose — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 3: Loop Composition Patches — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 4: Independent New Members — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 4: Independent New Members — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: Tracker Init & Triage — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes for Implementing Agents

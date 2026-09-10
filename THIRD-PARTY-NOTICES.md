@@ -20,6 +20,12 @@ prose lifted) from upstream `skills/`:
   (from upstream `skills/engineering/codebase-design/`)
 - `skills/b-diagnose/SKILL.md`
   (from upstream `skills/engineering/diagnosing-bugs/`)
+- `skills/b-handoff/SKILL.md`
+  (from upstream `skills/productivity/handoff/SKILL.md`)
+- `skills/writing-for-agents/SKILL.md`, `SKILL-MECHANICS.md`
+  (from upstream `skills/productivity/writing-for-agents/`)
+- `skills/b-wizard/SKILL.md`, `template.sh`
+  (from upstream `skills/engineering/wizard/`)
 
 Upstream license text (included verbatim, as required by the MIT license for
 substantial portions):

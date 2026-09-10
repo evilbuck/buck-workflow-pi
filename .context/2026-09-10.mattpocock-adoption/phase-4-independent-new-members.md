@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-mattpocock-findings-remediation.md
@@ -23,21 +23,21 @@ from_plan_steps: [8, 9, 12, 13]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] N1: b-handoff writes to the OS temp dir, NOT the workspace"
-  - "[ ] N1: b-handoff emits a 'suggested skills' section, references artifacts by path/URL instead of duplicating them, and redacts secrets"
-  - "[ ] N2: writing-for-agents covers context load vs cognitive load, information hierarchy, completion criteria, leading words, the no-op test, and prompt-the-positive"
-  - "[ ] N2: writing-for-agents has NO prompts/ or commands/ wrapper (model-invoked reference)"
-  - "[ ] N5: b-wizard/template.sh does the work; SKILL.md is thin"
-  - "[ ] N5: template.sh implements staged progress, confirmation gates, cross-platform URL open (including WSL), hidden secret entry, idempotent .env upsert, and `gh secret` write"
-  - "[ ] N5: template.sh passes `bash -n`; shellcheck run if available; verified statically (no live credential run)"
-  - "[ ] Wiring: prompts/ + commands/ symlinks exist for b-handoff and b-wizard only"
-  - "[ ] Catalog: b-handoff and b-wizard have rows in README '### Prompt Templates' AND '### Skills'; writing-for-agents in '### Skills' only"
-  - "[ ] Catalog: all three appear at docs/buck-workflow.md primitives table, quick-reference table, and a full section body"
-  - "[ ] All three skills resolve BY NAME in a reloaded session (loader-native resolution)"
-  - "[ ] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
-  - "[ ] /b-guardrails-check verdict recorded — template.sh makes this session code-touching"
-completed_at: null
-completed_by: null
+  - "[x] N1: b-handoff writes to the OS temp dir, NOT the workspace"
+  - "[x] N1: b-handoff emits a 'suggested skills' section, references artifacts by path/URL instead of duplicating them, and redacts secrets"
+  - "[x] N2: writing-for-agents covers context load vs cognitive load, information hierarchy, completion criteria, leading words, the no-op test, and prompt-the-positive"
+  - "[x] N2: writing-for-agents has NO prompts/ or commands/ wrapper (model-invoked reference)"
+  - "[x] N5: b-wizard/template.sh does the work; SKILL.md is thin"
+  - "[x] N5: template.sh implements staged progress, confirmation gates, cross-platform URL open (including WSL), hidden secret entry, idempotent .env upsert, and `gh secret` write"
+  - "[x] N5: template.sh passes `bash -n`; shellcheck run if available; verified statically (no live credential run)"
+  - "[x] Wiring: prompts/ + commands/ symlinks exist for b-handoff and b-wizard only"
+  - "[x] Catalog: b-handoff and b-wizard have rows in README '### Prompt Templates' AND '### Skills'; writing-for-agents in '### Skills' only"
+  - "[x] Catalog: all three appear at docs/buck-workflow.md primitives table, quick-reference table, and a full section body"
+  - "[x] All three skills resolve BY NAME in a reloaded session (loader-native resolution)"
+  - "[x] README.md and docs/buck-workflow.md tails intact after every table edit (byte-compare unrelated sections against HEAD)"
+  - "[x] /b-guardrails-check verdict recorded — template.sh makes this session code-touching"
+completed_at: 2026-09-10
+completed_by: omp-execution-session
 ---
 
 # Phase 4: Independent New Members
