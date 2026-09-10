@@ -1,3 +1,5 @@
+<!-- Derived from mattpocock/skills (MIT) — see THIRD-PARTY-NOTICES.md. -->
+
 # CONTEXT.md Format
 
 ## Structure

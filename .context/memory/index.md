@@ -1,3 +1,7 @@
+- 2026-09-10 — [mattpocock/skills remediation — phased execution](mattpocock-adoption-2026-09-10.md) — `in-progress`
+
+  - 2026-09-10 | `mattpocock-adoption-2026-09-10.md` | domains: [skill, buck-workflow, docs, license] | topics: [mattpocock-skills, adoption, phase-1, mit-notice, provenance, issue-tracker, triage-labels, b-research, backlog, guardrails] | status: in-progress
+
 - 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 
 - 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`

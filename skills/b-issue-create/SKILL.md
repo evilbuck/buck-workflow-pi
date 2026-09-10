@@ -34,7 +34,7 @@ Turn the current plan/spec/research state into a GitHub issue another agent loop
    - current branch
    - whether `.context` or presentation files need a commit
    - whether the branch exists on origin
-4. **Issue-tracker conventions**
+4. **Issue-tracker conventions (when present — a consumer repo may have neither file)**
    - `docs/agents/issue-tracker.md`
    - `docs/agents/triage-labels.md`
 

@@ -1,10 +1,10 @@
 ---
 title: Run /b-init-guardrails on this repo to record a durable check contract
-status: active
+status: completed
 priority: low
 created: 2026-08-25
-updated: 2026-08-25
-completed: null
+updated: 2026-09-10
+completed: 2026-09-10
 related:
   - .context/2026-08-25.omp-plan-artifact-extension/plan-omp-plan-artifact-extension.md
   - skills/b-guardrails-check/SKILL.md
@@ -37,3 +37,9 @@ of buck-workflow itself.
 The repo has no `npm publish` gate pending and tests are run ad-hoc;
 existing reviews rely on direct evidence. Promotion to medium if/when
 the npm-publish backlog item (`first-npm-publish.md`) becomes active.
+
+## Resolution (2026-09-10)
+
+Resolved: `guardrails.json` (v2, durable) exists at the repo root and
+`/b-guardrails-check` runs the full gate set (unit, coverage, patch,
+complexity). Verified during mattpocock-adoption Phase 1 closeout.

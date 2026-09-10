@@ -4,7 +4,8 @@ status: completed
 domains: [skills, workflow, tooling]
 topics: [mattpocock-skills, skill-overlap, adoption-plan, provenance, buck-workflow]
 subject: 2026-09-10.mattpocock-skills-overlap
-informs: []
+informs:
+  - ../2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md
 related:
   - presentations/2026-09-10.mattpocock-skills-overlap/index.html
 priority: high
