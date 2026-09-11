@@ -1,3 +1,7 @@
+- 2026-09-11 — [fix-pr: PR #17 rebase + revalidation (scope hygiene restored)](fix-pr-17-2026-09-11.md) — `completed`
+
+  - 2026-09-11 | `fix-pr-17-2026-09-11.md` | domains: [review, workflow] | topics: [fix-pr, pr-17, rebase, conflict-resolution, b-eval-upstream-prs, scope-hygiene] | status: completed
+
 - 2026-09-10 — [mattpocock/skills remediation — phased execution](mattpocock-adoption-2026-09-10.md) — `in-progress`
 
   - 2026-09-10 | `mattpocock-adoption-2026-09-10.md` | domains: [skill, buck-workflow, docs, license] | topics: [mattpocock-skills, adoption, phase-1, mit-notice, provenance, issue-tracker, triage-labels, b-research, backlog, guardrails] | status: in-progress
