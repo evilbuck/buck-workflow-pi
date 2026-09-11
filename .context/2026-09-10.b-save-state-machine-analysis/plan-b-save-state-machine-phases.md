@@ -24,7 +24,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Boundaries & Contract Freeze | completed | hard | goal | [phase-1-boundaries-and-contract.md](phase-1-boundaries-and-contract.md) |
-| 2: Run Model & Deterministic Snapshot | pending | hard | none | [phase-2-run-model-and-snapshot.md](phase-2-run-model-and-snapshot.md) |
+| 2: Run Model & Deterministic Snapshot | completed | hard | none | [phase-2-run-model-and-snapshot.md](phase-2-run-model-and-snapshot.md) |
 | 3: Bounded Semantic Roles | pending | medium | none | [phase-3-bounded-semantic-roles.md](phase-3-bounded-semantic-roles.md) |
 | 4: Deterministic Evaluation & Journaled Apply | pending | hard | none | [phase-4-evaluation-and-apply.md](phase-4-evaluation-and-apply.md) |
 | 5: External Effects & Command UX | pending | medium | none | [phase-5-effects-and-command-ux.md](phase-5-effects-and-command-ux.md) |
@@ -92,8 +92,8 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Boundaries & Contract Freeze — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: Run Model & Deterministic Snapshot — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Boundaries & Contract Freeze — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 2: Run Model & Deterministic Snapshot — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 3: Bounded Semantic Roles — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Deterministic Evaluation & Journaled Apply — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: External Effects & Command UX — build → review → iterate if in-plan issues → docs if doc impact → save → commit

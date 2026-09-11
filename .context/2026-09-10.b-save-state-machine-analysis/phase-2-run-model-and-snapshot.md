@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-b-save-state-machine.md
@@ -20,15 +20,15 @@ from_plan_steps: [3, 4]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Closed TypeScript/TypeBox contracts exist for run identity, selected subject, advisory session evidence, content hashes, evidence records, semantic proposals, user decisions, complete patch sets, journal progress, external-effect outcomes, and terminal errors."
-  - "[ ] Each run persists under `.context/workflow/b-save/<run-id>/`; the manifest stays compact; before-images are retained only as long as recovery requires; unknown schema versions are rejected instead of coerced."
-  - "[ ] XState v5 machine defines states, events, guards, retries, resume transitions, and terminal outcomes with pure, unit-testable transitions."
-  - "[ ] Snapshot layer migrates the proven containment, slug, status, digest, and parser logic from `save-preflight.ts` into typed functions — ported by invariant and fixture, not wholesale rewrite."
-  - "[ ] Subject precedence resolves exactly as researched; loose artifacts move only with explicit provenance; untrusted text is redacted and bounded."
-  - "[ ] Every consumed input is hashed and each proposal maps to its input dependencies, so later phases can invalidate only dependent work."
-  - "[ ] Focused Vitest suites pass for type round-trips, snapshot functions, and machine transitions."
-completed_at: null
-completed_by: null
+  - "[x] Closed TypeScript/TypeBox contracts exist for run identity, selected subject, advisory session evidence, content hashes, evidence records, semantic proposals, user decisions, complete patch sets, journal progress, external-effect outcomes, and terminal errors."
+  - "[x] Each run persists under `.context/workflow/b-save/<run-id>/`; the manifest stays compact; before-images are retained only as long as recovery requires; unknown schema versions are rejected instead of coerced."
+  - "[x] XState v5 machine defines states, events, guards, retries, resume transitions, and terminal outcomes with pure, unit-testable transitions."
+  - "[x] Snapshot layer migrates the proven containment, slug, status, digest, and parser logic from `save-preflight.ts` into typed functions — ported by invariant and fixture, not wholesale rewrite."
+  - "[x] Subject precedence resolves exactly as researched; loose artifacts move only with explicit provenance; untrusted text is redacted and bounded."
+  - "[x] Every consumed input is hashed and each proposal maps to its input dependencies, so later phases can invalidate only dependent work."
+  - "[x] Focused Vitest suites pass for type round-trips, snapshot functions, and machine transitions."
+completed_at: 2026-09-10
+completed_by: omp-goal
 ---
 
 # Phase 2: Run Model & Deterministic Snapshot
