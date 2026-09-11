@@ -3,6 +3,7 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+- [x] [Phase 1: Freeze contracts and pure machine](archive/2026-09/phase-1-contracts-pure-machine.md) — done 2026-09-10
 - [ ] [Live TUI progress for deterministic slash commands](items/deterministic-extension-progress.md) — high priority
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
@@ -16,6 +17,18 @@
 - [ ] [Run /b-init-guardrails on this repo to record a durable check contract](items/run-b-init-guardrails-on-repo.md)
 - [ ] [Complexity gate burn-down for pre-existing hotspots](items/complexity-burn-down.md) — medium; override recorded 2026-08-27, includes lizard parseArgs@32-677 artifact
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
+
+## b-pr-manager Phases (2026-09-10)
+
+### Upcoming Phases
+- [ ] [Phase 2: Extract shared PR git primitives](items/phase-2-shared-pr-git.md) — hard; can run ∥ Phase 1
+- [ ] [Phase 3: Deterministic GitHub inventory](items/phase-3-github-inventory.md) — medium; HARD on Phase 1
+- [ ] [Phase 4: Atomic persistence and resume](items/phase-4-persistence-resume.md) — medium; HARD on Phase 1
+- [ ] [Phase 5: Model actors and Buck fix rounds](items/phase-5-model-actors-buck-loop.md) — hard; HARD on Phase 1
+- [ ] [Phase 6: XState runner and command UX](items/phase-6-runner-command-ux.md) — hard; join point after 2–5
+- [ ] [Phase 7: Safety proof, docs, and smoke](items/phase-7-proof-docs-smoke.md) — medium; HARD on Phase 6
+
+Overview: `.context/2026-09-10.b-pr-manager/plan-b-pr-manager-phases.md`
 
 ## b-flow SDK Redesign Phases
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — see `.context/backlog/archive/2026-05/phase-3-test-coverage.md`

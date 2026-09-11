@@ -1,3 +1,7 @@
+- 2026-09-10 — [b-pr-manager Phase 1: freeze contracts and pure XState machine](b-pr-manager-phase-1-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-pr-manager-phase-1-2026-09-10.md` | domains: [extensions, testing, state-machine] | topics: [b-pr-manager, xstate, phase-1, verdicts, polling] | status: completed
+
 - 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 
 - 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`
