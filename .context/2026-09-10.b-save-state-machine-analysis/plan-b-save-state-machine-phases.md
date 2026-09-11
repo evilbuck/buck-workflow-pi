@@ -27,7 +27,7 @@ format: discrete
 | 2: Run Model & Deterministic Snapshot | completed | hard | none | [phase-2-run-model-and-snapshot.md](phase-2-run-model-and-snapshot.md) |
 | 3: Bounded Semantic Roles | completed | medium | none | [phase-3-bounded-semantic-roles.md](phase-3-bounded-semantic-roles.md) |
 | 4: Deterministic Evaluation & Journaled Apply | completed | hard | none | [phase-4-evaluation-and-apply.md](phase-4-evaluation-and-apply.md) |
-| 5: External Effects & Command UX | pending | medium | none | [phase-5-effects-and-command-ux.md](phase-5-effects-and-command-ux.md) |
+| 5: External Effects & Command UX | completed | medium | none | [phase-5-effects-and-command-ux.md](phase-5-effects-and-command-ux.md) |
 | 6: Parity, Atomic Cutover & Documentation | pending | hard | none | [phase-6-parity-cutover-docs.md](phase-6-parity-cutover-docs.md) |
 
 ## Dependency Matrix
@@ -96,7 +96,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [x] Phase 2: Run Model & Deterministic Snapshot — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 3: Bounded Semantic Roles — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 4: Deterministic Evaluation & Journaled Apply — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 5: External Effects & Command UX — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 5: External Effects & Command UX — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 6: Parity, Atomic Cutover & Documentation — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes

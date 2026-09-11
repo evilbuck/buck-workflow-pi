@@ -1,3 +1,5 @@
+- [x] b-save Phase 5: External effects & command UX (2026-09-10) — Hindsight `unsupported`; local/Mnemopi save with stored-count retry; unregistered command adapter.
+
 - [x] b-save Phase 4: Evaluation & journaled apply (2026-09-10) — twelve rules, user gates, journaled apply with resume/rollback.
 
 - [x] b-save Phase 3: Bounded semantic roles (2026-09-10) — isolated scribe/auditor/classifier; `runOmpModelSession` isolation extras; no Hindsight delivery role.

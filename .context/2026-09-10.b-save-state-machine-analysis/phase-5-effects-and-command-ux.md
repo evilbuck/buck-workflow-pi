@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-b-save-state-machine.md
@@ -16,15 +16,15 @@ from_plan_steps: [8, 9]
 depends_on: [1, 4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Local and Mnemopi delivery call `ctx.memory.status()/save()` directly with backend and result-count validation."
-  - "[ ] The Hindsight adapter uses the guarded pre-execution capability only if Phase 1 proved it; otherwise the effect records `unsupported`. Raw model-controlled `retain` is structurally impossible."
-  - "[ ] Each effect retries at most once and records `succeeded | failed_nonblocking | unsupported | skipped`; no effect failure invalidates the durable `.context` checkpoint."
-  - "[ ] Non-OMP re-indexing lives in an isolated best-effort adapter; the release does not claim engine portability."
-  - "[ ] The command adapter persists run state after every meaningful transition, presents policy choices through OMP UI, and returns actionable headless instructions (run ID + recovery steps)."
-  - "[ ] Terminal reporting distinguishes selected subject, run ID, resumed/invalidated states, durable files, staged user decisions, warnings, and effect outcomes — never collapsing failed model, failed apply, unsupported effect, or completed durable save into one success message."
-  - "[ ] Effect and command-wiring Vitest suites pass; `extensions/index.ts` registration remains deferred to the Phase 6 cutover (adapter tested via direct invocation)."
-completed_at: null
-completed_by: null
+  - "[x] Local and Mnemopi delivery call `ctx.memory.status()/save()` directly with backend and result-count validation."
+  - "[x] The Hindsight adapter uses the guarded pre-execution capability only if Phase 1 proved it; otherwise the effect records `unsupported`. Raw model-controlled `retain` is structurally impossible."
+  - "[x] Each effect retries at most once and records `succeeded | failed_nonblocking | unsupported | skipped`; no effect failure invalidates the durable `.context` checkpoint."
+  - "[x] Non-OMP re-indexing lives in an isolated best-effort adapter; the release does not claim engine portability."
+  - "[x] The command adapter persists run state after every meaningful transition, presents policy choices through OMP UI, and returns actionable headless instructions (run ID + recovery steps)."
+  - "[x] Terminal reporting distinguishes selected subject, run ID, resumed/invalidated states, durable files, staged user decisions, warnings, and effect outcomes — never collapsing failed model, failed apply, unsupported effect, or completed durable save into one success message."
+  - "[x] Effect and command-wiring Vitest suites pass; `extensions/index.ts` registration remains deferred to the Phase 6 cutover (adapter tested via direct invocation)."
+completed_at: 2026-09-10
+completed_by: omp-goal
 ---
 
 # Phase 5: External Effects & Command UX
