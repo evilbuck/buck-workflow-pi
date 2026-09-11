@@ -1,3 +1,5 @@
+- 2026-09-10 — [b-pr-manager Phase 7: proof, docs, and smoke](b-pr-manager-phase-7-2026-09-10.md) — `completed`
+
 - 2026-09-10 — [b-pr-manager Phase 6: runner and command UX](b-pr-manager-phase-6-2026-09-10.md) — `completed`
 
 - 2026-09-10 — [b-pr-manager Phase 5: model actors and Buck fix rounds](b-pr-manager-phase-5-2026-09-10.md) — `completed`

@@ -23,6 +23,9 @@ This is **not** a code reviewer and **not** a planner-only skill.
 | `code-review` / `code-review-universal` | Posts a review | No |
 | `b-pr-review-2-issues` | Plan artifact in `.context/` | No |
 | **`fix-pr`** | Fixed code **or** filed issues | **Yes** (when small) |
+| **`/b-pr-manager`** (OMP extension) | GitHub `state=MERGED` | **Yes** (autonomous bounded loop) |
+
+On OMP, if the user wants unattended convergence (fix → verify → rebase → push → auto-merge → confirmed merge), use **`/b-pr-manager`**. This skill remains the portable/manual fallback on every harness. Shared verdict taxonomy: `valid | invalid | already_done | unsure | nit | out_of_scope`.
 
 ## Surface — skill only (no prompt wrapper)
 

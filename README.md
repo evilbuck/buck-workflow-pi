@@ -272,7 +272,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
-| `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
+| `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic). OMP users who want autonomous fix→merge should run `/b-pr-manager` instead. |
 | `git-commit` | Create a Conventional Commits message and commit |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
@@ -288,8 +288,8 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 The wired package extension is intentionally small:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
+- **`/b-pr-manager`** — user-invoked PR feedback-to-merge machine. Fixes valid review comments, rebases, pushes with `--force-with-lease` only, enables auto-merge, and claims success only when GitHub `state=MERGED`. Resume with `/b-pr-manager <PR> --resume`. Non-goals: creating/retargeting PRs, posting replies, admin merge, or reviving `b-flow`.
 
-Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 

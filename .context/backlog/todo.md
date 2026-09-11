@@ -20,10 +20,8 @@
 
 ## b-pr-manager Phases (2026-09-10)
 
-### Upcoming Phases
-- [ ] [Phase 7: Safety proof, docs, and smoke](items/phase-7-proof-docs-smoke.md) — medium; HARD on Phase 6
+All seven phases completed 2026-09-10. Overview: `.context/2026-09-10.b-pr-manager/plan-b-pr-manager-phases.md`
 
-Overview: `.context/2026-09-10.b-pr-manager/plan-b-pr-manager-phases.md`
 
 ## b-flow SDK Redesign Phases
 - [x] Phase 3: Test Coverage & Verification (2026-05-30) — see `.context/backlog/archive/2026-05/phase-3-test-coverage.md`

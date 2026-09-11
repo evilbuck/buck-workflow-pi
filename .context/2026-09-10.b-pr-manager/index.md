@@ -26,6 +26,6 @@ Plan a narrow OMP extension that drives one open pull request from review-feedba
 
 ## Current state
 
-- Planning decisions resolved.
-- Implementation plan drafted.
-- Phases 1–2 completed. First non-completed phase: **Phase 3** (medium, `/b-build`).
+- All 7 phases completed 2026-09-10 on `feat/agent-manage-pr`.
+- `/b-pr-manager` is registered. Success is GitHub `state=MERGED` only.
+

@@ -58,6 +58,12 @@ Current autonomous-loop guidance lives in prompt/skill surfaces instead:
 Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
 archival reference, not as active user-facing setup.
 
+`/b-pr-manager` is a **narrow, user-invoked** PR lifecycle machine. It is not
+a revival of general workflow orchestration. It runs only when the user
+invokes the command, persists under the gitdir, and treats GitHub
+`state=MERGED` as the sole success signal. See
+[ADR 0001](adr/0001-narrow-pr-manager-orchestration.md).
+
 ---
 
 ## OMP Autonomous Loops

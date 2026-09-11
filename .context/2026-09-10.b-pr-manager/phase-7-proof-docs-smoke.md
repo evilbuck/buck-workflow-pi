@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 7
 order: 7
 plan: plan-b-pr-manager.md
@@ -19,18 +19,18 @@ from_plan_steps: [8, 9, 10]
 depends_on: [6]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Integration tests cover all six primary paths from the plan with fake `gh` and deterministic role fixtures"
-  - "[ ] Extra gate cases exist: check failure, draft PR, changes-requested, disabled auto-merge, poll exhaustion, cancellation, restart without duplicate mutations"
-  - "[ ] `/b-pr-improved` external behavior remains covered"
-  - "[ ] `skills/fix-pr/SKILL.md` documents the shared taxonomy and points OMP users at `/b-pr-manager` without removing the portable fallback"
-  - "[ ] README describes command purpose, safe defaults, resume, and explicit non-goals; table inserts do not truncate the file tail"
-  - "[ ] `docs/buck-workflow.md` states the narrow invoked-machine boundary vs deprecated `b-flow`"
-  - "[ ] ADR `docs/adr/0001-narrow-pr-manager-orchestration.md` records why this machine exists and general orchestration stays deprecated"
-  - "[ ] `/b-guardrails-check` passes lint, tests, coverage, patch coverage, and complexity with no overrides"
-  - "[ ] Smoke: run the registered command in a temp repo with fake GitHub transport and deterministic roles; inspect progress, checkpoint, git history, remote head, and terminal MERGED record"
-  - "[ ] No automated test merges a real GitHub PR"
-completed_at: null
-completed_by: null
+  - "[x] Integration tests cover all six primary paths from the plan with fake `gh` and deterministic role fixtures"
+  - "[x] Extra gate cases exist: check failure, draft PR, changes-requested, disabled auto-merge, poll exhaustion, cancellation, restart without duplicate mutations"
+  - "[x] `/b-pr-improved` external behavior remains covered"
+  - "[x] `skills/fix-pr/SKILL.md` documents the shared taxonomy and points OMP users at `/b-pr-manager` without removing the portable fallback"
+  - "[x] README describes command purpose, safe defaults, resume, and explicit non-goals; table inserts do not truncate the file tail"
+  - "[x] `docs/buck-workflow.md` states the narrow invoked-machine boundary vs deprecated `b-flow`"
+  - "[x] ADR `docs/adr/0001-narrow-pr-manager-orchestration.md` records why this machine exists and general orchestration stays deprecated"
+  - "[x] `/b-guardrails-check` passes lint, tests, coverage, patch coverage, and complexity with no overrides"
+  - "[x] Smoke: run the registered command in a temp repo with fake GitHub transport and deterministic roles; inspect progress, checkpoint, git history, remote head, and terminal MERGED record"
+  - "[x] No automated test merges a real GitHub PR"
+completed_at: 2026-09-10
+completed_by: b-build
 ---
 
 # Phase 7: Safety proof, docs, and smoke
