@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in-progress
 phase: 6
 order: 6
 plan: plan-b-save-state-machine.md
