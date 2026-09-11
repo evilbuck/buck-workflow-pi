@@ -55,7 +55,7 @@ export async function runOmpModelSession(opts: {
     enableLsp: false,
     agentId: opts.roleId
       ? "b-save-" + opts.roleId + "-" + randomUUID()
-      : "b-save-improved-model-" + randomUUID(),
+      : "b-save-model-" + randomUUID(),
     sessionManager: SessionManager.inMemory(cwd),
   };
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
