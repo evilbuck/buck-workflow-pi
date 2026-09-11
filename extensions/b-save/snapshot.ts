@@ -36,6 +36,7 @@ export type SaveSnapshot = {
   specs: string[];
   iterates: string[];
   phases: string[];
+  memory_index_content: string;
   input_hashes: Record<string, string>;
   redacted_text: Record<string, string>;
   proposal_dependencies: Record<string, string[]>;
@@ -263,6 +264,7 @@ export function takeSnapshot(root: string, opts: SnapshotOptions = {}): Snapshot
       iterates,
       phases,
       input_hashes,
+      memory_index_content: readText(join(root, CONTEXT, "memory", "index.md")),
       redacted_text,
       proposal_dependencies: {
         memory_draft: ["subject_index", "session_evidence", "plans"],

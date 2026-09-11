@@ -2,8 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { applyPatch, recoverApply, upsertIndexLine, validatePatch } from "../apply.js";
-import { ContainmentError, type PatchPlan } from "../evaluate.js";
+import { applyPatch, recoverApply, validatePatch } from "../apply.js";
+import { ContainmentError, upsertIndexLine, type PatchPlan } from "../evaluate.js";
 import { hashContent } from "../snapshot.js";
 
 function repo() {
@@ -95,6 +95,29 @@ describe("applyPatch", () => {
           expectedHashes: { [path]: hashContent("other\n") },
         }),
       ).toThrow(/hash drift/);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("aborts when a journaled before-image is deleted mid-apply, not silently recreated", () => {
+    const f = repo();
+    try {
+      const path = ".context/memory/note.md";
+      // Fail before any op runs so the journal records a pending op whose
+      // before-image existed ("old\n"); then delete the target out from under
+      // the resume.
+      mkdirSync(join(f.root, ".context/memory"), { recursive: true });
+      writeFileSync(join(f.root, path), "old\n");
+      try {
+        applyPatch(f.root, { ops: [{ path, content: "new\n" }], moves: [] }, { runId: "r6", failAfter: 0 });
+        expect.fail("expected injected failure");
+      } catch (error) {
+        expect((error as Error).message).toBe("injected apply failure");
+      }
+      rmSync(join(f.root, path));
+      expect(() => recoverApply(f.root, "r6", "resume")).toThrow(/before-image changed/);
+      expect(existsSync(join(f.root, path))).toBe(false);
     } finally {
       f.cleanup();
     }

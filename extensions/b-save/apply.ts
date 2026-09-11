@@ -95,10 +95,13 @@ export function applyPatch(
 }
 
 function abortIfBeforeChanged(root: string, op: JournalOp) {
+  if (op.done) return;
   const abs = contextRootJoin(root, op.path);
   const now = beforeImage(abs);
-  if (op.done) return;
-  if (now !== op.before && existsSync(abs) && now !== null) {
+  // Any drift from the journaled before-image aborts — including deletion:
+  // a vanished target (before had content, now === null) is a change, not a
+  // silent pass-through that would recreate the file during resume.
+  if (now !== op.before) {
     throw new Error("before-image changed: " + op.path);
   }
 }
@@ -142,9 +145,3 @@ export function recoverApply(root: string, runId: string, mode: "resume" | "roll
   return { status: journal.status === "completed" ? "resumed" : "rolled-back", journal };
 }
 
-export function upsertIndexLine(existing: string, line: string) {
-  const rows = existing.split("\n");
-  if (rows.some((row) => row.trim() === line.trim())) return existing;
-  const body = existing.endsWith("\n") || existing === "" ? existing : existing + "\n";
-  return body + line + (line.endsWith("\n") ? "" : "\n");
-}
