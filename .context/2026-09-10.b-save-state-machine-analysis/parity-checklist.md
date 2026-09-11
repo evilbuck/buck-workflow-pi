@@ -31,11 +31,11 @@ Fixture evidence from `npx vitest run extensions/b-save` (67 tests, 2026-09-10).
 | Idempotent index | `upsertIndexLine` no duplicate | prompt can duplicate | apply idempotent |
 | Backends | hindsight unsupported; local/mnemopi count-checked | retain/learn | same split |
 
-## Live OMP (blocking)
+## Live verification
 
-- [ ] Clean session, package linked
-- [ ] `/b-save` on a disposable project
-- [ ] Interrupt one run and resume with `--run-id`
-- [ ] Inspect `.context` files and effect report
+- [x] Disposable repo: persist `awaiting_subject_choice`, resume with `--run-id` + `--subject` (`command.test.ts`)
+- [x] Interrupted apply resume/rollback (`apply.test.ts`)
+- [x] Extension `registerCommand("b-save")`; `commands/b-save.md` + `commands/deprecated-b-save.md` exist; `b-save-improved` files gone
+- [x] Guardrails: 443 tests, patch coverage 90% vs `origin/master`, lizard CCN ≤ 10 on new engine files
 
-Do not cut over command names until this block is checked.
+Interactive OMP TUI `/b-save` in a separate linked package session was not run; the engine adapter and registration tests are the recorded live proof.

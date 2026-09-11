@@ -1,5 +1,15 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { inspectSdkSources } from "./hindsight-guarded-retain.js";
+import {
+  formatEvidenceMarkdown,
+  inspectSdkSources,
+  readSdkSources,
+  readSdkVersion,
+  resolveSdkRoot,
+  runExperiment,
+} from "./hindsight-guarded-retain.js";
 
 const RESTRICTED_CUSTOM_TOOLS = `
 export interface CreateAgentSessionOptions {
@@ -141,5 +151,36 @@ describe("inspectSdkSources", () => {
 
     expect(result.observations.hindsightBackendImplementsSave).toBe(true);
     expect(result.decision).toBe("unsupported");
+  });
+});
+
+describe("readSdkSources and runExperiment", () => {
+  it("reads a fake SDK tree and formats evidence", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sdk-"));
+    try {
+      const src = join(root, "src");
+      mkdirSync(join(src, "extensibility", "extensions"), { recursive: true });
+      mkdirSync(join(src, "hindsight"), { recursive: true });
+      mkdirSync(join(src, "tools"), { recursive: true });
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "@oh-my-pi/pi-coding-agent", version: "18.1.17" }));
+      writeFileSync(join(src, "sdk.ts"), RESTRICTED_CUSTOM_TOOLS + SKIP_MEMORY_TOOLS);
+      writeFileSync(join(src, "extensibility", "extensions", "types.ts"), INVOKE_TOOL_SAME_NAME);
+      writeFileSync(join(src, "hindsight", "backend.ts"), HINDSIGHT_WITHOUT_SAVE);
+      writeFileSync(join(src, "tools", "memory-retain.ts"), RETAIN_TOOL);
+      expect(readSdkVersion(root)).toBe("18.1.17");
+      expect(await resolveSdkRoot(root)).toBe(root);
+      const files = readSdkSources(root);
+      expect(files.sdk).toContain("allowRestrictedCustomTools");
+      const result = await runExperiment(root);
+      expect(result.decision).toBe("unsupported");
+      const md = formatEvidenceMarkdown(result);
+      expect(md).toContain("unsupported");
+      expect(md).toContain("18.1.17");
+      expect(() => readSdkSources(join(root, "missing"))).toThrow(/SDK file missing/);
+      writeFileSync(join(root, "package.json"), JSON.stringify({ name: "other", version: "1" }));
+      expect(() => readSdkVersion(root)).toThrow(/Not @oh-my-pi/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

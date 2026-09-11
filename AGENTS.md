@@ -95,8 +95,8 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 
 **Vault-Native LLM Wiki** (`skills/llm-wiki-vault/`): Enables any agent to ingest sources, build interlinked research notes, and maintain the Obsidian knowledge base at `~/Documents/second brain` using the same vault-native LLM Wiki protocol Hermes uses. Agents load it automatically from this project's `skills/` directory. See the skill's Quick Agent Lookup block for invocation keys (`LLM-WIKI`, `INGEST`, `QUERY`, `LINT`, `WIKI-SCHEMA`, etc.).
 
-**Session memory** (`skills/b-save/`, `skills/b-memory-import/`):
-- `/b-save` always writes git-portable `.context/memory` (+ backlog/index). On OMP, when `retain`/`learn` tools exist, it also mirrors durable session facts into harness LTM. Non-OMP agents optionally re-index via the configured Memory Search Tool.
+**Session memory** (`skills/b-save/`, `skills/deprecated-b-save/`, `skills/b-memory-import/`):
+- `/b-save` is the deterministic OMP engine. `/deprecated-b-save` is the prompt-driven fallback. Both write git-portable `.context/memory`. Hindsight native-memory delivery is `unsupported` on OMP 18.1.17; local/Mnemopi use `ctx.memory.save()`.
 - `b-memory-import` is a **one-shot/backfill** Bun script that pushes existing `.context/memory/**/*.md` into Hindsight via retain HTTP (stable `document_id`, local manifest). Not part of the every-session loop.
 
 # Buck Workflow Steps

@@ -140,10 +140,11 @@ describe("Extension slimdown", () => {
     expect(commands.has("b-restrict")).toBe(false);
   });
 
-  it("does NOT register b-save command", () => {
+  it("registers b-save and does not register b-save-improved", () => {
     const { api, commands } = createMockApi();
     buckWorkflowExtension(api);
-    expect(commands.has("b-save")).toBe(false);
+    expect(commands.has("b-save")).toBe(true);
+    expect(commands.has("b-save-improved")).toBe(false);
   });
 
   it("does NOT register alt+p shortcut", () => {
