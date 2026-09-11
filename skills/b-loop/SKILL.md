@@ -21,30 +21,21 @@ choice onto each phase file's frontmatter (and the matching cell in the
 phases-overview table) so `/b-build` / `/b-iterate` / `/b-review` surface it
 at start-of-phase.
 
-## Surface — No Slash Command Mirror (Deferral)
+## Surfaces
 
-This skill is shipped as **SKILL.md only**. There is no `prompts/b-loop.md`
-and no `commands/b-loop.md` symlink in this revision. Invoke it by loading
-the skill (`/skill:b-loop`, `load_skill name=b-loop`, or however the active
-harness resolves skills by name) rather than via `/b-loop` slash discovery.
+This skill remains the **advisory + stamp** surface. Invoke it by loading the
+skill (`/skill:b-loop`, `load_skill name=b-loop`, or the active harness's
+skill-by-name equivalent). It does not run the workflow.
 
-**Why deferred.** Other `b-*` skills expose slash surfaces via a paired
-`prompts/<name>.md` + `commands/<name>.md` symlink (Pi / OMP convention;
-see `docs/buck-workflow.md#runtime-package-mapping`). Adding the mirror
-is mechanical — copy the description, add the two files — and is
-intentionally not done in this revision at the user's request. The
-deferral is recorded in `.context/memory/` and `.context/backlog/`;
-a follow-up can lift it without rewriting the skill body, only the
-registry surface.
+`prompts/b-kickoff.md` is a separate **OMP goal objective** for unattended,
+well-scoped execution. It tells goal mode to resolve a subject, run every
+phase through build/review/iteration, and follow each Buck skill's handoff.
+The prompt cannot activate goal mode itself: OMP requires the user to start it
+with `/goal set`, as shown in that prompt.
 
-**Practical consequence.** Until the mirror is added:
-
-- `/b-loop` does **not** appear in Pi's `/`-menu nor OMP's `/`-menu.
-- Calling `/skill:b-loop` (skill-by-name) **does** work; agents load it
-  the same way they load any other skill.
-- A wrapping agent (or `b-build` / `b-review` after the plan-shape
-  recommendation rule is extended) can also invoke `b-loop` programmatically
-  by name — that path is unaffected.
+There is still no `commands/b-loop.md` symlink. Adding a slash-command mirror
+remains a separate packaging decision because `/b-loop` cannot synthetically
+toggle OMP goal mode.
 
 ## What this skill replaces
 

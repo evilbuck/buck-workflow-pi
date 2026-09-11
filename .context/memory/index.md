@@ -27,6 +27,10 @@
 
   - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
 
+- 2026-09-10 — [OMP goal prompt for autonomous Buck loops](b-loop-goal-prompt-2026-09-10.md) — `completed` — subject `2026-09-10.b-kickoff-goal-prompt`
+
+  - 2026-09-10 | `b-loop-goal-prompt-2026-09-10.md` | domains: [workflow, prompts, omp] | topics: [b-kickoff, b-loop, goal-mode, phased-plans, unattended-execution] | status: completed | subject: 2026-09-10.b-kickoff-goal-prompt
+
 - 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 
 - 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`
