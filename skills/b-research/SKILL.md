@@ -7,6 +7,14 @@ description: Investigate external sources, APIs, libraries, documentation, and w
 
 Investigate external sources — APIs, libraries, documentation, web resources, best practices, and competitive landscapes — and capture findings into durable, incrementally updated research artifacts. This is the **external investigation** command — for internal codebase exploration, use `b-explore`.
 
+## Dispatch (Default: Background Subagent)
+
+Background subagent dispatch is the **default**, not an option. `b-research` is a heavy, multi-source investigation — never bundle it into the main agent's context.
+
+- **OMP path**: dispatch via the `task` tool with a read-only research/scout agent. Run asynchronously — keep working on the main thread and surface findings when the subagent returns. Do not block the conversation waiting on it.
+- **Portable fallback** (harnesses without background dispatch): run the same procedure sequentially in the foreground. This is the exception path — same subject folder, write-gate, and artifact model; only the concurrency is lost.
+- **Foreground exception**: run inline only when the lookup is trivial (one or two authoritative sources, no synthesis needed) or the harness cannot dispatch background work. Anything larger goes to a subagent.
+
 ## When to Use
 
 - Looking up library/framework APIs and usage patterns

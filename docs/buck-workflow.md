@@ -29,6 +29,13 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session recap) |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
+| `/b-diagnose` | Prompt template | Slash command symlink | `prompts/b-diagnose.md`; `commands/b-diagnose.md`; `skills/b-diagnose/SKILL.md` |
+| `codebase-design` (skill-only) | Skill | Skill | `skills/codebase-design/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:codebase-design` |
+| `/b-handoff` | Prompt template | Slash command symlink | `prompts/b-handoff.md`; `commands/b-handoff.md`; `skills/b-handoff/SKILL.md` |
+| `writing-for-agents` (skill-only) | Skill | Skill | `skills/writing-for-agents/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:writing-for-agents` |
+| `/b-wizard` | Prompt template | Slash command symlink | `prompts/b-wizard.md`; `commands/b-wizard.md`; `skills/b-wizard/SKILL.md` + `template.sh` |
+| `/b-init-tracker` | Prompt template | Slash command symlink | `prompts/b-init-tracker.md`; `commands/b-init-tracker.md`; `skills/b-init-tracker/SKILL.md` |
+| `/b-triage` | Prompt template | Slash command symlink | `prompts/b-triage.md`; `commands/b-triage.md`; `skills/b-triage/SKILL.md` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
@@ -391,6 +398,13 @@ flowchart TD
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
+| [**b-diagnose**](#b-diagnose--diagnosing-hard-bugs) | Prompt template + Skill | `/b-diagnose` | `prompts/b-diagnose.md` + `skills/b-diagnose/` | Diagnosis loop for hard bugs — red-capable loop gate before any hypothesis |
+| [**codebase-design**](#codebase-design--deep-module-vocabulary) | Skill | `/skill:codebase-design` | `skills/codebase-design/SKILL.md` | Deep-module design vocabulary; seam/depth/adapter language for design and testability (no slash wrapper) |
+| [**b-handoff**](#b-handoff--portable-session-handoff) | Prompt template + Skill | `/b-handoff` | `prompts/b-handoff.md` + `skills/b-handoff/` | Portable seed doc for a different agent/harness/machine (OS temp dir, redacted secrets) |
+| [**writing-for-agents**](#writing-for-agents--writing-documents-agents-consume) | Skill | `/skill:writing-for-agents` | `skills/writing-for-agents/SKILL.md` | Reference for authoring skills/AGENTS.md/CLAUDE.md (no slash wrapper) |
+| [**b-wizard**](#b-wizard--interactive-setup-wizards) | Prompt template + Skill | `/b-wizard` | `prompts/b-wizard.md` + `skills/b-wizard/` | Generates a bash wizard for human-only setup steps; `template.sh` does the work |
+| [**b-init-tracker**](#b-init-tracker--issue-tracker-config-init) | Prompt template + Skill | `/b-init-tracker` | `prompts/b-init-tracker.md` + `skills/b-init-tracker/` | Configure this repo's issue tracker + triage labels (idempotent managed AGENTS.md block) |
+| [**b-triage**](#b-triage--inbound-issue-triage) | Prompt template + Skill | `/b-triage` | `prompts/b-triage.md` + `skills/b-triage/` | Triage inbound issues/PRs into the ready-for-agent state b-auto-fix consumes |
 | [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
@@ -645,6 +659,18 @@ informs: []  # Plans/specs this research fed into
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
 
 **Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes. Each phase's contract is the blocking v2 completion gate (see `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
+
+#### `/b-init-tracker` — Issue-Tracker Config Init
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Configure the per-repo issue-tracker config that `b-issue-create`, `fix-pr`, and `b-triage` assume — where issues live (GitHub/GitLab/local markdown/other) and the label vocabulary for the five canonical triage roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). Sections A + B of the upstream `setup-matt-pocock-skills` port only — domain docs (Section C) are `b-docs` + `CONTEXT.md`'s job, not this skill's.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-init-tracker.md`, `commands/b-init-tracker.md` symlink) + Skill (`skills/b-init-tracker/SKILL.md` + seed templates `issue-tracker-github.md` / `issue-tracker-gitlab.md` / `issue-tracker-local.md` / `triage-labels-seed.md`).
+
+**Idempotent**: detects `docs/agents/issue-tracker.md` / `triage-labels.md` if they already exist and never overwrites them — only refreshes the summary in an idempotent `<!-- BEGIN b-init-tracker -->` managed `AGENTS.md`/`CLAUDE.md` block, mirroring `b-init-guardrails`'s pattern as a sibling block (never nested). Re-running against an unchanged repo produces an empty diff.
+
+**Next Steps**: `/b-triage` and `/b-issue-create` now read a resolved tracker config.
 
 #### `/b-init-factory` — Nested Agent Software Factory
 
@@ -1038,6 +1064,24 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 ---
 
+#### `/b-diagnose` — Diagnosing Hard Bugs
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Own the gap between "it's broken and we don't know why" and a written-down defect. Six-phase diagnosis loop for hard bugs and performance regressions: (1) build a tight, red-capable feedback loop — **blocking gate**, the skill refuses to hypothesize before a named command has gone red on the reported bug; (2) reproduce + minimise; (3) 3–5 ranked, falsifiable hypotheses; (4) instrument with tagged logs; (5) fix + regression test at a correct seam; (6) cleanup.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-diagnose.md` in Pi, `commands/b-diagnose.md` symlink in OMP) + `skills/b-diagnose/SKILL.md`
+
+**Load-bearing rule**: Phase 1 is the skill. No red-capable command, no hypotheses. Ten ranked loop constructions (failing test → curl/HTTP → CLI fixture → headless browser → trace replay → throwaway harness → property/fuzz → bisection → differential → HITL script), cheapest first.
+
+**Seam vocabulary**: links to `skills/codebase-design/SKILL.md` — never restates it.
+
+**Exits**: `b-iterate` (fix in place), `b-plan` (architectural finding), `code-smells` (Phase 5 "no correct seam exists" is itself the finding).
+
+**Use when**: user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow and the cause is unknown. Not for known fixes (`b-build`) or already-written-down defects (`b-iterate`).
+
+---
+
 ### 4. Review Phase
 
 #### `/b-review` — Implementation Validation
@@ -1131,6 +1175,56 @@ Suggested next step
 
 **Next Steps**: Re-request review on the PR; `/b-save` if more session bookkeeping remains; optional `/b-iterate` for leftover polish after your own review loop
 
+#### `/b-triage` — Inbound Issue Triage
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Move an inbound issue (or, when the tracker config opts in, an external PR) through a state machine of triage roles — the only missing *inbound* stage in this repo's skill set; every other issue-facing skill (`b-issue-create`, `b-pr`, `fix-pr`, `b-pr-review-2-issues`) points outward.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-triage.md`, `commands/b-triage.md` symlink) + Skill (`skills/b-triage/SKILL.md` + reference docs `AGENT-BRIEF.md`, `OUT-OF-SCOPE.md`).
+
+**Reads config from**: `docs/agents/issue-tracker.md` + `triage-labels.md` (written by `/b-init-tracker`).
+
+**Procedure**: (1) redundancy check + prior-rejection check against `.out-of-scope/*.md`; (2) recommend category + state; (3) verify the claim (reproduce a bug, check out and test a PR); (4) grill if the request needs fleshing out; (5) apply the outcome — `ready-for-agent` (durable, **behavioural** agent brief — no file paths, no line numbers), `ready-for-human`, `needs-info`, or `wontfix` (with an `.out-of-scope/` entry only for rejected enhancements, never for already-implemented ones).
+
+**Output state**: `ready-for-agent` is the exact input state `b-auto-fix` consumes, using the label vocabulary in `docs/agents/triage-labels.md`.
+
+**Next Steps**: `ready-for-agent` issues feed `b-auto-fix`; `ready-for-human` and `needs-info` stay with the maintainer.
+
+#### `/skill:codebase-design` — Deep-Module Vocabulary
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Shared vocabulary for designing deep modules — a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Defines the seven terms (**module, interface, depth, seam, adapter, leverage, locality**), depth-as-leverage, the deletion test, and "one adapter is hypothetical, two is real."
+
+**Pi/OMP primitive**: Skill only (`skills/codebase-design/SKILL.md`). **No** `prompts/` or `commands/` wrapper — invoke via `/skill:codebase-design` (precedent: `fix-pr`). Model-invoked reference: other skills (`b-diagnose` Phase 5, `b-build`'s seams gate) link to it rather than restating the definitions.
+
+**Fan-out files**: `DEEPENING.md` (dependency categories, seam discipline, replace-don't-layer testing), `DESIGN-IT-TWICE.md` (parallel sub-agent pattern for exploring radically different interfaces).
+
+**Use when**: designing or improving a module's interface, finding deepening opportunities, deciding where a seam goes, making code more testable or AI-navigable.
+
+#### `/skill:writing-for-agents` — Writing Documents Agents Consume
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Reference for writing any document an agent consumes — a skill, `AGENTS.md`/`CLAUDE.md`, or a doc reached by a context pointer. Covers context load vs cognitive load, the information hierarchy (in-file step / in-file reference / disclosed reference), completion criteria (clarity + demand), leading words, the no-op test, and prompt-the-positive (state the target behavior instead of negating the unwanted one).
+
+**Pi/OMP primitive**: Skill only (`skills/writing-for-agents/SKILL.md` + `SKILL-MECHANICS.md`). **No** `prompts/` or `commands/` wrapper — invoke via `/skill:writing-for-agents` (precedent: `fix-pr`, `codebase-design`).
+
+**Use when**: creating or editing a skill, modifying `AGENTS.md`/`CLAUDE.md`, or restructuring agent-facing docs.
+
+#### `/b-wizard` — Interactive Setup Wizards
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Generate an interactive bash wizard that walks a **human** through steps only they can perform (credentials, third-party dashboards, one-off migrations/cutovers). The wizard opens each URL, states what to click/copy, captures values, writes them where they belong (`.env`, GitHub secrets), confirms at every stage, and reports how many stages remain.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-wizard.md`, `commands/b-wizard.md`, `skills/b-wizard/SKILL.md` + `skills/b-wizard/template.sh`)
+
+**Load-bearing implementation**: `template.sh` does the work — staged progress, confirmation gates, cross-platform URL open (`open`/`xdg-open`/`wslview`/`explorer.exe`/`cmd.exe /c start` for WSL), hidden secret entry (`read -s`), **idempotent `.env` upsert** (replace-in-place, never blind append), and `gh secret`/`gh variable` writes. `SKILL.md` is thin — scope the procedure, author stages, verify statically (`bash -n`, `shellcheck`); never hand-edit the library above the `STAGES` marker.
+
+**Use when**: provisioning infrastructure, setting up credentials/CI secrets, walking an unfamiliar third-party dashboard, or running a one-off migration. Not for steps the agent can perform itself.
+
 #### `/b-docs` — Living-Documentation Sync
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -1200,6 +1294,24 @@ Suggested next step
 3. **Direction Changes** — Note material pivots, or state that work progressed along the initial plan.
 4. **Important Files** — 3–6 representative session-attributable paths with significance notes.
 5. **Latest Request & Current State** — Last substantive user request before `/b-recap` and current progress.
+
+#### `/b-handoff` — Portable Session Handoff
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Compact the current conversation into a portable handoff doc for a **different agent, harness, or machine** to pick up. Writes to the **OS temp dir** (`$TMPDIR`/`%TEMP%`), never the workspace or `.context/` — a handoff is transient and cross-directory.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-handoff.md`, `commands/b-handoff.md`, `skills/b-handoff/SKILL.md`)
+
+**Routing vs `b-recap` / `b-save`**:
+
+| Skill | Output | Use when |
+|---|---|---|
+| `b-recap` | Chat text only, no artifact | Orienting mid-session or on return; read-only |
+| `b-save` | Historical record in `.context/` + memory | Persisting what happened for this repo's future sessions |
+| **`b-handoff`** | **Portable seed doc in the OS temp dir** | **A different agent/harness/machine picks the work up** |
+
+**Content**: emits a `## Suggested skills` section naming what the next agent should load, references artifacts by path/URL instead of duplicating their content, and redacts secrets (API keys, passwords, PII) before writing.
 
 ### 5. Save Phase
 
