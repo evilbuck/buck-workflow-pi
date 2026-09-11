@@ -40,8 +40,9 @@ Every comment posted to the tracker during triage **must** start with:
 
 ## Roles
 
-Two **category** roles: `bug` (something is broken), `enhancement` (new
-feature or improvement).
+Three **category** roles: `bug` (something is broken), `enhancement` (new
+feature or improvement), `documentation` (docs-only work).
+
 
 Five **state** roles (canonical names — map to this repo's actual label
 strings via `docs/agents/triage-labels.md`):

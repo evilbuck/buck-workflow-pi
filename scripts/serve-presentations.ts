@@ -12,7 +12,7 @@
  *
  * Request routing is exported as pure functions so it is testable without binding a port.
  */
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { join, normalize, resolve, sep } from "node:path";
 
@@ -123,8 +123,14 @@ export function resolveRequestPath(root: string, pathname: string): string | nul
   const rootAbs = resolve(root);
   const relative = normalize(decoded).replace(/^[/\\]+/, "");
   const target = resolve(rootAbs, relative);
-  if (target !== rootAbs && !target.startsWith(rootAbs + sep)) return null;
-  return target;
+  let real = target;
+  try {
+    real = realpathSync(target);
+  } catch {
+    // Nonexistent path: lexical check already passed; fileResponse 404s later.
+  }
+  if (real !== rootAbs && !real.startsWith(rootAbs + sep)) return null;
+  return real;
 }
 
 function textResponse(body: string, status: number): Response {

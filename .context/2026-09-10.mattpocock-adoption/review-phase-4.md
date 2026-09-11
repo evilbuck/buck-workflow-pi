@@ -90,18 +90,17 @@ leftover same-dir tmp files: 0
   longer appears in argv/ps.
 - **Key escaping**: covered under Issue 3 above.
 
-## Residual note (P3, informational, non-blocking)
-The escape class `[.[\*^$]` covers the BRE metacharacters, but both greps run with `-E`
-(ERE), where `+ ? ( ) { } |` are also special. Probed behavior:
-- key `FOO+BAR`: `^FOO+BAR=` never matches the literal line → duplicates accumulate
-  (2 lines after 2 writes) — idempotency loss.
-- key `FOO(BAR`: invalid ERE → grep exits 2; with `|| true` the empty tmp file replaces
-  `.env`, wiping unrelated keys (demonstrated: pre-seeded `KEEP=1` destroyed).
+## Residual note (RESOLVED — superseded by second-pass fix)
+The escape class `[.[\*^$]` covered only BRE metacharacters, while both greps run with
+`-E` (ERE), where `+ ? ( ) { } |` are also special. Probed behavior at the time:
+- key `FOO+BAR`: `^FOO+BAR=` never matched the literal line → duplicates accumulated.
+- key `FOO(BAR`: invalid ERE → grep exited 2; with `|| true` the empty tmp file
+  replaced `.env`, wiping unrelated keys (demonstrated: pre-seeded `KEEP=1` destroyed).
 
-Both failure modes pre-existed the fix (raw interpolation behaved identically) and require
-pathological key names — POSIX env names are `[A-Za-z_][A-Za-z0-9_]*`, so even `.` was an
-edge case. Flagged as info only. One-line hardening if desired:
-`sed 's/[][\.|$(){}?+*^]/\\&/g'` in both sites.
+**Update (PR #21 review):** the second-pass fix shipped the broader class
+`[][\.|$(){}?+*^]` at both grep sites (template.sh L107, L147), which escapes the
+exact ERE metacharacters flagged above. Both failure modes are covered; no
+outstanding action.
 
 ## Regression checks
 - `bash -n skills/b-wizard/template.sh` → exit 0.

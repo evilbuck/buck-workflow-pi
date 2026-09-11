@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -48,6 +48,17 @@ describe("resolveRequestPath", () => {
   it("rejects a relative path that would escape the root", () => {
     expect(resolveRequestPath(root, "../package.json")).toBeNull();
     expect(resolveRequestPath(root, "alpha/../../package.json")).toBeNull();
+  });
+
+  it("rejects a symlinked path that resolves outside the root", () => {
+    const outside = mkdtempSync(join(tmpdir(), "serve-presentations-secret-"));
+    writeFileSync(join(outside, "private.txt"), "secret");
+    symlinkSync(join(outside, "private.txt"), join(root, "leak"));
+    try {
+      expect(resolveRequestPath(root, "/leak")).toBeNull();
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 
   it("rejects undecodable and null-byte paths", () => {

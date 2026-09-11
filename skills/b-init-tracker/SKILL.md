@@ -72,6 +72,23 @@ using [triage-labels-seed.md](triage-labels-seed.md). On no, collect the
 overrides (existing tracker label names) so `b-triage` applies them instead
 of creating duplicates.
 
+**Create the labels** (same condition as above). Writing the seed doc alone
+does not make triage work: on a fresh GitHub/GitLab tracker none of the
+labels exist, and `b-triage` label writes will fail mid-flow. After the user
+confirms the label vocabulary, create the labels in the tracker:
+
+- **GitHub**: `gh label create <name>` for each label, tolerating
+  "already exists" failures; also create the category labels `bug`,
+  `enhancement`, `documentation`.
+- **GitLab**: `glab` equivalent, or instruct the maintainer to create them
+  in the web UI before the first triage run.
+- **Local markdown tracker**: nothing to create — the tracker *is* the
+  seed doc; note that labels are conventional there.
+
+If creation is impossible (no CLI auth, maintainer declines), record the
+uncreated state explicitly in `docs/agents/triage-labels.md` and tell the
+user triage cannot apply labels until they exist.
+
 ### 3. Confirm and edit
 
 Show the user a draft of the `## Agent skills` block (below) and, only when

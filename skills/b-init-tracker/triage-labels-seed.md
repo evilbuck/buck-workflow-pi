@@ -18,6 +18,8 @@ carries one state role and one category role:
 |---|---|
 | `bug` | Something is broken |
 | `enhancement` | New feature or improvement |
+| `documentation` | Docs-only work |
+
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use
 the corresponding label string from the right-hand column.
