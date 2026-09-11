@@ -5,7 +5,7 @@ subject: 2026-09-10.b-save-state-machine-analysis
 topics: [b-save, b-save-improved, state-machine, deterministic-checkpoint, omp-sdk, command-migration]
 research: [research-b-save-state-machine.md, research/sources-omp-sdk.md]
 iterations: []
-memory: [../memory/b-save-state-machine-plan-2026-09-10.md, ../memory/b-save-phase-1-boundaries-2026-09-10.md]
+memory: [../memory/b-save-state-machine-plan-2026-09-10.md, ../memory/b-save-phase-1-boundaries-2026-09-10.md, ../memory/b-save-phase-2-snapshot-2026-09-10.md]
 ---
 
 # Plan: promote the deterministic b-save state machine and preserve legacy b-save

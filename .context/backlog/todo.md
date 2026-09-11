@@ -68,10 +68,10 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 
 ## b-save State-Machine Phases (2026-09-10)
 - [x] [Phase 1: Boundaries & contract freeze](archive/2026-09/phase-1-b-save-boundaries.md) — done 2026-09-10; Hindsight `unsupported` on OMP 18.1.17
-- [ ] [Phase 2: Run model & deterministic snapshot](items/phase-2-b-save-run-model.md) — HARD after Phase 1
+- [x] [Phase 2: Run model & deterministic snapshot](archive/2026-09/phase-2-b-save-run-model.md) — done 2026-09-10
+- [ ] [Phase 3: Bounded semantic roles](items/phase-3-b-save-roles.md) — HARD after Phase 2
 
 <!-- Upcoming phases — activate one at a time as the previous completes
-- [ ] [Phase 3: Bounded semantic roles](items/phase-3-b-save-roles.md) — HARD after Phase 2
 - [ ] [Phase 4: Evaluation & journaled apply](items/phase-4-b-save-evaluation-apply.md) — HARD after Phase 3
 - [ ] [Phase 5: External effects & command UX](items/phase-5-b-save-effects-ux.md) — HARD after Phase 4
 - [ ] [Phase 6: Parity, cutover & docs](items/phase-6-b-save-parity-cutover.md) — HARD after Phase 5
