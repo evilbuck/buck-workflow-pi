@@ -1,3 +1,5 @@
+- [x] b-save Phase 3: Bounded semantic roles (2026-09-10) — isolated scribe/auditor/classifier; `runOmpModelSession` isolation extras; no Hindsight delivery role.
+
 - [x] b-save Phase 2: Run model & deterministic snapshot (2026-09-10) — v1 run manifests, XState topology, snapshot layer with hashes/redaction.
 
 - [x] b-save Phase 1: Boundaries & contract freeze (2026-09-10) — Hindsight delivery locked `unsupported` on `@oh-my-pi/pi-coding-agent@18.1.17`; frozen command contract at `spec-b-save-command-contract.md`.
