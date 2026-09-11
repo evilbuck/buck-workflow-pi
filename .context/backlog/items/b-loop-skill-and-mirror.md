@@ -3,10 +3,11 @@ title: b-loop skill — advisory + stamp, with deferred slash-command mirror
 status: active
 priority: medium
 created: 2026-07-05
-updated: 2026-07-05
+updated: 2026-09-10
 completed: null
 related:
   - skills/b-loop/SKILL.md
+  - prompts/b-kickoff.md
   - skills/b-phase/SKILL.md
   - skills/b-plan/SKILL.md
   - docs/buck-workflow.md#runtime-package-mapping
@@ -42,17 +43,15 @@ frontmatter mutation.
 
 ## Intentionally deferred
 
-**No `prompts/b-loop.md` and no `commands/b-loop.md` symlink in this
-revision.** Per the user's "skill only, no slash command mirror"
-selection, `/b-loop` does not appear in Pi's `/`-menu nor OMP's
-`/`-menu. The skill is invokable via `/skill:b-loop` (or
-agent-by-name), but not via `/b-loop` slash discovery.
+`prompts/b-kickoff.md` exists as a separate OMP `/goal set` objective for
+unattended execution. It is not a mirror of the advisory/stamping skill. There
+is still no `commands/b-loop.md` or `commands/b-kickoff.md` symlink, so the
+skill remains invokable via `/skill:b-loop` (or agent-by-name).
 
 ## Acceptance criteria for this revision
 
-- [x] `skills/b-loop/SKILL.md` exists and self-documents the
-      no-mirror surface choice in `## Surface — No Slash Command
-      Mirror (Deferral)`.
+- [x] `skills/b-loop/SKILL.md` distinguishes the advisory/stamping skill from
+      the separate unattended goal objective in `prompts/b-kickoff.md`.
 - [x] SKILL.md writes only `omp_execution` / `omp_goal_budget` on
       phase frontmatter and the matching cell in the phases-overview
       `## Phase Summary` table. No `orchestration.json`. No worker.
@@ -67,13 +66,13 @@ agent-by-name), but not via `/b-loop` slash discovery.
 
 ### F1. Lift the slash-command mirror
 
-Mechanical: add `prompts/b-loop.md` (description copy + `$ARGUMENTS`
-+ skill-load line) and a `commands/b-loop.md` symlink. Verify Pi
-discovers the new prompt and OMP discovers the new command. Then:
+Decide whether to add a conventional advisory-skill slash mirror under a
+different command name, or expose the goal objective through an OMP-specific
+launcher. `prompts/b-kickoff.md` now names the autonomous goal objective, and a
+prompt expansion cannot synthetically toggle OMP goal mode. Then:
 
-- Update SKILL.md `## Surface — No Slash Command Mirror` to
-  `## Surface — Slash Command Mirror` and flip the practical
-  consequence from "doesn't appear" to "appears".
+- Choose and document the final OMP launcher surface; do not imply a prompt
+  expansion can activate `/goal` on the user's behalf.
 - Add a row to `docs/buck-workflow.md`'s Quick Reference Table for
   `b-loop`.
 - Consider running a smoke `b-loop` invocation through Pi and OMP to
