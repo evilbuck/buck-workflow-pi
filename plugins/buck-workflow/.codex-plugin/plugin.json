@@ -1,6 +1,6 @@
 {
   "name": "buck-workflow",
-  "version": "0.1.0+codex.20260905213040",
+  "version": "0.1.0",
   "description": "Structured, durable workflows for AI-assisted software development.",
   "author": {
     "name": "Buck Workflow",
