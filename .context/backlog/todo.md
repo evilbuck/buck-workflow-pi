@@ -1,6 +1,7 @@
 # Backlog
 
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
+- [x] [z.ai discount banner OMP extension](archive/2026-09/zai-discount-banner-extension.md) — done 2026-09-11 (second review passed via PR #22)
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 - [ ] [Live TUI progress for deterministic slash commands](items/deterministic-extension-progress.md) — high priority
