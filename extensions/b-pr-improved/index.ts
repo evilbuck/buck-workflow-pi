@@ -19,70 +19,15 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createProgress, execFileCaptured } from "../command-progress.js";
 import { runOmpModelSession } from "../omp-models.js";
-
+import { continueRebase, execGit, listConflictPaths, pushBranchIfAhead } from "../pr-git.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// The deterministic plumbing lives in one place — the b-pr skill's script.
 const PREFLIGHT = join(HERE, "..", "..", "skills", "b-pr", "scripts", "pr-preflight.ts");
-
 const MAX_CONFLICT_ATTEMPTS = 20;
-
-// ---------- git / gh helpers ----------
-
-function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...env },
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    throw new Error(`git ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`);
-  }
-}
-
-async function execGitPush(args: string[], cwd: string): Promise<void> {
-  const result = await execFileCaptured("git", args, cwd);
-  if (result.code !== 0) {
-    throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim() || result.stdout.trim() || "unknown"}`);
-  }
-}
-
-export async function pushBranchIfAhead(branch: string, cwd: string, allowForceWithLease = false): Promise<boolean> {
-  const remoteRef = `refs/remotes/origin/${branch}`;
-  try {
-    execGit(["rev-parse", "--verify", remoteRef], cwd);
-  } catch {
-    await execGitPush(["push", "-u", "origin", branch], cwd);
-    return true;
-  }
-
-  const [behind, ahead] = execGit(["rev-list", "--left-right", "--count", `${remoteRef}...${branch}`], cwd)
-    .trim()
-    .split(/\s+/)
-    .map(Number);
-  if (ahead === 0) return false;
-  if (behind > 0 && !allowForceWithLease) {
-    throw new Error(`${remoteRef} has ${behind} commit(s) missing locally; refusing to overwrite it`);
-  }
-
-  const args = ["push"];
-  if (behind > 0) args.push("--force-with-lease");
-  await execGitPush([...args, "-u", "origin", branch], cwd);
-  return true;
-}
-
-function conflictedFiles(cwd: string): string[] {
-  const raw = execGit(["diff", "--diff-filter=U", "--name-only"], cwd).trim();
-  return raw ? raw.split("\n").filter(Boolean) : [];
-}
 
 // ---------- preflight (reuse the skill's script — single source of truth) ----------
 
@@ -127,8 +72,8 @@ async function resolveRebaseConflicts(
   notify: (msg: string, level: "info" | "warning") => void,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < MAX_CONFLICT_ATTEMPTS; attempt++) {
-    const files = conflictedFiles(cwd);
-    if (files.length === 0) return true; // rebase complete
+    const files = listConflictPaths(cwd);
+    if (files.length === 0) return true;
 
     const prompt =
       `You are resolving a git rebase conflict onto ${baseRef}. These files have unresolved conflict markers (<<<<<<< ======= >>>>>>>):\n\n` +
@@ -151,14 +96,11 @@ async function resolveRebaseConflicts(
         // file may have been removed in the resolution — skip
       }
     }
-    try {
-      execGit(["rebase", "--continue"], cwd, { GIT_EDITOR: "true" });
-    } catch (e: unknown) {
-      // --continue exits non-zero on the next conflict (expected — loop) or on a real error.
-      if (conflictedFiles(cwd).length === 0) {
-        notify(`⚠️ git rebase --continue failed: ${(e as Error).message}`, "warning");
-        return false;
-      }
+    const continued = continueRebase(cwd);
+    if (continued.done) return true;
+    if (continued.conflicts.length === 0) {
+      notify(`⚠️ git rebase --continue failed: ${continued.stderr}`, "warning");
+      return false;
     }
   }
   notify(`⚠️ gave up after ${MAX_CONFLICT_ATTEMPTS} conflict-resolution attempts. Resolve manually, then re-run /b-pr-improved.`, "warning");

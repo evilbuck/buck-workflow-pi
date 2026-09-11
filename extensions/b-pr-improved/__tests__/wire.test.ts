@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pushBranchIfAhead, wire } from "../index.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { pushBranchIfAhead } from "../../pr-git.js";
+import { wire } from "../index.js";
 
 // Minimal mock: only the ExtensionAPI surface b-pr-improved touches (registerCommand).
 function createMockApi(): { api: ExtensionAPI; commands: Map<string, Record<string, unknown>> } {
@@ -158,6 +159,34 @@ describe("pr-preflight dirty-tree rebase", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("reports an in-progress rebase as resumable JSON instead of a generic error", () => {
+    const dir = makeRepo();
+    const env = { ...process.env, GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t" };
+    const g = (a: string[]) => execFileSync("git", a, { cwd: dir, encoding: "utf-8", env, stdio: ["pipe", "pipe", "pipe"] });
+    try {
+      writeFileSync(join(dir, "clash.txt"), "feature\n");
+      g(["add", "clash.txt"]);
+      g(["commit", "-qm", "feature clash"]);
+      g(["checkout", "-q", "main"]);
+      writeFileSync(join(dir, "clash.txt"), "main\n");
+      g(["add", "clash.txt"]);
+      g(["commit", "-qm", "main clash"]);
+      g(["checkout", "-q", "feature/x"]);
+      try {
+        g(["rebase", "main"]);
+      } catch {
+        /* expected conflict */
+      }
+      const result = runPreflight(dir, ["--base", "main"]);
+      expect(result.code).toBe(3);
+      expect(result.json?.rebase_in_progress).toBe(true);
+      expect(result.json?.conflicted_files).toEqual(["clash.txt"]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
 });
 
 describe("pushBranchIfAhead", () => {

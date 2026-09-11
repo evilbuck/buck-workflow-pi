@@ -1,3 +1,5 @@
+- [x] Phase 2: Extract shared PR git primitives (2026-09-10) — `extensions/pr-git.ts`. Cache/rebase/push extracted; 15 vitest; never `--force`.
+
 - [x] Phase 1: Freeze contracts and pure machine (2026-09-10) — `.context/2026-09-10.b-pr-manager/phase-1-contracts-pure-machine.md`. Pure XState v5 machine + versioned schemas; 22 vitest; no command registration.
 
 - [x] Stop b-commit-improved committing leftover draft placeholders (2026-08-26) — `.context/2026-08-26.b-commit-placeholder-sentinels/index.md`. Dollar-sign sentinels only; leftover angle-bracket titles refused. 16/16 tests.

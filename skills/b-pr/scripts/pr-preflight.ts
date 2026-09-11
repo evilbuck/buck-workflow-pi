@@ -16,9 +16,9 @@
 //   3 = rebase conflict (resolve, then re-run)
 
 import { execFileSync } from "node:child_process";
-import { accessSync, closeSync, constants, existsSync, openSync, readFileSync, readSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { accessSync, closeSync, constants, existsSync, openSync, readFileSync, readSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-
+import { listConflictPaths, readBaseCache, rebaseInProgress, writeBaseCache } from "../../../extensions/pr-git.js";
 // ---------- types ----------
 
 interface CandidateBase {
@@ -68,6 +68,8 @@ interface PreflightOutput {
   needs_rebase?: boolean;
   rebased?: boolean;
   rebase_conflict?: boolean;
+  rebase_in_progress?: boolean;
+  cache_present?: boolean;
   conflicted_files?: string[];
   error?: string;
 }
@@ -205,11 +207,26 @@ const repoRoot = execGit(["rev-parse", "--show-toplevel"]).trim();
 const gitDir = execGit(["rev-parse", "--git-dir"]).trim();
 const baseCacheFile = join(gitDir, "b-pr-base"); // base-branch cache (local, per-clone, never committed)
 
-// Bail if a rebase is already mid-flight (unresolved conflicts from a prior run).
-// Checked before the detached-HEAD check: a conflicted rebase leaves HEAD detached,
-// which would otherwise produce a misleading "switch to a feature branch" error.
-if (existsSync(join(gitDir, "rebase-merge")) || existsSync(join(gitDir, "rebase-apply"))) {
-  die(`a rebase is already in progress. Resolve conflicts, run \`git rebase --continue\` until "Successfully rebased", then re-run /b-pr.`);
+// Checked before the detached-HEAD check: a conflicted rebase leaves HEAD detached.
+if (rebaseInProgress(repoRoot)) {
+  const cached = readBaseCache(repoRoot);
+  const conflicts = listConflictPaths(repoRoot);
+  const branch = tryGit(["rev-parse", "--abbrev-ref", "HEAD"]).stdout.trim();
+  const message = `a rebase is already in progress. Resolve conflicts, run \`git rebase --continue\` until "Successfully rebased", then re-run /b-pr.`;
+  const output: PreflightOutput = {
+    current_branch: branch,
+    repo_root: repoRoot,
+    base_candidates: [],
+    cache_present: cached !== null,
+    chosen_base: cached ?? undefined,
+    rebase_in_progress: true,
+    rebase_conflict: conflicts.length > 0,
+    conflicted_files: conflicts,
+    error: message,
+  };
+  console.error(`pr-preflight: error: ${message}`);
+  console.log(JSON.stringify(output, null, 2));
+  process.exit(3);
 }
 
 
@@ -245,9 +262,8 @@ if (baseCandidates.length === 0) {
 
 // 5. Resolve the base: --base flag wins; else the cache; else surface candidates.
 if (!chosenBaseArg) {
-  const cached = noCache ? undefined : (existsSync(baseCacheFile) ? readFileSync(baseCacheFile, "utf-8").trim() || undefined : undefined);
+  const cached = noCache ? undefined : (readBaseCache(repoRoot) ?? undefined);
   if (cached) {
-    // Trust the cache only if the ref still exists locally or on origin.
     const stillExists = tryGit(["rev-parse", "--verify", `refs/remotes/origin/${cached}`]).ok
       || tryGit(["rev-parse", "--verify", `refs/heads/${cached}`]).ok;
     if (stillExists) {
@@ -266,6 +282,7 @@ if (!chosenBaseArg) {
     repo_root: repoRoot,
     base_candidates: baseCandidates,
     base_source: "candidates",
+    cache_present: readBaseCache(repoRoot) !== null,
   };
   console.log(JSON.stringify(output, null, 2));
   process.exit(0);
@@ -292,7 +309,7 @@ if (!chosenCandidate) {
 
 // Cache the confirmed base so subsequent runs skip the prompt.
 // (No-op in dry-run so a wrong preview never poisons the cache.)
-if (!dryRun) writeFileSync(baseCacheFile, chosenBaseArg! + "\n");
+if (!dryRun) writeBaseCache(repoRoot, chosenBaseArg!);
 
 const baseRef = chosenCandidate.remote ? `${chosenCandidate.remote}/${chosenCandidate.name}` : chosenCandidate.name;
 
@@ -328,8 +345,7 @@ if (behindCount > 0) {
   // to surface as exit 1 "no output" in b-pr-improved).
   const rebaseResult = tryGit(["rebase", "--autostash", baseRef]);
   if (!rebaseResult.ok) {
-    const conflictRaw = tryGit(["diff", "--diff-filter=U", "--name-only"]).stdout.trim();
-    const conflictedFiles = conflictRaw ? conflictRaw.split("\n").filter(Boolean) : [];
+    const conflictedFiles = listConflictPaths(repoRoot);
     if (conflictedFiles.length === 0) {
       // Not a merge conflict — hook refusal, autostash apply failure, or other.
       die(`git rebase --autostash ${baseRef} failed (no merge conflicts detected — hook or other refusal): ${rebaseResult.stderr}`);
@@ -344,6 +360,8 @@ if (behindCount > 0) {
       ahead_count: aheadCount,
       base_source: baseSource,
       rebase_conflict: true,
+      rebase_in_progress: true,
+      cache_present: true,
       conflicted_files: conflictedFiles,
       error: `Rebase onto ${baseRef} conflicts in ${conflictedFiles.length} file(s): ${conflictedFiles.join(", ")}. Resolve, \`git add\`, \`git rebase --continue\` until done, then re-run /b-pr.`,
     };
@@ -471,6 +489,7 @@ const output: PreflightOutput = {
   diff_stat: diffStat,
   context_artifacts: contextArtifacts,
   needs_rebase: false,
+  cache_present: readBaseCache(repoRoot) !== null,
 };
 
 console.log(JSON.stringify(output, null, 2));

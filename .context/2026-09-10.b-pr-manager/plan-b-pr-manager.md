@@ -14,6 +14,7 @@ spec: null
 memory:
   - b-pr-manager-plan-2026-09-10.md
   - b-pr-manager-phase-1-2026-09-10.md
+  - b-pr-manager-phase-2-2026-09-10.md
 
 # Plan: Automated PR Feedback-to-Merge Manager
 

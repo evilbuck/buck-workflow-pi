@@ -28,4 +28,4 @@ Plan a narrow OMP extension that drives one open pull request from review-feedba
 
 - Planning decisions resolved.
 - Implementation plan drafted.
-- Phase 1 completed (pure contracts + XState machine, 22 vitest). First non-completed phase: **Phase 2** (hard, `/b-build-hard`).
+- Phases 1–2 completed. First non-completed phase: **Phase 3** (medium, `/b-build`).

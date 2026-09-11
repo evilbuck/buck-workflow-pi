@@ -1,3 +1,7 @@
+- 2026-09-10 — [b-pr-manager Phase 2: extract shared PR git primitives](b-pr-manager-phase-2-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-pr-manager-phase-2-2026-09-10.md` | domains: [extensions, git, testing] | topics: [b-pr-manager, pr-git, rebase, force-with-lease, phase-2] | status: completed
+
 - 2026-09-10 — [b-pr-manager Phase 1: freeze contracts and pure XState machine](b-pr-manager-phase-1-2026-09-10.md) — `completed`
 
   - 2026-09-10 | `b-pr-manager-phase-1-2026-09-10.md` | domains: [extensions, testing, state-machine] | topics: [b-pr-manager, xstate, phase-1, verdicts, polling] | status: completed

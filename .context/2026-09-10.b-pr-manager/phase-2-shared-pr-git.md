@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-b-pr-manager.md
@@ -17,16 +17,16 @@ from_plan_steps: [2]
 depends_on: []
 dependency_type: NONE
 acceptance_criteria:
-  - "[ ] `extensions/pr-git.ts` owns base-cache access, rebase detect/continue, conflict enumeration, safe push selection, and remote OID verification"
-  - "[ ] `.git/b-pr-base` cache contract is unchanged"
-  - "[ ] `/b-pr-improved` calls only the shared primitives; duplicated git helpers are deleted, not aliased"
-  - "[ ] `pushBranchIfAhead` (or its extracted equivalent) still refuses overwrite unless rebase rewrote published commits, and never emits `--force`"
-  - "[ ] `pr-preflight.ts` exposes machine-readable cache/base/rebase results, treats an active rebase as resumable, and keeps its existing CLI contract"
-  - "[ ] Existing b-pr-improved wire tests pass without weakening assertions"
-  - "[ ] Temporary-git coverage exists for cache hit/miss/mismatch, dirty start, clean rebase, conflict enumeration, active-rebase resume, normal push, lease-protected push, lease rejection, and remote OID match"
-  - "[ ] No git mutation occurs before a missing-base selection"
-completed_at: null
-completed_by: null
+  - "[x] `extensions/pr-git.ts` owns base-cache access, rebase detect/continue, conflict enumeration, safe push selection, and remote OID verification"
+  - "[x] `.git/b-pr-base` cache contract is unchanged"
+  - "[x] `/b-pr-improved` calls only the shared primitives; duplicated git helpers are deleted, not aliased"
+  - "[x] `pushBranchIfAhead` (or its extracted equivalent) still refuses overwrite unless rebase rewrote published commits, and never emits `--force`"
+  - "[x] `pr-preflight.ts` exposes machine-readable cache/base/rebase results, treats an active rebase as resumable, and keeps its existing CLI contract"
+  - "[x] Existing b-pr-improved wire tests pass without weakening assertions"
+  - "[x] Temporary-git coverage exists for cache hit/miss/mismatch, dirty start, clean rebase, conflict enumeration, active-rebase resume, normal push, lease-protected push, lease rejection, and remote OID match"
+  - "[x] No git mutation occurs before a missing-base selection"
+completed_at: 2026-09-10
+completed_by: b-build-hard
 ---
 
 # Phase 2: Extract shared PR git primitives
