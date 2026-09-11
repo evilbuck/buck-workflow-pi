@@ -21,7 +21,6 @@
 ## b-pr-manager Phases (2026-09-10)
 
 ### Upcoming Phases
-- [ ] [Phase 6: XState runner and command UX](items/phase-6-runner-command-ux.md) — hard; join point after 2–5
 - [ ] [Phase 7: Safety proof, docs, and smoke](items/phase-7-proof-docs-smoke.md) — medium; HARD on Phase 6
 
 Overview: `.context/2026-09-10.b-pr-manager/plan-b-pr-manager-phases.md`

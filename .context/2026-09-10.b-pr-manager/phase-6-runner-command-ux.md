@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-b-pr-manager.md
@@ -17,18 +17,18 @@ from_plan_steps: [7]
 depends_on: [2, 3, 4, 5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `/b-pr-manager` is registered and disposed on session shutdown"
-  - "[ ] CLI matches the plan contract; flags > saved run > git-local config > defaults"
-  - "[ ] Fresh start with a dirty worktree blocks before checkout; resume allows only manager-owned dirty paths"
-  - "[ ] Missing/stale `.git/b-pr-base` prompts before any mutation; `--base` is accepted only when it equals the PR base"
-  - "[ ] Merge method resolution: explicit flag, saved run, existing auto-merge request, sole enabled method, otherwise one upfront selection — never a silent history-rewriting choice when several methods exist"
-  - "[ ] Conflict actor loop is bounded to 20 steps; markers scanned, paths staged, `git rebase --continue` is deterministic"
-  - "[ ] Polling: immediate observation plus seven delayed waits; abort-aware sleep; progress resets index; limit → `exhausted`"
-  - "[ ] Ctrl+C / `ctx.signal` persist `paused`, cancel sleeps and nested sessions, preserve rebase/edits, print exact resume command"
-  - "[ ] Auto-merge is requested only after the deterministic merge gate; completion is claimed only on GitHub `state=MERGED`"
-  - "[ ] Wire tests cover command parse, registration, and actor disposal without a real PR"
-completed_at: null
-completed_by: null
+  - "[x] `/b-pr-manager` is registered and disposed on session shutdown"
+  - "[x] CLI matches the plan contract; flags > saved run > git-local config > defaults"
+  - "[x] Fresh start with a dirty worktree blocks before checkout; resume allows only manager-owned dirty paths"
+  - "[x] Missing/stale `.git/b-pr-base` prompts before any mutation; `--base` is accepted only when it equals the PR base"
+  - "[x] Merge method resolution: explicit flag, saved run, existing auto-merge request, sole enabled method, otherwise one upfront selection — never a silent history-rewriting choice when several methods exist"
+  - "[x] Conflict actor loop is bounded to 20 steps; markers scanned, paths staged, `git rebase --continue` is deterministic"
+  - "[x] Polling: immediate observation plus seven delayed waits; abort-aware sleep; progress resets index; limit → `exhausted`"
+  - "[x] Ctrl+C / `ctx.signal` persist `paused`, cancel sleeps and nested sessions, preserve rebase/edits, print exact resume command"
+  - "[x] Auto-merge is requested only after the deterministic merge gate; completion is claimed only on GitHub `state=MERGED`"
+  - "[x] Wire tests cover command parse, registration, and actor disposal without a real PR"
+completed_at: 2026-09-10
+completed_by: b-build-hard
 ---
 
 # Phase 6: XState runner and command UX

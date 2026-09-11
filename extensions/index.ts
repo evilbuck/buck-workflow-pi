@@ -9,6 +9,7 @@ import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
+import { disposeActiveManagers, wire as wireBprManager } from "./b-pr-manager/index.js";
 import { mappingFromOmpRoles } from "./omp-models.js";
 
 
@@ -318,6 +319,7 @@ export default function (pi: ExtensionAPI) {
   wireTpsTracker(pi);
   // --- b-pr-improved: deterministic PR creation ---
   wireBprImproved(pi);
+  wireBprManager(pi);
   // --- b-commit-improved: deterministic Conventional Commit ---
   wireBCommitImproved(pi);
   // --- b-kamal-release: tag + deploy with Kamal ---
@@ -328,9 +330,9 @@ export default function (pi: ExtensionAPI) {
   wireBSaveImproved(pi);
 
   // --- Session lifecycle ---
-
   pi.on("session_start", async (_event, ctx) => {
     cwd = ctx.cwd;
+    disposeActiveManagers();
   });
 
   // --- Detect model-switch commands ---
