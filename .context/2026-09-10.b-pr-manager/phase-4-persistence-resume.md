@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-b-pr-manager.md
@@ -15,16 +15,16 @@ from_plan_steps: [4]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Paths resolve to `<git-dir>/b-pr-manager/pr-<number>.json`, `.lock`, and optional `config.json` — never the working tree"
-  - "[ ] Checkpoints write temp → flush/close → rename after every successful transition and immediately before sleep or external mutation"
-  - "[ ] Per-PR lock is acquired before reconcile; stale locks require PID/session validation, not blind deletion"
-  - "[ ] Schema version is stored; known versions migrate; unknown versions block"
-  - "[ ] Resume treats the file as a checkpoint: re-read identities/OIDs, detect active rebase, unknown dirty paths, and stale exact-head attestations"
-  - "[ ] Resume never replays commit, push, or auto-merge solely because the snapshot said the call was pending"
-  - "[ ] Cancellation path can mark `paused` and persist without deleting rebase/edits"
-  - "[ ] Optional `config.json` is schema-validated and limited to timing, merge method, and model selection"
-completed_at: null
-completed_by: null
+  - "[x] Paths resolve to `<git-dir>/b-pr-manager/pr-<number>.json`, `.lock`, and optional `config.json` — never the working tree"
+  - "[x] Checkpoints write temp → flush/close → rename after every successful transition and immediately before sleep or external mutation"
+  - "[x] Per-PR lock is acquired before reconcile; stale locks require PID/session validation, not blind deletion"
+  - "[x] Schema version is stored; known versions migrate; unknown versions block"
+  - "[x] Resume treats the file as a checkpoint: re-read identities/OIDs, detect active rebase, unknown dirty paths, and stale exact-head attestations"
+  - "[x] Resume never replays commit, push, or auto-merge solely because the snapshot said the call was pending"
+  - "[x] Cancellation path can mark `paused` and persist without deleting rebase/edits"
+  - "[x] Optional `config.json` is schema-validated and limited to timing, merge method, and model selection"
+completed_at: 2026-09-10
+completed_by: b-build
 ---
 
 # Phase 4: Atomic persistence and resume

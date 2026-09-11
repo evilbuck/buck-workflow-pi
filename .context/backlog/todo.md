@@ -21,7 +21,6 @@
 ## b-pr-manager Phases (2026-09-10)
 
 ### Upcoming Phases
-- [ ] [Phase 4: Atomic persistence and resume](items/phase-4-persistence-resume.md) — medium; HARD on Phase 1
 - [ ] [Phase 5: Model actors and Buck fix rounds](items/phase-5-model-actors-buck-loop.md) — hard; HARD on Phase 1
 - [ ] [Phase 6: XState runner and command UX](items/phase-6-runner-command-ux.md) — hard; join point after 2–5
 - [ ] [Phase 7: Safety proof, docs, and smoke](items/phase-7-proof-docs-smoke.md) — medium; HARD on Phase 6
