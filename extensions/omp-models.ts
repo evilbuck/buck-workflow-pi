@@ -4,9 +4,7 @@
  * Nested sessions must use OMP's agentDir + modelPattern. Pi's getModel()
  * and ~/.pi/agent/settings.json are the wrong catalog under OMP.
  */
-import { createAgentSession, SessionManager } from "@mariozechner/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -215,66 +213,4 @@ export class EmptyModelResponseError extends Error {
   }
 }
 
-export async function runOmpModelSession(opts: {
-  cwd: string;
-  tools: string[];
-  prompt: string;
-  modelOverride?: string;
-  timeoutMs?: number;
-  onActivity?: (event: ActivityEvent) => void;
-}): Promise<string> {
-  const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000, onActivity } = opts;
-  const sessionOpts: Parameters<typeof createAgentSession>[0] & {
-    agentDir?: string;
-    modelPattern?: string;
-    toolNames?: string[];
-    restrictToolNames?: boolean;
-    disableExtensionDiscovery?: boolean;
-    enableMCP?: boolean;
-    enableLsp?: boolean;
-    agentId?: string;
-  } = {
-    cwd,
-    agentDir: ompAgentDir(),
-    thinkingLevel: "off",
-    // `tools` is Pi's legacy allowlist; OMP 18 uses `toolNames`.
-    tools,
-    toolNames: tools,
-    restrictToolNames: true,
-    disableExtensionDiscovery: true,
-    enableMCP: false,
-    enableLsp: false,
-    agentId: `b-save-improved-model-${randomUUID()}`,
-    sessionManager: SessionManager.inMemory(cwd),
-  };
-  if (modelOverride) sessionOpts.modelPattern = modelOverride;
-  const created = await createAgentSession(sessionOpts);
-  const session = created.session;
-  let unsubscribe: (() => void) | null = null;
-  if (onActivity) {
-    const bridge = (rawEvent: unknown): void => {
-      const normalized = normalizeActivityEvent(rawEvent);
-      if (normalized) onActivity(normalized);
-    };
-    unsubscribe = session.subscribe(bridge);
-  }
-  const timer = setTimeout(() => {
-    void session.abort();
-  }, timeoutMs);
-  try {
-    await session.prompt(prompt);
-    const messages = session.messages as Array<{
-      role?: string;
-      content?: unknown;
-      stopReason?: unknown;
-      errorMessage?: unknown;
-    }>;
-    const text = lastAssistantText(messages);
-    if (!text) throw new EmptyModelResponseError(messages);
-    return text;
-  } finally {
-    if (unsubscribe) unsubscribe();
-    clearTimeout(timer);
-    session.dispose();
-  }
-}
+export { runOmpModelSession } from "./omp-model-session.js";

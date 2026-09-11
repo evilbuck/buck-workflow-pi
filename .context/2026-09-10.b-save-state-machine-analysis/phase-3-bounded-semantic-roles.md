@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-b-save-state-machine.md
@@ -17,14 +17,14 @@ from_plan_steps: [5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `runOmpModelSession` is extended in place (no second model-session convention): caller-owned system prompts, strict output schemas, empty ambient inputs, OMP-only switches, stable role IDs, and one retry from the original sanitized snapshot."
-  - "[ ] Scribe, evidence-auditor, and goal-classifier sessions run with no tools and no ambient skills, rules, context files, prompts, commands, extensions, MCP, LSP, or IRC."
-  - "[ ] Evidence inputs are bounded and cited by ID; the retry re-sends the original snapshot, never a re-scraped one."
-  - "[ ] Models return semantic content and closed verdicts only — never writable paths, commands, or mutations; role failure yields a resumable `failed_model` outcome."
-  - "[ ] Prompt-injection fixtures embedded in repository/session evidence cannot change role instructions, tool access, writable paths, payloads, or state transitions."
-  - "[ ] `extensions/omp-models.test.ts` and new role-validation tests pass; existing `b-save-improved` consumers of `runOmpModelSession` still pass."
-completed_at: null
-completed_by: null
+  - "[x] `runOmpModelSession` is extended in place (no second model-session convention): caller-owned system prompts, strict output schemas, empty ambient inputs, OMP-only switches, stable role IDs, and one retry from the original sanitized snapshot."
+  - "[x] Scribe, evidence-auditor, and goal-classifier sessions run with no tools and no ambient skills, rules, context files, prompts, commands, extensions, MCP, LSP, or IRC."
+  - "[x] Evidence inputs are bounded and cited by ID; the retry re-sends the original snapshot, never a re-scraped one."
+  - "[x] Models return semantic content and closed verdicts only — never writable paths, commands, or mutations; role failure yields a resumable `failed_model` outcome."
+  - "[x] Prompt-injection fixtures embedded in repository/session evidence cannot change role instructions, tool access, writable paths, payloads, or state transitions."
+  - "[x] `extensions/omp-models.test.ts` and new role-validation tests pass; existing `b-save-improved` consumers of `runOmpModelSession` still pass."
+completed_at: 2026-09-10
+completed_by: omp-goal
 ---
 
 # Phase 3: Bounded Semantic Roles
