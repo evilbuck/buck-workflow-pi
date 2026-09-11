@@ -63,6 +63,13 @@ export type PatchPlan = {
   moves: Array<{ from: string; to: string }>;
 };
 
+export function upsertIndexLine(existing: string, line: string) {
+  const rows = existing.split("\n");
+  if (rows.some((row) => row.trim() === line.trim())) return existing;
+  const body = existing.endsWith("\n") || existing === "" ? existing : existing + "\n";
+  return body + line + (line.endsWith("\n") ? "" : "\n");
+}
+
 export type Evaluation = {
   rules: ClosedRule[];
   patch: PatchPlan;
@@ -155,7 +162,10 @@ function ruleSpec(input: EvalInput): ClosedRule {
 function ruleIndex(input: EvalInput): ClosedRule {
   const snap = asOk(input.snapshot);
   const file = "memory-" + todayOf(input, snap) + ".md";
-  return { id: 7, result: { upsertKey: file, path: ".context/memory/index.md" } };
+  return {
+    id: 7,
+    result: { upsertKey: file, path: ".context/memory/index.md", existing: snap.memory_index_content },
+  };
 }
 
 function ruleNative(): ClosedRule {
@@ -222,11 +232,15 @@ function composePatch(rules: ClosedRule[]): PatchPlan {
       content: "# " + memory.draft.title + "\n\n" + memory.draft.body + "\n",
     });
   }
-  const index = rules.find((r) => r.id === 7)?.result as { path: string; upsertKey: string } | undefined;
+  const index = rules.find((r) => r.id === 7)?.result as
+    | { path: string; upsertKey: string; existing: string }
+    | undefined;
   if (index && memory) {
     ops.push({
       path: index.path,
-      content: "- " + index.upsertKey + "\n",
+      // Upsert onto the current index content — replacing the file with a
+      // single line would wipe every existing memory entry.
+      content: upsertIndexLine(index.existing, "- " + index.upsertKey),
     });
   }
   return { ops, moves: [] };
