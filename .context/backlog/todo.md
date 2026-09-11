@@ -54,6 +54,7 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 All four phases complete; subject closed verified 2026-10-08 reconciliation.
 
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
+- [x] [z.ai discount banner OMP extension](archive/2026-09/zai-discount-banner-extension.md) — done 2026-09-11 (second review passed via PR #22)
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 
@@ -151,7 +152,6 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
-- [ ] [z.ai discount banner OMP extension](items/zai-discount-banner-extension.md) — medium; review iteration complete, second review and complexity resolution pending
 - [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)

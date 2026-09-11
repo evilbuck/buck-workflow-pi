@@ -180,6 +180,9 @@ export function wire(pi: ExtensionAPI, deps?: { now?: () => Date }): void {
       registerEventFallback();
       return;
     }
+    // Note: the interval deliberately captures the session_start ctx; turn_end
+    // and before_agent_start re-evaluate with their fresh per-event ctx, which
+    // masks a stale session_start ctx during active sessions.
     try {
       managed.setInterval(() => evaluate(ctx as BannerContext), 60_000);
     } catch {

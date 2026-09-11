@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-09
 subject: 2026-09-09.zai-discount-banner
 topics: [zai, glm-5.3-flash, discount-banner, omp-extension, campaign, setWidget]

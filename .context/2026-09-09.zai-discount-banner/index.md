@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-09
 subject: 2026-09-09.zai-discount-banner
 ---
@@ -10,10 +10,10 @@ Research for an OMP extension that shows a banner when the authenticated z.ai pr
 
 ## Artifacts
 
-- [plan-zai-discount-banner.md](plan-zai-discount-banner.md) — `active` — implementation plan (banner-only v1; no off-peak UI, no toasts)
+- [plan-zai-discount-banner.md](plan-zai-discount-banner.md) — `completed` — implementation plan (banner-only v1; no off-peak UI, no toasts)
 - [iterate-zai-discount-banner.md](iterate-zai-discount-banner.md) — `completed` — review fixes for OMP auth compatibility, occurrence bounds, exact model gating, timer fallback, and typed tests
-- [../memory/zai-discount-banner-2026-09-09.md](../memory/zai-discount-banner-2026-09-09.md) — `active` — checkpoint saved 2026-09-10; re-review and complexity resolution pending
-- [research-zai-discount-banner.md](research-zai-discount-banner.md) — `active` — canonical summary: windows, detection, rendering, recommendations
+- [../memory/zai-discount-banner-2026-09-09.md](../memory/zai-discount-banner-2026-09-09.md) — `completed` — second review passed via PR #22 (2026-09-11)
+- [research-zai-discount-banner.md](research-zai-discount-banner.md) — `completed` — canonical summary: windows, detection, rendering, recommendations
 - [research/notes-zai-discount-windows.md](research/notes-zai-discount-windows.md) — rolling notes (z.ai sources)
 - [research/sources-zai-discount-windows.md](research/sources-zai-discount-windows.md) — source captures incl. OMP runtime APIs
 

@@ -2,7 +2,7 @@
 
 > **For the installing agent:** Before running any install command, **ask the
 > user which agent they're installing for** — Pi, OMP, Codex, OpenCode,
-> Claude Code, Grok Build, or ZCode. Then jump to that section and run only those
+> Claude Code, or Grok Build. Then jump to that section and run only those
 > commands. Do **not** blast through every section in sequence.
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
@@ -80,7 +80,6 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 | **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
-| **ZCode** | Durable clone + `scripts/install.mjs --harness zcode` | `~/.zcode/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 
 ---
 
@@ -542,48 +541,6 @@ and Plugins (`09-plugins.md`).
 
 ---
 
-## ZCode
-
-ZCode follows the [Agent Skills](https://agentskills.io) standard. It scans
-`~/.zcode/skills/` (then `~/.agents/skills/`) at user scope, and
-`.zcode/skills/` / `.agents/skills/` at workspace scope. A discovered skill is
-invocable directly as `/<skill-name>`, so the installer wires no `commands/`
-surface for ZCode — the `commands/` mirror would only duplicate the skills.
-
-### Install — durable clone + installer (recommended)
-
-```bash
-git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-~/.local/share/buck-workflow-pi/scripts/install.mjs \
-  --source ~/.local/share/buck-workflow-pi --harness zcode
-```
-
-From an existing checkout (this machine):
-
-```bash
-/path/to/buck-workflow-pi/scripts/install.mjs \
-  --source /path/to/buck-workflow-pi --harness zcode
-```
-
-### Where things go
-
-| Surface | Location |
-|---|---|
-| Skills (user) | `~/.zcode/skills/<name>/SKILL.md` |
-| Skills (project) | `<repo>/.zcode/skills/<name>/SKILL.md` |
-| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.zcode/AGENTS.md` — `scripts/install.mjs --harness zcode` |
-
-The Pi/OMP TypeScript extensions under `extensions/` do not load on ZCode;
-the skills themselves are plain Markdown and port fully.
-
-### Verify
-
-In a refreshed ZCode session, type `/b-` and confirm the `b-*` skills appear,
-including the `b-build`, `b-review`, and `b-save` sentinels. Then run
-`/b-plan` on a small task and confirm it writes `.context/<date>.<subject>/`.
-
----
-
 ## Companion bootstrap (`.context/` conventions)
 
 Buck workflow is durable by design — the skills write session memory,
@@ -602,7 +559,6 @@ Install it once per agent:
 | OpenCode | `~/.config/opencode/AGENTS.md` (or any ancestor) | `./AGENTS.md` |
 | Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
 | Grok Build | `~/.grok/rules/buck-workflow.md` | `./AGENTS.md` |
-| ZCode | `~/.zcode/AGENTS.md` | `./AGENTS.md` |
 
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.
