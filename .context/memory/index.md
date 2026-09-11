@@ -26,6 +26,9 @@
 - 2026-09-09 — [fix-pr: PR #17 review fixes (fetch URL, stale refs, local-only)](fix-pr-17-2026-09-09.md) — `completed`
 
   - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
+- 2026-09-10 — [Phase 1: b-save boundaries and contract freeze](b-save-phase-1-boundaries-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-1-boundaries-2026-09-10.md` | domains: [workflow, architecture, extensions] | topics: [b-save, hindsight, omp-sdk, command-contract, phase-1] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
 
 - 2026-09-10 — [OMP goal prompt for autonomous Buck loops](b-loop-goal-prompt-2026-09-10.md) — `completed` — subject `2026-09-10.b-kickoff-goal-prompt`
 

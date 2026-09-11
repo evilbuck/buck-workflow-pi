@@ -67,10 +67,14 @@
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",
+    "@oh-my-pi/pi-coding-agent": "18.1.17",
     "@sinclair/typebox": "*"
   },
   "peerDependenciesMeta": {
     "@mariozechner/pi-coding-agent": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-coding-agent": {
       "optional": true
     },
     "@sinclair/typebox": {

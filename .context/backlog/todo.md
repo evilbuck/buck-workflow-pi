@@ -65,3 +65,15 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
 - [ ] [Locate Pi coding-agent runtime source in clean worktrees](items/pi-runtime-source-clean-worktree.md) — medium priority
+
+## b-save State-Machine Phases (2026-09-10)
+- [x] [Phase 1: Boundaries & contract freeze](archive/2026-09/phase-1-b-save-boundaries.md) — done 2026-09-10; Hindsight `unsupported` on OMP 18.1.17
+- [ ] [Phase 2: Run model & deterministic snapshot](items/phase-2-b-save-run-model.md) — HARD after Phase 1
+
+<!-- Upcoming phases — activate one at a time as the previous completes
+- [ ] [Phase 3: Bounded semantic roles](items/phase-3-b-save-roles.md) — HARD after Phase 2
+- [ ] [Phase 4: Evaluation & journaled apply](items/phase-4-b-save-evaluation-apply.md) — HARD after Phase 3
+- [ ] [Phase 5: External effects & command UX](items/phase-5-b-save-effects-ux.md) — HARD after Phase 4
+- [ ] [Phase 6: Parity, cutover & docs](items/phase-6-b-save-parity-cutover.md) — HARD after Phase 5
+-->
+
