@@ -1,3 +1,5 @@
+- 2026-09-10 — [b-pr-manager Phase 5: model actors and Buck fix rounds](b-pr-manager-phase-5-2026-09-10.md) — `completed`
+
 - 2026-09-10 — [b-pr-manager Phase 4: atomic persistence and resume](b-pr-manager-phase-4-2026-09-10.md) — `completed`
 
 - 2026-09-10 — [b-pr-manager Phase 3: deterministic GitHub inventory](b-pr-manager-phase-3-2026-09-10.md) — `completed`

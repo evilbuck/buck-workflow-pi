@@ -122,14 +122,26 @@ export class EmptyModelResponseError extends Error {
   }
 }
 
+export interface StructuredSchema<T> {
+  parse(value: unknown): T;
+}
+
+export class StructuredModelResponseError extends Error {
+  constructor(readonly errors: string[]) {
+    super(`Structured model response failed validation: ${errors.join("; ")}`);
+    this.name = "StructuredModelResponseError";
+  }
+}
+
 export async function runOmpModelSession(opts: {
   cwd: string;
   tools: string[];
   prompt: string;
   modelOverride?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<string> {
-  const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000 } = opts;
+  const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000, signal } = opts;
   const sessionOpts: Parameters<typeof createAgentSession>[0] & {
     agentDir?: string;
     modelPattern?: string;
@@ -156,6 +168,8 @@ export async function runOmpModelSession(opts: {
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
   const created = await createAgentSession(sessionOpts);
   const session = created.session;
+  const onAbort = () => { void session.abort(); };
+  signal?.addEventListener("abort", onAbort, { once: true });
   const timer = setTimeout(() => {
     void session.abort();
   }, timeoutMs);
@@ -172,6 +186,21 @@ export async function runOmpModelSession(opts: {
     return text;
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", onAbort);
     session.dispose();
+  }
+}
+export async function runStructuredOmpModelSession<T>(opts: Parameters<typeof runOmpModelSession>[0] & { schema: StructuredSchema<T> }): Promise<T> {
+  const text = await runOmpModelSession(opts);
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    throw new StructuredModelResponseError([error instanceof Error ? error.message : "invalid JSON"]);
+  }
+  try {
+    return opts.schema.parse(value);
+  } catch (error) {
+    throw new StructuredModelResponseError([error instanceof Error ? error.message : "schema rejected response"]);
   }
 }

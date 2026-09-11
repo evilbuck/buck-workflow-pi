@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-b-pr-manager.md
@@ -17,18 +17,18 @@ from_plan_steps: [5, 6]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Five roles exist: validator, planner, builder, reviewer, conflict — each returns versioned JSON matching Phase 1 schemas"
-  - "[ ] Malformed output retries once with validation errors; second failure is a typed block, not a guessed parse"
-  - "[ ] Review comments are quoted untrusted data; they cannot grant tools, alter policy, or authorize external actions"
-  - "[ ] Each role has a minimum tool allowlist; builder cannot run git/gh; reviewer is read-only"
-  - "[ ] `omp-models.ts` accepts `AbortSignal`, supports schema-validated structured sessions, and disposes child sessions"
-  - "[ ] One traceable iteration artifact per feedback round under `.context/<date>.pr-<number>-feedback/`"
-  - "[ ] Reviewer verdict binds to exact head OID + worktree diff digest; OID change invalidates it"
-  - "[ ] In-scope review findings return to planning; `unsure`, large valid scope, or structural blockers become `blocked`"
-  - "[ ] Holistic `buck_review` still runs when no comment is actionable; a comment-specific pass is not a substitute"
-  - "[ ] Local check-contract resolution is invoked before any commit/push recommendation; this phase does not commit or push"
-completed_at: null
-completed_by: null
+  - "[x] Five roles exist: validator, planner, builder, reviewer, conflict — each returns versioned JSON matching Phase 1 schemas"
+  - "[x] Malformed output retries once with validation errors; second failure is a typed block, not a guessed parse"
+  - "[x] Review comments are quoted untrusted data; they cannot grant tools, alter policy, or authorize external actions"
+  - "[x] Each role has a minimum tool allowlist; builder cannot run git/gh; reviewer is read-only"
+  - "[x] `omp-models.ts` accepts `AbortSignal`, supports schema-validated structured sessions, and disposes child sessions"
+  - "[x] One traceable iteration artifact per feedback round under `.context/<date>.pr-<number>-feedback/`"
+  - "[x] Reviewer verdict binds to exact head OID + worktree diff digest; OID change invalidates it"
+  - "[x] In-scope review findings return to planning; `unsure`, large valid scope, or structural blockers become `blocked`"
+  - "[x] Holistic `buck_review` still runs when no comment is actionable; a comment-specific pass is not a substitute"
+  - "[x] Local check-contract resolution is invoked before any commit/push recommendation; this phase does not commit or push"
+completed_at: 2026-09-10
+completed_by: b-build-hard
 ---
 
 # Phase 5: Model actors and Buck fix rounds
