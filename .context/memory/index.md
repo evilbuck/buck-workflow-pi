@@ -26,6 +26,10 @@
 - 2026-09-09 — [fix-pr: PR #17 review fixes (fetch URL, stale refs, local-only)](fix-pr-17-2026-09-09.md) — `completed`
 
   - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
+- 2026-09-10 — [Phase 4: evaluation and journaled apply](b-save-phase-4-evaluate-apply-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-4-evaluate-apply-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, evaluate, apply, journal, phase-4] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
 - 2026-09-10 — [Phase 3: bounded semantic roles](b-save-phase-3-roles-2026-09-10.md) — `completed`
 
   - 2026-09-10 | `b-save-phase-3-roles-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, roles, omp-models, isolation, phase-3] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis

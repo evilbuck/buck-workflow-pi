@@ -1,3 +1,5 @@
+- [x] b-save Phase 4: Evaluation & journaled apply (2026-09-10) — twelve rules, user gates, journaled apply with resume/rollback.
+
 - [x] b-save Phase 3: Bounded semantic roles (2026-09-10) — isolated scribe/auditor/classifier; `runOmpModelSession` isolation extras; no Hindsight delivery role.
 
 - [x] b-save Phase 2: Run model & deterministic snapshot (2026-09-10) — v1 run manifests, XState topology, snapshot layer with hashes/redaction.

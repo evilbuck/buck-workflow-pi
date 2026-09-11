@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-b-save-state-machine.md
@@ -16,18 +16,18 @@ from_plan_steps: [6, 7]
 depends_on: [2, 3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] All twelve responsibilities are encoded as deterministic rules that either return a closed result or raise a typed `NeedsJudgmentError`."
-  - "[ ] Only expected semantic uncertainty routes to a Phase 3 role; citations and transitions are validated deterministically afterward."
-  - "[ ] Containment, schema, stale-input, I/O, and programmer errors are hard deterministic failures that never reach a model."
-  - "[ ] User decisions are preserved as explicit gates for multiple eligible subjects and inferred backlog changes."
-  - "[ ] Apply composes one full patch: memory content, explicit cross-references, backlog archive/create deltas, spec/phase/iterate status changes, phase-overview projection repairs, canonical memory-index upserts, subject-index updates, and artifact moves."
-  - "[ ] The whole patch is validated before any write; dependent hashes are rechecked pre-apply; before-images and per-file progress are journaled; files are replaced atomically."
-  - "[ ] A simulated mid-apply failure recovers via resume or rollback with no silent partial success."
-  - "[ ] Pre-apply drift invalidates and reruns only dependent work."
-  - "[ ] Reruns produce no duplicate headings, links, memory-index entries, archive summaries, or backlog rows."
-  - "[ ] All writes are constrained to validated `.context/**` targets; apply aborts on any changed before-image; failure-injection and idempotency tests pass."
-completed_at: null
-completed_by: null
+  - "[x] All twelve responsibilities are encoded as deterministic rules that either return a closed result or raise a typed `NeedsJudgmentError`."
+  - "[x] Only expected semantic uncertainty routes to a Phase 3 role; citations and transitions are validated deterministically afterward."
+  - "[x] Containment, schema, stale-input, I/O, and programmer errors are hard deterministic failures that never reach a model."
+  - "[x] User decisions are preserved as explicit gates for multiple eligible subjects and inferred backlog changes."
+  - "[x] Apply composes one full patch: memory content, explicit cross-references, backlog archive/create deltas, spec/phase/iterate status changes, phase-overview projection repairs, canonical memory-index upserts, subject-index updates, and artifact moves."
+  - "[x] The whole patch is validated before any write; dependent hashes are rechecked pre-apply; before-images and per-file progress are journaled; files are replaced atomically."
+  - "[x] A simulated mid-apply failure recovers via resume or rollback with no silent partial success."
+  - "[x] Pre-apply drift invalidates and reruns only dependent work."
+  - "[x] Reruns produce no duplicate headings, links, memory-index entries, archive summaries, or backlog rows."
+  - "[x] All writes are constrained to validated `.context/**` targets; apply aborts on any changed before-image; failure-injection and idempotency tests pass."
+completed_at: 2026-09-10
+completed_by: omp-goal
 ---
 
 # Phase 4: Deterministic Evaluation & Journaled Apply
