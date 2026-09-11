@@ -91,6 +91,8 @@
 
 - [x] [Phase 1: buck-loop transition contract](2026-09/phase-1-transition-contract.md) — done 2026-09-18 — frozen types.ts + table.ts; 66/66; `/b-review` Pass. `.context/2026-09-18.buck-loop-extension/phase-1-transition-contract.md`
 
+- [x] b-save Phase 3: Bounded semantic roles (2026-09-10) — isolated scribe/auditor/classifier; `runOmpModelSession` isolation extras; no Hindsight delivery role.
+
 - [x] b-save Phase 2: Run model & deterministic snapshot (2026-09-10) — v1 run manifests, XState topology, snapshot layer with hashes/redaction.
 
 - [x] b-save Phase 1: Boundaries & contract freeze (2026-09-10) — Hindsight delivery locked `unsupported` on `@oh-my-pi/pi-coding-agent@18.1.17`; frozen command contract at `spec-b-save-command-contract.md`.
