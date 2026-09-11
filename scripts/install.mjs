@@ -99,17 +99,6 @@ export const HARNESSES = [
       skills:    { src: "skills",  dest: ".grok/skills" },
     },
   },
-  {
-    id: "zcode",
-    name: "ZCode",
-    detectDir: ".zcode",
-    surfaces: {
-      // No commands surface: ZCode invokes a discovered skill directly as
-      // /<skill-name>, so the commands/ mirror would only duplicate it.
-      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".zcode/AGENTS.md" },
-      skills:    { src: "skills",  dest: ".zcode/skills" },
-    },
-  },
 ];
 
 // ---------------------------------------------------------------------------

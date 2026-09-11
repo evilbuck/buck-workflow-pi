@@ -1,10 +1,10 @@
 ---
 title: "z.ai discount banner OMP extension"
-status: active
+status: completed
 priority: medium
 created: 2026-09-09
-updated: 2026-09-10
-completed: null
+updated: 2026-09-11
+completed: 2026-09-11
 related:
   - .context/2026-09-09.zai-discount-banner/plan-zai-discount-banner.md
   - .context/2026-09-09.zai-discount-banner/research-zai-discount-banner.md
@@ -27,4 +27,6 @@ future off-peak footer chip (`ctx.ui.setStatus`) can reuse the tested `isOffPeak
 
 ## Progress
 
+
+- 2026-09-11: Second review passed — the PR #22 review found no issues with the banner itself and confirmed all iterate fixes applied. The banner's max CCN is 9 (under the 10 gate); the repository-wide complexity baseline failure pre-dates this subject and is tracked separately. Statuses resolved on this branch; awaiting merge.
 - 2026-09-10: Completed the five-item review iteration and saved an active checkpoint. A second `/b-review` and resolution or explicit override of the repository-wide complexity failure remain before completion.

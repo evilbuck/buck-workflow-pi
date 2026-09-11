@@ -1,13 +1,13 @@
 ---
 date: 2026-09-09
-updated: 2026-09-10
+updated: 2026-09-11
 domains: [extensions, testing, workflow]
 topics: [zai-discount-banner, omp, model-registry, campaign-window, b-iterate]
 related:
   - .context/2026-09-09.zai-discount-banner/plan-zai-discount-banner.md
   - .context/2026-09-09.zai-discount-banner/iterate-zai-discount-banner.md
 priority: medium
-status: active
+status: completed
 subject: 2026-09-09.zai-discount-banner
 artifacts:
   - extensions/zai-discount-banner.ts
@@ -45,8 +45,8 @@ Resolve the five in-plan defects found by `/b-review` before re-reviewing the z.
 
 ## Checkpoint
 
-`/b-save` recorded this session on 2026-09-10. The review iteration is complete, but the plan, subject, and backlog item remain active because the required second `/b-review` has not passed and the known repository-wide complexity failure remains unresolved.
+`/b-save` recorded the 2026-09-10 session. The second review completed on 2026-09-11: the PR #22 review confirmed all five iterate fixes applied and found no issues with the banner itself. The banner's max cyclomatic complexity is 9 (under the 10 gate); the repository-wide complexity baseline failure pre-dates this subject and is tracked separately, so no subject-level override is needed. Statuses resolved on the `feat/zai-sale-flag` branch (PR #22) ahead of merge.
 
 ## Remaining Workflow
 
-Re-run `/b-review` against `plan-zai-discount-banner.md`. If review passes and the complexity failure is fixed or explicitly overridden, run `/b-commit`.
+Merge PR #22. The branch's review-fix commit also removed the unrelated ZCode installer changes (they duplicate PR #19) and the nvim-socket-rpc-skill planning artifacts per the PR #22 split request.
