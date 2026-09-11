@@ -1,6 +1,7 @@
 - 2026-09-10 — [mattpocock/skills remediation — phased execution](mattpocock-adoption-2026-09-10.md) — `in-progress`
 
   - 2026-09-10 | `mattpocock-adoption-2026-09-10.md` | domains: [skill, buck-workflow, docs, license] | topics: [mattpocock-skills, adoption, phase-1, mit-notice, provenance, issue-tracker, triage-labels, b-research, backlog, guardrails] | status: in-progress
+- 2026-09-09 — [z.ai discount banner review iteration](zai-discount-banner-2026-09-09.md) — `active`; checkpoint saved 2026-09-10 pending re-review
 
 - 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 

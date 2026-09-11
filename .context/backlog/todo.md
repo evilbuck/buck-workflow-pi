@@ -3,12 +3,14 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+- [ ] [nvim-socket-rpc skill](items/nvim-socket-rpc-skill.md) — SKILL.md + Bun CLI (discover/ping/open/goto/eval/qf/verify); plan in .context/2026-09-09.nvim-socket-rpc-skill/
 - [ ] [Live TUI progress for deterministic slash commands](items/deterministic-extension-progress.md) — high priority
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
 - [ ] [Test b-grill-auto extension in live Pi session](items/test-b-grill-auto-extension.md)
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
+- [ ] [z.ai discount banner OMP extension](items/zai-discount-banner-extension.md) — medium; review iteration complete, second review and complexity resolution pending
 - [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [docs/eval-kernel.md omits async task/hub job contract](items/eval-kernel-async-task-doc-gap.md)
