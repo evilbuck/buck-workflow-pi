@@ -1,3 +1,5 @@
+- 2026-09-10 — [b-pr-manager Phase 3: deterministic GitHub inventory](b-pr-manager-phase-3-2026-09-10.md) — `completed`
+
 - 2026-09-10 — [b-pr-manager Phase 2: extract shared PR git primitives](b-pr-manager-phase-2-2026-09-10.md) — `completed`
 
   - 2026-09-10 | `b-pr-manager-phase-2-2026-09-10.md` | domains: [extensions, git, testing] | topics: [b-pr-manager, pr-git, rebase, force-with-lease, phase-2] | status: completed

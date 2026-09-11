@@ -25,9 +25,9 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Freeze contracts and pure machine | completed | medium | none | [phase-1-contracts-pure-machine.md](phase-1-contracts-pure-machine.md) |
 | 2: Extract shared PR git primitives | completed | hard | none | [phase-2-shared-pr-git.md](phase-2-shared-pr-git.md) |
-| 3: Deterministic GitHub inventory | pending | medium | none | [phase-3-github-inventory.md](phase-3-github-inventory.md) |
-| 4: Atomic persistence and resume | pending | medium | none | [phase-4-persistence-resume.md](phase-4-persistence-resume.md) |
-| 5: Model actors and Buck fix rounds | pending | hard | none | [phase-5-model-actors-buck-loop.md](phase-5-model-actors-buck-loop.md) |
+| 3: Deterministic GitHub inventory | completed | medium | none | [phase-3-github-inventory.md](phase-3-github-inventory.md) |
+| 4: Atomic persistence and resume | in-progress | medium | none | [phase-4-persistence-resume.md](phase-4-persistence-resume.md) |
+| 5: Model actors and Buck fix rounds | in-progress | hard | none | [phase-5-model-actors-buck-loop.md](phase-5-model-actors-buck-loop.md) |
 | 6: XState runner and command UX | pending | hard | none | [phase-6-runner-command-ux.md](phase-6-runner-command-ux.md) |
 | 7: Safety proof, docs, and smoke | pending | medium | none | [phase-7-proof-docs-smoke.md](phase-7-proof-docs-smoke.md) |
 
@@ -108,7 +108,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Freeze contracts and pure machine — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Extract shared PR git primitives — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Deterministic GitHub inventory — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Deterministic GitHub inventory — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Atomic persistence and resume — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: Model actors and Buck fix rounds — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 6: XState runner and command UX — build → review → iterate if in-plan issues → docs if doc impact → save → commit

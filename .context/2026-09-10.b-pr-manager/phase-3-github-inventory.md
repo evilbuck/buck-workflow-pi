@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-b-pr-manager.md
@@ -16,16 +16,16 @@ from_plan_steps: [3]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Paginated REST covers reviews, inline comments, and conversation comments; GraphQL covers review-thread resolution state"
-  - "[ ] Each item normalizes to the Phase 1 feedback-version schema with a stable fingerprint (id + timestamp/content digest)"
-  - "[ ] Edited comments produce a new version; resolved/outdated/duplicate state is explicit"
-  - "[ ] Snapshot helpers reduce required checks, `reviewDecision`, mergeability, repository merge methods, auto-merge, and GitHub `state`"
-  - "[ ] Read snapshots are separate functions from mutations (`gh pr merge --auto`, never `--admin`)"
-  - "[ ] Mutation helpers are idempotent given the same head OID / merge method"
-  - "[ ] A comment arriving between push and gate is visible to an immediate refresh using fixtures"
-  - "[ ] No real network in tests; all cases use Phase 1 fixtures plus added pagination/gate fixtures"
-completed_at: null
-completed_by: null
+  - "[x] Paginated REST covers reviews, inline comments, and conversation comments; GraphQL covers review-thread resolution state"
+  - "[x] Each item normalizes to the Phase 1 feedback-version schema with a stable fingerprint (id + timestamp/content digest)"
+  - "[x] Edited comments produce a new version; resolved/outdated/duplicate state is explicit"
+  - "[x] Snapshot helpers reduce required checks, `reviewDecision`, mergeability, repository merge methods, auto-merge, and GitHub `state`"
+  - "[x] Read snapshots are separate functions from mutations (`gh pr merge --auto`, never `--admin`)"
+  - "[x] Mutation helpers are idempotent given the same head OID / merge method"
+  - "[x] A comment arriving between push and gate is visible to an immediate refresh using fixtures"
+  - "[x] No real network in tests; all cases use Phase 1 fixtures plus added pagination/gate fixtures"
+completed_at: 2026-09-10
+completed_by: b-build
 ---
 
 # Phase 3: Deterministic GitHub inventory
