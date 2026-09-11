@@ -54,9 +54,9 @@ describe("deliverNativeMemory", () => {
 });
 
 describe("extensions/index.ts registration", () => {
-  it("does not register the engine as /b-save yet", () => {
+  it("registers the engine as /b-save and not /b-save-improved", () => {
     const source = readFileSync(new URL("../../index.ts", import.meta.url), "utf8");
-    expect(source).not.toMatch(/b-save\/index/);
-    expect(source).not.toMatch(/registerCommand\([^)]*b-save/);
+    expect(source).toMatch(/b-save\/index/);
+    expect(source).not.toMatch(/b-save-improved/);
   });
 });

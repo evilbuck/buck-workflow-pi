@@ -23,7 +23,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | Most `/b-*` workflow entrypoints | Prompt templates | Slash commands | `prompts/b-*.md`; `commands/b-*.md` symlinks |
 | Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
-| `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` (+ optional OMP retain) |
+| `/b-save` | Extension command | Extension command | `extensions/b-save`; fallback `/deprecated-b-save` is the old prompt |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-howto` | Prompt template | Slash command symlink | `prompts/b-howto.md`; `commands/b-howto.md`; `skills/b-howto/SKILL.md` |
 | `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session recap) |
@@ -60,7 +60,7 @@ Current autonomous-loop guidance lives in prompt/skill surfaces instead:
 - Use `b-plan` and `b-phase` for normal phase decomposition.
 - Use OMP's user-toggled primitives (`/goal set`, `orchestrate`, `workflow`)
   only when the plan/phase recommends `omp_execution`.
-- Use `/b-save` as a pure prompt/skill for durable session recordkeeping.
+- Use `/b-save` for durable session recordkeeping (engine on OMP; `/deprecated-b-save` is the prompt fallback).
 
 Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
 archival reference, not as active user-facing setup.
@@ -410,10 +410,10 @@ flowchart TD
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
 | [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
-| [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
+| [**b-save**](#b-save--session-recordkeeping) | Extension + Skill | `/b-save` | `extensions/b-save` + `skills/b-save/SKILL.md` | Deterministic checkpoint engine; Hindsight native-memory `unsupported`; prompt fallback `/deprecated-b-save` |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 
-**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
+**Implementation note:** most `/b-*` commands are prompt templates mirrored through `commands/`. `/b-save` is registered by `extensions/index.ts`. `/deprecated-b-save` is the prompt-driven fallback. The extension does not register `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -438,7 +438,7 @@ The following older subsystems are **not** wired by the package manifest:
 
 | Subsystem | Current state |
 |---|---|
-| `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
+| `/b-save` extension command | Wired: `extensions/b-save`. Prompt fallback is `/deprecated-b-save`. |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
 | `/b-flow` / `/b-next` orchestration | Historical code in `extensions/b-flow/`; not an active command |
 | `b-grill-auto` extension command | Historical/unwired; the skill remains available |

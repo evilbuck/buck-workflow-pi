@@ -72,5 +72,5 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 - [x] [Phase 3: Bounded semantic roles](archive/2026-09/phase-3-b-save-roles.md) — done 2026-09-10
 - [x] [Phase 4: Evaluation & journaled apply](archive/2026-09/phase-4-b-save-evaluation-apply.md) — done 2026-09-10
 - [x] [Phase 5: External effects & command UX](archive/2026-09/phase-5-b-save-effects-ux.md) — done 2026-09-10
-- [ ] [Phase 6: Parity, cutover & docs](items/phase-6-b-save-parity-cutover.md) — HARD after Phase 5
+- [x] [Phase 6: Parity, cutover & docs](archive/2026-09/phase-6-b-save-parity-cutover.md) — done 2026-09-10
 

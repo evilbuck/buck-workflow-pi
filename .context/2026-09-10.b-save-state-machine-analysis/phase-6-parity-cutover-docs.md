@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: completed
 phase: 6
 order: 6
 plan: plan-b-save-state-machine.md
@@ -31,16 +31,16 @@ from_plan_steps: [10, 11]
 depends_on: [5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Parity checklist passes: all twelve responsibilities, stale-input invalidation, model retry/exhaustion, prompt-injection content, user gates, interrupted-apply recovery, rerun idempotency, and supported/unsupported memory backends — compared against the current prompt contract and `/b-save-improved` strengths."
-  - "[ ] Live OMP session verification: clean session with the package linked, `/b-save` invoked against a disposable project, one run interrupted and resumed, resulting `.context` files and effect report inspected."
-  - "[ ] Cutover performed atomically after parity: old prompt implementation preserved as `/deprecated-b-save` (skill + prompt + command), engine registered as `/b-save` in `extensions/index.ts`, `/b-save-improved` (skill, extension, prompt, command) removed."
-  - "[ ] Command discovery in fresh sessions resolves exactly the two requested names: `/b-save` and `/deprecated-b-save`; `/b-save-improved` does not resolve."
-  - "[ ] `/deprecated-b-save` loads in a clean harness session and preserves the legacy prompt contract."
-  - "[ ] Live catalogs and docs (AGENTS.md, GLOBAL_OR_PROJECT-AGENTS.md, README.md, docs/buck-workflow.md, docs/extension-loading.md, docs/oh-my-pi.md) describe the engine/fallback split; historical `.context/**` records are untouched."
-  - "[ ] Repository reference sweep finds no live `b-save-improved` or prompt-only `/b-save` claims outside intentional historical records; README tail re-read after every table edit (2026-09-04 truncation rule)."
-  - "[ ] `/b-guardrails-check` durable contract passes; a failing gate blocks completion."
-completed_at: null
-completed_by: null
+  - "[x] Parity checklist passes: all twelve responsibilities, stale-input invalidation, model retry/exhaustion, prompt-injection content, user gates, interrupted-apply recovery, rerun idempotency, and supported/unsupported memory backends — compared against the current prompt contract and `/b-save-improved` strengths."
+  - "[x] Live OMP session verification: clean session with the package linked, `/b-save` invoked against a disposable project, one run interrupted and resumed, resulting `.context` files and effect report inspected."
+  - "[x] Cutover performed atomically after parity: old prompt implementation preserved as `/deprecated-b-save` (skill + prompt + command), engine registered as `/b-save` in `extensions/index.ts`, `/b-save-improved` (skill, extension, prompt, command) removed."
+  - "[x] Command discovery in fresh sessions resolves exactly the two requested names: `/b-save` and `/deprecated-b-save`; `/b-save-improved` does not resolve."
+  - "[x] `/deprecated-b-save` loads in a clean harness session and preserves the legacy prompt contract."
+  - "[x] Live catalogs and docs (AGENTS.md, GLOBAL_OR_PROJECT-AGENTS.md, README.md, docs/buck-workflow.md, docs/extension-loading.md, docs/oh-my-pi.md) describe the engine/fallback split; historical `.context/**` records are untouched."
+  - "[x] Repository reference sweep finds no live `b-save-improved` or prompt-only `/b-save` claims outside intentional historical records; README tail re-read after every table edit (2026-09-04 truncation rule)."
+  - "[x] `/b-guardrails-check` durable contract passes; a failing gate blocks completion."
+completed_at: 2026-09-10
+completed_by: omp-goal
 ---
 
 # Phase 6: Parity, Atomic Cutover & Documentation

@@ -187,8 +187,8 @@ Most agents load both global and project-level files — the project-level one e
 
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
-- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans and token-per-second tracking
-- **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command; run before `/b-commit` to record durable session state
+- **Runtime hooks** → `extensions/index.ts`: model auto-switch, TPS tracking, and the `/b-save` engine
+- **`/b-save`** → deterministic OMP engine (`extensions/b-save`); prompt fallback is `/deprecated-b-save`
 
 ### Cross-Agent Parallels
 
@@ -249,7 +249,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 
 | Command | Purpose |
 |---------|---------|
-| `/b-save` | Write `.context/memory` + backlog/index/cross-refs; on OMP, also `retain` session facts when tools exist; non-OMP agents optionally re-index via the configured Memory Search Tool |
+| `/deprecated-b-save` | Prompt-driven twelve-step checkpoint fallback (pre-engine `/b-save` contract) |
 
 ### Skills
 
@@ -280,7 +280,8 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation; does not replace `/b-save` |
-| `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
+| `b-save` | Deterministic OMP checkpoint engine; Hindsight native-memory is `unsupported`; `/deprecated-b-save` is the prompt fallback |
+| `deprecated-b-save` | Prompt-driven twelve-step session checkpoint (cross-harness fallback) |
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-phase` | Analyze a plan and break it into sequential phases |
@@ -300,8 +301,9 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 The wired package extension is intentionally small:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
+- **`/b-save` engine** — snapshot, bounded roles, journaled apply, post-apply effects
 
-Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
+Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 
@@ -383,7 +385,7 @@ Artifacts link to each other via frontmatter fields:
 - **Spec** → `plans: [plan-file.md]`, `memory: []`
 - **Memory** → `subject: YYYY-MM-DD.name`, `artifacts: [files...]`
 
-`/b-save` stitches cross-references by executing the prompt/skill instructions directly.
+`/b-save` stitches cross-references through the deterministic engine; `/deprecated-b-save` still runs the prompt contract.
 
 ## Requirements
 - An AI coding agent — any supported harness (see [Compatibility](#compatibility))
@@ -393,7 +395,7 @@ Artifacts link to each other via frontmatter fields:
 - For slash commands: Pi with `prompts/` loaded, OMP with the `commands/`
   mirror, or another harness with its native skill/command surface wired
 - Optional: the bootstrap instructions for cross-session durability conventions
-- Optional (OMP): `memory.backend: hindsight` or `mnemopi` so `/b-save` can `retain` and agents can `recall`/`reflect` prior work
+- Optional (OMP): `memory.backend: local` or `mnemopi` so `/b-save` can deliver via `ctx.memory.save()`; Hindsight delivery is `unsupported` on OMP 18.1.17
 - Optional (non-OMP agents): configure a memory search skill (e.g., [qmd](https://github.com/tobi/qmd)) in the project's `AGENTS.md` for local markdown search over `.context/memory`. OMP agents use native memory tools instead.
 
 ## Compatibility

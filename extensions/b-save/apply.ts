@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync 
 import { dirname, join } from "node:path";
 import { ContainmentError, contextRootJoin, type PatchPlan } from "./evaluate.js";
 import { hashContent } from "./snapshot.js";
+import { runDir } from "./types.js";
 
 export type JournalOp = {
   path: string;
@@ -21,7 +22,7 @@ export type ApplyResult = {
 };
 
 function journalPath(root: string, runId: string) {
-  return join(root, ".context", "workflow", "runs", runId, "apply-journal.json");
+  return join(runDir(root, runId), "apply-journal.json");
 }
 
 function readJournal(path: string): ApplyJournal | null {

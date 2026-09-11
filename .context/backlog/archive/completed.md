@@ -1,3 +1,5 @@
+- [x] b-save Phase 6: Parity, cutover & docs (2026-09-10) — `/b-save` engine + `/deprecated-b-save` fallback; `/b-save-improved` removed; patch coverage 90%.
+
 - [x] b-save Phase 5: External effects & command UX (2026-09-10) — Hindsight `unsupported`; local/Mnemopi save with stored-count retry; unregistered command adapter.
 
 - [x] b-save Phase 4: Evaluation & journaled apply (2026-09-10) — twelve rules, user gates, journaled apply with resume/rollback.

@@ -63,6 +63,26 @@ describe("applyPatch", () => {
     }
   });
 
+  it("resumes an interrupted apply and rejects escaping moves", () => {
+    const f = repo();
+    try {
+      expect(() =>
+        validatePatch(f.root, { ops: [], moves: [{ from: ".context/a.md", to: "../etc/passwd" }] }),
+      ).toThrow(ContainmentError);
+      try {
+        applyPatch(f.root, plan, { runId: "r5", failAfter: 1 });
+      } catch {
+        /* injected */
+      }
+      const resumed = recoverApply(f.root, "r5", "resume");
+      expect(resumed.status).toBe("resumed");
+      expect(existsSync(join(f.root, ".context/memory/note.md"))).toBe(true);
+      expect(upsertIndexLine("row", "- note.md")).toContain("- note.md");
+    } finally {
+      f.cleanup();
+    }
+  });
+
   it("aborts when a before-image drifts before apply", () => {
     const f = repo();
     try {

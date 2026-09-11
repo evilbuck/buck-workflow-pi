@@ -26,6 +26,10 @@
 - 2026-09-09 — [fix-pr: PR #17 review fixes (fetch URL, stale refs, local-only)](fix-pr-17-2026-09-09.md) — `completed`
 
   - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
+- 2026-09-10 — [Phase 6: parity cutover](b-save-phase-6-cutover-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-6-cutover-2026-09-10.md` | domains: [workflow, extensions, docs] | topics: [b-save, cutover, deprecated-b-save, guardrails, phase-6] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
 - 2026-09-10 — [Phase 5: effects and command UX](b-save-phase-5-effects-ux-2026-09-10.md) — `completed`
 
   - 2026-09-10 | `b-save-phase-5-effects-ux-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, effects, command-ux, hindsight, phase-5] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis

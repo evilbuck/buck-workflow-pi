@@ -139,12 +139,13 @@ buck-workflow-pi/
 
 ### Extension contents
 
-The extension (`extensions/index.ts`) is minimal — it contains only:
+The extension (`extensions/index.ts`) currently contains:
 
 1. **Model auto-switch** — Reads `buckModelMapping` from Pi settings, inspects the active phase difficulty in phased plans, and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`. Switches back to the original model on `agent_end`. Includes a TUI model picker for initial setup.
 2. **TPS tracker** — Token-per-second tracking during model generation.
+3. **`/b-save` engine** — Deterministic checkpoint (`extensions/b-save`). Prompt-driven fallback is `/deprecated-b-save`.
 
-Everything else (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, b-grill-auto, session state machine, tmux status) has been removed from the extension. `/b-save` is now a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
+Historical subsystems (b-mode, b-restrict, plan mode write guard, b-flow, b-grill-auto, session state machine, tmux status) remain unwired.
 
 
 ## Sub-directory auto-discovery in OMP

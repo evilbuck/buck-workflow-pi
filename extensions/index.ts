@@ -8,7 +8,7 @@ import { wire as wireBprImproved } from "./b-pr-improved/index.js";
 import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
-import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
+import { wire as wireBSave } from "./b-save/index.js";
 import { mappingFromOmpRoles } from "./omp-models.js";
 
 
@@ -324,8 +324,8 @@ export default function (pi: ExtensionAPI) {
   wireKamalRelease(pi);
   // --- plan-artifact: durable .context persistence for OMP plan mode (opt-in) ---
   wirePlanArtifact(pi);
-  // --- b-save-improved: deterministic session-record checkpoint ---
-  wireBSaveImproved(pi);
+  // --- b-save: deterministic session-record checkpoint ---
+  wireBSave(pi);
 
   // --- Session lifecycle ---
 
