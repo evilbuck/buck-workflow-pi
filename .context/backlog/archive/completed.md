@@ -1,3 +1,15 @@
+- [x] b-save Phase 6: Parity, cutover & docs (2026-09-10) — `/b-save` engine + `/deprecated-b-save` fallback; `/b-save-improved` removed; patch coverage 90%.
+
+- [x] b-save Phase 5: External effects & command UX (2026-09-10) — Hindsight `unsupported`; local/Mnemopi save with stored-count retry; unregistered command adapter.
+
+- [x] b-save Phase 4: Evaluation & journaled apply (2026-09-10) — twelve rules, user gates, journaled apply with resume/rollback.
+
+- [x] b-save Phase 3: Bounded semantic roles (2026-09-10) — isolated scribe/auditor/classifier; `runOmpModelSession` isolation extras; no Hindsight delivery role.
+
+- [x] b-save Phase 2: Run model & deterministic snapshot (2026-09-10) — v1 run manifests, XState topology, snapshot layer with hashes/redaction.
+
+- [x] b-save Phase 1: Boundaries & contract freeze (2026-09-10) — Hindsight delivery locked `unsupported` on `@oh-my-pi/pi-coding-agent@18.1.17`; frozen command contract at `spec-b-save-command-contract.md`.
+
 - [x] Stop b-commit-improved committing leftover draft placeholders (2026-08-26) — `.context/2026-08-26.b-commit-placeholder-sentinels/index.md`. Dollar-sign sentinels only; leftover angle-bracket titles refused. 16/16 tests.
 
 - [x] Run /b-init-guardrails on this repo (2026-08-26) — `.context/2026-08-26.b-init-guardrails-on-repo/index.md`. Durable `guardrails.json` v2; first check failed patch gate on pre-existing branch diffs.

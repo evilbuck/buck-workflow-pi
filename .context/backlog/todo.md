@@ -9,7 +9,7 @@
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
 - [ ] [Test b-grill-auto extension in live Pi session](items/test-b-grill-auto-extension.md)
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
-- [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
+- [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — F1–F3 remain; `prompts/b-kickoff.md` is a separate goal objective
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [docs/eval-kernel.md omits async task/hub job contract](items/eval-kernel-async-task-doc-gap.md)
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
@@ -65,3 +65,12 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
 - [ ] [Locate Pi coding-agent runtime source in clean worktrees](items/pi-runtime-source-clean-worktree.md) — medium priority
+
+## b-save State-Machine Phases (2026-09-10)
+- [x] [Phase 1: Boundaries & contract freeze](archive/2026-09/phase-1-b-save-boundaries.md) — done 2026-09-10; Hindsight `unsupported` on OMP 18.1.17
+- [x] [Phase 2: Run model & deterministic snapshot](archive/2026-09/phase-2-b-save-run-model.md) — done 2026-09-10
+- [x] [Phase 3: Bounded semantic roles](archive/2026-09/phase-3-b-save-roles.md) — done 2026-09-10
+- [x] [Phase 4: Evaluation & journaled apply](archive/2026-09/phase-4-b-save-evaluation-apply.md) — done 2026-09-10
+- [x] [Phase 5: External effects & command UX](archive/2026-09/phase-5-b-save-effects-ux.md) — done 2026-09-10
+- [x] [Phase 6: Parity, cutover & docs](archive/2026-09/phase-6-b-save-parity-cutover.md) — done 2026-09-10
+

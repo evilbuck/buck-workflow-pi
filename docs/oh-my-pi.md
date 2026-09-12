@@ -129,8 +129,8 @@ OMP adds to Pi's settings:
 
 Buck keeps **two layers**:
 
-1. **`.context/memory`** — git-portable session records written by `/b-save` (all harnesses).
-2. **OMP LTM** — when `memory.backend` is `hindsight` or `mnemopi`, `/b-save` also `retain`s structured session facts via the native tools (not a separate Hindsight client in the skill).
+1. **`.context/memory`** — git-portable session records written by `/b-save` (all harnesses). Prompt fallback: `/deprecated-b-save`.
+2. **OMP LTM** — local/Mnemopi backends use `ctx.memory.save()`. Hindsight delivery is `unsupported` on OMP 18.1.17. Durable `.context` apply still succeeds.
 
 **Prior-work search** (bootstrap, conditional): if OMP → `recall`/`reflect`; else → configured memory skill; fallback → `.context/memory/index.md`.
 

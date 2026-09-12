@@ -1,11 +1,20 @@
+- 2026-09-12 — [fix-pr: PR #20 CodeRabbit set + master rebase](fix-pr-20-coderabbit-2026-09-12.md) — `completed` (14/18 already_done by f785ff6; 3 record fixes; onActivity bridge ported through omp-models extraction; 528 vitest, patch 91%; Wooderson confirmed at 79849b1)
+
+  - 2026-09-12 | `fix-pr-20-coderabbit-2026-09-12.md` | domains: [review, workflow, extensions, testing] | topics: [fix-pr, pr-20, b-save, coderabbit, rebase, conflict-resolution] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
 - 2026-09-12 — [fix-pr: PR #24 review feedback](fix-pr-24-2026-09-12.md) — `completed` (terminal flush fixes + red/green regression tests, spawn mock, tick semantics, dead code, .context reconciliation; 542 vitest pass)
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
 
+- 2026-09-12 — [fix-pr: PR #20 checkpoint contract repair](fix-pr-20-checkpoint-contract-2026-09-12.md) — `completed`
+
+  - 2026-09-12 | `fix-pr-20-checkpoint-contract-2026-09-12.md` | domains: [review, workflow, extensions, testing] | topics: [fix-pr, pr-20, b-save, checkpoint, persistence, citations] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
 - 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
+- 2026-09-11 — [fix-pr: PR #20 rebase + issue #23 blockers wired (option a)](fix-pr-20-issue23-2026-09-11.md) — `completed`
 
+  - 2026-09-11 | `fix-pr-20-issue23-2026-09-11.md` | domains: [review, extensions, testing, workflow] | topics: [fix-pr, pr-20, b-save, issue-23, rebase, conflict-resolution, xstate, execute-run, resume] | status: completed
 
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 
@@ -26,6 +35,35 @@
 - 2026-09-09 — [fix-pr: PR #17 review fixes (fetch URL, stale refs, local-only)](fix-pr-17-2026-09-09.md) — `completed`
 
   - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
+- 2026-09-11 — [fix-pr: PR #20 b-save engine review](fix-pr-20-2026-09-11.md) — `completed`; non-blocking fixed in 34c6eea, blockers filed as #23
+
+- 2026-09-10 — [Phase 6: parity cutover](b-save-phase-6-cutover-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-6-cutover-2026-09-10.md` | domains: [workflow, extensions, docs] | topics: [b-save, cutover, deprecated-b-save, guardrails, phase-6] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [Phase 5: effects and command UX](b-save-phase-5-effects-ux-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-5-effects-ux-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, effects, command-ux, hindsight, phase-5] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [Phase 4: evaluation and journaled apply](b-save-phase-4-evaluate-apply-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-4-evaluate-apply-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, evaluate, apply, journal, phase-4] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [Phase 3: bounded semantic roles](b-save-phase-3-roles-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-3-roles-2026-09-10.md` | domains: [workflow, extensions] | topics: [b-save, roles, omp-models, isolation, phase-3] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [Phase 2: run model and snapshot](b-save-phase-2-snapshot-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-2-snapshot-2026-09-10.md` | domains: [workflow, architecture, extensions] | topics: [b-save, xstate, snapshot, run-manifest, phase-2] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [Phase 1: b-save boundaries and contract freeze](b-save-phase-1-boundaries-2026-09-10.md) — `completed`
+
+  - 2026-09-10 | `b-save-phase-1-boundaries-2026-09-10.md` | domains: [workflow, architecture, extensions] | topics: [b-save, hindsight, omp-sdk, command-contract, phase-1] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
+- 2026-09-10 — [OMP goal prompt for autonomous Buck loops](b-loop-goal-prompt-2026-09-10.md) — `completed` — subject `2026-09-10.b-kickoff-goal-prompt`
+
+  - 2026-09-10 | `b-loop-goal-prompt-2026-09-10.md` | domains: [workflow, prompts, omp] | topics: [b-kickoff, b-loop, goal-mode, phased-plans, unattended-execution] | status: completed | subject: 2026-09-10.b-kickoff-goal-prompt
 
 - 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
 
