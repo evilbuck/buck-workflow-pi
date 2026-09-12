@@ -15,6 +15,15 @@
 
 - 2026-09-12 — [Isolated code-review iteration build](code-review-iteration-build-2026-09-12.md) — `active` (OMP command, isolated Reviewer/Fixer loop, durable runtime reports, model routing, guarded verification)
 - 2026-09-12 — [Code review iteration — living-doc closeout](code-review-iteration-closeout-2026-09-12.md) — `completed` (ADR 0001 + CONTEXT.md + AGENTS.md conventions block + howtos; 658/658 vitest, 100% diff-cover)
+- 2026-09-12 — [Isolated code-review iteration extension brainstorm](code-review-iteration-brainstorm-2026-09-12.md) — `completed` (bounded local Reviewer/Fixer loop, isolated review execution, calibrated model routing, neutral model personas)
+
+  - 2026-09-12 | `code-review-iteration-brainstorm-2026-09-12.md` | domains: [extensions, review, workflow] | topics: [omp, isolated-sessions, review-loop, model-routing, reviewer-personas, worktrees] | status: completed
+
+  - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
+
+- 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
+
+  - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 - 2026-09-11 — [fix-pr: PR #17 revalidation, zero open findings](fix-pr-17-2026-09-11b.md) — `completed`
 
