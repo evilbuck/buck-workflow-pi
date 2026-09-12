@@ -277,7 +277,12 @@ function updateSubjectFiles(snap: SnapshotOk["snapshot"], source: SourceReader, 
 
 function updateSubjectIndex(snap: SnapshotOk["snapshot"], source: SourceReader, put: PatchWriter, memoryFile: string, complete: boolean) {
   const path = join(snap.subject.path, "index.md");
-  const entry = upsertIndexLine(source(path), "- [" + memoryFile + "](../memory/" + memoryFile + ")");
+  // A created subject has no folder yet, so its index was never snapshotted;
+  // seed it instead of tripping the fail-closed source reader. Existing
+  // subjects are discovered via index.md, so a missing source there is still
+  // a hard error.
+  const existing = snap.subject.created ? "" : source(path);
+  const entry = upsertIndexLine(existing, "- [" + memoryFile + "](../memory/" + memoryFile + ")");
   put(path, field(entry, "status", complete ? "completed" : "active"));
 }
 
