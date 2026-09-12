@@ -2,12 +2,12 @@
 status: completed
 date: 2026-09-12
 subject: 2026-09-12.fix-pr-resolution-loop
-topics: [fix-pr, worktrees, review-loop]
+topics: [fix-pr, worktrees, review-loop, orchestrate, subagents]
 ---
 
 # fix-pr resolution loop
 
-Update `fix-pr` so the default path fixes review findings on the pull request's real head branch in a git worktree, then waits for subsequent review and repeats until settled or bounded by `--max-loop`.
+Update `fix-pr` so it fixes review findings on the PR head branch, orchestrates read-only exploration, and repeats independent review until settled or bounded by `--max-loop`.
 
 ## Artifacts
 

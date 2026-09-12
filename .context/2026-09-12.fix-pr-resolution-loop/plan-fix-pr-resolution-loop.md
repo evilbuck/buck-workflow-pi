@@ -3,7 +3,7 @@ date: 2026-09-12
 subject: 2026-09-12.fix-pr-resolution-loop
 status: completed
 domains: [workflow, agent-instructions]
-topics: [fix-pr, git-worktree, github-review, polling]
+topics: [fix-pr, git-worktree, github-review, polling, orchestrate, subagents]
 related: ["skills/fix-pr/SKILL.md", "presentations/2026-09-12.fix-pr-skill-report/index.html"]
 research: []
 memory: [../memory/fix-pr-resolution-loop-2026-09-12.md]
@@ -24,9 +24,11 @@ Make the default `fix-pr` run finish every valid review finding on the pull requ
 4. After each push, poll for new reviews at 2, 2, 2, 2, 2, 5, 5, and 10 minute intervals. Revalidate new feedback and repeat when valid findings remain.
 5. Default to at most 10 fix/review loops; accept a positive integer through `--max-loop=<n>`. Never claim settlement when the review window expires or the loop cap is reached with unresolved status.
 6. Correct the report's path-filtered `gh pr diff` gotcha: current `gh` does not support the pathspec form and exits with an argument error. Use local `git diff ... -- <path>` in the worktree or the contents API for head contents.
+7. On OMP, orchestrate feedback ingestion and current-HEAD finding validation through compact, read-only subagent contracts; reserve mutation, final verification, disposition, and settlement for the mainline.
 
 ## Verification
 
 - Check frontmatter and instruction structure.
 - Search for stale size-gate, `--fix-only`, `origin HEAD`, `pr-<N>` branch, and path-filtered `gh pr diff` guidance.
 - Confirm the polling intervals total 30 minutes and the success/blocking states are explicit.
+- Confirm the collector batch, validation frontier, single-group reuse, stale-OID rejection, compact output, and mainline ownership boundaries.

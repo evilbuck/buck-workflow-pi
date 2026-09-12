@@ -64,6 +64,38 @@ Rules:
 - Never require OMP-only APIs to complete the job. If `pr://` is missing, use `gh`.
 - Never mention or depend on a prompt-wrapper path.
 
+## Orchestrate exploratory work
+
+**OMP directive: `orchestrate`.** Keep raw PR payloads and broad code
+exploration out of the mainline context. After Phase 1 anchors PR metadata,
+dispatch one parallel `task` batch with two read-only collectors while the
+mainline selects and synchronizes the worktree:
+
+1. submitted reviews plus conversation comments;
+2. inline comments plus diff and cited-code anchors.
+
+After Phase 2 deduplicates the inventory, fan finding validation out by
+independent file or tight root-cause group. Do not manufacture parallel slices.
+If only one group remains, resume one collector through `hub send` or the
+harness equivalent instead of launching a padded batch. A harness without task
+subagents performs the same contracts inline.
+
+Give each subagent only the PR coordinates, pinned `headRefOid`, its assigned
+sources or finding IDs, and the worktree path when needed. Require compact JSON:
+
+`{ "headOid": "...", "items": [{ "source": "...", "id": "...", "url": "...", "commit": "...", "pathLine": "...", "claim": "...", "verdict": "...", "evidence": "...", "blocker": "..." }] }`
+
+Collectors omit `verdict` and `evidence`; validators use the Phase 3 verdict
+taxonomy and cite only concise path/line, snippet, runtime, or URL evidence—never
+raw payloads. Reject stale-OID, unknown-ID, unsupported, or incomplete results.
+Raw PR responses stay inside child context; collectors return normalized records
+only.
+
+Subagents are read-only: no worktree/Git/GitHub mutation, final verification
+gate, issue filing, or settlement decision. Claim validation may use a bounded
+non-mutating reproduction; the mainline still owns the retained inventory,
+final verdicts, edits, tests, staging, commits, pushes, polling, and settlement.
+
 ## Prerequisites
 
 | Tool | Purpose |
@@ -121,6 +153,9 @@ validated inventory. Nits remain optional and never become issues.
    The mutation target is `headRepository.nameWithOwner:headRefName`, not
    necessarily `origin`. Keep `headRefOid` as the validation anchor for this pass.
 
+   Launch the two exploratory collector tasks now; keep them running while
+   completing worktree selection and synchronization below.
+
 2. For every non-dry-run, use a worktree whose checked-out local branch is
    exactly `headRefName`:
 
@@ -148,7 +183,7 @@ validated inventory. Nits remain optional and never become issues.
    preserve the work and report it. `--dry-run` creates or switches no worktree;
    read the pinned head through GitHub APIs instead.
 
-3. Fetch full feedback; review bodies alone are insufficient:
+3. Await and merge the full-feedback collector outputs; review bodies alone are insufficient:
 
    **OMP-preferred:**
    ```text
@@ -213,11 +248,12 @@ Working table (retain it across loops):
 
 ### Phase 3 — Validate each item against code
 
-For every pending item:
-
-1. Read the cited code **and** callers/siblings that share the root cause.
-2. Confirm or disprove with evidence (snippet, test, runtime).
-3. Classify:
+For every deduplicated pending item or tight root-cause group, confirm the
+current `headRefOid`, then dispatch the validation frontier defined in
+**Orchestrate exploratory work**. Each validator reads the cited code and
+relevant callers/siblings at that anchor and returns a proposed verdict with
+concise evidence. The mainline accepts or corrects that evidence, records the
+final verdict, and applies this classification:
 
 | Verdict | Meaning | Next |
 |---|---|---|
@@ -243,6 +279,9 @@ Do not block unrelated **valid** fixes on an open `unsure`.
 **Root-cause bias:** one shared guard beats N call-site patches.
 
 ### Phase 4 — Choose the explicit disposition
+
+Only the mainline chooses disposition. A subagent verdict is evidence, not
+authorization to fix, file an issue, mutate state, or declare settlement.
 
 Count every `valid` item still open; exclude `already_done`.
 

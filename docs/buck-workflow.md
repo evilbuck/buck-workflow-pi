@@ -1153,6 +1153,8 @@ Suggested next step
 
 **Harness posture**: OMP-first tooling (`pr://`, GitHub helpers) with universal `gh` + `git` fallbacks. Procedure is agent-agnostic.
 
+**Exploration orchestration**: On OMP, `fix-pr` orchestrates parallel read-only `task` subagents to fetch and normalize feedback and validate independent finding groups. They return compact evidence records instead of raw payloads; the mainline owns worktree and Git/GitHub mutation, final verification, disposition, polling, and settlement. Harnesses without task subagents run the same contracts inline.
+
 **Not the same as**:
 - `code-review` / `code-review-universal` — *author* a review (read-only on product code except posting the review)
 - `b-pr-review-2-issues` — ingest comments into a **plan** artifact only (no code mutation, no issues)
