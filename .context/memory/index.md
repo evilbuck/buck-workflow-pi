@@ -25,6 +25,8 @@
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
+
+  - 2026-09-11 | `fix-pr-17-2026-09-11c.md` | domains: [review, plugin, testing] | topics: [fix-pr, pr-17, codex-plugin, plugin-json, version-pin] | status: completed
 - 2026-09-11 — [fix-pr: PR #17 revalidation, zero open findings](fix-pr-17-2026-09-11b.md) — `completed`
 
   - 2026-09-11 | `fix-pr-17-2026-09-11b.md` | domains: [review, workflow] | topics: [fix-pr, pr-17, revalidation, b-eval-upstream-prs, zero-open-findings] | status: completed
