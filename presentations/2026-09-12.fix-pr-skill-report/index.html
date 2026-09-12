@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>fix-pr — Recipe Walkthrough</title>
+<style>
+  :root {
+    --bg: #fafaf9;
+    --card: #ffffff;
+    --ink: #1c1917;
+    --muted: #57534e;
+    --line: #e7e5e4;
+    --accent: #0f766e;       /* teal 700 */
+    --accent-soft: #f0fdfa;
+    --llm: #7c3aed;          /* violet */
+    --llm-soft: #f5f3ff;
+    --det: #b45309;          /* amber 700 */
+    --det-soft: #fffbeb;
+    --sub: #2563eb;          /* blue 600 — subagent orchestration */
+    --sub-soft: #eff6ff;
+    --gate: #dc2626;
+    --gate-soft: #fef2f2;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
+
+  header.hero { margin-bottom: 48px; }
+  .kicker {
+    font-size: 13px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 8px;
+  }
+  h1 { font-size: 40px; line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+  .lede { font-size: 18px; color: var(--muted); max-width: 640px; }
+  .hero-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 20px; font-size: 14px; color: var(--muted); }
+
+  .legend {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 32px 0 48px;
+  }
+  .legend .card { padding: 16px 18px; display: flex; gap: 12px; align-items: flex-start; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+  }
+  .pill.llm { background: var(--llm-soft); color: var(--llm); }
+  .pill.det { background: var(--det-soft); color: var(--det); }
+  .pill.sub { background: var(--sub-soft); color: var(--sub); }
+  .pill.gate { background: var(--gate-soft); color: var(--gate); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.llm { background: var(--llm); }
+  .dot.det { background: var(--det); }
+  .dot.sub { background: var(--sub); }
+  .dot.gate { background: var(--gate); }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .step { display: grid; grid-template-columns: 72px 1fr; gap: 0; margin-bottom: 28px; overflow: hidden; }
+  .step-no {
+    display: flex; align-items: flex-start; justify-content: center; padding-top: 28px;
+    font-size: 28px; font-weight: 800; color: var(--accent);
+  }
+  .step-body { padding: 24px 28px 24px 4px; }
+  .step h2 { margin: 0 0 4px; font-size: 21px; letter-spacing: -0.01em; }
+  .step .desc { color: var(--muted); margin: 6px 0 14px; }
+  .step .tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+  .step ul { margin: 10px 0; padding-left: 20px; }
+  .step ol { margin: 10px 0; padding-left: 20px; }
+  .step li { margin: 4px 0; }
+  .step li strong { color: var(--ink); }
+
+  pre {
+    background: #1c1917; color: #fafaf9; border-radius: 10px;
+    padding: 14px 16px; font: 13px/1.55 ui-monospace, "SF Mono", Menlo, monospace;
+    overflow-x: auto; margin: 12px 0;
+  }
+  pre .c { color: #a8a29e; }
+  code.inline {
+    background: #f5f5f4; border: 1px solid var(--line); border-radius: 6px;
+    padding: 1px 6px; font: 87% ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  tr:last-child td { border-bottom: none; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--accent-soft);
+    border-radius: 0 10px 10px 0; padding: 10px 14px; margin: 14px 0; font-size: 14px;
+  }
+  .note.warn { border-color: var(--gate); background: var(--gate-soft); }
+  .note.sub { border-color: var(--sub); background: var(--sub-soft); }
+
+  .fork { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }
+  .fork .card { padding: 16px 18px; }
+  .fork h3 { margin: 0 0 6px; font-size: 15px; }
+  .fork .card p { font-size: 14px; color: var(--muted); margin: 4px 0; }
+
+  .pipeline {
+    margin: 48px 0; padding: 24px 28px;
+  }
+  .pipeline h2 { margin-top: 0; }
+  .flow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+  .node {
+    padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    border: 1.5px solid var(--det); color: var(--det); background: var(--det-soft);
+  }
+  .node.llm { border-color: var(--llm); color: var(--llm); background: var(--llm-soft); }
+  .node.sub { border-color: var(--sub); color: var(--sub); background: var(--sub-soft); }
+  .node.gate { border-color: var(--gate); color: var(--gate); background: var(--gate-soft); }
+  .node.stop { border-color: var(--gate); color: var(--gate); background: var(--gate-soft); }
+  .arrow { color: var(--muted); font-weight: 700; }
+
+  .outro { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  .outro a { color: var(--accent); }
+
+  @media (max-width: 640px) {
+    .step { grid-template-columns: 1fr; }
+    .step-no { padding: 20px 28px 0; justify-content: flex-start; }
+    .step-body { padding: 0 28px 24px; }
+    .legend, .fork { grid-template-columns: 1fr; }
+    h1 { font-size: 30px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="kicker">Skill Recipe · buck-workflow</div>
+  <h1>fix-pr — from review comments to a settled PR</h1>
+  <p class="lede">A step-by-step walkthrough of the <code class="inline">fix-pr</code> skill: work in a git worktree
+  on the PR's real head branch, validate every comment against current code with parallel subagents, fix every
+  valid finding by default, push, then poll for an independent re-review and repeat until the PR is settled.
+  Each step is tagged so you can see what the machine does, what the model judges, and what gets delegated.</p>
+  <div class="hero-meta">
+    <span>📄 skills/fix-pr/SKILL.md</span>
+    <span>🔧 scripts/fetch-feedback.sh</span>
+    <span>🌳 worktree pinned to headRefName</span>
+    <span>🔁 poll-until-settled (default 10 loops)</span>
+  </div>
+  <div class="hero-meta">
+    <span>Skill-only — no <code class="inline">prompts/fix-pr.md</code> wrapper</span>
+    <span>Agent-agnostic: needs only <code class="inline">git</code> + <code class="inline">gh</code> + a test runner</span>
+  </div>
+</header>
+
+<section class="legend">
+  <div class="card">
+    <span class="pill det"><span class="dot det"></span> Deterministic</span>
+    <div style="font-size:14px;color:var(--muted)">Fixed commands and scripts. Same input → same output. No judgment required.</div>
+  </div>
+  <div class="card">
+    <span class="pill llm"><span class="dot llm"></span> LLM judgment</span>
+    <div style="font-size:14px;color:var(--muted)">The mainline model reads, reasons, and decides. Quality depends on the model following the skill.</div>
+  </div>
+  <div class="card">
+    <span class="pill sub"><span class="dot sub"></span> Subagent</span>
+    <div style="font-size:14px;color:var(--muted)">Dispatched as a parallel, read-only task to keep raw PR payloads out of mainline context. Never mutates.</div>
+  </div>
+  <div class="card">
+    <span class="pill gate"><span class="dot gate"></span> Decision gate</span>
+    <div style="font-size:14px;color:var(--muted)">A branch point with hard rules — mode flags, settlement, or the loop cap — not a judgment call.</div>
+  </div>
+</section>
+
+<section class="card pipeline">
+  <h2 style="font-size:18px">The whole flow at a glance</h2>
+  <div class="flow">
+    <span class="node sub">1 · Identify PR + worktree</span><span class="arrow">→</span>
+    <span class="node">2 · Inventory feedback</span><span class="arrow">→</span>
+    <span class="node sub">3 · Validate vs code</span><span class="arrow">→</span>
+    <span class="node gate">4 · Choose disposition</span><span class="arrow">→</span>
+    <span class="node llm">5a · Fix</span><span class="arrow">or</span>
+    <span class="node llm">5b · File issues</span><span class="arrow">→</span>
+    <span class="node gate">5c · Poll &amp; repeat</span><span class="arrow">→</span>
+    <span class="node">6 · Record &amp; close</span>
+  </div>
+  <p style="font-size:14px;color:var(--muted);margin:14px 0 0">
+    Steps 1 and 3 fan work out to read-only subagents to keep raw payloads out of the mainline's context; the
+    mainline still owns every verdict, edit, commit, push, and the settlement call. Step 0 (below) is where you
+    choose how far a run is allowed to go.</p>
+</section>
+
+<!-- STEP 0 -->
+<section class="card step">
+  <div class="step-no">0</div>
+  <div class="step-body">
+    <h2>Pick your mode — flags set the guardrails</h2>
+    <p class="desc">Before anything runs, the invocation decides what the run is allowed to do. There is no
+    size-based auto-routing to issues anymore — the default always fixes everything it validates as
+    <code class="inline">valid</code>; only <code class="inline">--issues-only</code> changes that.</p>
+    <div class="tags"><span class="pill det"><span class="dot det"></span> Deterministic</span></div>
+    <pre><span class="c"># fix-pr               → resolve PR from current branch
+# fix-pr 42            → target PR #42
+# fix-pr &lt;url&gt;          → target by URL</span>
+fix-pr &lt;pr&gt; --dry-run          <span class="c"># validate + inventory only. NEVER mutates</span>
+fix-pr &lt;pr&gt; --issues-only      <span class="c"># file issues for valid findings; never fix</span>
+fix-pr &lt;pr&gt; --max-loop=&lt;n&gt;     <span class="c"># override the default 10 fix/review loops</span></pre>
+    <div class="note warn"><strong><code class="inline">--dry-run</code> is a hard no-mutate promise:</strong>
+    no worktree switch, no commits, no pushes, no issues. Reading pinned code via GitHub APIs is fine; touching
+    anything is not.</div>
+    <div class="note"><strong>Default means fix, regardless of size.</strong> Finding count, file count, and
+    estimated duration guide how the fix is decomposed into commits — they never route work to issues. Only
+    <code class="inline">--issues-only</code> does that.</div>
+  </div>
+</section>
+
+<!-- STEP 1 -->
+<section class="card step">
+  <div class="step-no">1</div>
+  <div class="step-body">
+    <h2>Identify the PR and land on its head-branch worktree</h2>
+    <p class="desc">Resolve which PR we're working on, pin its metadata, dispatch feedback collection in
+    parallel, then get onto a git worktree whose checked-out branch is exactly <code class="inline">headRefName</code>.</p>
+    <div class="tags">
+      <span class="pill det"><span class="dot det"></span> Deterministic</span>
+      <span class="pill sub"><span class="dot sub"></span> Dispatches collectors</span>
+      <span class="pill llm"><span class="dot llm"></span> LLM picks the route</span>
+    </div>
+    <p><strong>Pin immutable metadata first</strong> — the mutation target is
+    <code class="inline">headRepository.nameWithOwner:headRefName</code>, not necessarily <code class="inline">origin</code>,
+    and <code class="inline">headRefOid</code> is the validation anchor for the whole pass:</p>
+    <pre>gh pr view &lt;N&gt; --repo &lt;owner/repo&gt; --json number,title,body,state,url,files,reviews,comments,\
+  headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,baseRefName,baseRefOid</pre>
+    <div class="note sub"><strong>Orchestrate directive:</strong> launch two parallel read-only collector tasks
+    now — (1) submitted reviews + conversation comments, (2) inline comments + diff + cited-code anchors — while
+    the mainline finishes worktree selection below. Each returns compact JSON only:
+    <code class="inline">{ headOid, items: [{ source, id, url, commit, pathLine, claim }] }</code>. A stale
+    <code class="inline">headOid</code> or malformed record is rejected; raw PR payloads never leave the collector.</div>
+    <p><strong>Worktree selection</strong> (skipped entirely for <code class="inline">--dry-run</code>, which reads
+    pinned code through GitHub APIs instead):</p>
+    <ol>
+      <li>Run <code class="inline">git worktree list --porcelain</code>. Git allows one worktree per branch — reuse
+        it if <code class="inline">refs/heads/&lt;headRefName&gt;</code> is already checked out somewhere.</li>
+      <li>Otherwise <code class="inline">gh pr checkout &lt;N&gt; --repo &lt;owner/repo&gt; --worktree &lt;absolute-path&gt;</code>.
+        Verify the branch name — a <code class="inline">pr-&lt;N&gt;</code> or detached checkout is not the mutation worktree.</li>
+      <li>If <code class="inline">--worktree</code> is unavailable: fetch the head repository, create/reuse a local
+        branch named exactly <code class="inline">headRefName</code>, then <code class="inline">git worktree add &lt;absolute-path&gt; &lt;headRefName&gt;</code>.</li>
+      <li>Require the worktree clean, then fetch + fast-forward and confirm both:
+        <pre>git -C &lt;worktree&gt; branch --show-current == &lt;headRefName&gt;
+git -C &lt;worktree&gt; rev-parse HEAD       == &lt;headRefOid&gt;</pre>
+        Divergence or a dirty reused worktree is a blocker — preserve the work and report it.</li>
+    </ol>
+    <p><strong>Merge the collector output</strong> — review bodies alone are insufficient. Fast path when
+    <code class="inline">gh</code> + <code class="inline">jq</code> are present:</p>
+    <pre>bash skills/fix-pr/scripts/fetch-feedback.sh &lt;owner/repo&gt; &lt;pr-number&gt;</pre>
+    <p><strong>OMP-preferred:</strong> <code class="inline">read pr://&lt;N&gt;</code> and
+    <code class="inline">read pr://&lt;N&gt;?comments=1</code>. <strong>Universal fallback:</strong></p>
+    <pre>gh pr view &lt;N&gt; --repo &lt;owner/repo&gt; --json number,title,body,state,url,files,reviews,comments,headRefName,headRefOid
+gh api repos/{owner}/{repo}/pulls/&lt;N&gt;/reviews
+gh api repos/{owner}/{repo}/pulls/&lt;N&gt;/comments
+gh api repos/{owner}/{repo}/issues/&lt;N&gt;/comments</pre>
+    <p><strong>Diff:</strong> full diff via <code class="inline">gh pr diff &lt;N&gt; --repo &lt;owner/repo&gt;</code>.
+    For one file, use the worktree or the contents API — not <code class="inline">gh pr diff &lt;N&gt; -- &lt;path&gt;</code>:</p>
+    <pre>git -C &lt;worktree&gt; diff &lt;baseRefOid&gt;...&lt;headRefOid&gt; -- &lt;path&gt;
+gh api "repos/{owner}/{repo}/contents/&lt;path&gt;?ref=&lt;headRefOid&gt;"</pre>
+    <div class="note">On OMP, prefer <code class="inline">read pr://&lt;N&gt;</code>. The procedure never <em>requires</em>
+    OMP — <code class="inline">gh</code> always works.</div>
+    <p><strong>Verified gotcha:</strong> <code class="inline">gh pr diff</code> accepts at most one positional
+    argument. <code class="inline">gh pr diff &lt;N&gt; -- &lt;path&gt;</code> is not a supported path filter; current
+    <code class="inline">gh</code> exits with <code class="inline">accepts at most 1 arg(s)</code>.</p>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section class="card step">
+  <div class="step-no">2</div>
+  <div class="step-body">
+    <h2>Inventory every comment into a working table</h2>
+    <p class="desc">Turn a messy comment thread into one clean list: who said what, where, at which commit, and
+    where it stands so far.</p>
+    <div class="tags"><span class="pill llm"><span class="dot llm"></span> LLM judgment</span></div>
+    <p><strong>Include:</strong> review bodies with concrete findings, inline comments and threads, conversation
+    comments requesting changes. <strong>Sort and pin:</strong> order by <code class="inline">submittedAt</code>
+    / <code class="inline">createdAt</code>; retain each item's immutable ID, URL, and commit SHA. A later
+    review's <em>silence</em> never supersedes an earlier open finding — only explicit resolution or current-HEAD
+    evidence does.</p>
+    <table>
+      <tr><th>Class</th><th>Rule</th></tr>
+      <tr><td><code class="inline">resolved</code></td><td>Skip unless asked to re-check</td></tr>
+      <tr><td><code class="inline">nit</code> / LGTM / style</td><td>Optional drive-by; never an issue</td></tr>
+      <tr><td><code class="inline">duplicate</code></td><td>Same claim or root cause across all sources → one work item, cite every source incl. earliest <code class="inline">submittedAt</code></td></tr>
+      <tr><td><code class="inline">stale</code></td><td>Valid at an earlier reviewed commit, superseded on HEAD → re-validate; mark <code class="inline">already_done</code> with evidence, do not re-fix</td></tr>
+      <tr><td><code class="inline">.context/**</code> only</td><td>Skip — <em>except</em> leaked secrets, which are always actionable</td></tr>
+      <tr><td>Already fixed on HEAD</td><td><code class="inline">already_done</code> + proof; do not re-fix</td></tr>
+      <tr><td>Drive-by redesign</td><td><code class="inline">out_of_scope</code>, or ask if product-ambiguous</td></tr>
+    </table>
+    <p>Working table — retained across every fix/review loop:</p>
+    <pre><span class="c">loop | source | id/url | commit | path:line | claim | submittedAt | verdict | disposition</span></pre>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section class="card step">
+  <div class="step-no">3</div>
+  <div class="step-body">
+    <h2>Validate every item against the actual code</h2>
+    <p class="desc">The heart of the skill: no comment is acted on until the code confirms it. Independent groups
+    validate in parallel; the mainline still makes the call.</p>
+    <div class="tags">
+      <span class="pill sub"><span class="dot sub"></span> Fans out per file / root-cause group</span>
+      <span class="pill llm"><span class="dot llm"></span> Mainline finalizes · evidence required</span>
+    </div>
+    <div class="note sub">For every deduplicated pending item or tight root-cause group, dispatch a validator with
+    the pinned <code class="inline">headRefOid</code> and its assigned finding IDs. Each validator reads the cited
+    code plus callers/siblings and returns a <em>proposed</em> verdict with concise evidence — never raw payloads.
+    Do not manufacture parallel slices: one remaining group resumes the existing collector via <code class="inline">hub send</code>
+    (or the harness equivalent) instead of a padded batch. The mainline accepts or corrects each proposal, records
+    the final verdict, and is the only place a fix, an issue, a mutation, or a settlement decision can originate.</div>
+    <ul>
+      <li>Read the cited code <strong>and</strong> its callers/siblings sharing the root cause.</li>
+      <li>Confirm or disprove with evidence — snippet, test, or runtime output.</li>
+      <li><strong>Root-cause bias:</strong> one shared guard beats N call-site patches.</li>
+    </ul>
+    <table>
+      <tr><th>Verdict</th><th>Meaning</th><th>Next</th></tr>
+      <tr><td><code class="inline">valid</code></td><td>Real bug, missing guard, clear improvement</td><td>Fix by default; issue only under <code class="inline">--issues-only</code></td></tr>
+      <tr><td><code class="inline">invalid</code></td><td>Wrong, outdated, or contradicts deliberate design</td><td>Note why; do not fix</td></tr>
+      <tr><td><code class="inline">already_done</code></td><td>HEAD already addresses it</td><td>Cite proof</td></tr>
+      <tr><td><code class="inline">unsure</code></td><td>Needs a product call</td><td><strong>Ask the engineer</strong></td></tr>
+      <tr><td><code class="inline">nit</code></td><td>Style only</td><td>Optional / skip</td></tr>
+    </table>
+    <p><strong>Unsure protocol</strong> — one short batched question, not a drip feed:</p>
+    <pre>Comment &lt;N&gt; (@author, path:line):
+  Claim: &lt;one sentence&gt;
+  Observed: &lt;what code actually does&gt;
+  Why unclear: &lt;missing product intent / two reasonable designs&gt;
+  Options: (A) …  (B) …
+Valid? → fix / issue / skip per your call.</pre>
+    <div class="note">Unresolved <code class="inline">unsure</code> items never block unrelated <strong>valid</strong> fixes.</div>
+  </div>
+</section>
+
+<!-- STEP 4 -->
+<section class="card step">
+  <div class="step-no">4</div>
+  <div class="step-body">
+    <h2>Choose the explicit disposition</h2>
+    <p class="desc">A subagent verdict is evidence, not authorization — only the mainline chooses what happens
+    next, and the choice is driven by mode and open-finding state, not size.</p>
+    <div class="tags">
+      <span class="pill llm"><span class="dot llm"></span> LLM judgment</span>
+      <span class="pill gate"><span class="dot gate"></span> Decision gate</span>
+    </div>
+    <table>
+      <tr><th>Mode / state</th><th>Action</th></tr>
+      <tr><td><code class="inline">--dry-run</code></td><td>Phase 6 inventory only — no worktree, fix, issue, commit, push, or poll</td></tr>
+      <tr><td><code class="inline">--issues-only</code></td><td>Phase 5b — file every valid finding or tight root-cause group</td></tr>
+      <tr><td>Valid findings remain</td><td>Phase 5a — fix <strong>all</strong> of them, regardless of size</td></tr>
+      <tr><td>Zero valid; settlement contract already met</td><td>Phase 6, status <code class="inline">settled</code></td></tr>
+      <tr><td>Zero valid; no qualifying post-push settlement review</td><td>Phase 5c — poll, using current HEAD + feedback IDs as the anchor</td></tr>
+    </table>
+    <div class="note"><strong>Size changes decomposition, not disposition.</strong> A large or risky batch changes
+    commit boundaries, test scope, and how long it takes — never whether it gets fixed. Ask only for genuinely
+    <code class="inline">unsure</code> product intent; keep fixing independent valid findings while that answer is pending.</div>
+  </div>
+</section>
+
+<!-- STEP 5a -->
+<section class="card step">
+  <div class="step-no">5a</div>
+  <div class="step-body">
+    <h2>Fix path — smallest correct diff, proven green, pushed to the head branch</h2>
+    <p class="desc">Land every valid item with the least change that's provably correct, then hand off to the poll loop.</p>
+    <div class="tags">
+      <span class="pill llm"><span class="dot llm"></span> LLM judgment</span>
+      <span class="pill det"><span class="dot det"></span> Deterministic checks</span>
+    </div>
+    <ol>
+      <li><strong>Smallest correct diff</strong> for all valid items — shared root cause → one change, not repeated call-site patches.</li>
+      <li><strong>Regression-protecting tests only</strong>, then run the narrowest relevant suite plus every project-required check for touched paths.</li>
+      <li><strong>Stage</strong> the complete verified batch; cross-check the staged diff against the working table — every valid finding maps to a staged change or an explicit blocking decision.</li>
+      <li><strong>Commit</strong> (multiple commits only for independent themes), using the repo's commit skill when present:
+        <pre>fix(&lt;scope&gt;): address PR #&lt;N&gt; review (&lt;short theme&gt;)</pre></li>
+      <li>Confirm the local branch is still exactly <code class="inline">headRefName</code>, then push explicitly to
+        the PR head repository and branch (use <code class="inline">origin</code> only when it matches
+        <code class="inline">headRepository.nameWithOwner</code>; add a remote for a fork PR):
+        <pre>git -C &lt;worktree&gt; push -u &lt;head-remote&gt; HEAD:&lt;headRefName&gt;</pre>
+        Re-fetch PR metadata afterward and require <code class="inline">headRefOid</code> to equal local <code class="inline">HEAD</code>.</li>
+      <li>Record the pushed SHA, push time, and every feedback ID already seen, then enter <strong>Phase 5c</strong>.</li>
+    </ol>
+    <div class="note warn">The push is a gate: verification green, index staged, commit exists, target is
+    <code class="inline">headRefName</code>. An ordinary push only — a rejection is a blocker, not permission to force-push.</div>
+  </div>
+</section>
+
+<!-- STEP 5b -->
+<section class="card step">
+  <div class="step-no">5b</div>
+  <div class="step-body">
+    <h2>Issues path — <code class="inline">--issues-only</code> handoff</h2>
+    <p class="desc">Runs only under the explicit <code class="inline">--issues-only</code> flag. For each valid item
+    or tight root-cause group:</p>
+    <div class="tags"><span class="pill llm"><span class="dot llm"></span> LLM judgment</span></div>
+    <ol>
+      <li>Search open issues for the same PR and theme — no duplicates.</li>
+      <li><code class="inline">gh issue create --body-file …</code> with the claim, current-HEAD evidence, paths,
+        acceptance criteria, and PR/comment URLs. Confirm available labels before applying
+        <code class="inline">ready-for-agent</code> or <code class="inline">needs-triage</code>, plus
+        <code class="inline">bug</code> / <code class="inline">enhancement</code> as fit.</li>
+      <li>Record the issue URL in the working table. The path is complete only when every valid finding has a linked issue.</li>
+    </ol>
+    <div class="note warn">Do not edit, commit, push, or enter the review loop in issues-only mode. Nits never become issues.</div>
+  </div>
+</section>
+
+<!-- STEP 5c -->
+<section class="card step">
+  <div class="step-no">5c</div>
+  <div class="step-body">
+    <h2>Poll for review and repeat until settled</h2>
+    <p class="desc">A <strong>fix/review loop</strong> is one validated fix batch, its verified push, plus the
+    independent review outcome for that push. Default cap 10 loops; <code class="inline">--max-loop=&lt;n&gt;</code>
+    overrides it.</p>
+    <div class="tags">
+      <span class="pill gate"><span class="dot gate"></span> Decision gate</span>
+      <span class="pill det"><span class="dot det"></span> Fixed poll schedule</span>
+    </div>
+    <p>After each push, poll at these cumulative intervals — 30 minutes total, never busy-loops:</p>
+    <pre>delay minutes:       2, 2, 2, 2, 2, 5, 5, 10
+cumulative minutes:  2, 4, 6, 8, 10, 15, 20, 30</pre>
+    <p><strong>At each poll:</strong></p>
+    <ol>
+      <li>Fetch PR state, <code class="inline">headRefOid</code>, submitted reviews, inline comments, thread
+        resolution state, and conversation comments. Compare immutable IDs against the seen-ID set — counts alone
+        are not evidence of new feedback.</li>
+      <li>Mark new IDs seen and revalidate every new finding against current HEAD, even if it's pinned to an older commit.</li>
+      <li>New finding is <code class="inline">valid</code>:
+        <ul>
+          <li>below <code class="inline">max-loop</code> → resync the same worktree, restart at Phase 2, fix, verify, commit, push, restart the 30-minute schedule;</li>
+          <li>at <code class="inline">max-loop</code> → stop with status <code class="inline">max_loops_reached</code>, report every unresolved finding, never convert them to issues implicitly.</li>
+        </ul>
+      </li>
+      <li>No valid finding remains and a <em>different</em> reviewer submitted a post-push review explicitly
+        confirming the issues are resolved, every thread accounted for → finish <code class="inline">settled</code>.</li>
+      <li>Feedback arrived but doesn't settle the PR → continue the remaining intervals. A review introducing new
+        valid findings overrides any contradictory "resolved" wording in that same review.</li>
+    </ol>
+    <div class="note">All eight polls complete with no qualifying settlement review → finish
+    <code class="inline">review_pending</code>, never <code class="inline">settled</code>. Record the last poll
+    time; resume from Phase 5c on the next invocation without duplicating fixes.</div>
+  </div>
+</section>
+
+<!-- STEP 6 -->
+<section class="card step">
+  <div class="step-no">6</div>
+  <div class="step-body">
+    <h2>Durable record + closeout</h2>
+    <p class="desc">Always runs — even after <code class="inline">--dry-run</code>, because the diagnosis is worth keeping.</p>
+    <div class="tags"><span class="pill det"><span class="dot det"></span> Deterministic format</span></div>
+    <ol>
+      <li>Write <code class="inline">.context/memory/fix-pr-&lt;pr&gt;-YYYY-MM-DD.md</code> (or the active
+        subject's memory artifact): PR URL, head repository, <code class="inline">headRefName</code>, absolute
+        worktree path, one validation table retained across every loop, per-loop pushed SHA + verification
+        commands/results + review IDs + poll times, issue URLs in issues-only mode, and one terminal status.</li>
+      <li>Update <code class="inline">.context/memory/index.md</code>.</li>
+    </ol>
+    <pre>PR #&lt;N&gt; — &lt;title&gt;
+Status: &lt;settled | review_pending | max_loops_reached | issues_only | dry_run&gt;
+Worktree: &lt;absolute path | none for dry-run&gt;
+Head: &lt;head-repository&gt;:&lt;headRefName&gt;
+Loops: &lt;completed&gt;/&lt;max&gt;
+Pushes: &lt;sha list | none&gt;
+Settlement review: &lt;id/url | missing&gt;
+
+Validation:
+| loop | id/url | claim | verdict | disposition |
+|---|---|---|---|---|
+| 1 | …     | …     | valid        | fixed in &lt;sha&gt;   |
+| 1 | …     | …     | invalid      | &lt;reason&gt;         |
+| 2 | …     | …     | already_done | &lt;HEAD evidence&gt;  |
+
+Verification:
+- &lt;command&gt; → &lt;result&gt;
+
+Unresolved: &lt;none only when settled | exact findings or missing review&gt;</pre>
+  </div>
+</section>
+
+<!-- RULES -->
+<section class="card step">
+  <div class="step-no">★</div>
+  <div class="step-body">
+    <h2>Non-negotiable behavior rules</h2>
+    <p class="desc">These apply across every step and override convenience.</p>
+    <div class="tags"><span class="pill gate"><span class="dot gate"></span> Hard rules</span></div>
+    <table>
+      <tr><th>Rule</th><th>Meaning</th></tr>
+      <tr><td>Default means fix</td><td>Resolve every valid finding regardless of size; only <code class="inline">--issues-only</code> routes to issues</td></tr>
+      <tr><td>Head-branch worktree</td><td>Every mutation happens in the worktree whose local branch equals <code class="inline">headRefName</code>; push to that branch in the head repository</td></tr>
+      <tr><td><code class="inline">--dry-run</code> is no-mutate</td><td>GitHub APIs for pinned code; no worktree switch, commit, push, comment, or issue</td></tr>
+      <tr><td>Validate before mutating</td><td>Re-read current HEAD; a resolved label or later review silence is not code-change evidence</td></tr>
+      <tr><td>Settlement is independent</td><td>The PR author never manufactures the review required to declare its own fixes resolved</td></tr>
+      <tr><td>Bounded waiting</td><td>Poll at <code class="inline">2,2,2,2,2,5,5,10</code> minutes and perform at most <code class="inline">max-loop</code> fix/review loops</td></tr>
+      <tr><td>Ask only for <code class="inline">unsure</code></td><td>Valid / invalid / already_done are the agent's job; unresolved unsure never blocks independent fixes</td></tr>
+      <tr><td>Verification gates the push</td><td>Run project-required checks and push only a green fix batch</td></tr>
+      <tr><td>Secrets stay secret</td><td>Treat leaks as actionable without copying values into issues or memory</td></tr>
+      <tr><td>Idempotent resume</td><td>Keep feedback IDs and pushed SHAs; revalidate current HEAD, skip <code class="inline">already_done</code>, create no duplicate issues</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ERROR HANDLING -->
+<section class="card step">
+  <div class="step-no">⚠</div>
+  <div class="step-body">
+    <h2>Error handling</h2>
+    <p class="desc">Blockers preserve work and stop; they never silently downgrade to a smaller success.</p>
+    <div class="tags"><span class="pill gate"><span class="dot gate"></span> Stop conditions</span></div>
+    <table>
+      <tr><th>Situation</th><th>Response</th></tr>
+      <tr><td><code class="inline">gh</code> missing / unauthenticated</td><td>Stop; install or authenticate <code class="inline">gh</code></td></tr>
+      <tr><td>PR not found</td><td>Stop; ask for URL</td></tr>
+      <tr><td>Head branch already in another worktree</td><td>Reuse that absolute worktree path</td></tr>
+      <tr><td>Reused worktree dirty or branch diverged</td><td>Preserve it; stop with exact blocker</td></tr>
+      <tr><td>Checkout fails for another reason</td><td>Stop; report command and error</td></tr>
+      <tr><td>Tests fail after fix</td><td>Fix or revert; keep the remote unchanged</td></tr>
+      <tr><td>Push rejected</td><td>Stop; preserve commits; no force-push</td></tr>
+      <tr><td>PR closes or merges during polling</td><td>Stop mutation and report the remote state</td></tr>
+      <tr><td>No settlement review after 30 minutes</td><td>Finish <code class="inline">review_pending</code>; never claim settled</td></tr>
+      <tr><td>Review after loop cap has valid findings</td><td>Finish <code class="inline">max_loops_reached</code> with exact findings</td></tr>
+      <tr><td>Cannot create requested issues</td><td>Save draft bodies under <code class="inline">.context/</code> and report</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="card pipeline">
+  <h2 style="font-size:18px">Where the model meets the machine</h2>
+  <p style="font-size:14px;color:var(--muted);margin-top:8px">Roughly: the shell fetches, checks out, and pushes;
+  subagents collect and validate in parallel with a slim return contract; the mainline owns every verdict,
+  edit, commit, push, poll, and the settlement call.</p>
+  <div class="flow">
+    <span class="node">gh pr view + fetch-feedback.sh</span><span class="arrow">→</span>
+    <span class="node sub">parallel collectors</span><span class="arrow">→</span>
+    <span class="node">dedupe + classify inventory</span><span class="arrow">→</span>
+    <span class="node sub">parallel validators</span><span class="arrow">→</span>
+    <span class="node llm">mainline verdicts + disposition</span><span class="arrow">→</span>
+    <span class="node llm">fix, verify, stage</span><span class="arrow">→</span>
+    <span class="node">commit &amp; push to headRefName</span><span class="arrow">→</span>
+    <span class="node gate">poll up to max-loop</span><span class="arrow">→</span>
+    <span class="node">write memory record</span>
+  </div>
+</section>
+
+<div class="outro">
+  Source: <code class="inline">skills/fix-pr/SKILL.md</code> · companion script:
+  <code class="inline">skills/fix-pr/scripts/fetch-feedback.sh</code> ·
+  Related: <code class="inline">b-pr-review-2-issues</code> (plan-only),
+  <code class="inline">b-issue-create</code>, <code class="inline">b-iterate</code>,
+  <code class="inline">git-commit</code>,
+  <code class="inline">code-review-universal</code> (authoring reviews — the opposite direction).
+  Generated 2026-09-12.
+</div>
+
+</div>
+</body>
+</html>
