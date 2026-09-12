@@ -107,6 +107,18 @@ describe("evaluateSnapshot", () => {
     }
   });
 
+  it("honors an explicit subject resolution instead of re-tripping the subject gate", () => {
+    const twoActive = snap({
+      subject_candidates: [
+        { name: "2026-09-10.a", status: "active" },
+        { name: "2026-09-10.b", status: "active" },
+      ],
+    });
+    expect(() => evaluateSnapshot({ snapshot: twoActive, ...closed })).toThrow(UserGateError);
+    const resolved = evaluateSnapshot({ snapshot: twoActive, ...closed, subjectResolved: true });
+    expect(resolved.rules.find((r) => r.id === 2)?.result).toMatchObject({ selected: "2026-09-10.demo" });
+  });
+
   it("rejects escaping paths, stale hashes, and model mutation fields as hard failures", () => {
     expect(() =>
       evaluateSnapshot({
