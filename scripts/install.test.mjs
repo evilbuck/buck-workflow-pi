@@ -54,7 +54,7 @@ function setupFixtures() {
     "# b-plan skill\n",
   );
 
-  // Home: all 7 harness dirs detected
+  // Home: all 8 harness dirs detected
   mkdirSync(join(home, ".pi", "agent"), { recursive: true });
   mkdirSync(join(home, ".omp", "agent"), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
@@ -62,6 +62,7 @@ function setupFixtures() {
   mkdirSync(join(home, ".config", "opencode"), { recursive: true });
   mkdirSync(join(home, ".cursor"), { recursive: true });
   mkdirSync(join(home, ".grok"), { recursive: true });
+  mkdirSync(join(home, ".zcode"), { recursive: true });
 
   return { repo, home };
 }
@@ -70,8 +71,8 @@ function setupFixtures() {
 // Registry
 // ---------------------------------------------------------------------------
 describe("HARNESSES registry", () => {
-  it("has 7 harness entries", () => {
-    expect(HARNESSES).toHaveLength(7);
+  it("has 8 harness entries", () => {
+    expect(HARNESSES).toHaveLength(8);
   });
 
   it("has unique ids", () => {
@@ -126,6 +127,13 @@ describe("HARNESSES registry", () => {
       "skills",
     ]);
     expect(h.surfaces.bootstrap.dest).toBe(".grok/rules/buck-workflow.md");
+  });
+
+  it("ZCode has bootstrap + skills (skills are invoked as /<name>)", () => {
+    const h = HARNESSES.find((h) => h.id === "zcode");
+    expect(Object.keys(h.surfaces).sort()).toEqual(["bootstrap", "skills"]);
+    expect(h.surfaces.bootstrap.dest).toBe(".zcode/AGENTS.md");
+    expect(h.surfaces.skills.dest).toBe(".zcode/skills");
   });
 });
 
@@ -285,7 +293,7 @@ describe("detectHarnesses", () => {
     expect(detected).toEqual([]);
   });
 
-  it("detects all seven when all dirs present", () => {
+  it("detects all eight when all dirs present", () => {
     const home = join(TEST_ROOT, "home");
     mkdirSync(join(home, ".pi", "agent"), { recursive: true });
     mkdirSync(join(home, ".omp", "agent"), { recursive: true });
@@ -294,10 +302,11 @@ describe("detectHarnesses", () => {
     mkdirSync(join(home, ".config", "opencode"), { recursive: true });
     mkdirSync(join(home, ".cursor"), { recursive: true });
     mkdirSync(join(home, ".grok"), { recursive: true });
+    mkdirSync(join(home, ".zcode"), { recursive: true });
 
     const detected = detectHarnesses(home);
 
-    expect(detected).toHaveLength(7);
+    expect(detected).toHaveLength(8);
   });
 });
 
@@ -388,6 +397,27 @@ describe("install", () => {
     expect(readlinkSync(join(home, ".grok", "skills", "b-plan"))).toBe(
       join(repo, "skills", "b-plan"),
     );
+  });
+
+  it("ZCode gets bootstrap + per-skill links (no commands)", () => {
+    const { repo, home } = setupFixtures();
+
+    const result = install({ source: repo, home, harnessIds: ["zcode"] });
+
+    const zcodeBootstrap = join(home, ".zcode", "AGENTS.md");
+    expect(existsSync(zcodeBootstrap)).toBe(true);
+    expect(readlinkSync(zcodeBootstrap)).toBe(
+      join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"),
+    );
+
+    expect(readlinkSync(join(home, ".zcode", "skills", "b-build"))).toBe(
+      join(repo, "skills", "b-build"),
+    );
+    expect(readlinkSync(join(home, ".zcode", "skills", "b-plan"))).toBe(
+      join(repo, "skills", "b-plan"),
+    );
+    expect(existsSync(join(home, ".zcode", "commands"))).toBe(false);
+    expect(result.exitCode).toBe(0);
   });
 
   it("dryRun reports actions but writes nothing", () => {
