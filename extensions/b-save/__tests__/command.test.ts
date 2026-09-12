@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -152,6 +152,31 @@ describe("fresh /b-save run (issue #23 acceptance: durable writes)", () => {
       expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(false);
       expect(existsSync(join(cwd, ".context/workflow/b-save", result.runId, "manifest.json"))).toBe(false);
       expect(memory.save).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+    }
+  });
+});
+
+describe("fresh subject creation (review: no failed_model on first save)", () => {
+  it("seeds the new subject index and completes instead of failing as failed_model", async () => {
+    const { cwd, cleanup } = fixtureRepo([]);
+    try {
+      const memory = fakeMemory();
+      const result = await runBSaveCommand(ctxFor(cwd, fakeRoles(), memory), ["--subject", "brand-new"]);
+      expect(result.ok).toBe(true);
+      expect(result.state).toBe("completed");
+      expect(memory.save).toHaveBeenCalledTimes(1);
+
+      const subjectName = readManifest(cwd, result.runId).subject?.name ?? "";
+      expect(subjectName).toMatch(/^\d{4}-\d{2}-\d{2}\.brand-new$/);
+      const subjectIndex = readFileSync(join(cwd, ".context", subjectName, "index.md"), "utf8");
+      expect(subjectIndex).toContain("status:");
+      expect(subjectIndex).toMatch(/\]\(\.\.\/memory\/brand-new-[^)]+\.md\)/);
+
+      const memoryFiles = readdirSync(join(cwd, ".context", "memory"));
+      expect(memoryFiles.some((name) => name.startsWith("brand-new-"))).toBe(true);
+      expect(readFileSync(join(cwd, ".context", "memory", "index.md"), "utf8")).toContain("- brand-new-");
     } finally {
       cleanup();
     }
