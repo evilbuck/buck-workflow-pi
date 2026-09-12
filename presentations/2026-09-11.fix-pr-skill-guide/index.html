@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>fix-pr — A Junior Engineer's Field Guide</title>
+<style>
+  :root{
+    --bg:#0b0e14;
+    --panel:#12161f;
+    --panel-2:#161b26;
+    --border:#232a38;
+    --text:#e7ebf3;
+    --muted:#9aa5b8;
+    --accent:#6ea8fe;
+    --accent-2:#8b7cf6;
+    --green:#3ddc84;
+    --green-bg:rgba(61,220,132,.12);
+    --red:#ff6b6b;
+    --red-bg:rgba(255,107,107,.12);
+    --amber:#ffc857;
+    --amber-bg:rgba(255,200,87,.12);
+    --blue:#6ea8fe;
+    --blue-bg:rgba(110,168,254,.12);
+    --gray:#9aa5b8;
+    --gray-bg:rgba(154,165,184,.12);
+    --code-bg:#0d1117;
+    --radius:14px;
+    --shadow: 0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    font-family:"Inter","Segoe UI",-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(110,168,254,.12), transparent 60%),
+      radial-gradient(900px 500px at -10% 20%, rgba(139,124,246,.10), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    line-height:1.6;
+  }
+  a{color:var(--accent);}
+  code, pre, .mono{
+    font-family:"JetBrains Mono","SF Mono",Consolas,Menlo,monospace;
+    font-size:.86em;
+  }
+  code{
+    background:rgba(110,168,254,.12);
+    color:#cfe0ff;
+    padding:.12em .42em;
+    border-radius:6px;
+  }
+  pre{
+    background:var(--code-bg);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:14px 16px;
+    overflow-x:auto;
+    color:#d6deeb;
+  }
+  pre code{background:none;padding:0;color:inherit;}
+
+  /* Layout */
+  .shell{display:grid;grid-template-columns:260px minmax(0,1fr);min-height:100vh;}
+  nav.toc{
+    position:sticky;top:0;height:100vh;overflow-y:auto;
+    border-right:1px solid var(--border);
+    background:rgba(18,22,31,.7);
+    backdrop-filter: blur(6px);
+    padding:28px 18px 40px;
+  }
+  nav.toc .brand{
+    font-weight:800;font-size:1.05rem;letter-spacing:.2px;
+    display:flex;align-items:center;gap:8px;margin-bottom:4px;
+  }
+  nav.toc .brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:inline-block;}
+  nav.toc .sub{color:var(--muted);font-size:.78rem;margin-bottom:22px;}
+  nav.toc .group-title{
+    text-transform:uppercase;letter-spacing:.08em;font-size:.68rem;color:var(--muted);
+    margin:18px 0 8px;font-weight:700;
+  }
+  nav.toc ul{list-style:none;margin:0;padding:0;}
+  nav.toc li a{
+    display:block;color:var(--muted);text-decoration:none;font-size:.86rem;
+    padding:6px 10px;border-radius:8px;border-left:2px solid transparent;
+  }
+  nav.toc li a:hover{color:var(--text);background:rgba(255,255,255,.03);}
+  nav.toc li a.phase{font-weight:600;color:#c9d3e6;}
+
+  main{padding:48px clamp(20px,5vw,72px) 100px;max-width:1080px;}
+
+  header.hero{
+    padding:40px 0 28px;border-bottom:1px solid var(--border);margin-bottom:36px;
+  }
+  header.hero .kicker{
+    color:var(--accent);font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:.75rem;
+  }
+  header.hero h1{
+    font-size:clamp(1.9rem,3.4vw,2.6rem);margin:10px 0 12px;line-height:1.15;
+    background:linear-gradient(135deg,#fff,#b9c8e8);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  header.hero p.lede{color:var(--muted);font-size:1.05rem;max-width:64ch;margin:0 0 20px;}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    font-size:.76rem;font-weight:600;padding:5px 11px;border-radius:999px;
+    border:1px solid var(--border);background:var(--panel-2);color:var(--muted);
+  }
+  .badge.on{color:var(--green);border-color:rgba(61,220,132,.35);background:var(--green-bg);}
+  .badge.warn{color:var(--amber);border-color:rgba(255,200,87,.35);background:var(--amber-bg);}
+
+  section{margin:56px 0;}
+  section h2{
+    font-size:1.5rem;margin:0 0 6px;display:flex;align-items:center;gap:10px;
+  }
+  section h2 .num{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:10px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    color:#0b0e14;font-weight:800;font-size:.95rem;flex:none;
+  }
+  section .kicker-sm{color:var(--muted);font-size:.85rem;margin:0 0 18px 44px;}
+  section > .body{margin-left:44px;}
+  @media (max-width:640px){
+    section > .body, section .kicker-sm{margin-left:0;}
+    .shell{grid-template-columns:1fr;}
+    nav.toc{position:relative;height:auto;}
+  }
+
+  .callout{
+    border:1px solid var(--border);border-left:4px solid var(--accent);
+    background:var(--panel);border-radius:10px;padding:14px 18px;margin:16px 0;
+  }
+  .callout.good{border-left-color:var(--green);}
+  .callout.bad{border-left-color:var(--red);}
+  .callout.warn{border-left-color:var(--amber);}
+  .callout strong{display:block;margin-bottom:4px;font-size:.82rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);}
+
+  .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin:18px 0;}
+  .card{
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px;box-shadow:var(--shadow);
+  }
+  .card h4{margin:0 0 8px;font-size:.98rem;display:flex;align-items:center;gap:8px;}
+  .card p{margin:0;color:var(--muted);font-size:.88rem;}
+
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:.88rem;background:var(--panel);border-radius:10px;overflow:hidden;border:1px solid var(--border);}
+  thead th{
+    background:var(--panel-2);text-align:left;padding:10px 14px;color:#c9d3e6;
+    font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--border);
+  }
+  tbody td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text);}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:rgba(255,255,255,.02);}
+
+  .pill{display:inline-block;padding:2px 10px;border-radius:999px;font-weight:700;font-size:.74rem;white-space:nowrap;}
+  .pill.valid{color:var(--green);background:var(--green-bg);}
+  .pill.invalid{color:var(--red);background:var(--red-bg);}
+  .pill.unsure{color:var(--amber);background:var(--amber-bg);}
+  .pill.done{color:var(--blue);background:var(--blue-bg);}
+  .pill.nit{color:var(--gray);background:var(--gray-bg);}
+
+  /* Pipeline */
+  .pipeline{display:flex;flex-wrap:wrap;gap:10px;margin:22px 0 30px;counter-reset:phase;}
+  .pipeline .step{
+    flex:1 1 150px;background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:14px 14px 12px;position:relative;text-decoration:none;color:var(--text);
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .pipeline .step:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .pipeline .step .n{
+    font-size:.72rem;font-weight:800;color:var(--accent);letter-spacing:.06em;text-transform:uppercase;
+  }
+  .pipeline .step .t{font-weight:700;margin-top:4px;font-size:.92rem;}
+  .pipeline .arrow{align-self:center;color:var(--muted);font-size:1.2rem;}
+
+  .steps{list-style:none;margin:0;padding:0;counter-reset:step;}
+  .steps > li{
+    position:relative;padding:4px 0 4px 42px;margin-bottom:14px;counter-increment:step;
+  }
+  .steps > li::before{
+    content:counter(step);position:absolute;left:0;top:0;
+    width:28px;height:28px;border-radius:8px;
+    background:var(--panel-2);border:1px solid var(--border);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.85rem;
+  }
+
+  .checklist{list-style:none;margin:0;padding:0;}
+  .checklist li{
+    padding:8px 0 8px 30px;position:relative;border-bottom:1px solid var(--border);font-size:.92rem;
+  }
+  .checklist li:last-child{border-bottom:none;}
+  .checklist li::before{
+    content:"✓";position:absolute;left:0;top:8px;color:var(--green);font-weight:800;
+  }
+
+  .legend-row{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0;}
+  .legend-row .item{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--muted);}
+
+  footer{
+    margin-top:80px;padding-top:24px;border-top:1px solid var(--border);
+    color:var(--muted);font-size:.85rem;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;
+  }
+
+  .tag-row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0;}
+  .tag{
+    font-size:.75rem;background:var(--panel-2);border:1px solid var(--border);
+    color:var(--muted);padding:3px 9px;border-radius:8px;font-family:"JetBrains Mono",monospace;
+  }
+
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media (max-width:720px){.two-col{grid-template-columns:1fr;}}
+
+  .flag-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:16px 0;}
+  .flag{
+    background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:12px 14px;
+  }
+  .flag code.flagname{color:var(--accent-2);font-weight:700;}
+  .flag p{margin:6px 0 0;color:var(--muted);font-size:.82rem;}
+</style>
+</head>
+<body>
+<div class="shell">
+
+<nav class="toc">
+  <div class="brand"><span class="dot"></span> fix-pr</div>
+  <div class="sub">Field guide for junior engineers</div>
+
+  <div class="group-title">Orientation</div>
+  <ul>
+    <li><a href="#what-is-it">What is fix-pr?</a></li>
+    <li><a href="#when">When to use it</a></li>
+    <li><a href="#compare">How it differs from other skills</a></li>
+    <li><a href="#flags">Command flags</a></li>
+  </ul>
+
+  <div class="group-title">The 6 phases</div>
+  <ul>
+    <li><a class="phase" href="#phase1">1. Identify PR + land on branch</a></li>
+    <li><a class="phase" href="#phase2">2. Inventory comments</a></li>
+    <li><a class="phase" href="#phase3">3. Validate against code</a></li>
+    <li><a class="phase" href="#phase4">4. Size gate</a></li>
+    <li><a class="phase" href="#phase5">5. Fix or file issues</a></li>
+    <li><a class="phase" href="#phase6">6. Durable record</a></li>
+  </ul>
+
+  <div class="group-title">Reference</div>
+  <ul>
+    <li><a href="#rules">Golden rules</a></li>
+    <li><a href="#errors">Error handling</a></li>
+    <li><a href="#script">The fetch-feedback.sh script</a></li>
+    <li><a href="#related">Related skills</a></li>
+  </ul>
+</nav>
+
+<main>
+
+  <header class="hero">
+    <div class="kicker">Skill Walkthrough</div>
+    <h1>fix-pr: turn PR review comments into fixed code (or filed issues)</h1>
+    <p class="lede">
+      A step-by-step guide to <code>skills/fix-pr/SKILL.md</code> — the skill that reads every
+      comment on a GitHub pull request, checks each one against the actual code, and then either
+      <strong>fixes it in the same session</strong> or <strong>files a tracked issue</strong>.
+      It never guesses and it never mutates code it hasn't validated.
+    </p>
+    <div class="badges">
+      <span class="badge on">Mutates code (when small)</span>
+      <span class="badge">Skill-only — no slash command</span>
+      <span class="badge">OMP-first, agent-agnostic</span>
+      <span class="badge warn">Asks only when "unsure"</span>
+    </div>
+  </header>
+
+  <section id="what-is-it">
+    <h2><span class="num">i</span> What is fix-pr, in one paragraph?</h2>
+    <div class="body">
+      <p>
+        Someone reviewed your pull request. Maybe a human, maybe a bot. Now there's a pile of
+        comments — some are real bugs, some are already fixed, some are nitpicks, some are just
+        wrong. <strong>fix-pr</strong> is the procedure for turning that pile into one of two
+        outcomes: a small, verified commit that addresses everything valid, or a set of
+        well-written GitHub issues for anything too big to do safely right now.
+      </p>
+      <div class="callout">
+        <strong>The one rule that matters most</strong>
+        Every comment gets checked against the <em>current</em> code before anything happens to it.
+        A reviewer being senior, or a comment sounding confident, is not evidence. Only the code is.
+      </div>
+    </div>
+  </section>
+
+  <section id="when">
+    <h2><span class="num">ii</span> When do you reach for it?</h2>
+    <div class="body">
+      <p>Use fix-pr when someone says things like:</p>
+      <div class="tag-row">
+        <span class="tag">"fix the PR comments"</span>
+        <span class="tag">"address review feedback"</span>
+        <span class="tag">"fix PR #42"</span>
+        <span class="tag">points you at a PR URL and wants action, not a report</span>
+      </div>
+      <div class="callout warn">
+        <strong>Not for</strong>
+        Just reading/summarizing feedback (that's <code>b-pr-review-2-issues</code>), and not for
+        writing a fresh code review yourself (that's <code>code-review-universal</code>).
+        fix-pr is specifically the "close the loop and mutate something" skill.
+      </div>
+    </div>
+  </section>
+
+  <section id="compare">
+    <h2><span class="num">iii</span> How it's different from similar-sounding skills</h2>
+    <div class="body">
+      <table>
+        <thead><tr><th>Skill</th><th>Stops at</th><th>Mutates code?</th></tr></thead>
+        <tbody>
+          <tr><td><code>code-review</code> / <code>code-review-universal</code></td><td>Posts a review</td><td>No</td></tr>
+          <tr><td><code>b-pr-review-2-issues</code></td><td>Plan artifact in <code>.context/</code></td><td>No</td></tr>
+          <tr><td><strong>fix-pr</strong></td><td>Fixed code <em>or</em> filed issues</td><td><strong>Yes</strong> (when small)</td></tr>
+        </tbody>
+      </table>
+      <p>fix-pr is the only one of the three that actually touches your repository or opens issues on your behalf.</p>
+    </div>
+  </section>
+
+  <section id="flags">
+    <h2><span class="num">iv</span> How you invoke it</h2>
+    <div class="body">
+      <p>No slash command exists for this skill on purpose — it's loaded by name (e.g. <code>/skill:fix-pr</code> on OMP) so the full procedure below is always followed, rather than a thin wrapper that might drift out of date.</p>
+      <pre><code>fix-pr                     # resolve PR from current branch
+fix-pr &lt;pr-number&gt;
+fix-pr &lt;pr-url&gt;
+fix-pr &lt;pr&gt; --issues-only   # never fix code; file issues for valid items
+fix-pr &lt;pr&gt; --fix-only      # never file issues; stop if too large to fix
+fix-pr &lt;pr&gt; --dry-run       # validate + inventory only; touches nothing</code></pre>
+      <div class="flag-grid">
+        <div class="flag"><code class="flagname">--issues-only</code><p>Good for large PRs, or when you want a paper trail before touching code.</p></div>
+        <div class="flag"><code class="flagname">--fix-only</code><p>Forces a stop (with a report) instead of quietly falling back to filing issues.</p></div>
+        <div class="flag"><code class="flagname">--dry-run</code><p>Safe to run any time — validates everything, writes a memory note, and stops. No commits, no pushes, no issues.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pipeline-overview">
+    <h2><span class="num">v</span> The six phases at a glance</h2>
+    <div class="body">
+      <p>Every run walks the same pipeline, in order. Click a step to jump to its detail below.</p>
+      <div class="pipeline">
+        <a class="step" href="#phase1"><div class="n">Phase 1</div><div class="t">Identify PR + checkout</div></a>
+        <a class="step" href="#phase2"><div class="n">Phase 2</div><div class="t">Inventory comments</div></a>
+        <a class="step" href="#phase3"><div class="n">Phase 3</div><div class="t">Validate vs. code</div></a>
+        <a class="step" href="#phase4"><div class="n">Phase 4</div><div class="t">Size gate</div></a>
+        <a class="step" href="#phase5"><div class="n">Phase 5</div><div class="t">Fix — or — file issues</div></a>
+        <a class="step" href="#phase6"><div class="n">Phase 6</div><div class="t">Write the record</div></a>
+      </div>
+    </div>
+  </section>
+
+  <section id="phase1">
+    <h2><span class="num">1</span> Identify the PR and land on its head branch</h2>
+    <p class="kicker-sm">Goal: know which PR, and have its full feedback in hand — not just the review summary.</p>
+    <div class="body">
+      <ol class="steps">
+        <li>
+          Work out the PR number. If the user gave you one, use it. Otherwise run
+          <code>gh pr view</code> against the current branch. Still nothing? Ask for a URL or number.
+        </li>
+        <li>
+          Fetch <strong>everything</strong> — review bodies alone are not enough, because most of
+          the actionable detail lives in inline/file comments and conversation replies.
+          <div class="two-col">
+            <div>
+              <strong style="font-size:.82rem;color:var(--muted)">On OMP (preferred)</strong>
+              <pre><code>read pr://&lt;N&gt;
+read pr://&lt;N&gt;?comments=1</code></pre>
+            </div>
+            <div>
+              <strong style="font-size:.82rem;color:var(--muted)">Universal fallback</strong>
+              <pre><code>gh pr view &lt;N&gt; --repo &lt;owner/repo&gt; \
+  --json number,title,body,headRefName,baseRefName,state,url,files,reviews,comments
+gh api repos/{owner}/{repo}/pulls/&lt;N&gt;/comments
+gh api repos/{owner}/{repo}/issues/&lt;N&gt;/comments</code></pre>
+            </div>
+          </div>
+          <div class="callout">
+            <strong>Fast path</strong>
+            If <code>gh</code> and <code>jq</code> are both installed, one script does all three calls
+            for you and hands back an ordered table — see <a href="#script">the script section</a> below.
+          </div>
+        </li>
+        <li>
+          Get the diff and the code at HEAD — Phase 3 needs both.
+          <pre><code>gh pr diff &lt;N&gt; --repo &lt;owner/repo&gt;                            # full diff
+gh api repos/{owner}/{repo}/contents/&lt;path&gt;?ref=&lt;headRefName&gt;    # one file at HEAD</code></pre>
+          <div class="callout bad">
+            <strong>Known gotcha</strong>
+            <code>gh pr diff &lt;N&gt; -- &lt;path&gt;</code> (the path-filtered form) sometimes returns
+            <em>nothing</em> even when that file changed. Use the contents API instead of trusting an empty diff.
+          </div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="phase2">
+    <h2><span class="num">2</span> Inventory every comment into one working table</h2>
+    <p class="kicker-sm">Goal: one flat list of findings, nothing double-counted, nothing skipped.</p>
+    <div class="body">
+      <p>What counts as a finding:</p>
+      <ul class="checklist">
+        <li>Submitted review bodies — human <em>and</em> bot — with a concrete claim</li>
+        <li>Inline / file-level review comment threads</li>
+        <li>Conversation comments that request a change</li>
+      </ul>
+      <p>
+        If the PR has several reviews, sort them by <code>submittedAt</code>. The <em>latest</em>
+        review touching a given file/line wins. Tag each finding with the commit SHA of the review
+        it came from — that's how you later spot a comment that a later commit already addressed.
+      </p>
+      <table>
+        <thead><tr><th>Comment type</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Resolved threads</td><td>Skip, unless the user explicitly asked to re-check</td></tr>
+          <tr><td>Nit / LGTM / pure style</td><td>Optional drive-by fix; never worth its own issue</td></tr>
+          <tr><td>Duplicate claim</td><td>Merge into one work item; cite every source, including the earliest <code>submittedAt</code></td></tr>
+          <tr><td>Stale (valid earlier, since fixed)</td><td>Re-validate against HEAD; mark <span class="pill done">already_done</span> with evidence — do not re-fix</td></tr>
+          <tr><td><code>.context/**</code> only</td><td>Skip — session artifacts, not shipped code (except a leaked secret, which is always actionable)</td></tr>
+          <tr><td>Already fixed on HEAD</td><td><span class="pill done">already_done</span> + evidence; do not touch it again</td></tr>
+          <tr><td>Out-of-scope redesign</td><td><span class="pill unsure">out_of_scope</span>, or ask if the product intent is genuinely ambiguous</td></tr>
+        </tbody>
+      </table>
+      <p>Every row of the working table looks like this — keep it flat, one row per finding:</p>
+      <pre><code># | source | commit | path:line | claim | submittedAt | status: pending_validation</code></pre>
+    </div>
+  </section>
+
+  <section id="phase3">
+    <h2><span class="num">3</span> Validate each item against the real code</h2>
+    <p class="kicker-sm">Goal: turn "pending_validation" into a verdict backed by evidence — not vibes.</p>
+    <div class="body">
+      <ol class="steps">
+        <li>Read the cited code — and its callers/siblings that share the same root cause. A comment about one call site is often really about a shared helper.</li>
+        <li>Confirm or disprove with real evidence: a code snippet, a failing test, or an observed runtime behavior.</li>
+        <li>Classify with one of five verdicts:</li>
+      </ol>
+      <table>
+        <thead><tr><th>Verdict</th><th>Meaning</th><th>What happens next</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill valid">valid</span></td><td>Real bug, missing guard, genuine inconsistency, or clear improvement</td><td>Counts toward the size gate; gets fixed or turned into an issue</td></tr>
+          <tr><td><span class="pill invalid">invalid</span></td><td>Wrong, outdated, or contradicts a deliberate design decision (with evidence)</td><td>Note why, in one sentence; do not touch the code</td></tr>
+          <tr><td><span class="pill done">already_done</span></td><td>HEAD already addresses it</td><td>Cite the proof (line/commit); move on</td></tr>
+          <tr><td><span class="pill unsure">unsure</span></td><td>Needs a product or steward call the agent can't make alone</td><td><strong>Ask the engineer</strong> — see the protocol below</td></tr>
+          <tr><td><span class="pill nit">nit</span></td><td>Style-only, no functional stake</td><td>Optional drive-by while already editing the file; otherwise skip</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <strong>Unsure protocol — short and batched, not one question at a time</strong>
+<pre><code>Comment &lt;N&gt; (@author, path:line):
+  Claim: &lt;one sentence&gt;
+  Observed: &lt;what the code actually does&gt;
+  Why unclear: &lt;missing product intent / two reasonable designs&gt;
+  Options: (A) …  (B) …
+Valid? → fix / issue / skip per your call.</code></pre>
+        Unrelated <span class="pill valid">valid</span> fixes are never blocked waiting on an open
+        <span class="pill unsure">unsure</span> — keep moving on everything else.
+      </div>
+
+      <div class="callout good">
+        <strong>Root-cause bias</strong>
+        If three comments point at the same missing guard in three call sites, that's one fix, not three.
+        Prefer one shared change over N copy-pasted patches.
+      </div>
+    </div>
+  </section>
+
+  <section id="phase4">
+    <h2><span class="num">4</span> Decide: fix now, or file issues?</h2>
+    <p class="kicker-sm">Goal: don't start a half-finished branch when the honest answer is "this needs its own session."</p>
+    <div class="body">
+      <p>
+        Add up every <span class="pill valid">valid</span> finding that's still open (skip anything
+        <span class="pill done">already_done</span>). Weigh it against these signals:
+      </p>
+      <table>
+        <thead><tr><th>Signal</th><th>Lean fix now</th><th>Lean file issues</th></tr></thead>
+        <tbody>
+          <tr><td>Valid findings</td><td>≤ ~5</td><td>≥ 6, or many unrelated themes</td></tr>
+          <tr><td>Files touched</td><td>≤ ~8</td><td>&gt; 8, or many subsystems</td></tr>
+          <tr><td>Depth</td><td>Guard/branch/test tweaks, small UX</td><td>Design changes, migrations, multi-layer refactors</td></tr>
+          <tr><td>Risk</td><td>Local, well-tested paths</td><td>Auth/payments/data loss, unclear product calls</td></tr>
+          <tr><td>Time shape</td><td>One focused commit (maybe two)</td><td>Multi-session, needs product input</td></tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <strong>Tie-breaker</strong>
+        Borderline? <strong>File issues.</strong> A shippable tracking issue beats a half-finished branch.
+        <code>--fix-only</code> / <code>--issues-only</code> override this judgment call explicitly.
+      </div>
+      <table>
+        <thead><tr><th>Gate outcome</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>Fits in-session, no <code>--issues-only</code></td><td>→ Phase 5a: Fix</td></tr>
+          <tr><td>Too large, no <code>--fix-only</code></td><td>→ Phase 5b: File issues</td></tr>
+          <tr><td><code>--fix-only</code> but too large</td><td>Stop. Report inventory + a recommended issue split. No partial slog.</td></tr>
+          <tr><td>Zero valid findings</td><td>Report and stop — no commit at all</td></tr>
+          <tr><td><code>--dry-run</code> (any count)</td><td>Stop after Phase 3. Emit the inventory + verdict table only.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="phase5">
+    <h2><span class="num">5</span> Execute: fix in-session, or file issues</h2>
+    <p class="kicker-sm">This phase branches — only one path runs per invocation.</p>
+    <div class="body">
+      <div class="card-grid">
+        <div class="card">
+          <h4>🔧 5a — Fix path</h4>
+          <ol class="steps">
+            <li>Write the smallest correct diff covering all valid items — one shared root-cause fix beats several call-site patches.</li>
+            <li>Add or run the narrowest tests that would fail if the fix regressed.</li>
+            <li>Run those tests, plus any project-required checks for the touched paths.</li>
+            <li>Commit — one commit is preferred, two max, using:
+              <pre><code>fix(&lt;scope&gt;): address PR #&lt;N&gt; review (&lt;short theme&gt;)</code></pre>
+              (use the repo's <code>git-commit</code> skill if present, otherwise a plain conventional commit)
+            </li>
+            <li><code>git push -u origin HEAD</code> on the current branch.</li>
+            <li>Optionally leave a short PR comment summarizing what landed.</li>
+            <li>Move to Phase 6.</li>
+          </ol>
+          <div class="callout bad" style="margin-top:4px;">
+            <strong>Don't</strong> expand into unrelated refactors. <strong>Don't</strong> push if verification is failing.
+          </div>
+        </div>
+        <div class="card">
+          <h4>🎫 5b — Issues path</h4>
+          <ol class="steps">
+            <li>Search existing open issues first — don't file a duplicate for the same PR/theme.</li>
+            <li>For each valid item (or tight theme-group), run:
+              <pre><code>gh issue create --body-file …</code></pre>
+              with an actionable title, the claim + evidence, affected paths, acceptance criteria, and links back to the PR + comment URL.
+            </li>
+            <li>Label <code>ready-for-agent</code> if fully specified, else <code>needs-triage</code>; add <code>bug</code>/<code>enhancement</code> as fits.</li>
+            <li>Prefer one issue per theme when several comments share a root cause.</li>
+            <li>Leave a short PR comment listing the filed issues.</li>
+            <li>Don't implement anything here — unless exactly one trivial valid item remains and <code>--issues-only</code> wasn't set.</li>
+          </ol>
+        </div>
+      </div>
+      <div class="callout warn">
+        <strong>Never file issues for nits.</strong> Pure style comments get a drive-by fix or get skipped from the report — they never earn a tracked issue.
+      </div>
+    </div>
+  </section>
+
+  <section id="phase6">
+    <h2><span class="num">6</span> Write the durable record and close out</h2>
+    <p class="kicker-sm">Goal: anyone (including future-you) can see exactly what happened without re-reading the PR.</p>
+    <div class="body">
+      <ol class="steps">
+        <li>
+          Write <code>.context/memory/fix-pr-&lt;pr&gt;-YYYY-MM-DD.md</code> (or the active subject folder) containing:
+          the PR URL/number, the full validation table with a verdict per comment, fix SHAs <em>or</em> issue URLs, and every command run plus its result.
+        </li>
+        <li>Update <code>.context/memory/index.md</code> so the session is discoverable later.</li>
+        <li>
+          Report a closeout in this exact shape:
+          <pre><code>PR #&lt;N&gt; — &lt;title&gt;
+Branch: &lt;head&gt; (pushed: yes/no)
+
+Validation:
+| # | claim | verdict | disposition |
+|---|---|---|---|
+| 1 | … | valid | fixed in &lt;sha&gt; |
+| 2 | … | invalid | &lt;reason&gt; |
+| 3 | … | unsure | asked → &lt;decision&gt; |
+| 4 | … | valid | issue #M |
+
+Verification:
+- &lt;command&gt; → &lt;result&gt;
+
+Follow-ups: &lt;none | issue links&gt;</code></pre>
+        </li>
+      </ol>
+      <div class="callout good">
+        This step runs <strong>even under <code>--dry-run</code></strong> — the diagnosis is worth keeping even though nothing was pushed or filed.
+      </div>
+    </div>
+  </section>
+
+  <section id="rules">
+    <h2><span class="num">★</span> Golden rules — the things that never bend</h2>
+    <div class="body">
+      <ul class="checklist">
+        <li><strong>--dry-run never mutates.</strong> Reading code on the PR's head branch is fine; committing, pushing, or opening issues is not.</li>
+        <li><strong>Validate before mutating.</strong> No drive-by "fixes" for a comment you haven't checked.</li>
+        <li><strong>Evidence over deference.</strong> A senior reviewer's confidence doesn't make a wrong comment right.</li>
+        <li><strong>Only ask for "unsure".</strong> Valid, invalid, and already_done are calls the agent makes itself.</li>
+        <li><strong>No plan-only theater.</strong> Small enough to fix? Fix it. Too big to plan safely in-session? Hand off to <code>b-pr-review-2-issues</code> or <code>b-plan</code> instead of misusing this skill.</li>
+        <li><strong>Stay on the correct branch.</strong> Never fix on the wrong checkout.</li>
+        <li><strong>Verify narrowly</strong> — unless the project's own rules demand more.</li>
+        <li><strong>Secrets are always actionable</strong> — and never get copied into an issue or memory file.</li>
+        <li><strong>Bot noise doesn't count.</strong> "CI still running" isn't a finding; a concrete bot-reported bug is.</li>
+        <li><strong>Idempotent re-runs.</strong> Re-validate everything, skip what's <code>already_done</code>, never file the same issue twice.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="errors">
+    <h2><span class="num">!</span> When something goes wrong</h2>
+    <div class="body">
+      <table>
+        <thead><tr><th>Situation</th><th>What to do</th></tr></thead>
+        <tbody>
+          <tr><td><code>gh</code> missing or unauthenticated</td><td>Stop; install it or run <code>gh auth login</code></td></tr>
+          <tr><td>PR not found</td><td>Stop; ask for a URL</td></tr>
+          <tr><td>Checkout fails</td><td>Stop; report why</td></tr>
+          <tr><td>Tests fail after the fix</td><td>Fix it or revert — never push red</td></tr>
+          <tr><td>Push rejected</td><td>Report it; never force-push unless explicitly told to</td></tr>
+          <tr><td>Can't create issues</td><td>Report the valid items and save draft bodies under <code>.context/</code> instead</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section id="script">
+    <h2><span class="num">›_</span> The fast path: <code>fetch-feedback.sh</code></h2>
+    <p class="kicker-sm">One script, three <code>gh</code> calls, one ordered table — used at the start of Phase 1/2.</p>
+    <div class="body">
+      <p>
+        Instead of running three separate <code>gh</code> commands and manually stitching the
+        results together, this script does it for you — <em>if</em> both <code>gh</code> and
+        <code>jq</code> are on your <code>PATH</code>. If either is missing, it fails loudly and
+        you fall back to the raw <code>gh</code> commands documented in Phase 1.
+      </p>
+      <pre><code>bash skills/fix-pr/scripts/fetch-feedback.sh &lt;owner/repo&gt; &lt;pr-number&gt;</code></pre>
+      <p>What it does, step by step:</p>
+      <ol class="steps">
+        <li>Checks that <code>gh</code> and <code>jq</code> both exist — exits with a clear message if not.</li>
+        <li>Calls three GitHub endpoints: the PR itself (<code>gh pr view</code>), inline review comments (<code>pulls/&lt;N&gt;/comments</code>), and conversation comments (<code>issues/&lt;N&gt;/comments</code>).</li>
+        <li>Confirms the PR actually exists — GitHub returns an empty object for unknown PRs instead of an error, so the script checks <code>.number</code> explicitly.</li>
+        <li>Emits one tab-separated table, sorted so reviews come first (by <code>submittedAt</code>), then inline comments, then conversation comments — each row tagged with its <code>source</code>.</li>
+      </ol>
+      <p>Output shape (header + one row per finding):</p>
+      <pre><code>#	source	commit	path:line	claim	submittedAt	status
+	review		src/foo.ts	Missing null check before…	2026-09-01T12:00:00Z	pending_validation
+	inline	1a7a6aa	src/foo.ts:42	Should this throw instead of…	2026-09-01T13:04:00Z	pending_validation
+	conversation			Can we also cover the empty-…	2026-09-01T14:10:00Z	pending_validation</code></pre>
+      <div class="callout warn">
+        <strong>What it deliberately does not do</strong>
+        No semantic deduplication, no classification (it never decides <code>valid</code> vs
+        <code>already_done</code> vs <code>stale</code>). That judgment stays with the agent in
+        Phases 2–3 — the script only fetches, orders, and tags. If that classification logic ever
+        becomes fully mechanical, it belongs in the script; until then, it stays a human/agent call.
+      </div>
+      <div class="callout">
+        <strong>Commit SHA is best-effort</strong>
+        Review bodies sometimes contain a line like <code>Commit: 1a7a6aa</code>, which the script
+        extracts via regex. When it's absent, the SHA column is just empty — the real staleness
+        signal is the <code>submittedAt</code> ordering, not the SHA.
+      </div>
+    </div>
+  </section>
+
+  <section id="related">
+    <h2><span class="num">↗</span> Related skills</h2>
+    <div class="body">
+      <div class="card-grid">
+        <div class="card"><h4>b-pr-review-2-issues</h4><p>Plan-only ingestion of PR feedback — stops at a <code>.context/</code> artifact, never mutates code.</p></div>
+        <div class="card"><h4>b-issue-create</h4><p>Richer, AFK-ready issue handoff built from an existing plan/spec context.</p></div>
+        <div class="card"><h4>b-iterate</h4><p>Small follow-up fixes after a fix-pr commit has already landed.</p></div>
+        <div class="card"><h4>git-commit</h4><p>Conventional-commit helper used in Phase 5a when present in the repo.</p></div>
+        <div class="card"><h4>code-review-universal</h4><p>The opposite direction — authoring a fresh review instead of acting on one.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Generated from <code>skills/fix-pr/SKILL.md</code> and <code>skills/fix-pr/scripts/fetch-feedback.sh</code></span>
+    <span>buck-workflow-pi · fix-pr field guide</span>
+  </footer>
+
+</main>
+</div>
+</body>
+</html>
