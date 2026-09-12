@@ -1,0 +1,258 @@
+// Canonical design language for every HTML deliverable the Buck workflow generates:
+// blueprints, briefing packages, reports, guides, explanations.
+//
+// AUTHORITATIVE. `skills/_shared/scripts/render-design-tokens.ts` renders the
+// `:root` token block and the Mermaid init from this file; both are spliced into
+// consumer templates between `BEGIN generated:` / `END generated:` markers and
+// pinned byte-for-byte by `skills/_shared/scripts/design-language.test.ts`.
+// Change a colour HERE, then run:  bun skills/_shared/scripts/render-design-tokens.ts --write
+{
+  "name": "buck-html-deliverables",
+  "version": 1,
+
+  "source": {
+    "summary": "Extracted from the 2026-09-11 overlap-audit pages, which are the reference implementation of this language.",
+    "reference_pages": [
+      "presentations/2026-09-11.buck-vs-docker-orchestration-overlap/index.html",
+      "presentations/2026-09-11.buck-vs-docker-orchestration-overlap/adoption-plan.html"
+    ],
+    "consumers": [
+      "skills/b-blueprint/references/blueprint-template.html",
+      "skills/b-present/references/briefing-package-patterns.md"
+    ],
+    "character": "Warm paper, not app chrome. Light-only. Ink-on-stock rather than dark-mode terminal: an off-white ground, white raised panels, hairline warm-grey rules, and a single deep-teal accent that carries every interactive and emphatic state. Density is high and decoration is near-zero — the page should read like a well-set report, and every colour beyond the greys must mean something."
+  },
+
+  // ── Tokens ────────────────────────────────────────────────────────────────
+  // Rendered verbatim into consumers. Names are short by design: generated HTML
+  // is hand-read during review, and `var(--ink2)` beats `var(--color-text-secondary)`.
+  "token_groups": [
+    {
+      "group": "surface",
+      "note": "observed — four ground levels, all warm-neutral",
+      "tokens": {
+        "--bg": "#f7f6f3",      // page ground
+        "--panel": "#ffffff",   // raised card / table / section body
+        "--sunk": "#faf8f4",    // table head, note body, footer, code surface
+        "--chip": "#efece6"     // inline code, hover fill, inline counters
+      }
+    },
+    {
+      "group": "ink",
+      "note": "observed — three text weights; never use pure black",
+      "tokens": {
+        "--ink": "#1b1a18",     // headings, emphasised cells
+        "--ink2": "#3d3a36",    // body copy
+        "--muted": "#6f6862"    // labels, captions, metadata, section numbers
+      }
+    },
+    {
+      "group": "rule",
+      "note": "observed — two hairline weights; --line2 is for rows inside a bordered container",
+      "tokens": {
+        "--line": "#e6e1d9",
+        "--line2": "#f0ece5"
+      }
+    },
+    {
+      "group": "accent",
+      "note": "observed — deep teal. Links, active nav, section counters, eyebrows, callouts.",
+      "tokens": {
+        "--accent": "#0f766e",
+        "--accentbg": "#e6f5f3",
+        "--accentline": "#bce8e1",
+        "--accentink": "#155e56"  // body copy inside an accent-tinted block
+      }
+    },
+    {
+      "group": "series",
+      "note": "observed — two entity accents for comparing labelled sides (A/B, before/after, two systems). Warm first, cool second. Never use them for status.",
+      "tokens": {
+        "--s1": "#b4530b",
+        "--s1bg": "#fdf1e3",
+        "--s1line": "#f0d5b4",
+        "--s2": "#2b57c4",
+        "--s2bg": "#eaf0fd",
+        "--s2line": "#c9d8f7"
+      }
+    },
+    {
+      "group": "status",
+      "note": "observed values from the reference badges, except --okline and --diff-* which are inferred to complete the set",
+      "tokens": {
+        "--ok": "#1c6b3e",
+        "--okbg": "#dff3e6",
+        "--okline": "#c3e6d1",
+        "--warn": "#8a6410",
+        "--warnbg": "#fbf3d0",
+        "--warnline": "#efe0a8",
+        "--danger": "#a92222",
+        "--dangerbg": "#fde8e8",
+        "--dangerline": "#f6cfcf",
+        "--neutral": "#5b554f",
+        "--neutralbg": "#ecebe8",
+        "--neutralline": "#dddad3"
+      }
+    },
+    {
+      "group": "syntax",
+      "note": "inferred — the reference pages carry only inline code. A light syntax palette reusing the accent/series/status hues keeps multi-line code on the same warm stock instead of importing a dark editor theme.",
+      "tokens": {
+        "--syn-kw": "#a1268f",
+        "--syn-fn": "#2b57c4",
+        "--syn-st": "#1c6b3e",
+        "--syn-cm": "#8a8179",
+        "--syn-nu": "#b4530b",
+        "--syn-ty": "#8a6410",
+        "--syn-op": "#0f766e",
+        "--diff-add": "#e8f5ec",
+        "--diff-del": "#fdeceb"
+      }
+    },
+    {
+      "group": "form",
+      "note": "observed — one shadow, two radii, one measure",
+      "tokens": {
+        "--radius": "14px",
+        "--radius-sm": "12px",
+        "--shadow": "0 1px 2px rgba(28,26,24,.05),0 8px 24px -16px rgba(28,26,24,.28)",
+        "--wrap": "1360px",
+        "--rail": "264px",
+        "--measure": "74ch"
+      }
+    },
+    {
+      "group": "type",
+      "note": "observed — system stacks only, no webfonts, no network dependency",
+      "tokens": {
+        "--font-sans": "ui-sans-serif,-apple-system,\"Segoe UI\",Inter,Roboto,Helvetica,Arial,sans-serif",
+        "--font-mono": "ui-monospace,SFMono-Regular,\"SF Mono\",Menlo,Consolas,monospace"
+      }
+    }
+  ],
+
+  // ── Typography ────────────────────────────────────────────────────────────
+  "typography": {
+    "base": "16px/1.62 var(--font-sans), -webkit-font-smoothing:antialiased",
+    "heading_tracking": "-.012em on h1–h5, line-height 1.25, margin 0 (spacing comes from the block, not the heading)",
+    "scale": {
+      "h1": "clamp(28px,3.6vw,44px), max-width 20ch",
+      "h2": "clamp(21px,2.3vw,27px), 12px bottom padding + 1px --line underline",
+      "h3": "19–19.5px",
+      "h4": "15.5–16px",
+      "lede": "16.5px --ink2, max-width var(--measure)",
+      "body": "14.2–14.6px inside cards, 16px in prose",
+      "meta": "12.5–13px --muted",
+      "eyebrow": "12.5px, 650 weight, .11em tracking, uppercase, --accent",
+      "label": "11.5–13px, 650 weight, .07–.09em tracking, uppercase, --muted"
+    },
+    "weights": "550 for quiet emphasis, 650 for labels and headings, 680 for numerals and class chips. 400/700 are not used.",
+    "numerals": "font-variant-numeric:tabular-nums on section counters and any aligned figure",
+    "inline_code": "var(--font-mono) at .855em on --chip, 1px --line border, 5px radius, white-space:nowrap — with a prose override (see responsive.code_wrapping) so long paths can break"
+  },
+
+  // ── Layout ────────────────────────────────────────────────────────────────
+  "layout": {
+    "shell": ".wrap { max-width: var(--wrap); margin-inline:auto; padding-inline:28px }",
+    "grid": ".layout { display:grid; grid-template-columns:minmax(0,1fr) var(--rail); gap:56px; align-items:start }",
+    "main": "min-width:0; padding:44px 0 110px",
+    "rail": "position:sticky; top:0; max-height:100vh; overflow-y:auto; border-left:1px solid var(--line); padding-left:26px",
+    "masthead": "linear-gradient(180deg,#fffdfa,var(--bg)) with a --line bottom rule; eyebrow → h1 → .sub lede → pin row",
+    "section": "section.top-level { margin-bottom:56px; scroll-margin-top:20px } — numbered h2 with a <span class=\"h2n\"> counter, then .lede, then content",
+    "shrink_rule": "Every grid/flex child that can contain a scroller MUST get min-width:0, or inner overflow-x:auto silently pushes the page wide instead of scrolling.",
+    "scroll_margin": "Sticky nav hides anchor targets. scroll-margin-top must exceed the rendered nav height — 6rem is safe for a two-row wrapped nav, 4rem is not."
+  },
+
+  // ── Components ────────────────────────────────────────────────────────────
+  // Every deliverable composes from this set. Adding a component means adding it
+  // here first; a one-off class in one template is drift.
+  "components": {
+    "pin": "Masthead metadata chip. --panel, 1px --line, 12px radius, 12px 16px, min-width 250px, 3px left border in a series colour. Name row (650, 14.5px) + .pmeta (12.5px --muted).",
+    "toc": "Sticky rail list. Links are block, 5px 10px, 7px radius, 2px transparent left border; .l1 13.8px/550, .l2 12.9px --muted indented; :hover fills --chip; .active takes --accent text, --accentbg fill and an --accent left border. Driven by IntersectionObserver with rootMargin '-8% 0px -72% 0px'.",
+    "verdict": "Lead conclusion panel. --panel, 1px --line, var(--radius), 26px 28px, var(--shadow). h3 at 19px then 2–3 paragraphs; last paragraph has no bottom margin.",
+    "tiles": "Headline-figure grid. repeat(auto-fit,minmax(min(168px,100%),1fr)). .tn 27px/680 tinted by series or accent; .tl 12.8px --muted.",
+    "keypoints": "Unstyled ul; each li gets a 7px --accent square rotated 45° as an ::before bullet at left:6px/top:.66em.",
+    "card_grid": "repeat(auto-fit,minmax(min(330px,100%),1fr)), gap 16px. Cards are flex-column so footers align: header (h4 + class chip) → body p (flex:1) → footer with a --line2 top rule.",
+    "stack_row": "Vertical list of --panel rows (1px --line, --radius-sm, 16px 19px) for findings, risks and non-goals. h4 may carry a severity chip.",
+    "note": "Aside inside a section: --sunk fill, 1px --line, 3px --accent left border, 10px radius. Uppercase --accent h5 label, then one paragraph, then optional .ev evidence line at 12px --muted.",
+    "callout": "Stronger aside: --accentbg fill, 1px --accentline, 12px radius, --accent h4, --accentink body.",
+    "table": "Always inside .tablewrap (overflow-x:auto, 1px --line, var(--radius), --panel, var(--shadow)). Table has min-width so it scrolls rather than crushes. th: uppercase 11.8px --muted on --sunk, sticky top. td: 11px 16px, --line2 bottom rule, vertical-align:top. Last row loses its rule; rows hover to #fdfcfa.",
+    "badge": "Pill, 11.5px/650, 2.5px 10px, 20px radius. Tinted bg + matching text + 1px matching line from one status or series group.",
+    "chip": "Squarer classifier, 10.8px/680, .06em tracking, uppercase, 5–6px radius. Used for severity and for adoption/action classes.",
+    "subhead": "Uppercase 13px --muted rule-divider between groups inside one section: flex with a ::after 1px --line filling the remaining width.",
+    "diagram": "Mermaid in a --panel container with 1px --line and var(--radius); see the mermaid block for init.",
+    "code_block": "pre on --sunk, 1px --line, --radius-sm, 14px 16px, var(--font-mono) at 13px/1.55, overflow-x:auto. Optional caption strip above: --chip fill, 12px --muted mono, file path. Tokens are spans coloured by --syn-*.",
+    "diff": "Two-column split (1fr 1fr, collapses to one under 760px) or inline lines tinted --diff-del / --diff-add. Captions use the code caption strip.",
+    "footer": "1px --line top rule, --sunk fill, 32px 0 48px, 13.4px --muted."
+  },
+
+  "interaction_states": {
+    "link": "--accent, underline from the browser default; no hover colour change in prose.",
+    "nav_hover": "--chip background, --ink text.",
+    "nav_active": "--accentbg background, --accent text, --accent left border, weight 650. Set by scroll-spy, not by :target.",
+    "table_row_hover": "#fdfcfa — a tint, never a border change.",
+    "focus": "Inferred — no explicit focus ring in the reference pages. Consumers MUST NOT remove the UA outline; add `outline:2px solid var(--accent); outline-offset:2px` if any control is custom-styled.",
+    "collapse_toggle": "Mobile TOC button toggles `.open` on the aside and swaps its caret glyph; aria-expanded tracks state."
+  },
+
+  "modes": {
+    "light": "The only authored mode. All tokens above are light-mode values.",
+    "dark": "Deliberately not supported. These are printable, linkable, single-file documents, not app surfaces — a second mode doubles the review surface and the reference pages ship none. Do not add `prefers-color-scheme` without changing this brief first.",
+    "print": "@media print { aside { display:none } .layout { grid-template-columns:1fr } section { break-inside:avoid } } — the page is already light, so no colour inversion is needed."
+  },
+
+  // ── Responsive ────────────────────────────────────────────────────────────
+  // Content breakpoints, not device breakpoints. Each one exists because
+  // something in the reference implementation actually broke at that width.
+  "responsive": {
+    "1080": "Rail stops being a sidebar: .layout → 1fr, aside becomes a static card below the content with a tap-to-open toggle; two-column component grids collapse to one.",
+    "700": "code { white-space:normal; overflow-wrap:anywhere } — a single long path in a nowrap chip is the most common source of mobile page overflow.",
+    "640": ".wrap padding 28px → 16px; card and panel padding tighten.",
+    "400": "Masthead pins lose min-width and go full-bleed.",
+    "code_wrapping": "Inline code is nowrap by default for scannability, then explicitly re-wrapped inside prose containers (.row, .note, .verdict, .lede, td, footer). Keep that override list in sync when adding a prose component.",
+    "verification": "Sweep 1440 / 1080 / 900 / 768 / 700 / 640 / 430 / 390 and assert documentElement.scrollWidth <= innerWidth at each. minmax(Npx,1fr) without min() overflows below N — always minmax(min(Npx,100%),1fr)."
+  },
+
+  // ── Mermaid ───────────────────────────────────────────────────────────────
+  // Rendered into consumers verbatim. `base` theme + explicit variables, because
+  // the stock themes fight the warm ground.
+  "mermaid": {
+    "cdn": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js",
+    "config": {
+      "startOnLoad": true,
+      "theme": "base",
+      "themeVariables": {
+        "background": "#ffffff",
+        "primaryColor": "#e6f5f3",
+        "primaryBorderColor": "#0f766e",
+        "primaryTextColor": "#1b1a18",
+        "secondaryColor": "#fdf1e3",
+        "tertiaryColor": "#faf8f4",
+        "lineColor": "#6f6862",
+        "textColor": "#3d3a36",
+        "fontFamily": "ui-sans-serif,-apple-system,\"Segoe UI\",Inter,Roboto,Helvetica,Arial,sans-serif",
+        "fontSize": "14px"
+      },
+      "flowchart": { "curve": "basis", "useMaxWidth": true },
+      "sequence": { "useMaxWidth": true }
+    },
+    "authoring_rule": "Mermaid reads textContent, so a literal <br/> inside .mermaid is parsed into a DOM node and lost. Write &lt;br/&gt; instead."
+  },
+
+  "accessibility": {
+    "contrast": "--ink2 on --panel ≈ 10:1; --muted on --panel ≈ 5.3:1 — acceptable for labels and captions, not for body copy. Status text is always the dark variant on its own tinted bg, never the tint on white.",
+    "meaning": "Colour never carries meaning alone: every badge and chip has a word in it, and the series accents always sit beside a label.",
+    "structure": "One h1 per page; sections use h2 with a visible counter; the rail is a <nav> inside <aside>."
+  },
+
+  "assumptions": [
+    "Single-file or small-package output with no build step and no network dependency except the Mermaid CDN.",
+    "Read on a laptop first, phone second, printed occasionally.",
+    "Generated per artifact and regenerated wholesale — never hand-patched in place, so no CSS naming discipline beyond this file is required."
+  ],
+
+  "ambiguities": [
+    "The reference pages contain no form controls, no focus styling and no multi-line code; those three areas are inferred extensions and are marked as such above.",
+    "--okline and the --diff-* pair have no observed source value; they were interpolated from the neighbouring status hues."
+  ]
+}

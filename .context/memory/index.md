@@ -6,7 +6,6 @@
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
 
-
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 
   - 2026-09-11 | `fix-pr-17-2026-09-11c.md` | domains: [review, plugin, testing] | topics: [fix-pr, pr-17, codex-plugin, plugin-json, version-pin] | status: completed
@@ -18,6 +17,10 @@
 - 2026-09-11 — [fix-pr: PR #17 rebase + revalidation (scope hygiene restored)](fix-pr-17-2026-09-11.md) — `completed`
 
   - 2026-09-11 | `fix-pr-17-2026-09-11.md` | domains: [review, workflow] | topics: [fix-pr, pr-17, rebase, conflict-resolution, b-eval-upstream-prs, scope-hygiene] | status: completed
+
+- 2026-09-11 — [Overlap audit: buck-workflow-pi vs resumator/docker-orchestration .claude](overlap-audit-docker-orchestration-2026-09-11.md) — `completed`
+
+  - 2026-09-11 | `overlap-audit-docker-orchestration-2026-09-11.md` | domains: [audit, agent-skills, docs] | topics: [overlap-audit, jz-skills, docker-orchestration, superpowers-lineage, methodology-comparison] | status: completed
 
 - 2026-09-10 — [mattpocock/skills remediation — phased execution](mattpocock-adoption-2026-09-10.md) — `in-progress`
 
