@@ -87,3 +87,20 @@ in this delta"; blockers re-confirmed resolved. CodeRabbit was review-rate
 limited at push time; its 18 comments were individually validated above.
 Guardrails: vitest 528/528, lines 78.06% (min 60 / target 75 / ratchet 54.9),
 patch coverage 91% (min 90), lizard CCN ≤ 10 on touched files.
+
+## Loop 2: fresh-subject regression (Wooderson at f785ff6, posted 18:45)
+
+Wooderson's queued review of the f785ff6 delta found a real blocker its earlier
+18:21 pass had missed: a `created: true` subject has no folder, so its
+`index.md` is never hashed into snapshot sources, and `updateSubjectIndex`'s
+unconditional `source()` read threw `SchemaError` → `failed_model` on every
+first save for a new subject. Fixed in `403b02b`: seed from empty string when
+`snap.subject.created`, keep existing subjects fail-closed. Regression test in
+`command.test.ts` ("fresh subject creation") — red without the fix, green with
+it. Wooderson verified fixed at `403b02b` ("No new findings in this delta";
+the three record fixes from `79849b1` also confirmed resolved). Final gates at
+`403b02b`: vitest 529/529, lines 78.06%, patch coverage 91%, lizard 0 warnings.
+CodeRabbit stayed review-rate-limited; its 18 comments are individually
+accounted for above. Status: settled per fix-pr contract (independent
+post-push confirmation at every head); GitHub `reviewDecision` still shows the
+stale CHANGES_REQUESTED label until CodeRabbit's quota resets.
