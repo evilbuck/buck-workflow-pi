@@ -39,8 +39,11 @@ const SessionEvidenceSchema = Type.Object({
 const JournalSchema = Type.Object({
   status: Type.Union([
     Type.Literal("idle"),
-    Type.Literal("writing"),
-    Type.Literal("recovering"),
+    // Real apply-journal statuses mirrored from apply.ts — the manifest must
+    // not launder an in-progress journal into a neutral word.
+    Type.Literal("in-progress"),
+    Type.Literal("completed"),
+    Type.Literal("rolled-back"),
   ]),
   files: Type.Array(Type.String()),
 });

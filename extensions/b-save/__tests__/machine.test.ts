@@ -54,4 +54,13 @@ describe("b-save machine", () => {
     expect(abort.getSnapshot().value).toBe("aborted");
     abort.stop();
   });
+
+  it("fails the model from evaluating without getting stuck", () => {
+    const actor = start("run-5");
+    actor.send({ type: "SNAPSHOT_DONE" });
+    expect(actor.getSnapshot().value).toBe("evaluating");
+    actor.send({ type: "MODEL_FAILED" });
+    expect(actor.getSnapshot().value).toBe("failed_model");
+    actor.stop();
+  });
 });

@@ -1,10 +1,36 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createActor } from "xstate";
-import { recoverApply } from "./apply.js";
+import { applyPatch, recoverApply, type ApplyResult } from "./apply.js";
 import { runEffects, type EffectOutcome, type MemoryCtx } from "./effects.js";
+import {
+  evaluateSnapshot,
+  NeedsJudgmentError,
+  SchemaError,
+  UserGateError,
+  type Evaluation,
+  type PatchPlan,
+} from "./evaluate.js";
 import { createBSaveMachine } from "./machine.js";
-import { InvalidRunIdError, readRunManifest, writeRunManifest, type RunManifest } from "./types.js";
+import {
+  runEvidenceAuditor,
+  runGoalClassifier,
+  runScribe,
+  type AuditorVerdicts,
+  type GoalClassification,
+  type RoleFailure,
+  type ScribeProposal,
+} from "./roles.js";
+import { hashContent, takeSnapshot, type SaveSnapshot } from "./snapshot.js";
+import {
+  InvalidRunIdError,
+  readRunManifest,
+  runDir,
+  writeRunManifest,
+  type RunManifest,
+} from "./types.js";
 
 export type CommandFlags = {
   dryRun: boolean;
@@ -24,10 +50,23 @@ export type CommandResult = {
   effects: EffectOutcome[];
 };
 
+export type RolesAdapter = {
+  scribe: typeof runScribe;
+  evidenceAuditor: typeof runEvidenceAuditor;
+  goalClassifier: typeof runGoalClassifier;
+};
+
+const defaultRoles: RolesAdapter = {
+  scribe: runScribe,
+  evidenceAuditor: runEvidenceAuditor,
+  goalClassifier: runGoalClassifier,
+};
+
 export type CommandCtx = {
   hasUI?: boolean;
   cwd: string;
   memory?: MemoryCtx | null;
+  roles?: RolesAdapter;
 };
 
 const FLAG = /^(--dry-run|--no-retain|--archive-inferred|--subject|--model|--run-id)(?:=(.*))?$/;
@@ -81,6 +120,9 @@ export function parseFlags(argv: string[]): CommandFlags {
 function recoveryLine(state: string, runId: string) {
   if (state === "awaiting_subject_choice") return "recovery: /b-save --run-id " + runId + " --subject <folder>";
   if (state === "awaiting_policy") return "recovery: /b-save --run-id " + runId + " --archive-inferred";
+  if (state === "failed_apply") {
+    return "recovery: /b-save --run-id " + runId + " (resumes the journaled apply)";
+  }
   return null;
 }
 
@@ -115,76 +157,232 @@ export function formatReport(input: {
   return lines.join("\n") + "\n";
 }
 
-function persist(cwd: string, manifest: RunManifest) {
-  writeRunManifest(cwd, manifest);
-}
 
 function commandOk(state: string) {
   return state !== "awaiting_subject_choice" && state !== "awaiting_policy" && state !== "failed_model" && state !== "failed_apply" && state !== "aborted";
 }
 
-function manifestFor(runId: string, state: string, flags: CommandFlags, effects: EffectOutcome[], ok: boolean): RunManifest {
-  return {
+type JournalSummary = { status: "idle" | "in-progress" | "completed" | "rolled-back"; files: string[] };
+
+function manifestFor(args: {
+  runId: string;
+  state: string;
+  flags: CommandFlags;
+  effects: EffectOutcome[];
+  ok: boolean;
+  snapshot?: SaveSnapshot | null;
+  proposals?: unknown[];
+  userDecisions?: unknown[];
+  patch?: PatchPlan | null;
+  journal?: JournalSummary;
+}): RunManifest {
+  const manifest: RunManifest = {
     schema_version: 1,
-    run_id: runId,
-    state,
+    run_id: args.runId,
+    state: args.state,
     flags: {
-      dry_run: flags.dryRun,
-      archive_inferred: flags.archiveInferred,
-      no_retain: flags.noRetain,
-      subject: flags.subject,
-      model: flags.model,
+      dry_run: args.flags.dryRun,
+      archive_inferred: args.flags.archiveInferred,
+      no_retain: args.flags.noRetain,
+      subject: args.flags.subject,
+      model: args.flags.model,
     },
-    subject: flags.subject
-      ? { name: flags.subject, path: ".context/" + flags.subject, status: null, created: false }
-      : null,
+    subject: manifestSubject(args.snapshot ?? null, args.flags),
     session_evidence: { present: false, valid: false, stale_reasons: [], fields: {} },
     input_hashes: {},
-    proposals: [],
-    user_decisions: [],
-    patch_set: null,
-    journal: { status: "idle", files: [] },
-    effects,
-    terminal_error: ok ? null : state,
+    proposals: args.proposals ?? [],
+    user_decisions: args.userDecisions ?? [],
+    patch_set: args.patch ?? null,
+    journal: args.journal ?? { status: "idle", files: [] },
+    effects: args.effects,
+    terminal_error: args.ok ? null : args.state,
+  };
+  // Snapshot truth beats defaults: a resolved subject carries status,
+  // evidence, and hashes the fallbacks cannot know.
+  if (args.snapshot) {
+    manifest.subject = args.snapshot.subject;
+    manifest.session_evidence = args.snapshot.session_evidence;
+    manifest.input_hashes = args.snapshot.input_hashes;
+  }
+  return manifest;
+}
+
+function manifestSubject(snapshot: SaveSnapshot | null, flags: CommandFlags): RunManifest["subject"] {
+  if (snapshot) return snapshot.subject;
+  if (!flags.subject) return null;
+  return { name: flags.subject, path: ".context/" + flags.subject, status: null, created: true };
+}
+
+const UNRESUMABLE: Record<string, true> = { completed: true, aborted: true, failed_model: true };
+const WAITING_FLAG: Record<string, "subject" | "archiveInferred"> = {
+  awaiting_subject_choice: "subject",
+  awaiting_policy: "archiveInferred",
+};
+
+function continueFrom(existing: RunManifest, flags: CommandFlags): ResumePlan {
+  if (UNRESUMABLE[existing.state]) {
+    return { kind: "refuse", runId: existing.run_id, error: "run is terminal (" + existing.state + "); start a new run" };
+  }
+  const subject = flags.subject ?? existing.subject?.name ?? null;
+  // Still-waiting resumes without the required flag are report-only: no
+  // effects fire and the manifest is left untouched until the human answers.
+  const waitingFlag = WAITING_FLAG[existing.state];
+  if (waitingFlag && !flags[waitingFlag]) {
+    return { kind: "report", runId: existing.run_id, state: existing.state, subject };
+  }
+  return {
+    kind: "continue",
+    runId: existing.run_id,
+    subject,
+    recoverJournal: existing.state === "failed_apply" || existing.state === "applying",
   };
 }
-const UNRESUMABLE: Record<string, true> = { completed: true, aborted: true, failed_model: true };
 
-function subjectOf(flags: CommandFlags, existing: RunManifest) {
-  return flags.subject ?? existing.subject?.name ?? null;
+function resumeFailure(runId: string, subject: string | null, error: string, state = "aborted"): CommandResult {
+  const report = formatReport({ runId, state, subject, resumed: true });
+  return { ok: false, runId, state, report: report + "error: " + error + "\n", effects: [] };
 }
 
-function continueFrom(existing: RunManifest, flags: CommandFlags, cwd: string) {
-  const runId = existing.run_id;
-  if (UNRESUMABLE[existing.state]) {
-    return { error: "run is terminal (" + existing.state + "); start a new run", runId };
-  }
-  if (existing.state === "failed_apply") {
-    recoverApply(cwd, runId, "resume");
-    return { runId, state: "completed", subject: subjectOf(flags, existing) };
-  }
-  if (existing.state === "awaiting_subject_choice" && flags.subject) {
-    return { runId, state: "snapshotting", subject: flags.subject };
-  }
-  if (existing.state === "awaiting_policy" && flags.archiveInferred) {
-    return { runId, state: "evaluating", subject: subjectOf(flags, existing) };
-  }
-  return { runId, state: existing.state, subject: subjectOf(flags, existing) };
-}
-
-function resumeExisting(cwd: string, flags: CommandFlags) {
-  const runId = flags.runId as string;
+function recoverJournalIfAny(cwd: string, runId: string, subject: string | null): CommandResult | null {
+  if (!existsSync(join(runDir(cwd, runId), "apply-journal.json"))) return null;
   try {
-    return continueFrom(readRunManifest(cwd, runId), flags, cwd);
+    recoverApply(cwd, runId, "resume");
+    return null;
   } catch (error) {
-    const detail = error instanceof InvalidRunIdError ? error.message : "unknown run; start a new run";
-    return { error: detail, runId };
+    return resumeFailure(runId, subject, String(error), "failed_apply");
   }
 }
 
-function resumeFailure(runId: string, subject: string | null, error: string): CommandResult {
-  const report = formatReport({ runId, state: "aborted", subject, resumed: true });
-  return { ok: false, runId, state: "aborted", report: report + "error: " + error + "\n", effects: [] };
+function rehashInputs(cwd: string, expected: Record<string, string>): Record<string, string> {
+  const current: Record<string, string> = {};
+  for (const path of Object.keys(expected)) {
+    const abs = join(cwd, path);
+    current[path] = existsSync(abs) ? hashContent(readFileSync(abs, "utf8")) : "";
+  }
+  return current;
+}
+
+function userDecisionsFor(flags: CommandFlags, resumed: boolean): unknown[] {
+  const decisions: unknown[] = [];
+  if (flags.subject) decisions.push({ decision: "subject", value: flags.subject });
+  if (flags.archiveInferred) decisions.push({ decision: "archive_inferred", value: true });
+  if (resumed) decisions.push({ decision: "resume", value: true });
+  return decisions;
+}
+
+function aggregateAuditor(verdicts: AuditorVerdicts) {
+  return {
+    complete: verdicts.length > 0 && verdicts.every((v) => v.verdict === "complete"),
+    citations: [...new Set(verdicts.flatMap((v) => v.evidence_ids))],
+  };
+}
+
+function scribeForEval(proposal: ScribeProposal) {
+  return {
+    title: proposal.title,
+    body: [proposal.summary, ...proposal.facts.map((f) => "- " + f)].join("\n"),
+    domains: proposal.domains,
+    topics: proposal.topics,
+    priority: proposal.priority,
+  };
+}
+
+
+type SnapshotOutcome =
+  | { ok: true; snapshot: SaveSnapshot }
+  | { ok: false; event: "AMBIGUOUS_SUBJECT" | "ABORT"; state: string; warnings: string[]; manifest: RunManifest };
+
+function takeSnapshotPhase(cwd: string, flags: CommandFlags, runId: string, subject: string | null): SnapshotOutcome {
+  try {
+    const taken = takeSnapshot(cwd, { subject });
+    if (taken.kind === "ambiguous") {
+      return {
+        ok: false,
+        event: "AMBIGUOUS_SUBJECT",
+        state: "awaiting_subject_choice",
+        warnings: [
+          "multiple active subjects: " + taken.candidates.map((c) => c.name).join(", "),
+          "suggested subject: " + taken.suggested_subject,
+        ],
+        manifest: manifestFor({ runId, state: "awaiting_subject_choice", flags, effects: [], ok: false, snapshot: null }),
+      };
+    }
+    return { ok: true, snapshot: taken.snapshot };
+  } catch (error) {
+    return {
+      ok: false,
+      event: "ABORT",
+      state: "aborted",
+      warnings: [String(error)],
+      manifest: manifestFor({ runId, state: "aborted", flags, effects: [], ok: false, snapshot: null }),
+    };
+  }
+}
+
+type RolesPhase =
+  | { ok: true; scribe: ScribeProposal; audit: AuditorVerdicts; goal: GoalClassification }
+  | { ok: false; role: string; error: string };
+
+async function runRolesPhase(
+  roles: RolesAdapter,
+  cwd: string,
+  evidence: Record<string, string>,
+  modelOverride?: string,
+): Promise<RolesPhase> {
+  const scribe = await roles.scribe({ cwd, evidence, modelOverride });
+  if (!scribe.ok) return { ok: false, role: scribe.role, error: scribe.error };
+  const audit = await roles.evidenceAuditor({ cwd, evidence, modelOverride });
+  if (!audit.ok) return { ok: false, role: audit.role, error: audit.error };
+  const goal = await roles.goalClassifier({ cwd, evidence, modelOverride });
+  if (!goal.ok) return { ok: false, role: goal.role, error: goal.error };
+  return { ok: true, scribe: scribe.value, audit: audit.value, goal: goal.value };
+}
+
+type EvalFailureState = "awaiting_policy" | "failed_model" | "aborted";
+
+type EvalPhase = { ok: true; evaluation: Evaluation } | { ok: false; state: EvalFailureState; message: string };
+
+const EVENT_BY_EVAL_FAILURE: Record<EvalFailureState, { type: "NEEDS_POLICY" } | { type: "MODEL_FAILED" } | { type: "ABORT" }> = {
+  awaiting_policy: { type: "NEEDS_POLICY" },
+  failed_model: { type: "MODEL_FAILED" },
+  aborted: { type: "ABORT" },
+};
+
+function evaluatePhase(input: {
+  cwd: string;
+  flags: CommandFlags;
+  snapshot: SaveSnapshot;
+  scribe: ScribeProposal;
+  audit: AuditorVerdicts;
+  goal: GoalClassification;
+}): EvalPhase {
+  const { snapshot, scribe } = input;
+  try {
+    return {
+      ok: true,
+      evaluation: evaluateSnapshot({
+        snapshot: { kind: "ok", snapshot },
+        today: snapshot.subject.name.slice(0, 10),
+        subjectResolved: input.flags.subject !== null,
+        scribe: scribeForEval(scribe),
+        goal: { classification: input.goal.classification === "missing" ? "missing" : "exact" },
+        auditor: aggregateAuditor(input.audit),
+        archiveInferred: input.flags.archiveInferred,
+        inferredBacklog: scribe.backlog.complete_inferred,
+        explicitCompleted: scribe.backlog.complete_explicit,
+        expectedHashes: snapshot.input_hashes,
+        currentHashes: rehashInputs(input.cwd, snapshot.input_hashes),
+      }),
+    };
+  } catch (error) {
+    if (error instanceof UserGateError && error.gate === "backlog_inferred") {
+      return { ok: false, state: "awaiting_policy", message: "inferred backlog completions need approval: " + error.options.join(", ") };
+    }
+    if (error instanceof SchemaError || error instanceof NeedsJudgmentError) {
+      return { ok: false, state: "failed_model", message: String(error) };
+    }
+    return { ok: false, state: "aborted", message: String(error) };
+  }
 }
 
 async function executeRun(
@@ -192,31 +390,151 @@ async function executeRun(
   flags: CommandFlags,
   runId: string,
   subject: string | null,
-  state: string | undefined,
+  resume: { resumed: boolean },
 ): Promise<CommandResult> {
   const actor = createActor(createBSaveMachine(), { input: { runId, subject } });
   actor.start();
-  const resolved = state ?? String(actor.getSnapshot().value);
-  const effects = await runEffects({ noRetain: flags.dryRun || flags.noRetain, memory: ctx.memory });
-  const ok = commandOk(resolved);
-  const report = formatReport({ runId, state: resolved, subject, effects, resumed: Boolean(flags.runId) });
-  if (!flags.dryRun) persist(ctx.cwd, manifestFor(runId, resolved, flags, effects, ok));
-  actor.stop();
-  return { ok, runId, state: resolved, report, effects };
+  const machineState = () => String(actor.getSnapshot().value);
+
+  const finish = (args: {
+    state: string;
+    effects?: EffectOutcome[];
+    warnings?: string[];
+    durableFiles?: string[];
+    manifest?: RunManifest;
+  }): CommandResult => {
+    const ok = commandOk(args.state);
+    const report = formatReport({
+      runId,
+      state: args.state,
+      subject,
+      effects: args.effects,
+      warnings: args.warnings,
+      durableFiles: args.durableFiles,
+      resumed: resume.resumed,
+    });
+    if (!flags.dryRun && args.manifest && existsSync(join(ctx.cwd, ".context"))) {
+      writeRunManifest(ctx.cwd, args.manifest);
+    }
+    actor.stop();
+    return { ok, runId, state: args.state, report, effects: args.effects ?? [] };
+  };
+
+  // --- snapshotting ---
+  const snap = takeSnapshotPhase(ctx.cwd, flags, runId, subject);
+  if (!snap.ok) {
+    actor.send({ type: snap.event });
+    return finish({ state: snap.state, warnings: snap.warnings, manifest: snap.manifest });
+  }
+  const snapshot = snap.snapshot;
+  actor.send({ type: "SNAPSHOT_DONE" });
+
+  // --- evaluating: bounded roles over redacted evidence ---
+  const phase = await runRolesPhase(ctx.roles ?? defaultRoles, ctx.cwd, snapshot.redacted_text, flags.model ?? undefined);
+  if (!phase.ok) {
+    actor.send({ type: "MODEL_FAILED" });
+    return finish({
+      state: machineState(),
+      warnings: [phase.role + " failed: " + phase.error],
+      manifest: manifestFor({ runId, state: "failed_model", flags, effects: [], ok: false, snapshot, proposals: [] }),
+    });
+  }
+  const proposals = [phase.scribe, phase.audit, phase.goal];
+
+  const evaluated = evaluatePhase({ cwd: ctx.cwd, flags, snapshot, scribe: phase.scribe, audit: phase.audit, goal: phase.goal });
+  if (!evaluated.ok) {
+    actor.send(EVENT_BY_EVAL_FAILURE[evaluated.state]);
+    return finish({
+      state: machineState(),
+      warnings: [evaluated.message],
+      manifest: manifestFor({ runId, state: machineState(), flags, effects: [], ok: false, snapshot, proposals }),
+    });
+  }
+  const patch = evaluated.evaluation.patch;
+  const durableFiles = patch.ops.map((op) => op.path);
+  actor.send({ type: "EVAL_DONE" });
+
+  // --- applying ---
+  if (flags.dryRun) {
+    return finish({ state: "completed", durableFiles, warnings: ["dry-run: nothing applied or persisted"] });
+  }
+  let applied: ApplyResult;
+  try {
+    applied = applyPatch(ctx.cwd, patch, { runId, expectedHashes: snapshot.input_hashes });
+  } catch (error) {
+    actor.send({ type: "APPLY_FAILED" });
+    return finish({
+      state: machineState(),
+      warnings: [String(error)],
+      manifest: manifestFor({
+        runId,
+        state: "failed_apply",
+        flags,
+        effects: [],
+        ok: false,
+        snapshot,
+        proposals,
+        patch,
+        journal: { status: "in-progress", files: durableFiles },
+      }),
+    });
+  }
+  actor.send({ type: "APPLY_DONE" });
+
+  // --- effecting: only after durable apply succeeded ---
+  const effects = await runEffects({
+    noRetain: flags.noRetain,
+    memory: ctx.memory ?? null,
+    facts: { run_id: runId, subject: snapshot.subject.name, scribe: phase.scribe },
+  });
+  actor.send({ type: "EFFECTS_DONE" });
+  return finish({
+    state: machineState(),
+    effects,
+    durableFiles,
+    manifest: manifestFor({
+      runId,
+      state: "completed",
+      flags,
+      effects,
+      ok: true,
+      snapshot,
+      proposals,
+      userDecisions: userDecisionsFor(flags, resume.resumed),
+      patch,
+      journal: { status: applied.journal.status, files: applied.journal.ops.map((op) => op.path) },
+    }),
+  });
 }
 
-export async function runBSaveCommand(
-  ctx: CommandCtx,
-  argv: string[],
-  opts: { state?: string } = {},
-): Promise<CommandResult> {
-  const flags = parseFlags(argv);
-  if (flags.runId && !opts.state) {
-    const resumed = resumeExisting(ctx.cwd, flags);
-    if ("error" in resumed) return resumeFailure(resumed.runId, flags.subject, resumed.error);
-    return executeRun(ctx, flags, resumed.runId, resumed.subject, resumed.state);
+async function resumeRun(ctx: CommandCtx, flags: CommandFlags): Promise<CommandResult> {
+  const runId = flags.runId as string;
+  let existing: RunManifest;
+  try {
+    existing = readRunManifest(ctx.cwd, runId);
+  } catch (error) {
+    const detail = error instanceof InvalidRunIdError ? error.message : "unknown run; start a new run";
+    return resumeFailure(runId, flags.subject, detail);
   }
-  return executeRun(ctx, flags, flags.runId ?? randomUUID(), flags.subject, opts.state);
+  const plan = continueFrom(existing, flags);
+  if (plan.kind === "refuse") return resumeFailure(plan.runId, flags.subject, plan.error);
+  if (plan.kind === "report") {
+    // Report-only: re-report the waiting state and its recovery line. No
+    // effects, no manifest rewrite — the run stays parked for human input.
+    const report = formatReport({ runId: plan.runId, state: plan.state, subject: plan.subject, resumed: true });
+    return { ok: false, runId: plan.runId, state: plan.state, report, effects: [] };
+  }
+  if (plan.recoverJournal) {
+    const failed = recoverJournalIfAny(ctx.cwd, plan.runId, plan.subject);
+    if (failed) return failed;
+  }
+  return executeRun(ctx, flags, plan.runId, plan.subject, { resumed: true });
+}
+
+export async function runBSaveCommand(ctx: CommandCtx, argv: string[]): Promise<CommandResult> {
+  const flags = parseFlags(argv);
+  if (flags.runId) return resumeRun(ctx, flags);
+  return executeRun(ctx, flags, flags.runId ?? randomUUID(), flags.subject, { resumed: false });
 }
 
 const ENGINE_FLAGS = ["--dry-run", "--no-retain", "--archive-inferred", "--subject", "--model", "--run-id"];
