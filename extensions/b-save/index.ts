@@ -15,6 +15,7 @@ import {
 } from "./evaluate.js";
 import { createBSaveMachine } from "./machine.js";
 import {
+  isScribeProposal,
   runEvidenceAuditor,
   runGoalClassifier,
   runScribe,
@@ -218,6 +219,10 @@ const WAITING_FLAG: Record<string, "subject" | "archiveInferred"> = {
   awaiting_subject_choice: "subject",
   awaiting_policy: "archiveInferred",
 };
+type ResumePlan =
+  | { kind: "refuse"; runId: string; error: string }
+  | { kind: "report"; runId: string; state: string; subject: string | null }
+  | { kind: "continue"; runId: string; subject: string | null; recoverJournal: boolean };
 
 function continueFrom(existing: RunManifest, flags: CommandFlags): ResumePlan {
   if (UNRESUMABLE[existing.state]) {
@@ -243,14 +248,9 @@ function resumeFailure(runId: string, subject: string | null, error: string, sta
   return { ok: false, runId, state, report: report + "error: " + error + "\n", effects: [] };
 }
 
-function recoverJournalIfAny(cwd: string, runId: string, subject: string | null): CommandResult | null {
+function recoverJournalIfAny(cwd: string, runId: string): ApplyResult | null {
   if (!existsSync(join(runDir(cwd, runId), "apply-journal.json"))) return null;
-  try {
-    recoverApply(cwd, runId, "resume");
-    return null;
-  } catch (error) {
-    return resumeFailure(runId, subject, String(error), "failed_apply");
-  }
+  return recoverApply(cwd, runId, "resume");
 }
 
 function rehashInputs(cwd: string, expected: Record<string, string>): Record<string, string> {
@@ -262,6 +262,15 @@ function rehashInputs(cwd: string, expected: Record<string, string>): Record<str
   return current;
 }
 
+function snapshotSources(cwd: string, expected: Record<string, string>): Record<string, string> {
+  const sources: Record<string, string> = {};
+  for (const path of Object.keys(expected)) {
+    const abs = join(cwd, path);
+    if (existsSync(abs)) sources[path] = readFileSync(abs, "utf8");
+  }
+  return sources;
+}
+
 function userDecisionsFor(flags: CommandFlags, resumed: boolean): unknown[] {
   const decisions: unknown[] = [];
   if (flags.subject) decisions.push({ decision: "subject", value: flags.subject });
@@ -270,20 +279,58 @@ function userDecisionsFor(flags: CommandFlags, resumed: boolean): unknown[] {
   return decisions;
 }
 
+function persistedScribe(manifest: RunManifest): ScribeProposal | null {
+  const proposal = manifest.proposals[0];
+  return isScribeProposal(proposal) ? proposal : null;
+}
+
+async function completeRecoveredApply(
+  ctx: CommandCtx,
+  flags: CommandFlags,
+  existing: RunManifest,
+  applied: ApplyResult,
+): Promise<CommandResult> {
+  const scribe = persistedScribe(existing);
+  const subject = existing.subject?.name ?? flags.subject;
+  if (!scribe || !subject) return resumeFailure(existing.run_id, subject, "persisted proposals cannot safely resume effects", "failed_apply");
+  const effects = await runEffects({
+    noRetain: flags.noRetain,
+    memory: ctx.memory ?? null,
+    facts: { run_id: existing.run_id, subject, scribe },
+  });
+  const durableFiles = applied.journal.ops.map((op) => op.path);
+  const manifest: RunManifest = {
+    ...existing,
+    state: "completed",
+    effects,
+    user_decisions: [...existing.user_decisions, ...userDecisionsFor(flags, true)],
+    journal: { status: applied.journal.status, files: durableFiles },
+    terminal_error: null,
+  };
+  writeRunManifest(ctx.cwd, manifest);
+  return {
+    ok: true,
+    runId: existing.run_id,
+    state: "completed",
+    report: formatReport({ runId: existing.run_id, state: "completed", subject, effects, durableFiles, resumed: true }),
+    effects,
+  };
+}
+
 function aggregateAuditor(verdicts: AuditorVerdicts) {
   return {
-    complete: verdicts.length > 0 && verdicts.every((v) => v.verdict === "complete"),
-    citations: [...new Set(verdicts.flatMap((v) => v.evidence_ids))],
+    complete: verdicts.length > 0 && verdicts.every((verdict) => verdict.verdict === "complete"),
+    citations: [...new Set(verdicts.flatMap((verdict) => verdict.evidence.map((citation) => citation.id)))],
   };
 }
 
 function scribeForEval(proposal: ScribeProposal) {
   return {
-    title: proposal.title,
-    body: [proposal.summary, ...proposal.facts.map((f) => "- " + f)].join("\n"),
-    domains: proposal.domains,
-    topics: proposal.topics,
-    priority: proposal.priority,
+    title: proposal.title.text,
+    body: [proposal.summary.text, ...proposal.facts.map((fact) => "- " + fact.text)].join("\n"),
+    domains: proposal.domains.map((item) => item.text),
+    topics: proposal.topics.map((item) => item.text),
+    priority: proposal.priority.value,
   };
 }
 
@@ -318,7 +365,17 @@ function takeSnapshotPhase(cwd: string, flags: CommandFlags, runId: string, subj
     };
   }
 }
-
+function validateEvidenceCitations(snapshot: SaveSnapshot, scribe: ScribeProposal, audit: AuditorVerdicts, goal: GoalClassification) {
+  const citations = [
+    ...[scribe.title, scribe.summary, ...scribe.domains, ...scribe.topics, ...scribe.facts].flatMap((claim) => claim.evidence),
+    ...scribe.priority.evidence,
+    ...audit.flatMap((verdict) => verdict.evidence),
+  ];
+  for (const citation of citations) {
+    if (!snapshot.redacted_text[citation.id]?.includes(citation.quote)) throw new SchemaError("citation does not quote snapshot evidence: " + citation.id);
+  }
+  if (!snapshot.redacted_text[goal.evidence_id]?.includes(goal.quote)) throw new SchemaError("goal citation does not quote snapshot evidence: " + goal.evidence_id);
+}
 type RolesPhase =
   | { ok: true; scribe: ScribeProposal; audit: AuditorVerdicts; goal: GoalClassification }
   | { ok: false; role: string; error: string };
@@ -358,6 +415,7 @@ function evaluatePhase(input: {
 }): EvalPhase {
   const { snapshot, scribe } = input;
   try {
+    validateEvidenceCitations(snapshot, scribe, input.audit, input.goal);
     return {
       ok: true,
       evaluation: evaluateSnapshot({
@@ -368,10 +426,11 @@ function evaluatePhase(input: {
         goal: { classification: input.goal.classification === "missing" ? "missing" : "exact" },
         auditor: aggregateAuditor(input.audit),
         archiveInferred: input.flags.archiveInferred,
-        inferredBacklog: scribe.backlog.complete_inferred,
-        explicitCompleted: scribe.backlog.complete_explicit,
+        inferredBacklog: scribe.backlog.complete_inferred.map((item) => item.slug),
+        explicitCompleted: scribe.backlog.complete_explicit.map((item) => item.slug),
         expectedHashes: snapshot.input_hashes,
         currentHashes: rehashInputs(input.cwd, snapshot.input_hashes),
+        checkpoint: { scribe, sources: snapshotSources(input.cwd, snapshot.input_hashes) },
       }),
     };
   } catch (error) {
@@ -525,8 +584,12 @@ async function resumeRun(ctx: CommandCtx, flags: CommandFlags): Promise<CommandR
     return { ok: false, runId: plan.runId, state: plan.state, report, effects: [] };
   }
   if (plan.recoverJournal) {
-    const failed = recoverJournalIfAny(ctx.cwd, plan.runId, plan.subject);
-    if (failed) return failed;
+    try {
+      const applied = recoverJournalIfAny(ctx.cwd, plan.runId);
+      if (applied) return completeRecoveredApply(ctx, flags, existing, applied);
+    } catch (error) {
+      return resumeFailure(plan.runId, plan.subject, String(error), "failed_apply");
+    }
   }
   return executeRun(ctx, flags, plan.runId, plan.subject, { resumed: true });
 }

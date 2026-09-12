@@ -66,6 +66,19 @@ describe("takeSnapshot", () => {
         created: false,
       });
 
+      const normalized = takeSnapshot(f.root, {
+        branch: "feature/x",
+        today: "2026-08-21",
+        subject: "beta",
+      });
+      expect(normalized.kind).toBe("ok");
+      if (normalized.kind !== "ok") return;
+      expect(normalized.snapshot.subject).toMatchObject({
+        name: "2026-08-21.beta",
+        status: "active",
+        created: false,
+      });
+
       expect(() => takeSnapshot(f.root, { subject: "../escape" })).toThrow(/contain/i);
     } finally {
       f.cleanup();
@@ -82,6 +95,8 @@ describe("takeSnapshot", () => {
       );
       writeFileSync(join(f.root, ".context/plan-orphan.md"), "# plan\n");
       writeFileSync(join(f.root, ".context/draft-commit.md"), "# draft\n");
+      mkdirSync(join(f.root, ".context/backlog/items"), { recursive: true });
+      writeFileSync(join(f.root, ".context/backlog/items/track.md"), "---\nstatus: active\n---\n");
       const result = takeSnapshot(f.root, { branch: "feature/x", today: "2026-09-10" });
       expect(result.kind).toBe("ok");
       if (result.kind !== "ok") return;
@@ -89,6 +104,8 @@ describe("takeSnapshot", () => {
         { path: ".context/draft-commit.md", move: false },
         { path: ".context/plan-orphan.md", move: false },
       ]);
+      expect(result.snapshot.backlog_items).toEqual([".context/backlog/items/track.md"]);
+      expect(result.snapshot.input_hashes[".context/backlog/items/track.md"]).toBe(hashContent("---\nstatus: active\n---\n"));
       expect(result.snapshot.plans[0]).toMatchObject({
         path: "plan-work.md",
         spec: "spec-work.md",
@@ -104,8 +121,8 @@ describe("takeSnapshot", () => {
 
 describe("redactUntrusted", () => {
   it("bounds length and redacts token-like secrets", () => {
-    const redacted = redactUntrusted("token=sk-abc123456789 extra", 20);
+    const redacted = redactUntrusted("token=sk-abc123456789_suffix-extra extra", 20);
     expect(redacted.length).toBeLessThanOrEqual(20);
-    expect(redacted).not.toContain("sk-abc123456789");
+    expect(redacted).not.toMatch(/sk-abc123456789_suffix-extra|suffix-extra/);
   });
 });

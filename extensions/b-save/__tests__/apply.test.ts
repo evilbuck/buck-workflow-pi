@@ -122,4 +122,63 @@ describe("applyPatch", () => {
       f.cleanup();
     }
   });
+  it("rejects moves before creating a journal", () => {
+    const f = repo();
+    try {
+      expect(() => applyPatch(f.root, { ops: [], moves: [{ from: ".context/a.md", to: ".context/b.md" }] }, { runId: "r7" })).toThrow(/moves are not supported/);
+      expect(existsSync(join(f.root, ".context/workflow/runs/r7/apply-journal.json"))).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("does not complete a resume when a staged operation is missing", () => {
+    const f = repo();
+    try {
+      try {
+        applyPatch(f.root, plan, { runId: "r8", failAfter: 0 });
+      } catch (error) {
+        expect((error as Error).message).toBe("injected apply failure");
+      }
+      rmSync(join(f.root, ".context/memory/index.md.tmp-b-save"));
+      expect(() => recoverApply(f.root, "r8", "resume")).toThrow(/staged temp missing/);
+      expect(existsSync(join(f.root, ".context/memory/index.md"))).toBe(false);
+    } finally {
+      f.cleanup();
+    }
+  });
+
+  it("preserves an intervening edit during rollback", () => {
+    const f = repo();
+    try {
+      try {
+        applyPatch(f.root, plan, { runId: "r9", failAfter: 1 });
+      } catch (error) {
+        expect((error as Error).message).toBe("injected apply failure");
+      }
+      const target = join(f.root, ".context/memory/note.md");
+      writeFileSync(target, "human edit\n");
+      recoverApply(f.root, "r9", "rollback");
+      expect(readFileSync(target, "utf8")).toBe("human edit\n");
+    } finally {
+      f.cleanup();
+    }
+  });
+  it("restores a deleted source when rolling back a partial archive", () => {
+    const f = repo();
+    try {
+      const path = ".context/backlog/items/thing.md";
+      mkdirSync(join(f.root, ".context/backlog/items"), { recursive: true });
+      writeFileSync(join(f.root, path), "active\n");
+      expect(() => applyPatch(f.root, {
+        ops: [{ path, content: null }, { path: ".context/memory/after.md", content: "after\n" }],
+        moves: [],
+      }, { runId: "delete", failAfter: 1 })).toThrow("injected apply failure");
+      expect(existsSync(join(f.root, path))).toBe(false);
+      recoverApply(f.root, "delete", "rollback");
+      expect(readFileSync(join(f.root, path), "utf8")).toBe("active\n");
+    } finally {
+      f.cleanup();
+    }
+  });
 });

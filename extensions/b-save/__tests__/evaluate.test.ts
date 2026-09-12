@@ -17,6 +17,7 @@ function snap(over: Partial<SaveSnapshot> = {}): SnapshotOk {
     subject_candidates: [{ name: "2026-09-10.demo", status: "active" }],
     session_evidence: { present: false, valid: false, used: false, stale_reasons: [], fields: {} },
     loose_artifacts: [],
+    backlog_items: [],
     plans: [{ path: ".context/2026-09-10.demo/plan-demo.md", spec: null }],
     specs: [],
     iterates: [],
@@ -43,7 +44,7 @@ describe("evaluateSnapshot", () => {
     expect(evaluation.rules.find((r) => r.id === 8)?.result).toEqual({ status: "unsupported" });
     expect(evaluation.rules.find((r) => r.id === 9)?.result).toEqual({ status: "skipped" });
     expect(evaluation.patch.ops.map((op) => op.path)).toEqual([
-      ".context/2026-09-10.demo/memory-2026-09-10.md",
+      ".context/memory/demo-2026-09-10.md",
       ".context/memory/index.md",
     ]);
   });
@@ -56,13 +57,33 @@ describe("evaluateSnapshot", () => {
     });
     const indexOp = evaluation.patch.ops.find((op) => op.path === ".context/memory/index.md");
     expect(indexOp).toBeDefined();
-    expect(indexOp?.content).toBe(existing + "- memory-2026-09-10.md\n");
+    expect(indexOp?.content).toBe(existing + "- demo-2026-09-10.md\n");
     const deduped = evaluateSnapshot({
-      snapshot: snap({ memory_index_content: existing + "- memory-2026-09-10.md\n" }),
+      snapshot: snap({ memory_index_content: existing + "- demo-2026-09-10.md\n" }),
       ...closed,
     });
     const dedupOp = deduped.patch.ops.find((op) => op.path === ".context/memory/index.md");
-    expect(dedupOp?.content).toBe(existing + "- memory-2026-09-10.md\n");
+    expect(dedupOp?.content).toBe(existing + "- demo-2026-09-10.md\n");
+  });
+
+  it("resolves subject-local artifact names into contained context paths", () => {
+    const evaluation = evaluateSnapshot({
+      snapshot: snap({
+        plans: [{ path: "plan-demo.md", spec: null }],
+        specs: ["spec-demo.md"],
+        iterates: ["iterate-demo.md"],
+        phases: ["phase-1-demo.md"],
+      }),
+      ...closed,
+    });
+    expect(evaluation.rules.find((rule) => rule.id === 4)?.result).toEqual({
+      files: [
+        ".context/2026-09-10.demo/plan-demo.md",
+        ".context/2026-09-10.demo/spec-demo.md",
+        ".context/2026-09-10.demo/iterate-demo.md",
+        ".context/2026-09-10.demo/phase-1-demo.md",
+      ],
+    });
   });
 
   it("routes missing scribe and auditor to typed judgment, never containment failures", () => {

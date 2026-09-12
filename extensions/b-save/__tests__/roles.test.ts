@@ -15,24 +15,24 @@ vi.mock("../../omp-models.js", () => ({
 }));
 
 const run = vi.mocked(runOmpModelSession);
-
+const evidence = [{ id: "e1", quote: "evidence" }];
+const claim = (text: string) => ({ text, evidence });
 const scribeJson = JSON.stringify({
-  title: "Save",
-  summary: "Did work",
-  priority: "high",
-  domains: ["workflow"],
-  topics: ["b-save"],
-  facts: ["fact"],
+  title: claim("Save"),
+  summary: claim("Did work"),
+  priority: { value: "high", evidence },
+  domains: [claim("workflow")],
+  topics: [claim("b-save")],
+  facts: [claim("fact")],
   backlog: { complete_explicit: [], complete_inferred: [], new_items: [] },
 });
-
 beforeEach(() => {
   run.mockReset();
 });
 
 describe("role parsers", () => {
   it("accepts closed schemas and rejects extra mutation fields by schema fail on bad JSON", () => {
-    expect(parseScribeProposal(scribeJson).title).toBe("Save");
+    expect(parseScribeProposal(scribeJson).title.text).toBe("Save");
     expect(() => parseScribeProposal("not-json")).toThrow(/JSON/);
     expect(() => parseAuditorVerdicts("{}")).toThrow(/schema/);
     expect(parseGoalClassification(JSON.stringify({ classification: "present", quote: "Goal", evidence_id: "e1" })).classification).toBe("present");
@@ -97,12 +97,12 @@ describe("runScribe isolation and retry", () => {
 
 describe("auditor and classifier", () => {
   it("parses closed verdicts from isolated sessions", async () => {
-    run.mockResolvedValueOnce(JSON.stringify([{ path: "spec.md", verdict: "incomplete", evidence_ids: ["e1"] }]));
+    run.mockResolvedValueOnce(JSON.stringify([{ path: "spec.md", verdict: "incomplete", evidence }]));
     const audit = await runEvidenceAuditor({ cwd: "/tmp", evidence: { e1: "unchecked" } });
     expect(audit.ok).toBe(true);
     if (audit.ok) expect(audit.value[0].verdict).toBe("incomplete");
 
-    run.mockResolvedValueOnce(JSON.stringify({ classification: "missing", quote: "", evidence_id: "g1" }));
+    run.mockResolvedValueOnce(JSON.stringify({ classification: "missing", quote: "no heading", evidence_id: "g1" }));
     const goal = await runGoalClassifier({ cwd: "/tmp", evidence: { g1: "no heading" } });
     expect(goal.ok).toBe(true);
     if (goal.ok) expect(goal.value.classification).toBe("missing");

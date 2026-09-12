@@ -32,6 +32,7 @@ export type SaveSnapshot = {
     fields: Record<string, unknown>;
   };
   loose_artifacts: Array<{ path: string; move: boolean }>;
+  backlog_items: string[];
   plans: Array<{ path: string; spec: string | null }>;
   specs: string[];
   iterates: string[];
@@ -53,7 +54,7 @@ export function hashContent(text: string) {
 }
 
 export function redactUntrusted(text: string, cap = DIGEST_CAP) {
-  const redacted = text.replace(/sk-[A-Za-z0-9]+/g, "[redacted-secret]");
+  const redacted = text.replace(/sk-[A-Za-z0-9_-]+/g, "[redacted-secret]");
   if (redacted.length <= cap) return redacted;
   return redacted.slice(0, cap);
 }
@@ -170,7 +171,15 @@ function resolveSubject(root: string, opts: SnapshotOptions, today: string, bran
     }
     const selectedName = normalizeSubjectName(opts.subject, today);
     assertContained(root, selectedName);
-    return { kind: "ok" as const, candidates, selectedName, selectedStatus: null, created: true };
+    const normalized = join(root, CONTEXT, selectedName);
+    const created = !existsSync(normalized);
+    return {
+      kind: "ok" as const,
+      candidates,
+      selectedName,
+      selectedStatus: created ? null : readSubjectStatus(normalized),
+      created,
+    };
   }
 
   const active = folders.filter((folder) => folder.status === "active");
@@ -207,7 +216,14 @@ function listMarkdownFiles(absSubject: string) {
     .map((entry) => entry.name)
     .sort();
 }
-
+function listBacklogItems(root: string) {
+  const dir = join(root, CONTEXT, "backlog", "items");
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .map((entry) => join(CONTEXT, "backlog", "items", entry.name))
+    .sort();
+}
 export function takeSnapshot(root: string, opts: SnapshotOptions = {}): SnapshotOk | SnapshotAmbiguous {
   const today = opts.today ?? localToday();
   const branch = opts.branch ?? "session";
@@ -243,6 +259,11 @@ export function takeSnapshot(root: string, opts: SnapshotOptions = {}): Snapshot
   for (const name of subjectFiles) {
     hashFile(root, join(subjectPath, name), input_hashes, redacted_text, name);
   }
+  const loose_artifacts = enumerateLoose(root, selectedName);
+  const backlog_items = listBacklogItems(root);
+  for (const item of [...loose_artifacts.map((artifact) => artifact.path), ...backlog_items]) {
+    hashFile(root, item, input_hashes, redacted_text, item);
+  }
   hashFile(root, join(CONTEXT, "backlog", "todo.md"), input_hashes, redacted_text, "todo");
   hashFile(root, join(CONTEXT, "memory", "index.md"), input_hashes, redacted_text, "memory_index");
   hashFile(root, join(CONTEXT, "workflow", "current-session.json"), input_hashes, redacted_text, "session_evidence");
@@ -258,7 +279,8 @@ export function takeSnapshot(root: string, opts: SnapshotOptions = {}): Snapshot
       },
       subject_candidates: resolved.candidates,
       session_evidence: sessionEvidence(root, selectedName),
-      loose_artifacts: enumerateLoose(root, selectedName),
+      loose_artifacts,
+      backlog_items,
       plans,
       specs,
       iterates,
