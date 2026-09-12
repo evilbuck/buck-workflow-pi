@@ -9,46 +9,89 @@ export type RoleFailure = { ok: false; state: "failed_model"; role: RoleId; erro
 export type RoleSuccess<T> = { ok: true; role: RoleId; value: T };
 export type RoleResult<T> = RoleSuccess<T> | RoleFailure;
 
-const ScribeSchema = Type.Object({
-  title: Type.String(),
-  summary: Type.String(),
-  priority: Type.Union([Type.Literal("high"), Type.Literal("medium"), Type.Literal("low")]),
-  domains: Type.Array(Type.String()),
-  topics: Type.Array(Type.String()),
-  facts: Type.Array(Type.String()),
-  backlog: Type.Object({
-    complete_explicit: Type.Array(Type.String()),
-    complete_inferred: Type.Array(Type.String()),
-    new_items: Type.Array(Type.String()),
-  }),
-});
-
-const AuditorSchema = Type.Array(
-  Type.Object({
-    path: Type.String(),
-    verdict: Type.Union([Type.Literal("complete"), Type.Literal("incomplete")]),
-    evidence_ids: Type.Array(Type.String()),
-  }),
+const CitationSchema = Type.Object(
+  { id: Type.String({ minLength: 1 }), quote: Type.String({ minLength: 1 }) },
+  { additionalProperties: false },
+);
+const ClaimSchema = Type.Object(
+  { text: Type.String({ minLength: 1 }), evidence: Type.Array(CitationSchema, { minItems: 1 }) },
+  { additionalProperties: false },
+);
+const PrioritySchema = Type.Object(
+  {
+    value: Type.Union([Type.Literal("high"), Type.Literal("medium"), Type.Literal("low")]),
+    evidence: Type.Array(CitationSchema, { minItems: 1 }),
+  },
+  { additionalProperties: false },
+);
+const CompletionSchema = Type.Object(
+  { slug: Type.String({ minLength: 1 }), outcome: ClaimSchema },
+  { additionalProperties: false },
+);
+const NewBacklogSchema = Type.Object(
+  {
+    slug: Type.String({ minLength: 1 }),
+    title: ClaimSchema,
+    body: ClaimSchema,
+    priority: PrioritySchema,
+    related: Type.Array(Type.String()),
+  },
+  { additionalProperties: false },
 );
 
-const GoalSchema = Type.Object({
-  classification: Type.Union([
-    Type.Literal("present"),
-    Type.Literal("waived"),
-    Type.Literal("missing"),
-  ]),
-  quote: Type.String(),
-  evidence_id: Type.String(),
-});
+const ScribeSchema = Type.Object(
+  {
+    title: ClaimSchema,
+    summary: ClaimSchema,
+    priority: PrioritySchema,
+    domains: Type.Array(ClaimSchema),
+    topics: Type.Array(ClaimSchema),
+    facts: Type.Array(ClaimSchema),
+    backlog: Type.Object(
+      {
+        complete_explicit: Type.Array(CompletionSchema),
+        complete_inferred: Type.Array(CompletionSchema),
+        new_items: Type.Array(NewBacklogSchema),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
+
+const AuditorSchema = Type.Array(
+  Type.Object(
+    {
+      path: Type.String({ minLength: 1 }),
+      verdict: Type.Union([Type.Literal("complete"), Type.Literal("incomplete")]),
+      evidence: Type.Array(CitationSchema, { minItems: 1 }),
+    },
+    { additionalProperties: false },
+  ),
+);
+
+const GoalSchema = Type.Object(
+  {
+    classification: Type.Union([
+      Type.Literal("present"),
+      Type.Literal("waived"),
+      Type.Literal("missing"),
+    ]),
+    quote: Type.String({ minLength: 1 }),
+    evidence_id: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
 
 export type ScribeProposal = Static<typeof ScribeSchema>;
 export type AuditorVerdicts = Static<typeof AuditorSchema>;
 export type GoalClassification = Static<typeof GoalSchema>;
+export type Citation = Static<typeof CitationSchema>;
 
 const SYSTEM: Record<RoleId, string> = {
-  scribe: "You draft session memory semantics only. Cite evidence by id. Never emit file paths, commands, or mutations.",
-  "evidence-auditor": "You return binary complete/incomplete verdicts with evidence ids only. Never emit paths to write or commands.",
-  "goal-classifier": "You classify User Goal as present, waived, or missing using a quoted evidence id. Never mutate files.",
+  scribe: "Return only the documented JSON. Every semantic claim, priority, and backlog decision needs one or more exact evidence {id, quote} citations. Never emit file paths, commands, or mutations.",
+  "evidence-auditor": "Return only documented JSON. Every verdict needs one or more exact evidence {id, quote} citations. Never emit paths to write or commands.",
+  "goal-classifier": "Return only documented JSON. Classify User Goal as present, waived, or missing using an exact quote and evidence id. Never mutate files.",
 };
 
 function isolationOpts(roleId: RoleId, prompt: string, cwd: string, modelOverride?: string) {
@@ -76,9 +119,13 @@ function parseJson(text: string) {
   }
 }
 
+export function isScribeProposal(value: unknown): value is ScribeProposal {
+  return Value.Check(ScribeSchema, value);
+}
+
 export function parseScribeProposal(text: string) {
   const data = parseJson(text);
-  if (!Value.Check(ScribeSchema, data)) throw new Error("Scribe schema violation");
+  if (!isScribeProposal(data)) throw new Error("Scribe schema violation");
   return data;
 }
 

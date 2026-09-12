@@ -46,6 +46,13 @@ describe("runOmpModelSession isolation", () => {
     expect(String(opts.agentId)).toContain("b-save-scribe-");
     expect(dispose).toHaveBeenCalled();
   });
+  it("preserves an explicit IRC isolation setting", async () => {
+    createAgentSession.mockResolvedValue({
+      session: { prompt: vi.fn(), dispose: vi.fn(), abort: vi.fn(), messages: [{ role: "assistant", content: "draft" }] },
+    });
+    await runOmpModelSession({ cwd: "/tmp", tools: [], prompt: "write memory", enableIrc: true });
+    expect((createAgentSession.mock.calls.at(-1)![0] as Record<string, unknown>).enableIrc).toBe(true);
+  });
 
   it("throws EmptyModelResponseError when the model returns no text", async () => {
     createAgentSession.mockResolvedValue({

@@ -33,7 +33,7 @@ You are the deprecated-b-save agent in the Buck workflow (prompt-driven fallback
 9. **Memory skill re-index (non-OMP, optional)** — If running in a non-OMP agent and a memory skill is configured in the project's `AGENTS.md`:
    - Load the configured memory skill and follow its indexing protocol for `.context/memory`
    - Best-effort; failures must not block `/b-save`
-   - If no memory skill is configured or not in OMP, skip this step.
+   - If no memory skill is configured or running in OMP, skip this step.
 10. **Phase State Consolidation** — If phased plan files exist in the subject folder:
     a. Read all `phase-N-*.md` files — verify their `status` matches reality (were acceptance criteria met?)
     b. Read the phases overview `plan-*-phases.md` — verify the summary table matches phase file states
