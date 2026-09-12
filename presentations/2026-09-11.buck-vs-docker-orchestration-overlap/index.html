@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overlap audit · buck-workflow-pi vs docker-orchestration/.claude</title>
+<meta name="description" content="Read-only overlap and methodology audit between two AI agent skill suites.">
+<style>
+:root{
+ --bg:#f7f6f3; --panel:#fff; --ink:#1b1a18; --ink2:#3d3a36; --muted:#6f6862; --line:#e6e1d9; --line2:#f0ece5;
+ --buck:#b4530b; --buckbg:#fdf1e3; --buckline:#f0d5b4;
+ --jz:#2b57c4; --jzbg:#eaf0fd; --jzline:#c9d8f7;
+ --accent:#0f766e; --accentbg:#e6f5f3;
+ --radius:14px; --shadow:0 1px 2px rgba(28,26,24,.05),0 8px 24px -16px rgba(28,26,24,.28);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.62 ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+ -webkit-font-smoothing:antialiased}
+code{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:.855em;
+ background:#efece6;border:1px solid var(--line);border-radius:5px;padding:.06em .36em;color:#4a423a;white-space:nowrap}
+a{color:var(--accent)}
+h1,h2,h3,h4,h5{line-height:1.25;letter-spacing:-.012em;margin:0}
+p{margin:0 0 1em}
+.wrap{max-width:1360px;margin:0 auto;padding:0 28px}
+
+/* ── masthead ─────────────────────────── */
+header.top{background:linear-gradient(180deg,#fffdfa,#f7f6f3);border-bottom:1px solid var(--line)}
+header.top .wrap{padding-top:52px;padding-bottom:36px}
+.eyebrow{font-size:12.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(28px,3.6vw,44px);max-width:20ch;margin-bottom:14px}
+.sub{font-size:18px;color:var(--ink2);max-width:66ch;margin-bottom:26px}
+.pins{display:flex;flex-wrap:wrap;gap:12px}
+.pin{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:250px}
+.pin .pname{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.pin .pmeta{font-size:12.5px;color:var(--muted);margin-top:5px}
+.pin .pmeta b{color:var(--ink2);font-weight:600}
+.pin.b{border-left:3px solid var(--buck)} .pin.j{border-left:3px solid var(--jz)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.buck{background:var(--buck)} .dot.jz{background:var(--jz)}
+
+/* ── layout ───────────────────────────── */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:56px;align-items:start}
+main{min-width:0;padding:44px 0 110px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:44px 0 60px;
+ border-left:1px solid var(--line);padding-left:26px;scrollbar-width:thin}
+aside h6{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:650}
+aside ul{list-style:none;margin:0;padding:0}
+aside li{margin:0}
+aside a{display:block;text-decoration:none;color:var(--ink2);padding:5px 10px;border-radius:7px;border-left:2px solid transparent;margin-left:-2px}
+aside a.l1{font-size:13.8px;font-weight:550}
+aside a.l2{font-size:12.9px;color:var(--muted);padding-left:16px}
+aside a:hover{background:#efece6;color:var(--ink)}
+aside a.active{color:var(--accent);border-left-color:var(--accent);background:var(--accentbg);font-weight:650}
+aside ul ul{margin:1px 0 6px}
+.toctoggle{display:none}
+
+/* ── sections ─────────────────────────── */
+section.top-level{padding-top:8px;margin-bottom:56px;scroll-margin-top:20px}
+h2{font-size:clamp(21px,2.3vw,27px);margin:0 0 6px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+h2 .h2n{color:var(--muted);font-weight:500;margin-right:12px;font-variant-numeric:tabular-nums}
+.lede{font-size:16.5px;color:var(--ink2);max-width:74ch;margin:16px 0 24px}
+
+/* ── verdict ──────────────────────────── */
+.verdict{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 28px;box-shadow:var(--shadow);margin-bottom:22px}
+.verdict h3{font-size:19px;margin-bottom:12px}
+.verdict p{margin-bottom:.85em}
+.verdict p:last-child{margin-bottom:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(168px,100%),1fr));gap:14px;margin:22px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.tile .tn{font-size:27px;font-weight:680;letter-spacing:-.02em;line-height:1.1}
+.tile .tl{font-size:12.8px;color:var(--muted);margin-top:5px}
+.tile.b .tn{color:var(--buck)} .tile.j .tn{color:var(--jz)} .tile.a .tn{color:var(--accent)}
+ul.keypoints{margin:0;padding-left:0;list-style:none}
+ul.keypoints li{position:relative;padding-left:26px;margin-bottom:11px}
+ul.keypoints li::before{content:"";position:absolute;left:6px;top:.66em;width:7px;height:7px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+
+/* ── glossary ─────────────────────────── */
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:14px}
+.gterm{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.gterm b{display:block;font-size:14.5px;margin-bottom:4px}
+.gterm span{font-size:14px;color:var(--ink2)}
+
+/* ── project cards ────────────────────── */
+.projects{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow)}
+.pcard.b{border-top:3px solid var(--buck)} .pcard.j{border-top:3px solid var(--jz)}
+.pcard h3{font-size:18px;margin-bottom:3px}
+.pcard .who{font-size:12.8px;color:var(--muted);margin-bottom:14px}
+.pcard dl{margin:0;display:grid;grid-template-columns:104px 1fr;gap:8px 14px;font-size:14.2px}
+.pcard dt{color:var(--muted);font-weight:550}
+.pcard dd{margin:0;color:var(--ink2)}
+
+/* ── rail ─────────────────────────────── */
+.railwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+.rail{min-width:934px}
+.railrow{display:grid;grid-template-columns:repeat(8,1fr)}
+.railrow.head .cell{background:#faf8f4;font-weight:650;font-size:12.8px;border-bottom:1px solid var(--line);padding:10px 9px;display:flex;align-items:center;gap:8px}
+.railrow .rn{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;align-items:center;justify-content:center;font-weight:650;flex:none}
+.railrow .cell{border-right:1px solid var(--line2);padding:10px 9px;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start}
+.railrow .cell:last-child{border-right:0}
+.railrow.buckrow{background:#fffdfa} .railrow.jzrow{background:#fcfdff;border-top:1px solid var(--line)}
+.pill{font-size:10.9px;padding:2.5px 6px;border-radius:6px;font-weight:550;white-space:normal;line-height:1.4;max-width:100%;text-align:left}
+.pill.buck{background:var(--buckbg);color:var(--buck);border:1px solid var(--buckline)}
+.pill.jz{background:var(--jzbg);color:var(--jz);border:1px solid var(--jzline)}
+.raillegend{display:flex;gap:20px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;align-items:center}
+.raillegend span{display:flex;align-items:center;gap:7px}
+
+/* ── stages ───────────────────────────── */
+section.stage{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+ padding:24px 26px;margin-bottom:18px;box-shadow:var(--shadow);scroll-margin-top:20px}
+section.stage h3{font-size:19.5px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.stagenum{display:inline-flex;width:27px;height:27px;border-radius:8px;background:var(--accent);color:#fff;
+ align-items:center;justify-content:center;font-size:14px;font-weight:680;flex:none}
+.stageq{color:var(--muted);font-style:italic;font-size:15px;margin:0 0 18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.col h4{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.col h4 em{font-style:normal;margin-left:auto;background:#efece6;border-radius:20px;padding:1px 9px;font-size:11.5px;color:var(--ink2)}
+ul.skills{list-style:none;margin:0;padding:0}
+ul.skills li{padding:9px 0;border-top:1px solid var(--line2)}
+ul.skills li:first-child{border-top:0;padding-top:0}
+.sk{display:block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.1px;font-weight:600;margin-bottom:2px}
+ul.skills.buck .sk{color:var(--buck)} ul.skills.jz .sk{color:var(--jz)}
+.sd{display:block;font-size:14px;color:var(--ink2);line-height:1.52}
+.note{margin-top:20px;background:#faf8f4;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:15px 18px}
+.note h5{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+.note p{font-size:14.6px;color:var(--ink2);margin-bottom:0}
+.note .ev{margin-top:9px;font-size:12px;color:var(--muted)}
+.note .ev code{font-size:11.3px;white-space:normal;word-break:break-all}
+
+/* ── badges ───────────────────────────── */
+.badge{font-size:11.5px;font-weight:650;padding:2.5px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.01em}
+.b-duplicate{background:#fde8e8;color:#a92222;border:1px solid #f6cfcf}
+.b-strong{background:#ffeeda;color:#b4530b;border:1px solid #f5d6b3}
+.b-partial{background:#fbf3d0;color:#8a6410;border:1px solid #efe0a8}
+.b-adjacent{background:#dcf5f1;color:#0f766e;border:1px solid #bce8e1}
+.b-none{background:#ecebe8;color:#5b554f;border:1px solid #dddad3}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
+.legend .li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--panel);
+ border:1px solid var(--line);border-radius:9px;padding:6px 11px}
+
+/* ── tables ───────────────────────────── */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14.2px}
+th{text-align:left;font-size:11.8px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+ padding:12px 16px;background:#faf8f4;border-bottom:1px solid var(--line);position:sticky;top:0;font-weight:650}
+td{padding:11px 16px;border-bottom:1px solid var(--line2);vertical-align:top;color:var(--ink2)}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fdfcfa}
+td.cap{color:var(--ink);font-weight:550;width:31%}
+td.mid{text-align:center;width:88px}
+.yn{font-size:11.7px;font-weight:650;padding:2px 9px;border-radius:20px;display:inline-block}
+.yn.y{background:#dff3e6;color:#1c6b3e} .yn.n{background:#f1efec;color:#84796f} .yn.p{background:#fbf3d0;color:#8a6410}
+td.notecell{font-size:13.5px;color:var(--muted)}
+
+/* ── adopt cards ──────────────────────── */
+.adoptgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px}
+article.adopt{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+article.adopt header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:9px}
+article.adopt h4{font-size:16px;max-width:30ch}
+article.adopt p{font-size:14.2px;color:var(--ink2);flex:1}
+.klass{font-size:10.8px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:6px;white-space:nowrap;flex:none}
+.k-fold-in{background:var(--accentbg);color:var(--accent)}
+.k-new-member{background:var(--jzbg);color:var(--jz)}
+.k-repo-init{background:var(--buckbg);color:var(--buck)}
+.k-standalone{background:#f1efec;color:#6f6862}
+article.adopt footer{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px;padding-top:11px;border-top:1px solid var(--line2)}
+.vx{font-size:11.7px;color:var(--muted)} .vx b{color:var(--ink2);text-transform:capitalize}
+.evc{font-size:10.6px!important;white-space:normal!important;word-break:break-all;color:var(--muted)}
+.subhead{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:650;margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+.subhead::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ── misc blocks ──────────────────────── */
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 19px}
+.row h4{font-size:15.5px;margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row p{font-size:14.2px;color:var(--ink2);margin:0}
+.sev{font-size:10.8px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:2.5px 8px;border-radius:5px}
+.sev.medium{background:#fbf3d0;color:#8a6410} .sev.low{background:#ecebe8;color:#5b554f}
+.sev.info{background:var(--accentbg);color:var(--accent)}
+.callout{background:var(--accentbg);border:1px solid #bce8e1;border-radius:12px;padding:18px 22px;margin:20px 0}
+.callout h4{font-size:15.5px;color:var(--accent);margin-bottom:7px}
+.callout p{font-size:14.6px;color:#155e56;margin-bottom:0}
+.ancestry{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
+footer.end{border-top:1px solid var(--line);background:#faf8f4;padding:32px 0 48px;font-size:13.4px;color:var(--muted)}
+footer.end .wrap{max-width:1360px}
+
+/* long paths in prose may wrap */
+.row code,.note code,.verdict code,.lede code,.gterm code,.pcard code,.callout code,footer.end code,td code,.sd code,.stageq code{white-space:normal;overflow-wrap:anywhere}
+
+/* grid children must be allowed to shrink so inner scrollers actually scroll */
+.ancestry>*,.cols>*,.projects>*,.adoptgrid>*,.tiles>*,.gloss>*,.stack>*,.layout>*{min-width:0}
+
+@media (max-width:1080px){
+ .layout{grid-template-columns:1fr;gap:0}
+ aside{position:static;max-height:none;border-left:0;padding:0;margin:20px 0 0;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+ .toctoggle{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;font-weight:650;
+  padding:14px 18px;cursor:pointer;color:var(--ink)}
+ aside nav{display:none;padding:0 14px 14px}
+ aside.open nav{display:block}
+ aside h6{display:none}
+ main{padding-top:28px}
+ .projects,.cols,.ancestry{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+ .wrap{padding:0 16px}
+ section.stage{padding:18px 16px}
+ .verdict{padding:20px 18px}
+}
+@media (max-width:700px){code{white-space:normal;overflow-wrap:anywhere}}
+@media (max-width:400px){.pin{min-width:0;width:100%}}
+@media print{aside{display:none}.layout{grid-template-columns:1fr}section.stage{break-inside:avoid}}
+</style>
+</head><body>
+
+<header class="top"><div class="wrap">
+  <div class="eyebrow">Read-only audit · 11 September 2026</div>
+  <h1>Two agent workflows, compared</h1>
+  <p class="sub">Both repositories teach an AI coding agent how to do software work. They were built independently, they share an ancestor, and they solve opposite halves of the same lifecycle. This report catalogues every skill on both sides, organises them by the question they answer, and says exactly where the two overlap.</p>
+  <div class="pins">
+    <div class="pin b"><div class="pname"><span class="dot buck"></span>buck-workflow-pi</div>
+      <div class="pmeta"><b>53</b> skills · 33 prompts · 37 commands · 1 wired extension<br>commit <code>f797174</code> · 2026-09-09</div></div>
+    <div class="pin j"><div class="pname"><span class="dot jz"></span>resumator/docker-orchestration · .claude/</div>
+      <div class="pmeta"><b>24</b> skills · 4 slash commands · 2 lifecycle hooks · 105 files<br>commit <code>1fea15e</code> · 2026-09-09</div></div>
+  </div>
+</div></header>
+
+<div class="wrap"><div class="layout">
+<main>
+
+<section class="top-level" id="summary">
+ <h2><span class="h2n">01</span>Bottom line</h2>
+ <div class="verdict">
+  <h3>They are the same kind of thing, aimed at different halves of the job.</h3>
+  <p><strong>buck-workflow-pi is broad and artifact-centric.</strong> Its 53 skills cover the widest possible arc — from a dictated idea, through research, requirements, plans, phases, UX guides and briefing decks, all the way to a committed session record and a documentation taxonomy. Almost everything it does leaves a durable file in git.</p>
+  <p><strong>docker-orchestration's <code>.claude</code> is narrow and gate-centric.</strong> Its 24 skills cover a shorter arc — ticket, spec, plan, execute, review, PR, green CI, merge — but each station has more machinery: a multi-model review panel, an execution controller with a resumable ledger, two convergence loops, and one conductor that drives the whole thing with exactly three points where a human must say yes.</p>
+  <p><strong>Neither is a subset of the other, and neither should absorb the other's spine.</strong> The value in each direction is single rules, gates and vocabulary.</p>
+ </div>
+ <div class="tiles">
+  <div class="tile b"><div class="tn">53</div><div class="tl">buck skills catalogued</div></div>
+  <div class="tile j"><div class="tn">24</div><div class="tl">jz skills catalogued</div></div>
+  <div class="tile a"><div class="tn">8</div><div class="tl">lifecycle stages both touch</div></div>
+  <div class="tile a"><div class="tn">7</div><div class="tl">skills with a shared MIT ancestor</div></div>
+ </div>
+ <ul class="keypoints">
+  <li><strong>The overlap is real but shallow.</strong> Of the eight lifecycle stages, none is a straight duplicate; three are strong overlap with one side materially deeper, three are partial, two are adjacent.</li>
+  <li><strong>The biggest single gap in buck is the build station.</strong> jz has a task-by-task execution controller, an enforced TDD law, a root-cause debugging skill and a persistent restraint lens. buck has one builder skill and no debugging skill at all.</li>
+  <li><strong>The biggest single gap in jz is durable memory and meaning.</strong> Its session record lives outside git and its rules ban rationale from repo files. buck has a committed session ledger, a backlog, ADRs, how-tos and domain-language docs.</li>
+  <li><strong>Both are honest about being derivative.</strong> Seven jz skills are declared MIT ports of the same open-source library whose lineage also reaches buck — and one of the two repos already ships the attribution file the other one needs.</li>
+  <li><strong>Three upstream housekeeping conventions are worth copying on their own merits</strong>, independent of any skill: a skill linter in CI, a tombstone file for retired skills, and a rule that a skill runs one pass unless a caller explicitly asks it to loop.</li>
+ </ul>
+</section>
+
+<section class="top-level" id="glossary">
+ <h2><span class="h2n">02</span>How to read this</h2>
+ <p class="lede">Six terms carry most of the weight. If you know these, everything below reads straight through.</p>
+ <div class="gloss"><div class="gterm"><b>Skill</b><span>A Markdown file (<code>SKILL.md</code>) that teaches an AI coding agent how to do one job well. The agent loads it on demand when the job comes up. Think “runbook the agent actually follows”, not documentation a human reads.</span></div><div class="gterm"><b>Slash command</b><span>A short alias a person types — <code>/b-plan</code>, <code>/pr</code> — that loads a skill. Thin by design: the command routes, the skill contains the thinking.</span></div><div class="gterm"><b>Harness</b><span>The program the agent runs inside: Claude Code, Pi, OMP, OpenCode, Codex. Skills are portable between harnesses; hooks and extensions usually are not.</span></div><div class="gterm"><b>Subagent</b><span>A second agent spawned with a narrow brief and a clean context window. Used to review work, run a task in isolation, or read something bulky without polluting the main conversation.</span></div><div class="gterm"><b>Gate</b><span>A point where the workflow refuses to continue — a failing test, a missing requirement, a human who has not said yes yet. Gates are the load-bearing part of both suites.</span></div><div class="gterm"><b>Loop mode</b><span>Running a review-and-fix cycle until it comes out clean, rather than reporting once and stopping. Who is allowed to start a loop turns out to be a real design decision.</span></div></div>
+ <div class="legend" style="margin-top:22px">
+  <div class="li"><span class="badge b-duplicate" title="Same job, same mechanics">Duplicate</span><span>Same job, same mechanics</span></div><div class="li"><span class="badge b-strong" title="Same job, one side materially deeper">Strong overlap</span><span>Same job, one side materially deeper</span></div><div class="li"><span class="badge b-partial" title="The job is split differently across skills">Partial overlap</span><span>The job is split differently across skills</span></div><div class="li"><span class="badge b-adjacent" title="Neighbouring job, different output">Adjacent</span><span>Neighbouring job, different output</span></div><div class="li"><span class="badge b-none" title="One side has it, the other does not">No overlap</span><span>One side has it, the other does not</span></div>
+ </div>
+</section>
+
+<section class="top-level" id="projects">
+ <h2><span class="h2n">03</span>The two projects</h2>
+ <p class="lede">Same genre, very different centre of gravity. One is a product whose whole purpose is the workflow; the other is a workflow that grew inside a working infrastructure repo.</p>
+ <div class="projects">
+  <div class="pcard b">
+   <h3>buck-workflow-pi</h3><div class="who">A standalone, published toolkit</div>
+   <dl>
+    <dt>What it is</dt><dd>A distributable collection of agent skills, slash commands and one runtime extension. The workflow <em>is</em> the product.</dd>
+    <dt>Shape</dt><dd>Three layers: portable skills are the source of truth, thin prompt/command wrappers are the invocation surface, a small TypeScript extension handles runtime hooks.</dd>
+    <dt>Reaches</dt><dd>Pi, OMP, Claude Code, OpenCode, Codex, Grok and Goose — via package install, a symlink installer, or a marketplace plugin.</dd>
+    <dt>Signature move</dt><dd>Everything meaningful lands in a dated subject folder under <code>.context/</code>, and the session ends with a committed memory record.</dd>
+    <dt>Audience</dt><dd>Any repository, any stack. Nothing is company-specific.</dd>
+   </dl>
+  </div>
+  <div class="pcard j">
+   <h3>docker-orchestration · <code>.claude/</code></h3><div class="who">A team's toolkit, living inside their dev-environment repo</div>
+   <dl>
+    <dt>What it is</dt><dd>The agent tooling one engineering team maintains for itself, kept in the repo that already holds their local Docker harness.</dd>
+    <dt>Shape</dt><dd>Six surfaces: skills, four slash commands, a global rules file, session hooks, a terminal status line, and an output style — each with its own install model.</dd>
+    <dt>Reaches</dt><dd>Claude Code and OpenCode via one installer command; Pi comes along free because the installer writes to a shared skills directory.</dd>
+    <dt>Signature move</dt><dd>Reviews run on a <em>different</em> AI provider than the one doing the work, in a locked-down sandbox, and return a verdict.</dd>
+    <dt>Audience</dt><dd>Mostly portable, but six skills are welded to the team's own infrastructure by design.</dd>
+   </dl>
+  </div>
+ </div>
+</section>
+
+<section class="top-level" id="ancestry">
+ <h2><span class="h2n">04</span>Shared ancestry</h2>
+ <p class="lede">Before comparing methodology it is worth knowing that part of the resemblance is inherited rather than convergent. Both suites descend, in part, from the same MIT-licensed open-source skill library.</p>
+ <div class="ancestry">
+  <div>
+   <div class="tablewrap"><table style="min-width:0">
+    <thead><tr><th>docker-orchestration skill</th><th>Upstream origin</th></tr></thead>
+    <tbody>
+     <tr><td><code>jz-spec-writer</code></td><td>superpowers · <code>brainstorming</code></td></tr>
+     <tr><td><code>jz-plan-writer</code></td><td>superpowers · <code>writing-plans</code></td></tr>
+     <tr><td><code>jz-plan-executor</code></td><td>superpowers · <code>subagent-driven-development</code> <em>(ledger replaces the upstream scripts)</em></td></tr>
+     <tr><td><code>jz-worktree</code></td><td>superpowers · <code>using-git-worktrees</code></td></tr>
+     <tr><td><code>jz-debug</code></td><td>superpowers · <code>systematic-debugging</code></td></tr>
+     <tr><td><code>jz-test-driven-development</code></td><td>superpowers · <code>test-driven-development</code></td></tr>
+     <tr><td><code>jz-skill-writer</code></td><td>superpowers · <code>writing-skills</code></td></tr>
+    </tbody></table></div>
+   <p style="font-size:13.4px;color:var(--muted);margin-top:10px">Declared in <code>.claude/skills/ATTRIBUTION.md</code>, pinned to <code>obra/superpowers</code> v6.1.0 (<code>f268f7c</code>), with the full MIT licence text inline.</p>
+  </div>
+  <div class="callout" style="margin:0">
+   <h4>Why this matters for buck-workflow-pi</h4>
+   <p>An audit on 10 September found that two reference files under <code>skills/b-grill-with-docs/</code> are near-verbatim copies of a different MIT-licensed skill library, with no notice — and that <code>package.json</code> publishes <code>skills/</code> to npm, which makes it a licence condition rather than a courtesy. That remediation is already planned. What this audit adds is a <strong>working template</strong>: a peer repository facing the same obligation ships a single root file with source, author, pinned version, licence text and a per-skill port table, and treats it as routine.</p>
+  </div>
+ </div>
+</section>
+
+<section class="top-level" id="pipeline">
+ <h2><span class="h2n">05</span>The two pipelines</h2>
+ <p class="lede">Eight stages, read left to right. Each column is a question the work has to answer; the pills show which skills each suite brings to it. The shape of the difference is visible before reading a single description — buck is front-loaded and tail-heavy, jz is concentrated in the middle.</p>
+ <div class="railwrap"><div class="rail">
+  <div class="railrow head"><div class="cell"><span class="rn">1</span>Frame</div><div class="cell"><span class="rn">2</span>Design</div><div class="cell"><span class="rn">3</span>Plan</div><div class="cell"><span class="rn">4</span>Challenge</div><div class="cell"><span class="rn">5</span>Build</div><div class="cell"><span class="rn">6</span>Verify</div><div class="cell"><span class="rn">7</span>Ship</div><div class="cell"><span class="rn">8</span>Remember</div></div>
+  <div class="railrow buckrow"><div class="cell"><span class="pill buck">b-brainstorm</span><span class="pill buck">b-arch-qa</span><span class="pill buck">b-capture</span><span class="pill buck">b-explore</span><span class="pill buck">b-research</span><span class="pill buck">crawl4ai</span><span class="pill buck">b-nasa-prd</span><span class="pill buck">b-recap</span></div><div class="cell"><span class="pill buck">b-plan</span><span class="pill buck">b-plan-update</span><span class="pill buck">design-brief</span><span class="pill buck">b-create-ux-guide</span><span class="pill buck">b-create-styleguide</span></div><div class="cell"><span class="pill buck">b-phase</span><span class="pill buck">b-loop</span><span class="pill buck">b-backlog</span><span class="pill buck">b-issue-create</span><span class="pill buck">b-blueprint</span><span class="pill buck">b-present</span></div><div class="cell"><span class="pill buck">b-grill</span><span class="pill buck">b-grill-me</span><span class="pill buck">b-grill-auto</span><span class="pill buck">b-grill-with-docs</span></div><div class="cell"><span class="pill buck">b-build</span><span class="pill buck">b-iterate</span><span class="pill buck">b-auto-fix</span></div><div class="cell"><span class="pill buck">b-review</span><span class="pill buck">b-guardrails-check</span><span class="pill buck">b-init-guardrails</span><span class="pill buck">code-review</span><span class="pill buck">code-review-universal</span><span class="pill buck">node5-code-review</span><span class="pill buck">code-smells</span></div><div class="cell"><span class="pill buck">git-commit</span><span class="pill buck">git-commit-improved</span><span class="pill buck">b-pr</span><span class="pill buck">fix-pr</span><span class="pill buck">b-pr-review-2-issues</span><span class="pill buck">b-fix-rebase-conflict</span><span class="pill buck">git-clean-orphans</span></div><div class="cell"><span class="pill buck">b-save</span><span class="pill buck">b-save-improved</span><span class="pill buck">b-docs</span><span class="pill buck">b-howto</span><span class="pill buck">b-memory-import</span><span class="pill buck">b-hindsight-import-projects</span><span class="pill buck">llm-wiki-vault</span></div></div>
+  <div class="railrow jzrow"><div class="cell"><span class="pill jz">jz-ticket-writer</span></div><div class="cell"><span class="pill jz">jz-spec-writer</span><span class="pill jz">jz-cycle-doc</span></div><div class="cell"><span class="pill jz">jz-plan-writer</span></div><div class="cell"><span class="pill jz">jz-adversarial-review</span></div><div class="cell"><span class="pill jz">jz-plan-executor</span><span class="pill jz">jz-test-driven-development</span><span class="pill jz">jz-debug</span><span class="pill jz">jz-senior-engineer</span><span class="pill jz">jz-worktree</span></div><div class="cell"><span class="pill jz">jz-review</span><span class="pill jz">jz-adversarial-review</span><span class="pill jz">jz-senior-engineer</span></div><div class="cell"><span class="pill jz">jz-pr</span><span class="pill jz">jz-pr-github-checks</span><span class="pill jz">jz-pr-copilot-review</span><span class="pill jz">jz-deploy</span></div><div class="cell"><span class="pill jz">jz-agent-session-state</span><span class="pill jz">jz-text-humanizer</span></div></div>
+  </div></div>
+ <div class="raillegend">
+  <span><span class="dot buck"></span>buck-workflow-pi</span>
+  <span><span class="dot jz"></span>docker-orchestration</span>
+  <span style="color:var(--muted)">Two skills appear in two stages each because they genuinely serve both.</span>
+ </div>
+</section>
+
+<section class="top-level" id="stages">
+ <h2><span class="h2n">06</span>Stage by stage</h2>
+ <p class="lede">Each stage below lists both suites' skills, an overlap verdict, and one paragraph on the difference that actually matters — not the naming, the mechanism.</p>
+ 
+<section id="stage-frame" class="stage">
+  <h3><span class="stagenum">1</span>Frame <span class="badge b-partial" title="The job is split differently across skills">Partial overlap</span></h3>
+  <p class="stageq">What problem are we actually solving, and what do we already know?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>8</em></h4><ul class="skills buck"><li><span class="sk">b-brainstorm</span><span class="sd">Interview intake; writes a loose first-draft plan into a dated subject folder</span></li><li><span class="sk">b-arch-qa</span><span class="sd">Live read-only architecture Q&A that grows a durable discussion doc</span></li><li><span class="sk">b-capture</span><span class="sd">Dictation mode; a subagent writes rough notes every turn, no synthesis</span></li><li><span class="sk">b-explore</span><span class="sd">Internal codebase exploration; persists after every code trace</span></li><li><span class="sk">b-research</span><span class="sd">External research; persists after every source, consolidates every 3–5</span></li><li><span class="sk">crawl4ai</span><span class="sd">Bulk web crawl/extract helper that b-research calls</span></li><li><span class="sk">b-nasa-prd</span><span class="sd">Write or audit a PRD against NASA SEH Appendix C requirement quality</span></li><li><span class="sk">b-recap</span><span class="sd">Read-only sub-500-word session orientation, chat only</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>1</em></h4><ul class="skills jz"><li><span class="sk">jz-ticket-writer</span><span class="sd">Phase 0 grounding ticket in <code>docs/tickets/</code>; numbers <code>PR-NNN</code> requirements and <code>AC-NNN</code> Given/When/Then criteria</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>buck spends eight skills learning; jz spends one skill <em>deciding the work is admissible</em>. <code>jz-ticket-writer</code> enforces a single AND predicate it calls the <strong>grounding floor</strong> — product requirements present AND at least one Given/When/Then criterion — and a ticket that fails it blocks the whole run. buck has no equivalent admission gate; <code>b-plan</code> will happily plan a vague ask.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-ticket-writer/SKILL.md:22-51</code></p></div>
+</section>
+<section id="stage-design" class="stage">
+  <h3><span class="stagenum">2</span>Design <span class="badge b-strong" title="Same job, one side materially deeper">Strong overlap</span></h3>
+  <p class="stageq">What are we building, in behaviour terms, and why this shape?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>5</em></h4><ul class="skills buck"><li><span class="sk">b-plan</span><span class="sd">Bounded plan (tactical) or spec (strategic); runs a capability probe first, optional light grill</span></li><li><span class="sk">b-plan-update</span><span class="sd">In-place plan revision with an appended revision log and drift warnings</span></li><li><span class="sk">design-brief</span><span class="sd">Turns screenshots/prose/assets into an implementation-ready UI brief (JSONC)</span></li><li><span class="sk">b-create-ux-guide</span><span class="sd">Inventories existing UI into a styleguide, a research HTML page and <code>design-brief.json</code></span></li><li><span class="sk">b-create-styleguide</span><span class="sd">Guided styleguide create/refresh, wired into <code>AGENTS.md</code> via a managed block</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>2</em></h4><ul class="skills jz"><li><span class="sk">jz-spec-writer</span><span class="sd">One-question-at-a-time refinement → <code>docs/specs/YYYY-MM-DD-&lt;topic&gt;-design.md</code>; 2–3 approaches with a recommendation; hard gate against any implementation before approval</span></li><li><span class="sk">jz-cycle-doc</span><span class="sd">Alternative single-artifact mode: one <code>docs/cycles/</code> doc pinned to an external template revision (23 frontmatter keys, 8 fixed sections)</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>Same job, near-identical interview mechanic — both ask one question at a time and refuse to code before approval. Three jz rules have no buck analogue: every requirement carries an <code>FR-NNN</code>/<code>SC-NNN</code> id with a <code>(source: PR-NNN)</code> tag back to the ticket; an <strong>untagged requirement is scope creep and gets cut</strong>; and the spec's own self-review runs the same measurement command the reviewer runs, so writer and reviewer read one number.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-spec-writer/SKILL.md:109-122</code></p></div>
+</section>
+<section id="stage-plan" class="stage">
+  <h3><span class="stagenum">3</span>Plan <span class="badge b-strong" title="Same job, one side materially deeper">Strong overlap</span></h3>
+  <p class="stageq">How do we cut this into units someone can actually execute?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>6</em></h4><ul class="skills buck"><li><span class="sk">b-phase</span><span class="sd">Splits a large plan into phase files with a HARD / SOFT / NONE dependency matrix</span></li><li><span class="sk">b-loop</span><span class="sd">Stamps an advisory autonomous-execution mode onto phase frontmatter</span></li><li><span class="sk">b-backlog</span><span class="sd">Subagent-authored backlog item registered in <code>todo.md</code></span></li><li><span class="sk">b-issue-create</span><span class="sd">Packages a plan/spec into an AFK-ready GitHub issue plus backlog artifacts</span></li><li><span class="sk">b-blueprint</span><span class="sd">Single-page HTML architecture blueprint from the plan</span></li><li><span class="sk">b-present</span><span class="sd">Multi-page static briefing package with a manifest</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>1</em></h4><ul class="skills jz"><li><span class="sk">jz-plan-writer</span><span class="sd">Approved spec → <code>docs/plans/YYYY-MM-DD-&lt;feature&gt;.md</code>: bite-sized TDD tasks with exact file paths, interfaces, commands and expected output</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>buck models <strong>dependencies between phases</strong>; jz models <strong>what one isolated implementer needs to see</strong>. <code>jz-plan-writer</code>'s controlling rule is state-each-fact-once across the whole artifact chain — except <code>## Global Constraints</code>, deliberately copied verbatim from the spec, because <code>jz-plan-executor</code> hands an implementer the plan path and a task number and nothing else. buck ships the richer dependency model; jz ships the stricter reader contract.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-plan-writer/SKILL.md:91-98</code></p></div>
+</section>
+<section id="stage-challenge" class="stage">
+  <h3><span class="stagenum">4</span>Challenge <span class="badge b-adjacent" title="Neighbouring job, different output">Adjacent</span></h3>
+  <p class="stageq">Is this plan wrong — before anyone spends a day building it?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>4</em></h4><ul class="skills buck"><li><span class="sk">b-grill</span><span class="sd">Router for the grill family</span></li><li><span class="sk">b-grill-me</span><span class="sd">Interviews the human one question at a time; assesses separation-of-concerns boundaries at around 20 questions</span></li><li><span class="sk">b-grill-auto</span><span class="sd">Same interrogation, but aimed at a <em>different AI model</em> over Pi RPC</span></li><li><span class="sk">b-grill-with-docs</span><span class="sd">Grills the plan against <code>CONTEXT.md</code> and ADRs and updates them inline</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>1</em></h4><ul class="skills jz"><li><span class="sk">jz-adversarial-review</span><span class="sd">Router + per-mode engine (spec / plan / cycle / implementation). Caller picks Low (1 lens), Medium (3, default) or High (5). Verdict is <code>APPROVED</code> or <code>NEEDS REVISION</code></span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>Both attack the plan before build, by opposite means. buck <strong>asks questions</strong> and the human answers; jz <strong>runs a review panel</strong> and emits a verdict. The jz panel is the more mechanised half: every lens runs on an external harness CLI against a different provider, inside a throwaway working directory containing only the copied artefact, with a read-only tool allowlist and secret-env redaction. One pass is read-only by default; it converges only when the caller passes an explicit <code>loop</code> scope.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-adversarial-review/references/dispatch.md:17-64</code></p></div>
+</section>
+<section id="stage-build" class="stage">
+  <h3><span class="stagenum">5</span>Build <span class="badge b-partial" title="The job is split differently across skills">Partial overlap</span></h3>
+  <p class="stageq">How does code actually get written, and what stops it going sideways?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>3</em></h4><ul class="skills buck"><li><span class="sk">b-build</span><span class="sd">TDD implementation (vitest + Playwright for UI); phased-plan aware</span></li><li><span class="sk">b-iterate</span><span class="sd">Small post-review fixes with light lint + unit gates, hands back to b-review</span></li><li><span class="sk">b-auto-fix</span><span class="sd">Per-issue pipeline: research → plan → build → review</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>5</em></h4><ul class="skills jz"><li><span class="sk">jz-plan-executor</span><span class="sd">Runs the plan task-by-task: fresh implementer per task, per-task review gate, whole-branch review at the end, durable on-disk ledger so an interrupted run resumes</span></li><li><span class="sk">jz-test-driven-development</span><span class="sd">Red-green-refactor with an Iron Law: no production code without a failing test; code written first gets deleted</span></li><li><span class="sk">jz-debug</span><span class="sd">Four-phase root-cause-first debugging; no fix before the cause is proven; question the architecture after 3 failed fixes</span></li><li><span class="sk">jz-senior-engineer</span><span class="sd">Persistent restraint lens — a 7-rung YAGNI ladder, root-cause-not-symptom bug rule, <code>jz-debt:</code> markers, intensity lite/full/ultra</span></li><li><span class="sk">jz-worktree</span><span class="sd">Dedicated worktree + branch before any isolated multi-commit work</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>This is the widest gap in the whole comparison. buck has one builder skill; jz has an execution <em>machine</em>: a controller that never lets one context see two tasks, a model-routing rule per role, four implementer status codes, a ledger that survives interruption, and three always-on discipline skills wrapped around it. buck's TDD is prose guidance inside <code>b-build</code>; jz's is a standalone law with a deletion penalty. buck has <strong>no debugging skill at all</strong> — while its own global bootstrap routes bug work to a “systematic-debugger” role.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-plan-executor/SKILL.md:130-143</code></p></div>
+</section>
+<section id="stage-verify" class="stage">
+  <h3><span class="stagenum">6</span>Verify <span class="badge b-strong" title="Same job, one side materially deeper">Strong overlap</span></h3>
+  <p class="stageq">Is the finished work correct, and who is allowed to say so?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>7</em></h4><ul class="skills buck"><li><span class="sk">b-review</span><span class="sd">Reviews the change against the plan as an acceptance contract; writes <code>iterate-*.md</code>; runs the guardrails check</span></li><li><span class="sk">b-guardrails-check</span><span class="sd">Measure-only verdict against <code>guardrails.json</code>: unit, functional, lint, patch coverage, global ratchet, complexity</span></li><li><span class="sk">b-init-guardrails</span><span class="sd">One-shot bootstrap: detect stack, measure baseline, write <code>guardrails.json</code> and a managed <code>AGENTS.md</code> block</span></li><li><span class="sk">code-review</span><span class="sd">Release-candidate PR review; one subagent per risk area, in parallel</span></li><li><span class="sk">code-review-universal</span><span class="sd">Multi-language review; posts one atomic GitHub review with inline severity comments</span></li><li><span class="sk">node5-code-review</span><span class="sd">node5 domain checklist review with parallel risk-area subagents</span></li><li><span class="sk">code-smells</span><span class="sd">23-smell catalogue plus a parallel category audit producing a remediation report</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>3</em></h4><ul class="skills jz"><li><span class="sk">jz-review</span><span class="sd">Single-lens adversarial review of a diff on an external harness; optional criteria home builds a traceability matrix; <code>APPROVED</code> / <code>NEEDS REVISION</code>, then stop</span></li><li><span class="sk">jz-adversarial-review</span><span class="sd">Implementation mode: same router, the full panel, matrix against the run's acceptance criteria</span></li><li><span class="sk">jz-senior-engineer</span><span class="sd"><code>audit</code> / <code>review</code> / <code>debt</code> sub-commands: whole-repo over-engineering scan, diff bloat review, debt-marker harvest</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>buck's gate is <strong>numeric</strong> — a committed <code>guardrails.json</code> with coverage targets, a ratchet baseline, a ≥90% patch-coverage rule and a cyclomatic ceiling, all machine-checked. jz's gate is <strong>judgemental</strong> — a multi-model panel with severity ratings, a traceability matrix where a criterion with zero landing code and zero tests is automatically Critical, and a restraint lens that may decline Significant/Minor findings but <em>never</em> a Critical one, recording every decline with a reason. Neither side has the other's half.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-adversarial-review/SKILL.md:118-141</code></p></div>
+</section>
+<section id="stage-ship" class="stage">
+  <h3><span class="stagenum">7</span>Ship <span class="badge b-partial" title="The job is split differently across skills">Partial overlap</span></h3>
+  <p class="stageq">How does the change reach main, and what counts as finished?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>7</em></h4><ul class="skills buck"><li><span class="sk">git-commit</span><span class="sd">Conventional Commits message from staged changes, commits immediately</span></li><li><span class="sk">git-commit-improved</span><span class="sd">Deterministic commit path backed by a preflight script instead of model prose</span></li><li><span class="sk">b-pr</span><span class="sd">Rebases via preflight, generates a description, creates the PR with <code>gh</code></span></li><li><span class="sk">fix-pr</span><span class="sd">Validates each PR comment against the code, then fixes + pushes or files GitHub issues</span></li><li><span class="sk">b-pr-review-2-issues</span><span class="sd">Ingests PR comments, classifies and groups them into a plan artifact (no issues created)</span></li><li><span class="sk">b-fix-rebase-conflict</span><span class="sd">Semantic rebase/merge conflict resolution, stops before <code>--continue</code></span></li><li><span class="sk">git-clean-orphans</span><span class="sd">Inventories and removes stale worktrees and orphan branches, gated on confirmation</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>4</em></h4><ul class="skills jz"><li><span class="sk">jz-pr</span><span class="sd">Whole-arc orchestrator with a five-part definition of done; reads git state to pick where to start and never exits with a part unmet</span></li><li><span class="sk">jz-pr-github-checks</span><span class="sd">Diagnoses red CI checks; in <code>loop</code> scope drives them green, never by editing <code>.github/</code></span></li><li><span class="sk">jz-pr-copilot-review</span><span class="sd">Works bot review feedback; in <code>loop</code> scope converges to an empty Copilot review against the current head</span></li><li><span class="sk">jz-deploy</span><span class="sd">Release → image build → ArgoCD deploy entirely through GitHub Actions, with rollback</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>buck stops at “PR created and comments addressed”. jz defines done as five simultaneous conditions including <strong>all gating checks green</strong> and <strong>an empty final bot review against the current head</strong>, then supplies two convergence loops to reach them — each waiting in a background command rather than a foreground poll, with CI logs read by a subagent so raw output never enters the conversation. buck explicitly does not wait on CI, and has no deploy path at all.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-pr/SKILL.md:12-28</code></p></div>
+</section>
+<section id="stage-remember" class="stage">
+  <h3><span class="stagenum">8</span>Remember <span class="badge b-adjacent" title="Neighbouring job, different output">Adjacent</span></h3>
+  <p class="stageq">What survives the session, and where does meaning live?</p>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>7</em></h4><ul class="skills buck"><li><span class="sk">b-save</span><span class="sd">12-step checkpoint: session memory file, ledger index, backlog, cross-refs, optional long-term-memory mirror</span></li><li><span class="sk">b-save-improved</span><span class="sd">Same contract, deterministic: Bun preflight/apply scripts plus scribe and auditor model roles</span></li><li><span class="sk">b-docs</span><span class="sd">Living docs — domain language in <code>CONTEXT.md</code>, ADRs in <code>docs/adr/</code>, a managed conventions block</span></li><li><span class="sk">b-howto</span><span class="sd">Diátaxis how-tos in <code>docs/howto/</code>, one user action per file</span></li><li><span class="sk">b-memory-import</span><span class="sd">One-shot import of <code>.context/memory</code> into long-term memory with stable document ids</span></li><li><span class="sk">b-hindsight-import-projects</span><span class="sd">Multi-project wrapper over the importer</span></li><li><span class="sk">llm-wiki-vault</span><span class="sd">Vault-native research wiki for an Obsidian PARA vault</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>2</em></h4><ul class="skills jz"><li><span class="sk">jz-agent-session-state</span><span class="sd">A durable record at <code>~/.jz-agent-session-state/&lt;session-id&gt;.state.md</code> holding goals, the approved workflow, gate decisions and expensive facts</span></li><li><span class="sk">jz-text-humanizer</span><span class="sd">Strips AI-writing tells from human-facing text before it ships</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>Opposite philosophies, and both are defensible. buck's record is <strong>in git, portable across harnesses, and written because an agent chose to run <code>/b-save</code></strong>. jz's record is <strong>outside git, harness-specific, and written by machinery the agent cannot forget to run</strong>: a SessionStart hook injects it (with precedence over the compaction summary) and a Stop hook launches a detached headless model that edits it in its own process — costing the conversation no tokens, no turn and no rendered diff. jz also bans rationale from repo files entirely, pushing it to the PR; buck builds a whole doc taxonomy for it.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-agent-session-state/SKILL.md:8-20</code></p></div>
+</section>
+</section>
+
+<section class="top-level" id="crosscut">
+ <h2><span class="h2n">07</span>Cross-cutting</h2>
+ <p class="lede">Two groups do not belong to a single stage: the machinery that drives the whole pipeline, and the tooling each team built for its own house.</p>
+ 
+<section id="cc-autonomy" class="stage cc">
+  <h3>Autonomy & orchestration <span class="badge b-none" title="One side has it, the other does not">No overlap</span></h3>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>2</em></h4><ul class="skills buck"><li><span class="sk">b-loop</span><span class="sd">Reads a phased plan and <em>recommends</em> <code>none | orchestrate | workflow | goal</code>, stamping the choice onto phase frontmatter. Advisory and stamp only — it does not run a loop.</span></li><li><span class="sk">b-auto-fix</span><span class="sd">Chains research → plan → build → review for a single GitHub issue.</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>1</em></h4><ul class="skills jz"><li><span class="sk">jz-autonomous-development</span><span class="sd">A conductor for the whole idea → merge-ready-PR arc. Delegates every phase to the skill that owns it, adds two artifact modes, a two-phase Plan-PR + stacked Implementation-PR topology, exactly three human gates, and stop/escalation logic. Terminal state is a merged PR, not a report.</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>This is the single largest structural difference. buck's repo history contains a deliberate decision to <em>stop</em> building extension-based orchestration and keep everything at prompt/skill level; jz went the other way and built the conductor as a skill. Notably jz's conductor obeys the same rule buck landed on: it is a skill, not an extension, and it contains no engine of its own — every phase delegates.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-autonomous-development/SKILL.md:42-59</code></p></div>
+</section>
+<section id="cc-meta" class="stage cc">
+  <h3>Meta, packaging & house-specific <span class="badge b-partial" title="The job is split differently across skills">Partial overlap</span></h3>
+  <div class="cols">
+    <div class="col buckcol"><h4><span class="dot buck"></span>buck-workflow-pi <em>7</em></h4><ul class="skills buck"><li><span class="sk">_shared</span><span class="sd">Cross-skill protocol registry; today it holds subject-resolution</span></li><li><span class="sk">cross-platform-pi-omp-loading</span><span class="sd">Dual-runtime package layout, manifest keys, shim gaps</span></li><li><span class="sk">b-init-factory</span><span class="sd">Writes a factory-scoped <code>AGENTS.md</code> into a harness directory</span></li><li><span class="sk">pi-rpc</span><span class="sd">Drives a pi subprocess over its JSON RPC protocol</span></li><li><span class="sk">run-in-idle-pane</span><span class="sd">Runs dev servers in the least-active tmux pane</span></li><li><span class="sk">rails-app</span><span class="sd">Rails conventions and gotchas reference</span></li><li><span class="sk">product-tour</span><span class="sd">Designs and ships a first-run guided product tour</span></li></ul></div>
+    <div class="col jzcol"><h4><span class="dot jz"></span>docker-orchestration <em>6</em></h4><ul class="skills jz"><li><span class="sk">jz-skill-writer</span><span class="sd">Authoring a skill <em>is</em> TDD applied to documentation: run a pressure scenario with a subagent, watch it fail without the skill, write the skill, watch it pass, then close loopholes</span></li><li><span class="sk">jz-dev-commands</span><span class="sd">Everyday in-container PHP/Composer/test commands plus a host↔container sync check</span></li><li><span class="sk">jz-cert</span><span class="sd">Local-dev TLS for the team's wildcard domains via mkcert</span></li><li><span class="sk">jz-kibana-search</span><span class="sd">Log search against the company's internal Kibana/Elasticsearch proxy</span></li><li><span class="sk">jz-kafka-connect-api</span><span class="sd">Kafka Connect REST ops with a read-only / guarded / Terraform-only operation classifier</span></li><li><span class="sk">jz-zuora-invoice-writeoff</span><span class="sd">Billing write-off for one customer account, enforced in Python: sandbox by default, single-account scope, live re-verification, hard human gate between plan and execute</span></li></ul></div>
+  </div>
+  <div class="note"><h5>What actually differs</h5><p>Six of jz's 24 skills are welded to one company's infrastructure — hard-coded internal hostnames, repo names and AWS profiles — and are not portable by design. buck has no company tail at all, but also <strong>no skill for authoring skills</strong>, despite being a repo whose entire product is skills.</p><p class="ev">Evidence · <code>/tmp/docker-orchestration/.claude/skills/jz-skill-writer/SKILL.md:10-22</code></p></div>
+</section>
+</section>
+
+<section class="top-level" id="matrix">
+ <h2><span class="h2n">08</span>Capability scorecard</h2>
+ <p class="lede">Thirty discrete capabilities, each either present, partially present, or absent. Read the bottom half first — that is where the two suites stop resembling each other.</p>
+ <div class="tablewrap"><table>
+  <thead><tr><th>Capability</th><th class="mid">buck</th><th class="mid">jz</th><th>Notes</th></tr></thead>
+  <tbody><tr><td class="cap">Admission gate before planning starts</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">jz blocks on a “grounding floor”: requirements AND ≥1 Given/When/Then</td></tr><tr><td class="cap">One-question-at-a-time design interview</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>b-brainstorm</code> / <code>b-plan</code> vs <code>jz-spec-writer</code> — near-identical</td></tr><tr><td class="cap">Stable requirement IDs with source tags</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>PR-NNN</code> → <code>FR-NNN</code>/<code>SC-NNN</code> → <code>VP-NNN</code>, untagged = scope creep, cut</td></tr><tr><td class="cap">Dependency modelling between work units</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>b-phase</code> HARD/SOFT/NONE; jz plans are ordered lists</td></tr><tr><td class="cap">Stress-test the plan before building</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck interviews a human or another model; jz runs a scored review panel</td></tr><tr><td class="cap">Multi-lens review panel (1/3/5 lenses)</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">Intensity is chosen by the caller, never inferred from the artifact</td></tr><tr><td class="cap">Review on a different model family</td><td class="mid"><span class="yn p">Partial</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck only in <code>b-grill-auto</code>; jz for every review lens, always</td></tr><tr><td class="cap">Confined review sandbox (allowlisted read tools)</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">Temp CWD with only the artefact, deny-by-default tools, secret redaction</td></tr><tr><td class="cap">Restraint / YAGNI lens over findings</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">Criticals never declinable; every decline recorded with a reason</td></tr><tr><td class="cap">Enforced TDD law</td><td class="mid"><span class="yn p">Partial</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck: prose inside <code>b-build</code>. jz: standalone law, code-before-test gets deleted</td></tr><tr><td class="cap">Systematic debugging skill</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck's own bootstrap routes to a debugger role that has no skill</td></tr><tr><td class="cap">Fresh subagent per task + resumable ledger</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>jz-plan-executor</code>; buck builds in one context</td></tr><tr><td class="cap">Worktree per unit of work</td><td class="mid"><span class="yn p">Partial</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck creates one only inside <code>b-pr-review-2-issues</code></td></tr><tr><td class="cap">Machine-checkable coverage / complexity gates</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>guardrails.json</code> with ratchet baseline, ≥90% patch coverage, McCabe ceiling</td></tr><tr><td class="cap">CI-green convergence loop</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">buck explicitly does not wait on CI</td></tr><tr><td class="cap">Bot-review-comment convergence loop</td><td class="mid"><span class="yn p">Partial</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>fix-pr</code> reads bot bodies but does not loop to a clean review</td></tr><tr><td class="cap">Creates real GitHub issues</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>b-issue-create</code>, <code>fix-pr</code>; jz has no issue-creation skill</td></tr><tr><td class="cap">Deploy / release path</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>jz-deploy</code> drives releases and ArgoCD entirely through GitHub Actions</td></tr><tr><td class="cap">Git-portable session record</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>.context/memory</code> + ledger + backlog, committed and harness-neutral</td></tr><tr><td class="cap">Hook-driven persistence (agent cannot forget)</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">SessionStart injects, Stop launches a detached headless updater</td></tr><tr><td class="cap">Doc taxonomy (ADR / how-to / domain language)</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell">jz deliberately bans rationale from repo files</td></tr><tr><td class="cap">Backlog of deferred work</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>.context/backlog/</code> with linked items and an archive</td></tr><tr><td class="cap">Briefing artifacts for non-engineers</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn n">No</span></td><td class="notecell"><code>b-present</code>, <code>b-blueprint</code>; jz's terminal state is a PR</td></tr><tr><td class="cap">AI-prose de-tell pass</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>jz-text-humanizer</code> runs before any human-facing text ships</td></tr><tr><td class="cap">Skill-authoring meta-skill</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>jz-skill-writer</code> = TDD applied to process documentation</td></tr><tr><td class="cap">Skill lint enforced in CI</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell">name==dirname, every cited path resolves, every named target exists</td></tr><tr><td class="cap">Retired-skill tombstones</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>skills/RETIRED</code> — without it an installer can never uninstall a renamed skill</td></tr><tr><td class="cap">Third-party attribution file</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>ATTRIBUTION.md</code> with the full MIT text and a per-skill port table</td></tr><tr><td class="cap">Autonomous end-to-end conductor</td><td class="mid"><span class="yn n">No</span></td><td class="mid"><span class="yn y">Yes</span></td><td class="notecell"><code>jz-autonomous-development</code>: 3 human gates, two-PR topology, stop logic</td></tr><tr><td class="cap">Cross-harness distribution</td><td class="mid"><span class="yn y">Yes</span></td><td class="mid"><span class="yn p">Partial</span></td><td class="notecell">buck installs to 7 harnesses; jz targets Claude Code + OpenCode + Pi</td></tr></tbody>
+ </table></div>
+</section>
+
+<section class="top-level" id="adopt">
+ <h2><span class="h2n">09</span>What each could take from the other</h2>
+ <p class="lede">Ranked by value divided by effort. Each candidate says where it attaches: <strong>fold-in</strong> patches an existing skill, <strong>new member</strong> adds a skill with a named position in the chain, <strong>standalone</strong> is a reference with no chain position, and <strong>repo init</strong> is a one-time piece of repository furniture.</p>
+ <div class="callout">
+  <h4>A companion report turns this list into a plan</h4>
+  <p>The candidates below are ranked by value over effort and stop there. <strong><a href="adoption-plan.html">Adoption plan: what to take, and where it fits</a></strong> continues them — which suite to build on and why, the three forks worth crossing, what neither side has, and every candidate re-ranked into landing waves with the exact file it attaches to, its acceptance check, and three explicit declines.</p>
+ </div>
+ <div class="subhead">For buck-workflow-pi · 12 candidates</div>
+ <div class="adoptgrid"><article class="adopt">
+    <header><h4>Iteration is a mode, never a name</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>A skill defaults to <strong>one read-only pass ending in a proposal</strong>. It converges only when the caller passes an explicit, greppable <code>loop</code> scope — because a prose cue can be edited away and silently leave a call site one-shot. Never put <code>-loop</code> in a skill name.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><code class="evc">.claude/skills/README.md:31</code></footer>
+  </article><article class="adopt">
+    <header><h4>Skill lint in CI</h4><span class="klass k-repo-init">repo init</span></header>
+    <p>Static structural lint over every skill: <code>name:</code> matches the directory, description present and within spec, <strong>every cited file path resolves</strong>, every named sub-skill and slash-command target exists, hook scripts executable. buck already has a known dangling-reference defect of exactly this class; a lint catches the whole family, permanently.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><code class="evc">.claude/skills/README.md:141</code></footer>
+  </article><article class="adopt">
+    <header><h4>A <code>RETIRED</code> tombstone file</h4><span class="klass k-repo-init">repo init</span></header>
+    <p>Renaming or deleting a skill appends the old name to <code>skills/RETIRED</code>; install/update purge those names, status reports leftovers. Without it, tooling only walks names that still exist, so a deleted skill is invisible to uninstall and keeps advertising itself forever. buck publishes to npm <em>and</em> symlink-installs into seven harnesses — it has the exact exposure.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><code class="evc">.claude/skills/README.md:33</code></footer>
+  </article><article class="adopt">
+    <header><h4>Stable requirement IDs with <code>(source:)</code> tags</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>Number requirements once and make every downstream artifact cite the id rather than a line number. Two rules do the work: an untagged requirement is scope creep and gets cut, and a ticket id no downstream line cites is a dropped requirement. Fold into <code>b-nasa-prd</code> (mint), <code>b-plan</code> (carry) and <code>b-review</code> (check) — it turns buck's completion matrix into something <code>grep</code> can verify.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-spec-writer/SKILL.md:109-119</code></footer>
+  </article><article class="adopt">
+    <header><h4>A systematic debugging skill</h4><span class="klass k-new-member">new member</span></header>
+    <p>Four phases, an Iron Law of no fix before proven root cause, and a stop-and-question-the-architecture rule after three failed fixes. buck's global bootstrap already routes bug work to a “systematic-debugger” role that does not exist — this is the second independent audit to find the same hole.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-debug/SKILL.md:16-48</code></footer>
+  </article><article class="adopt">
+    <header><h4>A restraint lens over review findings</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>Before a reviewer emits its report, run every finding through a YAGNI disposition: honour anything in a never-simplify set (trust boundaries, data-loss-preventing error handling, security, accessibility, anything the requirements explicitly asked for), classify the rest as real defect or gold-plating, and record every decline with a one-line reason. Criticals are never declinable. Fold into <code>b-review</code> and <code>code-review-universal</code>.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-senior-engineer/SKILL.md:116-138</code></footer>
+  </article><article class="adopt">
+    <header><h4>Skill-authoring meta-skill</h4><span class="klass k-new-member">new member</span></header>
+    <p>Treat writing a skill as TDD on documentation: run the pressure scenario with a subagent <em>first</em>, record the exact rationalisations it produces without the skill, write the skill against those, verify compliance, then close loopholes. buck's product is skills and it has no skill for making them.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-skill-writer/SKILL.md:34-49</code></footer>
+  </article><article class="adopt">
+    <header><h4>CI-green and bot-review convergence loops</h4><span class="klass k-new-member">new member</span></header>
+    <p>Two standalone iteration primitives: drive red gating checks green (never by editing CI config), and drive bot review comments to an empty review against the current head. Both dispatch their waits as background commands that exit on their own condition, and delegate failing-log reading to a subagent so raw CI output never lands in the conversation. buck's <code>fix-pr</code> deliberately ignores CI today.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/CLAUDE.md:197-198</code></footer>
+  </article><article class="adopt">
+    <header><h4>Confined, different-model review dispatch</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>Run the reviewer on a different provider, from a temp directory containing only the copied diff and criteria, with a deny-by-default read-only tool allowlist, a throwaway config dir and secret-env redaction. buck already runs a different model in <code>b-grill-auto</code> over Pi RPC — the plumbing exists; the confinement contract is the missing half.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-adversarial-review/references/dispatch.md:47-64</code></footer>
+  </article><article class="adopt">
+    <header><h4>A prose de-tell pass before human-facing text</h4><span class="klass k-new-member">new member</span></header>
+    <p>One skill invoked on PR titles and bodies, commit messages, docs and chat text before it ships. buck produces more human-facing prose than jz does and has no equivalent.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/jz-text-humanizer/SKILL.md</code></footer>
+  </article><article class="adopt">
+    <header><h4>A hard cap on inline waiting</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>Never <code>sleep</code> or otherwise block inline for more than 30 seconds; a longer wait goes to the harness's async mechanism or ends the turn with a condition to re-check. A command doing real work for minutes is fine — the ban is on waiting, not working. One paragraph in the bootstrap.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><code class="evc">/tmp/docker-orchestration/.claude/config/RULES.md:42-48</code></footer>
+  </article><article class="adopt">
+    <header><h4><code>ATTRIBUTION.md</code> as a working template</h4><span class="klass k-repo-init">repo init</span></header>
+    <p>Upstream ships a root attribution file: source repo, author, pinned version and commit, licence, full MIT text and a per-skill port table. buck already has this remediation locked from its 2026-09-10 audit; this is a second repo demonstrating the exact shape to copy.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><code class="evc">/tmp/docker-orchestration/.claude/skills/ATTRIBUTION.md</code></footer>
+  </article></div>
+ <div class="subhead">For docker-orchestration · 6 candidates</div>
+ <div class="adoptgrid"><article class="adopt">
+    <header><h4>A git-portable session record</h4><span class="klass k-new-member">new member</span></header>
+    <p>jz's durable state lives in <code>~/.jz-agent-session-state/</code> — outside git, outside code review, and unreadable by a teammate or a different harness. buck's <code>.context/memory</code> + ledger + backlog is committed, diffable and harness-neutral. The two are complementary: keep the hook-driven writer, change where it writes.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span></footer>
+  </article><article class="adopt">
+    <header><h4>A doc taxonomy for rationale</h4><span class="klass k-new-member">new member</span></header>
+    <p>jz's rules ban rationale from repo files and push it to the PR or ticket. That is recoverable for a quarter and gone after that. ADRs (<code>docs/adr/</code>), domain language (<code>CONTEXT.md</code>) and Diátaxis how-tos (<code>docs/howto/</code>) give the <em>why</em> a home that survives the PR being archived.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span></footer>
+  </article><article class="adopt">
+    <header><h4>A recorded quality contract</h4><span class="klass k-repo-init">repo init</span></header>
+    <p>jz's local quality gate is “the repo's own commands, discovered per repo” — nothing records what good looks like. A committed <code>guardrails.json</code> with coverage targets, a ratchet baseline, a patch-coverage floor and a complexity ceiling turns that into a number a run can fail against.</p>
+    <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span></footer>
+  </article><article class="adopt">
+    <header><h4>Briefing artifacts for non-engineers</h4><span class="klass k-standalone">standalone</span></header>
+    <p>jz's terminal state is a merged PR. Nothing in the suite communicates a design to a product manager or a stakeholder. <code>b-present</code> and <code>b-blueprint</code> generate exactly that from artifacts already written.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span></footer>
+  </article><article class="adopt">
+    <header><h4>A backlog surface</h4><span class="klass k-new-member">new member</span></header>
+    <p>Between “this is a ticket” and “this is forgotten”, jz has nothing. buck's <code>.context/backlog/</code> with linked items and an archive is the missing middle.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span></footer>
+  </article><article class="adopt">
+    <header><h4>Phase dependency modelling</h4><span class="klass k-fold-in">fold-in</span></header>
+    <p>jz's conductor is strictly sequential and its plans are ordered task lists. buck's HARD/SOFT/NONE phase matrix would let the conductor dispatch genuinely independent phases concurrently — something its own dispatch mandate already contemplates.</p>
+    <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span></footer>
+  </article></div>
+</section>
+
+<section class="top-level" id="nongoals">
+ <h2><span class="h2n">10</span>What not to port</h2>
+ <p class="lede">A list of non-goals is as useful as the adoption list. These are the things that look transferable and are not.</p>
+ <div class="stack"><div class="row"><h4>Never port the spine</h4><p>Each suite is deeper station-for-station in its own half. Importing <code>jz-spec-writer</code> or <code>jz-plan-writer</code> wholesale would replace mature buck skills with ones tuned for a different repo's conventions. Take single rules, gates and vocabulary — not workflows.</p></div><div class="row"><h4>The six company-bound ops skills</h4><p><code>jz-cert</code>, <code>jz-kibana-search</code>, <code>jz-kafka-connect-api</code>, <code>jz-zuora-invoice-writeoff</code>, <code>jz-dev-commands</code> and <code>jz-deploy</code> hard-code internal hostnames, repo names, AWS profiles and GitHub Environments. They are correct <em>there</em> and meaningless anywhere else.</p></div><div class="row"><h4>Anything requiring the <code>jz</code> shell dispatcher</h4><p>A large part of the suite assumes <code>bin/jz</code>, <code>~/.jz.sh</code> and a container toolchain. Porting the instruction without the dispatcher gives an agent commands that do not exist.</p></div><div class="row"><h4><code>jz-cycle-doc</code></h4><p>It reproduces an external template pinned to a specific upstream revision. Without that upstream the artifact has no contract to satisfy.</p></div><div class="row"><h4>The Claude hook contract itself</h4><p>The session-state <em>hooks</em> are Claude Code-specific. Copy the <em>design</em> — out-of-band writer, injected at session start, precedence over the compaction summary — not the shell scripts. buck's own history already argues against new extension-based orchestration.</p></div></div>
+</section>
+
+<section class="top-level" id="risks">
+ <h2><span class="h2n">11</span>Housekeeping findings</h2>
+ <p class="lede">Things worth fixing regardless of whether a single skill is ever adopted. Four concern buck-workflow-pi; the fifth records that the upstream side has nothing outstanding.</p>
+ <div class="stack"><div class="row"><h4>Attribution, already open <span class="sev medium">medium</span></h4><p>buck's <code>skills/b-grill-with-docs/CONTEXT-FORMAT.md</code> and <code>ADR-FORMAT.md</code> are near-verbatim copies of MIT-licensed upstream work with no notice, while <code>package.json</code> <code>files:</code> publishes <code>skills/</code> to npm. Remediation was locked on 2026-09-10 (<code>THIRD-PARTY-NOTICES.md</code> + provenance headers). This audit adds nothing new except a ready-made template — <code>.claude/skills/ATTRIBUTION.md</code> — and the observation that a peer repo treats the same obligation as routine.</p></div><div class="row"><h4>Dangling references have no detector <span class="sev medium">medium</span></h4><p>buck's skills cite <code>docs/agents/issue-tracker.md</code> and <code>docs/agents/triage-labels.md</code>, which no skill produces and which do not exist. That is precisely what <code>jz skill-lint check</code> exists to catch, and it runs in CI upstream. The defect is known; the missing piece is the detector.</p></div><div class="row"><h4>No tombstones while publishing and symlinking <span class="sev low">low</span></h4><p>buck installs into seven harnesses by symlink and publishes to npm. A renamed or deleted skill stays on every machine that installed the old revision, invisible to any uninstall path that walks only current names.</p></div><div class="row"><h4>A routed role with no skill behind it <span class="sev low">low</span></h4><p>The global bootstrap's task-routing table sends “reproducible bug, runtime error” to a systematic-debugger role. No such skill exists in the 53. Two independent audits have now found it.</p></div><div class="row"><h4>Nothing to action on the upstream side <span class="sev info">info</span></h4><p>The upstream repo's own housekeeping is in order: attribution is present and complete, the skill lint runs in CI, the destructive-script marker convention is documented, and the one financially dangerous skill enforces its guardrails in Python rather than in prose.</p></div></div>
+</section>
+
+<section class="top-level" id="appendix">
+ <h2><span class="h2n">12</span>Method &amp; evidence</h2>
+ <p class="lede">How this was produced, and where the working notes live.</p>
+ <div class="stack">
+  <div class="row"><h4>Read-only throughout</h4><p>Neither repository was modified. The upstream repository was cloned to a temporary directory at commit <code>1fea15e</code> and read; the local repository was read at commit <code>f797174</code>. No skill, prompt, extension or configuration file in either tree was written to.</p></div>
+  <div class="row"><h4>Split reading</h4><p>Seven read-only research agents catalogued the local suite in six disjoint clusters plus the upstream company-specific tail, each returning the same contract — invocation, input, exact output paths, workflow position, distinctive mechanic, stated non-goals. The upstream workflow spine was read directly rather than delegated, because the value in a peer library is usually a single rule inside an otherwise-familiar skill, and that does not survive summarisation.</p></div>
+  <div class="row"><h4>Working notes</h4><p>Raw per-cluster reports and the durable findings artifact are under <code>.context/2026-09-11.resumator-docker-orchestration-overlap/</code> — seven cluster reports in <code>research/</code>, the first-pass upstream notes in <code>research-overlap-notes.md</code>, and the full synthesis in <code>research-overlap-findings.md</code>, including the open-questions list this report omits.</p></div>
+  <div class="row"><h4>Counting convention</h4><p>buck-workflow-pi has 54 directories under <code>skills/</code>; <code>_shared</code> is a protocol registry rather than a skill, so the headline count is 53. Two buck skills (<code>b-loop</code>, <code>b-auto-fix</code>) and two jz skills (<code>jz-adversarial-review</code>, <code>jz-senior-engineer</code>) are listed in two stages because they genuinely operate in both.</p></div>
+ </div>
+</section>
+
+</main>
+
+<aside id="toc">
+ <button class="toctoggle" aria-expanded="false">Contents ▾</button>
+ <h6>Contents</h6>
+ <nav><ul><li><a href="#summary" class="l1">Bottom line</a></li><li><a href="#glossary" class="l1">How to read this</a></li><li><a href="#projects" class="l1">The two projects</a></li><li><a href="#ancestry" class="l1">Shared ancestry</a></li><li><a href="#pipeline" class="l1">The two pipelines</a></li><li><a href="#stages" class="l1">Stage by stage</a><ul><li><a href="#stage-frame" class="l2">1. Frame</a></li><li><a href="#stage-design" class="l2">2. Design</a></li><li><a href="#stage-plan" class="l2">3. Plan</a></li><li><a href="#stage-challenge" class="l2">4. Challenge</a></li><li><a href="#stage-build" class="l2">5. Build</a></li><li><a href="#stage-verify" class="l2">6. Verify</a></li><li><a href="#stage-ship" class="l2">7. Ship</a></li><li><a href="#stage-remember" class="l2">8. Remember</a></li></ul></li><li><a href="#crosscut" class="l1">Cross-cutting</a><ul><li><a href="#cc-autonomy" class="l2">Autonomy & orchestration</a></li><li><a href="#cc-meta" class="l2">Meta, packaging & house-specific</a></li></ul></li><li><a href="#matrix" class="l1">Capability scorecard</a></li><li><a href="#adopt" class="l1">What each could take</a></li><li><a href="adoption-plan.html" class="l1">→ Adoption plan</a></li><li><a href="#nongoals" class="l1">What not to port</a></li><li><a href="#risks" class="l1">Housekeeping findings</a></li><li><a href="#appendix" class="l1">Method & evidence</a></li></ul></nav>
+</aside>
+</div></div>
+
+<footer class="end"><div class="wrap">
+ Read-only overlap audit · buck-workflow-pi <code>f797174</code> × resumator/docker-orchestration <code>1fea15e</code> · 11 September 2026.
+ No file in either repository was modified.
+</div></footer>
+
+<script>
+(function(){
+ var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+ var map = {};
+ links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+ var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+ var active = null;
+ function setActive(el){
+   if(!el || el===active) return;
+   if(active) active.classList.remove('active');
+   active = el; el.classList.add('active');
+ }
+ var io = new IntersectionObserver(function(entries){
+   var visible = entries.filter(function(e){return e.isIntersecting;});
+   if(!visible.length) return;
+   visible.sort(function(a,b){return a.boundingClientRect.top - b.boundingClientRect.top;});
+   setActive(map[visible[0].target.id]);
+ }, {rootMargin:'-8% 0px -72% 0px', threshold:0});
+ targets.forEach(function(t){ io.observe(t); });
+
+ var btn = document.querySelector('.toctoggle'), side = document.getElementById('toc');
+ if(btn){ btn.addEventListener('click', function(){
+   var open = side.classList.toggle('open');
+   btn.setAttribute('aria-expanded', String(open));
+   btn.textContent = open ? 'Contents ▴' : 'Contents ▾';
+ }); }
+ links.forEach(function(a){ a.addEventListener('click', function(){ if(side.classList.contains('open')){ side.classList.remove('open'); btn.textContent='Contents ▾'; } }); });
+})();
+</script>
+</body></html>

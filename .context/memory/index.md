@@ -15,3 +15,211 @@
 
 - 2026-09-12 — [Isolated code-review iteration build](code-review-iteration-build-2026-09-12.md) — `active` (OMP command, isolated Reviewer/Fixer loop, durable runtime reports, model routing, guarded verification)
 - 2026-09-12 — [Code review iteration — living-doc closeout](code-review-iteration-closeout-2026-09-12.md) — `completed` (ADR 0001 + CONTEXT.md + AGENTS.md conventions block + howtos; 658/658 vitest, 100% diff-cover)
+- 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
+- 2026-09-11 — [fix-pr: PR #17 revalidation, zero open findings](fix-pr-17-2026-09-11b.md) — `completed`
+
+  - 2026-09-11 | `fix-pr-17-2026-09-11b.md` | domains: [review, workflow] | topics: [fix-pr, pr-17, revalidation, b-eval-upstream-prs, zero-open-findings] | status: completed
+
+- 2026-09-11 — [fix-pr: PR #17 rebase + revalidation (scope hygiene restored)](fix-pr-17-2026-09-11.md) — `completed`
+
+  - 2026-09-11 | `fix-pr-17-2026-09-11.md` | domains: [review, workflow] | topics: [fix-pr, pr-17, rebase, conflict-resolution, b-eval-upstream-prs, scope-hygiene] | status: completed
+
+- 2026-09-11 — [Overlap audit: buck-workflow-pi vs resumator/docker-orchestration .claude](overlap-audit-docker-orchestration-2026-09-11.md) — `completed`
+
+  - 2026-09-11 | `overlap-audit-docker-orchestration-2026-09-11.md` | domains: [audit, agent-skills, docs] | topics: [overlap-audit, jz-skills, docker-orchestration, superpowers-lineage, methodology-comparison] | status: completed
+
+- 2026-09-10 — [mattpocock/skills remediation — phased execution](mattpocock-adoption-2026-09-10.md) — `in-progress`
+
+  - 2026-09-10 | `mattpocock-adoption-2026-09-10.md` | domains: [skill, buck-workflow, docs, license] | topics: [mattpocock-skills, adoption, phase-1, mit-notice, provenance, issue-tracker, triage-labels, b-research, backlog, guardrails] | status: in-progress
+
+- 2026-09-09 — [fix-pr: PR #17 review fixes (fetch URL, stale refs, local-only)](fix-pr-17-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `fix-pr-17-2026-09-09.md` | domains: [review, skill, docs] | topics: [fix-pr, pr-17, b-eval-upstream-prs, fetch-url, local-only] | status: completed
+
+- 2026-09-09 — [fix-pr: PR #18 dangling-symlink + capture entry serialization](fix-pr-18-2026-09-09.md) — `completed`
+
+- 2026-09-09 — [Install source consolidation and symlink-not-copy instructions](install-source-consolidation-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `install-source-consolidation-2026-09-09.md` | domains: [install, docs, tooling] | topics: [installer, symlink, bootstrap-drift, source-root, agent-install-instructions, harness-wiring] | status: completed
+
+- 2026-09-09 — [Response-style consolidation in the global bootstrap](response-style-consolidation-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `response-style-consolidation-2026-09-09.md` | domains: [agent-instructions, bootstrap, docs] | topics: [response-style, global-agents-bootstrap, consolidation, bootstrap-drift, symlink-install] | status: completed
+
+- 2026-09-08 — [b-init-factory skill and cross-harness command](b-init-factory-2026-09-08.md) — `completed`
+
+  - 2026-09-08 | `b-init-factory-2026-09-08.md` | domains: [skill, buck-workflow, docs] | topics: [b-init-factory, software-factory, agents-md, cross-harness] | status: completed
+
+- 2026-09-09 — [fix-pr: PR #16 catalog row restorations](fix-pr-16-2026-09-09.md) — `completed`
+
+  - 2026-09-09 | `fix-pr-16-2026-09-09.md` | domains: [docs, review] | topics: [fix-pr, b-plan-update, catalog, pr-review] | status: completed
+
+- 2026-09-07 — [b-plan-update skill shipped: in-place plan revision, removal-review gates, revision log, phase-drift flag](b-plan-update-skill-2026-09-07.md) — `completed`
+
+  - 2026-09-07 | `b-plan-update-skill-2026-09-07.md` | domains: [skill, buck-workflow, docs] | topics: [b-plan-update, plan-revision, in-place-edit, revision-log, sibling-skill, removal-review, mockups, artifacts, phase-drift, catalog] | status: completed
+
+- 2026-09-05 — [fix-pr: PR #14 review fixes (README truncation, grouping rule, section placement)](fix-pr-14-2026-09-05.md) — `completed`
+
+  - 2026-09-05 | `fix-pr-14-2026-09-05.md` | domains: [workflow, review] | topics: [fix-pr, b-recap, pr-review] | status: completed
+
+- 2026-09-04 — [b-nasa-prd skill built from NASA SEH Appendix C](b-nasa-prd-skill-2026-09-04.md) — `completed`
+
+  - 2026-09-04 | `b-nasa-prd-skill-2026-09-04.md` | domains: [skill, buck-workflow, docs] | topics: [b-nasa-prd, nasa, prd, requirements, appendix-c, skill-creation] | status: completed
+
+- 2026-09-03 — [b-save-improved: default scribe role, actionable model errors, and smol fallback](b-save-improved-empty-scribe-2026-09-03.md) — `completed`
+
+  - 2026-09-03 | `b-save-improved-empty-scribe-2026-09-03.md` | domains: [extensions, omp, testing] | topics: [b-save-improved, scribe-model, model-roles, empty-response, model-fallback] | status: completed
+
+- 2026-08-27 — [fix-pr: PR #10 remaining blockers](fix-pr-10-blockers-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-blockers-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-containment, apply-failure, yaml-frontmatter] | status: completed
+
+- 2026-08-27 — [fix-pr: PR #10 leaf symlink containment](fix-pr-10-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `fix-pr-10-2026-08-27.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, leaf-symlink] | status: completed
+
+- 2026-08-27 — [b-save-improved parity: hardened extension/skill wiring with expanded preflight+apply+wire tests; complexity override recorded.](deterministic-bsave-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `deterministic-bsave-2026-08-27.md` | domains: [extensions, testing, workflow] | topics: [b-save-improved, deterministic-checkpoint, scribe-auditor, parity, guardrails-override] | status: completed
+
+- 2026-08-27 — [Review: b-save-improved artifact parity](bsave-improved-parity-review-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `bsave-improved-parity-review-2026-08-27.md` | domains: [review, extensions, testing, quality] | topics: [b-save-improved, parity, guardrails, completion-audit] | status: completed
+
+- 2026-08-27 — [Guardrails override — complexity gate (b-save-improved parity session)](guardrails-override-complexity-2026-08-27.md) — `completed`
+
+  - 2026-08-27 | `guardrails-override-complexity-2026-08-27.md` | domains: [tooling, quality] | topics: [guardrails, complexity-gate, override, b-save-improved-parity] | status: completed
+
+- 2026-08-26 — [fix-pr: PR #10 path containment, index idempotency, save fidelity](fix-pr-10-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `fix-pr-10-2026-08-26.md` | domains: [review, security, extensions, testing] | topics: [fix-pr, pr-10, b-save-improved, path-traversal, memory-index, fidelity] | status: completed
+
+- 2026-08-26 — [Deterministic b-save-improved: skill + extension + command added, shared omp-models/context-helpers extracted, context-artifacts migrated to TS (264+/486-).](deterministic-bsave-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `deterministic-bsave-2026-08-26.md` | domains: [extensions, testing, tooling] | topics: [b-save-improved, deterministic-checkpoint, shared-helpers, typescript-migration] | status: completed
+
+- 2026-08-26 — [OMP catalog for nested createAgentSession](omp-catalog-for-nested-sessions-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `omp-catalog-for-nested-sessions-2026-08-26.md` | domains: [extensions, omp, models] | topics: [omp-models, modelRoles, createAgentSession, getModel] | status: completed
+
+
+- 2026-08-26 — [fix-pr: PR #9 committed conflict markers](fix-pr-9-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `fix-pr-9-2026-08-26.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-9, merge-conflicts, b-kamal-release, b-commit-improved, vite] | status: completed
+
+- 2026-08-26 — [b-commit-improved $TITLE/$BODY sentinels](b-commit-improved-placeholder-sentinels-2026-08-26.md) — `completed`
+
+  - 2026-08-26 | `b-commit-improved-placeholder-sentinels-2026-08-26.md` | domains: [extensions, git, testing] | topics: [b-commit-improved, draft-commit, placeholders, sentinels] | status: completed
+
+- 2026-08-26 — [Init quality guardrails contract on this repo](b-init-guardrails-on-repo-2026-08-26.md) — `completed` (first check: patch gate 51%)
+
+  - 2026-08-26 | `b-init-guardrails-on-repo-2026-08-26.md` | domains: [quality, tooling, testing] | topics: [b-init-guardrails, guardrails.json, vitest, lizard, coverage, patch-gate] | status: completed
+
+- 2026-08-25 — [PR #8: contain OMP plan artifact paths](fix-pr-8-2026-08-25.md) — `completed` (round 2: canonicalize symlinks)
+
+  - 2026-08-25 | `fix-pr-8-2026-08-25.md` | domains: [security, extensions, testing] | topics: [pr-8, plan-artifact, path-traversal, local-uri, symlink] | status: completed
+
+- 2026-08-25 — [GitHub pull-request test checks](pr-test-checks-2026-08-25.md) — `completed`
+
+  - 2026-08-25 | `pr-test-checks-2026-08-25.md` | domains: [ci, testing, github] | topics: [pull-requests, github-actions, vitest, bun, test-gate] | status: completed
+
+- 2026-08-25 — [OMP plan-mode → durable .context artifact (opt-in extension)](omp-plan-artifact-extension-2026-08-25.md) — `completed`
+
+  - 2026-08-25 | `omp-plan-artifact-extension-2026-08-25.md` | domains: [omp, buck-workflow, extensions] | topics: [plan-mode, hooks, plan-artifact, context-artifacts, opt-in-extension] | status: completed
+
+- 2026-08-23 — [Conditional memory search (OMP native vs configured skill)](memory-search-agnostic-2026-08-23.md) — `completed`
+
+  - 2026-08-23 | `memory-search-agnostic-2026-08-23.md` | domains: [docs, buck-workflow, memory] | topics: [memory-search, omp, qmd, b-save, agents-bootstrap] | status: completed
+
+- 2026-08-23 — [Live TUI progress for deterministic slash commands](deterministic-extension-progress-2026-08-23.md) — `active`
+
+  - 2026-08-23 | `deterministic-extension-progress-2026-08-23.md` | domains: [extensions, tui, testing] | topics: [b-pr-improved, b-commit-improved, b-kamal-release, command-progress, execFile, spawn] | status: active
+
+- 2026-08-17 | `b-hindsight-source-dirs-2026-08-17.md` | domains: [infra, tooling, memory] | topics: [buck-workflow, hindsight, source-dirs, classifier, framing, multi-kind] | status: completed
+
+- 2026-08-14 — [OMP context memory × Hindsight / b-memory-import / b-save](omp-context-memory-hindsight-2026-08-14.md) — `completed`
+
+  - 2026-08-14 | `omp-context-memory-hindsight-2026-08-14.md` | domains: [tooling, buck-workflow, omp, docs, memory] | topics: [b-save, b-memory-import, hindsight, retain, recall, qmd, omp-memory] | status: completed
+
+- 2026-08-13 — [fix-pr: PR #6 review comments](fix-pr-6-2026-08-13.md) — `completed`
+- 2026-08-13 — [fix-pr: PR #5 review comments](fix-pr-5-2026-08-13.md) — `completed`
+
+- 2026-08-12 — [npm publish readiness (blocked on test gate)](npm-publish-readiness-2026-08-12.md) — `active`
+- 2026-08-12 — [Standalone B-Plan bootstrap build](standalone-b-plan-bootstrap-build-2026-08-12.md) — `completed`
+
+- 2026-07-26 — [b-init-guardrails review iteration](b-init-guardrails-iteration-2026-07-26.md) — `completed`
+
+- 2026-07-26 — [b-pr preflight dirty-tree autostash](b-pr-preflight-autostash-2026-07-26.md) — `completed`
+- 2026-07-26 — [fix-pr: PR #3 exit-code comment fix](fix-pr-3-exit-code-comment-2026-07-26.md) — `completed`
+
+- 2026-07-25 — [b-commit-improved — deterministic Conventional Commits](b-commit-improved-2026-07-25.md) — `completed`
+- 2026-07-25 — [fix-pr: PR #3 review comments](fix-pr-3-2026-07-25.md) — `completed`
+- 2026-07-20 — [b-create-styleguide stamps type/breakpoints/interactions into AGENTS managed block](b-create-styleguide-design-surface-contract-2026-07-20.md) — `completed`
+
+  - 2026-08-13 | `fix-pr-6-2026-08-13.md` | domains: [review, fixes, skill, docs] | topics: [fix-pr, pr-6, guardrails, detect-stack, functional-test-detection, b-init-guardrails, doc-regressions] | status: completed
+  - 2026-08-13 | `fix-pr-5-2026-08-13.md` | domains: [review, fixes, docs] | topics: [fix-pr, pr-5, b-plan, standalone-bootstrap, agent-install, plugin-marketplace, context-validate, draft-commit-gitignore] | status: completed
+  - 2026-07-26 | `b-pr-preflight-autostash-2026-07-26.md` | domains: [debugging, implementation, testing, skill] | topics: [b-pr, b-pr-improved, pr-preflight, autostash, rebase, dirty-tree, json-error] | status: completed
+  - 2026-07-26 | `fix-pr-3-exit-code-comment-2026-07-26.md` | domains: [review, fixes, docs] | topics: [fix-pr, pr-3, b-pr, pr-preflight, exit-codes, comment-update] | status: completed
+  - 2026-07-25 | `b-commit-improved-2026-07-25.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-commit-improved, git-commit, conventional-commits, draft-commit, pi-extension, omp, deterministic-script, bun-script, exit-code-contract] | status: completed
+  - 2026-07-25 | `fix-pr-3-2026-07-25.md` | domains: [review, fixes] | topics: [fix-pr, pr-3, kamal, b-commit-improved, commit-preflight, security-hardening, semver-prefix] | status: completed
+   - 2026-07-24 | `b-kamal-release-extension-2026-07-24.md` | domains: [implementation, testing, extensions, tooling] | topics: [b-kamal-release, kamal, deploy, git-tag, semver, release, destinations, pi-extension, omp, ctx-ui] | status: active
+  - 2026-07-24 | `b-pr-improved-worktree-enotdir-2026-07-24.md` | domains: [debugging, implementation, testing, extensions, git] | topics: [b-pr-improved, linked-worktree, enotdir, git-dir, gh-cli, pull-request] | status: completed
+  - 2026-07-23 | `b-pr-improved-auto-push-2026-07-23.md` | domains: [implementation, testing, skill] | topics: [b-pr-improved, git-push, pull-request, remote-branch, force-with-lease] | status: completed
+  - 2026-07-17 | `code-review-universal-workflow-fit-2026-07-17.md` | domains: [skill, buck-workflow, docs] | topics: [code-review-universal, pr-review, inline-comments, submit-review, frontmatter, workflow-integration] | status: completed
+  - 2026-07-05 | `b-loop-skill-creation-2026-07-05.md` | domains: [skill, buck-workflow, omp] | topics: [b-loop, omp-execution, phased-plan, set-goal, advisory-stamp, slash-command-deferral, loop-agnostic, b-flow-deprecation, b-phase, scope-reduction, four-entrypoints, overview-mirror] | status: active
+  - 2026-06-28 | `bootstrap-response-style-2026-06-28.md` | domains: [docs, bootstrap, agent] | topics: [global-agents, response-style, concise-default, semantic-summary] | status: completed
+  - 2026-06-24 | `b-docs-living-documentation-2026-06-24.md` | domains: [skill, docs, buck-workflow, bootstrap] | topics: [b-docs, living-documentation, doc-sync, conventions, adr, context-md, b-review, canonical-locations, loop-agnostic, managed-block] | status: active
+  - 2026-06-22 | `b-pr-skill-portable-path-2026-06-22.md` | domains: [skill, buck-workflow, docs] | topics: [b-pr, skill-path, skill_dir, context-artifacts, implementation-vs-research, omp-install, portable-skills] | status: completed
+  - 2026-06-17 | `b-pr-review-2-issues-context-skip-2026-06-17.md` | domains: [skill, docs, buck-workflow] | topics: [b-pr-review-2-issues, pr-review, context-skip, secrets] | status: completed
+  - 2026-06-16 | `b-fix-rebase-conflict-skill-build-2026-06-16.md` | domains: [implementation, skill, docs, testing] | topics: [b-fix-rebase-conflict, rebase, merge-conflict, semantic-merge, bun-script] | status: completed
+  - 2026-06-16 | `b-fix-rebase-conflict-skill-review-2026-06-16.md` | domains: [review, skill, buck-workflow] | topics: [b-review, b-fix-rebase-conflict, ours-theirs, semantic-merge, manual-gate] | status: completed
+  - 2026-06-15 | `omp-account-status-plugin-2026-06-15.md` | domains: [tooling] | topics: [omp, plugin, tui, account-awareness] | status: active
+  - 2026-06-14 | `agents-bootstrap-clarification-2026-06-14.md` | domains: [docs, buck-workflow, bootstrap] | topics: [agents, bootstrap, global-vs-project, installable-source] | status: completed
+  - 2026-06-14 | `design-brief-skill-update-2026-06-14.md` | domains: [skill, docs, buck-workflow] | topics: [design-brief, subject-folder, agent-skills, readme] | status: completed
+  - 2026-06-14 | `b-plan-light-grill-2026-06-14.md` | domains: [skill, planning, buck-workflow] | topics: [b-plan, light-grill, plan-evaluation, ambiguity-resolution, discretion] | status: completed
+  - 2026-06-13 | `hybrid-context-artifact-model-build-2026-06-13.md` | domains: [implementation, buck-workflow, docs, testing] | topics: [context-format, hybrid-model, context-indexes, frontmatter-validation, jq] | status: completed
+  - 2026-06-13 | `code-smells-docs-resolution-hard-gate-2026-06-13.md` | domains: [skill, docs, omp, eval-kernel] | topics: [code-smells, skill-resolution, skill-protocol, hard-gate, audit-workflow] | status: completed
+  - 2026-06-13 | `code-smells-audit-contract-hardening-plan-2026-06-13.md` | domains: [planning, skill, buck-workflow] | topics: [code-smells, b-plan, audit-workflow, schema, omp] | status: completed
+  - 2026-06-13 | `code-smells-audit-skill-review-2026-06-13.md` | domains: [skill, review, docs] | topics: [code-smells, b-review, audit-workflow, verification] | status: completed
+  - 2026-06-13 | `code-smells-audit-skill-iteration-2026-06-13.md` | domains: [skill, docs, review] | topics: [code-smells, b-review, b-iterate, omp, audit-workflow] | status: completed
+  - 2026-06-11 | `b-pr-skill-build-2026-06-11.md` | domains: [implementation, buck-workflow, skill, docs] | topics: [b-pr, pull-request, github, gh-cli, git, dual-audience-description, base-branch-detection, rebase-verification, subagent-polish, context-artifacts] | status: active
+  - 2026-06-11 | `b-commit-final-step-plan-2026-06-11.md` | domains: [planning, buck-workflow, docs] | topics: [b-commit, git-commit, ralph, omp, chezmoi, global-agents] | status: active
+  - 2026-06-09 | `durable-research-write-gate-2026-06-09.md` | domains: [skill, docs, buck-workflow] | topics: [b-explore, b-research, write-gate, incremental-notes, durable-artifacts] | status: completed
+  - 2026-06-07 | `code-review-skill-build-2026-06-07.md` | domains: [implementation, buck-workflow, skill, docs, pi, omp] | topics: [code-review, pr-review, pr-context, submit-review, worktree, gh-api, bun-scripts, harsh-review, docs-reality-pass, README, OMP, cross-platform] | status: active
+  - 2026-06-07 | `docs-reality-pass-2026-06-07.md` | domains: [docs, buck-workflow, omp, pi] | topics: [readme, docs, extension-loading, b-save, b-flow, command-mirror] | status: completed
+  - 2026-06-07 | `cross-harness-kernel-phase-4-2026-06-07.md` | domains: [implementation, buck-workflow, omp, eval-kernel, planning, skill-authoring] | topics: [b-grill-me, b-grill-with-docs, decision_domains, PHASES, auto-derive, mapping, eval-cell, workflow-kernel, skill-section] | status: completed
+  - 2026-06-07 | `cross-harness-kernel-phase-3-2026-06-07.md` | domains: [implementation, buck-workflow, omp, eval-kernel, planning] | topics: [eval-cells, review-audit, migration-sweep, parallel, pipeline, llm-judge, schemas, additionalProperties, b-plan] | status: completed
+  - 2026-06-07 | `cross-harness-kernel-phase-2-2026-06-07.md` | domains: [docs, buck-workflow, omp, planning, eval-kernel] | topics: [eval-kernel, contract-doc, prelude-helpers, budget, schemas, failure-modes, cross-platform, b-plan] | status: completed
+  - 2026-06-07 | `cross-harness-kernel-phase-1-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [cross-harness, compat, header-guard, runtime-probe, eval-template, b-plan, slash-commands, omp, no-op] | status: completed
+  - 2026-06-07 | `omp-integration-buck-workflow-build-2026-06-07.md` | domains: [implementation, buck-workflow, omp, planning, docs] | topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, slash-commands, eval-kernel, b-phase, b-plan, b-review, b-flow-deprecation, autonomous-loops] | status: completed
+  - 2026-06-06 | `omp-integration-buck-workflow-2026-06-06.md` | domains: [research, buck-workflow, planning, omp, autonomous] | topics: [omp, buck-workflow, goal-mode, orchestrate-keyword, workflow-keyword, magic-keywords, slash-commands, eval-kernel, b-phase, b-plan, autonomous-loops] | status: completed
+  - 2026-06-05 | `extension-slimdown-2026-06-05.md` | domains: [tooling, architecture, refactor] | topics: [extension-slimdown, model-auto-switch, b-save, session-state, pi-extension, omp-plugin] | status: completed
+  - 2026-05-31 | `review-subject-selection-prompting-2026-05-31.md` | domains: [coding, docs] | topics: [subject-selection, skills, review, b-review] | status: active
+  - 2026-06-04 | `security-audit-iteration-2026-06-04.md` | domains: [testing, debugging] | topics: [security-audit, shell-script, bugfix, b-iterate] | status: completed
+  - 2026-06-04 | `presentation-skill-catalog-addition-2026-06-04.md` | domains: [docs, presentation, buck-workflow, skill] | topics: [skill-catalog, presentation-update, buck-workflow, elaboration, flow-composition, grill-variants] | status: active
+  - 2026-06-04 | `presentation-readme-update-2026-06-04.md` | domains: [docs, presentation, buck-workflow, readme] | topics: [buck-workflow, benefits-explainer, infographic-presentation, readme-update, cross-agent-parallels, global-agents, non-prescriptive] | status: active
+  - 2026-06-04 | `buck-workflow-benefits-explainer-2026-06-04.md` | domains: [research, docs, planning, buck-workflow] | topics: [buck-workflow, durable-memory, benefits-explainer, b-explore, presentation-plan] | status: active
+  - 2026-05-30 | `b-flow-sdk-iteration-2026-05-30.md` | domains: [implementation, review, iteration, testing] | topics: [b-flow, sdk-worker, audit-compatibility, model-fallback, phase-3, completed] | status: completed
+  - 2026-05-30 | `b-flow-sdk-phase2-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, createAgentSession, phase-2, model-selection, tool-scoping, result-synthesis] | status: completed
+  - 2026-05-30 | `b-flow-sdk-phase1-build-2026-05-30.md` | domains: [implementation, b-flow, sdk, testing, review, workflow] | topics: [b-flow, sdk-worker, dual-dispatch, phase-1, iteration, phase-closeout] | status: completed
+  - 2026-05-30 | `b-flow-sdk-research-2026-05-30.md` | domains: [research, architecture] | topics: [b-flow, pi-sdk, session-isolation, worker-redesign] | status: completed
+  - 2026-05-30 | `cwd-restrict-mode-2026-05-30.md` | domains: [extension, safety-feature] | topics: [cwd-restriction, write-guard, restrict_cwd_active, b-restrict] | status: completed
+  - 2026-05-20 | `b-research-b-explore-plan-2026-05-20.md` | domains: [implementation, skill, docs, workflow] | topics: [b-explore, b-research, crawl4ai, research-source-dictionary, subject-index, buck-workflow, split] | status: completed
+  - 2026-05-19 | `ralph-loop-plan-phase-build-2026-05-19.md` | domains: [implementation, skill, workflow-automation] | topics: [ralph-loop, b-phase, b-plan, b-build, b-review, b-iterate] | status: completed
+  - 2026-05-17 | `global-agents-buck-workflow-mode-build-2026-05-17.md` | domains: [buck-workflow, docs, refactor, extensions, testing, skill] | topics: [global-agents, buck-mode, ownership-split, plan-mode, docs, qmd-skill, b-save, b-review] | status: completed
+  - 2026-05-17 | `2026-05-17-planning-mode-write-guards.md` | domains: [buck-workflow, plan-mode, extensions, keybindings] | topics: [plan-mode, write-guards, grill-commands, prompt-templates, isAllowedPlanWritePath, alt+p, toggle] | status: completed
+  - 2026-05-17 | `subject-phase-detection-2026-05-17.md` | domains: [research, extensions, implementation, review, architecture] | topics: [subject-detection, phase-progress, b-flow, before_agent_start, hook, token-savings] | status: completed
+  - 2026-05-15 | `tps-tracker-review-2026-05-15.md` | domains: [extensions, review, implementation] | topics: [tps-tracker, tokens-per-second, pi-extension, wire-pattern, ctx-hasUI] | status: active
+  - 2026-05-13 | `prompt-to-skill-build-2026-06-13.md` | domains: [implementation, refactoring, skills] | topics: [prompts, skills, portability, b-build, b-grill, thin-wrappers] | status: active
+  - 2026-05-13 | `prompt-inventory-classification-2026-05-13.md` | domains: [planning, docs, research] | topics: [prompts, skills, inventory, classification, portability] | status: active
+  - 2026-05-12 | `prompt-to-skill-portability-plan-2026-05-12.md` | domains: [planning, docs, agent] | topics: [prompts, skills, portability, commands, plugins] | status: completed
+  - 2026-05-10 | `extension-model-switch-guard-2026-06-10.md` | domains: [debugging, agent, implementation] | topics: [model-switch, race-condition, timestamp-guard, autoSwitchingModel] | status: active
+  - 2026-05-09 | `pi-agent-cycle-fix-2026-05-09.md` | domains: [debugging, infra, agent] | topics: [model-cycling, hung-requests, pi-coding-agent, abort-controller] | status: active
+  - 2026-05-09 | `b-flow-unit-tests-2026-05-09.md` | domains: [testing, debugging, orchestration] | topics: [b-flow, xstate, vitest, guard-routing, unit-tests] | status: completed
+  - 2026-05-09 | `b-flow-start-debug-2026-05-09.md` | domains: [debugging, testing, orchestration] | topics: [b-flow, xstate, worker-subprocess, persistence, subject-detection] | status: completed
+  - 2026-05-09 | `b-present-rewrite-build-2026-05-09.md` | domains: [docs, skill, implementation] | topics: [b-present, presentation-package, rewrite, briefing-package] | status: completed
+  - 2026-05-09 | `b-present-grill-with-docs-2026-06-09.md` | domains: [docs, skill, planning] | topics: [b-present, presentation-package, grill-with-docs, context] | status: completed
+  - 2026-05-09 | `b-flow-mvp-2026-05-09.md` | domains: [implementation, testing, orchestration] | topics: [b-flow, xstate, state-machine, worker-subprocess, pi-extension] | status: completed
+  - 2026-05-08 | `b-orchestration-extension-2026-05-08.md` | domains: [research, planning] | topics: [b-flow, xstate, orchestration] | status: completed
+  - 2026-05-08 | `grillney-doc-plan-2026-05-08.md` | domains: [docs, skill] | topics: [grillney, documentation, skill] | status: completed
+  - 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, orchestration] | topics: [grill-auto, rpc, pi-extension] | status: completed

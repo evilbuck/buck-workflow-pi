@@ -1,717 +1,424 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{TITLE}} — Architecture Blueprint</title>
-
-  <!-- Mermaid CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
-  <script>mermaid.initialize({ startOnLoad: true, theme: 'dark', themeVariables: { darkMode: true, background: '#0d1117', primaryColor: '#2563eb', lineColor: '#8b949e' } });</script>
-
-  <style>
-    /* ── Reset & Base ─────────────────────────────────────────── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg-primary: #0d1117;
-      --bg-secondary: #161b22;
-      --bg-tertiary: #1c2129;
-      --bg-card: #1c2129;
-      --text-primary: #e6edf3;
-      --text-secondary: #8b949e;
-      --text-muted: #6e7681;
-      --border-color: #30363d;
-      --accent: #58a6ff;
-      --accent-dim: #1f6feb33;
-      --green: #3fb950;
-      --green-dim: #23863622;
-      --amber: #d29922;
-      --amber-dim: #9e6a0322;
-      --red: #f85149;
-      --red-dim: #da363422;
-      --blue: #58a6ff;
-      --blue-dim: #1f6feb22;
-      --purple: #bc8cff;
-      --purple-dim: #8957e522;
-      --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
-      --font-mono: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, 'Courier New', monospace;
-      --max-width: 1080px;
-      --section-gap: 3rem;
-    }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      font-family: var(--font-sans);
-      line-height: 1.6;
-      color: var(--text-primary);
-      background: var(--bg-primary);
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ── Layout ───────────────────────────────────────────────── */
-    .blueprint {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 2rem 2rem 4rem;
-    }
-
-    /* ── Header ───────────────────────────────────────────────── */
-    .bp-header {
-      padding-bottom: 1.5rem;
-      border-bottom: 1px solid var(--border-color);
-      margin-bottom: var(--section-gap);
-    }
-
-    .bp-header h1 {
-      font-size: 1.75rem;
-      font-weight: 700;
-      margin-bottom: 0.5rem;
-      letter-spacing: -0.02em;
-    }
-
-    .bp-meta {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      flex-wrap: wrap;
-      margin-bottom: 0.75rem;
-    }
-
-    .bp-one-liner {
-      font-size: 1.1rem;
-      color: var(--text-secondary);
-      line-height: 1.5;
-    }
-
-    .bp-one-liner .arrow { color: var(--accent); margin: 0 0.5rem; }
-
-    /* ── Badges ───────────────────────────────────────────────── */
-    .badge {
-      display: inline-block;
-      padding: 0.15em 0.6em;
-      border-radius: 999px;
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .badge-new      { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
-    .badge-modify   { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
-    .badge-delete   { background: var(--red-dim); color: var(--red); border: 1px solid var(--red); }
-    .badge-deps     { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
-    .badge-info     { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
-    .badge-active   { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
-    .badge-draft    { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber); }
-    .badge-illustrative { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
-
-    /* ── Sections ─────────────────────────────────────────────── */
-    .bp-section {
-      margin-bottom: var(--section-gap);
-    }
-
-    .bp-section-title {
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: var(--accent);
-      margin-bottom: 1rem;
-      padding-bottom: 0.5rem;
-      border-bottom: 1px solid var(--border-color);
-      letter-spacing: -0.01em;
-    }
-
-    .bp-section-title .section-icon {
-      margin-right: 0.5rem;
-      opacity: 0.8;
-    }
-
-    /* ── Diagram Container ────────────────────────────────────── */
-    .diagram-container {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 1.5rem;
-      margin-bottom: 1rem;
-      text-align: center;
-      overflow-x: auto;
-    }
-
-    .diagram-container .mermaid {
-      display: flex;
-      justify-content: center;
-    }
-
-    .diagram-caption {
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      margin-top: 0.75rem;
-    }
-
-    /* ── File Change Map Table ────────────────────────────────── */
-    .file-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.9rem;
-    }
-
-    .file-table th {
-      text-align: left;
-      padding: 0.6rem 0.75rem;
-      background: var(--bg-secondary);
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .file-table td {
-      padding: 0.6rem 0.75rem;
-      border-bottom: 1px solid var(--border-color);
-      vertical-align: middle;
-    }
-
-    .file-table tr:hover {
-      background: var(--bg-tertiary);
-    }
-
-    .file-path {
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: var(--text-primary);
-    }
-
-    .file-layer {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-
-    /* ── Code Blocks ──────────────────────────────────────────── */
-    .code-block {
-      margin-bottom: 1.5rem;
-    }
-
-    .code-caption {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.5rem 0.75rem;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-bottom: none;
-      border-radius: 8px 8px 0 0;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: var(--text-secondary);
-    }
-
-    .code-caption .lang {
-      color: var(--accent);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.7rem;
-      letter-spacing: 0.05em;
-    }
-
-    .code-block pre {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-top: none;
-      border-radius: 0 0 8px 8px;
-      padding: 1rem;
-      overflow-x: auto;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      line-height: 1.7;
-      color: var(--text-primary);
-      tab-size: 2;
-    }
-
-    .code-block pre code {
-      font-family: inherit;
-      background: none;
-      padding: 0;
-    }
-
-    /* Inline code */
-    code {
-      font-family: var(--font-mono);
-      background: var(--bg-tertiary);
-      padding: 0.15em 0.4em;
-      border-radius: 3px;
-      font-size: 0.9em;
-      color: var(--text-primary);
-    }
-    pre code { background: none; padding: 0; }
-
-    /* Syntax tokens */
-    .code-block .kw { color: #ff7b72; }   /* keyword */
-    .code-block .fn { color: #d2a8ff; }   /* function */
-    .code-block .st { color: #a5d6ff; }   /* string */
-    .code-block .cm { color: #8b949e; }   /* comment */
-    .code-block .nu { color: #79c0ff; }   /* number */
-    .code-block .op { color: #ff7b72; }   /* operator */
-    .code-block .ty { color: #ffa657; }   /* type */
-    .code-block .pr { color: #7ee787; }   /* property */
-
-    /* ── Diff Blocks ──────────────────────────────────────────── */
-    .diff-block {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-
-    @media (max-width: 768px) {
-      .diff-block { grid-template-columns: 1fr; }
-    }
-
-    .diff-side {
-      min-width: 0;
-    }
-
-    .diff-caption {
-      padding: 0.4rem 0.75rem;
-      font-family: var(--font-mono);
-      font-size: 0.8rem;
-      border-radius: 8px 8px 0 0;
-      font-weight: 600;
-    }
-
-    .diff-before .diff-caption {
-      background: var(--red-dim);
-      color: var(--red);
-      border: 1px solid #da363466;
-      border-bottom: none;
-    }
-
-    .diff-after .diff-caption {
-      background: var(--green-dim);
-      color: var(--green);
-      border: 1px solid #23863666;
-      border-bottom: none;
-    }
-
-    .diff-side pre {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-top: none;
-      border-radius: 0 0 8px 8px;
-      padding: 1rem;
-      overflow-x: auto;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      line-height: 1.7;
-      margin: 0;
-    }
-
-    .diff-add { background: rgba(63, 185, 80, 0.15); display: block; }
-    .diff-remove { background: rgba(248, 81, 73, 0.15); display: block; }
-
-    /* ── Decision Cards ───────────────────────────────────────── */
-    .decision-list {
-      list-style: none;
-    }
-
-    .decision-item {
-      padding: 0.75rem 1rem;
-      margin-bottom: 0.5rem;
-      background: var(--bg-secondary);
-      border-left: 3px solid var(--accent);
-      border-radius: 0 6px 6px 0;
-    }
-
-    .decision-item strong {
-      color: var(--accent);
-    }
-
-    .decision-item .rationale {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      margin-top: 0.25rem;
-    }
-
-    /* ── Risk Cards ───────────────────────────────────────────── */
-    .risk-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.75rem 1rem;
-      margin-bottom: 0.5rem;
-      background: var(--bg-secondary);
-      border-left: 3px solid var(--amber);
-      border-radius: 0 6px 6px 0;
-    }
-
-    .risk-card.severity-high { border-left-color: var(--red); }
-    .risk-card.severity-medium { border-left-color: var(--amber); }
-    .risk-card.severity-low { border-left-color: var(--green); }
-
-    .risk-severity {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      white-space: nowrap;
-      padding-top: 0.15rem;
-    }
-
-    .risk-severity.high { color: var(--red); }
-    .risk-severity.medium { color: var(--amber); }
-    .risk-severity.low { color: var(--green); }
-
-    .risk-content { flex: 1; }
-    .risk-content strong { display: block; margin-bottom: 0.15rem; }
-    .risk-content .mitigation {
-      color: var(--text-secondary);
-      font-size: 0.85rem;
-    }
-
-    /* ── Delivery Timeline ────────────────────────────────────── */
-    .delivery-timeline {
-      display: flex;
-      align-items: center;
-      gap: 0;
-      margin-bottom: 1rem;
-      overflow-x: auto;
-      padding-bottom: 0.5rem;
-    }
-
-    .phase-node {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-      padding: 0.75rem 1.25rem;
-      text-align: center;
-      white-space: nowrap;
-      min-width: 120px;
-    }
-
-    .phase-node .phase-label {
-      font-size: 0.7rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: var(--accent);
-      margin-bottom: 0.25rem;
-    }
-
-    .phase-node .phase-name {
-      font-size: 0.9rem;
-      font-weight: 600;
-    }
-
-    .phase-node .phase-desc {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-top: 0.25rem;
-    }
-
-    .phase-arrow {
-      color: var(--text-muted);
-      font-size: 1.2rem;
-      padding: 0 0.5rem;
-      flex-shrink: 0;
-    }
-
-    /* ── Verification Checklist ───────────────────────────────── */
-    .checklist {
-      list-style: none;
-    }
-
-    .checklist li {
-      padding: 0.4rem 0;
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-    }
-
-    .checklist li::before {
-      content: '☐';
-      margin-right: 0.5rem;
-      color: var(--text-muted);
-    }
-
-    .checklist li span {
-      color: var(--text-primary);
-    }
-
-    /* ── Footer ───────────────────────────────────────────────── */
-    .bp-footer {
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border-color);
-      margin-top: var(--section-gap);
-      color: var(--text-muted);
-      font-size: 0.8rem;
-    }
-
-    .bp-footer a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-
-    .bp-footer a:hover { text-decoration: underline; }
-
-    .bp-footer .source-list {
-      margin-top: 0.5rem;
-    }
-
-    /* ── Utility ──────────────────────────────────────────────── */
-    .text-muted { color: var(--text-muted); }
-    .text-secondary { color: var(--text-secondary); }
-    .mt-1 { margin-top: 0.5rem; }
-    .mt-2 { margin-top: 1rem; }
-    .mb-1 { margin-bottom: 0.5rem; }
-    .mb-2 { margin-bottom: 1rem; }
-
-    /* ── Responsive ───────────────────────────────────────────── */
-    @media (max-width: 640px) {
-      .blueprint { padding: 1rem; }
-      .bp-header h1 { font-size: 1.3rem; }
-      .bp-section-title { font-size: 1.1rem; }
-      .delivery-timeline { flex-direction: column; align-items: stretch; }
-      .phase-arrow { transform: rotate(90deg); text-align: center; }
-    }
-
-    /* ── Print ────────────────────────────────────────────────── */
-    @media print {
-      :root {
-        --bg-primary: #ffffff;
-        --bg-secondary: #f6f8fa;
-        --bg-tertiary: #eef1f5;
-        --text-primary: #1a1a2e;
-        --text-secondary: #4a4a68;
-        --text-muted: #6b7280;
-        --border-color: #d1d5db;
-        --accent: #2563eb;
-      }
-      body { background: white; color: black; }
-      .diagram-container { break-inside: avoid; }
-      .code-block { break-inside: avoid; }
-      .file-table { break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  <div class="blueprint">
-
-    <!-- ═══════════════════ HEADER ═══════════════════════════════ -->
-    <header class="bp-header">
-      <h1>{{TITLE}}</h1>
-      <div class="bp-meta">
-        <span class="badge badge-active">{{STATUS}}</span>
-        <span class="text-muted">{{DATE}}</span>
-        <span class="text-muted">·</span>
-        <span class="text-muted">{{SUBJECT}}</span>
-      </div>
-      <p class="bp-one-liner">
-        <span class="text-secondary">{{PROBLEM}}</span>
-        <span class="arrow">→</span>
-        <span>{{SOLUTION}}</span>
-      </p>
-    </header>
-
-    <!-- ═══════════════════ ARCHITECTURE OVERVIEW ════════════════ -->
-    <section class="bp-section" id="architecture">
-      <h2 class="bp-section-title">
-        <span class="section-icon">⬡</span> Architecture Overview
-      </h2>
-      <div class="diagram-container">
-        <div class="mermaid">
-          {{ARCHITECTURE_DIAGRAM}}
-        </div>
-        <div class="diagram-caption">{{ARCHITECTURE_CAPTION}}</div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ FILE CHANGE MAP ══════════════════════ -->
-    <section class="bp-section" id="files">
-      <h2 class="bp-section-title">
-        <span class="section-icon">📁</span> File Change Map
-      </h2>
-      <div style="overflow-x: auto;">
-        <table class="file-table">
-          <thead>
-            <tr>
-              <th>File</th>
-              <th>Action</th>
-              <th>Layer</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <!-- NEW files first -->
-            <tr>
-              <td><span class="file-path">path/to/new-file.js</span></td>
-              <td><span class="badge badge-new">new</span></td>
-              <td><span class="file-layer">backend</span></td>
-              <td>Description of what this file does</td>
-            </tr>
-            <!-- MODIFY files -->
-            <tr>
-              <td><span class="file-path">path/to/existing-file.js</span></td>
-              <td><span class="badge badge-modify">modify</span></td>
-              <td><span class="file-layer">backend</span></td>
-              <td>Description of what's changing</td>
-            </tr>
-            <!-- DELETE files -->
-            <tr>
-              <td><span class="file-path">path/to/removed-file.js</span></td>
-              <td><span class="badge badge-delete">delete</span></td>
-              <td><span class="file-layer">backend</span></td>
-              <td>Why it's being removed</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ CODE CHANGES ═════════════════════════ -->
-    <section class="bp-section" id="code">
-      <h2 class="bp-section-title">
-        <span class="section-icon">⟨/⟩</span> Code Changes
-      </h2>
-
-      <!-- Example: Single code block -->
-      <div class="code-block">
-        <div class="code-caption">
-          <span class="lang">javascript</span>
-          <span>services/new-service.js</span>
-          <span class="badge badge-illustrative">illustrative</span>
-        </div>
-        <pre><code><span class="cm">// New service handling the proposed functionality</span>
-<span class="kw">class</span> <span class="ty">NewService</span> {
-  <span class="kw">static</span> <span class="fn">create</span>(data) {
-    <span class="cm">// Validate input</span>
-    <span class="kw">if</span> (!data.name) <span class="kw">throw new</span> <span class="ty">Error</span>(<span class="st">'Name required'</span>);
-    <span class="kw">return</span> db.<span class="fn">insert</span>(table).<span class="fn">values</span>(data).<span class="fn">returning</span>().<span class="fn">get</span>();
-  }
-}</code></pre>
-      </div>
-
-      <!-- Example: Before/After diff -->
-      <div class="diff-block">
-        <div class="diff-side diff-before">
-          <div class="diff-caption">Before — routes/api.js</div>
-          <pre><code><span class="cm">// Old approach</span>
-router.<span class="fn">post</span>(<span class="st">'/endpoint'</span>, (req, res) => {
-  <span class="kw">const</span> result = <span class="fn">legacyHandler</span>(req.body);
-  res.<span class="fn">json</span>(result);
-});</code></pre>
-        </div>
-        <div class="diff-side diff-after">
-          <div class="diff-caption">After — routes/api.js</div>
-          <pre><code><span class="cm">// New approach with validation</span>
-router.<span class="fn">post</span>(<span class="st">'/endpoint'</span>, validate, <span class="kw">async</span> (req, res) => {
-  <span class="kw">const</span> result = <span class="kw">await</span> <span class="ty">NewService</span>.<span class="fn">create</span>(req.body);
-  res.<span class="fn">status</span>(<span class="nu">201</span>).<span class="fn">json</span>({ data: result });
-});</code></pre>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ DATA FLOW ════════════════════════════ -->
-    <section class="bp-section" id="dataflow">
-      <h2 class="bp-section-title">
-        <span class="section-icon">⟿</span> Data Flow
-      </h2>
-      <div class="diagram-container">
-        <div class="mermaid">
-          {{DATAFLOW_DIAGRAM}}
-        </div>
-        <div class="diagram-caption">{{DATAFLOW_CAPTION}}</div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ KEY DECISIONS ════════════════════════ -->
-    <section class="bp-section" id="decisions">
-      <h2 class="bp-section-title">
-        <span class="section-icon">◆</span> Key Decisions
-      </h2>
-      <ul class="decision-list">
-        <li class="decision-item">
-          <strong>Decision 1</strong>
-          <div class="rationale">Rationale for this choice over alternatives.</div>
-        </li>
-        <li class="decision-item">
-          <strong>Decision 2</strong>
-          <div class="rationale">Why this approach was chosen.</div>
-        </li>
-      </ul>
-    </section>
-
-    <!-- ═══════════════════ RISKS ════════════════════════════════ -->
-    <section class="bp-section" id="risks">
-      <h2 class="bp-section-title">
-        <span class="section-icon">⚠</span> Risks &amp; Tradeoffs
-      </h2>
-      <div class="risk-card severity-medium">
-        <span class="risk-severity medium">Medium</span>
-        <div class="risk-content">
-          <strong>Risk description</strong>
-          <div class="mitigation">Mitigation strategy or acceptance rationale.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ DELIVERY SHAPE ═══════════════════════ -->
-    <section class="bp-section" id="delivery">
-      <h2 class="bp-section-title">
-        <span class="section-icon">▸</span> Delivery Shape
-      </h2>
-
-      <!-- Visual timeline -->
-      <div class="delivery-timeline">
-        <div class="phase-node">
-          <div class="phase-label">Phase 1</div>
-          <div class="phase-name">Setup</div>
-          <div class="phase-desc">Foundation work</div>
-        </div>
-        <div class="phase-arrow">→</div>
-        <div class="phase-node">
-          <div class="phase-label">Phase 2</div>
-          <div class="phase-name">Core</div>
-          <div class="phase-desc">Main implementation</div>
-        </div>
-        <div class="phase-arrow">→</div>
-        <div class="phase-node">
-          <div class="phase-label">Phase 3</div>
-          <div class="phase-name">Testing</div>
-          <div class="phase-desc">Verification</div>
-        </div>
-      </div>
-
-      <!-- Optional: Mermaid phase dependency diagram -->
-      <div class="diagram-container">
-        <div class="mermaid">
-          {{PHASE_DIAGRAM}}
-        </div>
-      </div>
-    </section>
-
-    <!-- ═══════════════════ VERIFICATION ════════════════════════ -->
-    <section class="bp-section" id="verification">
-      <h2 class="bp-section-title">
-        <span class="section-icon">✓</span> Verification Checklist
-      </h2>
-      <ul class="checklist">
-        <li><span>Test X passes</span></li>
-        <li><span>No regressions in Y</span></li>
-        <li><span>Performance within bounds</span></li>
-      </ul>
-    </section>
-
-    <!-- ═══════════════════ FOOTER ══════════════════════════════ -->
-    <footer class="bp-footer">
-      <div>Generated {{GENERATED_DATE}} by b-blueprint</div>
-      <div class="source-list">
-        Sources:
-        <a href="#">{{SOURCE_ARTIFACT}}</a>
-      </div>
-    </footer>
-
+<!doctype html>
+<!--
+  b-blueprint template — single-file architecture blueprint.
+
+  Design language: skills/_shared/design-brief.jsonc (authoritative).
+  The `generated:design-tokens` and `generated:mermaid-init` blocks below are
+  rendered from that brief and pinned byte-for-byte by
+  skills/_shared/scripts/design-language.test.ts. Do not hand-edit them —
+  change the brief, then run:
+      bun skills/_shared/scripts/render-design-tokens.ts --write
+
+  Fill {{PLACEHOLDERS}}. Delete any section the source artifact does not support;
+  renumber the remaining <span class="h2n"> counters so they stay gapless.
+-->
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{TITLE}} · blueprint</title>
+<meta name="description" content="{{PROBLEM}} → {{SOLUTION}}">
+
+<!-- BEGIN generated:mermaid-init · from skills/_shared/design-brief.jsonc · do not edit by hand · regenerate with bun skills/_shared/scripts/render-design-tokens.ts --write -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({"startOnLoad":true,"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#e6f5f3","primaryBorderColor":"#0f766e","primaryTextColor":"#1b1a18","secondaryColor":"#fdf1e3","tertiaryColor":"#faf8f4","lineColor":"#6f6862","textColor":"#3d3a36","fontFamily":"ui-sans-serif,-apple-system,\"Segoe UI\",Inter,Roboto,Helvetica,Arial,sans-serif","fontSize":"14px"},"flowchart":{"curve":"basis","useMaxWidth":true},"sequence":{"useMaxWidth":true}});</script>
+<!-- END generated:mermaid-init -->
+
+<style>
+/* BEGIN generated:design-tokens · from skills/_shared/design-brief.jsonc · do not edit by hand · regenerate with bun skills/_shared/scripts/render-design-tokens.ts --write */
+:root{
+  /* surface */
+  --bg:#f7f6f3;
+  --panel:#ffffff;
+  --sunk:#faf8f4;
+  --chip:#efece6;
+  /* ink */
+  --ink:#1b1a18;
+  --ink2:#3d3a36;
+  --muted:#6f6862;
+  /* rule */
+  --line:#e6e1d9;
+  --line2:#f0ece5;
+  /* accent */
+  --accent:#0f766e;
+  --accentbg:#e6f5f3;
+  --accentline:#bce8e1;
+  --accentink:#155e56;
+  /* series */
+  --s1:#b4530b;
+  --s1bg:#fdf1e3;
+  --s1line:#f0d5b4;
+  --s2:#2b57c4;
+  --s2bg:#eaf0fd;
+  --s2line:#c9d8f7;
+  /* status */
+  --ok:#1c6b3e;
+  --okbg:#dff3e6;
+  --okline:#c3e6d1;
+  --warn:#8a6410;
+  --warnbg:#fbf3d0;
+  --warnline:#efe0a8;
+  --danger:#a92222;
+  --dangerbg:#fde8e8;
+  --dangerline:#f6cfcf;
+  --neutral:#5b554f;
+  --neutralbg:#ecebe8;
+  --neutralline:#dddad3;
+  /* syntax */
+  --syn-kw:#a1268f;
+  --syn-fn:#2b57c4;
+  --syn-st:#1c6b3e;
+  --syn-cm:#8a8179;
+  --syn-nu:#b4530b;
+  --syn-ty:#8a6410;
+  --syn-op:#0f766e;
+  --diff-add:#e8f5ec;
+  --diff-del:#fdeceb;
+  /* form */
+  --radius:14px;
+  --radius-sm:12px;
+  --shadow:0 1px 2px rgba(28,26,24,.05),0 8px 24px -16px rgba(28,26,24,.28);
+  --wrap:1360px;
+  --rail:264px;
+  --measure:74ch;
+  /* type */
+  --font-sans:ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+/* END generated:design-tokens */
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.62 var(--font-sans);-webkit-font-smoothing:antialiased}
+a{color:var(--accent)}
+h1,h2,h3,h4,h5{line-height:1.25;letter-spacing:-.012em;margin:0}
+p{margin:0 0 1em}
+code{font-family:var(--font-mono);font-size:.855em;background:var(--chip);border:1px solid var(--line);
+ border-radius:5px;padding:.06em .36em;color:var(--ink2);white-space:nowrap}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 28px}
+
+/* ── masthead ─────────────────────────── */
+header.top{background:linear-gradient(180deg,#fffdfa,var(--bg));border-bottom:1px solid var(--line)}
+header.top .wrap{padding-top:52px;padding-bottom:36px}
+.eyebrow{font-size:12.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(28px,3.6vw,44px);max-width:20ch;margin-bottom:14px}
+.oneliner{font-size:18px;color:var(--ink2);max-width:66ch;margin-bottom:26px}
+.oneliner .arrow{color:var(--accent);font-weight:650;padding:0 .35em}
+.pins{display:flex;flex-wrap:wrap;gap:12px}
+.pin{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 16px;min-width:250px}
+.pin .pname{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.pin .pmeta{font-size:12.5px;color:var(--muted);margin-top:5px}
+.pin .pmeta b{color:var(--ink2);font-weight:600}
+.pin.a{border-left:3px solid var(--accent)} .pin.s1{border-left:3px solid var(--s1)} .pin.s2{border-left:3px solid var(--s2)}
+
+/* ── layout ───────────────────────────── */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) var(--rail);gap:56px;align-items:start}
+main{min-width:0;padding:44px 0 110px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:44px 0 60px;
+ border-left:1px solid var(--line);padding-left:26px;scrollbar-width:thin}
+aside h6{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:650}
+aside ul{list-style:none;margin:0;padding:0}
+aside a{display:block;text-decoration:none;color:var(--ink2);padding:5px 10px;border-radius:7px;
+ border-left:2px solid transparent;margin-left:-2px;font-size:13.8px;font-weight:550}
+aside a:hover{background:var(--chip);color:var(--ink)}
+aside a.active{color:var(--accent);border-left-color:var(--accent);background:var(--accentbg);font-weight:650}
+.toctoggle{display:none}
+
+/* ── sections ─────────────────────────── */
+section.top-level{padding-top:8px;margin-bottom:56px;scroll-margin-top:20px}
+h2{font-size:clamp(21px,2.3vw,27px);margin:0 0 6px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+h2 .h2n{color:var(--muted);font-weight:500;margin-right:12px;font-variant-numeric:tabular-nums}
+.lede{font-size:16.5px;color:var(--ink2);max-width:var(--measure);margin:16px 0 24px}
+.subhead{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:650;
+ margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+.subhead::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ── badges & chips ───────────────────── */
+.badge{font-size:11.5px;font-weight:650;padding:2.5px 10px;border-radius:20px;white-space:nowrap;display:inline-block}
+.b-new{background:var(--okbg);color:var(--ok);border:1px solid var(--okline)}
+.b-modify{background:var(--warnbg);color:var(--warn);border:1px solid var(--warnline)}
+.b-delete{background:var(--dangerbg);color:var(--danger);border:1px solid var(--dangerline)}
+.b-deps{background:var(--s2bg);color:var(--s2);border:1px solid var(--s2line)}
+.b-illustrative{background:var(--neutralbg);color:var(--neutral);border:1px solid var(--neutralline)}
+.sev{font-size:10.8px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:2.5px 8px;border-radius:5px}
+.sev.high{background:var(--dangerbg);color:var(--danger)}
+.sev.medium{background:var(--warnbg);color:var(--warn)}
+.sev.low{background:var(--neutralbg);color:var(--neutral)}
+.sev.info{background:var(--accentbg);color:var(--accent)}
+
+/* ── diagrams ─────────────────────────── */
+.diagram{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+ padding:22px 24px;box-shadow:var(--shadow);overflow-x:auto}
+.diagram .mermaid{display:flex;justify-content:center;min-width:0}
+.diagcap{font-size:13px;color:var(--muted);margin-top:14px;text-align:center}
+
+/* ── tables ───────────────────────────── */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:14.2px}
+th{text-align:left;font-size:11.8px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+ padding:12px 16px;background:var(--sunk);border-bottom:1px solid var(--line);font-weight:650}
+td{padding:11px 16px;border-bottom:1px solid var(--line2);vertical-align:top;color:var(--ink2)}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fdfcfa}
+td.path{color:var(--ink);font-weight:550;width:34%}
+td.act{width:104px} td.layer{width:110px;color:var(--muted);font-size:13px}
+
+/* ── code ─────────────────────────────── */
+.code{border:1px solid var(--line);border-radius:var(--radius-sm);overflow:hidden;margin-bottom:16px;background:var(--sunk)}
+.codecap{display:flex;flex-wrap:wrap;gap:9px;align-items:center;background:var(--chip);
+ border-bottom:1px solid var(--line);padding:8px 14px;font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.codecap .lang{color:var(--accent);font-weight:650;text-transform:uppercase;letter-spacing:.05em;font-size:10.8px}
+.code pre{margin:0;padding:14px 16px;overflow-x:auto;font-family:var(--font-mono);font-size:13px;line-height:1.55;color:var(--ink2)}
+.kw{color:var(--syn-kw)} .fn{color:var(--syn-fn)} .st{color:var(--syn-st)}
+.cm{color:var(--syn-cm);font-style:italic} .nu{color:var(--syn-nu)} .ty{color:var(--syn-ty)} .op{color:var(--syn-op)}
+.diffsplit{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.code .add{display:block;background:var(--diff-add)} .code .del{display:block;background:var(--diff-del)}
+
+/* ── stacked rows (decisions, risks) ──── */
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px 19px}
+.row h4{font-size:15.5px;margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row p{font-size:14.2px;color:var(--ink2);margin:0}
+.row p + p{margin-top:8px}
+.row .why{color:var(--muted);font-size:13.6px}
+.note{margin-top:20px;background:var(--sunk);border:1px solid var(--line);border-left:3px solid var(--accent);
+ border-radius:10px;padding:15px 18px}
+.note h5{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+.note p{font-size:14.6px;color:var(--ink2);margin-bottom:0}
+.callout{background:var(--accentbg);border:1px solid var(--accentline);border-radius:var(--radius-sm);padding:18px 22px;margin:20px 0}
+.callout h4{font-size:15.5px;color:var(--accent);margin-bottom:7px}
+.callout p{font-size:14.6px;color:var(--accentink);margin-bottom:0}
+
+/* ── delivery rail ────────────────────── */
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));gap:14px}
+.phase{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px 18px;box-shadow:var(--shadow)}
+.phase .pn{display:inline-flex;width:27px;height:27px;border-radius:8px;background:var(--accent);color:#fff;
+ align-items:center;justify-content:center;font-size:14px;font-weight:680;margin-bottom:10px}
+.phase h4{font-size:15.5px;margin-bottom:5px}
+.phase p{font-size:13.6px;color:var(--muted);margin:0}
+.phase .dep{margin-top:9px;font-size:11.7px;color:var(--muted)}
+
+/* ── checklist ────────────────────────── */
+ul.checks{margin:0;padding-left:0;list-style:none}
+ul.checks li{position:relative;padding-left:28px;margin-bottom:11px;font-size:14.6px;color:var(--ink2)}
+ul.checks li::before{content:"";position:absolute;left:0;top:.28em;width:15px;height:15px;
+ border:1.5px solid var(--line);border-radius:4px;background:var(--panel)}
+ul.checks li.done::before{background:var(--okbg);border-color:var(--okline)}
+ul.checks li.done::after{content:"";position:absolute;left:5px;top:.5em;width:4px;height:8px;
+ border:solid var(--ok);border-width:0 2px 2px 0;transform:rotate(45deg)}
+
+footer.end{border-top:1px solid var(--line);background:var(--sunk);padding:32px 0 48px;font-size:13.4px;color:var(--muted)}
+
+/* long paths in prose may wrap */
+.row code,.note code,.callout code,.lede code,td code,.phase code,footer.end code{white-space:normal;overflow-wrap:anywhere}
+/* grid children must shrink so inner scrollers actually scroll */
+.layout>*,.diffsplit>*,.phases>*,.stack>*{min-width:0}
+
+@media (max-width:1080px){
+ .layout{grid-template-columns:1fr;gap:0}
+ aside{position:static;max-height:none;border-left:0;padding:0;margin:20px 0 0;
+  border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--panel)}
+ .toctoggle{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;font-weight:650;
+  padding:14px 18px;cursor:pointer;color:var(--ink)}
+ aside nav{display:none;padding:0 14px 14px}
+ aside.open nav{display:block}
+ aside h6{display:none}
+ main{padding-top:28px}
+ .diffsplit{grid-template-columns:1fr}
+}
+@media (max-width:700px){code{white-space:normal;overflow-wrap:anywhere}}
+@media (max-width:640px){.wrap{padding:0 16px}.row,.phase{padding:14px 16px}}
+@media (max-width:400px){.pin{min-width:0;width:100%}}
+@media print{aside{display:none}.layout{grid-template-columns:1fr}section.top-level,.row,.code{break-inside:avoid}}
+</style>
+</head><body>
+
+<header class="top"><div class="wrap">
+  <div class="eyebrow">Blueprint · {{STATUS}} · {{DATE}}</div>
+  <h1>{{TITLE}}</h1>
+  <p class="oneliner">{{PROBLEM}}<span class="arrow">→</span>{{SOLUTION}}</p>
+  <div class="pins">
+    <div class="pin a"><div class="pname">Source</div>
+      <div class="pmeta"><b>{{SOURCE_ARTIFACT}}</b><br>subject {{SUBJECT}}</div></div>
+    <div class="pin s1"><div class="pname">Shape</div>
+      <div class="pmeta"><b>{{N_FILES}}</b> files · <b>{{N_PHASES}}</b> phases · <b>{{N_RISKS}}</b> risks</div></div>
   </div>
-</body>
-</html>
+</div></header>
+
+<div class="wrap"><div class="layout">
+<main>
+
+<!-- ═══ ARCHITECTURE ═══ -->
+<section class="top-level" id="architecture">
+ <h2><span class="h2n">01</span>Architecture</h2>
+ <p class="lede">{{ARCHITECTURE_LEDE}}</p>
+ <div class="diagram">
+  <div class="mermaid">
+flowchart TB
+  subgraph client["Client"]
+    A["Browser"]
+  end
+  subgraph api["API"]
+    B["Middleware"] --> C["Handler"]
+  end
+  A --> B
+  C --> D[("Store")]
+  </div>
+  <div class="diagcap">{{ARCHITECTURE_CAPTION}}</div>
+ </div>
+</section>
+
+<!-- ═══ FILE CHANGE MAP ═══ -->
+<section class="top-level" id="files">
+ <h2><span class="h2n">02</span>File change map</h2>
+ <p class="lede">{{FILES_LEDE}}</p>
+ <div class="tablewrap"><table>
+  <thead><tr><th>File</th><th>Action</th><th>Layer</th><th>Change</th></tr></thead>
+  <tbody>
+   <tr><td class="path"><code>path/to/new-file.ts</code></td><td class="act"><span class="badge b-new">new</span></td><td class="layer">backend</td><td>What this file does.</td></tr>
+   <tr><td class="path"><code>path/to/existing.ts</code></td><td class="act"><span class="badge b-modify">modify</span></td><td class="layer">backend</td><td>What changes and why.</td></tr>
+   <tr><td class="path"><code>path/to/removed.ts</code></td><td class="act"><span class="badge b-delete">delete</span></td><td class="layer">backend</td><td>What supersedes it.</td></tr>
+   <tr><td class="path"><code>package.json</code></td><td class="act"><span class="badge b-deps">deps</span></td><td class="layer">config</td><td>Dependency added or bumped.</td></tr>
+  </tbody>
+ </table></div>
+</section>
+
+<!-- ═══ CODE CHANGES ═══ -->
+<section class="top-level" id="code">
+ <h2><span class="h2n">03</span>Code changes</h2>
+ <p class="lede">{{CODE_LEDE}}</p>
+
+ <div class="code">
+  <div class="codecap"><span class="lang">typescript</span><span>services/new-service.ts</span><span class="badge b-illustrative">illustrative</span></div>
+<pre><span class="kw">export function</span> <span class="fn">createLink</span>(<span class="ty">input</span>: <span class="ty">LinkInput</span>) {
+  <span class="cm">// validate before persisting</span>
+  <span class="kw">const</span> code = <span class="fn">shortCode</span>(<span class="nu">7</span>);
+  <span class="kw">return</span> db.<span class="fn">insert</span>({ ...input, code });
+}</pre>
+ </div>
+
+ <div class="subhead">Before / after</div>
+ <div class="diffsplit">
+  <div class="code">
+   <div class="codecap"><span class="lang">before</span><span>routes/auth.ts</span></div>
+<pre><span class="del">router.<span class="fn">use</span>(<span class="fn">legacyAuth</span>());</span></pre>
+  </div>
+  <div class="code">
+   <div class="codecap"><span class="lang">after</span><span>routes/auth.ts</span></div>
+<pre><span class="add">router.<span class="fn">use</span>(<span class="fn">sessionAuth</span>({ ttl: <span class="nu">3600</span> }));</span></pre>
+  </div>
+ </div>
+</section>
+
+<!-- ═══ DATA FLOW ═══ -->
+<section class="top-level" id="dataflow">
+ <h2><span class="h2n">04</span>Data flow</h2>
+ <div class="diagram">
+  <div class="mermaid">
+sequenceDiagram
+  participant U as User
+  participant A as API
+  participant D as Store
+  U->>A: POST /links
+  A->>D: insert
+  D-->>A: {id, code}
+  A-->>U: 201 Created
+  </div>
+  <div class="diagcap">{{DATAFLOW_CAPTION}}</div>
+ </div>
+</section>
+
+<!-- ═══ KEY DECISIONS ═══ -->
+<section class="top-level" id="decisions">
+ <h2><span class="h2n">05</span>Key decisions</h2>
+ <div class="stack">
+  <div class="row"><h4>{{DECISION_TITLE}} <span class="sev info">decided</span></h4>
+   <p>{{DECISION_BODY}}</p>
+   <p class="why">Rejected: {{DECISION_ALTERNATIVE}} — {{DECISION_REASON}}</p></div>
+ </div>
+ <div class="callout"><h4>{{CALLOUT_TITLE}}</h4><p>{{CALLOUT_BODY}}</p></div>
+</section>
+
+<!-- ═══ RISKS ═══ -->
+<section class="top-level" id="risks">
+ <h2><span class="h2n">06</span>Risks &amp; trade-offs</h2>
+ <div class="stack">
+  <div class="row"><h4>{{RISK_TITLE}} <span class="sev high">high</span></h4>
+   <p>{{RISK_BODY}}</p>
+   <p class="why">Mitigation: {{RISK_MITIGATION}}</p></div>
+ </div>
+</section>
+
+<!-- ═══ DELIVERY SHAPE ═══ -->
+<section class="top-level" id="delivery">
+ <h2><span class="h2n">07</span>Delivery shape</h2>
+ <div class="phases">
+  <div class="phase"><div class="pn">1</div><h4>{{PHASE_1_NAME}}</h4><p>{{PHASE_1_SCOPE}}</p><div class="dep">no dependencies</div></div>
+  <div class="phase"><div class="pn">2</div><h4>{{PHASE_2_NAME}}</h4><p>{{PHASE_2_SCOPE}}</p><div class="dep">hard dependency on phase 1</div></div>
+ </div>
+ <div class="note"><h5>Parallel opportunities</h5><p>{{PARALLEL_NOTE}}</p></div>
+</section>
+
+<!-- ═══ VERIFICATION ═══ -->
+<section class="top-level" id="verification">
+ <h2><span class="h2n">08</span>Verification</h2>
+ <ul class="checks">
+  <li>{{CHECK_1}}</li>
+  <li>{{CHECK_2}}</li>
+  <li class="done">{{CHECK_DONE}}</li>
+ </ul>
+</section>
+
+</main>
+
+<aside id="toc">
+ <button class="toctoggle" aria-expanded="false">Contents ▾</button>
+ <h6>Contents</h6>
+ <nav><ul>
+  <li><a href="#architecture">Architecture</a></li>
+  <li><a href="#files">File change map</a></li>
+  <li><a href="#code">Code changes</a></li>
+  <li><a href="#dataflow">Data flow</a></li>
+  <li><a href="#decisions">Key decisions</a></li>
+  <li><a href="#risks">Risks &amp; trade-offs</a></li>
+  <li><a href="#delivery">Delivery shape</a></li>
+  <li><a href="#verification">Verification</a></li>
+ </ul></nav>
+</aside>
+</div></div>
+
+<footer class="end"><div class="wrap">
+ Generated by <code>/b-blueprint</code> from <code>{{SOURCE_ARTIFACT}}</code> · {{DATE}}.
+ Blueprint reflects the plan, not the implementation — re-generate after the plan changes.
+</div></footer>
+
+<script>
+(function(){
+ var links = Array.prototype.slice.call(document.querySelectorAll('#toc a[href^="#"]'));
+ var map = {};
+ links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+ var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+ var active = null;
+ function setActive(el){
+   if(!el || el===active) return;
+   if(active) active.classList.remove('active');
+   active = el; el.classList.add('active');
+ }
+ var io = new IntersectionObserver(function(entries){
+   var visible = entries.filter(function(e){return e.isIntersecting;});
+   if(!visible.length) return;
+   visible.sort(function(a,b){return a.boundingClientRect.top - b.boundingClientRect.top;});
+   setActive(map[visible[0].target.id]);
+ }, {rootMargin:'-8% 0px -72% 0px', threshold:0});
+ targets.forEach(function(t){ io.observe(t); });
+
+ var btn = document.querySelector('.toctoggle'), side = document.getElementById('toc');
+ if(btn){ btn.addEventListener('click', function(){
+   var open = side.classList.toggle('open');
+   btn.setAttribute('aria-expanded', String(open));
+   btn.textContent = open ? 'Contents ▴' : 'Contents ▾';
+ }); }
+ links.forEach(function(a){ a.addEventListener('click', function(){ if(side.classList.contains('open')){ side.classList.remove('open'); btn.setAttribute('aria-expanded','false'); btn.textContent='Contents ▾'; } }); });
+})();
+</script>
+</body></html>
