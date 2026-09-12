@@ -7,7 +7,9 @@ import { runDir } from "./types.js";
 export type JournalOp = {
   path: string;
   before: string | null;
-  tmp: string;
+  after: string | null;
+  tmp: string | null;
+  kind: "write" | "delete";
   done: boolean;
 };
 
@@ -47,10 +49,9 @@ function beforeImage(abs: string) {
   return existsSync(abs) ? readFileSync(abs, "utf8") : null;
 }
 
-function writeAtomic(abs: string, tmp: string, content: string) {
+function stageAtomic(abs: string, tmp: string, content: string) {
   mkdirSync(dirname(abs), { recursive: true });
   writeFileSync(tmp, content);
-  renameSync(tmp, abs);
 }
 
 export function applyPatch(
@@ -59,6 +60,7 @@ export function applyPatch(
   opts: { runId: string; failAfter?: number; expectedHashes?: Record<string, string> } = { runId: "run" },
 ): ApplyResult {
   validatePatch(root, plan);
+  if (plan.moves.length > 0) throw new Error("patch moves are not supported");
   if (opts.expectedHashes) {
     for (const [path, hash] of Object.entries(opts.expectedHashes)) {
       const abs = contextRootJoin(root, path);
@@ -72,22 +74,27 @@ export function applyPatch(
     return {
       path: op.path,
       before: beforeImage(abs),
-      tmp: abs + ".tmp-b-save",
+      after: null,
+      tmp: op.content === null ? null : abs + ".tmp-b-save",
+      kind: op.content === null ? "delete" : "write",
       done: false,
     };
   });
   const journal: ApplyJournal = { status: "in-progress", ops };
   writeJournal(jPath, journal);
-  let i = 0;
-  for (const op of plan.ops) {
-    if (opts.failAfter !== undefined && i === opts.failAfter) {
-      throw new Error("injected apply failure");
-    }
+  for (let i = 0; i < plan.ops.length; i += 1) {
+    const op = plan.ops[i];
+    if (op.content !== null) stageAtomic(contextRootJoin(root, op.path), ops[i].tmp!, op.content);
+  }
+  for (let i = 0; i < plan.ops.length; i += 1) {
+    if (opts.failAfter !== undefined && i === opts.failAfter) throw new Error("injected apply failure");
+    const op = plan.ops[i];
     const abs = contextRootJoin(root, op.path);
-    writeAtomic(abs, ops[i].tmp, op.content);
+    if (op.content === null) rmSync(abs, { force: true });
+    else renameSync(ops[i].tmp!, abs);
+    ops[i].after = op.content === null ? null : hashContent(op.content);
     ops[i].done = true;
     writeJournal(jPath, journal);
-    i += 1;
   }
   journal.status = "completed";
   writeJournal(jPath, journal);
@@ -98,12 +105,7 @@ function abortIfBeforeChanged(root: string, op: JournalOp) {
   if (op.done) return;
   const abs = contextRootJoin(root, op.path);
   const now = beforeImage(abs);
-  // Any drift from the journaled before-image aborts — including deletion:
-  // a vanished target (before had content, now === null) is a change, not a
-  // silent pass-through that would recreate the file during resume.
-  if (now !== op.before) {
-    throw new Error("before-image changed: " + op.path);
-  }
+  if (now !== op.before) throw new Error("before-image changed: " + op.path);
 }
 
 function resumeOps(root: string, journal: ApplyJournal) {
@@ -111,10 +113,13 @@ function resumeOps(root: string, journal: ApplyJournal) {
     abortIfBeforeChanged(root, op);
     if (op.done) continue;
     const abs = contextRootJoin(root, op.path);
-    if (existsSync(op.tmp) && !existsSync(abs)) {
+    if (op.kind === "delete") rmSync(abs, { force: true });
+    else {
+      if (!op.tmp || !existsSync(op.tmp)) throw new Error("staged temp missing: " + op.path);
       renameSync(op.tmp, abs);
-      op.done = true;
+      op.after = hashContent(readFileSync(abs, "utf8"));
     }
+    op.done = true;
   }
   journal.status = "completed";
 }
@@ -122,10 +127,20 @@ function resumeOps(root: string, journal: ApplyJournal) {
 function rollbackOps(root: string, journal: ApplyJournal) {
   for (const op of [...journal.ops].reverse()) {
     const abs = contextRootJoin(root, op.path);
-    if (existsSync(op.tmp)) rmSync(op.tmp);
-    if (op.before === null) {
-      if (existsSync(abs)) rmSync(abs);
-    } else {
+    if (op.tmp && existsSync(op.tmp)) rmSync(op.tmp);
+    if (!op.done) continue;
+    const now = beforeImage(abs);
+    if (op.kind === "delete") {
+      const before = op.before;
+      if (now !== null || before === null) continue;
+      mkdirSync(dirname(abs), { recursive: true });
+      writeFileSync(abs, before);
+      op.done = false;
+      continue;
+    }
+    if (op.after === null || now === null || hashContent(now) !== op.after) continue;
+    if (op.before === null) rmSync(abs);
+    else {
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, op.before);
     }
@@ -142,6 +157,6 @@ export function recoverApply(root: string, runId: string, mode: "resume" | "roll
   if (mode === "resume") resumeOps(root, journal);
   else rollbackOps(root, journal);
   writeJournal(jPath, journal);
-  return { status: journal.status === "completed" ? "resumed" : "rolled-back", journal };
+  return { status: mode === "resume" ? "resumed" : "rolled-back", journal };
 }
 

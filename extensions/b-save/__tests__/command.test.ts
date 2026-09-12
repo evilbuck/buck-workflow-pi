@@ -6,18 +6,20 @@ import type { MemoryCtx } from "../effects.js";
 import { formatReport, parseFlags, runBSaveCommand, wire, type CommandCtx, type RolesAdapter } from "../index.js";
 import type { RunManifest } from "../types.js";
 
+const evidence = [{ id: "session_evidence", quote: "b-save" }];
+const claim = (text: string) => ({ text, evidence });
 const SCRIBE_OK = {
-  title: "Demo session",
-  summary: "Wired the pipeline.",
-  priority: "high" as const,
-  domains: ["workflow"],
-  topics: ["b-save"],
-  facts: ["snapshot to apply"],
+  title: claim("Demo session"),
+  summary: claim("Wired the pipeline."),
+  priority: { value: "high" as const, evidence },
+  domains: [claim("workflow")],
+  topics: [claim("b-save")],
+  facts: [claim("snapshot to apply")],
   backlog: { complete_explicit: [], complete_inferred: [], new_items: [] },
 };
 
-const AUDIT_OK = [{ path: "spec-demo.md", verdict: "complete" as const, evidence_ids: ["e1"] }];
-const GOAL_OK = { classification: "present" as const, quote: "goal", evidence_id: "e1" };
+const AUDIT_OK = [{ path: "spec-demo.md", verdict: "complete" as const, evidence }];
+const GOAL_OK = { classification: "present" as const, quote: "b-save", evidence_id: "session_evidence" };
 
 function fakeRoles(overrides: Partial<RolesAdapter> = {}): RolesAdapter {
   return {
@@ -113,14 +115,14 @@ describe("fresh /b-save run (issue #23 acceptance: durable writes)", () => {
       expect(result.effects[0]).toMatchObject({ name: "native_memory", outcome: "succeeded" });
       expect(memory.save).toHaveBeenCalledTimes(1);
 
-      const memoryPath = join(cwd, ".context/2026-09-11.demo/memory-2026-09-11.md");
+      const memoryPath = join(cwd, ".context/memory/demo-2026-09-11.md");
       expect(existsSync(memoryPath)).toBe(true);
       expect(readFileSync(memoryPath, "utf8")).toContain("# Demo session");
       expect(readFileSync(memoryPath, "utf8")).toContain("- snapshot to apply");
 
       const index = readFileSync(join(cwd, ".context/memory/index.md"), "utf8");
       expect(index).toContain("- 2026-09-10 — [Old entry](old.md) — `completed`");
-      expect(index).toContain("- memory-2026-09-11.md");
+      expect(index).toContain("- demo-2026-09-11.md");
 
       const manifest = readManifest(cwd, result.runId);
       expect(manifest.state).toBe("completed");
@@ -128,10 +130,12 @@ describe("fresh /b-save run (issue #23 acceptance: durable writes)", () => {
       expect(Object.keys(manifest.input_hashes).length).toBeGreaterThan(0);
       expect(manifest.proposals).toHaveLength(3);
       expect(manifest.patch_set).not.toBeNull();
-      expect(manifest.journal).toEqual({
-        status: "completed",
-        files: [".context/2026-09-11.demo/memory-2026-09-11.md", ".context/memory/index.md"],
-      });
+      expect(manifest.journal).toMatchObject({ status: "completed" });
+      expect(manifest.journal.files).toEqual(expect.arrayContaining([
+        ".context/memory/demo-2026-09-11.md",
+        ".context/memory/index.md",
+        ".context/2026-09-11.demo/index.md",
+      ]));
       expect(manifest.terminal_error).toBeNull();
     } finally {
       cleanup();
@@ -145,7 +149,7 @@ describe("fresh /b-save run (issue #23 acceptance: durable writes)", () => {
       const result = await runBSaveCommand(ctxFor(cwd, fakeRoles(), memory), ["--dry-run"]);
       expect(result.state).toBe("completed");
       expect(result.report).toContain("dry-run: nothing applied or persisted");
-      expect(existsSync(join(cwd, ".context/2026-09-11.demo/memory-2026-09-11.md"))).toBe(false);
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(false);
       expect(existsSync(join(cwd, ".context/workflow/b-save", result.runId, "manifest.json"))).toBe(false);
       expect(memory.save).not.toHaveBeenCalled();
     } finally {
@@ -182,7 +186,7 @@ describe("waiting resumes (issue #23 acceptance: no side effects)", () => {
       expect(resumed.state).toBe("completed");
       expect(resumed.report).toContain("resumed: true");
       expect(memory.save).toHaveBeenCalledTimes(1);
-      expect(existsSync(join(cwd, ".context/2026-09-11.demo/memory-2026-09-11.md"))).toBe(true);
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -191,6 +195,9 @@ describe("waiting resumes (issue #23 acceptance: no side effects)", () => {
   it("inferred backlog parks on awaiting_policy; --archive-inferred completes it", async () => {
     const { cwd, cleanup } = fixtureRepo();
     try {
+      mkdirSync(join(cwd, ".context/backlog/items"), { recursive: true });
+      writeFileSync(join(cwd, ".context/backlog/todo.md"), "- [ ] [Thing](items/thing.md)\n");
+      writeFileSync(join(cwd, ".context/backlog/items/thing.md"), "---\ntitle: Thing\nstatus: active\npriority: low\ncreated: 2026-09-10\nupdated: 2026-09-10\ncompleted: null\nrelated: []\n---\n");
       const memory = fakeMemory();
       const roles = fakeRoles({
         scribe: vi.fn().mockResolvedValue({
@@ -198,13 +205,13 @@ describe("waiting resumes (issue #23 acceptance: no side effects)", () => {
           role: "scribe",
           value: {
             ...SCRIBE_OK,
-            backlog: { complete_explicit: [], complete_inferred: ["items/thing.md"], new_items: [] },
+            backlog: { complete_explicit: [], complete_inferred: [{ slug: "thing", outcome: claim("completed") }], new_items: [] },
           },
         }),
       });
       const first = await runBSaveCommand(ctxFor(cwd, roles, memory), []);
       expect(first.state).toBe("awaiting_policy");
-      expect(first.report).toContain("items/thing.md");
+      expect(first.report).toContain("thing");
       expect(memory.save).not.toHaveBeenCalled();
 
       const stillWaiting = await runBSaveCommand(ctxFor(cwd, roles, memory), ["--run-id", first.runId]);
@@ -217,6 +224,8 @@ describe("waiting resumes (issue #23 acceptance: no side effects)", () => {
       );
       expect(resumed.ok).toBe(true);
       expect(resumed.state).toBe("completed");
+      expect(existsSync(join(cwd, ".context/backlog/items/thing.md"))).toBe(false);
+      expect(existsSync(join(cwd, ".context/backlog/archive/2026-09/thing.md"))).toBe(true);
       expect(memory.save).toHaveBeenCalledTimes(1);
     } finally {
       cleanup();
@@ -238,8 +247,9 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       writeFileSync(manifestPath, JSON.stringify(tampered, null, 2) + "\n");
 
       const resumeMemory = fakeMemory();
+      const resumeRoles = fakeRoles();
       const resumed = await runBSaveCommand(
-        ctxFor(cwd, fakeRoles(), resumeMemory),
+        ctxFor(cwd, resumeRoles, resumeMemory),
         ["--run-id", first.runId],
       );
       expect(resumed.ok).toBe(true);
@@ -248,7 +258,8 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       // the recovered run as completed.
       expect(resumeMemory.save).toHaveBeenCalledTimes(1);
       expect(readManifest(cwd, first.runId).state).toBe("completed");
-      expect(existsSync(join(cwd, ".context/2026-09-11.demo/memory-2026-09-11.md"))).toBe(true);
+      expect(resumeRoles.scribe).not.toHaveBeenCalled();
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(true);
     } finally {
       cleanup();
     }
@@ -332,7 +343,7 @@ describe("role failure surfaces as failed_model", () => {
       expect(result.ok).toBe(false);
       expect(result.state).toBe("failed_model");
       expect(result.report).toContain("scribe failed: no model");
-      expect(existsSync(join(cwd, ".context/2026-09-11.demo/memory-2026-09-11.md"))).toBe(false);
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(false);
     } finally {
       cleanup();
     }

@@ -2,10 +2,13 @@
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
 
+- 2026-09-12 — [fix-pr: PR #20 checkpoint contract repair](fix-pr-20-checkpoint-contract-2026-09-12.md) — `completed`
+
+  - 2026-09-12 | `fix-pr-20-checkpoint-contract-2026-09-12.md` | domains: [review, workflow, extensions, testing] | topics: [fix-pr, pr-20, b-save, checkpoint, persistence, citations] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
+
 - 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
-
 - 2026-09-11 — [fix-pr: PR #20 rebase + issue #23 blockers wired (option a)](fix-pr-20-issue23-2026-09-11.md) — `completed`
 
   - 2026-09-11 | `fix-pr-20-issue23-2026-09-11.md` | domains: [review, extensions, testing, workflow] | topics: [fix-pr, pr-20, b-save, issue-23, rebase, conflict-resolution, xstate, execute-run, resume] | status: completed

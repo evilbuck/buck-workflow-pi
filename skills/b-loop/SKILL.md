@@ -367,7 +367,7 @@ skill is read+stamp only for live phases.
   state, or otherwise drive the loop. The mini-cycle is the user's
   responsibility.
 - **No slash command mirror.** Shipped as SKILL.md only; load by name or
-  through `/skill:b-loop`. See "Surface — No Slash Command Mirror" above.
+  through `/skill:b-loop`. See "Surfaces" above.
 - **No auto-keyword.** This skill does **not** type `orchestrate`,
   `workflow`, or `/goal set` on the user's behalf. omp's
   `agent-session.ts:4274` makes synthetic typing a no-op anyway; we

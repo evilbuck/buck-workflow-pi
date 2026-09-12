@@ -410,7 +410,7 @@ flowchart TD
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
 | [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
-| [**b-save**](#b-save--session-recordkeeping) | Extension + Skill | `/b-save` | `extensions/b-save` + `skills/b-save/SKILL.md` | Deterministic checkpoint engine; Hindsight native-memory `unsupported`; prompt fallback `/deprecated-b-save` |
+| [**b-save**](#b-save--record-history) | Extension + Skill | `/b-save` | `extensions/b-save` + `skills/b-save/SKILL.md` | Deterministic checkpoint engine; Hindsight native-memory `unsupported`; prompt fallback `/deprecated-b-save` |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 
 **Implementation note:** most `/b-*` commands are prompt templates mirrored through `commands/`. `/b-save` is registered by `extensions/index.ts`. `/deprecated-b-save` is the prompt-driven fallback. The extension does not register `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.

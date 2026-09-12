@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { EmptyModelResponseError, lastAssistantText, normalizeActivityEvent, ompAgentDir, type ActivityEvent } from "./omp-models.js";
 
 function isolationExtras(opts) {
-  const extra: Record<string, unknown> = { enableIrc: false };
+  const extra: Record<string, unknown> = { enableIrc: opts.enableIrc ?? false };
   if (opts.systemPrompt !== undefined) extra.systemPrompt = opts.systemPrompt;
   if (opts.outputSchema !== undefined) {
     extra.outputSchema = opts.outputSchema;
