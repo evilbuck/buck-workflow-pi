@@ -1,5 +1,1806 @@
 [
   {
+    "path": ".context/memory/fix-pr-17-2026-09-11.md",
+    "kind": "memory",
+    "date": "2026-09-11",
+    "domains": [
+      "review",
+      "workflow"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-17",
+      "rebase",
+      "conflict-resolution",
+      "b-eval-upstream-prs",
+      "scope-hygiene"
+    ],
+    "subject": "fix-pr-17-rebase",
+    "artifacts": [],
+    "related": [
+      "fix-pr-17-2026-09-09.md",
+      "skills/b-eval-upstream-prs/SKILL.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-17-2026-09-11b.md",
+    "kind": "memory",
+    "date": "2026-09-11",
+    "domains": [
+      "review",
+      "workflow"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-17",
+      "revalidation",
+      "b-eval-upstream-prs",
+      "zero-open-findings"
+    ],
+    "subject": "fix-pr-17-rebase",
+    "artifacts": [],
+    "related": [
+      "fix-pr-17-2026-09-11.md",
+      "fix-pr-17-2026-09-09.md"
+    ],
+    "priority": "low",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-17-2026-09-11c.md",
+    "kind": "memory",
+    "date": "2026-09-11",
+    "domains": [
+      "review",
+      "plugin",
+      "testing"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-17",
+      "codex-plugin",
+      "plugin-json",
+      "version-pin"
+    ],
+    "subject": "fix-pr-17-rebase",
+    "artifacts": [
+      "plugins/buck-workflow/.codex-plugin/plugin.json"
+    ],
+    "related": [
+      "fix-pr-17-2026-09-11.md",
+      "fix-pr-17-2026-09-11b.md",
+      "fix-pr-17-2026-09-09.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-21-2026-09-11.md",
+    "kind": "memory",
+    "date": "2026-09-11",
+    "domains": [
+      "security",
+      "review",
+      "workflow"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-21",
+      "symlink-escape",
+      "triage-labels",
+      "path-traversal"
+    ],
+    "subject": "fix-pr-21",
+    "artifacts": [],
+    "related": [
+      "fix-pr-17-2026-09-11.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/mattpocock-adoption-2026-09-10.md",
+    "kind": "memory",
+    "date": "2026-09-10",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs",
+      "license"
+    ],
+    "topics": [
+      "mattpocock-skills",
+      "adoption",
+      "phase-1",
+      "mit-notice",
+      "provenance",
+      "issue-tracker",
+      "triage-labels",
+      "b-research",
+      "backlog",
+      "guardrails"
+    ],
+    "subject": "2026-09-10.mattpocock-adoption",
+    "artifacts": [],
+    "related": [],
+    "priority": "",
+    "status": "in-progress"
+  },
+  {
+    "path": ".context/memory/fix-pr-16-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "docs",
+      "review"
+    ],
+    "topics": [
+      "fix-pr",
+      "b-plan-update",
+      "catalog",
+      "pr-review"
+    ],
+    "subject": "2026-09-07.b-plan-update-skill",
+    "artifacts": [
+      "README.md",
+      "docs/buck-workflow.md"
+    ],
+    "related": [
+      "b-plan-update-skill-2026-09-07.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-17-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "review",
+      "skill",
+      "docs"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-17",
+      "b-eval-upstream-prs",
+      "fetch-url",
+      "local-only"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-18-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "review",
+      "fixes",
+      "installer",
+      "testing",
+      "skill"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-18",
+      "dangling-symlink",
+      "verify",
+      "installer",
+      "b-capture",
+      "concurrent-writers"
+    ],
+    "subject": "",
+    "artifacts": [
+      "scripts/install.mjs",
+      "scripts/install.test.mjs",
+      "skills/b-capture/SKILL.md",
+      "docs/buck-workflow.md",
+      ".context/memory/fix-pr-18-2026-09-09.md"
+    ],
+    "related": [
+      "scripts/install.mjs",
+      "scripts/install.test.mjs",
+      "skills/b-capture/SKILL.md",
+      "docs/buck-workflow.md",
+      "https://github.com/evilbuck/buck-workflow-pi/pull/18"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/install-source-consolidation-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "install",
+      "docs",
+      "tooling"
+    ],
+    "topics": [
+      "installer",
+      "symlink",
+      "bootstrap-drift",
+      "source-root",
+      "agent-install-instructions",
+      "harness-wiring"
+    ],
+    "subject": "2026-09-09.review-response-style",
+    "artifacts": [
+      "agent-install_instructions.md",
+      "README.md"
+    ],
+    "related": [
+      "scripts/install.mjs",
+      "agent-install_instructions.md",
+      "README.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/installer-source-integrity-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "install",
+      "tooling",
+      "testing"
+    ],
+    "topics": [
+      "installer",
+      "verify-mode",
+      "source-root",
+      "symlink",
+      "complexity-ratchet",
+      "main-module-guard"
+    ],
+    "subject": "2026-09-09.installer-source-integrity",
+    "artifacts": [
+      "scripts/install.mjs",
+      "scripts/install.test.mjs",
+      "README.md",
+      "agent-install_instructions.md",
+      ".context/2026-09-09.installer-source-integrity/plan-installer-source-integrity.md"
+    ],
+    "related": [
+      "scripts/install.mjs",
+      "scripts/install.test.mjs"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/response-style-consolidation-2026-09-09.md",
+    "kind": "memory",
+    "date": "2026-09-09",
+    "domains": [
+      "agent-instructions",
+      "bootstrap",
+      "docs"
+    ],
+    "topics": [
+      "response-style",
+      "global-agents-bootstrap",
+      "consolidation",
+      "bootstrap-drift",
+      "symlink-install"
+    ],
+    "subject": "2026-09-09.review-response-style",
+    "artifacts": [
+      "GLOBAL_OR_PROJECT-AGENTS.md",
+      ".context/2026-09-09.review-response-style/plan-response-style-consolidation.md",
+      ".context/2026-09-09.review-response-style/review-response-style-2026-09-09.md"
+    ],
+    "related": [
+      "GLOBAL_OR_PROJECT-AGENTS.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-init-factory-2026-09-08.md",
+    "kind": "memory",
+    "date": "2026-09-08",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "b-init-factory",
+      "software-factory",
+      "agents-md",
+      "cross-harness"
+    ],
+    "subject": "2026-09-08.b-init-factory",
+    "artifacts": [
+      "skills/b-init-factory/SKILL.md",
+      "skills/b-init-factory/references/factory-agents.md",
+      "prompts/b-init-factory.md",
+      "commands/b-init-factory.md",
+      "plugins/buck-workflow/skills/b-init-factory/SKILL.md",
+      "README.md",
+      "docs/buck-workflow.md",
+      "docs/goose.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-plan-update-skill-2026-09-07.md",
+    "kind": "memory",
+    "date": "2026-09-07",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "b-plan-update",
+      "plan-revision",
+      "in-place-edit",
+      "revision-log",
+      "sibling-skill",
+      "removal-review",
+      "mockups",
+      "artifacts",
+      "phase-drift",
+      "catalog",
+      "b-plan",
+      "b-phase"
+    ],
+    "subject": "2026-09-07.b-plan-update-skill",
+    "artifacts": [
+      "plan-b-plan-update-skill.md",
+      "skills/b-plan-update/SKILL.md",
+      "prompts/b-plan-update.md",
+      "commands/b-plan-update.md",
+      "README.md",
+      "docs/buck-workflow.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-14-2026-09-05.md",
+    "kind": "memory",
+    "date": "2026-09-05",
+    "domains": [
+      "workflow",
+      "review"
+    ],
+    "topics": [
+      "fix-pr",
+      "b-recap",
+      "pr-review"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-nasa-prd-skill-2026-09-04.md",
+    "kind": "memory",
+    "date": "2026-09-04",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "b-nasa-prd",
+      "nasa",
+      "prd",
+      "requirements",
+      "appendix-c",
+      "skill-creation"
+    ],
+    "subject": "2026-09-04.b-nasa-prd-skill",
+    "artifacts": [
+      "skills/b-nasa-prd/SKILL.md",
+      "skills/b-nasa-prd/references/nasa-appendix-c.md",
+      "skills/b-nasa-prd/references/requirement-quality-checklist.md",
+      "prompts/b-nasa-prd.md",
+      "commands/b-nasa-prd.md",
+      "README.md",
+      "docs/buck-workflow.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-save-improved-empty-scribe-2026-09-03.md",
+    "kind": "memory",
+    "date": "2026-09-03",
+    "domains": [
+      "extensions",
+      "omp",
+      "testing"
+    ],
+    "topics": [
+      "b-save-improved",
+      "scribe-model",
+      "model-roles",
+      "empty-response",
+      "model-fallback"
+    ],
+    "subject": "2026-09-03.b-save-improved-empty-scribe",
+    "artifacts": [
+      "extensions/omp-models.ts",
+      "extensions/b-save-improved/index.ts",
+      "extensions/b-save-improved/__tests__/handler.test.ts",
+      "extensions/b-save-improved/__tests__/wire.test.ts",
+      "extensions/omp-models.test.ts",
+      ".context/backlog/items/pi-runtime-source-clean-worktree.md",
+      ".context/2026-09-03.b-save-improved-empty-scribe/plan-model-fallback.md"
+    ],
+    "related": [
+      "guardrails-override-complexity-2026-08-27.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/bsave-improved-parity-review-2026-08-27.md",
+    "kind": "memory",
+    "date": "2026-08-27",
+    "domains": [
+      "review",
+      "extensions",
+      "testing",
+      "quality"
+    ],
+    "topics": [
+      "b-save-improved",
+      "parity",
+      "guardrails",
+      "completion-audit"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "plan-bsave-improved-parity.md",
+      "review-bsave-improved-parity.md"
+    ],
+    "related": [
+      "guardrails-override-complexity-2026-08-27.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/deterministic-bsave-2026-08-27.md",
+    "kind": "memory",
+    "date": "2026-08-27",
+    "domains": [
+      "extensions",
+      "testing",
+      "workflow"
+    ],
+    "topics": [
+      "b-save-improved",
+      "deterministic-checkpoint",
+      "scribe-auditor",
+      "parity",
+      "guardrails-override"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "extensions/b-save-improved/index.ts",
+      "extensions/b-save-improved/__tests__/wire.test.ts",
+      "skills/b-save-improved/SKILL.md",
+      "skills/b-save-improved/scripts/save-apply.ts",
+      "skills/b-save-improved/scripts/save-apply.test.ts",
+      "skills/b-save-improved/scripts/save-preflight.ts",
+      "skills/b-save-improved/scripts/save-preflight.test.ts",
+      ".context/2026-08-26.deterministic-bsave/plan-bsave-improved-parity.md",
+      ".context/2026-08-26.deterministic-bsave/review-bsave-improved-parity.md"
+    ],
+    "related": [
+      ".context/memory/bsave-improved-parity-review-2026-08-27.md",
+      ".context/memory/guardrails-override-complexity-2026-08-27.md",
+      ".context/2026-08-26.deterministic-bsave/index.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-10-2026-08-27.md",
+    "kind": "memory",
+    "date": "2026-08-27",
+    "domains": [
+      "review",
+      "security",
+      "extensions",
+      "testing"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-10",
+      "b-save-improved",
+      "path-traversal",
+      "leaf-symlink"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      "fix-pr-10-2026-08-26.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-10-blockers-2026-08-27.md",
+    "kind": "memory",
+    "date": "2026-08-27",
+    "domains": [
+      "review",
+      "security",
+      "extensions",
+      "testing"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-10",
+      "b-save-improved",
+      "path-containment",
+      "apply-failure",
+      "yaml-frontmatter"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "skills/b-save-improved/scripts/save-apply.ts",
+      "skills/b-save-improved/scripts/save-apply.test.ts",
+      "extensions/b-save-improved/index.ts",
+      "extensions/b-save-improved/__tests__/handler.test.ts"
+    ],
+    "related": [
+      "fix-pr-10-2026-08-27.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/guardrails-override-complexity-2026-08-27.md",
+    "kind": "memory",
+    "date": "2026-08-27",
+    "domains": [
+      "tooling",
+      "quality"
+    ],
+    "topics": [
+      "guardrails",
+      "complexity-gate",
+      "override",
+      "b-save-improved-parity"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      ".context/backlog/items/complexity-burn-down.md"
+    ],
+    "related": [
+      "bsave-improved-parity-2026-08-27.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-commit-improved-placeholder-sentinels-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "extensions",
+      "git",
+      "testing"
+    ],
+    "topics": [
+      "b-commit-improved",
+      "draft-commit",
+      "placeholders",
+      "sentinels"
+    ],
+    "subject": "2026-08-26.b-commit-placeholder-sentinels",
+    "artifacts": [
+      "index.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      "b-commit-improved-2026-07-25.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-init-guardrails-on-repo-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "quality",
+      "tooling",
+      "testing"
+    ],
+    "topics": [
+      "b-init-guardrails",
+      "guardrails.json",
+      "vitest",
+      "lizard",
+      "coverage",
+      "patch-gate"
+    ],
+    "subject": "2026-08-26.b-init-guardrails-on-repo",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      "guardrails.json",
+      "AGENTS.md",
+      "vite.config.ts",
+      "package.json"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/deterministic-bsave-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "extensions",
+      "testing",
+      "tooling"
+    ],
+    "topics": [
+      "b-save-improved",
+      "deterministic-checkpoint",
+      "shared-helpers",
+      "typescript-migration"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "skills/b-save-improved/SKILL.md",
+      "skills/b-save-improved/scripts/save-preflight.ts",
+      "skills/b-save-improved/scripts/save-apply.ts",
+      "extensions/b-save-improved/index.ts",
+      "extensions/omp-models.ts",
+      "skills/_shared/scripts/context-helpers.ts",
+      "scripts/context-artifacts.ts"
+    ],
+    "related": [
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-pr-improved/index.ts"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-10-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "review",
+      "security",
+      "extensions",
+      "testing"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-10",
+      "b-save-improved",
+      "path-traversal",
+      "memory-index",
+      "fidelity"
+    ],
+    "subject": "2026-08-26.deterministic-bsave",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      "deterministic-bsave-2026-08-26.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-9-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "review",
+      "extensions",
+      "testing"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-9",
+      "merge-conflicts",
+      "source-dirs",
+      "concurrency",
+      "session-json"
+    ],
+    "subject": "2026-08-20.deterministic-extension-progress",
+    "artifacts": [
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-commit-improved/__tests__/wire.test.ts",
+      "vite.config.ts",
+      ".context/memory/index.md",
+      ".context/backlog/items/first-npm-publish.md",
+      ".context/workflow/current-session.json",
+      "skills/b-hindsight-import-projects/scripts/import-projects.ts",
+      "skills/b-hindsight-import-projects/scripts/import-projects.test.ts",
+      "skills/b-memory-import/scripts/import-context-memory.ts",
+      "skills/b-memory-import/scripts/import-context-memory.test.ts"
+    ],
+    "related": [
+      "deterministic-extension-progress-2026-08-23",
+      "b-commit-improved-placeholder-sentinels-2026-08-26"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-catalog-for-nested-sessions-2026-08-26.md",
+    "kind": "memory",
+    "date": "2026-08-26",
+    "domains": [
+      "extensions",
+      "omp",
+      "models"
+    ],
+    "topics": [
+      "omp-models",
+      "modelRoles",
+      "createAgentSession",
+      "getModel",
+      "b-save-improved",
+      "b-commit-improved",
+      "b-pr-improved",
+      "b-flow"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [
+      "b-save-improved-2026-08-26.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-8-2026-08-25.md",
+    "kind": "memory",
+    "date": "2026-08-25",
+    "domains": [
+      "security",
+      "extensions",
+      "testing"
+    ],
+    "topics": [
+      "pr-8",
+      "plan-artifact",
+      "path-traversal",
+      "local-uri",
+      "symlink"
+    ],
+    "subject": "2026-08-25.omp-plan-artifact-extension",
+    "artifacts": [
+      "extensions/plan-artifact.ts",
+      "extensions/plan-artifact.test.ts",
+      ".context/2026-08-25.omp-plan-artifact-extension/iterate-plan-artifact-path-containment.md",
+      ".context/2026-08-25.omp-plan-artifact-extension/iterate-plan-artifact-symlink-containment.md"
+    ],
+    "related": [
+      "omp-plan-artifact-extension-2026-08-25"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-plan-artifact-extension-2026-08-25.md",
+    "kind": "memory",
+    "date": "2026-08-25",
+    "domains": [
+      "omp",
+      "buck-workflow",
+      "extensions"
+    ],
+    "topics": [
+      "plan-mode",
+      "hooks",
+      "plan-artifact",
+      "context-artifacts",
+      "opt-in-extension"
+    ],
+    "subject": "2026-08-25.omp-plan-artifact-extension",
+    "artifacts": [
+      "plan-omp-plan-artifact-extension.md",
+      "iterate-omp-plan-artifact-extension.md",
+      "extensions/plan-artifact.ts",
+      "extensions/plan-artifact.test.ts",
+      "extensions/index.ts",
+      "docs/oh-my-pi.md"
+    ],
+    "related": [
+      "memory-search-agnostic-2026-08-23.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/pr-test-checks-2026-08-25.md",
+    "kind": "memory",
+    "date": "2026-08-25",
+    "domains": [
+      "ci",
+      "testing",
+      "github"
+    ],
+    "topics": [
+      "pull-requests",
+      "github-actions",
+      "vitest",
+      "bun",
+      "test-gate"
+    ],
+    "subject": "2026-08-25.pr-test-checks",
+    "artifacts": [
+      ".github/workflows/test.yml",
+      "package.json",
+      "vite.config.ts",
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-commit-improved/__tests__/wire.test.ts",
+      ".context/2026-08-25.pr-test-checks/plan-pr-test-checks.md"
+    ],
+    "related": [
+      "npm-publish-readiness-2026-08-12"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/deterministic-extension-progress-2026-08-23.md",
+    "kind": "memory",
+    "date": "2026-08-23",
+    "domains": [
+      "extensions",
+      "tui",
+      "testing"
+    ],
+    "topics": [
+      "b-pr-improved",
+      "b-commit-improved",
+      "b-kamal-release",
+      "command-progress",
+      "execFile",
+      "spawn",
+      "tui-progress",
+      "kamal",
+      "iteration"
+    ],
+    "subject": "2026-08-20.deterministic-extension-progress",
+    "artifacts": [
+      "extensions/command-progress.ts",
+      "extensions/command-progress.test.ts",
+      "extensions/b-pr-improved/index.ts",
+      "extensions/b-pr-improved/__tests__/wire.test.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-commit-improved/__tests__/wire.test.ts",
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-kamal-release/__tests__/wire.test.ts",
+      ".context/2026-08-20.deterministic-extension-progress/plan-deterministic-extension-progress.md",
+      ".context/2026-08-20.deterministic-extension-progress/iterate-deterministic-extension-progress.md",
+      ".context/2026-08-20.deterministic-extension-progress/draft-commit.md"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/memory-search-agnostic-2026-08-23.md",
+    "kind": "memory",
+    "date": "2026-08-23",
+    "domains": [
+      "docs",
+      "buck-workflow",
+      "memory"
+    ],
+    "topics": [
+      "memory-search",
+      "omp",
+      "qmd",
+      "b-save",
+      "agents-bootstrap"
+    ],
+    "subject": "2026-08-23.memory-search-agnostic",
+    "artifacts": [
+      "plan-memory-search-agnostic.md",
+      "draft-commit.md",
+      "index.md"
+    ],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-hindsight-import-projects-2026-08-17.md",
+    "kind": "memory",
+    "date": "2026-08-17",
+    "domains": [
+      "infra",
+      "tooling",
+      "memory"
+    ],
+    "topics": [
+      "omp",
+      "hindsight",
+      "bulk-import",
+      "buck-workflow",
+      "skill-development",
+      "ts",
+      "bun"
+    ],
+    "subject": "",
+    "artifacts": [
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/SKILL.md",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/scripts/import-projects.ts",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/scripts/import-projects.test.ts"
+    ],
+    "related": [
+      "ollama-igpu-enable-2026-08-16.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-hindsight-source-dirs-2026-08-17.md",
+    "kind": "memory",
+    "date": "2026-08-17",
+    "domains": [
+      "infra",
+      "tooling",
+      "memory"
+    ],
+    "topics": [
+      "buck-workflow",
+      "hindsight",
+      "source-dirs",
+      "classifier",
+      "framing",
+      "refactor",
+      "multi-kind",
+      "ts"
+    ],
+    "subject": "",
+    "artifacts": [
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.ts",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.test.ts",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-memory-import/SKILL.md",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/scripts/import-projects.ts",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/scripts/import-projects.test.ts",
+      "/home/buckleyrobinson/projects/development_tools/buck-workflow-pi/skills/b-hindsight-import-projects/SKILL.md"
+    ],
+    "related": [
+      "b-hindsight-import-projects-2026-08-17.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-context-memory-hindsight-2026-08-14.md",
+    "kind": "memory",
+    "date": "2026-08-14",
+    "domains": [
+      "tooling",
+      "buck-workflow",
+      "omp",
+      "docs",
+      "memory"
+    ],
+    "topics": [
+      "b-save",
+      "b-memory-import",
+      "hindsight",
+      "retain",
+      "recall",
+      "qmd",
+      "omp-memory",
+      "context-memory"
+    ],
+    "subject": "2026-08-14.omp-context-memory-hindsight",
+    "artifacts": [
+      "skills/b-memory-import/SKILL.md",
+      "skills/b-memory-import/scripts/import-context-memory.ts",
+      "skills/b-memory-import/scripts/import-context-memory.test.ts",
+      "skills/b-save/SKILL.md",
+      "prompts/b-save.md",
+      "skills/b-build/SKILL.md",
+      "skills/b-explore/SKILL.md",
+      "skills/b-iterate/SKILL.md",
+      "skills/b-plan/SKILL.md",
+      "GLOBAL_OR_PROJECT-AGENTS.md",
+      "AGENTS.md",
+      "README.md",
+      "docs/buck-workflow.md",
+      "docs/oh-my-pi.md",
+      "docs/context-artifacts.md",
+      ".gitignore"
+    ],
+    "related": [],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-5-2026-08-13.md",
+    "kind": "memory",
+    "date": "2026-08-13",
+    "domains": [
+      "review",
+      "fixes",
+      "docs"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-5",
+      "b-plan",
+      "standalone-bootstrap",
+      "agent-install",
+      "plugin-marketplace",
+      "context-validate",
+      "draft-commit-gitignore"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "low",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-6-2026-08-13.md",
+    "kind": "memory",
+    "date": "2026-08-13",
+    "domains": [
+      "review",
+      "fixes",
+      "skill",
+      "docs"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-6",
+      "guardrails",
+      "detect-stack",
+      "functional-test-detection",
+      "b-init-guardrails",
+      "doc-regressions"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/npm-publish-readiness-2026-08-12.md",
+    "kind": "memory",
+    "date": "2026-08-12",
+    "domains": [
+      "tooling",
+      "release",
+      "npm"
+    ],
+    "topics": [
+      "npm-publish",
+      "buck-workflow",
+      "package-json",
+      "peer-dependencies",
+      "devdependencies",
+      "deploy-script",
+      "test-gate"
+    ],
+    "subject": "2026-08-12.npm-publish-readiness",
+    "artifacts": [
+      "package.json",
+      "scripts/publish.mjs",
+      "agent-install_instructions.md",
+      "docs/extension-loading.md",
+      "package-lock.json"
+    ],
+    "related": [
+      "standalone-b-plan-bootstrap-build-2026-08-12.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/standalone-b-plan-bootstrap-build-2026-08-12.md",
+    "kind": "memory",
+    "date": "2026-08-12",
+    "domains": [
+      "implementation",
+      "skill",
+      "docs",
+      "testing"
+    ],
+    "topics": [
+      "b-plan",
+      "standalone",
+      "capability-probe",
+      "bootstrap",
+      "install-detection",
+      "github",
+      "cross-harness"
+    ],
+    "subject": "2026-08-12.standalone-b-plan-bootstrap",
+    "artifacts": [
+      "plan-standalone-b-plan-bootstrap.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      ".context/2026-08-12.standalone-b-plan-bootstrap/plan-standalone-b-plan-bootstrap.md",
+      ".context/backlog/items/active-subject-discovery.md",
+      "skills/b-plan/SKILL.md",
+      "prompts/b-plan.md",
+      "agent-install_instructions.md",
+      "README.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-init-guardrails-iteration-2026-07-26.md",
+    "kind": "memory",
+    "date": "2026-07-26",
+    "domains": [
+      "implementation",
+      "skill",
+      "docs",
+      "testing"
+    ],
+    "topics": [
+      "b-init-guardrails",
+      "b-guardrails-check",
+      "ratchet",
+      "detection",
+      "iteration",
+      "review",
+      "dispatch",
+      "lizard",
+      "diff-cover"
+    ],
+    "subject": "2026-07-26.b-init-guardrails",
+    "artifacts": [
+      "iterate-b-init-guardrails.md",
+      "draft-commit.md"
+    ],
+    "related": [
+      ".context/2026-07-26.b-init-guardrails/plan-b-init-guardrails.md",
+      ".context/2026-07-26.b-init-guardrails/iterate-b-init-guardrails.md",
+      "skills/b-init-guardrails/SKILL.md",
+      "skills/b-guardrails-check/SKILL.md",
+      "skills/b-init-guardrails/docs/agents-block.md",
+      "skills/b-init-guardrails/docs/ratchet-protocol.md",
+      "skills/b-init-guardrails/docs/tooling-matrix.md",
+      "skills/b-init-guardrails/scripts/detect-stack.ts",
+      "docs/buck-workflow.md"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-pr-preflight-autostash-2026-07-26.md",
+    "kind": "memory",
+    "date": "2026-07-26",
+    "domains": [
+      "debugging",
+      "implementation",
+      "testing",
+      "skill"
+    ],
+    "topics": [
+      "b-pr",
+      "b-pr-improved",
+      "pr-preflight",
+      "autostash",
+      "rebase",
+      "dirty-tree",
+      "json-error"
+    ],
+    "subject": "2026-07-26.b-pr-preflight-autostash",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      "skills/b-pr/scripts/pr-preflight.ts",
+      "skills/b-pr/SKILL.md",
+      "extensions/b-pr-improved/__tests__/wire.test.ts",
+      "extensions/b-pr-improved/index.ts",
+      ".context/memory/b-pr-improved-worktree-enotdir-2026-07-24.md",
+      ".context/memory/b-pr-improved-auto-push-2026-07-23.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/fix-pr-3-exit-code-comment-2026-07-26.md",
+    "kind": "memory",
+    "date": "2026-07-26",
+    "domains": [
+      "review",
+      "fixes",
+      "docs"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-3",
+      "b-pr",
+      "pr-preflight",
+      "exit-codes",
+      "comment-update"
+    ],
+    "subject": "fix-pr-3-exit-code-comment",
+    "artifacts": [
+      "skills/b-pr/scripts/pr-preflight.ts"
+    ],
+    "related": [
+      ".context/memory/fix-pr-3-2026-07-25.md",
+      ".context/memory/b-pr-preflight-autostash-2026-07-26.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-commit-improved-2026-07-25.md",
+    "kind": "memory",
+    "date": "2026-07-25",
+    "domains": [
+      "implementation",
+      "testing",
+      "extensions",
+      "tooling"
+    ],
+    "topics": [
+      "b-commit-improved",
+      "git-commit",
+      "conventional-commits",
+      "draft-commit",
+      "pi-extension",
+      "omp",
+      "deterministic-script",
+      "bun-script",
+      "exit-code-contract"
+    ],
+    "subject": "2026-07-25.git-commit-improved",
+    "artifacts": [
+      "skills/git-commit-improved/SKILL.md",
+      "skills/git-commit-improved/scripts/commit-preflight.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-commit-improved/__tests__/wire.test.ts",
+      "commands/b-commit-improved.md",
+      "prompts/b-commit-improved.md",
+      "extensions/index.ts"
+    ],
+    "related": [
+      "b-kamal-release-extension-2026-07-24.md",
+      "b-pr-improved-worktree-enotdir-2026-07-24.md",
+      "b-pr-improved-auto-push-2026-07-23.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/fix-pr-3-2026-07-25.md",
+    "kind": "memory",
+    "date": "2026-07-25",
+    "domains": [
+      "review",
+      "fixes"
+    ],
+    "topics": [
+      "fix-pr",
+      "pr-3",
+      "kamal",
+      "b-commit-improved",
+      "commit-preflight"
+    ],
+    "subject": "fix-pr-3",
+    "artifacts": [
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-commit-improved/__tests__/wire.test.ts",
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-kamal-release/__tests__/wire.test.ts",
+      "skills/git-commit-improved/scripts/commit-preflight.ts"
+    ],
+    "related": [
+      ".context/memory/b-commit-improved-2026-07-25.md",
+      ".context/memory/b-kamal-release-extension-2026-07-24.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-kamal-release-extension-2026-07-24.md",
+    "kind": "memory",
+    "date": "2026-07-24",
+    "domains": [
+      "implementation",
+      "testing",
+      "extensions",
+      "tooling"
+    ],
+    "topics": [
+      "b-kamal-release",
+      "kamal",
+      "deploy",
+      "git-tag",
+      "semver",
+      "release",
+      "destinations",
+      "pi-extension",
+      "omp",
+      "ctx-ui",
+      "conventional-commits"
+    ],
+    "subject": "",
+    "artifacts": [
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-kamal-release/__tests__/wire.test.ts",
+      "commands/b-kamal-release.md",
+      "extensions/index.ts"
+    ],
+    "related": [
+      "b-pr-improved-worktree-enotdir-2026-07-24.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-pr-improved-worktree-enotdir-2026-07-24.md",
+    "kind": "memory",
+    "date": "2026-07-24",
+    "domains": [
+      "debugging",
+      "implementation",
+      "testing",
+      "extensions",
+      "git"
+    ],
+    "topics": [
+      "b-pr-improved",
+      "linked-worktree",
+      "enotdir",
+      "git-dir",
+      "gh-cli",
+      "pull-request"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [
+      "extensions/b-pr-improved/index.ts",
+      "extensions/b-pr-improved/__tests__/wire.test.ts",
+      "skills/b-pr/scripts/pr-preflight.ts"
+    ],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-pr-improved-auto-push-2026-07-23.md",
+    "kind": "memory",
+    "date": "2026-07-23",
+    "domains": [
+      "implementation",
+      "testing",
+      "skill"
+    ],
+    "topics": [
+      "b-pr-improved",
+      "git-push",
+      "pull-request",
+      "remote-branch",
+      "force-with-lease"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [
+      "extensions/b-pr-improved/index.ts",
+      "extensions/b-pr-improved/__tests__/wire.test.ts",
+      "commands/b-pr-improved.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-create-styleguide-design-surface-contract-2026-07-20.md",
+    "kind": "memory",
+    "date": "2026-07-20",
+    "domains": [
+      "skills",
+      "styleguide",
+      "frontend"
+    ],
+    "topics": [
+      "b-create-styleguide",
+      "agents-md",
+      "design-surface",
+      "type",
+      "breakpoints",
+      "interactions"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [],
+    "priority": "high",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/code-review-universal-workflow-fit-2026-07-17.md",
+    "kind": "memory",
+    "date": "2026-07-17",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "code-review-universal",
+      "pr-review",
+      "inline-comments",
+      "submit-review",
+      "frontmatter",
+      "workflow-integration"
+    ],
+    "subject": "",
+    "artifacts": [],
+    "related": [
+      "skills/code-review-universal/SKILL.md",
+      "skills/code-review/scripts/submit-review.ts",
+      "skills/code-review/scripts/pr-context.ts",
+      "skills/code-review/scripts/pr-ref.ts",
+      "prompts/code-review-universal.md",
+      "commands/code-review-universal.md",
+      "README.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-loop-skill-creation-2026-07-05.md",
+    "kind": "memory",
+    "date": "2026-07-05",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "omp"
+    ],
+    "topics": [
+      "b-loop",
+      "omp-execution",
+      "phased-plan",
+      "set-goal",
+      "advisory-stamp",
+      "slash-command-deferral",
+      "loop-agnostic",
+      "b-flow-deprecation",
+      "b-phase",
+      "scope-reduction"
+    ],
+    "subject": "2026-07-05.b-loop-skill-creation",
+    "artifacts": [
+      "skills/b-loop/SKILL.md"
+    ],
+    "related": [
+      "skills/b-phase/SKILL.md",
+      "skills/b-plan/SKILL.md",
+      "docs/buck-workflow.md",
+      "docs/b-flow.md",
+      ".context/2026-06-01.deprecate-b-flow/",
+      ".context/backlog/items/loop-agnostic-execution-loops.md",
+      ".context/memory/b-docs-living-documentation-2026-06-24.md",
+      ".context/memory/loop-agnostic-decision-2026-06-24.md"
+    ],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/bootstrap-response-style-2026-06-28.md",
+    "kind": "memory",
+    "date": "2026-06-28",
+    "domains": [
+      "docs",
+      "bootstrap",
+      "agent"
+    ],
+    "topics": [
+      "global-agents",
+      "response-style",
+      "concise-default",
+      "semantic-summary"
+    ],
+    "subject": "",
+    "artifacts": [
+      "GLOBAL_OR_PROJECT-AGENTS.md"
+    ],
+    "related": [
+      "GLOBAL_OR_PROJECT-AGENTS.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-docs-living-documentation-2026-06-24.md",
+    "kind": "memory",
+    "date": "2026-06-24",
+    "domains": [
+      "skill",
+      "docs",
+      "buck-workflow",
+      "bootstrap"
+    ],
+    "topics": [
+      "b-docs",
+      "living-documentation",
+      "doc-sync",
+      "conventions",
+      "adr",
+      "context-md",
+      "b-review",
+      "canonical-locations",
+      "loop-agnostic",
+      "managed-block"
+    ],
+    "subject": "2026-06-24.b-docs-living-documentation",
+    "artifacts": [],
+    "related": [
+      "skills/b-docs/SKILL.md",
+      "prompts/b-docs.md",
+      "commands/b-docs.md",
+      "skills/b-review/SKILL.md",
+      "GLOBAL_OR_PROJECT-AGENTS.md",
+      "docs/buck-workflow.md",
+      "README.md",
+      "AGENTS.md",
+      ".context/backlog/items/loop-agnostic-execution-loops.md"
+    ],
+    "priority": "high",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/b-pr-skill-portable-path-2026-06-22.md",
+    "kind": "memory",
+    "date": "2026-06-22",
+    "domains": [
+      "skill",
+      "buck-workflow",
+      "docs"
+    ],
+    "topics": [
+      "b-pr",
+      "skill-path",
+      "skill_dir",
+      "context-artifacts",
+      "implementation-vs-research",
+      "omp-install",
+      "portable-skills"
+    ],
+    "subject": "2026-06-22.b-pr-skill-portable-path",
+    "artifacts": [
+      "skills/b-pr/scripts/pr-preflight.ts",
+      "skills/b-pr/SKILL.md",
+      "prompts/b-pr.md",
+      "commands/b-pr.md"
+    ],
+    "related": [
+      "b-pr-skill-build-2026-06-11.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-pr-review-2-issues-context-skip-2026-06-17.md",
+    "kind": "memory",
+    "date": "2026-06-17",
+    "domains": [
+      "skill",
+      "docs",
+      "buck-workflow"
+    ],
+    "topics": [
+      "b-pr-review-2-issues",
+      "pr-review",
+      "context-skip",
+      "secrets"
+    ],
+    "subject": "2026-06-17.b-pr-review-2-issues-context-skip",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      ".context/2026-06-17.b-pr-review-2-issues-context-skip/index.md",
+      "skills/b-pr-review-2-issues/SKILL.md",
+      "prompts/b-pr-review-2-issues.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-fix-rebase-conflict-skill-build-2026-06-16.md",
+    "kind": "memory",
+    "date": "2026-06-16",
+    "domains": [
+      "implementation",
+      "skill",
+      "docs",
+      "testing"
+    ],
+    "topics": [
+      "b-fix-rebase-conflict",
+      "rebase",
+      "merge-conflict",
+      "semantic-merge",
+      "bun-script"
+    ],
+    "subject": "2026-06-16.b-fix-rebase-conflict",
+    "artifacts": [
+      "plan-b-fix-rebase-conflict.md",
+      "index.md"
+    ],
+    "related": [
+      ".context/2026-06-16.b-fix-rebase-conflict/plan-b-fix-rebase-conflict.md",
+      "skills/b-fix-rebase-conflict/SKILL.md",
+      "skills/b-fix-rebase-conflict/scripts/rebase-conflict-analyze.ts",
+      "skills/b-fix-rebase-conflict/scripts/rebase-conflict-analyze.test.ts",
+      "README.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-fix-rebase-conflict-skill-review-2026-06-16.md",
+    "kind": "memory",
+    "date": "2026-06-16",
+    "domains": [
+      "review",
+      "skill",
+      "buck-workflow"
+    ],
+    "topics": [
+      "b-review",
+      "b-fix-rebase-conflict",
+      "rebase",
+      "merge-conflict",
+      "ours-theirs",
+      "semantic-merge",
+      "manual-gate"
+    ],
+    "subject": "2026-06-16.b-fix-rebase-conflict",
+    "artifacts": [
+      "plan-b-fix-rebase-conflict.md",
+      "review-b-fix-rebase-conflict.md",
+      "index.md"
+    ],
+    "related": [
+      ".context/2026-06-16.b-fix-rebase-conflict/plan-b-fix-rebase-conflict.md",
+      ".context/2026-06-16.b-fix-rebase-conflict/review-b-fix-rebase-conflict.md",
+      "skills/b-fix-rebase-conflict/SKILL.md",
+      "skills/b-fix-rebase-conflict/scripts/rebase-conflict-analyze.ts",
+      "README.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/omp-account-status-plugin-2026-06-15.md",
+    "kind": "memory",
+    "date": "2026-06-15",
+    "domains": [
+      "tooling"
+    ],
+    "topics": [
+      "omp",
+      "plugin",
+      "tui",
+      "account-awareness"
+    ],
+    "subject": "2026-06-15.omp-account-status-plugin",
+    "artifacts": [],
+    "related": [],
+    "priority": "medium",
+    "status": "active"
+  },
+  {
+    "path": ".context/memory/agents-bootstrap-clarification-2026-06-14.md",
+    "kind": "memory",
+    "date": "2026-06-14",
+    "domains": [
+      "docs",
+      "buck-workflow",
+      "bootstrap"
+    ],
+    "topics": [
+      "agents",
+      "bootstrap",
+      "global-vs-project",
+      "installable-source"
+    ],
+    "subject": "2026-06-14.agents-bootstrap-clarification",
+    "artifacts": [
+      "index.md"
+    ],
+    "related": [
+      "AGENTS.md",
+      "GLOBAL_OR_PROJECT-AGENTS.md",
+      "README.md"
+    ],
+    "priority": "low",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/b-plan-light-grill-2026-06-14.md",
+    "kind": "memory",
+    "date": "2026-06-14",
+    "domains": [
+      "skill",
+      "planning",
+      "buck-workflow"
+    ],
+    "topics": [
+      "b-plan",
+      "light-grill",
+      "plan-evaluation",
+      "ambiguity-resolution",
+      "discretion"
+    ],
+    "subject": "2026-06-14.b-plan-light-grill",
+    "artifacts": [
+      "plan-b-plan-light-grill.md",
+      "index.md"
+    ],
+    "related": [
+      ".context/2026-06-14.b-plan-light-grill/plan-b-plan-light-grill.md",
+      "skills/b-plan/SKILL.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
+    "path": ".context/memory/design-brief-skill-update-2026-06-14.md",
+    "kind": "memory",
+    "date": "2026-06-14",
+    "domains": [
+      "skill",
+      "docs",
+      "buck-workflow"
+    ],
+    "topics": [
+      "design-brief",
+      "subject-folder",
+      "agent-skills",
+      "readme"
+    ],
+    "subject": "2026-06-14.design-brief-skill-update",
+    "artifacts": [
+      "plan-design-brief-skill-update.md",
+      "index.md"
+    ],
+    "related": [
+      ".context/2026-06-14.design-brief-skill-update/plan-design-brief-skill-update.md",
+      "skills/design-brief/SKILL.md",
+      "README.md"
+    ],
+    "priority": "medium",
+    "status": "completed"
+  },
+  {
     "path": ".context/memory/code-smells-audit-contract-hardening-plan-2026-06-13.md",
     "kind": "memory",
     "date": "2026-06-13",
@@ -17,14 +1818,14 @@
     ],
     "subject": "2026-06-13.code-smells-audit-skill",
     "artifacts": [
-      "\"plan-code-smells-audit-contract-hardening.md\"",
-      "\"iterate-code-smells-audit-skill.md\"",
-      "\"index.md\""
+      "plan-code-smells-audit-contract-hardening.md",
+      "iterate-code-smells-audit-skill.md",
+      "index.md"
     ],
     "related": [
-      "\".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md\"",
-      "\".context/2026-06-13.code-smells-audit-skill/iterate-code-smells-audit-skill.md\"",
-      "\"skills/code-smells/SKILL.md\""
+      ".context/2026-06-13.code-smells-audit-skill/plan-code-smells-audit-contract-hardening.md",
+      ".context/2026-06-13.code-smells-audit-skill/iterate-code-smells-audit-skill.md",
+      "skills/code-smells/SKILL.md"
     ],
     "priority": "medium",
     "status": "completed"
@@ -148,7 +1949,7 @@
       "code-smells-audit-contract-hardening-plan-2026-06-13.md"
     ],
     "priority": "medium",
-    "status": "active"
+    "status": "completed"
   },
   {
     "path": ".context/memory/b-commit-final-step-plan-2026-06-11.md",
@@ -169,10 +1970,15 @@
     ],
     "subject": "2026-06-11.b-commit-final-step",
     "artifacts": [
-      "- ../2026-06-11.b-commit-final-step/index.md\n- ../2026-06-11.b-commit-final-step/research-current-commit-surface.md\n- ../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- ../backlog/items/b-commit-final-step.md\n- ../backlog/todo.md"
+      "../2026-06-11.b-commit-final-step/index.md",
+      "../2026-06-11.b-commit-final-step/research-current-commit-surface.md",
+      "../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md",
+      "../backlog/items/b-commit-final-step.md",
+      "../backlog/todo.md"
     ],
     "related": [
-      "- ../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- ../2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+      "../2026-06-11.b-commit-final-step/plan-b-commit-final-step.md",
+      "../2026-06-11.b-commit-final-step/research-current-commit-surface.md"
     ],
     "priority": "high",
     "status": "active"
@@ -201,10 +2007,17 @@
     ],
     "subject": "2026-06-11.b-pr-skill",
     "artifacts": [
-      "- ../2026-06-11.b-pr-skill/index.md\n- ../../skills/b-pr/SKILL.md\n- ../../skills/b-pr/scripts/pr-preflight.ts\n- ../../prompts/b-pr.md\n- ../../commands/b-pr.md\n- ../backlog/items/b-pr-skill.md\n- ../backlog/todo.md"
+      "../2026-06-11.b-pr-skill/index.md",
+      "../../skills/b-pr/SKILL.md",
+      "../../skills/b-pr/scripts/pr-preflight.ts",
+      "../../prompts/b-pr.md",
+      "../../commands/b-pr.md",
+      "../backlog/items/b-pr-skill.md",
+      "../backlog/todo.md"
     ],
     "related": [
-      "- ../2026-06-11.b-pr-skill/index.md\n- ../backlog/items/b-pr-skill.md"
+      "../2026-06-11.b-pr-skill/index.md",
+      "../backlog/items/b-pr-skill.md"
     ],
     "priority": "medium",
     "status": "active"
@@ -227,7 +2040,7 @@
     ],
     "subject": "2026-06-09.durable-research-write-gate",
     "artifacts": [
-      "- index.md"
+      "index.md"
     ],
     "related": [],
     "priority": "medium",
@@ -261,10 +2074,22 @@
     ],
     "subject": "code-review-skill",
     "artifacts": [
-      "- skills/code-review/scripts/pr-context.ts\n- skills/code-review/scripts/submit-review.ts\n- skills/code-review/SKILL.md\n- prompts/code-review.md\n- commands/code-review.md\n- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md\n- .gitignore\n- .context/memory/index.md\n- .context/2026-06-06.user-goal-requirement/plan-user-goal-requirement.md"
+      "skills/code-review/scripts/pr-context.ts",
+      "skills/code-review/scripts/submit-review.ts",
+      "skills/code-review/SKILL.md",
+      "prompts/code-review.md",
+      "commands/code-review.md",
+      "README.md",
+      "docs/buck-workflow.md",
+      "docs/b-flow.md",
+      ".gitignore",
+      ".context/memory/index.md",
+      ".context/2026-06-06.user-goal-requirement/plan-user-goal-requirement.md"
     ],
     "related": [
-      "- ./docs-reality-pass-2026-06-07.md\n- ../2026-06-01.skill-universality-exploration/research-universal-skills.md\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+      "./docs-reality-pass-2026-06-07.md",
+      "../2026-06-01.skill-universality-exploration/research-universal-skills.md",
+      "../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
     ],
     "priority": "high",
     "status": "active"
@@ -293,7 +2118,8 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- plan-cross-harness-kernel.md\n- phase-1-cross-harness-compat.md"
+      "plan-cross-harness-kernel.md",
+      "phase-1-cross-harness-compat.md"
     ],
     "related": [],
     "priority": "medium",
@@ -322,7 +2148,9 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- plan-cross-harness-kernel.md\n- phase-2-kernel-contract-doc.md\n- docs/eval-kernel.md"
+      "plan-cross-harness-kernel.md",
+      "phase-2-kernel-contract-doc.md",
+      "docs/eval-kernel.md"
     ],
     "related": [],
     "priority": "medium",
@@ -352,7 +2180,10 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- plan-cross-harness-kernel.md\n- phase-3-eval-kernel-examples.md\n- eval-review-audit.py\n- eval-migration-sweep.py"
+      "plan-cross-harness-kernel.md",
+      "phase-3-eval-kernel-examples.md",
+      "eval-review-audit.py",
+      "eval-migration-sweep.py"
     ],
     "related": [],
     "priority": "medium",
@@ -383,7 +2214,11 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- plan-cross-harness-kernel.md\n- phase-4-b-grill-integration.md\n- skills/b-grill-me/SKILL.md\n- skills/b-grill-with-docs/SKILL.md\n- docs/eval-kernel.md"
+      "plan-cross-harness-kernel.md",
+      "phase-4-b-grill-integration.md",
+      "skills/b-grill-me/SKILL.md",
+      "skills/b-grill-with-docs/SKILL.md",
+      "docs/eval-kernel.md"
     ],
     "related": [],
     "priority": "medium",
@@ -409,7 +2244,9 @@
     ],
     "subject": "",
     "artifacts": [
-      "- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md"
+      "README.md",
+      "docs/buck-workflow.md",
+      "docs/b-flow.md"
     ],
     "related": [],
     "priority": "medium",
@@ -442,10 +2279,23 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- ../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md\n- ../2026-06-06.omp-integration-buck-workflow/follow-ups.md\n- ../2026-06-06.omp-integration-buck-workflow/index.md\n- ../../prompts/omp-orchestrate.md\n- ../../prompts/omp-workflow.md\n- ../../prompts/omp-goal.md\n- ../../prompts/b-phase.md\n- ../../docs/buck-workflow.md\n- ../../AGENTS.md\n- ../../skills/b-phase/SKILL.md\n- ../../skills/b-plan/SKILL.md\n- ../../skills/b-review/SKILL.md"
+      "../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md",
+      "../2026-06-06.omp-integration-buck-workflow/follow-ups.md",
+      "../2026-06-06.omp-integration-buck-workflow/index.md",
+      "../../prompts/omp-orchestrate.md",
+      "../../prompts/omp-workflow.md",
+      "../../prompts/omp-goal.md",
+      "../../prompts/b-phase.md",
+      "../../docs/buck-workflow.md",
+      "../../AGENTS.md",
+      "../../skills/b-phase/SKILL.md",
+      "../../skills/b-plan/SKILL.md",
+      "../../skills/b-review/SKILL.md"
     ],
     "related": [
-      "- ./omp-integration-buck-workflow-2026-06-06.md\n- ../2026-06-06.omp-integration-buck-workflow/\n- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
+      "./omp-integration-buck-workflow-2026-06-06.md",
+      "../2026-06-06.omp-integration-buck-workflow/",
+      "../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md"
     ],
     "priority": "high",
     "status": "completed"
@@ -476,10 +2326,13 @@
     ],
     "subject": "2026-06-06.omp-integration-buck-workflow",
     "artifacts": [
-      "- ../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md\n- ../2026-06-06.omp-integration-buck-workflow/follow-ups.md\n- ../2026-06-06.omp-integration-buck-workflow/index.md"
+      "../2026-06-06.omp-integration-buck-workflow/research-omp-integration.md",
+      "../2026-06-06.omp-integration-buck-workflow/follow-ups.md",
+      "../2026-06-06.omp-integration-buck-workflow/index.md"
     ],
     "related": [
-      "- ../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md\n- ../2026-06-05.cross-platform-extension-loading/plan-cross-platform-extension-loading.md"
+      "../2026-06-01.deprecate-b-flow/plan-deprecate-b-flow.md",
+      "../2026-06-05.cross-platform-extension-loading/plan-cross-platform-extension-loading.md"
     ],
     "priority": "medium",
     "status": "completed"
@@ -504,10 +2357,18 @@
     ],
     "subject": "2026-06-05.extension-slimdown",
     "artifacts": [
-      "- plan-extension-slimdown.md\n- extensions/index.ts\n- extensions/buck-mode.test.ts\n- extensions/tmux-window-status.test.ts\n- prompts/b-save.md\n- skills/b-save/SKILL.md\n- docs/extension-loading.md\n- package.json"
+      "plan-extension-slimdown.md",
+      "extensions/index.ts",
+      "extensions/buck-mode.test.ts",
+      "extensions/tmux-window-status.test.ts",
+      "prompts/b-save.md",
+      "skills/b-save/SKILL.md",
+      "docs/extension-loading.md",
+      "package.json"
     ],
     "related": [
-      "- .context/2026-06-05.extension-slimdown/plan-extension-slimdown.md\n- .context/2026-05-15.tps-tracker-review/iterate-tps-tracker-review.md"
+      ".context/2026-06-05.extension-slimdown/plan-extension-slimdown.md",
+      ".context/2026-05-15.tps-tracker-review/iterate-tps-tracker-review.md"
     ],
     "priority": "high",
     "status": "completed"
@@ -1646,7 +3507,7 @@
       "omarchy",
       "keybind-conflict"
     ],
-    "subject": "\"\"",
+    "subject": "",
     "artifacts": [],
     "related": [
       "tmux-window-status-2026-04-16.md"
@@ -1703,7 +3564,8 @@
     ],
     "subject": "2026-04-16.tmux-window-name-pi-status",
     "artifacts": [
-      "- .context/2026-04-16.tmux-window-name-pi-status/plan-tmux-window-name-pi-status.md\n- .context/2026-04-16.tmux-window-name-pi-status/brainstorm-tmux-window-name-pi-status.md"
+      ".context/2026-04-16.tmux-window-name-pi-status/plan-tmux-window-name-pi-status.md",
+      ".context/2026-04-16.tmux-window-name-pi-status/brainstorm-tmux-window-name-pi-status.md"
     ],
     "related": [],
     "priority": "high",

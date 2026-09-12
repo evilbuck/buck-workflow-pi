@@ -1,3 +1,8 @@
+- 2026-09-11 — [Unified live activity for extensions (closed)](extension-activity-progress-2026-09-11.md) — `completed` (plan + 4-phase build + iterate close; 313 vitest pass; OMP TUI visual smoke deferred)
+
+  - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: completed
+
+
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 
   - 2026-09-11 | `fix-pr-17-2026-09-11c.md` | domains: [review, plugin, testing] | topics: [fix-pr, pr-17, codex-plugin, plugin-json, version-pin] | status: completed

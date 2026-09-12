@@ -63,7 +63,6 @@ describe("b-commit-improved progress", () => {
       const cmd = commands.get("b-commit-improved") as { handler: (args: string, ctx: unknown) => Promise<void> };
       const calls: string[] = [];
       await cmd.handler("", { cwd: dir, ui: { notify: (m: string) => calls.push(m) } });
-      expect(calls[0]).toMatch(/preflight/i);
       expect(calls.some((m) => /Nothing staged/i.test(m))).toBe(true);
     } finally {
       rmSync(dir, { recursive: true, force: true });

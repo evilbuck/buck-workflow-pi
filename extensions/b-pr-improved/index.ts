@@ -22,7 +22,8 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createProgress, execFileCaptured } from "../command-progress.js";
+import { execFileCaptured } from "../subprocess.js";
+import { createActivity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
 
 
@@ -108,10 +109,11 @@ async function runModelSession(
   cwd: string,
   tools: string[],
   prompt: string,
-  modelOverride?: string,
+  modelOverride: string | undefined,
+  onActivity: (event: ActivityEvent) => void,
   timeoutMs = 120_000,
 ): Promise<string> {
-  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs });
+  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs, onActivity });
 }
 
 
@@ -124,6 +126,7 @@ async function resolveRebaseConflicts(
   cwd: string,
   baseRef: string,
   modelOverride: string | undefined,
+  onActivity: (event: ActivityEvent) => void,
   notify: (msg: string, level: "info" | "warning") => void,
 ): Promise<boolean> {
   for (let attempt = 0; attempt < MAX_CONFLICT_ATTEMPTS; attempt++) {
@@ -138,7 +141,7 @@ async function resolveRebaseConflicts(
       `Do not add commentary; just resolve the files.`;
 
     try {
-      await runModelSession(cwd, ["read", "edit"], prompt, modelOverride);
+      await runModelSession(cwd, ["read", "edit"], prompt, modelOverride, onActivity);
     } catch (e: unknown) {
       notify(`⚠️ conflict-resolution model call failed: ${(e as Error).message}. Resolve manually, then re-run /b-pr-improved.`, "warning");
       return false;
@@ -184,6 +187,7 @@ async function synthesizeDescription(
   cwd: string,
   gather: Record<string, unknown>,
   modelOverride: string | undefined,
+  onActivity: (event: ActivityEvent) => void,
 ): Promise<string> {
   const commits = ((gather.commits as Array<{ subject: string; author: string }>) ?? [])
     .map((c) => `- ${c.subject} (${c.author})`)
@@ -202,7 +206,7 @@ async function synthesizeDescription(
     `Planning context that informed the work (reference as background only — NOT deliverables):\n${artifacts || "(none)"}\n\n` +
     `Return ONLY the markdown description, no preamble.`;
   try {
-    const desc = await runModelSession(cwd, ["read"], prompt, modelOverride);
+    const desc = await runModelSession(cwd, ["read"], prompt, modelOverride, onActivity);
     if (desc) return desc;
   } catch {
     // fall through to template
@@ -252,13 +256,18 @@ interface CommandUI {
   notify: Notify;
   setStatus?: (key: string, text?: string) => void;
   setWorkingMessage?: (message?: string) => void;
+  setWidget?: (
+    key: string,
+    content: string[] | undefined,
+    options?: { placement?: "aboveEditor" | "belowEditor" },
+  ) => void;
 }
 
 async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI }): Promise<void> {
   const cwd = ctx.cwd;
   const notify = ctx.ui.notify;
   const opts = parseArgs(args);
-  const progress = createProgress(ctx, "b-pr-improved");
+  const activity = createActivity({ ui: ctx.ui, command: "b-pr-improved" });
 
   try {
     // 1. Resolve + rebase + gather via the preflight script.
@@ -267,7 +276,7 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
     if (opts.noCache) pfArgs.push("--no-cache");
     if (opts.dryRun) pfArgs.push("--dry-run");
 
-    progress.step("preflight…");
+    activity.phase("preflight…");
     let pf = await runPreflight(pfArgs, cwd);
     let rebased = pf.json?.rebased === true;
 
@@ -281,12 +290,12 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
     // Conflict → resolve in-line, then re-run the preflight to gather.
     if (pf.code === 3 && pf.json?.conflicted_files) {
       const base = (pf.json.chosen_base as string) ?? "base";
-      progress.step(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`);
-      const ok = await resolveRebaseConflicts(cwd, base, opts.model, notify);
+      activity.phase(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`);
+      const ok = await resolveRebaseConflicts(cwd, base, opts.model, activity.ingest, notify);
       if (!ok) return;
       rebased = true;
       const rerunArgs = opts.base ? ["--base", opts.base] : [];
-      progress.step("preflight…");
+      activity.phase("preflight…");
       pf = await runPreflight(rerunArgs, cwd);
       if (pf.code !== 0) {
         notify(`Preflight after rebase failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "unknown"}`, "warning");
@@ -309,7 +318,7 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
     }
 
     try {
-      progress.step(`Pushing ${head}…`);
+      activity.phase(`Pushing ${head}…`);
       if (await pushBranchIfAhead(head, cwd, rebased)) notify(`Pushed ${head} to origin.`, "info");
     } catch (e: unknown) {
       notify(`Branch push failed: ${(e as Error).message}`, "warning");
@@ -317,12 +326,12 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
     }
 
     // 2. Synthesize description + title (model; degrades to a template).
-    progress.step("Synthesizing PR description…");
-    const description = await synthesizeDescription(cwd, gather, opts.model);
+    activity.phase("Synthesizing PR description…");
+    const description = await synthesizeDescription(cwd, gather, opts.model, activity.ingest);
     const title = deriveTitle(gather);
 
     // 3. Create the PR via gh.
-    progress.step("Creating PR with gh…");
+    activity.phase("Creating PR with gh…");
     const ghArgs = ["pr", "create", "--base", base, "--title", title, "--body", description];
     if (opts.draft) ghArgs.push("--draft");
     const gh = await execFileCaptured("gh", ghArgs, cwd);
@@ -330,9 +339,9 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
       notify(`gh pr create failed: ${gh.stderr.trim() || gh.stdout.trim() || "unknown"}`, "warning");
       return;
     }
-    progress.done(`✅ PR created: ${gh.stdout.trim()}`);
+    activity.succeed(`✅ PR created: ${gh.stdout.trim()}`);
   } finally {
-    progress.clear();
+    activity.dispose();
   }
 }
 

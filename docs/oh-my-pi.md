@@ -47,6 +47,27 @@ Same TypeScript extension system as Pi, but under `~/.omp/`:
 | Global | `~/.omp/agent/extensions/*.ts` |
 | Project | `.omp/extensions/*.ts` |
 
+### Extension activity convention (bundled with buck-workflow)
+
+Long-running slash commands (`/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`) must surface work-in-progress through OMP's two non-modal surfaces rather than `pi.sendMessage` or `ctx.ui.custom()`:
+
+- **Footer spinner** — `ctx.ui.setStatus(key, "<frame> <phase>")`. Frames advance on a small bounded interval; the message must always identify the owning command and current semantic phase. `setWorkingMessage` does not animate during nested work, so it is not the surface to drive.
+- **Live activity widget** — `ctx.ui.setWidget(key, lines, { placement: "aboveEditor" })`. Reserved for a short transient window above the editor. One header line plus at most eight activity lines (well under OMP's 10-line string-widget cap). Use `setWidget(key, undefined, ...)` to clear it.
+
+Both surfaces go through `extensions/extension-activity.ts`'s `createActivity({ ui, command })` handle. The handle owns lifecycle, animation, throttling, sanitization, and idempotent cleanup:
+
+| Method | When |
+|---|---|
+| `phase(label)` | Start or replace the current phase; starts the spinner. |
+| `ingest(event)` | Accept a normalized `ActivityEvent` (`text` / `toolStart` / `toolEnd` / `retry` / `complete`). Callers describe work; the module renders. |
+| `succeed(label)` | Stop animation, publish a single terminal notification, clear both status and widget. |
+| `fail(label)` | Same as `succeed` but `warning` notification. |
+| `dispose()` | Idempotent cleanup — call from the outermost `finally`. |
+
+The `Activity` interface hides timer cadence, frame selection, render throttling, line coalescing, bounds, sanitization, and feature detection. **New long-running commands must use this module** — do not introduce per-command progress renderers. The shared module is OMP-first; Pi/print/RPC adapters that omit `setStatus`/`setWidget` are handled structurally without crashing.
+
+For model calls, `runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs, onActivity })` translates the raw OMP `AgentSessionEvent` stream into normalized `ActivityEvent`s before forwarding them to `activity.ingest`. Tool arguments are untrusted: only allowlisted display metadata (repo-relative `path`/`filePath`/`command`/`query`/`pattern`) is forwarded; raw prompts, edit contents, environments, and result bodies never reach the widget.
+
 ### `plan-artifact` (bundled with buck-workflow, opt-in)
 
 OMP plan mode has **no exit hook** (no `mode_change` event, no `plan_approved`;

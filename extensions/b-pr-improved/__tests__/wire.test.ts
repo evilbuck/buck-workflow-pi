@@ -76,7 +76,6 @@ describe("b-pr-improved deterministic plumbing", () => {
       const handler = cmd.handler as (args: string, ctx: unknown) => Promise<void>;
       const calls: Array<[string, string]> = [];
       await handler("", { cwd: dir, ui: { notify: (m: string, l: string) => calls.push([m, l]) } });
-      expect(calls[0][0]).toMatch(/preflight/i);
       expect(calls.some(([m]) => /No cached base/.test(m))).toBe(true);
       expect(calls.some(([m]) => m.includes("main"))).toBe(true);
     } finally {

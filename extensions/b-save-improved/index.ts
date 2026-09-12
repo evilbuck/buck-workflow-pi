@@ -9,7 +9,8 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createProgress, execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../command-progress.js";
+import { execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../subprocess.js";
+import { createActivity, type ActivityEvent } from "../extension-activity.js";
 import { lastAssistantText, resolveOmpRole, runOmpModelSession } from "../omp-models.js";
 
 export { lastAssistantText };
@@ -333,17 +334,25 @@ async function runModelSession(
   cwd: string,
   tools: string[],
   prompt: string,
-  modelOverride?: string,
+  modelOverride: string | undefined,
+  onActivity: (event: ActivityEvent) => void,
   timeoutMs = 60_000,
 ): Promise<string> {
-  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs });
+  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs, onActivity });
 }
 
 
 interface CommandUI {
   notify: (message: string, level?: "info" | "warning" | "error") => void;
-  select?: (prompt: string, items: string[]) => Promise<string | null>;
-  input?: (prompt: string, initial?: string) => Promise<string | null>;
+  select?: (prompt: string, items: string[]) => Promise<string | null | undefined>;
+  input?: (prompt: string, initial?: string) => Promise<string | null | undefined>;
+  setStatus?: (key: string, text?: string) => void;
+  setWorkingMessage?: (message?: string) => void;
+  setWidget?: (
+    key: string,
+    content: string[] | undefined,
+    options?: { placement?: "aboveEditor" | "belowEditor" },
+  ) => void;
 }
 
 interface CommandCtx {
@@ -534,11 +543,12 @@ async function draftScribe(
   opts: SaveArgs,
   digest: string,
   preflight: Record<string, unknown>,
+  onActivity: (event: ActivityEvent) => void,
 ): Promise<ScribeOutput | null> {
   const scribeModel = opts.model ?? resolveRoleModel(ctx.cwd, "scribe");
   let scribeRaw = "";
   try {
-    scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), scribeModel, 120_000);
+    scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), scribeModel, onActivity, 120_000);
   } catch (error) {
     const modelError = error instanceof Error ? error.message : String(error);
     const failure = `Scribe model ${scribeModel ?? "OMP default"} failed (${modelError}).`;
@@ -550,7 +560,7 @@ async function draftScribe(
     }
     notify(ctx, `${failure} Retrying with fallback ${fallbackModel}.`, "warning");
     try {
-      scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), fallbackModel, 120_000);
+      scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), fallbackModel, onActivity, 120_000);
     } catch (fallbackError) {
       const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       fail(pi, ctx, "scribe", `${failure} Fallback model ${fallbackModel} also failed (${fallbackMessage}). ${recovery}`);
@@ -576,9 +586,9 @@ async function runBSaveImproved(
   pi: ExtensionAPI,
 ): Promise<void> {
   const opts = parseArgs(rawArgs);
-  const progress = createProgress(ctx, "b-save-improved");
+  const activity = createActivity({ ui: ctx.ui, command: "b-save-improved" });
   try {
-    progress.step("preflight…");
+    activity.phase("preflight…");
     let pre = await execFileCaptured("bun", [PREFLIGHT, ...preflightArgList(opts)], ctx.cwd);
     if (pre.code === 3) {
       notify(ctx, "No .context/ directory — nothing to save.", "warning");
@@ -637,8 +647,8 @@ async function runBSaveImproved(
     const git = (preflight.git ?? {}) as { status_porcelain?: string; diff_stat?: string };
     const digest = buildDigest(entries, git.status_porcelain ?? "", git.diff_stat ?? "");
 
-    progress.step("Drafting session record…");
-    const scribe = await draftScribe(pi, ctx, opts, digest, preflight);
+    activity.phase("Drafting session record…");
+    const scribe = await draftScribe(pi, ctx, opts, digest, preflight, activity.ingest);
     if (!scribe) return;
 
     const phases = (preflight.phases ?? {}) as { needs_adjudication?: unknown[] };
@@ -652,10 +662,10 @@ async function runBSaveImproved(
     let verdicts: AuditorVerdict[] = [];
     let adjudicationSkipped = false;
     if (needsAuditor) {
-      progress.step("Auditing completions…");
+      activity.phase("Auditing completions…");
       const auditorModel = opts.model ?? resolveRoleModel(ctx.cwd, "auditor");
       try {
-        const raw = await runModelSession(ctx.cwd, ["read", "grep"], buildAuditorPrompt(preflight), auditorModel, 120_000);
+        const raw = await runModelSession(ctx.cwd, ["read", "grep"], buildAuditorPrompt(preflight), auditorModel, activity.ingest, 120_000);
         const parsed = parseAuditorResponse(raw);
         verdicts = parsed ?? [];
         if (!parsed) adjudicationSkipped = true;
@@ -665,7 +675,7 @@ async function runBSaveImproved(
     }
 
     const payload = assembleApplyPayload(preflight, scribe, verdicts);
-    progress.step("Writing .context…");
+    activity.phase("Writing .context…");
     const applyArgs = ["bun", APPLY];
     if (opts.dryRun) applyArgs.push("--dry-run");
     if (opts.archiveInferred) applyArgs.push("--archive-inferred");
@@ -730,8 +740,12 @@ async function runBSaveImproved(
         { triggerTurn: true },
       );
     }
+    activity.succeed("checkpoint written");
+  } catch (e: unknown) {
+    activity.fail(`error: ${(e as Error).message}`);
+    throw e;
   } finally {
-    progress.clear();
+    activity.dispose();
   }
 }
 

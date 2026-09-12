@@ -3,33 +3,23 @@
  *
  * Deterministic, code-driven Conventional Commits flow — the extension counterpart
  * to the git-commit skill. The whole flow is orchestrated in code (not
- * agent-interpreted prose): it reuses skills/git-commit-improved/scripts/commit-preflight.ts
- * for the git plumbing (subject-folder detect, draft read, branch guard, staged
- * check, diff) and invokes the model inline via createAgentSession for the ONE
- * step that needs intelligence — drafting the commit message — then commits,
- * cleans up the draft, and verifies.
+ * agent-interpreted prose): it runs skills/git-commit-improved/scripts/commit-preflight.ts
+ * for staged-diff/git-status context, invokes the model inline via
+ * createAgentSession to draft a Conventional Commit message, and falls back to a
+ * sentinel-filled draft-commit.md stub when no model is available.
  *
- * Unlike the deprecated b-flow (xstate orchestration), this is a single
- * self-contained command, closer in spirit to b-pr-improved. The deterministic
- * core (preflight / commit / amend / verify) always works; the AI step degrades
- * gracefully to a draft file if no model is available.
- *
- * Commit-in-line rule: once we have {title, body} (from a draft or a model call),
- * we commit. The only fallback is writing a `draft-commit.md` when no model is
- * available AND no draft exists — and only so `/b-commit` or a re-run of
- * `/b-commit-improved` can pick it up.
- *
- * Cross-platform: under Pi/OMP with the extension loaded this runs the code
- * path. Without it, commands/b-commit-improved.md / prompts/b-commit-improved.md
- * fall back to the git-commit-improved skill.
+ * Cross-platform: under Pi/OMP with the extension loaded this runs the code path.
+ * Without it, commands/b-commit-improved.md falls back to the agent-driven
+ * git-commit skill.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execFileSync } from "node:child_process";
-import { existsSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createProgress, execFileCaptured } from "../command-progress.js";
+import { execFileCaptured } from "../subprocess.js";
+import { createActivity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
 
 
@@ -57,14 +47,7 @@ function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
 // Used for read-only checks (status, log, diff --cached --name-only after a hook).
 function tryGit(args: string[], cwd: string): { ok: boolean; stdout: string } {
   try {
-    return {
-      ok: true,
-      stdout: execFileSync("git", args, {
-        cwd,
-        encoding: "utf-8",
-        stdio: ["pipe", "pipe", "pipe"],
-      }),
-    };
+    return { ok: true, stdout: execGit(args, cwd) };
   } catch {
     return { ok: false, stdout: "" };
   }
@@ -99,10 +82,11 @@ async function runModelSession(
   cwd: string,
   tools: string[],
   prompt: string,
-  modelOverride?: string,
+  modelOverride: string | undefined,
+  onActivity: (event: ActivityEvent) => void,
   timeoutMs = 60_000,
 ): Promise<string> {
-  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs });
+  return runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs, onActivity });
 }
 
 
@@ -181,7 +165,7 @@ function writeDraft(cwd: string, subjectFolder: string | null, title: string, bo
   return relPath;
 }
 
-// Best-effort draft deletion. Tolerate ENOENT (race with another process).
+// Best-effort draft deletion. Tolerates ENOENT (race with another process).
 function deleteDraft(path: string): void {
   try {
     unlinkSync(path);
@@ -262,26 +246,26 @@ function buildPrompt(
 
 function parseModelResponse(raw: string): DraftBlock | null {
   const trimmed = raw.trim();
-  if (!trimmed) return null;
-  // Strip ```json fences if the model wrapped its output anyway.
-  const stripped = trimmed
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "")
-    .trim();
-  // Find the first {...} object on the page (model may have led/trailed with prose).
-  const firstBrace = stripped.indexOf("{");
-  const lastBrace = stripped.lastIndexOf("}");
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) return null;
-  const candidate = stripped.slice(firstBrace, lastBrace + 1);
+  // Strip optional ```json fences.
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
+  const body = fenced ? fenced[1] : trimmed;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start < 0 || end < 0 || end <= start) return null;
+  let parsed: unknown;
   try {
-    const obj = JSON.parse(candidate) as { title?: unknown; body?: unknown };
-    if (typeof obj.title !== "string" || typeof obj.body !== "string") return null;
-    const title = obj.title.trim();
-    if (!title || hasCommitPlaceholders(title) || hasCommitPlaceholders(obj.body.trim())) return null;
-    return { title, body: obj.body.trim() };
+    parsed = JSON.parse(body.slice(start, end + 1));
   } catch {
     return null;
   }
+  if (!parsed || typeof parsed !== "object") return null;
+  const title = (parsed as Record<string, unknown>).title;
+  const bodyField = (parsed as Record<string, unknown>).body;
+  if (typeof title !== "string" || title.trim() === "") return null;
+  return {
+    title: title.trim(),
+    body: typeof bodyField === "string" ? bodyField.trim() : "",
+  };
 }
 
 async function draftFromModel(
@@ -293,11 +277,12 @@ async function draftFromModel(
   modelOverride: string | undefined,
   dryRun: boolean,
   subjectFolder: string | null,
+  onActivity: (event: ActivityEvent) => void,
 ): Promise<DraftBlock | null> {
   const prompt = buildPrompt(cwd, diff, stagedFiles, currentBranch, extraContext);
   let raw = "";
   try {
-    raw = await runModelSession(cwd, ["read"], prompt, modelOverride);
+    raw = await runModelSession(cwd, ["read"], prompt, modelOverride, onActivity);
   } catch (e: unknown) {
     if (!dryRun) {
       fallbackDraft(cwd, subjectFolder, diff, stagedFiles, extraContext, `model call failed: ${(e as Error).message}`);
@@ -327,6 +312,11 @@ interface CommandUI {
   notify: Notify;
   setStatus?: (key: string, text?: string) => void;
   setWorkingMessage?: (message?: string) => void;
+  setWidget?: (
+    key: string,
+    content: string[] | undefined,
+    options?: { placement?: "aboveEditor" | "belowEditor" },
+  ) => void;
 }
 
 async function runBCommitImproved(
@@ -336,164 +326,170 @@ async function runBCommitImproved(
   const cwd = ctx.cwd;
   const notify = ctx.ui.notify;
   const opts = parseArgs(args);
-  const progress = createProgress(ctx, "b-commit-improved");
+  const activity = createActivity({ ui: ctx.ui, command: "b-commit-improved" });
 
   try {
-  // 1. Preflight
-  const pfArgs: string[] = [];
-  if (opts.force) pfArgs.push("--force");
-  if (opts.noDraft) pfArgs.push("--no-draft");
-  if (opts.dryRun) pfArgs.push("--dry-run");
+    // 1. Preflight
+    const pfArgs: string[] = [];
+    if (opts.force) pfArgs.push("--force");
+    if (opts.noDraft) pfArgs.push("--no-draft");
+    if (opts.dryRun) pfArgs.push("--dry-run");
 
-  progress.step("preflight…");
-  const pf = await runPreflight(pfArgs, cwd);
-  if (pf.code === 2) {
-    const branch = (pf.json?.current_branch as string) ?? "unknown";
-    notify(`Protected branch '${branch}' — re-run with --force to commit here directly.`, "warning");
-    return;
-  }
-  if (pf.code === 3) {
-    notify("Nothing staged. Stage changes first, then re-run.", "warning");
-    return;
-  }
-  if (pf.code !== 0 || !pf.json) {
-    notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
-    return;
-  }
-
-  const {
-    current_branch: currentBranch,
-    subject_folder: subjectFolder,
-    draft_path: draftPath,
-    draft: draftFromDisk,
-    staged_files: stagedFiles,
-    diff,
-  } = pf.json as {
-    current_branch: string;
-    subject_folder: string | null;
-    draft_path: string | null;
-    draft: DraftBlock | null;
-    staged_files: string[];
-    diff: string;
-  };
-
-  // 2. Resolve {title, body}. Commit in line once we have it.
-  let title = "";
-  let body = "";
-  let source: "draft" | "model" = "draft";
-
-  if (draftFromDisk && draftFromDisk.title.trim() !== "" && !opts.noDraft) {
-    title = draftFromDisk.title;
-    body = draftFromDisk.body;
-    source = "draft";
-  } else {
-    progress.step("Drafting commit message…");
-    const drafted = await draftFromModel(
-      cwd,
-      diff,
-      stagedFiles,
-      currentBranch,
-      opts.extraContext,
-      opts.model,
-      opts.dryRun,
-      subjectFolder,
-    );
-    if (!drafted) {
-      // In a normal run, fallbackDraft inside draftFromModel already wrote
-      // a stub draft-commit.md. In --dry-run, no file is written (per
-      // draftFromModel's contract), so the previous "Drafted to ${path}.
-      // Re-run ... to commit" message was misleading — it claimed a draft
-      // existed when it didn't. Tell the user the real story per mode.
-      if (opts.dryRun) {
-        notify(
-          `[dry-run] No model available and no draft on disk. Re-run /b-commit-improved (or /b-commit) once a model is available to draft.`,
-          "info",
-        );
-      } else {
-        const path = draftPathFor(subjectFolder);
-        notify(`Wrote a stub draft to ${path} ($TITLE/$BODY sentinels). Replace them or re-run once a model can draft.`, "info");
-      }
+    activity.phase("preflight…");
+    const pf = await runPreflight(pfArgs, cwd);
+    if (pf.code === 2) {
+      const branch = (pf.json?.current_branch as string) ?? "unknown";
+      notify(`Protected branch '${branch}' — re-run with --force to commit here directly.`, "warning");
       return;
     }
-    title = drafted.title;
-    body = drafted.body;
-    source = "model";
-  }
-
-  // 3. Pre-commit safety: refuse leftover template tokens.
-  if (hasCommitPlaceholders(title) || hasCommitPlaceholders(body)) {
-    notify("Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.", "warning");
-    return;
-  }
-
-  // 4. --dry-run: preview, optionally write the draft.
-  if (opts.dryRun) {
-    const firstBodyLine = body.split("\n", 1)[0] ?? "";
-    notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
-    if (source === "model") {
-      const path = writeDraft(cwd, subjectFolder, title, body);
-      notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+    if (pf.code === 3) {
+      notify("Nothing staged. Stage changes first, then re-run.", "warning");
+      return;
     }
-    return;
-  }
+    if (pf.code !== 0 || !pf.json) {
+      notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
+      return;
+    }
 
-  // 5. Commit. Hooks may have auto-staged files — retry once on failure if so.
-  progress.step("Committing…");
-  const commitArgs = body ? ["commit", "-m", title, "-m", body] : ["commit", "-m", title];
-  try {
-    execGit(commitArgs, cwd);
-  } catch (e: unknown) {
-    const msg = (e as Error).message;
-    const stagedNow = tryGit(["diff", "--cached", "--name-only"], cwd);
-    if (stagedNow.ok && stagedNow.stdout.trim() !== "") {
-      try {
-        execGit(commitArgs, cwd);
-      } catch (e2: unknown) {
-        notify(`git commit failed (after hook auto-stage retry): ${(e2 as Error).message}`, "warning");
+    const {
+      current_branch: currentBranch,
+      subject_folder: subjectFolder,
+      draft_path: draftPath,
+      draft: draftFromDisk,
+      staged_files: stagedFiles,
+      diff,
+    } = pf.json as {
+      current_branch: string;
+      subject_folder: string | null;
+      draft_path: string | null;
+      draft: DraftBlock | null;
+      staged_files: string[];
+      diff: string;
+    };
+
+    // 2. Resolve {title, body}. Commit in line once we have it.
+    let title = "";
+    let body = "";
+    let source: "draft" | "model" = "draft";
+
+    if (draftFromDisk && draftFromDisk.title.trim() !== "" && !opts.noDraft) {
+      title = draftFromDisk.title;
+      body = draftFromDisk.body;
+      source = "draft";
+    } else {
+      activity.phase("Drafting commit message…");
+      const drafted = await draftFromModel(
+        cwd,
+        diff,
+        stagedFiles,
+        currentBranch,
+        opts.extraContext,
+        opts.model,
+        opts.dryRun,
+        subjectFolder,
+        activity.ingest,
+      );
+      if (!drafted) {
+        // In a normal run, fallbackDraft inside draftFromModel already wrote
+        // a stub draft-commit.md. In --dry-run, no file is written (per
+        // draftFromModel's contract), so the previous "Drafted to ${path}.
+        // Re-run ... to commit" message was misleading — it claimed a draft
+        // existed when it didn't. Tell the user the real story per mode.
+        if (opts.dryRun) {
+          notify(
+            `[dry-run] No model available and no draft on disk. Re-run /b-commit-improved (or /b-commit) once a model is available to draft.`,
+            "info",
+          );
+        } else {
+          const path = draftPathFor(subjectFolder);
+          notify(`Wrote a stub draft to ${path} ($TITLE/$BODY sentinels). Replace them or re-run once a model can draft.`, "info");
+        }
         return;
       }
-    } else {
-      notify(`git commit failed: ${msg}`, "warning");
+      title = drafted.title;
+      body = drafted.body;
+      source = "model";
+    }
+
+    // 3. Pre-commit safety: refuse leftover template tokens.
+    if (hasCommitPlaceholders(title) || hasCommitPlaceholders(body)) {
+      notify("Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.", "warning");
       return;
     }
-  }
 
-  // 6. Success cleanup: delete the draft and amend the deletion into the commit.
-  if (draftPath && existsSync(draftPath)) {
-    deleteDraft(draftPath);
-    try {
-      execGit(["add", "--", draftPath], cwd);
-    } catch {
-      // Race: another process deleted it first. Commit is fine without the amend.
+    // 4. --dry-run: preview, optionally write the draft.
+    if (opts.dryRun) {
+      const firstBodyLine = body.split("\n", 1)[0] ?? "";
+      notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
+      if (source === "model") {
+        const path = writeDraft(cwd, subjectFolder, title, body);
+        notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+      }
+      return;
     }
-    try {
-      execGit(["commit", "--amend", "--no-edit"], cwd, { GIT_EDITOR: "true" });
-    } catch {
-      // Same race — commit stands as-is.
-    }
-  }
 
-  // 7. Verify
-  const verifyRaw = tryGit(["log", "-1", "--format=%B"], cwd);
-  const message = verifyRaw.ok ? verifyRaw.stdout.trim() : "";
-  if (hasCommitPlaceholders(message)) {
-    // Paranoid: should never trigger given step 3, but mirror the existing skill.
+    // 5. Commit. Hooks may have auto-staged files — retry once on failure if so.
+    activity.phase("Committing…");
+    const commitArgs = body ? ["commit", "-m", title, "-m", body] : ["commit", "-m", title];
     try {
-      execGit(["commit", "--amend", "-m", title, "-m", body], cwd, { GIT_EDITOR: "true" });
-      notify("⚠️ commit message contained a $TITLE/$BODY placeholder; amended with explicit values.", "warning");
+      execGit(commitArgs, cwd);
     } catch (e: unknown) {
-      notify(`verify-pass amend failed: ${(e as Error).message}`, "warning");
+      const msg = (e as Error).message;
+      const stagedNow = tryGit(["diff", "--cached", "--name-only"], cwd);
+      if (stagedNow.ok && stagedNow.stdout.trim() !== "") {
+        try {
+          execGit(commitArgs, cwd);
+        } catch (e2: unknown) {
+          notify(`git commit failed (after hook auto-stage retry): ${(e2 as Error).message}`, "warning");
+          return;
+        }
+      } else {
+        notify(`git commit failed: ${msg}`, "warning");
+        return;
+      }
     }
-  }
 
-  // 8. Final output
-  notify(`✅ ${title}${body ? "\n" + body : ""}`, "info");
-  const status = tryGit(["status", "-sb"], cwd);
-  if (status.ok) notify(status.stdout.trimEnd(), "info");
-  const log = tryGit(["log", "-1", "--oneline"], cwd);
-  if (log.ok) notify(log.stdout.trimEnd(), "info");
+    // 6. Success cleanup: delete the draft and amend the deletion into the commit.
+    if (draftPath && existsSync(draftPath)) {
+      deleteDraft(draftPath);
+      try {
+        execGit(["add", "--", draftPath], cwd);
+      } catch {
+        // Race: another process deleted it first. Commit is fine without the amend.
+      }
+      try {
+        execGit(["commit", "--amend", "--no-edit"], cwd, { GIT_EDITOR: "true" });
+      } catch {
+        // Same race — commit stands as-is.
+      }
+    }
+
+    // 7. Verify
+    const verifyRaw = tryGit(["log", "-1", "--format=%B"], cwd);
+    const message = verifyRaw.ok ? verifyRaw.stdout.trim() : "";
+    if (hasCommitPlaceholders(message)) {
+      // Paranoid: should never trigger given step 3, but mirror the existing skill.
+      try {
+        execGit(["commit", "--amend", "-m", title, "-m", body], cwd, { GIT_EDITOR: "true" });
+        notify("⚠️ commit message contained a $TITLE/$BODY placeholder; amended with explicit values.", "warning");
+      } catch (e: unknown) {
+        notify(`verify-pass amend failed: ${(e as Error).message}`, "warning");
+      }
+    }
+
+    // 8. Final output
+    activity.phase("done");
+    notify(`✅ ${title}${body ? "\n" + body : ""}`, "info");
+    const status = tryGit(["status", "-sb"], cwd);
+    if (status.ok) notify(status.stdout.trimEnd(), "info");
+    const log = tryGit(["log", "-1", "--oneline"], cwd);
+    if (log.ok) notify(log.stdout.trimEnd(), "info");
+    activity.succeed("done");
+  } catch (e: unknown) {
+    activity.fail(`error: ${(e as Error).message}`);
+    throw e;
   } finally {
-    progress.clear();
+    activity.dispose();
   }
 }
 
@@ -501,7 +497,7 @@ async function runBCommitImproved(
 
 export function wire(pi: ExtensionAPI): void {
   pi.registerCommand("b-commit-improved", {
-    description: "Deterministic Conventional Commit: read draft or draft via model, commit, clean up draft, verify",
+    description: "Deterministic Conventional Commits: preflight → model draft → commit, with $TITLE/$BODY fallback when no model",
     getArgumentCompletions(prefix: string) {
       return ["--force", "--no-draft", "--dry-run", "--model"]
         .filter((o) => o.startsWith(prefix))
