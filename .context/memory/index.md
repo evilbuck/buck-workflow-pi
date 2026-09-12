@@ -1,3 +1,12 @@
+- 2026-09-12 — [fix-pr: PR #24 review feedback](fix-pr-24-2026-09-12.md) — `completed` (terminal flush fixes + red/green regression tests, spawn mock, tick semantics, dead code, .context reconciliation; 542 vitest pass)
+
+  - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
+
+- 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
+
+  - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
+
+
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 
   - 2026-09-11 | `fix-pr-17-2026-09-11c.md` | domains: [review, plugin, testing] | topics: [fix-pr, pr-17, codex-plugin, plugin-json, version-pin] | status: completed

@@ -7,8 +7,7 @@ const createAgentSession = vi.fn();
 const recordCommandError = vi.fn();
 const { resolveOmpRole } = vi.hoisted(() => ({ resolveOmpRole: vi.fn() }));
 
-vi.mock("../../command-progress.js", () => ({
-  createProgress: () => ({ step: vi.fn(), clear: vi.fn(), fail: vi.fn(), done: vi.fn() }),
+vi.mock("../../subprocess.js", () => ({
   execFileCaptured: (...args: unknown[]) => execFileCaptured(...args),
   execFileCapturedWithStdin: (...args: unknown[]) => execFileCapturedWithStdin(...args),
   recordCommandError: (...args: unknown[]) => recordCommandError(...args),
@@ -46,6 +45,10 @@ function sessionWith(text: string) {
       prompt: vi.fn(async () => {}),
       abort: vi.fn(),
       dispose: vi.fn(),
+      subscribe: vi.fn((bridge: (event: unknown) => void) => {
+        bridge({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "delta from model" } });
+        return () => {};
+      }),
       messages: [{ role: "assistant", content: text }],
     },
   };
@@ -380,6 +383,58 @@ describe("b-save-improved handler", () => {
     expect(notes.join(" ")).toMatch(/User Goal missing/);
     expect(sendMessage).toHaveBeenCalled();
 
+  });
+
+  it("clears status and widget when the apply step throws (outermost catch)", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockRejectedValue(new Error("apply script crashed"));
+    createAgentSession.mockResolvedValueOnce(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const statuses: Array<[string, string | undefined]> = [];
+    const widgets: Array<{ key: string; lines?: string[] }> = [];
+    try {
+      await commands.get("b-save-improved")!.handler("", {
+        cwd: "/tmp",
+        sessionManager: { getEntries: () => [] },
+        ui: {
+          notify: () => {},
+          setStatus: (key, text) => statuses.push([key, text]),
+          setWidget: (key, content) => widgets.push({ key, lines: Array.isArray(content) ? [...content] : undefined }),
+        },
+      });
+    } catch {
+      // expected — the handler re-throws after activity.fail.
+    }
+    // activity.fail calls clearUI() which sends setStatus(undefined) and
+    // setWidget(undefined). The last status/widget should reflect the clear.
+    expect(statuses.at(-1)).toEqual(["b-save-improved:activity", undefined]);
+    const lastWidget = widgets.at(-1);
+    expect(lastWidget?.key).toBe("b-save-improved:activity-window");
+    expect(lastWidget?.lines).toBeUndefined();
+  });
+
+  it("drives the activity lifecycle across preflight, scribe, and dispose", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ applied: [], staged_inferred: [], errors: [] }),
+      stderr: "",
+    });
+    createAgentSession.mockResolvedValueOnce(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const calls: string[] = [];
+    await commands.get("b-save-improved")!.handler("", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (m: string) => calls.push(m), setStatus: () => {}, setWidget: () => {} },
+    });
+    // createActivity is the real (unmocked) extension-activity module. The
+    // handler will run its setStatus / setWidget / dispose lifecycle; we only
+    // assert the calls surface through the ui.notify channel and that the
+    // handler completed without throwing on the preflight -> scribe path.
+    expect(calls.length).toBeGreaterThan(0);
   });
 
   it("records a failed apply and skips post-apply side effects", async () => {

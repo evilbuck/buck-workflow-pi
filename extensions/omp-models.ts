@@ -10,6 +10,99 @@ import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export type ActivityEvent =
+  | { kind: "text"; delta: string }
+  | { kind: "toolStart"; tool: string; target?: string }
+  | { kind: "toolEnd"; tool: string; ok: boolean; message?: string }
+  | { kind: "retry"; message: string }
+  | { kind: "complete"; ok: boolean; message?: string };
+
+const TOOL_ARG_KEYS = ["path", "filePath", "filepath", "command", "query", "pattern"] as const;
+
+function extractToolTarget(args: unknown): string | undefined {
+  if (!args || typeof args !== "object") return undefined;
+  for (const key of TOOL_ARG_KEYS) {
+    const value = (args as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function extractErrorMessage(result: unknown): string | undefined {
+  if (result && typeof result === "object") {
+    const record = result as { error?: unknown; message?: unknown };
+    if (typeof record.message === "string") return record.message;
+    if (record.error && typeof record.error === "object" && "message" in record.error) {
+      const message = (record.error as { message?: unknown }).message;
+      if (typeof message === "string") return message;
+    }
+    if (typeof record.error === "string") return record.error;
+  }
+  if (typeof result === "string") return result;
+  return undefined;
+}
+
+function asTextDelta(raw: unknown): ActivityEvent | null {
+  const update = raw as {
+    assistantMessageEvent?: { type?: unknown; delta?: unknown };
+  };
+  if (update.assistantMessageEvent?.type !== "text_delta") return null;
+  const delta = update.assistantMessageEvent.delta;
+  return typeof delta === "string" && delta.length > 0 ? { kind: "text", delta } : null;
+}
+
+function asToolStart(raw: unknown): ActivityEvent | null {
+  const start = raw as { toolName?: unknown; args?: unknown };
+  if (typeof start.toolName !== "string") return null;
+  const target = extractToolTarget(start.args);
+  return target === undefined
+    ? { kind: "toolStart", tool: start.toolName }
+    : { kind: "toolStart", tool: start.toolName, target };
+}
+
+function asToolEnd(raw: unknown): ActivityEvent | null {
+  const end = raw as { toolName?: unknown; isError?: unknown; result?: unknown };
+  if (typeof end.toolName !== "string") return null;
+  const ok = end.isError !== true;
+  const message = ok ? undefined : extractErrorMessage(end.result);
+  if (ok) return { kind: "toolEnd", tool: end.toolName, ok: true };
+  return message === undefined
+    ? { kind: "toolEnd", tool: end.toolName, ok: false }
+    : { kind: "toolEnd", tool: end.toolName, ok: false, message };
+}
+
+function asRetry(raw: unknown): ActivityEvent | null {
+  const retry = raw as { errorMessage?: unknown };
+  const message =
+    typeof retry.errorMessage === "string" && retry.errorMessage
+      ? retry.errorMessage
+      : "model retry";
+  return { kind: "retry", message };
+}
+
+function asComplete(): ActivityEvent {
+  return { kind: "complete", ok: true, message: "agent finished" };
+}
+
+export function normalizeActivityEvent(raw: unknown): ActivityEvent | null {
+  if (!raw || typeof raw !== "object") return null;
+  const type = (raw as { type?: unknown }).type;
+  switch (type) {
+    case "message_update":
+      return asTextDelta(raw);
+    case "tool_execution_start":
+      return asToolStart(raw);
+    case "tool_execution_end":
+      return asToolEnd(raw);
+    case "auto_retry_start":
+      return asRetry(raw);
+    case "agent_end":
+      return asComplete();
+    default:
+      return null;
+  }
+}
+
 export function ompAgentDir(): string {
   return process.env.OMP_AGENT_DIR || join(homedir(), ".omp", "agent");
 }
@@ -128,8 +221,9 @@ export async function runOmpModelSession(opts: {
   prompt: string;
   modelOverride?: string;
   timeoutMs?: number;
+  onActivity?: (event: ActivityEvent) => void;
 }): Promise<string> {
-  const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000 } = opts;
+  const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000, onActivity } = opts;
   const sessionOpts: Parameters<typeof createAgentSession>[0] & {
     agentDir?: string;
     modelPattern?: string;
@@ -156,6 +250,14 @@ export async function runOmpModelSession(opts: {
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
   const created = await createAgentSession(sessionOpts);
   const session = created.session;
+  let unsubscribe: (() => void) | null = null;
+  if (onActivity) {
+    const bridge = (rawEvent: unknown): void => {
+      const normalized = normalizeActivityEvent(rawEvent);
+      if (normalized) onActivity(normalized);
+    };
+    unsubscribe = session.subscribe(bridge);
+  }
   const timer = setTimeout(() => {
     void session.abort();
   }, timeoutMs);
@@ -171,6 +273,7 @@ export async function runOmpModelSession(opts: {
     if (!text) throw new EmptyModelResponseError(messages);
     return text;
   } finally {
+    if (unsubscribe) unsubscribe();
     clearTimeout(timer);
     session.dispose();
   }

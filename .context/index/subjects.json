@@ -44,6 +44,82 @@
     "artifacts": []
   },
   {
+    "path": ".context/2026-06-16.b-fix-rebase-conflict/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-22.b-pr-skill-portable-path/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-07-26.b-pr-preflight-autostash/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-07-26",
+    "topics": [
+      "b-pr",
+      "pr-preflight",
+      "autostash",
+      "rebase",
+      "dirty-tree"
+    ],
+    "related": [
+      "skills/b-pr/scripts/pr-preflight.ts",
+      "skills/b-pr/SKILL.md",
+      "extensions/b-pr-improved/__tests__/wire.test.ts"
+    ],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-14.omp-context-memory-hindsight/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-08-14",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-03.b-save-improved-empty-scribe/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-04.b-nasa-prd-skill/index.md",
+    "kind": "subject-index",
+    "subject": "",
+    "status": "completed",
+    "date": "2026-09-04",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
     "path": ".context/2026-05-31.subject-selection-prompting/index.md",
     "kind": "subject-index",
     "subject": "2026-05-31.subject-selection-prompting",
@@ -179,7 +255,17 @@
     "related": [],
     "informs": [],
     "artifacts": [
-      "- research-omp-integration.md\n- follow-ups.md\n- plan-cross-harness-kernel.md\n- plan-cross-harness-kernel-phases.md\n- phase-1-cross-harness-compat.md\n- phase-2-kernel-contract-doc.md\n- phase-3-eval-kernel-examples.md\n- phase-4-b-grill-integration.md\n- docs/eval-kernel.md\n- eval-review-audit.py\n- eval-migration-sweep.py"
+      "research-omp-integration.md",
+      "follow-ups.md",
+      "plan-cross-harness-kernel.md",
+      "plan-cross-harness-kernel-phases.md",
+      "phase-1-cross-harness-compat.md",
+      "phase-2-kernel-contract-doc.md",
+      "phase-3-eval-kernel-examples.md",
+      "phase-4-b-grill-integration.md",
+      "docs/eval-kernel.md",
+      "eval-review-audit.py",
+      "eval-migration-sweep.py"
     ]
   },
   {
@@ -192,6 +278,32 @@
     "related": [],
     "informs": [],
     "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-10.agent-install-instructions/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-10.agent-install-instructions",
+    "status": "completed",
+    "date": "2026-06-10",
+    "topics": [
+      "install",
+      "opencode",
+      "pi",
+      "omp",
+      "claude-code",
+      "codex",
+      "agent-skills",
+      "slash-commands",
+      "bootstrap",
+      "cross-harness"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": [
+      "plan-agent-install-instructions.md",
+      "../../agent-install_instructions.md",
+      "../../README.md"
+    ]
   },
   {
     "path": ".context/2026-06-11.b-commit-final-step/index.md",
@@ -266,11 +378,426 @@
     ]
   },
   {
+    "path": ".context/2026-06-24.b-docs-living-documentation/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-24.b-docs-living-documentation",
+    "status": "active",
+    "date": "2026-06-24",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-26.remove-ralph-loop/index.md",
+    "kind": "subject-index",
+    "subject": "2026-06-26.remove-ralph-loop",
+    "status": "active",
+    "date": "2026-06-26",
+    "topics": [
+      "omp-native",
+      "execution-loop",
+      "goal-mode",
+      "terminology-scrub"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-07-22.fix-pr-diagnosis-codification/index.md",
+    "kind": "subject-index",
+    "subject": "2026-07-22.fix-pr-diagnosis-codification",
+    "status": "active",
+    "date": "2026-07-22",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-07-25.git-commit-improved/index.md",
+    "kind": "subject-index",
+    "subject": "2026-07-25.git-commit-improved",
+    "status": "completed",
+    "date": "2026-07-25",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-07-26.b-init-guardrails/index.md",
+    "kind": "subject-index",
+    "subject": "2026-07-26.b-init-guardrails",
+    "status": "completed",
+    "date": "2026-07-26",
+    "topics": [
+      "guardrails",
+      "coverage",
+      "cyclomatic-complexity",
+      "ratchet",
+      "brownfield",
+      "skill-authoring"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-12.npm-publish-readiness/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-12.npm-publish-readiness",
+    "status": "active",
+    "date": "",
+    "topics": [],
+    "related": [
+      "package.json",
+      "scripts/publish.mjs",
+      "agent-install_instructions.md",
+      "docs/extension-loading.md"
+    ],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-12.standalone-b-plan-bootstrap/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-12.standalone-b-plan-bootstrap",
+    "status": "completed",
+    "date": "2026-08-12",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-20.deterministic-extension-progress/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-20.deterministic-extension-progress",
+    "status": "active",
+    "date": "2026-08-20",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-23.memory-search-agnostic/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-23.memory-search-agnostic",
+    "status": "completed",
+    "date": "2026-08-23",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-25.omp-plan-artifact-extension/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-25.omp-plan-artifact-extension",
+    "status": "completed",
+    "date": "2026-08-25",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-25.pr-test-checks/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-25.pr-test-checks",
+    "status": "completed",
+    "date": "2026-08-25",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-26.b-commit-placeholder-sentinels/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-26.b-commit-placeholder-sentinels",
+    "status": "completed",
+    "date": "2026-08-26",
+    "topics": [
+      "b-commit-improved",
+      "draft-commit",
+      "placeholders",
+      "sentinels"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-26.b-init-guardrails-on-repo/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-26.b-init-guardrails-on-repo",
+    "status": "completed",
+    "date": "2026-08-26",
+    "topics": [
+      "b-init-guardrails",
+      "guardrails.json",
+      "vitest",
+      "lizard",
+      "coverage",
+      "patch-gate"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-26.deterministic-bsave/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-26.deterministic-bsave",
+    "status": "completed",
+    "date": "2026-08-27",
+    "topics": [
+      "b-save-improved",
+      "deterministic-checkpoint",
+      "shared-helpers",
+      "typescript-migration",
+      "scribe-auditor",
+      "parity",
+      "guardrails-override"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-27.external-context-store/index.md",
+    "kind": "subject-index",
+    "subject": "2026-08-27.external-context-store",
+    "status": "draft",
+    "date": "2026-08-27",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-02.herdr-omp-agent-driver/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-02.herdr-omp-agent-driver",
+    "status": "draft",
+    "date": "2026-09-02",
+    "topics": [
+      "omp",
+      "extension",
+      "herdr",
+      "orchestration",
+      "multi-agent"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-04.b-recap/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-04.b-recap",
+    "status": "active",
+    "date": "2026-09-04",
+    "topics": [
+      "b-recap",
+      "session-recap",
+      "workflow-skills"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-07.b-plan-update-skill/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-07.b-plan-update-skill",
+    "status": "active",
+    "date": "2026-09-07",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-08.b-capture/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-08.b-capture",
+    "status": "completed",
+    "date": "2026-09-08",
+    "topics": [
+      "b-capture",
+      "dictation",
+      "note-taking"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-08.b-init-factory/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-08.b-init-factory",
+    "status": "completed",
+    "date": "2026-09-08",
+    "topics": [
+      "b-init-factory",
+      "software-factory",
+      "agents-md",
+      "cross-harness"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-09.installer-source-integrity/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-09.installer-source-integrity",
+    "status": "active",
+    "date": "2026-09-09",
+    "topics": [
+      "installer",
+      "symlink",
+      "source-root",
+      "verify",
+      "bootstrap-drift"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-09.review-response-style/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-09.review-response-style",
+    "status": "completed",
+    "date": "2026-09-09",
+    "topics": [
+      "code-review",
+      "agent-instructions",
+      "response-style"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-10.mattpocock-adoption/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-10.mattpocock-adoption",
+    "status": "active",
+    "date": "2026-09-10",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-10.mattpocock-skills-overlap/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-10.mattpocock-skills-overlap",
+    "status": "completed",
+    "date": "2026-09-10",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-11.extension-activity-progress/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-11.extension-activity-progress",
+    "status": "active",
+    "date": "2026-09-11",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-09-11.fix-pr-open-prs/index.md",
+    "kind": "subject-index",
+    "subject": "2026-09-11.fix-pr-open-prs",
+    "status": "active",
+    "date": "2026-09-11",
+    "topics": [
+      "fix-pr",
+      "herdr",
+      "omp",
+      "worktrees",
+      "manage-herdr-panes"
+    ],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-14.agents-bootstrap-clarification/index.md",
+    "kind": "subject-index",
+    "subject": "agents-bootstrap-clarification",
+    "status": "completed",
+    "date": "2026-06-14",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-14.b-plan-light-grill/index.md",
+    "kind": "subject-index",
+    "subject": "b-plan-light-grill",
+    "status": "completed",
+    "date": "2026-06-14",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-08-27.b-pr-improved-existing-pr/index.md",
+    "kind": "subject-index",
+    "subject": "b-pr-improved-existing-pr",
+    "status": "active",
+    "date": "2026-08-27",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": [
+      "plan-existing-pr-check.md"
+    ]
+  },
+  {
+    "path": ".context/2026-06-17.b-pr-review-2-issues-context-skip/index.md",
+    "kind": "subject-index",
+    "subject": "b-pr-review-2-issues-context-skip",
+    "status": "completed",
+    "date": "2026-06-17",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
     "path": ".context/2026-06-13.code-smells-audit-skill/index.md",
     "kind": "subject-index",
     "subject": "code-smells-audit-skill",
     "status": "completed",
     "date": "2026-06-13",
+    "topics": [],
+    "related": [],
+    "informs": [],
+    "artifacts": []
+  },
+  {
+    "path": ".context/2026-06-14.design-brief-skill-update/index.md",
+    "kind": "subject-index",
+    "subject": "design-brief-skill-update",
+    "status": "completed",
+    "date": "2026-06-14",
     "topics": [],
     "related": [],
     "informs": [],

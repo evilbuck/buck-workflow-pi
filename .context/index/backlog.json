@@ -1,15 +1,397 @@
 [
   {
-    "path": ".context/backlog/items/hybrid-context-artifact-model.md",
+    "path": ".context/backlog/items/b-auto-fix-frontier-concurrency.md",
     "kind": "backlog-item",
-    "title": "Implement hybrid context artifact model",
+    "title": "b-auto-fix frontier concurrency",
     "status": "active",
-    "priority": "medium",
-    "created": "2026-06-13",
-    "updated": "2026-06-13",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
     "completed": null,
     "related": [
-      "- .context/2026-06-13.context-format-research/index.md\n- .context/2026-06-13.context-format-research/research-context-format.md\n- .context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md\n- scripts/context-artifacts.mjs\n- scripts/context-artifacts.test.mjs\n- docs/context-artifacts.md\n- README.md\n- package.json\n- .context/index/subjects.json\n- .context/index/memory.json\n- .context/index/backlog.json\n- .context/index/artifacts.json"
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-grill-round-frontier-mode.md",
+    "kind": "backlog-item",
+    "title": "b-grill round-frontier mode",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-phase-ready-frontier-expand-contract.md",
+    "kind": "backlog-item",
+    "title": "b-phase ready-frontier + expand–contract",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-prototype.md",
+    "kind": "backlog-item",
+    "title": "b-prototype (throwaway spike before plan/build)",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-retro.md",
+    "kind": "backlog-item",
+    "title": "b-retro (session/phase retrospective)",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-which-catalog-router.md",
+    "kind": "backlog-item",
+    "title": "b-which router generated from the catalog",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/code-smells-depth-axis-blueprint-visuals.md",
+    "kind": "backlog-item",
+    "title": "code-smells depth axis + b-blueprint visuals",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/mattpocock-adoptions.md",
+    "kind": "backlog-item",
+    "title": "Adopt mattpocock/skills capability gaps (b-diagnose, review fan-out, 5 new skills)",
+    "status": "completed",
+    "priority": "medium",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": "2026-09-10",
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-2-design-vocabulary-and-diagnose.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-3-loop-composition-patches.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-4-independent-new-members.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-5-tracker-init-and-triage.md",
+      ".context/2026-09-10.mattpocock-skills-overlap/research-mattpocock-skills-overlap.md",
+      "presentations/2026-09-10.mattpocock-skills-overlap/index.html"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/mattpocock-audit-defects.md",
+    "kind": "backlog-item",
+    "title": "Fix 3 live defects found by the mattpocock/skills audit",
+    "status": "completed",
+    "priority": "high",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": "2026-09-10",
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-1-live-defects.md",
+      ".context/2026-09-10.mattpocock-skills-overlap/research-mattpocock-skills-overlap.md",
+      "skills/b-grill-with-docs/CONTEXT-FORMAT.md",
+      "skills/b-issue-create/SKILL.md",
+      "skills/b-research/SKILL.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/serve-presentations-patch-coverage.md",
+    "kind": "backlog-item",
+    "title": "Cover serve-presentations.ts lines 289-304 (patch gate at 89%)",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      "scripts/serve-presentations.ts",
+      "scripts/serve-presentations.test.ts",
+      "guardrails.json"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/wayfinder.md",
+    "kind": "backlog-item",
+    "title": "wayfinder (repo orientation, gated on tracker integration)",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-09-10",
+    "updated": "2026-09-10",
+    "completed": null,
+    "related": [
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation.md",
+      ".context/2026-09-10.mattpocock-adoption/plan-mattpocock-findings-remediation-phases.md",
+      ".context/2026-09-10.mattpocock-adoption/phase-5-tracker-init-and-triage.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/installer-source-split-detection.md",
+    "kind": "backlog-item",
+    "title": "Installer cannot detect or warn about a split source root",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-09-09",
+    "updated": "2026-09-09",
+    "completed": null,
+    "related": [
+      ".context/2026-09-09.installer-source-integrity/plan-installer-source-integrity.md",
+      "scripts/install.mjs",
+      "scripts/install.test.mjs",
+      "agent-install_instructions.md",
+      ".context/memory/install-source-consolidation-2026-09-09.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/pi-runtime-source-clean-worktree.md",
+    "kind": "backlog-item",
+    "title": "Locate Pi coding-agent runtime source in clean worktrees",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-09-03",
+    "updated": "2026-09-03",
+    "completed": null,
+    "related": [
+      ".context/2026-08-26.deterministic-bsave/plan-bsave-improved-parity.md",
+      ".context/memory/deterministic-bsave-2026-08-27.md",
+      ".context/memory/omp-integration-buck-workflow-2026-06-06.md",
+      ".context/memory/b-pr-improved-worktree-enotdir-2026-07-24.md",
+      "skills/b-save-improved/SKILL.md",
+      "skills/cross-platform-pi-omp-loading/SKILL.md",
+      "extensions/b-save-improved/index.ts",
+      "package.json"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/complexity-burn-down.md",
+    "kind": "backlog-item",
+    "title": "Complexity gate burn-down for pre-existing hotspots",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-08-27",
+    "updated": "2026-08-27",
+    "completed": null,
+    "related": [
+      "guardrails.json",
+      "extensions/b-save-improved/index.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/plan-artifact.ts",
+      "skills/b-hindsight-import-projects/scripts/import-projects.ts",
+      ".context/memory/guardrails-override-complexity-2026-08-27.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/patch-gate-branch-coverage.md",
+    "kind": "backlog-item",
+    "title": "Raise patch coverage vs origin/master above 90%",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-08-26",
+    "updated": "2026-08-26",
+    "completed": null,
+    "related": [
+      "guardrails.json",
+      "extensions/b-kamal-release/index.ts",
+      "extensions/b-pr-improved/index.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/command-progress.ts",
+      ".context/2026-08-26.b-init-guardrails-on-repo/index.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/rewrite-placeholder-commit-30e0849.md",
+    "kind": "backlog-item",
+    "title": "Rewrite HEAD 30e0849 feat: <short summary> commit message",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-08-26",
+    "updated": "2026-08-26",
+    "completed": null,
+    "related": [
+      ".context/2026-08-26.b-commit-placeholder-sentinels/index.md",
+      ".context/memory/b-commit-improved-placeholder-sentinels-2026-08-26.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/run-b-init-guardrails-on-repo.md",
+    "kind": "backlog-item",
+    "title": "Run /b-init-guardrails on this repo to record a durable check contract",
+    "status": "completed",
+    "priority": "low",
+    "created": "2026-08-25",
+    "updated": "2026-09-10",
+    "completed": "2026-09-10",
+    "related": [
+      ".context/2026-08-25.omp-plan-artifact-extension/plan-omp-plan-artifact-extension.md",
+      "skills/b-guardrails-check/SKILL.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/qmd-mentions-outside-plan.md",
+    "kind": "backlog-item",
+    "title": "Sweep leftover qmd-as-universal-fallback mentions outside the memory-search plan",
+    "status": "active",
+    "priority": "low",
+    "created": "2026-08-23",
+    "updated": "2026-08-23",
+    "completed": null,
+    "related": [
+      ".context/2026-08-23.memory-search-agnostic/plan-memory-search-agnostic.md",
+      "skills/b-build/SKILL.md",
+      "skills/b-plan/SKILL.md",
+      "skills/b-iterate/SKILL.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/deterministic-extension-progress.md",
+    "kind": "backlog-item",
+    "title": "Unified live activity for extensions",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-08-20",
+    "updated": "2026-09-11",
+    "completed": null,
+    "related": [
+      ".context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md",
+      ".context/2026-09-11.extension-activity-progress/plan-extension-activity-progress-phases.md",
+      "extensions/command-progress.ts",
+      "extensions/omp-models.ts",
+      "extensions/b-pr-improved/index.ts",
+      "extensions/b-commit-improved/index.ts",
+      "extensions/b-save-improved/index.ts",
+      "extensions/b-kamal-release/index.ts"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/active-subject-discovery.md",
+    "kind": "backlog-item",
+    "title": "Make active-subject discovery deterministic, exhaustive, and resilient to stale state",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-08-12",
+    "updated": "2026-08-12",
+    "completed": null,
+    "related": [
+      "skills/_shared/subject-resolution.md",
+      ".context/2026-05-31.subject-selection-prompting/index.md",
+      ".context/2026-05-31.subject-selection-prompting/plan-subject-selection-prompting.md",
+      ".context/2026-06-05.current-session-json-design/index.md",
+      ".context/2026-06-05.current-session-json-design/plan-current-session-redesign.md",
+      ".context/2026-06-13.context-format-research/index.md",
+      ".context/2026-06-13.context-format-research/plan-hybrid-context-artifact-model.md",
+      ".context/2026-08-12.standalone-b-plan-bootstrap/index.md",
+      ".context/index/subjects.json",
+      ".context/workflow/current-session.json"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/first-npm-publish.md",
+    "kind": "backlog-item",
+    "title": "First npm publish of buck-workflow (blocked on test gate)",
+    "status": "active",
+    "priority": "high",
+    "created": "2026-08-12",
+    "updated": "2026-08-26",
+    "completed": null,
+    "related": [
+      "package.json",
+      "scripts/publish.mjs",
+      ".github/workflows/test.yml"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/eval-kernel-async-task-doc-gap.md",
+    "kind": "backlog-item",
+    "title": "docs/eval-kernel.md omits the async task/hub job contract",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-07-26",
+    "updated": "2026-07-26",
+    "completed": null,
+    "related": [
+      "docs/eval-kernel.md",
+      ".context/2026-07-26.b-init-guardrails/research-harness-gate-mechanics.md",
+      "skills/b-guardrails-check/SKILL.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/b-loop-skill-and-mirror.md",
+    "kind": "backlog-item",
+    "title": "b-loop skill — advisory + stamp, with deferred slash-command mirror",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-07-05",
+    "updated": "2026-07-05",
+    "completed": null,
+    "related": [
+      "skills/b-loop/SKILL.md",
+      "skills/b-phase/SKILL.md",
+      "skills/b-plan/SKILL.md",
+      "docs/buck-workflow.md#runtime-package-mapping",
+      ".context/memory/b-loop-skill-creation-2026-07-05.md",
+      ".context/2026-06-01.deprecate-b-flow/",
+      ".context/backlog/items/loop-agnostic-execution-loops.md"
+    ]
+  },
+  {
+    "path": ".context/backlog/items/loop-agnostic-execution-loops.md",
+    "kind": "backlog-item",
+    "title": "Make Buck execution loops loop-agnostic (remove Ralph-specific instructions)",
+    "status": "active",
+    "priority": "medium",
+    "created": "2026-06-24",
+    "updated": "2026-06-24",
+    "completed": null,
+    "related": [
+      "skills/b-plan/SKILL.md",
+      "skills/b-phase/SKILL.md",
+      "skills/b-build/SKILL.md",
+      "skills/b-iterate/SKILL.md",
+      "skills/b-review/SKILL.md",
+      "skills/b-pr-review-2-issues/SKILL.md",
+      "docs/buck-workflow.md",
+      "AGENTS.md"
     ]
   },
   {
@@ -22,7 +404,10 @@
     "updated": "2026-06-12",
     "completed": null,
     "related": [
-      "- .context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md\n- scripts/install.mjs\n- package.json\n- README.md"
+      ".context/2026-06-12.multi-harness-symlink-installer/plan-symlink-installer.md",
+      "scripts/install.mjs",
+      "package.json",
+      "README.md"
     ]
   },
   {
@@ -35,7 +420,8 @@
     "updated": "2026-06-11",
     "completed": null,
     "related": [
-      "- .context/2026-06-11.b-commit-final-step/plan-b-commit-final-step.md\n- .context/2026-06-11.b-commit-final-step/research-current-commit-surface.md"
+      ".context/2026-06-11.b-commit-final-step/plan-b-commit-final-step.md",
+      ".context/2026-06-11.b-commit-final-step/research-current-commit-surface.md"
     ]
   },
   {
@@ -48,7 +434,11 @@
     "updated": "2026-06-11",
     "completed": "2026-06-11",
     "related": [
-      "- .context/2026-06-11.b-pr-skill/index.md\n- skills/b-pr/SKILL.md\n- skills/b-pr/scripts/pr-preflight.ts\n- prompts/b-pr.md\n- commands/b-pr.md"
+      ".context/2026-06-11.b-pr-skill/index.md",
+      "skills/b-pr/SKILL.md",
+      "skills/b-pr/scripts/pr-preflight.ts",
+      "prompts/b-pr.md",
+      "commands/b-pr.md"
     ]
   },
   {
@@ -61,7 +451,14 @@
     "updated": "2026-06-07",
     "completed": "2026-06-07",
     "related": [
-      "- skills/code-review/SKILL.md\n- skills/code-review/scripts/pr-context.ts\n- skills/code-review/scripts/submit-review.ts\n- prompts/code-review.md\n- commands/code-review.md\n- README.md\n- docs/buck-workflow.md\n- docs/b-flow.md"
+      "skills/code-review/SKILL.md",
+      "skills/code-review/scripts/pr-context.ts",
+      "skills/code-review/scripts/submit-review.ts",
+      "prompts/code-review.md",
+      "commands/code-review.md",
+      "README.md",
+      "docs/buck-workflow.md",
+      "docs/b-flow.md"
     ]
   },
   {
@@ -74,7 +471,7 @@
     "updated": "2026-05-30",
     "completed": null,
     "related": [
-      "- extensions/b-flow/"
+      "extensions/b-flow/"
     ]
   },
   {
@@ -87,7 +484,7 @@
     "updated": "2026-05-17",
     "completed": null,
     "related": [
-      "- .context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md"
+      ".context/2026-05-17.b-review-plan-path/research-b-review-plan-path.md"
     ]
   },
   {
@@ -100,7 +497,8 @@
     "updated": "2026-05-08",
     "completed": null,
     "related": [
-      "- .context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md\n- .context/memory/b-grill-auto-2026-05-08.md"
+      ".context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md",
+      ".context/memory/b-grill-auto-2026-05-08.md"
     ]
   }
 ]

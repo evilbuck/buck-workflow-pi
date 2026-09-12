@@ -1,23 +1,25 @@
 ---
-title: Live TUI progress for deterministic slash commands
+title: Unified live activity for extensions
 status: active
 priority: high
 created: 2026-08-20
-updated: 2026-08-20
+updated: 2026-09-11
 completed: null
 related:
-  - .context/2026-08-20.deterministic-extension-progress/plan-deterministic-extension-progress.md
+  - .context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md
+  - .context/2026-09-11.extension-activity-progress/plan-extension-activity-progress-phases.md
+  - extensions/command-progress.ts
+  - extensions/omp-models.ts
   - extensions/b-pr-improved/index.ts
   - extensions/b-commit-improved/index.ts
+  - extensions/b-save-improved/index.ts
   - extensions/b-kamal-release/index.ts
 ---
 
-# Live TUI progress for deterministic slash commands
+# Unified live activity for extensions
 
-`/b-pr-improved` (and siblings) look frozen until they finish: `execFileSync`
-blocks the event loop, and the first `notify` happens after preflight.
+Originally scoped as "Live TUI progress for deterministic slash commands" on 2026-08-20 to stop `/b-pr-improved` (and siblings) looking frozen while `execFileSync` blocked the event loop. Retargeted on 2026-09-11 to the broader plan at `.context/2026-09-11.extension-activity-progress/`.
 
-Pickup: `.context/2026-08-20.deterministic-extension-progress/plan-deterministic-extension-progress.md`
+Pickup: `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md` (use `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress-phases.md` as the execution map).
 
-One unit: shared progress helper + async `execFile` for small children +
-spawn with last-N failure tail for `kamal deploy` (no full log buffer).
+What now lives in this item: animated footer spinner + bounded live activity window for every currently shipped long-running extension command (`b-pr-improved`, `b-commit-improved`, `b-save-improved`, `b-kamal-release`), with subprocess capture split out, normalized model events flowing through `runOmpModelSession()`, and `extensions/command-progress.ts` removed after clean cutover.

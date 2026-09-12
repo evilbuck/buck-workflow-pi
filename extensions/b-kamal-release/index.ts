@@ -23,7 +23,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { once } from "node:events";
-import { createLineRing, createProgress, execFileCaptured, KAMAL_TAIL_LINES } from "../command-progress.js";
+import { createLineRing, execFileCaptured, KAMAL_TAIL_LINES } from "../subprocess.js";
+import { createActivity } from "../extension-activity.js";
 
 // ---------- exec helpers ----------
 
@@ -259,7 +260,9 @@ export function parseArgs(args: string): Options {
 
 interface UI {
   notify: (message: string, level?: "info" | "warning" | "error") => void;
+  setStatus?: (key: string, text?: string) => void;
   setWorkingMessage?: (message?: string) => void;
+  setWidget?: (key: string, content: string[] | undefined, options?: { placement?: "aboveEditor" | "belowEditor" }) => void;
   confirm?: (title: string, message: string) => Promise<boolean>;
   select?: (title: string, options: string[]) => Promise<string | undefined>;
   input?: (title: string, placeholder?: string) => Promise<string | undefined>;
@@ -438,10 +441,10 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
   }
 
   // 5. Tag + deploy — long children only after the dry-run gate.
-  const progress = createProgress(ctx, "b-kamal-release");
+  const activity = createActivity({ ui: ctx.ui, command: "b-kamal-release" });
   try {
     if (!opts.skipTag) {
-      progress.step(`Tagging ${tag}…`);
+      activity.phase(`Tagging ${tag}…`);
       try {
         if (opts.force) execGit(["tag", "-d", tag], cwd);
         execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
@@ -451,7 +454,7 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
         return;
       }
       if (!opts.noPush) {
-        progress.step(`Pushing tag ${tag}…`);
+        activity.phase(`Pushing tag ${tag}…`);
         const pushed = await execFileCaptured("git", ["push", "origin", `refs/tags/${tag}`], cwd);
         if (pushed.code !== 0) {
           notify(
@@ -465,18 +468,18 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
     }
 
     // 6. Deploy.
-    progress.step(`Deploying ${tag}…`);
+    activity.phase(`Deploying ${tag}…`);
     const deployArgs = ["deploy", ...destFlag];
     if (!opts.noVersion) deployArgs.push(`--version=${version}`);
     const result = await runKamal(deployArgs, cwd);
     if (result.code === 0) {
-      progress.done(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`);
+      activity.succeed(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`);
     } else {
       const reason = result.signal ? `signal ${result.signal}` : `exit ${result.code}`;
       notify(`kamal deploy failed (${reason}):\n${result.output}`, "error");
     }
   } finally {
-    progress.clear();
+    activity.dispose();
   }
 }
 

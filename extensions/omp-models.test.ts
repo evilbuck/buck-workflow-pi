@@ -6,6 +6,7 @@ import {
   EmptyModelResponseError,
   lastAssistantText,
   mappingFromOmpRoles,
+  normalizeActivityEvent,
   parseModelRoles,
   readOmpModelRoles,
   resolveOmpRole,
@@ -134,5 +135,75 @@ describe("EmptyModelResponseError", () => {
     }]).message).toBe(
       "Model returned no text (stop reason: error; error: model missing; content blocks: thinking).",
     );
+  });
+});
+
+
+describe("normalizeActivityEvent", () => {
+  it("text_delta passes through with delta", () => {
+    expect(normalizeActivityEvent({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "hello" } }))
+      .toEqual({ kind: "text", delta: "hello" });
+  });
+
+  it("non-text_delta message_update returns null", () => {
+    expect(normalizeActivityEvent({ type: "message_update", assistantMessageEvent: { type: "thinking" } })).toBeNull();
+    expect(normalizeActivityEvent({ type: "message_update" })).toBeNull();
+  });
+
+  it("tool_execution_start extracts allowlisted target metadata only", () => {
+    expect(normalizeActivityEvent({ type: "tool_execution_start", toolName: "read", args: { path: "/etc/passwd", env: "x" } }))
+      .toEqual({ kind: "toolStart", tool: "read", target: "/etc/passwd" });
+    expect(normalizeActivityEvent({ type: "tool_execution_start", toolName: "edit", args: { raw_prompt: "secret" } }))
+      .toEqual({ kind: "toolStart", tool: "edit" });
+  });
+
+  it("tool_execution_end flags failure and surfaces the message", () => {
+    expect(normalizeActivityEvent({ type: "tool_execution_end", toolName: "bash", isError: true, result: { message: "boom" } }))
+      .toEqual({ kind: "toolEnd", tool: "bash", ok: false, message: "boom" });
+    expect(normalizeActivityEvent({ type: "tool_execution_end", toolName: "read" }))
+      .toEqual({ kind: "toolEnd", tool: "read", ok: true });
+  });
+
+  it("tool_execution_end failure with an error.message object surfaces the message", () => {
+    expect(normalizeActivityEvent({
+      type: "tool_execution_end",
+      toolName: "edit",
+      isError: true,
+      result: { error: { message: "permission denied" } },
+    })).toEqual({ kind: "toolEnd", tool: "edit", ok: false, message: "permission denied" });
+  });
+
+  it("tool_execution_end failure with a string error surfaces the string", () => {
+    expect(normalizeActivityEvent({
+      type: "tool_execution_end",
+      toolName: "edit",
+      isError: true,
+      result: { error: "string error" },
+    })).toEqual({ kind: "toolEnd", tool: "edit", ok: false, message: "string error" });
+  });
+
+  it("tool_execution_end failure with a string result surfaces the result string", () => {
+    expect(normalizeActivityEvent({
+      type: "tool_execution_end",
+      toolName: "bash",
+      isError: true,
+      result: "command not found",
+    })).toEqual({ kind: "toolEnd", tool: "bash", ok: false, message: "command not found" });
+  });
+
+  it("auto_retry_start reads errorMessage", () => {
+    expect(normalizeActivityEvent({ type: "auto_retry_start", errorMessage: "429 too many requests" }))
+      .toEqual({ kind: "retry", message: "429 too many requests" });
+    expect(normalizeActivityEvent({ type: "auto_retry_start" }))
+      .toEqual({ kind: "retry", message: "model retry" });
+  });
+
+  it("agent_end always reports completion", () => {
+    expect(normalizeActivityEvent({ type: "agent_end", messages: [] }))
+      .toEqual({ kind: "complete", ok: true, message: "agent finished" });
+  });
+
+  it("ignores unknown event types", () => {
+    expect(normalizeActivityEvent({ type: "session_status", sessionId: "abc" })).toBeNull();
   });
 });
