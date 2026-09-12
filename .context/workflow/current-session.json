@@ -23,6 +23,6 @@
   "plan_mode_active": false,
   "buck_workflow_mode_active": true,
   "buck_workflow_mode_source": "session",
-  "buck_workflow_mode_reason": "Author prompts/b-kickoff.md as unattended OMP goal objective",
+  "buck_workflow_mode_reason": "Implement issue #23 b-save engine repair on PR #20: wire executeRun through snapshot/roles/evaluate/apply/effects and fix non-terminal resume states",
   "restrict_cwd_active": false
 }
