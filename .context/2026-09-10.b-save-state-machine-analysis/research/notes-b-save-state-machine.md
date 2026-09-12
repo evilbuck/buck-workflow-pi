@@ -55,7 +55,7 @@ Findings:
 - The Hindsight backend does not implement optional `MemoryBackend.save()` at this revision, so `ctx.memory.save()` returns `stored: 0`. Hindsight persistence is currently available through the model-facing `retain` tool and internal session state only.
 - `ctx.invokeTool` is not a general tool dispatcher; it exists only for same-tool native delegation. `createAgentSession()` can constrain tools but still makes delivery model-mediated.
 - Recommended OMP-first architecture: standardize Step 8 on `ctx.memory.status()/save()` and make Hindsight save support an SDK prerequisite. Otherwise Hindsight must remain an explicit unsupported or non-deterministic fallback state.
-- Architecture Q&A outcome: use the non-deterministic Hindsight fallback. A restricted nested OMP SDK agent must call `retain`; the state machine validates the observed tool result, retries once, and reports a second failure without invalidating the durable checkpoint.
+- Architecture Q&A outcome (superseded during Phase 5): the non-deterministic Hindsight nested-agent fallback was **rejected** — rule 8 reports Hindsight save as `unsupported` (see `experiments/hindsight-guarded-retain`), matching the locked decision that Hindsight is unsupported on OMP 18.1.17. The validate-observed-result / retry-once / report-without-invalidating behavior is retained for the supported backends (local, Mnemopi).
 
 ### LLM fallback guardrails
 

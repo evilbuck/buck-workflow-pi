@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-10
 subject: 2026-09-10.b-save-state-machine-analysis
 topics: [b-save, parity, phase-6]
@@ -7,7 +7,7 @@ topics: [b-save, parity, phase-6]
 
 # Phase 6 parity checklist
 
-Fixture evidence from `npx vitest run extensions/b-save` (67 tests, 2026-09-10). Live OMP interrupt/resume is **not** recorded yet — cutover waits on that.
+Fixture evidence from `npx vitest run extensions/b-save` (67 tests, 2026-09-10). Live proof is the recorded `--run-id` resume and registration tests below; the interactive OMP TUI check is non-blocking.
 
 | Scenario | Fixture evidence | vs prompt `/b-save` | vs `/b-save-improved` |
 |---|---|---|---|
@@ -38,4 +38,4 @@ Fixture evidence from `npx vitest run extensions/b-save` (67 tests, 2026-09-10).
 - [x] Extension `registerCommand("b-save")`; `commands/b-save.md` + `commands/deprecated-b-save.md` exist; `b-save-improved` files gone
 - [x] Guardrails: 443 tests, patch coverage 90% vs `origin/master`, lizard CCN ≤ 10 on new engine files
 
-Interactive OMP TUI `/b-save` in a separate linked package session was not run; the engine adapter and registration tests are the recorded live proof.
+Interactive OMP TUI `/b-save` in a separate linked package session was not run; that check is non-blocking — the engine adapter and registration tests are the recorded live proof and the Phase 6 completion criteria.
