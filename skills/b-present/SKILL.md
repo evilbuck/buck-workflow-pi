@@ -215,25 +215,38 @@ Generate a diagram when the source contains:
 - `architecture.html` serves as overflow/deep-dive when architectural explanation exceeds comfortable overview density
 
 ```html
-<div class="mermaid-container">
+<div class="diagram">
   <div class="mermaid">
-    flowchart LR
-      A[Component] --> B[Service] --> C[Data]
+flowchart LR
+  A["Component"] --> B["Service"] --> C[("Data")]
   </div>
+  <div class="diagcap">What the reader should take from this diagram.</div>
 </div>
 ```
 
+Mermaid reads `textContent`, so write `&lt;br/&gt;` — not a literal `<br/>` — for a line break inside a node label.
+
 ## Visual System
 
-Styling is **tiered** across page types:
+Packages use the shared design language defined in **`skills/_shared/design-brief.jsonc`** — the same one `b-blueprint` and every other generated HTML deliverable uses. Read the brief before inventing a class or picking a colour.
+
+In short: warm paper, not app chrome. An off-white ground, white raised panels, hairline warm-grey rules, one deep-teal accent carrying every interactive and emphatic state, two series accents for comparing labelled sides, and four status colours. Light-only by decision — these are printable, linkable documents, so there is no dark mode.
+
+Polish is **tiered by page type, never by palette** — every page loads the same `assets/styles.css`:
 
 | Page Type | Visual Polish |
 |-----------|---------------|
-| `index.html` (overview) | Most polished — sidebar nav, cards, badges |
-| Detail pages | Simpler — back-link + content |
-| Source views | Utilitarian — monospace, minimal |
+| `index.html` (overview) | Full shell — masthead with pins, sticky TOC rail with scroll-spy, numbered sections, cards, badges |
+| Detail pages | Simpler — back-link, title, lede, content. No rail, no masthead |
+| Source views | Utilitarian — back-link and rendered markdown in one panel. Same tokens, fewer components |
 
-Use mostly **semantic HTML** by default. A lightweight no-build framework is allowed only when it meaningfully improves navigation or rendering. Do not lock in a specific framework.
+Use **semantic HTML** plus the component classes in the patterns reference. No framework, no webfonts, no build step; the only network dependency is the Mermaid CDN. The design-token block and Mermaid init are **generated** from the brief — do not hand-edit them:
+
+```bash
+bun skills/_shared/scripts/render-design-tokens.ts --write
+```
+
+`skills/_shared/scripts/design-language.test.ts` pins both blocks byte-for-byte, so an edited copy fails `npm test`.
 
 ## HTML Templates
 

@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Adoption plan · buck-workflow-pi × docker-orchestration/.claude</title>
+<meta name="description" content="Prioritized, placement-specific adoption plan in both directions between two AI agent skill suites.">
+<style>
+:root{
+ --bg:#f7f6f3; --panel:#fff; --ink:#1b1a18; --ink2:#3d3a36; --muted:#6f6862; --line:#e6e1d9; --line2:#f0ece5;
+ --buck:#b4530b; --buckbg:#fdf1e3; --buckline:#f0d5b4;
+ --jz:#2b57c4; --jzbg:#eaf0fd; --jzline:#c9d8f7;
+ --accent:#0f766e; --accentbg:#e6f5f3;
+ --radius:14px; --shadow:0 1px 2px rgba(28,26,24,.05),0 8px 24px -16px rgba(28,26,24,.28);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:24px}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.62 ui-sans-serif,-apple-system,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+ -webkit-font-smoothing:antialiased}
+code{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;font-size:.855em;
+ background:#efece6;border:1px solid var(--line);border-radius:5px;padding:.06em .36em;color:#4a423a;white-space:nowrap}
+a{color:var(--accent)}
+h1,h2,h3,h4,h5{line-height:1.25;letter-spacing:-.012em;margin:0}
+p{margin:0 0 1em}
+.wrap{max-width:1360px;margin:0 auto;padding:0 28px}
+
+/* ── masthead ─────────────────────────── */
+header.top{background:linear-gradient(180deg,#fffdfa,#f7f6f3);border-bottom:1px solid var(--line)}
+header.top .wrap{padding-top:52px;padding-bottom:36px}
+.eyebrow{font-size:12.5px;font-weight:650;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:clamp(28px,3.6vw,44px);max-width:20ch;margin-bottom:14px}
+.sub{font-size:18px;color:var(--ink2);max-width:66ch;margin-bottom:26px}
+.pins{display:flex;flex-wrap:wrap;gap:12px}
+.pin{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:250px}
+.pin .pname{font-weight:650;font-size:14.5px;display:flex;align-items:center;gap:8px}
+.pin .pmeta{font-size:12.5px;color:var(--muted);margin-top:5px}
+.pin .pmeta b{color:var(--ink2);font-weight:600}
+.pin.b{border-left:3px solid var(--buck)} .pin.j{border-left:3px solid var(--jz)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.buck{background:var(--buck)} .dot.jz{background:var(--jz)}
+
+/* ── layout ───────────────────────────── */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 264px;gap:56px;align-items:start}
+main{min-width:0;padding:44px 0 110px}
+aside{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;padding:44px 0 60px;
+ border-left:1px solid var(--line);padding-left:26px;scrollbar-width:thin}
+aside h6{font-size:11.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);margin:0 0 12px;font-weight:650}
+aside ul{list-style:none;margin:0;padding:0}
+aside li{margin:0}
+aside a{display:block;text-decoration:none;color:var(--ink2);padding:5px 10px;border-radius:7px;border-left:2px solid transparent;margin-left:-2px}
+aside a.l1{font-size:13.8px;font-weight:550}
+aside a.l2{font-size:12.9px;color:var(--muted);padding-left:16px}
+aside a:hover{background:#efece6;color:var(--ink)}
+aside a.active{color:var(--accent);border-left-color:var(--accent);background:var(--accentbg);font-weight:650}
+aside ul ul{margin:1px 0 6px}
+.toctoggle{display:none}
+
+/* ── sections ─────────────────────────── */
+section.top-level{padding-top:8px;margin-bottom:56px;scroll-margin-top:20px}
+h2{font-size:clamp(21px,2.3vw,27px);margin:0 0 6px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+h2 .h2n{color:var(--muted);font-weight:500;margin-right:12px;font-variant-numeric:tabular-nums}
+.lede{font-size:16.5px;color:var(--ink2);max-width:74ch;margin:16px 0 24px}
+
+/* ── verdict ──────────────────────────── */
+.verdict{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px 28px;box-shadow:var(--shadow);margin-bottom:22px}
+.verdict h3{font-size:19px;margin-bottom:12px}
+.verdict p{margin-bottom:.85em}
+.verdict p:last-child{margin-bottom:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(168px,100%),1fr));gap:14px;margin:22px 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.tile .tn{font-size:27px;font-weight:680;letter-spacing:-.02em;line-height:1.1}
+.tile .tl{font-size:12.8px;color:var(--muted);margin-top:5px}
+.tile.b .tn{color:var(--buck)} .tile.j .tn{color:var(--jz)} .tile.a .tn{color:var(--accent)}
+ul.keypoints{margin:0;padding-left:0;list-style:none}
+ul.keypoints li{position:relative;padding-left:26px;margin-bottom:11px}
+ul.keypoints li::before{content:"";position:absolute;left:6px;top:.66em;width:7px;height:7px;border-radius:2px;background:var(--accent);transform:rotate(45deg)}
+
+/* ── glossary ─────────────────────────── */
+.gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:14px}
+.gterm{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px}
+.gterm b{display:block;font-size:14.5px;margin-bottom:4px}
+.gterm span{font-size:14px;color:var(--ink2)}
+
+/* ── project cards ────────────────────── */
+.projects{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.pcard{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;box-shadow:var(--shadow)}
+.pcard.b{border-top:3px solid var(--buck)} .pcard.j{border-top:3px solid var(--jz)}
+.pcard h3{font-size:18px;margin-bottom:3px}
+.pcard .who{font-size:12.8px;color:var(--muted);margin-bottom:14px}
+.pcard dl{margin:0;display:grid;grid-template-columns:104px 1fr;gap:8px 14px;font-size:14.2px}
+.pcard dt{color:var(--muted);font-weight:550}
+.pcard dd{margin:0;color:var(--ink2)}
+
+/* ── rail ─────────────────────────────── */
+.railwrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+.rail{min-width:934px}
+.railrow{display:grid;grid-template-columns:repeat(8,1fr)}
+.railrow.head .cell{background:#faf8f4;font-weight:650;font-size:12.8px;border-bottom:1px solid var(--line);padding:10px 9px;display:flex;align-items:center;gap:8px}
+.railrow .rn{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;align-items:center;justify-content:center;font-weight:650;flex:none}
+.railrow .cell{border-right:1px solid var(--line2);padding:10px 9px;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start}
+.railrow .cell:last-child{border-right:0}
+.railrow.buckrow{background:#fffdfa} .railrow.jzrow{background:#fcfdff;border-top:1px solid var(--line)}
+.pill{font-size:10.9px;padding:2.5px 6px;border-radius:6px;font-weight:550;white-space:normal;line-height:1.4;max-width:100%;text-align:left}
+.pill.buck{background:var(--buckbg);color:var(--buck);border:1px solid var(--buckline)}
+.pill.jz{background:var(--jzbg);color:var(--jz);border:1px solid var(--jzline)}
+.raillegend{display:flex;gap:20px;margin-top:12px;font-size:13px;color:var(--muted);flex-wrap:wrap;align-items:center}
+.raillegend span{display:flex;align-items:center;gap:7px}
+
+/* ── stages ───────────────────────────── */
+section.stage{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+ padding:24px 26px;margin-bottom:18px;box-shadow:var(--shadow);scroll-margin-top:20px}
+section.stage h3{font-size:19.5px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.stagenum{display:inline-flex;width:27px;height:27px;border-radius:8px;background:var(--accent);color:#fff;
+ align-items:center;justify-content:center;font-size:14px;font-weight:680;flex:none}
+.stageq{color:var(--muted);font-style:italic;font-size:15px;margin:0 0 18px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.col h4{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;align-items:center;gap:8px;margin-bottom:11px}
+.col h4 em{font-style:normal;margin-left:auto;background:#efece6;border-radius:20px;padding:1px 9px;font-size:11.5px;color:var(--ink2)}
+ul.skills{list-style:none;margin:0;padding:0}
+ul.skills li{padding:9px 0;border-top:1px solid var(--line2)}
+ul.skills li:first-child{border-top:0;padding-top:0}
+.sk{display:block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.1px;font-weight:600;margin-bottom:2px}
+ul.skills.buck .sk{color:var(--buck)} ul.skills.jz .sk{color:var(--jz)}
+.sd{display:block;font-size:14px;color:var(--ink2);line-height:1.52}
+.note{margin-top:20px;background:#faf8f4;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:10px;padding:15px 18px}
+.note h5{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin-bottom:7px}
+.note p{font-size:14.6px;color:var(--ink2);margin-bottom:0}
+.note .ev{margin-top:9px;font-size:12px;color:var(--muted)}
+.note .ev code{font-size:11.3px;white-space:normal;word-break:break-all}
+
+/* ── badges ───────────────────────────── */
+.badge{font-size:11.5px;font-weight:650;padding:2.5px 10px;border-radius:20px;white-space:nowrap;letter-spacing:.01em}
+.b-duplicate{background:#fde8e8;color:#a92222;border:1px solid #f6cfcf}
+.b-strong{background:#ffeeda;color:#b4530b;border:1px solid #f5d6b3}
+.b-partial{background:#fbf3d0;color:#8a6410;border:1px solid #efe0a8}
+.b-adjacent{background:#dcf5f1;color:#0f766e;border:1px solid #bce8e1}
+.b-none{background:#ecebe8;color:#5b554f;border:1px solid #dddad3}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 20px}
+.legend .li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:var(--panel);
+ border:1px solid var(--line);border-radius:9px;padding:6px 11px}
+
+/* ── tables ───────────────────────────── */
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14.2px}
+th{text-align:left;font-size:11.8px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);
+ padding:12px 16px;background:#faf8f4;border-bottom:1px solid var(--line);position:sticky;top:0;font-weight:650}
+td{padding:11px 16px;border-bottom:1px solid var(--line2);vertical-align:top;color:var(--ink2)}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:#fdfcfa}
+td.cap{color:var(--ink);font-weight:550;width:31%}
+td.mid{text-align:center;width:88px}
+.yn{font-size:11.7px;font-weight:650;padding:2px 9px;border-radius:20px;display:inline-block}
+.yn.y{background:#dff3e6;color:#1c6b3e} .yn.n{background:#f1efec;color:#84796f} .yn.p{background:#fbf3d0;color:#8a6410}
+td.notecell{font-size:13.5px;color:var(--muted)}
+
+/* ── adopt cards ──────────────────────── */
+.adoptgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(330px,100%),1fr));gap:16px}
+article.adopt{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow);display:flex;flex-direction:column}
+article.adopt header{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:9px}
+article.adopt h4{font-size:16px;max-width:30ch}
+article.adopt p{font-size:14.2px;color:var(--ink2);flex:1}
+.klass{font-size:10.8px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:3px 9px;border-radius:6px;white-space:nowrap;flex:none}
+.k-fold-in{background:var(--accentbg);color:var(--accent)}
+.k-new-member{background:var(--jzbg);color:var(--jz)}
+.k-repo-init{background:var(--buckbg);color:var(--buck)}
+.k-standalone{background:#f1efec;color:#6f6862}
+article.adopt footer{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin-top:12px;padding-top:11px;border-top:1px solid var(--line2)}
+.vx{font-size:11.7px;color:var(--muted)} .vx b{color:var(--ink2);text-transform:capitalize}
+.evc{font-size:10.6px!important;white-space:normal!important;word-break:break-all;color:var(--muted)}
+.subhead{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:650;margin:30px 0 14px;display:flex;align-items:center;gap:10px}
+.subhead::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* ── misc blocks ──────────────────────── */
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 19px}
+.row h4{font-size:15.5px;margin-bottom:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row p{font-size:14.2px;color:var(--ink2);margin:0}
+.sev{font-size:10.8px;font-weight:680;text-transform:uppercase;letter-spacing:.06em;padding:2.5px 8px;border-radius:5px}
+.sev.medium{background:#fbf3d0;color:#8a6410} .sev.low{background:#ecebe8;color:#5b554f}
+.sev.info{background:var(--accentbg);color:var(--accent)}
+.callout{background:var(--accentbg);border:1px solid #bce8e1;border-radius:12px;padding:18px 22px;margin:20px 0}
+.callout h4{font-size:15.5px;color:var(--accent);margin-bottom:7px}
+.callout p{font-size:14.6px;color:#155e56;margin-bottom:0}
+.ancestry{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;align-items:start}
+footer.end{border-top:1px solid var(--line);background:#faf8f4;padding:32px 0 48px;font-size:13.4px;color:var(--muted)}
+footer.end .wrap{max-width:1360px}
+
+/* long paths in prose may wrap */
+.row code,.note code,.verdict code,.lede code,.gterm code,.pcard code,.callout code,footer.end code,td code,.sd code,.stageq code{white-space:normal;overflow-wrap:anywhere}
+
+/* grid children must be allowed to shrink so inner scrollers actually scroll */
+.ancestry>*,.cols>*,.projects>*,.adoptgrid>*,.tiles>*,.gloss>*,.stack>*,.layout>*{min-width:0}
+
+@media (max-width:1080px){
+ .layout{grid-template-columns:1fr;gap:0}
+ aside{position:static;max-height:none;border-left:0;padding:0;margin:20px 0 0;
+  border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+ .toctoggle{display:block;width:100%;text-align:left;background:none;border:0;font:inherit;font-weight:650;
+  padding:14px 18px;cursor:pointer;color:var(--ink)}
+ aside nav{display:none;padding:0 14px 14px}
+ aside.open nav{display:block}
+ aside h6{display:none}
+ main{padding-top:28px}
+ .projects,.cols,.ancestry{grid-template-columns:1fr}
+}
+@media (max-width:640px){
+ .wrap{padding:0 16px}
+ section.stage{padding:18px 16px}
+ .verdict{padding:20px 18px}
+}
+@media (max-width:700px){code{white-space:normal;overflow-wrap:anywhere}}
+@media (max-width:400px){.pin{min-width:0;width:100%}}
+@media print{aside{display:none}.layout{grid-template-columns:1fr}section.stage{break-inside:avoid}}
+</style>
+</head><body>
+<header class="top"><div class="wrap">
+  <div class="eyebrow">Companion report · 11 September 2026</div>
+  <h1>Adoption plan: what to take, and where it fits</h1>
+  <p class="sub">The overlap audit said what the two suites are. This says what to do about it — which one to build on, the eleven mechanics worth importing into buck in the order they should land, the six worth offering back, and the three that look transferable and are not. Every candidate names the file it attaches to and the check that proves it landed.</p>
+  <div class="pins">
+    <div class="pin b"><div class="pname"><span class="dot buck"></span>Direction</div>
+      <div class="pmeta"><b>Build on buck</b>, import jz's closing mechanics<br>11 inbound · 6 outbound · 3 declined</div></div>
+    <div class="pin j"><div class="pname"><span class="dot jz"></span>Source</div>
+      <div class="pmeta">Companion to <a href="index.html">the overlap audit</a><br>notes under <code>.context/2026-09-11.resumator-docker-orchestration-overlap/</code></div></div>
+  </div>
+</div></header>
+
+<div class="wrap"><div class="layout">
+<main>
+
+<section class="top-level" id="verdict">
+ <h2><span class="h2n">01</span>If you had to pick one</h2>
+ <div class="verdict">
+  <h3>Build on buck. Steal jz's closing mechanics.</h3>
+  <p><strong>The merge direction follows cost, not taste.</strong> buck's two structural advantages — a git-portable durable record that every station writes through one shared resolution protocol (<code>skills/_shared/subject-resolution.md</code>), and a recorded numeric quality contract with a baseline history (<code>guardrails.json</code>, six gates, a brownfield ratchet) — cannot be retrofitted skill by skill. They only work because everything writes through them. jz would have to re-architect 24 skills to get either one. jz's advantages are rules and leaf skills: a convergence contract, a restraint lens, requirement IDs, a wait cap, a tombstone file. Each folds into an existing buck station without touching the spine. Roughly ten patches one way; a re-architecture the other.</p>
+  <p><strong>What you give up by choosing buck, stated plainly.</strong> buck's terminal state is a PR URL. It has no CI-green loop, no deploy station, and its autonomy skill only stamps a recommendation onto phase frontmatter and stops. If the question were “which suite ships <em>this</em> repository to production with the fewest human turns”, jz wins outright, and it is not close.</p>
+  <p><strong>Why that does not change the answer.</strong> buck is a distributed package targeting seven harnesses; jz's conductor is bound to one company's GitHub Actions workflows, EKS contexts and repository names. And buck already deleted extension-based orchestration once, deliberately, on exactly the reasoning that orchestration which is not observably invoked becomes dead weight. The thing to import is jz's <em>convergence contract</em>, not jz's conductor.</p>
+ </div>
+ <div class="callout">
+  <h4>The single most valuable idea in jz is not a skill</h4>
+  <p>It is that <strong>iteration is a mode with a named exit condition, never a skill name</strong>. A skill defaults to one read-only pass ending in a proposal; it converges only when a caller passes an explicit, greppable <code>loop</code> scope, and a loop must declare the observable condition that ends it. buck has 54 skill directories and no general convergence contract — every loop is hand-built inside one station. This is the only adoption on the list that would <em>reduce</em> buck's surface area rather than grow it.</p>
+ </div>
+ <div class="tiles">
+  <div class="tile a"><div class="tn">11</div><div class="tl">inbound candidates, ranked</div></div>
+  <div class="tile a"><div class="tn">3</div><div class="tl">explicit declines</div></div>
+  <div class="tile j"><div class="tn">6</div><div class="tl">outbound candidates</div></div>
+  <div class="tile b"><div class="tn">2</div><div class="tl">live defects found while sizing</div></div>
+ </div>
+</section>
+
+<section class="top-level" id="forks">
+ <h2><span class="h2n">02</span>The three real forks</h2>
+ <p class="lede">Everything else in the comparison is furniture. These are the three places where the two suites genuinely disagree about how software gets built — and only two of them are worth crossing.</p>
+ <div class="stack">
+  <div class="row">
+   <h4>1 · Where truth lives <span class="sev info">do not cross</span></h4>
+   <p><strong>buck puts it in the repository</strong> — <code>.context/</code> subject folders, a memory ledger, a backlog, <code>CONTEXT.md</code>, <code>docs/adr/</code>, <code>guardrails.json</code>. <strong>jz puts it in the tracker and the process</strong> — ticket IDs, PR bodies, and a session state file under <code>~/.jz-agent-session-state/</code>, with an explicit rule that repo files carry current state and not history. Consequence: buck survives a clone, a harness swap and a six-month gap; jz survives a busy quarter and then forgets. This is an intentional policy fork on both sides. Port mechanics across it, never the policy.</p>
+  </div>
+  <div class="row">
+   <h4>2 · What enforces quality <span class="sev info">cross both ways</span></h4>
+   <p><strong>buck enforces with recorded numbers</strong> a read-only measurer compares against: six gates, a patch-coverage floor, a monotonic coverage ratchet, a complexity ceiling. Deterministic, cheap, reproducible — and blind to every defect a number cannot see. <strong>jz enforces with adversarial process</strong>: four review lenses on a different model family, a restraint filter over the findings, and convergence loops to green. Catches design and semantic defects a threshold never will — and is non-reproducible and costs a model run. These are complements, not competitors. buck has the number and no panel; jz has the panel and no number.</p>
+  </div>
+  <div class="row">
+   <h4>3 · Who closes the loop <span class="sev medium">cross partially</span></h4>
+   <p><strong>buck stops and hands back to the human</strong> at every station boundary; even its autonomy skill only stamps <code>omp_execution</code> onto phase frontmatter and tells the user what to type. <strong>jz dispatches, polls and converges</strong>, stopping only before money and before production. Take jz's convergence <em>contract</em> — a loop with a named exit condition and a cap. Do not take jz's conductor: it is company-bound, and buck retired its own orchestration layer on principle.</p>
+  </div>
+ </div>
+</section>
+
+<section class="top-level" id="neither">
+ <h2><span class="h2n">03</span>What neither side has</h2>
+ <p class="lede">Five holes that survive the merge. Worth naming, because a combined suite would still have all five and it is easy to assume the other repo covered them.</p>
+ <div class="stack">
+  <div class="row"><h4>No automated red-phase gate</h4><p>Both mandate test-first in prose. Neither blocks an edit to source before a failing test has been observed. buck's closeout proof is a post-hoc coverage measurement; a 90% patch-coverage floor tells you the lines were covered eventually, not that the test was written first.</p></div>
+  <div class="row"><h4>No dependency-graph validation</h4><p>buck <em>models</em> HARD / SOFT / NONE edges and writes <code>depends_on</code> frontmatter, and nothing anywhere verifies the graph against the tree. jz has no dependency taxonomy at all. Both are documentation that can silently go wrong.</p></div>
+  <div class="row"><h4>Security is not a gate on either side</h4><p>buck's six gates cover tests, lint, patch coverage, global ratchet and complexity — no security gate. jz has a pre-push secret-scan carve-out, which is a scan, not a contract. Security appears in review checklists on both sides and in no threshold file.</p></div>
+  <div class="row"><h4>No artifact-to-reality drift detector</h4><p>A plan, phase or backlog item can claim <code>status: completed</code> and nothing checks the claim against the tree. buck's <code>b-review</code> audits completion properly — but only for the one subject a human points it at, at the moment they point.</p></div>
+  <div class="row"><h4>No concurrent execution</h4><p>buck's phase overviews emit a “Parallel Opportunities” section and dispatch nothing. jz's conductor is strictly sequential. Both suites can identify independent work and neither can run it.</p></div>
+ </div>
+</section>
+
+<section class="top-level" id="inbound">
+ <h2><span class="h2n">04</span>Into buck — prioritized</h2>
+ <p class="lede">Three waves, ordered so that nothing depends on something later. Each card says what the <em>idea</em> is — not the file to copy — plus where it attaches and the check that proves it landed. Classes are the same four used in the main report: <strong>fold-in</strong> patches an existing skill, <strong>new member</strong> adds a skill with a named chain position, <strong>repo init</strong> is one-time repository furniture, <strong>standalone</strong> has no chain position.</p>
+
+ <div class="subhead">Wave 1 · Furniture — one PR, four files, no skill semantics changed</div>
+ <div class="adoptgrid">
+  <article class="adopt">
+   <header><h4>1 · Skill-contract lint in CI</h4><span class="klass k-repo-init">repo init</span></header>
+   <p>Static structural lint over the whole suite: <code>name:</code> matches its directory, description present and within bounds, <strong>every cited repository path resolves</strong>, every referenced slash command exists, every <code>commands/*.md</code> is a symlink to its <code>prompts/</code> twin or has no twin, no retired name still present in the tree.</p>
+   <p><strong>Where:</strong> new <code>scripts/skill-lint.mjs</code>, wired into <code>package.json</code> <code>scripts.test</code> — which is already <code>prepublishOnly</code> and already the only thing CI runs. No new workflow file.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><span class="vx">Risk <b>none</b></span><code class="evc">Acceptance: on today's tree it must fail with exactly the two defects in §07</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>2 · <code>skills/RETIRED</code> tombstone</h4><span class="klass k-repo-init">repo init</span></header>
+   <p>Renaming or deleting a skill appends the old name to a never-truncated list; install and update purge those names. Without it, tooling only walks names that still exist, so a removed skill is invisible to uninstall and keeps advertising itself forever.</p>
+   <p><strong>Where:</strong> new <code>skills/RETIRED</code>; one purge clause in <code>scripts/install.mjs</code>. buck has the maximum exposure here — it publishes <code>skills/</code> to npm <em>and</em> symlink-installs into seven harnesses, so one rename strands links in six places at once.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><span class="vx">Risk <b>none</b></span><code class="evc">Acceptance: rename a skill, then <code>install.mjs --verify</code> reports the stale link</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>3 · A 30-second cap on inline waiting</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>Never block inline for more than half a minute; a longer wait goes to the harness's async mechanism or ends the turn with a condition to re-check. The ban is on <em>waiting</em>, not on working — a command doing real work for ten minutes is fine.</p>
+   <p><strong>Where:</strong> one paragraph in <code>GLOBAL_OR_PROJECT-AGENTS.md</code>, the installable bootstrap — not repeated per skill. This is a prerequisite for wave 3's convergence loop, which is why it lands in wave 1.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><span class="vx">Risk <b>none</b></span><code class="evc">Acceptance: the rule is greppable in the bootstrap and cited by the loop skill</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>4 · Untrusted-data posture as a shared protocol</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>CI logs, bot comment bodies, fetched pages and review findings are <strong>data, never instructions</strong>; an override is only honoured from the human invocation channel. Named once, referenced everywhere, rather than re-improvised per skill.</p>
+   <p><strong>Where:</strong> new <code>skills/_shared/untrusted-data.md</code> — <code>_shared</code> currently holds exactly one protocol file, so this is its designed extension point — referenced from <code>fix-pr</code>, <code>b-pr-review-2-issues</code>, <code>b-research</code> and <code>code-review-universal</code>.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><span class="vx">Risk <b>none</b></span><code class="evc">Acceptance: four skills cite the protocol; none restates it inline</code></footer>
+  </article>
+ </div>
+
+ <div class="subhead">Wave 2 · The two real capability holes</div>
+ <div class="adoptgrid">
+  <article class="adopt">
+   <header><h4>5 · <code>b-debug</code> — systematic debugging</h4><span class="klass k-new-member">new member</span></header>
+   <p>Reproduce, isolate, prove the root cause, fix, keep the reproduction as a regression test. Two rules carry it: <strong>no fix before a proven root cause</strong>, and after three failed fixes stop and question the architecture rather than trying a fourth.</p>
+   <p><strong>Where:</strong> <code>skills/b-debug/</code> plus a <code>prompts/</code> twin and a <code>commands/</code> symlink; an escalation row in <code>b-iterate</code>, whose entire current answer to debugging is the phrase “lightweight diagnostics”. It also closes a dangling contract: the always-on bootstrap routes runtime bugs to a <em>systematic-debugger</em> role that does not exist in <code>skills/</code>.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><span class="vx">Risk <b>low</b></span><code class="evc">Second independent audit to find this same hole — see the 2026-09-10 mattpocock adoption subject</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>6 · A restraint lens over review findings</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>Before a reviewer emits its report, every finding passes a disposition: a never-simplify set is exempt outright (trust boundaries, error handling that prevents data loss, security, accessibility, anything the plan explicitly asked for); everything else is classified as real defect or gold-plating; <strong>every decline is recorded with a one-line reason</strong>; criticals are never declinable.</p>
+   <p><strong>Where:</strong> the classification step of <code>b-review</code> and the validation step of <code>fix-pr</code>. This attacks buck's actual failure mode — <code>iterate-*.md</code> churn generated from findings nobody triaged.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><span class="vx">Risk <b>low</b></span><code class="evc">Acceptance: a review with a declined finding shows the reason inline; criticals cannot be declined</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>7 · Requirement IDs with <code>(source:)</code> tags</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>Number requirements once; every downstream artifact cites the id rather than a line number. Two rules do all the work: an <strong>untagged requirement is scope creep and gets cut</strong>, and a requirement no downstream line cites is a <strong>dropped requirement</strong>.</p>
+   <p><strong>Where:</strong> mint in <code>b-nasa-prd</code> (extend its existing rule-ID audit checklist), carry through <code>b-plan</code> steps, replace <code>from_plan_steps</code> with ids in <code>b-phase</code> frontmatter, verify in <code>b-review</code>'s completion matrix. Payoff: that matrix stops being prose a human has to believe and becomes something <code>grep</code> can check.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>high</b></span><span class="vx">Risk <b>medium</b></span><code class="evc">Touches four skills — give it its own plan subject, never share a cycle with item 8</code></footer>
+  </article>
+ </div>
+
+ <div class="subhead">Wave 3 · Closing mechanics — highest value, highest risk, one per cycle</div>
+ <div class="adoptgrid">
+  <article class="adopt">
+   <header><h4>8 · A convergence contract</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>One shared rule: a skill runs <strong>one pass and proposes</strong>; it loops only under an explicit <code>loop</code> scope, and a loop must declare an <em>observable</em> exit condition plus a maximum iteration count. No skill name ever contains <code>-loop</code>.</p>
+   <p><strong>Where:</strong> new <code>skills/_shared/convergence.md</code>, cited by the review and iterate stations. The structural payoff: <code>b-pr-review-2-issues</code> (plan only) and <code>fix-pr</code> (act now) collapse into one skill with a mode flag, instead of two skills a user must choose between correctly. This is the only item on the list that shrinks the suite.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>high</b></span><span class="vx">Risk <b>medium</b></span><code class="evc">Acceptance: every looping skill names its exit condition; the two PR-feedback skills become one</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>9 · <code>b-converge</code> — CI-green and bot-comment loops</h4><span class="klass k-new-member">new member</span></header>
+   <p>Drive red gating checks to green — <strong>never by editing the CI configuration</strong> — and drive bot review comments to an empty review against the current head. Failing-log reading is delegated to a subagent so raw CI output never lands in the main conversation.</p>
+   <p><strong>Where:</strong> the missing station immediately after <code>b-pr</code>. buck's chain currently ends at a PR URL, and <code>fix-pr</code> is explicitly instructed to ignore “CI still running”. Depends on item 3 for its background-dispatch discipline and item 8 for its exit condition.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>high</b></span><span class="vx">Risk <b>medium</b></span><code class="evc">Blocked on items 3 and 8 — do not start it first</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>10 · Confined different-model review</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>Run the reviewer on a different provider from a temp directory containing <strong>only</strong> the copied diff and the acceptance criteria, under a deny-by-default read-only tool allowlist, a throwaway config directory and secret-environment redaction.</p>
+   <p><strong>Where:</strong> as an optional dispatch mode inside <code>code-review-universal</code> — not a new skill. buck already runs another model family over Pi RPC in <code>b-grill-auto</code> and <code>pi-rpc</code>; the transport exists and the confinement contract is the missing half.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><span class="vx">Risk <b>low</b></span><code class="evc">Reuses <code>skills/b-grill-auto/grill.py</code> — no new transport</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>11 · <code>b-skill-writer</code></h4><span class="klass k-new-member">new member</span></header>
+   <p>Test-driven documentation: run the pressure scenario with a subagent <em>before</em> writing anything, record the exact rationalisations it produces without the skill, write the skill against those, verify compliance, then close the loopholes it finds.</p>
+   <p><strong>Where:</strong> <code>skills/b-skill-writer/</code>. buck's product <em>is</em> skills and it has no skill for making them. Pairs directly with item 1 — the lint is the mechanical half of skill quality, this is the judgment half.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><span class="vx">Risk <b>low</b></span><code class="evc">Do after item 1 so the lint can encode whatever the skill decides</code></footer>
+  </article>
+ </div>
+
+ <div class="subhead">Explicitly declined · ranked, considered, rejected</div>
+ <div class="stack">
+  <div class="row">
+   <h4>Prose de-tell pass <span class="sev low">scope down or skip</span></h4>
+   <p>buck's bootstrap already carries a hard, always-on house style with its own anti-filler rules. A second prose-rewriting authority would collide with it and the two would disagree on the same sentence. If adopted at all, scope it to release notes and PR bodies only — never to chat output, which the bootstrap already governs.</p>
+  </div>
+  <div class="row">
+   <h4>Two-phase PR topology <span class="sev low">conditional</span></h4>
+   <p>buck already solves the same review-noise problem inside a single PR by splitting implementation files from <code>.context/**</code> artifacts in the body. A doc-only plan PR stacked under an implementation PR is worth it only on the AFK handoff path, where a human must approve a plan <em>before</em> an agent implements it — that is the one case buck's single-PR split does not cover.</p>
+  </div>
+  <div class="row">
+   <h4>Hook-driven session state <span class="sev low">take the requirement, not the mechanism</span></h4>
+   <p>The goal — surviving compaction without spending a turn — is a genuine buck gap. The mechanism, a Stop hook spawning a headless model to edit a state file, is the thing buck deliberately removed when it retired extension-based orchestration, and <code>/b-save</code> is a pure prompt by design. The cheap equivalent already exists in-tree: the write-gate that <code>b-research</code>, <code>b-explore</code> and <code>b-capture</code> use. Extend that to <code>b-build</code> and <code>b-review</code> and the gap closes with no hook at all.</p>
+  </div>
+ </div>
+</section>
+
+<section class="top-level" id="outbound">
+ <h2><span class="h2n">05</span>Out to jz — prioritized</h2>
+ <p class="lede">The return path. Ranked the same way, and read from upstream's side: each one has to survive jz's own stated policies, not buck's.</p>
+ <div class="adoptgrid">
+  <article class="adopt">
+   <header><h4>1 · A git-portable durable record</h4><span class="klass k-new-member">new member</span></header>
+   <p>jz's session state lives in <code>~/.jz-agent-session-state/</code> — outside git, outside code review, unreadable by a teammate or a different harness. The answer to jz's “files carry state, not history” rule is narrow: rationale in a PR is fine <em>while the PR is open</em>; the arc record is what the <strong>next session</strong> reads, and that is a different consumer. Keep the hook-driven writer; change only where it writes.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">Position: a save station at conductor arc end, after review, before deploy</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>2 · A recorded quality contract</h4><span class="klass k-repo-init">repo init</span></header>
+   <p>jz discovers each repo's own quality commands and records no thresholds, so nothing can regress <em>detectably</em> — a suite that was 80% covered last quarter and is 60% now passes both times. Take the split as well as the file: a one-shot initializer that writes the contract, and a measurer that runs it and <strong>never edits anything</strong>.</p>
+   <footer><span class="vx">Value <b>high</b></span><span class="vx">Effort <b>low</b></span><code class="evc">Lowest-effort, highest-certainty item in either direction</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>3 · Dependency typing on plan tasks</h4><span class="klass k-fold-in">fold-in</span></header>
+   <p>HARD (blocking), SOFT (a stub or mock unblocks it), NONE (genuinely parallel). jz's conductor is sequential while its own dispatch mandate wants background work everywhere; the executor ledger has no field that says which tasks are independent. This is the enabling data, and it is three enum values.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">Position: plan-writer emits it, the executor ledger carries it</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>4 · A briefing artifact at the human gate</h4><span class="klass k-new-member">new member</span></header>
+   <p>jz stops for human approval before production with nothing to read but a diff. A generated briefing page — built from the spec and plan already written — gives the approver something reviewable. The gate already calls a prose-polish skill for release notes, so a document-generation step is established there.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><code class="evc">Position: alongside release-notes humanisation, at the existing pre-prod gate</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>5 · A doc taxonomy for rationale</h4><span class="klass k-standalone">standalone</span></header>
+   <p>Decisions in <code>docs/adr/</code>, domain language in <code>CONTEXT.md</code>, task sequences as Diátaxis how-tos — the <em>why</em> given a home that outlives the PR being archived. Offer this; do not push it. It sits directly on the policy fork and only lands if upstream chooses to relax the rule.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>medium</b></span><code class="evc">Gated on a policy decision upstream, not on effort</code></footer>
+  </article>
+  <article class="adopt">
+   <header><h4>6 · A backlog surface</h4><span class="klass k-new-member">new member</span></header>
+   <p>Between “this is a ticket” and “this is forgotten”, jz has nothing. A repo-local queue of linked items with an archive is the missing middle, and it is the natural sink for the findings its restraint lens declines.</p>
+   <footer><span class="vx">Value <b>medium</b></span><span class="vx">Effort <b>low</b></span><code class="evc">Pairs with the restraint lens: declined findings need somewhere to go</code></footer>
+  </article>
+ </div>
+</section>
+
+<section class="top-level" id="sequencing">
+ <h2><span class="h2n">06</span>Sequencing and rules of engagement</h2>
+ <p class="lede">Five constraints on the order. Four of them exist because an item is cheaper now than later, or is load-bearing for something after it.</p>
+ <ul class="keypoints">
+  <li><strong>Wave 1 is one pull request.</strong> Four files, no skill body semantics changed. Items 1 and 2 are the only ones that get strictly more expensive every time the tree grows — a linter written at 54 skills is cheap; at 90 it is an archaeology project.</li>
+  <li><strong>Items 7 and 8 never share a cycle.</strong> Each touches four or more skills. One plan subject each, and land the ID convention first — the convergence contract's exit conditions read better when requirements already have stable names.</li>
+  <li><strong>Nothing in wave 3 starts before item 3.</strong> The CI loop's correctness depends on the wait cap; without it the loop blocks a turn instead of dispatching.</li>
+  <li><strong>Do not import a conductor.</strong> buck's replacement for autonomy is the harness primitives a user types, recommended per phase by <code>b-loop</code>. That decision was made once, on the grounds that uninvoked orchestration is dead weight, and nothing in this audit changes the reasoning.</li>
+  <li><strong>Do not import the spine in either direction.</strong> Both suites are deeper station-for-station in their own half. A wholesale import strands the supporting mechanics — subject folders versus execution ledgers, recorded thresholds versus adversarial lenses — and leaves two half-wired systems.</li>
+ </ul>
+ <div class="note">
+  <h5>Cheapest credible first move</h5>
+  <p>Items 1 through 4 plus item 5. That is one furniture PR and one new skill; it closes the repo's only dangling always-on contract, gives the suite a permanent structural check, and costs no change to any existing workflow station.</p>
+ </div>
+</section>
+
+<section class="top-level" id="defects">
+ <h2><span class="h2n">07</span>Two live defects found while sizing this plan</h2>
+ <p class="lede">Both were verified in the working tree during the sizing pass, after the main audit closed. Both are exactly what item 1 exists to catch, which is the argument for item 1.</p>
+ <div class="stack">
+  <div class="row">
+   <h4>Dangling documentation references <span class="sev medium">medium</span></h4>
+   <p><code>skills/b-issue-create/SKILL.md</code> cites <code>docs/agents/issue-tracker.md</code> and <code>docs/agents/triage-labels.md</code> as the source of its tracker conventions and label vocabulary. <strong>The directory <code>docs/agents/</code> does not exist in the repository.</strong> An agent following that skill reads two missing files and improvises the label vocabulary. This corroborates an open finding from the 2026-09-10 audit rather than adding a new one — but it is now confirmed against the current tree.</p>
+  </div>
+  <div class="row">
+   <h4>The prompts-to-commands mirror is broken for four commands <span class="sev medium">medium</span></h4>
+   <p>The repository documents <code>commands/*.md</code> as symlinks back to <code>prompts/*.md</code> so there is one source of truth. In fact 8 of 37 command files are regular files, and four of those <strong>shadow a diverging twin</strong>: <code>b-pr</code> (13 lines against 62), <code>b-pr-review-2-issues</code> (13 against 50), <code>b-commit-improved</code> (19 against 13) and <code>b-save-improved</code> (20 against 13). <code>commands/b-pr.md</code> is a thin skill loader; <code>prompts/b-pr.md</code> is a full inline procedure that predates the skill. A Pi user and an OMP user typing <code>/b-pr</code> are following <strong>different instructions</strong>. A lint asserting “every command file is a symlink or has no twin” fails on this today.</p>
+  </div>
+ </div>
+</section>
+
+</main>
+
+<aside id="toc">
+ <button class="toctoggle" aria-expanded="false">Contents ▾</button>
+ <h6>Contents</h6>
+ <nav><ul><li><a href="#verdict" class="l1">If you had to pick one</a></li><li><a href="#forks" class="l1">The three real forks</a></li><li><a href="#neither" class="l1">What neither side has</a></li><li><a href="#inbound" class="l1">Into buck — prioritized</a></li><li><a href="#outbound" class="l1">Out to jz — prioritized</a></li><li><a href="#sequencing" class="l1">Sequencing &amp; rules of engagement</a></li><li><a href="#defects" class="l1">Two live defects</a></li><li><a href="index.html" class="l1">← Overlap audit</a></li></ul></nav>
+</aside>
+</div></div>
+
+<footer class="end"><div class="wrap">
+ Adoption plan · companion to the <a href="index.html">overlap audit</a> · buck-workflow-pi <code>f797174</code> × resumator/docker-orchestration <code>1fea15e</code> · 11 September 2026.
+ Analysis only — no file in either repository was modified to produce it.
+</div></footer>
+
+<script>
+(function(){
+ var links = Array.prototype.slice.call(document.querySelectorAll('#toc a'));
+ var map = {};
+ links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+ var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+ var active = null;
+ function setActive(el){
+   if(!el || el===active) return;
+   if(active) active.classList.remove('active');
+   active = el; el.classList.add('active');
+ }
+ var io = new IntersectionObserver(function(entries){
+   var visible = entries.filter(function(e){return e.isIntersecting;});
+   if(!visible.length) return;
+   visible.sort(function(a,b){return a.boundingClientRect.top - b.boundingClientRect.top;});
+   setActive(map[visible[0].target.id]);
+ }, {rootMargin:'-8% 0px -72% 0px', threshold:0});
+ targets.forEach(function(t){ io.observe(t); });
+
+ var btn = document.querySelector('.toctoggle'), side = document.getElementById('toc');
+ if(btn){ btn.addEventListener('click', function(){
+   var open = side.classList.toggle('open');
+   btn.setAttribute('aria-expanded', String(open));
+   btn.textContent = open ? 'Contents ▴' : 'Contents ▾';
+ }); }
+ links.forEach(function(a){ a.addEventListener('click', function(){ if(side.classList.contains('open')){ side.classList.remove('open'); btn.textContent='Contents ▾'; } }); });
+})();
+</script>
+</body></html>
