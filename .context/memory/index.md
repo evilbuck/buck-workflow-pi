@@ -1,3 +1,6 @@
+- 2026-09-12 — [fix-pr: PR #20 CodeRabbit set + master rebase](fix-pr-20-coderabbit-2026-09-12.md) — `completed` (14/18 already_done by f785ff6; 3 record fixes; onActivity bridge ported through omp-models extraction; 528 vitest, patch 91%; Wooderson confirmed at 79849b1)
+
+  - 2026-09-12 | `fix-pr-20-coderabbit-2026-09-12.md` | domains: [review, workflow, extensions, testing] | topics: [fix-pr, pr-20, b-save, coderabbit, rebase, conflict-resolution] | status: completed | subject: 2026-09-10.b-save-state-machine-analysis
 - 2026-09-12 — [fix-pr: PR #24 review feedback](fix-pr-24-2026-09-12.md) — `completed` (terminal flush fixes + red/green regression tests, spawn mock, tick semantics, dead code, .context reconciliation; 542 vitest pass)
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
