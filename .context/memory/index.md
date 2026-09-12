@@ -2,6 +2,10 @@
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
 
+- 2026-09-12 — [fix-pr: head-branch worktrees and bounded re-review](fix-pr-resolution-loop-2026-09-12.md) — `completed`
+
+  - 2026-09-12 | `fix-pr-resolution-loop-2026-09-12.md` | domains: [workflow, agent-instructions, github] | topics: [fix-pr, git-worktree, review-loop, max-loop, polling, orchestrate, subagents] | status: completed
+
 - 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active

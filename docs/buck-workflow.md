@@ -405,7 +405,7 @@ flowchart TD
 | [**b-wizard**](#b-wizard--interactive-setup-wizards) | Prompt template + Skill | `/b-wizard` | `prompts/b-wizard.md` + `skills/b-wizard/` | Generates a bash wizard for human-only setup steps; `template.sh` does the work |
 | [**b-init-tracker**](#b-init-tracker--issue-tracker-config-init) | Prompt template + Skill | `/b-init-tracker` | `prompts/b-init-tracker.md` + `skills/b-init-tracker/` | Configure this repo's issue tracker + triage labels (idempotent managed AGENTS.md block) |
 | [**b-triage**](#b-triage--inbound-issue-triage) | Prompt template + Skill | `/b-triage` | `prompts/b-triage.md` + `skills/b-triage/` | Triage inbound issues/PRs into the ready-for-agent state b-auto-fix consumes |
-| [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Validate PR review comments; fix+push or file issues (no slash wrapper) |
+| [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Fix PR review findings on the real head branch; push, poll, and repeat until settled (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
@@ -1147,11 +1147,13 @@ Suggested next step
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Ingest review feedback on a GitHub PR, **validate** each comment against current code, size the collective of valid items, then either **fix + commit + push** in-session or **file GitHub issues**. Ask the engineer only when validity is genuinely unclear.
+**Purpose**: Resolve GitHub PR review feedback end to end. Validate every comment against current code, fix every valid finding by default in a worktree on the PR's real head branch, commit and push, then poll for independent re-review and repeat until settled or the loop cap is reached.
 
 **Pi/OMP primitive**: Skill only (`skills/fix-pr/SKILL.md`). **No** `prompts/fix-pr.md` and **no** `commands/fix-pr.md` symlink — invoke via `/skill:fix-pr` (or description match / skill-by-name on other harnesses).
 
 **Harness posture**: OMP-first tooling (`pr://`, GitHub helpers) with universal `gh` + `git` fallbacks. Procedure is agent-agnostic.
+
+**Exploration orchestration**: On OMP, `fix-pr` orchestrates parallel read-only `task` subagents to fetch and normalize feedback and validate independent finding groups. They return compact evidence records instead of raw payloads; the mainline owns worktree and Git/GitHub mutation, final verification, disposition, polling, and settlement. Harnesses without task subagents run the same contracts inline.
 
 **Not the same as**:
 - `code-review` / `code-review-universal` — *author* a review (read-only on product code except posting the review)
@@ -1163,17 +1165,19 @@ Suggested next step
 - User says "fix the PR comments", "address review feedback", or passes a PR URL/number for fixes
 
 **Behavior**:
-1. Land on the PR head branch
-2. Inventory review bodies + inline comments (skip nits, resolved, `.context/**` noise)
-3. Validate each claim against HEAD → `valid` / `invalid` / `already_done` / `unsure` / `nit`
-4. Size gate on the collective of **valid** open items
-5. **Small** → fix root causes, narrow tests, commit, push
-6. **Large** → file themed GitHub issues with acceptance criteria + PR/comment links
-7. Write `.context/memory/` record + closeout table
+1. Resolve the PR head repository, branch name, and immutable head/base OIDs
+2. Reuse or create a worktree whose local branch is exactly the PR `headRefName`
+3. Inventory review bodies, inline threads, and conversation comments using stable IDs
+4. Validate every claim against current HEAD
+5. Fix all valid findings by default; `--issues-only` is the explicit handoff path
+6. Verify, stage, commit, and push to the PR head repository and branch
+7. Poll for new review at 2, 2, 2, 2, 2, 5, 5, and 10 minute intervals
+8. Repeat fixes when a new review finds valid issues, capped at 10 loops by default
+9. Finish `settled` only after an independent post-push review confirms resolution; otherwise record `review_pending` or `max_loops_reached`
 
-**Flags** (when invoked with args): `--issues-only`, `--fix-only`
+**Flags**: `--max-loop=<n>` (default 10), `--issues-only`, `--dry-run`
 
-**Next Steps**: Re-request review on the PR; `/b-save` if more session bookkeeping remains; optional `/b-iterate` for leftover polish after your own review loop
+**Next Steps**: `review_pending` resumes from polling on the next invocation; `max_loops_reached` requires an explicit new budget. Run `/b-save` if more session bookkeeping remains.
 
 #### `/b-triage` — Inbound Issue Triage
 
@@ -1646,12 +1650,13 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 
 This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.
 
-### PR Review Feedback (validate → fix or issues)
+### PR Review Feedback (validate → fix → re-review)
 
-```
-/skill:fix-pr <pr-number-or-url>
-# small valid set → fix + commit + push on PR head
-# large valid set → file GitHub issues, link from PR
+```text
+/skill:fix-pr <pr-number-or-url> [--max-loop=<n>]
+# default → fix every valid finding on the real head branch, push, then poll
+# new valid review findings → repeat; default cap 10 loops
+# explicit handoff → --issues-only
 ```
 
 OMP-first; works on any agent with `gh` + `git`. Skill-only — no `/fix-pr` slash wrapper.
@@ -1685,7 +1690,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)
 - `/skill:b-grill-me` — Stress-test a plan via interview with complexity tracking
 - `/skill:b-grill-with-docs` — Same as b-grill-me, plus domain doc awareness (CONTEXT.md, ADRs)
-- `/skill:fix-pr` — Validate PR review comments; fix+push in-session or file issues (skill-only, no slash wrapper)
+- `/skill:fix-pr` — Fix PR review findings in a head-branch worktree; push, poll, and repeat until settled (skill-only, no slash wrapper)
 
 **OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
 - `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
