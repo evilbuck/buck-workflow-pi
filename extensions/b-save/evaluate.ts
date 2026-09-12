@@ -85,6 +85,7 @@ export type EvalInput = {
   inferredBacklog?: string[];
   explicitCompleted?: string[];
   expectedHashes?: Record<string, string>;
+  subjectResolved?: boolean;
   currentHashes?: Record<string, string>;
 };
 
@@ -121,7 +122,11 @@ function ruleSession(input: EvalInput): ClosedRule {
 function ruleSubject(input: EvalInput): ClosedRule {
   const snap = asOk(input.snapshot);
   const eligible = snap.subject_candidates.filter((c: SubjectCandidate) => c.status === "active");
-  if (eligible.length > 1) throw new UserGateError("subject", eligible.map((c) => c.name));
+  // The command adapter resolves ambiguity upstream via --subject; when that
+  // human decision exists the gate is answered and must not re-trip forever.
+  if (!input.subjectResolved && eligible.length > 1) {
+    throw new UserGateError("subject", eligible.map((c) => c.name));
+  }
   return { id: 2, result: { selected: snap.subject.name, moves: snap.loose_artifacts } };
 }
 

@@ -6,6 +6,9 @@
 
   - 2026-09-11 | `extension-activity-progress-2026-09-11.md` | domains: [extensions, tui, omp] | topics: [extension-activity, spinner, widget, model-streaming, b-pr-improved, b-commit-improved, b-save-improved, b-kamal-release] | status: active
 
+- 2026-09-11 — [fix-pr: PR #20 rebase + issue #23 blockers wired (option a)](fix-pr-20-issue23-2026-09-11.md) — `completed`
+
+  - 2026-09-11 | `fix-pr-20-issue23-2026-09-11.md` | domains: [review, extensions, testing, workflow] | topics: [fix-pr, pr-20, b-save, issue-23, rebase, conflict-resolution, xstate, execute-run, resume] | status: completed
 
 - 2026-09-11 — [fix-pr: PR #17 Codex plugin version pin](fix-pr-17-2026-09-11c.md) — `completed`
 

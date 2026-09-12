@@ -41,6 +41,9 @@ export function createBSaveMachine() {
     }),
     on: {
       ABORT: { target: ".aborted" },
+      // Roles run while the machine is in `evaluating`; a role failure from
+      // any non-judging state must still reach the failed_model final state.
+      MODEL_FAILED: { target: ".failed_model" },
     },
     states: {
       snapshotting: {
