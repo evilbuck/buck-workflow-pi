@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 1
 order: 1
 plan: plan-extension-activity-progress.md
@@ -23,8 +23,8 @@ acceptance_criteria:
   - "All existing tests in `extensions/command-progress.test.ts` keep passing with zero source changes outside of import paths."
   - "A new `extensions/subprocess.test.ts` covers `execFileCaptured`, `execFileCapturedWithStdin`, `createLineRing`, and `recordCommandError` with the same behavioral assertions previously kept in `command-progress.test.ts`."
   - "`npm test` passes; `/b-guardrails-check` reports `status: pass` with no new complexity violations."
-completed_at: null
-completed_by: null
+completed_at: 2026-09-11
+completed_by: goal-mode-session
 ---
 
 # Phase 1: Subprocess extraction

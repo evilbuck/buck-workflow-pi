@@ -15,10 +15,11 @@ interface FakeClock {
 }
 
 /**
- * Deterministic fake clock. `tick()` fires every currently-scheduled callback
- * once in insertion order. The activity module re-arms timers inside the
- * handler; `tick()` walks the new schedule so behavior matches the real
- * `setInterval` cadence without wall-clock delays.
+ * Deterministic fake clock. `tick()` fires every currently-registered timer
+ * callback once in registration order and keeps the handles registered —
+ * matching real `setInterval` repetition. `clearInterval()` is the only
+ * operation that removes a handle; timers registered mid-tick first fire on
+ * the next tick.
  */
 function fakeClock(): FakeClock {
 	const schedule: Array<{ ms: number; cb: () => void }> = [];
@@ -30,18 +31,8 @@ function fakeClock(): FakeClock {
 		},
 		schedule,
 		tick() {
-			const firedIds = new Set<number>();
-			let progressed = true;
-			while (progressed) {
-				progressed = false;
-				for (const [id, entry] of handles) {
-					if (firedIds.has(id)) continue;
-					firedIds.add(id);
-					handles.delete(id);
-					entry.cb();
-					progressed = true;
-					break;
-				}
+			for (const [id, entry] of [...handles]) {
+				if (handles.has(id)) entry.cb();
 			}
 		},
 		setInterval(cb, ms) {
@@ -80,12 +71,6 @@ function captureUI(): {
 		statuses,
 		widgets,
 	};
-}
-
-function advanceWidget(activity: ReturnType<typeof createActivity>, clock: FakeClock): void {
-	activity.phase(activity.phase.toString()); // no-op; placeholder for type usage
-	void activity;
-	clock.tick();
 }
 
 describe("sanitizeLine", () => {
@@ -352,6 +337,37 @@ describe("createActivity retries and completion", () => {
 		const widget = cap.widgets.at(-1);
 		const lines = widget?.lines ?? [];
 		expect(lines.some((l) => l.includes("✓ b-pr-improved: PR opened"))).toBe(true);
+	});
+
+	it("flushes buffered text deltas into the widget on complete", () => {
+		const cap = captureUI();
+		const activity = createActivity({ ui: cap.ui, command: "b-pr-improved", clock: fakeClock() });
+		activity.phase("finishing");
+		// Text arrives, then agent_end lands inside the throttle window before
+		// any tick — the widget render at complete must include the buffered text.
+		activity.ingest({ kind: "text", delta: "final streaming words" });
+		activity.ingest({ kind: "complete", ok: true, message: "PR opened" });
+		const widget = cap.widgets.at(-1);
+		const lines = widget?.lines ?? [];
+		expect(lines.some((l) => l.includes("final streaming words"))).toBe(true);
+		expect(lines.some((l) => l.includes("✓ b-pr-improved: PR opened"))).toBe(true);
+	});
+
+	it("stops the widget timer in succeed and fail", () => {
+		const cap = captureUI();
+		const okClock = fakeClock();
+		const okActivity = createActivity({ ui: cap.ui, command: "b-commit-improved", clock: okClock });
+		okActivity.phase("committing");
+		okActivity.ingest({ kind: "text", delta: "draft" });
+		okActivity.succeed("done");
+		expect(okClock.pending).toBe(0);
+
+		const badClock = fakeClock();
+		const badActivity = createActivity({ ui: cap.ui, command: "b-commit-improved", clock: badClock });
+		badActivity.phase("committing");
+		badActivity.ingest({ kind: "text", delta: "draft" });
+		badActivity.fail("error");
+		expect(badClock.pending).toBe(0);
 	});
 });
 

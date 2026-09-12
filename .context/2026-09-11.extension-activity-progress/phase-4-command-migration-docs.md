@@ -1,5 +1,5 @@
 ---
-status: completed
+status: in-progress
 phase: 4
 order: 4
 plan: plan-extension-activity-progress.md
@@ -37,8 +37,8 @@ acceptance_criteria:
   - "`docs/oh-my-pi.md` documents the OMP activity surface and the rule that future long-running extension commands use the shared module."
   - "Backlog item `deterministic-extension-progress` is retargeted to the new subject in `.context/backlog/items/deterministic-extension-progress.md` and `.context/backlog/todo.md` instead of duplicating."
   - "`npm test` passes; `/b-guardrails-check` reports `status: pass` with no new complexity violations."
-completed_at: 2026-09-11
-completed_by: goal-mode-session
+completed_at: null
+completed_by: null
 ---
 
 # Phase 4: Command migration + docs
@@ -46,6 +46,10 @@ completed_by: goal-mode-session
 ## Context
 
 The parent plan's User Goal is: animated status plus a small live window of observable model activity, consistently across all extensions. Phase 4 closes the loop by migrating every currently shipped long-running command, removing the legacy mixed module, and documenting the convention so future commands cannot drift.
+
+## Status note (2026-09-12)
+
+Implementation, migration, `command-progress.ts` deletion, docs, and backlog retargeting are done. Two acceptance gates remain open with no recorded override: patch coverage is 89.9% (gate: 90%) and the OMP TUI smoke has not been run (see `iterate-extension-activity-progress.md` Critical Issue 4). The phase stays `in-progress` until both are recorded or an approved durable override exists.
 
 This phase uses `/b-build-hard` because the work spans four command implementations and touches the deletion of the mixed module; ambiguity may surface during cleanup of duplicated progress paths and Kamal's failure-tail policy. Each command's wiring test must verify the new activity lifecycle explicitly.
 

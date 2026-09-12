@@ -385,8 +385,6 @@ describe("b-save-improved handler", () => {
 
   });
 
-;
-
   it("clears status and widget when the apply step throws (outermost catch)", async () => {
     execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
     execFileCapturedWithStdin.mockRejectedValue(new Error("apply script crashed"));

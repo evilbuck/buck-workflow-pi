@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-extension-activity-progress.md
@@ -22,8 +22,8 @@ acceptance_criteria:
   - "Existing return/error behavior is preserved when no callback is supplied."
   - "Fake-session tests assert the normalized sequence for text, tool, retry, failure, and completion events, plus unsubscribe/dispose ordering."
   - "`npm test` passes; `/b-guardrails-check` reports `status: pass` with no new complexity violations."
-completed_at: null
-completed_by: null
+completed_at: 2026-09-11
+completed_by: goal-mode-session
 ---
 
 # Phase 3: Model runner wiring

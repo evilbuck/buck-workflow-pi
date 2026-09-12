@@ -1,18 +1,46 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { execFileSync } from "node:child_process";
+import type { ChildProcess, ExecFileSyncOptions, SpawnOptions } from "node:child_process";
+import type { Readable } from "node:stream";
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 vi.mock("node:child_process", async () => {
   const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
+  // Deterministic kamal child so the test never requires the real executable:
+  // hasBin goes through execFileSync, runKamal through spawn. Emit close(0,
+  // null) on a microtask so runKamal's once(child, "close") listener attaches
+  // before the event fires.
+  const fakeKamalChild = (): ChildProcess => {
+    const child = new EventEmitter() as unknown as ChildProcess;
+    // Readable duck-type: runKamal only attaches "data" listeners.
+    child.stdout = new EventEmitter() as unknown as Readable;
+    child.stderr = new EventEmitter() as unknown as Readable;
+    queueMicrotask(() => {
+      child.emit("close", 0, null);
+    });
+    return child;
+  };
   return {
     ...actual,
-    execFileSync: ((file: string, args?: unknown, options?: unknown): string | Buffer => {
+    execFileSync: ((
+      file: string,
+      args?: readonly string[] | null,
+      options?: ExecFileSyncOptions,
+    ): string | Buffer => {
       if (file === "kamal") return "";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return (actual.execFileSync as any)(file, args, options);
+      return actual.execFileSync(file, args ?? [], options) as string | Buffer;
     }) as typeof actual.execFileSync,
+    spawn: ((
+      file: string,
+      args?: readonly string[] | null,
+      options?: SpawnOptions,
+    ): ChildProcess => {
+      if (file === "kamal") return fakeKamalChild();
+      return actual.spawn(file, args ?? [], options);
+    }) as typeof actual.spawn,
   };
 });
 

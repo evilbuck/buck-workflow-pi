@@ -3606,5 +3606,49 @@
     "related": [],
     "priority": "",
     "status": ""
+  },
+  {
+    "path": ".context/memory/extension-activity-progress-2026-09-11.md",
+    "kind": "memory",
+    "date": "2026-09-11",
+    "domains": [
+      "extensions",
+      "tui",
+      "omp"
+    ],
+    "topics": [
+      "extension-activity",
+      "spinner",
+      "widget",
+      "model-streaming",
+      "b-pr-improved",
+      "b-commit-improved",
+      "b-save-improved",
+      "b-kamal-release"
+    ],
+    "subject": "2026-09-11.extension-activity-progress",
+    "artifacts": [
+      ".context/2026-09-11.extension-activity-progress/index.md",
+      ".context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md",
+      ".context/2026-09-11.extension-activity-progress/plan-extension-activity-progress-phases.md",
+      ".context/2026-09-11.extension-activity-progress/phase-1-subprocess-extraction.md",
+      ".context/2026-09-11.extension-activity-progress/phase-2-activity-core.md",
+      ".context/2026-09-11.extension-activity-progress/phase-3-model-runner-wiring.md",
+      ".context/2026-09-11.extension-activity-progress/phase-4-command-migration-docs.md",
+      ".context/2026-09-11.extension-activity-progress/iterate-extension-activity-progress.md",
+      "extensions/extension-activity.ts",
+      "extensions/extension-activity.test.ts",
+      "extensions/subprocess.ts",
+      "extensions/subprocess.test.ts",
+      "extensions/omp-models.ts",
+      "docs/oh-my-pi.md"
+    ],
+    "related": [
+      ".context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md",
+      ".context/2026-09-11.extension-activity-progress/iterate-extension-activity-progress.md",
+      ".context/backlog/items/deterministic-extension-progress.md"
+    ],
+    "priority": "high",
+    "status": "active"
   }
 ]

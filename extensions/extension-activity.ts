@@ -31,10 +31,6 @@ export interface ActivityUI {
 	) => void;
 }
 
-export interface ActivityCtx {
-	ui?: ActivityUI;
-}
-
 export type ActivityEvent =
 	| { kind: "text"; delta: string }
 	| { kind: "toolStart"; tool: string; target?: string }
@@ -211,45 +207,6 @@ export function createActivity(options: ActivityOptions): Activity {
 		}
 	};
 
-const handleEvent = (event: ActivityEvent): void => {
-	switch (event.kind) {
-		case "text":
-			coalesceText(state.pendingLines, event.delta, maxLineWidth);
-			scheduleWidgetRender();
-			return;
-		case "toolStart": {
-			closeTextLine();
-			const target = event.target ? ` → ${sanitizeLine(event.target, maxLineWidth)}` : "";
-			flushPendingLines();
-			pushActivityLine(`▸ ${event.tool}${target}`);
-			scheduleWidgetRender();
-			return;
-		}
-		case "toolEnd": {
-			closeTextLine();
-			flushPendingLines();
-			const tail = event.message ? `: ${sanitizeLine(event.message, maxLineWidth)}` : "";
-			pushActivityLine(`${event.ok ? "✓" : "✗"} ${event.tool}${tail}`);
-			scheduleWidgetRender();
-			return;
-		}
-		case "retry": {
-			closeTextLine();
-			flushPendingLines();
-			pushActivityLine(`↻ retry: ${sanitizeLine(event.message, maxLineWidth)}`);
-			scheduleWidgetRender();
-			return;
-		}
-		case "complete": {
-			closeTextLine();
-			const tail = event.message ? `: ${sanitizeLine(event.message, maxLineWidth)}` : "";
-			pushActivityLine(`${event.ok ? "✓" : "✗"} ${command}${tail}`);
-			renderWidget();
-			return;
-		}
-	}
-};
-
 	const flushPendingLines = (): void => {
 		if (state.pendingLines.length === 0) return;
 		for (const line of state.pendingLines) {
@@ -299,6 +256,46 @@ const handleEvent = (event: ActivityEvent): void => {
 		state.textLineOpen = false;
 	};
 
+	const handleEvent = (event: ActivityEvent): void => {
+		switch (event.kind) {
+			case "text":
+				coalesceText(state.pendingLines, event.delta, maxLineWidth);
+				scheduleWidgetRender();
+				return;
+			case "toolStart": {
+				closeTextLine();
+				const target = event.target ? ` → ${sanitizeLine(event.target, maxLineWidth)}` : "";
+				flushPendingLines();
+				pushActivityLine(`▸ ${event.tool}${target}`);
+				scheduleWidgetRender();
+				return;
+			}
+			case "toolEnd": {
+				closeTextLine();
+				flushPendingLines();
+				const tail = event.message ? `: ${sanitizeLine(event.message, maxLineWidth)}` : "";
+				pushActivityLine(`${event.ok ? "✓" : "✗"} ${event.tool}${tail}`);
+				scheduleWidgetRender();
+				return;
+			}
+			case "retry": {
+				closeTextLine();
+				flushPendingLines();
+				pushActivityLine(`↻ retry: ${sanitizeLine(event.message, maxLineWidth)}`);
+				scheduleWidgetRender();
+				return;
+			}
+			case "complete": {
+				closeTextLine();
+				flushPendingLines();
+				const tail = event.message ? `: ${sanitizeLine(event.message, maxLineWidth)}` : "";
+				pushActivityLine(`${event.ok ? "✓" : "✗"} ${command}${tail}`);
+				renderWidget();
+				return;
+			}
+		}
+	};
+
 	const clearUI = (): void => {
 		callSafe(() => ui?.setStatus?.(statusKey, undefined));
 		callSafe(() => ui?.setWidget?.(widgetKey, undefined, { placement: "aboveEditor" }));
@@ -321,6 +318,7 @@ const handleEvent = (event: ActivityEvent): void => {
 			state.phaseLabel = label;
 			renderFooter();
 			flushFrameTimer();
+			flushWidgetTimer();
 			callSafe(() => ui?.notify?.(`${command}: ${label}`, "info"));
 			clearUI();
 		},
@@ -329,6 +327,7 @@ const handleEvent = (event: ActivityEvent): void => {
 			state.phaseLabel = label;
 			renderFooter();
 			flushFrameTimer();
+			flushWidgetTimer();
 			callSafe(() => ui?.notify?.(`${command}: ${label}`, "warning"));
 			clearUI();
 		},

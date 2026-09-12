@@ -478,7 +478,6 @@ async function runBCommitImproved(
     }
 
     // 8. Final output
-    activity.phase("done");
     notify(`✅ ${title}${body ? "\n" + body : ""}`, "info");
     const status = tryGit(["status", "-sb"], cwd);
     if (status.ok) notify(status.stdout.trimEnd(), "info");

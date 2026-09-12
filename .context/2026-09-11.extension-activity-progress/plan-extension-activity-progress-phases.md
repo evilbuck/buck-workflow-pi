@@ -1,5 +1,5 @@
 ---
-status: completed
+status: active
 date: 2026-09-11
 subject: 2026-09-11.extension-activity-progress
 topics: [phasing, extension-activity, omp, tui, spinner, widget]
@@ -28,7 +28,7 @@ memory: []
 | 1: Subprocess extraction | completed | easy | none | [phase-1-subprocess-extraction.md](phase-1-subprocess-extraction.md) |
 | 2: Activity core | completed | medium | none | [phase-2-activity-core.md](phase-2-activity-core.md) |
 | 3: Model runner wiring | completed | medium | none | [phase-3-model-runner-wiring.md](phase-3-model-runner-wiring.md) |
-| 4: Command migration + docs | completed | medium | none | [phase-4-command-migration-docs.md](phase-4-command-migration-docs.md) |
+| 4: Command migration + docs | in-progress | medium | none | [phase-4-command-migration-docs.md](phase-4-command-migration-docs.md) |
 
 ## Dependency Matrix
 
@@ -85,7 +85,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [x] Phase 1: Subprocess extraction — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Activity core — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 3: Model runner wiring — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [x] Phase 4: Command migration + docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 4: Command migration + docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit — open: patch-coverage gate (89.9% vs 90%) and OMP TUI smoke; see phase-4 status note
 
 ## Notes
 

@@ -30,9 +30,9 @@ vi.mock("../../extension-activity.js", async () => {
   };
 });
 
-// runOmpModelSession internally calls session.subscribe. Our runOmpModelSession
-// mock fires a message_update event through the bridge right at subscribe
-// time and returns a literal description.
+// runOmpModelSession internally subscribes a bridge before prompting. Our
+// runOmpModelSession mock emits one normalized ActivityEvent through
+// onActivity at call time and returns a literal description.
 vi.mock("../../omp-models.js", async () => {
   const actual = await vi.importActual<typeof import("../../omp-models.js")>("../../omp-models.js");
   return {
@@ -40,7 +40,7 @@ vi.mock("../../omp-models.js", async () => {
     runOmpModelSession: async (opts: { onActivity?: (e: unknown) => void } = {}) => {
       const bridge = opts.onActivity;
       if (bridge) {
-        bridge({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "delta" } });
+        bridge({ kind: "text", delta: "delta" });
       }
       return "## What & Why\ntest description\n\n## Impact\nx\n\n## High-Level Changes\n- y";
     },

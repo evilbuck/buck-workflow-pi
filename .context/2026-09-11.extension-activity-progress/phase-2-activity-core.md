@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-extension-activity-progress.md
@@ -26,8 +26,8 @@ acceptance_criteria:
   - "Headless or Pi runtimes that lack one of the OMP UI methods continue to receive notifications without crashing."
   - "Fake-clock and fake-UI tests cover lifecycle, throttling, sanitization, coalescing, notification frequency, and idempotent cleanup."
   - "`npm test` passes; `/b-guardrails-check` reports `status: pass` with no new complexity violations."
-completed_at: null
-completed_by: null
+completed_at: 2026-09-11
+completed_by: goal-mode-session
 ---
 
 # Phase 2: Activity core

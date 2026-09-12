@@ -250,9 +250,6 @@ export async function runOmpModelSession(opts: {
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
   const created = await createAgentSession(sessionOpts);
   const session = created.session;
-  const timer = setTimeout(() => {
-    void session.abort();
-  }, timeoutMs);
   let unsubscribe: (() => void) | null = null;
   if (onActivity) {
     const bridge = (rawEvent: unknown): void => {
@@ -261,6 +258,9 @@ export async function runOmpModelSession(opts: {
     };
     unsubscribe = session.subscribe(bridge);
   }
+  const timer = setTimeout(() => {
+    void session.abort();
+  }, timeoutMs);
   try {
     await session.prompt(prompt);
     const messages = session.messages as Array<{

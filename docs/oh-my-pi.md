@@ -51,7 +51,7 @@ Same TypeScript extension system as Pi, but under `~/.omp/`:
 
 Long-running slash commands (`/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`) must surface work-in-progress through OMP's two non-modal surfaces rather than `pi.sendMessage` or `ctx.ui.custom()`:
 
-- **Footer spinner** — `ctx.ui.setStatus(key, "<frame> <phase>")`. Frames advance on a small bounded interval; the message must always identify the owning command and current semantic phase. `setWorkingMessage` does not animate during nested work, so it is not the surface to drive.
+- **Footer spinner** — `ctx.ui.setStatus(key, "<frame> <phase>")`. Frames advance on a small bounded interval; the status **key** identifies the owning command (`<command>:activity`), while the rendered text carries only the spinner frame and the current semantic phase. `setWorkingMessage` does not animate during nested work, so it is not the surface to drive.
 - **Live activity widget** — `ctx.ui.setWidget(key, lines, { placement: "aboveEditor" })`. Reserved for a short transient window above the editor. One header line plus at most eight activity lines (well under OMP's 10-line string-widget cap). Use `setWidget(key, undefined, ...)` to clear it.
 
 Both surfaces go through `extensions/extension-activity.ts`'s `createActivity({ ui, command })` handle. The handle owns lifecycle, animation, throttling, sanitization, and idempotent cleanup:
