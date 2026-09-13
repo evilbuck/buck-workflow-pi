@@ -222,6 +222,13 @@ export async function runOmpModelSession(opts: {
   modelOverride?: string;
   timeoutMs?: number;
   onActivity?: (event: ActivityEvent) => void;
+  /** Sampling temperature; injected per-request via the agent's streamFn. */
+  temperature?: number;
+  /** Agent-id prefix; defaults to the original b-save-improved identity. */
+  agentPrefix?: string;
+  customTools?: NonNullable<Parameters<typeof createAgentSession>[0]>["customTools"];
+  /** Thinking level; defaults to "off" as before. */
+  thinkingLevel?: string;
 }): Promise<string> {
   const { cwd, tools, prompt, modelOverride, timeoutMs = 60_000, onActivity } = opts;
   const sessionOpts: Parameters<typeof createAgentSession>[0] & {
@@ -236,7 +243,7 @@ export async function runOmpModelSession(opts: {
   } = {
     cwd,
     agentDir: ompAgentDir(),
-    thinkingLevel: "off",
+    thinkingLevel: (opts.thinkingLevel as typeof sessionOpts.thinkingLevel) ?? "off",
     // `tools` is Pi's legacy allowlist; OMP 18 uses `toolNames`.
     tools,
     toolNames: tools,
@@ -244,12 +251,20 @@ export async function runOmpModelSession(opts: {
     disableExtensionDiscovery: true,
     enableMCP: false,
     enableLsp: false,
-    agentId: `b-save-improved-model-${randomUUID()}`,
+    agentId: `${opts.agentPrefix ?? "b-save-improved-model"}-${randomUUID()}`,
     sessionManager: SessionManager.inMemory(cwd),
   };
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
+  if (opts.customTools) sessionOpts.customTools = opts.customTools;
   const created = await createAgentSession(sessionOpts);
   const session = created.session;
+  if (opts.temperature !== undefined) {
+    const originalStream = session.agent.streamFn;
+    session.agent.streamFn = (...args) => {
+      const [model, context, options] = args;
+      return originalStream(model, context, { ...options, temperature: opts.temperature });
+    };
+  }
   let unsubscribe: (() => void) | null = null;
   if (onActivity) {
     const bridge = (rawEvent: unknown): void => {

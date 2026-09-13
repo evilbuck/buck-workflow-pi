@@ -2,6 +2,5 @@
 
   - 2026-09-13 | `skill-explainer-plugin-2026-09-13.md` | domains: [skill, plugin, packaging] | topics: [skill-explainer, omp, codex, cross-harness] | status: completed
 
-- 2026-09-12 — [Isolated code-review iteration extension brainstorm](code-review-iteration-brainstorm-2026-09-12.md) — `completed` (bounded local Reviewer/Fixer loop, isolated review execution, calibrated model routing, neutral model personas)
-
-  - 2026-09-12 | `code-review-iteration-brainstorm-2026-09-12.md` | domains: [extensions, review, workflow] | topics: [omp, isolated-sessions, review-loop, model-routing, reviewer-personas, worktrees] | status: completed
+- 2026-09-12 — [Isolated code-review iteration build](code-review-iteration-build-2026-09-12.md) — `active` (OMP command, isolated Reviewer/Fixer loop, durable runtime reports, model routing, guarded verification)
+- 2026-09-12 — [Code review iteration — living-doc closeout](code-review-iteration-closeout-2026-09-12.md) — `completed` (ADR 0001 + CONTEXT.md + AGENTS.md conventions block + howtos; 658/658 vitest, 100% diff-cover)

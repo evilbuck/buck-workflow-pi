@@ -1,5 +1,5 @@
 ---
-status: draft
+status: completed
 date: 2026-09-12
 subject: 2026-09-12.code-review-iteration-extension
 topics: [omp, extensions, code-review, isolated-sessions, reviewer-personas, model-catalog, hardness-routing]
@@ -9,7 +9,7 @@ topics: [omp, extensions, code-review, isolated-sessions, reviewer-personas, mod
 
 **Subject**: code-review-iteration-extension
 **Date**: 2026-09-12
-**Status**: draft
+**Status**: completed
 
 ## User Goal
 
@@ -25,6 +25,8 @@ Intake for an OMP extension that drives configurable Reviewer and dynamically se
 |------|------|-------------|
 | `brainstorm-code-review-iteration-extension.md` | brainstorm | First-draft concept, constraints, and open questions |
 | `brainstorm-state-code-review-iteration-extension.json` | state | Interview count and external-edit detection |
+| `draft-commit.md` | commit draft | Conventional Commit proposal for the implemented extension |
+| `../../extensions/code-review-iteration/` | extension | Command wiring, loop, runtime state, policy, reports, catalog, personas, and tests |
 
 ## Inputs Used
 

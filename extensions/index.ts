@@ -9,6 +9,7 @@ import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
+import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { mappingFromOmpRoles } from "./omp-models.js";
 
 
@@ -326,6 +327,8 @@ export default function (pi: ExtensionAPI) {
   wirePlanArtifact(pi);
   // --- b-save-improved: deterministic session-record checkpoint ---
   wireBSaveImproved(pi);
+  // --- code-review-iteration: isolated Reviewer/Fixer loop ---
+  wireCodeReviewIteration(pi);
 
   // --- Session lifecycle ---
 
