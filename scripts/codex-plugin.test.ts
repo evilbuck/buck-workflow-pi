@@ -34,6 +34,7 @@ const bundledSkills = [
   "fix-pr",
   "git-commit",
   "run-in-idle-pane",
+  "skill-explainer",
 ];
 
 describe("Buck Workflow Codex plugin", () => {

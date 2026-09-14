@@ -33,6 +33,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `codebase-design` (skill-only) | Skill | Skill | `skills/codebase-design/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:codebase-design` |
 | `/b-handoff` | Prompt template | Slash command symlink | `prompts/b-handoff.md`; `commands/b-handoff.md`; `skills/b-handoff/SKILL.md` |
 | `writing-for-agents` (skill-only) | Skill | Skill | `skills/writing-for-agents/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:writing-for-agents` |
+| `skill-explainer` (skill-only) | Skill | Skill | `skills/skill-explainer/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke by skill name |
 | `/b-wizard` | Prompt template | Slash command symlink | `prompts/b-wizard.md`; `commands/b-wizard.md`; `skills/b-wizard/SKILL.md` + `template.sh` |
 | `/b-init-tracker` | Prompt template | Slash command symlink | `prompts/b-init-tracker.md`; `commands/b-init-tracker.md`; `skills/b-init-tracker/SKILL.md` |
 | `/b-triage` | Prompt template | Slash command symlink | `prompts/b-triage.md`; `commands/b-triage.md`; `skills/b-triage/SKILL.md` |

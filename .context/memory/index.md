@@ -1,3 +1,7 @@
+- 2026-09-13 — [Skill Explainer plugin installation](skill-explainer-plugin-2026-09-13.md) — `completed` (verbatim archive copy; OMP/Pi package + Codex bundle + cross-harness installer coverage; 544 tests pass)
+
+  - 2026-09-13 | `skill-explainer-plugin-2026-09-13.md` | domains: [skill, plugin, packaging] | topics: [skill-explainer, omp, codex, cross-harness] | status: completed
+
 - 2026-09-12 — [fix-pr: PR #24 review feedback](fix-pr-24-2026-09-12.md) — `completed` (terminal flush fixes + red/green regression tests, spawn mock, tick semantics, dead code, .context reconciliation; 542 vitest pass)
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed

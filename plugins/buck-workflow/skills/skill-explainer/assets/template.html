@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__ — how this skill works</title>
+<style>
+:root{
+  --paper:#EDEFF1; --surface:#FFFFFF; --ink:#14181C; --ink-2:#4C555D; --rule:#CDD4D9;
+  --machine:#0F5257; --machine-soft:#D7E8E7;
+  --model:#7B2D5E;  --model-soft:#F0DCE7;
+  --human:#4A5A1F;  --human-soft:#E4EAD3;
+  --tool:#2A4C86;   --tool-soft:#DBE3F2;
+  --danger:#9B2226; --danger-soft:#F3DCDC;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#0E1316; --surface:#161C20; --ink:#E6EBEE; --ink-2:#98A4AB; --rule:#2A343A;
+    --machine:#5FBFB4; --machine-soft:#16312D;
+    --model:#D98CB6;  --model-soft:#321F29;
+    --human:#A9C06B;  --human-soft:#232B16;
+    --tool:#85A8E0;   --tool-soft:#192335;
+    --danger:#E8797C; --danger-soft:#33191A;
+  }
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:62rem; margin:0 auto; padding:3rem 1.5rem 6rem}
+h1{font-family:var(--serif); font-weight:600; font-size:2.6rem; line-height:1.1; margin:0 0 .5rem; letter-spacing:-.01em}
+h2{font-family:var(--serif); font-weight:600; font-size:1.5rem; margin:0 0 .25rem}
+h3{font-size:1rem; font-weight:650; margin:0 0 .2rem}
+p{margin:0 0 1rem; max-width:68ch}
+a{color:inherit}
+code,.mono{font-family:var(--mono); font-size:.85em}
+
+/* header */
+.tagline{font-size:1.125rem; color:var(--ink-2); max-width:62ch; margin-bottom:1.75rem}
+.trigger{border-left:3px solid var(--rule); padding:.15rem 0 .15rem 1rem; margin:0 0 2rem}
+.trigger h3{color:var(--ink-2); font-weight:550; font-size:.9rem}
+.trigger ul{margin:.35rem 0 0; padding-left:1.1rem; color:var(--ink-2)}
+.trigger li{margin:.15rem 0}
+
+.stats{display:flex; flex-wrap:wrap; gap:2.5rem; padding:1.25rem 0; border-top:1px solid var(--rule); border-bottom:1px solid var(--rule); margin-bottom:3.5rem}
+.stat b{display:block; font-family:var(--serif); font-size:2rem; line-height:1.1; font-weight:600}
+.stat span{font-size:.85rem; color:var(--ink-2)}
+.stat.risk b{font-size:1.15rem; padding-top:.55rem}
+
+section{margin:0 0 3.5rem}
+.lede{color:var(--ink-2); margin:.35rem 0 1.5rem; max-width:62ch}
+
+/* flow */
+.flow{background:var(--surface); border:1px solid var(--rule); border-radius:2px; overflow-x:auto}
+.flow svg{display:block; min-width:100%}
+.legend{display:flex; flex-wrap:wrap; gap:1.25rem; padding:.9rem 1.1rem; border-bottom:1px solid var(--rule); font-size:.8rem; color:var(--ink-2)}
+.legend i{display:inline-block; width:15px; height:11px; margin-right:.45rem; vertical-align:-1px; border:1.5px solid}
+.legend .machine i{border-color:var(--machine); background:var(--machine-soft)}
+.legend .model i{border-color:var(--model); background:var(--model-soft); border-style:dashed; border-radius:6px}
+.legend .human i{border-color:var(--human); background:var(--human-soft)}
+.legend .tool i{border-color:var(--tool); background:var(--tool-soft)}
+
+.controls{display:flex; align-items:center; gap:.6rem; padding:.75rem 1.1rem; border-top:1px solid var(--rule)}
+.controls button{
+  font:inherit; font-size:.85rem; color:var(--ink); background:transparent;
+  border:1px solid var(--rule); border-radius:2px; padding:.3rem .75rem; cursor:pointer;
+}
+.controls button:hover{border-color:var(--ink-2)}
+.controls button:focus-visible{outline:2px solid var(--model); outline-offset:2px}
+.counter{font-family:var(--mono); font-size:.8rem; color:var(--ink-2); margin-left:auto}
+
+.detail{background:var(--surface); border:1px solid var(--rule); border-top:none; padding:1.4rem 1.5rem}
+.detail .who{font-size:.78rem; letter-spacing:.02em; margin-bottom:.35rem}
+.detail h3{font-family:var(--serif); font-size:1.25rem; font-weight:600}
+.detail p{margin:.4rem 0 0; max-width:66ch}
+.io{display:flex; flex-wrap:wrap; gap:2rem; margin-top:1.1rem; font-size:.85rem}
+.io div{min-width:14rem}
+.io strong{display:block; color:var(--ink-2); font-weight:550; margin-bottom:.2rem}
+.io ul{margin:0; padding-left:1.05rem}
+.io li{font-family:var(--mono); font-size:.82rem}
+
+/* rows */
+.rows{border-top:1px solid var(--rule)}
+.row{display:grid; grid-template-columns:15rem 1fr; gap:1.5rem; padding:.95rem 0; border-bottom:1px solid var(--rule)}
+.row .k{font-family:var(--mono); font-size:.85rem; word-break:break-word}
+.row .v{color:var(--ink-2); font-size:.95rem}
+.row .v em{font-style:normal; color:var(--ink)}
+.tag{font-size:.72rem; font-family:var(--sans); padding:.1rem .4rem; border:1px solid; border-radius:2px; margin-left:.4rem; white-space:nowrap}
+.tag.req{border-color:var(--model); color:var(--model)}
+.tag.opt{border-color:var(--rule); color:var(--ink-2)}
+.tag.del{border-color:var(--danger); color:var(--danger); background:var(--danger-soft)}
+.tag.ext{border-color:var(--tool); color:var(--tool)}
+@media (max-width:640px){ .row{grid-template-columns:1fr; gap:.25rem} }
+
+/* handoffs */
+.handoff{display:grid; grid-template-columns:1fr auto 1fr; gap:1rem; align-items:center; padding:1.1rem 0; border-bottom:1px solid var(--rule)}
+.handoff .side{font-size:.9rem}
+.handoff .side b{display:block; font-size:.78rem; color:var(--ink-2); font-weight:550; margin-bottom:.15rem}
+.handoff .mid{font-family:var(--mono); font-size:.75rem; color:var(--ink-2); border:1px dashed var(--rule); border-radius:2px; padding:.25rem .5rem; text-align:center}
+@media (max-width:640px){ .handoff{grid-template-columns:1fr} .handoff .mid{justify-self:start} }
+
+/* tiers */
+.tier{display:grid; grid-template-columns:2.2rem 1fr; gap:1rem; padding:.9rem 0; border-bottom:1px solid var(--rule)}
+.tier .n{font-family:var(--serif); font-size:1.5rem; color:var(--ink-2); line-height:1}
+.tier .when{font-size:.85rem; color:var(--ink-2)}
+
+dl.gloss{margin:0; border-top:1px solid var(--rule)}
+dl.gloss div{padding:.8rem 0; border-bottom:1px solid var(--rule)}
+dl.gloss dt{font-weight:650; font-size:.95rem}
+dl.gloss dd{margin:.15rem 0 0; color:var(--ink-2); max-width:66ch}
+
+footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--rule); font-size:.8rem; color:var(--ink-2)}
+@media (prefers-reduced-motion:reduce){ *{animation:none !important; transition:none !important} }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+const DATA = __ANALYSIS_JSON__;
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const LANE_OF = {script:"machine", tool:"machine", llm:"model", user:"human"};
+const LANE_NAME = {machine:"Code", model:"The model", human:"A person"};
+const ACTOR_WORD = {script:"a script runs this", tool:"a tool call does this", llm:"the model decides this", user:"a person does this"};
+const lanes = ["human","machine","model"];
+
+function svgEl(tag, attrs, text){
+  const e = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+function wrap(text, max){
+  const words = String(text).split(/\s+/), lines = [];
+  let cur = "";
+  for (const w of words){
+    if (!cur) { cur = w; continue; }
+    if ((cur + " " + w).length <= max) cur += " " + w; else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.slice(0, 3);
+}
+
+/* ---------- layout ---------- */
+const steps = DATA.steps;
+const transitions = DATA.transitions || [];
+const idx = Object.fromEntries(steps.map((s,i) => [s.id, i]));
+const usedLanes = lanes.filter(l => steps.some(s => LANE_OF[s.actor] === l));
+
+const NODE_W = 228, COL = 262, PAD_L = 26, GUTTER = 62, GAP = 56;
+const laneX = l => PAD_L + usedLanes.indexOf(l) * COL;
+
+const boxes = steps.map(s => {
+  const lines = wrap(s.label, 28);
+  return { step:s, lane:LANE_OF[s.actor], lines, h: 26 + lines.length * 17 };
+});
+let y = 30;
+for (const b of boxes){ b.y = y; b.x = laneX(b.lane); b.cx = b.x + NODE_W/2; y += b.h + GAP; }
+const CANVAS_W = PAD_L + usedLanes.length * COL + GUTTER;
+const CANVAS_H = y + 10;
+
+/* handoff bands: consecutive-in-flow crossings between code and model */
+const bands = [];
+for (const t of transitions){
+  const a = boxes[idx[t.from]], b = boxes[idx[t.to]];
+  if (!a || !b || idx[t.to] <= idx[t.from]) continue;
+  const pair = a.lane + ">" + b.lane;
+  if (pair === "machine>model") bands.push({ y:(a.y + a.h + b.y)/2, label:"control passes to the model" });
+  if (pair === "model>machine") bands.push({ y:(a.y + a.h + b.y)/2, label:"control returns to code" });
+}
+
+/* ---------- flow svg ---------- */
+function buildFlow(){
+  const svg = svgEl("svg", { viewBox:`0 0 ${CANVAS_W} ${CANVAS_H}`, width:CANVAS_W, height:CANVAS_H, role:"img",
+                             "aria-label":"Step-by-step flow of the skill" });
+  const defs = svgEl("defs");
+  for (const [id,color] of [["a-rule","var(--rule)"],["a-danger","var(--danger)"]]){
+    const m = svgEl("marker", { id, viewBox:"0 0 8 8", refX:"7", refY:"4", markerWidth:"7", markerHeight:"7", orient:"auto" });
+    m.appendChild(svgEl("path", { d:"M0 0 L8 4 L0 8 z", fill:color }));
+    defs.appendChild(m);
+  }
+  svg.appendChild(defs);
+
+  // lane headings
+  usedLanes.forEach(l => {
+    svg.appendChild(svgEl("text", { x:laneX(l), y:16, class:"lane-label", fill:"var(--ink-2)",
+      "font-size":"11", "font-family":"var(--sans)" }, LANE_NAME[l]));
+  });
+
+  // handoff bands
+  for (const band of bands){
+    svg.appendChild(svgEl("line", { x1:PAD_L-10, y1:band.y, x2:CANVAS_W-14, y2:band.y,
+      stroke:"var(--model)", "stroke-width":"1", "stroke-dasharray":"2 5", opacity:".75" }));
+    const t = svgEl("text", { x:CANVAS_W-16, y:band.y-6, "text-anchor":"end", "font-size":"10.5",
+      fill:"var(--model)", "font-family":"var(--sans)" }, band.label);
+    svg.appendChild(t);
+  }
+
+  // edges
+  const edgeEls = {};
+  transitions.forEach((t, i) => {
+    const a = boxes[idx[t.from]], b = boxes[idx[t.to]];
+    if (!a || !b) return;
+    const back = idx[t.to] <= idx[t.from];
+    const danger = t.kind === "abort";
+    let d, dash = danger ? "4 4" : (t.kind === "loop" || back ? "5 4" : null);
+    if (back){
+      const gx = CANVAS_W - 26;
+      const ay = a.y + a.h/2, by = b.y + b.h/2;
+      d = `M${a.x+NODE_W} ${ay} C${gx} ${ay} ${gx} ${by} ${b.x+NODE_W} ${by}`;
+    } else {
+      const y1 = a.y + a.h, y2 = b.y;
+      d = a.cx === b.cx ? `M${a.cx} ${y1} L${b.cx} ${y2}`
+                        : `M${a.cx} ${y1} C${a.cx} ${y1+28} ${b.cx} ${y2-28} ${b.cx} ${y2}`;
+    }
+    const p = svgEl("path", { d, fill:"none", stroke: danger ? "var(--danger)" : "var(--rule)",
+      "stroke-width":"1.5", "marker-end":`url(#${danger ? "a-danger" : "a-rule"})` });
+    if (dash) p.setAttribute("stroke-dasharray", dash);
+    svg.appendChild(p);
+    edgeEls[t.to] = edgeEls[t.to] || p;
+
+    if (t.condition){
+      const lx = back ? CANVAS_W - 30 : (a.cx + b.cx)/2;
+      const ly = back ? (a.y + b.y)/2 + a.h/2 : (a.y + a.h + b.y)/2 + 4;
+      const g = svgEl("g", { class:"cond" });
+      const txt = svgEl("text", { x:lx, y:ly, "text-anchor":back ? "end" : "middle", "font-size":"10.5",
+        fill: danger ? "var(--danger)" : "var(--ink-2)", "font-family":"var(--sans)" }, t.condition);
+      g.appendChild(txt); svg.appendChild(g);
+    }
+  });
+
+  // nodes
+  boxes.forEach((b, i) => {
+    const a = b.step.actor;
+    const stroke = `var(--${a === "llm" ? "model" : a === "user" ? "human" : a === "tool" ? "tool" : "machine"})`;
+    const fill   = stroke.replace(")", "-soft)");
+    const g = svgEl("g", { class:"node", "data-i":i, tabindex:"0", role:"button",
+                           "aria-label":`Step ${i+1}: ${b.step.label}` });
+    const rect = svgEl("rect", { x:b.x, y:b.y, width:NODE_W, height:b.h, fill, stroke,
+      "stroke-width":"1.5", rx: a === "llm" ? 12 : 1 });
+    if (a === "llm") rect.setAttribute("stroke-dasharray", "5 3");
+    g.appendChild(rect);
+    g.appendChild(svgEl("text", { x:b.x+11, y:b.y+15, "font-size":"10", "font-family":"var(--mono)",
+      fill:stroke, opacity:".8" }, String(i+1)));
+    b.lines.forEach((ln, j) => {
+      g.appendChild(svgEl("text", { x:b.x+11, y:b.y+32+j*17, "font-size":"13.5",
+        "font-family":"var(--sans)", fill:"var(--ink)" }, ln));
+    });
+    svg.appendChild(g);
+    b.g = g;
+  });
+
+  return { svg, edgeEls };
+}
+
+/* ---------- sections ---------- */
+function stats(){
+  const llm = steps.filter(s => s.actor === "llm").length;
+  const muts = DATA.mutations || [];
+  const destructive = muts.some(m => m.kind === "delete" || m.reversible === false);
+  const risk = !muts.length ? "Reads only" : destructive ? "Can destroy data" : "Writes files";
+  return `<div class="stats">
+    <div class="stat"><b>${steps.length}</b><span>steps</span></div>
+    <div class="stat"><b>${Math.round(llm/steps.length*100)}%</b><span>rely on the model's judgment</span></div>
+    <div class="stat"><b>${(DATA.inputs||[]).length}</b><span>things it needs from you</span></div>
+    <div class="stat risk"><b style="color:${destructive?"var(--danger)":"inherit"}">${risk}</b><span>effect on your files</span></div>
+  </div>`;
+}
+
+function section(title, lede, body){
+  if (!body) return "";
+  return `<section><h2>${esc(title)}</h2>${lede ? `<p class="lede">${esc(lede)}</p>` : ""}${body}</section>`;
+}
+
+function handoffs(){
+  const h = DATA.handoffs || [];
+  if (!h.length) return "";
+  return h.map(x => `<div class="handoff">
+      <div class="side"><b>Code hands over</b>${esc(x.passes || "—")}</div>
+      <div class="mid">${esc(x.direction === "llm_to_script" ? "model → code" : "code → model")}</div>
+      <div class="side"><b>${x.direction === "llm_to_script" ? "Code then uses" : "The model decides"}</b>${esc(x.judgment || x.returns || "—")}</div>
+    </div>`).join("");
+}
+
+function ioRows(list, kind){
+  if (!list || !list.length) return "";
+  return `<div class="rows">` + list.map(x => {
+    const tags = kind === "input"
+      ? `<span class="tag ${x.required ? "req" : "opt"}">${x.required ? "required" : "optional"}</span>`
+      : "";
+    const meta = kind === "input"
+      ? `comes from ${esc({user:"you", file:"a file", env:"the environment", tool:"another tool"}[x.source])}`
+      : esc(x.location || "");
+    return `<div class="row"><div class="k">${esc(x.name)}${tags}</div>
+      <div class="v">${esc(x.description || x.format || "")}${meta ? ` <em>— ${meta}</em>` : ""}</div></div>`;
+  }).join("") + `</div>`;
+}
+
+function mutations(){
+  const m = DATA.mutations || [];
+  if (!m.length) return "";
+  const word = {create:"creates", overwrite:"overwrites", delete:"deletes", external:"changes something outside your machine"};
+  return `<div class="rows">` + m.map(x => {
+    const risky = x.kind === "delete" || x.reversible === false;
+    return `<div class="row"><div class="k">${esc(x.target)}${risky ? `<span class="tag del">hard to undo</span>` : ""}${x.kind==="external"?`<span class="tag ext">external</span>`:""}</div>
+      <div class="v"><em>${word[x.kind]}</em> — ${esc(x.blast_radius || x.description || "")}</div></div>`;
+  }).join("") + `</div>`;
+}
+
+function resources(){
+  const r = DATA.resources || [];
+  if (!r.length) return "";
+  const tierWhen = {
+    1:"Always loaded — this is how the skill gets noticed at all",
+    2:"Loaded the moment the skill starts",
+    3:"Loaded only when that particular step needs it"
+  };
+  return r.map(x => `<div class="tier"><div class="n">${x.tier ?? "·"}</div>
+      <div><h3 class="mono">${esc(x.path)}</h3>
+      <div>${esc(x.purpose || "")}</div>
+      <div class="when">${esc(x.when || tierWhen[x.tier] || "")}</div></div></div>`).join("");
+}
+
+function glossary(){
+  const g = DATA.glossary || [];
+  if (!g.length) return "";
+  return `<dl class="gloss">` + g.map(x =>
+    `<div><dt>${esc(x.term)}</dt><dd>${esc(x.definition)}</dd></div>`).join("") + `</dl>`;
+}
+
+/* ---------- build page ---------- */
+const id = DATA.identity;
+document.getElementById("app").innerHTML = `
+  <h1>${esc(id.name)}</h1>
+  <p class="tagline">${esc(id.description || "")}</p>
+  ${(id.triggers && id.triggers.length) ? `<div class="trigger"><h3>It kicks in when someone says things like</h3>
+     <ul>${id.triggers.map(t => `<li>${esc(t)}</li>`).join("")}</ul></div>` : ""}
+  ${stats()}
+
+  <section id="flow-section">
+    <h2>What happens, in order</h2>
+    <p class="lede">Solid squares are steps a computer performs the same way every time. Dashed rounded boxes are steps where the model reads the situation and decides. Step through them below.</p>
+    <div class="flow">
+      <div class="legend">
+        <span class="machine"><i></i>Code — same result every run</span>
+        <span class="model"><i></i>The model — judgment, varies</span>
+        <span class="tool"><i></i>A tool or external call</span>
+        <span class="human"><i></i>A person</span>
+      </div>
+      <div id="flow-host"></div>
+      <div class="controls">
+        <button id="prev">Back</button>
+        <button id="play">Walk through it</button>
+        <button id="next">Next</button>
+        <span class="counter" id="counter"></span>
+      </div>
+    </div>
+    <div class="detail" id="detail"></div>
+  </section>
+
+  ${section("Where code stops and judgment begins", "Every crossing between the two lanes. These are the points where two runs of the same skill can diverge.", handoffs())}
+  ${section("What it needs before it can start", null, ioRows(DATA.inputs, "input"))}
+  ${section("What you get back", null, ioRows(DATA.outputs, "output"))}
+  ${section("What it changes", "Anything the skill writes, replaces or removes.", mutations())}
+  ${section("The files that make it up", "Skills load in layers, so the model only reads what it needs.", resources())}
+  ${section("Words used here", null, glossary())}
+  <footer>Generated from ${esc(id.source_path || id.name)} by skill-explainer.</footer>
+`;
+
+const { svg, edgeEls } = buildFlow();
+document.getElementById("flow-host").appendChild(svg);
+
+/* ---------- scrubber ---------- */
+let cur = 0, timer = null;
+const detail = document.getElementById("detail");
+const counter = document.getElementById("counter");
+const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+let pulse = null;
+
+function show(i){
+  cur = Math.max(0, Math.min(steps.length - 1, i));
+  boxes.forEach((b, j) => b.g.setAttribute("opacity", j === cur ? "1" : ".32"));
+  const s = steps[cur], b = boxes[cur];
+  const accent = s.actor === "llm" ? "var(--model)" : s.actor === "user" ? "var(--human)" : s.actor === "tool" ? "var(--tool)" : "var(--machine)";
+  detail.innerHTML = `
+    <div class="who" style="color:${accent}">Step ${cur+1} — ${esc(ACTOR_WORD[s.actor])}</div>
+    <h3>${esc(s.label)}</h3>
+    <p>${esc(s.plain_english)}</p>
+    ${(s.reads?.length || s.writes?.length) ? `<div class="io">
+      ${s.reads?.length ? `<div><strong>Looks at</strong><ul>${s.reads.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>` : ""}
+      ${s.writes?.length ? `<div><strong>Produces</strong><ul>${s.writes.map(r=>`<li>${esc(r)}</li>`).join("")}</ul></div>` : ""}
+    </div>` : ""}`;
+  counter.textContent = `${cur+1} / ${steps.length}`;
+  b.g.scrollIntoView && b.g.scrollIntoView({block:"nearest", inline:"nearest"});
+  if (!reduced) runPulse(steps[cur].id);
+}
+
+function runPulse(toId){
+  if (pulse) { pulse.remove(); pulse = null; }
+  const path = edgeEls[toId];
+  if (!path || !path.getTotalLength) return;
+  const len = path.getTotalLength();
+  const dot = svgEl("circle", { r:3.5, fill:"var(--model)" });
+  svg.appendChild(dot); pulse = dot;
+  const start = performance.now(), dur = 520;
+  (function step(now){
+    const t = Math.min(1, (now - start) / dur);
+    const p = path.getPointAtLength(len * t);
+    dot.setAttribute("cx", p.x); dot.setAttribute("cy", p.y);
+    if (t < 1) requestAnimationFrame(step); else { dot.remove(); if (pulse === dot) pulse = null; }
+  })(start);
+}
+
+document.getElementById("next").onclick = () => { stop(); show(cur + 1); };
+document.getElementById("prev").onclick = () => { stop(); show(cur - 1); };
+const playBtn = document.getElementById("play");
+function stop(){ if (timer) { clearInterval(timer); timer = null; playBtn.textContent = "Walk through it"; } }
+playBtn.onclick = () => {
+  if (timer) return stop();
+  playBtn.textContent = "Pause";
+  if (cur >= steps.length - 1) show(0);
+  timer = setInterval(() => { if (cur >= steps.length - 1) stop(); else show(cur + 1); }, 2200);
+};
+svg.querySelectorAll(".node").forEach(n => {
+  const go = () => { stop(); show(+n.dataset.i); };
+  n.addEventListener("click", go);
+  n.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "ArrowRight") { stop(); show(cur + 1); }
+  if (e.key === "ArrowLeft")  { stop(); show(cur - 1); }
+});
+show(0);
+</script>
+</body>
+</html>
