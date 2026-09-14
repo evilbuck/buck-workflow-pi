@@ -91,6 +91,8 @@ describe("b-save-improved handler", () => {
     resolveOmpRole.mockImplementation((_cwd: string, role: string) => {
       if (role === "slow") return "anthropic/slow";
       if (role === "smol") return "openai/smol";
+      if (role === "plan") return "cursor/plan";
+      if (role === "task") return "cursor/task";
       return "cursor/default";
     });
   });
@@ -178,14 +180,14 @@ describe("b-save-improved handler", () => {
     });
     expect(createAgentSession.mock.calls.map(([options]) => options.modelPattern))
       .toEqual(["cursor/default", "openai/smol"]);
-    expect(notes.join(" ")).toMatch(/cursor\/default failed.*Retrying.*openai\/smol/i);
+    expect(notes.join(" ")).toMatch(/cursor\/default failed.*Trying configured fallback roles/i);
     expect(execFileCapturedWithStdin).toHaveBeenCalled();
     expect(recordCommandError).not.toHaveBeenCalled();
   });
 
   it("does not override an explicit model after failure", async () => {
     execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
-    createAgentSession.mockResolvedValue(sessionWith(""));
+    createAgentSession.mockRejectedValue(new Error("No API key found for provider."));
     const { api, commands } = createMockApi();
     wire(api);
     const notes: string[] = [];
@@ -196,16 +198,19 @@ describe("b-save-improved handler", () => {
     });
     expect(createAgentSession).toHaveBeenCalledTimes(1);
     expect(createAgentSession.mock.calls[0][0].modelPattern).toBe("provider/pinned");
-    expect(notes.join(" ")).toMatch(/provider\/pinned failed.*Change.*--model/i);
+    expect(notes.join(" ")).toMatch(/Scribe failed on every configured model.*default: provider\/pinned.*--model/s);
     expect(execFileCapturedWithStdin).not.toHaveBeenCalled();
     expect(recordCommandError).toHaveBeenCalled();
   });
 
-  it("names both failed models and how to recover when fallback is exhausted", async () => {
+  it("iterates the full role chain when default and smol both fail", async () => {
     execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
     createAgentSession
-      .mockResolvedValueOnce(sessionWith(""))
-      .mockResolvedValueOnce(sessionWith(""));
+      .mockRejectedValueOnce(new Error("No API key found for minimax."))
+      .mockRejectedValueOnce(new Error("No API key found for opencode-go."))
+      .mockRejectedValueOnce(new Error("No API key found for openai-codex."))
+      .mockRejectedValueOnce(new Error("No API key found for zai."))
+      .mockRejectedValueOnce(new Error("No API key found for opencode-go."));
     const { api, commands } = createMockApi();
     wire(api);
     const notes: string[] = [];
@@ -214,10 +219,79 @@ describe("b-save-improved handler", () => {
       sessionManager: { getEntries: () => [] },
       ui: { notify: (m: string) => notes.push(m) },
     });
-    expect(createAgentSession).toHaveBeenCalledTimes(2);
-    expect(notes.join(" ")).toMatch(/cursor\/default failed.*Fallback model openai\/smol also failed.*Change.*--model/i);
+    expect(createAgentSession).toHaveBeenCalledTimes(5);
+    expect(createAgentSession.mock.calls.map(([options]) => options.modelPattern))
+      .toEqual(["cursor/default", "openai/smol", "cursor/plan", "anthropic/slow", "cursor/task"]);
+    expect(execFileCapturedWithStdin).not.toHaveBeenCalled();
+    expect(recordCommandError).toHaveBeenCalledWith(
+      expect.anything(),
+      "b-save-improved",
+      "scribe",
+      expect.stringMatching(/Scribe failed on every configured model.*cursor\/default.*openai\/smol.*cursor\/plan.*anthropic\/slow.*cursor\/task.*--model.*prompts\/b-save\.md/s),
+    );
+    expect(notes.join(" ")).toMatch(/Scribe failed on every configured model/);
+  });
+
+  it("recovers when a later fallback role succeeds", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({ applied: [], staged_inferred: [], errors: [] }),
+      stderr: "",
+    });
+    createAgentSession
+      .mockRejectedValueOnce(new Error("No API key found for minimax."))
+      .mockRejectedValueOnce(new Error("No API key found for opencode-go."))
+      .mockResolvedValueOnce(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: vi.fn() },
+    });
+    expect(createAgentSession).toHaveBeenCalledTimes(3);
+    expect(createAgentSession.mock.calls.map(([options]) => options.modelPattern))
+      .toEqual(["cursor/default", "openai/smol", "cursor/plan"]);
+    expect(execFileCapturedWithStdin).toHaveBeenCalled();
+    expect(recordCommandError).not.toHaveBeenCalled();
+  });
+
+  it("does not iterate roles when an explicit --model was pinned and names it on failure", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    createAgentSession.mockRejectedValue(new Error("No API key found for provider."));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const notes: string[] = [];
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain --model provider/pinned", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (m: string) => notes.push(m) },
+    });
+    expect(createAgentSession).toHaveBeenCalledTimes(1);
+    expect(createAgentSession.mock.calls[0][0].modelPattern).toBe("provider/pinned");
+    expect(notes.join(" ")).toMatch(/Scribe failed on every configured model.*provider\/pinned.*--model/s);
     expect(execFileCapturedWithStdin).not.toHaveBeenCalled();
     expect(recordCommandError).toHaveBeenCalled();
+  });
+
+  it("skips already-attempted models when roles alias the same provider model", async () => {
+    resolveOmpRole.mockImplementation((_cwd: string, role: string) => {
+      if (role === "smol") return "cursor/default";
+      if (role === "plan") return undefined;
+      return undefined;
+    });
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    createAgentSession.mockRejectedValue(new Error("No API key found for cursor."));
+    const { api, commands } = createMockApi();
+    wire(api);
+    await commands.get("b-save-improved")!.handler("--dry-run --no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: vi.fn() },
+    });
+    // default tried once; smol aliases cursor/default so it is skipped; plan/slow/task unconfigured.
+    expect(createAgentSession).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to /b-save when the scribe returns nothing usable", async () => {
