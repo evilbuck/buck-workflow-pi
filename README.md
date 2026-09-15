@@ -293,6 +293,7 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |
 | `b-handoff` | Portable seed doc for a different agent/harness/machine — writes to OS temp dir, suggested-skills section, redacts secrets |
 | `writing-for-agents` | Reference for authoring skills/AGENTS.md/CLAUDE.md — context vs cognitive load, information hierarchy, completion criteria, leading words, no-op test, prompt-the-positive (skill-only, no slash wrapper) |
+| `anthropic-svn` | Concise replies for Anthropic models (Opus, Sonnet, Haiku) — result first, shallow bullets, path references, necessary caveats and requested depth. Model-invoked on Claude; skill-only, no slash wrapper |
 | `b-wizard` | Generates a bash wizard walking a human through credential/dashboard/cutover steps only they can perform; `template.sh` does the work |
 | `b-init-tracker` | Configures docs/agents/issue-tracker.md + triage-labels.md and an idempotent AGENTS.md managed block (Sections A+B of the upstream setup skill; domain docs are b-docs' job) |
 | `b-triage` | Redundancy/prior-rejection check → verify the claim → grill → durable behavioural agent brief (no file paths/line numbers) → produces the ready-for-agent state b-auto-fix consumes |
