@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { wire, parseArgs, reviewExecTool } from "../index.js";
+import { wire, parseArgs, reviewExecTool, readCheckContractCommands } from "../index.js";
 import { loadCatalog } from "../catalog.js";
 import { loadPersonas } from "../prompts.js";
 import { parseExecPolicy, readOnlyGitCommands, checkContractCommands } from "../policy.js";
@@ -203,5 +203,43 @@ describe("seeded extension-owned markdown", () => {
     expect(ids).toContain("check-npm-test");
     const guidance = readFileSync(join(HERE, "..", "prompts", "reviewer.md"), "utf-8");
     expect(guidance).toMatch(/non-prescriptive/i);
+  });
+});
+
+describe("readCheckContractCommands", () => {
+  const cleanup: string[] = [];
+
+  afterEach(() => {
+    for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function writeGuardrails(ecosystems: unknown): string {
+    const dir = mkdtempSync(join(tmpdir(), "guardrails-"));
+    cleanup.push(dir);
+    writeFileSync(join(dir, "guardrails.json"), JSON.stringify({ version: 2, ecosystems }));
+    return dir;
+  }
+
+  it("reads test_runner and functional_test_cmd, not test_cmd", () => {
+    const dir = writeGuardrails([
+      { name: "typescript", test_runner: "vitest run", test_cmd: "npm test", functional_test_cmd: "playwright test" },
+      { name: "python", test_runner: null, functional_test_cmd: null },
+    ]);
+    expect(readCheckContractCommands(dir)).toEqual(["vitest run", "playwright test"]);
+  });
+
+  it("falls back to npm test only when guardrails.json is missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "no-guardrails-"));
+    cleanup.push(dir);
+    expect(readCheckContractCommands(dir)).toEqual(["npm test"]);
+  });
+
+  it("returns an empty list when every ecosystem runner is null", () => {
+    const dir = writeGuardrails([{ name: "python", test_runner: null, functional_test_cmd: null }]);
+    expect(readCheckContractCommands(dir)).toEqual([]);
+  });
+
+  it("reads this repo's durable v2 contract as vitest run", () => {
+    expect(readCheckContractCommands(join(HERE, "..", "..", ".."))).toEqual(["vitest run"]);
   });
 });

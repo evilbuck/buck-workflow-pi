@@ -244,6 +244,15 @@ export function sanitizedEnv(extraEnv: string[] | undefined): Record<string, str
   return env;
 }
 
+/** First `maxBytes` of `buf` that do not split a UTF-8 codepoint. */
+function utf8BytePrefix(buf: Buffer, maxBytes: number): Buffer {
+  if (maxBytes <= 0) return buf.subarray(0, 0);
+  if (buf.length <= maxBytes) return buf;
+  let end = maxBytes;
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) end--;
+  return buf.subarray(0, end);
+}
+
 function attachCappedStream(
   stream: NodeJS.ReadableStream | null,
   maxBytes: number,
@@ -260,8 +269,9 @@ function attachCappedStream(
       cap.bytes += buf.length;
       return;
     }
-    cap.excerpt += buf.subarray(0, room).toString();
-    cap.bytes += room;
+    const prefix = utf8BytePrefix(buf, room);
+    cap.excerpt += prefix.toString();
+    cap.bytes += prefix.length;
     cap.truncated = true;
   });
   return {

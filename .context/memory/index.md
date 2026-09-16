@@ -1,3 +1,7 @@
+- 2026-09-16 — [fix-pr PR #31](fix-pr-31-2026-09-16.md) — `completed` (check-contract reader, node_modules symlink, autostash drop, UTF-8 cap)
+
+  - 2026-09-16 | `fix-pr-31-2026-09-16.md` | domains: [review, extensions, testing] | topics: [fix-pr, code-review-iteration, check-contract, node_modules, autostash, utf8] | status: completed
+
 - 2026-09-16 — [Code-review iteration b-iterate](code-review-iterate-2026-09-16.md) — `active` (2 Critical + 8 Warnings fixed; fingerprint determinism + checkpoint-before-rebase defects found; 674/674, patch 91.97%)
 
   - 2026-09-16 | `code-review-iterate-2026-09-16.md` | domains: [testing, extensions, review] | topics: [code-review-iteration, b-iterate, false-green, resume-fingerprint, rebase-conflict, patch-coverage] | status: active

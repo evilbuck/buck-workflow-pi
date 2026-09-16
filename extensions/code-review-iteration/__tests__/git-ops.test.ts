@@ -104,7 +104,7 @@ describe("git-ops", () => {
     expect(failed.error).toBeTruthy();
   });
 
-  it("rebases onto the fetched commit with autostash preserving dirty work", () => {
+  it("rebases onto the fetched commit and leaves untracked files in place", () => {
     const { origin, clone } = makeOriginClone();
     dirs.push(origin, clone);
     advanceOrigin(origin, "upstream change\n");
@@ -114,8 +114,17 @@ describe("git-ops", () => {
     expect(result.status).toBe("ok");
     expect(git(clone, ["log", "--oneline"])).toMatch(/advance/);
     expect(git(clone, ["cat-file", "-p", "HEAD:base.txt"])).toContain("upstream change");
-    // autostash popped the dirty file back
     expect(listUntracked(clone)).toContain("dirty.txt");
+  });
+
+  it("does not autostash tracked dirty work; callers must checkpoint first", () => {
+    const { origin, clone } = makeOriginClone();
+    dirs.push(origin, clone);
+    advanceOrigin(origin, "upstream change\n");
+    writeFileSync(join(clone, "feature.txt"), "uncommitted tracked\n");
+    expect(fetchBase(clone, "master").ok).toBe(true);
+    const result = rebaseOntoFetched(clone);
+    expect(result.status).toBe("failed");
   });
 
   it("reports conflicts for Fixer routing and continues after resolution", () => {

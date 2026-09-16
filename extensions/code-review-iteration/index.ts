@@ -146,12 +146,20 @@ function loadExecPolicyWithBuiltins(cwd: string): { policy: ExecPolicy; skipped:
 }
 
 /** Deterministic check contract (guardrails.json ecosystems), repo-local. */
-function readCheckContractCommands(cwd: string): string[] {
+export function readCheckContractCommands(cwd: string): string[] {
   const path = join(cwd, "guardrails.json");
   if (!existsSync(path)) return ["npm test"];
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf-8")) as { ecosystems?: Array<{ test_cmd?: string }> };
-    return parsed.ecosystems?.map((e) => e.test_cmd ?? "").filter(Boolean) ?? ["npm test"];
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as {
+      ecosystems?: Array<{ test_runner?: string | null; functional_test_cmd?: string | null }>;
+    };
+    if (!parsed.ecosystems) return ["npm test"];
+    const commands: string[] = [];
+    for (const ecosystem of parsed.ecosystems) {
+      if (ecosystem.test_runner) commands.push(ecosystem.test_runner);
+      if (ecosystem.functional_test_cmd) commands.push(ecosystem.functional_test_cmd);
+    }
+    return commands;
   } catch {
     return ["npm test"];
   }

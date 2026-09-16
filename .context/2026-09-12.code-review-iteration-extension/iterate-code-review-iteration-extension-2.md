@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-16
 updated: 2026-09-16
 subject: 2026-09-12.code-review-iteration-extension
 topics: [review, iteration, check-contract, patch-coverage]
 informs: []
 addresses: brainstorm-code-review-iteration-extension.md
-completed: null
+completed: 2026-09-16
 from_review: b-review
 ---
 
@@ -45,4 +45,12 @@ from_review: b-review
 
 Start with `/b-iterate` — it will pick up this file automatically.
 Then re-run `/b-review` against the same subject.
-Critical 1 first: the live check contract is a false-green gate, same class as the C1 payload bug just fixed.
+
+## Closeout (PR #31 review, 2026-09-16)
+
+Landed the outstanding iterate items via fix-pr:
+
+- Critical 1: `readCheckContractCommands` now reads `test_runner` and `functional_test_cmd`.
+- Warning 2: `rebaseOntoFetched` no longer passes `--autostash`.
+- Warning 3: `attachCappedStream` truncates on a UTF-8 codepoint boundary.
+- Warning 1 (patch coverage): tests for Critical 1 cover the `index.ts` reader hole; re-measure at commit.

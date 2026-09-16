@@ -1,6 +1,6 @@
 /**
  * git-ops — the deterministic git lifecycle around the review loop:
- * origin freshness (fetch + autostash rebase onto the exact fetched ref),
+ * origin freshness (fetch + rebase onto the exact fetched ref),
  * pre-review checkpoints, disposable detached Reviewer worktrees, and the
  * pre-run state capture used for resume validation and recovery.
  *
@@ -106,12 +106,13 @@ export interface RebaseResult {
 }
 
 /**
- * Rebase the current branch onto FETCH_HEAD with autostash semantics.
+ * Rebase the current branch onto FETCH_HEAD. Callers checkpoint dirty
+ * work first so this runs on a clean tree; no autostash.
  * A conflict is reported for Fixer routing; a non-conflict failure aborts
  * the rebase so the pre-run state is restored rather than left dirty.
  */
 export function rebaseOntoFetched(cwd: string): RebaseResult {
-  const result = tryGit(cwd, ["rebase", "--autostash", "FETCH_HEAD"]);
+  const result = tryGit(cwd, ["rebase", "FETCH_HEAD"]);
   if (result.ok) return { status: "ok", files: [], error: null };
   const files = conflictedFiles(cwd);
   if (files.length > 0) return { status: "conflict", files, error: result.stderr };

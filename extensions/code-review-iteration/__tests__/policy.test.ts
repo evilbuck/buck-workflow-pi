@@ -211,4 +211,15 @@ describe("runReviewCommand", () => {
     expect(record.stdout_truncated).toBe(true);
     expect(Buffer.byteLength(record.stdout_excerpt, "utf8")).toBe(512);
   });
+
+  it("walks back to a codepoint boundary instead of emitting U+FFFD", async () => {
+    const record = await runReviewCommand(policy, root, {
+      id: "node-eval",
+      argv: ["node", "-e", "process.stdout.write('€'.repeat(200))"],
+    });
+    expect(record.stdout_truncated).toBe(true);
+    expect(record.stdout_excerpt).not.toContain("\uFFFD");
+    expect(Buffer.byteLength(record.stdout_excerpt, "utf8")).toBe(510);
+    expect(record.stdout_excerpt).toBe("€".repeat(170));
+  });
 });
