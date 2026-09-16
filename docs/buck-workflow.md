@@ -9,8 +9,8 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
-- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` symlinks to the same prompt bodies
-- **Minimal Runtime Hooks**: The wired extension handles model auto-switch and TPS tracking only
+- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` — mostly symlinks to the same prompt bodies, with eight real-file exceptions documented in [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ## Runtime package mapping
@@ -37,14 +37,34 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-wizard` | Prompt template | Slash command symlink | `prompts/b-wizard.md`; `commands/b-wizard.md`; `skills/b-wizard/SKILL.md` + `template.sh` |
 | `/b-init-tracker` | Prompt template | Slash command symlink | `prompts/b-init-tracker.md`; `commands/b-init-tracker.md`; `skills/b-init-tracker/SKILL.md` |
 | `/b-triage` | Prompt template | Slash command symlink | `prompts/b-triage.md`; `commands/b-triage.md`; `skills/b-triage/SKILL.md` |
+| `/b-pr` | Prompt template + Skill | Slash command | `prompts/b-pr.md`; `commands/b-pr.md` (thin loader real file); `skills/b-pr/SKILL.md` |
+| `/b-pr-improved` | Extension command | Slash command (real file) | `commands/b-pr-improved.md`; `extensions/b-pr-improved/`; falls back to `skills/b-pr/` |
+| `/b-pr-review-2-issues` | Prompt template + Skill | Slash command | `prompts/b-pr-review-2-issues.md`; `commands/b-pr-review-2-issues.md` (thin loader real file); `skills/b-pr-review-2-issues/SKILL.md` |
+| `/b-eval-upstream-prs` | Prompt template + Skill | Slash command symlink | `prompts/b-eval-upstream-prs.md`; `commands/b-eval-upstream-prs.md`; `skills/b-eval-upstream-prs/SKILL.md` |
+| `b-issue-create` (skill-only) | Skill | Skill | `skills/b-issue-create/SKILL.md` — no `prompts/`/`commands/` wrapper |
+| `b-auto-fix` (skill-only) | Skill | Skill | `skills/b-auto-fix/SKILL.md` — consumes `ready-for-agent` issues from `b-triage` |
+| `b-backlog` (skill-only) | Skill | Skill | `skills/b-backlog/SKILL.md` — backlog item authoring delegated to a subagent |
+| `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
+| `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
+| `/b-loop` (skill-only) | Skill | Skill | `skills/b-loop/SKILL.md` — stamp `omp_execution` on phase files; advisory only |
+| `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
+| `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
+| `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
+| `/b-commit-improved` | Extension command | Slash command (real file) | `commands/b-commit-improved.md`; `prompts/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit-improved/` |
+| `/b-save-improved` | Extension command | Slash command (real file) | `commands/b-save-improved.md`; `prompts/b-save-improved.md`; `extensions/b-save-improved/`; falls back to `skills/b-save-improved/` |
+| `/b-kamal-release` | Extension command | Slash command (real file, OMP-only) | `commands/b-kamal-release.md`; `extensions/b-kamal-release/` |
+| `/git-clean-orphans` | Skill | Slash command (real file, OMP-only) | `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
+| `/product-tour` | Skill | Slash command (real file, OMP-only) | `commands/product-tour.md`; `skills/product-tour/SKILL.md` |
+| `/code-review` | Prompt template + Skill | Slash command symlink | `prompts/code-review.md`; `commands/code-review.md`; `skills/code-review/` |
+| `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime hooks that cannot be expressed as prompts or skills. Current wired hooks are model auto-switch and TPS tracking.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, the deterministic `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` commands, and the opt-in plan-artifact `turn_end` hook.
 
-**Important:** Historical extension subsystems still exist under `extensions/`, but the package manifest wires only `extensions/index.ts`. See `docs/extension-loading.md` for the loading truth table.
+**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-flow/`, `extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
@@ -107,6 +127,10 @@ for the decision log.
   or contains review/audit/sweep/migrate language, `b-plan` recommends
   the field in the plan's Execution Instructions. It does **not** auto-set
   the field.
+- **`/skill:b-loop` for post-hoc stamping.** Recommends a loop from plan
+  shape and stamps `omp_execution` / `omp_goal_budget` onto an existing
+  phased plan's phase files (and the overview's `## Phase Summary` table)
+  without re-running `b-plan`. Advisory only — it never runs the loop.
 - **Eval-cell template for `workflow` plans.** When
   `omp_execution: workflow` is selected, `b-plan` writes a starter
   `.context/<subject>/eval-<topic>.py` (Python) that fans one
@@ -202,9 +226,9 @@ flowchart TD
     E --> I[Plan<br/>Bounded plan in subject folder]
 
     %% Grill sessions can happen before or after planning
-    E -->|Stress-test first| G2[/skill:b-grill-me\]
-    I -->|Stress-test plan| G2
-    G2 --> G3{Threshold hit?}
+    E -->|Stress-test first| GR[/skill:b-grill-me\]
+    I -->|Stress-test plan| GR
+    GR --> G3{Threshold hit?}
     G3 -->|Yes| X
     G3 -->|No| J
 
@@ -231,25 +255,26 @@ flowchart TD
     Y --> K
     Y --> L
 
-    K --> N[Implementation]
-    L --> N
-    M --> O[HTML Presentation]
-    
-    M --> N[/b-review\]
-    N --> O{Issues found?}
-    
-    O -->|Minor| P[/b-iterate\]
-    O -->|Major| Q{New complexity?}
+    K --> IMP[Implementation]
+    L --> IMP
+    M --> PR[HTML Presentation]
+
+    IMP --> RV[/b-review\]
+    RV --> IS{Issues found?}
+
+    IS -->|Minor| P[/b-iterate\]
+    IS -->|Major| Q{New complexity?}
     Q -->|No| K
     Q -->|Yes| L
-    
-    P --> N
-    O -->|No docs impact| R[/b-save\]
-    O -->|Docs to update| DOC[/b-docs\]
+
+    P --> RV
+    IS -->|No docs impact| R[/b-save\]
+    IS -->|Docs to update| DOC[/b-docs\]
     DOC --> R
-    
+
     R --> S[Memory + Index<br/>Cross-references<br/>Backlog updated]
-    S --> T[Done]
+    S --> CM[/b-commit\]
+    CM --> T[Done]
 ```
 
 ### Ideation Phase Transitions
@@ -320,6 +345,8 @@ flowchart LR
 ```
 
 ### Pi Implementation Matrix
+
+**Core loop only.** The [Quick Reference Table](#quick-reference-table) is the authoritative catalog of every command, skill, and extension backing file; this diagram shows the primary plan→build→review→save wiring.
 
 ```mermaid
 flowchart TD
@@ -413,8 +440,26 @@ flowchart TD
 | [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
+| [**b-arch-qa**](#b-arch-qa--architecture-qa-session) | Skill | `/skill:b-arch-qa` | `skills/b-arch-qa/SKILL.md` | Live architecture/codebase Q&A that builds a durable discussion doc (skill-only) |
+| [**b-blueprint**](#b-blueprint--architecture-blueprint) | Skill | `/skill:b-blueprint` | `skills/b-blueprint/SKILL.md` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
+| [**b-grill**](#b-grill--unified-grilling) | Skill | `/skill:b-grill` | `skills/b-grill/SKILL.md` | Unified grilling — `user` mode interviews the user, `auto` mode grills another model via RPC (skill-only) |
+| [**b-loop**](#b-loop--execution-loop-stamping) | Skill | `/skill:b-loop` | `skills/b-loop/SKILL.md` | Set/change/clear `omp_execution` loop on an existing phased plan (advisory + stamp only) |
+| [**b-backlog**](#b-backlog--backlog-item-capture) | Skill | `/skill:b-backlog` | `skills/b-backlog/SKILL.md` | Delegate backlog-item authoring + `todo.md` registration to a subagent (skill-only) |
+| [**b-fix-rebase-conflict**](#b-fix-rebase-conflict--semantic-conflict-resolution) | Prompt template + Skill | `/b-fix-rebase-conflict` | `prompts/b-fix-rebase-conflict.md` + `skills/b-fix-rebase-conflict/SKILL.md` | Resolve large rebase/merge conflicts via semantic merge over commit messages, diffs, `.context/` artifacts |
+| [**b-pr**](#b-pr--pull-request-creation) | Prompt template + Skill | `/b-pr` | `prompts/b-pr.md` + `skills/b-pr/SKILL.md` | Create a GitHub PR from the current feature branch — base-branch resolution, rebase, diff-generated description, `gh` create |
+| [**b-pr-review-2-issues**](#b-pr-review-2-issues--pr-comments-to-plan) | Prompt template + Skill | `/b-pr-review-2-issues` | `prompts/b-pr-review-2-issues.md` + `skills/b-pr-review-2-issues/SKILL.md` | Ingest PR review comments → classify, group by theme, produce a plan artifact (no issues created) |
+| [**b-issue-create**](#b-issue-create--plan-to-github-issue) | Skill | `/skill:b-issue-create` | `skills/b-issue-create/SKILL.md` | Turn the active plan/spec/research context into an AFK-ready GitHub issue (skill-only) |
+| [**b-auto-fix**](#b-auto-fix--issue-autofix-pipeline) | Skill | `/skill:b-auto-fix` | `skills/b-auto-fix/SKILL.md` | Auto-fix a `ready-for-agent` GitHub issue via b-research → b-plan → b-build → b-review (skill-only) |
+| [**b-eval-upstream-prs**](#b-eval-upstream-prs--upstream-pr-evaluation) | Prompt template + Skill | `/b-eval-upstream-prs` | `prompts/b-eval-upstream-prs.md` + `skills/b-eval-upstream-prs/SKILL.md` | Triage/evaluate a fork's upstream PRs (importance/friction/risk, isolated validation, merge order); local-only |
+| [**code-review**](#code-review--release-pr-review) | Prompt template + Skill | `/code-review` | `prompts/code-review.md` + `skills/code-review/` | Release-candidate PR review — parallel agents over high-risk areas, per-PR review files |
+| [**code-review-universal**](#code-review-universal--universal-pr-review) | Prompt template + Skill | `/code-review-universal` | `prompts/code-review-universal.md` + `skills/code-review-universal/` | Language-agnostic PR review; posts one atomic severity-tagged GitHub review with inline comments |
+| [**skill-explainer**](#skill-explainer--skill-walkthrough-reports) | Skill | `/skill:skill-explainer` | `skills/skill-explainer/SKILL.md` | Explain a skill/command and produce a visual HTML report of its flow and effects (skill-only) |
+| [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Skill | `/git-clean-orphans` (OMP) | `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
+| [**product-tour**](#product-tour--guided-product-tours) | Skill | `/product-tour` (OMP) | `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
+| [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
+| [**Deterministic extension commands**](#deterministic-extension-commands) | Extension commands | `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Code-driven counterparts with skill fallbacks; wired via `extensions/index.ts` |
 
-**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` symlink mirror. The wired extension (`extensions/index.ts`) does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`.
+**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` mirror (mostly symlinks — see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy) for the eight real-file exceptions). The wired extension (`extensions/index.ts`) registers the deterministic `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved` commands, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -427,13 +472,37 @@ flowchart TD
 
 ## Runtime Extension Scope
 
-`extensions/index.ts` is intentionally small. It currently owns only:
+`package.json` wires exactly one extension entry: `extensions/index.ts`.
+Its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads `buckModelMapping`, detects the active
-   phased-plan difficulty, switches model tier for `/b-build`,
-   `/b-build-hard`, `/b-iterate`, and `/b-review`, then switches back after
-   `agent_end` unless the user manually changed models.
-2. **TPS tracker** — Tracks token-per-second generation metrics.
+1. **Model auto-switch** — Reads `buckModelMapping` (or OMP role mapping via
+   `extensions/omp-models.ts`), detects the active phased-plan difficulty,
+   switches model tier for `/b-build`, `/b-build-hard`, `/b-iterate`, and
+   `/b-review`, then switches back after `agent_end` unless the user manually
+   changed models.
+2. **TPS tracker** — Token-per-second generation metrics
+   (`extensions/tps-tracker.ts`).
+3. **`/b-pr-improved`** — Deterministic, code-driven PR creation
+   (`extensions/b-pr-improved/`); code-driven counterpart to `/b-pr`.
+4. **`/b-commit-improved`** — Deterministic Conventional Commits
+   (`extensions/b-commit-improved/`); counterpart to `/b-commit`.
+5. **`/b-kamal-release`** — Deterministic kamal deploy/release pipeline
+   (`extensions/b-kamal-release/`).
+6. **`/b-save-improved`** — Deterministic session checkpoint: preflight,
+   scribe + auditor model roles, apply (`extensions/b-save-improved/`);
+   counterpart to `/b-save`, leaving the harness `retain`/`learn` step to
+   the mainline agent.
+7. **Plan-artifact bridge** — Opt-in (`buckPlanArtifact.enabled` or
+   `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook in `extensions/plan-artifact.ts`
+   that detects OMP plan-mode exit and persists the plan file into the
+   `.context/<YYYY-MM-DD>.<slug>/plan-<slug>.md` subject convention so
+   `/b-build` subject resolution finds it.
+
+The four `*-improved` / `b-kamal-release` commands report progress through
+the shared `extensions/extension-activity.ts` helper and fall back to their
+skill counterparts (`b-pr`, `git-commit-improved`, `b-save-improved` skills)
+when the extension is not loaded. `extensions/subprocess.ts` and
+`extensions/omp-models.ts` are shared libraries, not standalone subsystems.
 
 The following older subsystems are **not** wired by the package manifest:
 
@@ -442,8 +511,8 @@ The following older subsystems are **not** wired by the package manifest:
 | `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
 | `/b-flow` / `/b-next` orchestration | Historical code in `extensions/b-flow/`; not an active command |
-| `b-grill-auto` extension command | Historical/unwired; the skill remains available |
-| Session-state injection / tmux status | Removed/unwired |
+| `b-grill-auto` extension command | Historical/unwired (`extensions/b-grill-auto/`); the skill remains available |
+| Session-state injection / tmux status | Removed/unwired (`extensions/tmux-window-status.ts`, `grill-me-dialog.ts` kept as unused code) |
 
 The durable-artifact behavior now comes from AGENTS.md instructions and
 prompt/skill workflows, not from an always-on session-state supervisor.
@@ -573,6 +642,22 @@ informs: []  # Plans/specs this research fed into
 
 ---
 
+#### `/skill:b-arch-qa` — Architecture Q&A Session
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Run a live Q&A exploration session about architecture, codebase structure, or technology choices. Answers questions by searching the web and/or exploring the codebase and builds a durable discussion document as the session progresses.
+
+**Pi/OMP primitive**: Skill only (`skills/b-arch-qa/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**Behavior**:
+- At session start, asks where to keep the discussion doc (default `.context/discussions/{subject}.md`; Obsidian vault and custom paths supported)
+- Read-only — does not edit application code; hands implementation off to `/b-build`
+
+**When to use**: Understanding how something works, comparing approaches, exploring tradeoffs through back-and-forth conversation.
+
+---
+
 #### `/b-nasa-prd` — NASA-Standard PRD Authoring/Audit
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -642,6 +727,20 @@ informs: []  # Plans/specs this research fed into
 **Output**: Same `grill-session-<topic>.md` plus inline updates to CONTEXT.md and new ADRs.
 
 **Next Steps**: `/b-plan` (to formalize), `/skill:b-phase` (if phasing recommended)
+
+---
+
+#### `/skill:b-grill` — Unified Grilling
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Single entrypoint for plan stress-testing. Mode `user` interviews the user directly (equivalent to `b-grill-me`); mode `auto` sends the questions to a different AI model via RPC (equivalent to `b-grill-auto`). Same complexity tracking and phasing-threshold behavior as the specialized variants.
+
+**Pi/OMP primitive**: Skill only (`skills/b-grill/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**When to use**: You want grilling without choosing the variant up front; pass the mode or let the skill ask. Prefer `b-grill-with-docs` when the project has CONTEXT.md/ADRs to challenge against.
+
+**Note**: the `b-grill-auto` *extension command* is historical/unwired; the `b-grill-auto` *skill* and `b-grill` mode `auto` remain available.
 
 ---
 #### `/b-init-guardrails` — Quality Guardrails Init
@@ -784,6 +883,20 @@ memory: []                    # Filled by b-save after execution
 
 **Next Steps**: `/b-build` (default), `/b-build-hard` (if update added ambiguity/risk), `/skill:b-phase` re-run when drift was flagged. All conditional on the active loader's slash-command catalog.
 
+---
+
+#### `/skill:b-backlog` — Backlog Item Capture
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: When a piece of work is identified (from conversation, a plan, a review finding, or an explicit description), delegate to a subagent to author a buck-workflow backlog item — `items/<slug>.md` with required frontmatter plus the linked-checkbox entry in `.context/backlog/todo.md`.
+
+**Pi/OMP primitive**: Skill only (`skills/b-backlog/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**When to use**: Any time work needs durable tracking without derailing the current session. The subagent owns the file mechanics; the mainline keeps going.
+
+---
+
 #### `/skill:b-phase` — Plan Phasing
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -849,6 +962,20 @@ This works even with zero conversation history — a cold-start agent gets full 
 
 ---
 
+#### `/skill:b-loop` — Execution-Loop Stamping
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Set, change, or clear the autonomous execution loop on an *existing* phased plan. Recommends `none | orchestrate | workflow | goal` from plan shape, then stamps `omp_execution` / `omp_goal_budget` onto the chosen phase files (and the matching cell in the phases-overview `## Phase Summary` table) so the user knows which keyword to drop on the first turn of each phase.
+
+**Pi/OMP primitive**: Skill only (`skills/b-loop/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**Behavior**: Advisory + stamp only. Does not run or drive a loop — the user still types the keyword or runs `/goal set` themselves (see [OMP Autonomous Loops](#omp-autonomous-loops)).
+
+**When to use**: After `/skill:b-phase`, when you want to opt individual phases into OMP's loop primitives without re-running `b-plan`.
+
+---
+
 #### `/b-present` — Presentation Package
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -906,6 +1033,20 @@ presentations/<slug>/
 - `appendix.html` — non-essential supporting material, never core narrative
 
 **Typical Next Step**: `/b-review` for accuracy review, `/b-build` after approval
+
+---
+
+#### `/skill:b-blueprint` — Architecture Blueprint
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Generate a single-page architecture blueprint as HTML from Buck workflow plans, brainstorms, and phases — a visually rich synopsis with code snippets, Mermaid diagrams, file-change maps, before/after diffs, and data-flow visualizations.
+
+**Pi/OMP primitive**: Skill only (`skills/b-blueprint/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**When to use**: After `/b-plan`, `/skill:b-phase`, or `/b-brainstorm`, when you need a quick-to-scan technical overview of proposed architecture and code changes. Lighter-weight than `/b-present` (one page vs a multi-page package).
+
+---
 
 #### Session-scoped model persistence
 
@@ -1065,6 +1206,20 @@ Buck can automatically switch the active model based on the difficulty of the cu
 
 ---
 
+#### `/b-fix-rebase-conflict` — Semantic Conflict Resolution
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Resolve large rebase or merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts to produce semantic merges that preserve both sides' functionality.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-fix-rebase-conflict.md`, `commands/b-fix-rebase-conflict.md` symlink) + `skills/b-fix-rebase-conflict/SKILL.md`.
+
+**Behavior**: Detects conflict state, gathers structured context (commit intent on both sides, relevant subject-folder artifacts), resolves in batch, stages results, and **stops at a manual gate** — the human runs `git rebase --continue` / `git commit` after reviewing the staged merge.
+
+**Next Step**: `git rebase --continue`, then `/b-review`.
+
+---
+
 #### `/b-diagnose` — Diagnosing Hard Bugs
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -1176,6 +1331,56 @@ Suggested next step
 
 **Next Steps**: Re-request review on the PR; `/b-save` if more session bookkeeping remains; optional `/b-iterate` for leftover polish after your own review loop
 
+---
+
+#### `/b-pr-review-2-issues` — PR Comments to Plan
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Ingest all comments from a GitHub PR (URL or number), classify them (actionable / question / nit / duplicate / context_skip), group by semantic theme with user approval, and produce a buck-workflow **plan artifact** (single or phased) in `.context/`.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr-review-2-issues.md`, `commands/b-pr-review-2-issues.md` — thin loader real file, `skills/b-pr-review-2-issues/SKILL.md`).
+
+**Key rule**: **stops at the plan** — it never creates GitHub issues (despite the historical name) and is read-only on source code. For acting on comments, use `/skill:fix-pr`.
+
+**Next Steps**: `/b-build` on the produced plan; `/b-issue-create` if you do want issues filed from it.
+
+---
+
+#### `/code-review` — Release PR Review
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Production-readiness review of a release-candidate PR (typically `dev → main`). Fans out parallel agents across the highest-risk change areas, traces every finding back to the originating PR and author, and writes per-PR review files that can be handed directly to each contributor.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/code-review.md`, `commands/code-review.md` symlink, `skills/code-review/`).
+
+**Contrast**: `code-review-universal` reviews one PR and posts a single atomic GitHub review; `code-review` reviews a *release* PR as a set of contributing PRs and writes local per-PR files.
+
+---
+
+#### `/code-review-universal` — Universal PR Review
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Language-agnostic PR review with severity-tagged feedback. Ships reference guides for 23 languages/frameworks (React, Vue, Angular, Rust, TS, Python, Go, Ruby/Rails, and more), cross-cutting patterns (security, performance, N+1, async), and `scripts/pr-analyzer.py` for triaging large diffs. Posts the result as **one atomic GitHub review** with inline comments (reusing `code-review`'s pr-context/submit-review plumbing) and writes a durable report artifact to `.context/`.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/code-review-universal.md`, `commands/code-review-universal.md` symlink, `skills/code-review-universal/`).
+
+---
+
+#### `/b-eval-upstream-prs` — Upstream PR Evaluation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Evaluate open pull requests from an upstream repository (a fork's parent or another vendor project). Triages each PR on Importance / Friction / Risk, runs an isolated per-PR validation pass (worktree + build + tests + coverage + complexity + diff-scoped lint), and produces a written evaluation plan with bucket rankings and a conflict-avoiding merge order.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-eval-upstream-prs.md`, `commands/b-eval-upstream-prs.md` symlink, `skills/b-eval-upstream-prs/SKILL.md`).
+
+**Key rule**: local-only — no remote comments, no upstream pushes.
+
+---
+
 #### `/b-triage` — Inbound Issue Triage
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -1191,6 +1396,34 @@ Suggested next step
 **Output state**: `ready-for-agent` is the exact input state `b-auto-fix` consumes, using the label vocabulary in `docs/agents/triage-labels.md`.
 
 **Next Steps**: `ready-for-agent` issues feed `b-auto-fix`; `ready-for-human` and `needs-info` stay with the maintainer.
+
+---
+
+#### `/skill:b-issue-create` — Plan to GitHub Issue
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Create a GitHub issue from the active buck-workflow plan/spec/research context. Produces an AFK-ready handoff issue, records subject-local and backlog artifacts, pushes the branch when needed, and links the issue back into `.context/`.
+
+**Pi/OMP primitive**: Skill only (`skills/b-issue-create/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**Reads config from**: `docs/agents/issue-tracker.md` + `triage-labels.md` (written by `/b-init-tracker`).
+
+**Next Steps**: `/b-triage` on the receiving repo; `b-auto-fix` once the issue is labeled `ready-for-agent`.
+
+---
+
+#### `/skill:b-auto-fix` — Issue Auto-Fix Pipeline
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Auto-fix a single GitHub issue by running the pipeline `b-research → b-plan → b-build → b-review` against it. This is the consumer of the `ready-for-agent` state that `/b-triage` produces.
+
+**Pi/OMP primitive**: Skill only (`skills/b-auto-fix/SKILL.md`) — no `prompts/`/`commands/` wrapper.
+
+**When to use**: An inbound issue carries the `ready-for-agent` label and a behavioural agent brief; you want the full workflow run against it without hand-holding.
+
+---
 
 #### `/skill:codebase-design` — Deep-Module Vocabulary
 
@@ -1213,6 +1446,20 @@ Suggested next step
 **Pi/OMP primitive**: Skill only (`skills/writing-for-agents/SKILL.md` + `SKILL-MECHANICS.md`). **No** `prompts/` or `commands/` wrapper — invoke via `/skill:writing-for-agents` (precedent: `fix-pr`, `codebase-design`).
 
 **Use when**: creating or editing a skill, modifying `AGENTS.md`/`CLAUDE.md`, or restructuring agent-facing docs.
+
+---
+
+#### `/skill:skill-explainer` — Skill Walkthrough Reports
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Explain what a skill or slash-command actually does and produce a visual HTML report of it — the step-by-step flow, where deterministic code stops and model judgment begins, the inputs it needs, what it returns, and what it changes on disk.
+
+**Pi/OMP primitive**: Skill only (`skills/skill-explainer/SKILL.md`) — invoke by skill name.
+
+**Use when**: someone points at a skill folder or command file and asks what it does, how it works, whether it's safe to run, or asks for a walkthrough — including for teammates, junior engineers, PMs, or stakeholders.
+
+---
 
 #### `/b-wizard` — Interactive Setup Wizards
 
@@ -1397,6 +1644,16 @@ bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memor
 
 Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.*`. Idempotent via stable `document_id` + local `.omp-hindsight-import-manifest.json` (gitignored).
 
+#### `b-hindsight-import-projects` — Multi-Project Import
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Bulk-import Buck `.context/memory` from many projects into OMP Hindsight in one pass. Wraps `b-memory-import` with multi-project discovery (e.g. `~/projects/*`), per-project isolation, and aggregate reporting.
+
+**Pi/OMP primitive**: Skill only (`skills/b-hindsight-import-projects/SKILL.md`).
+
+**When to use**: Seeding Hindsight across a whole workspace, resuming a partial run, or running the same pipeline on a different machine. Like `b-memory-import`, this is one-shot/backfill — not part of the every-session loop.
+
 ### 6. Commit Phase
 
 #### /b-commit — Final Commit
@@ -1428,6 +1685,69 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 **Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
 
 **Safety**: Protected branches (main, master, develop) are guarded — use `force` only for hotfixes.
+
+---
+
+#### `/b-pr` — Pull Request Creation
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Create a GitHub pull request from the current feature branch, with a two-part description — human-scannable impact summary plus agent-actionable technical detail.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr.md`, `commands/b-pr.md` — thin loader real file, `skills/b-pr/SKILL.md` + `scripts/pr-preflight.ts`).
+
+**Behavior**:
+1. Runs the preflight script to detect base-branch candidates and asks which to target
+2. Auto-rebases against the chosen base, resolving conflicts in line
+3. Generates the description from the implementation diff — `.context/**` artifacts are treated as the *research that informed the work*, never as part of the PR
+4. Optional parallel-subagent polish, then `gh pr create` with no confirmation gate
+
+**When to use**: after `/b-commit`, when the branch is ready for review.
+
+**Deterministic variant**: `/b-pr-improved` (extension command) runs the same flow as a code path when the extension is loaded.
+
+---
+
+#### Deterministic Extension Commands
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+Four slash commands are backed by **code, not prompt-following**. Each is wired through `extensions/index.ts`, reports live progress via `extensions/extension-activity.ts`, and has a prompt/skill fallback when the extension is not loaded.
+
+| Command | Backing | What it does | Skill fallback |
+|---|---|---|---|
+| `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit-improved/` |
+| `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session-record checkpoint: preflight → scribe + auditor model roles → apply. Leaves step 8 (`retain`/`learn`) to the mainline agent | `skills/b-save-improved/` |
+| `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation: preflight, base resolution, rebase with bounded model-assisted conflict resolution, `gh pr create` | `skills/b-pr/` |
+| `/b-kamal-release` | `extensions/b-kamal-release/` | Kamal deploy/release pipeline with ring-buffered output (last ~20 lines kept only on failure) | — |
+
+**Relationship to the prompt commands**: the improved variants trade the model's judgment for determinism and progress visibility. `/b-commit`, `/b-save`, and `/b-pr` remain the portable, every-harness path; the `*-improved` variants require the wired extension (Pi/OMP).
+
+---
+
+### 7. Utilities & Housekeeping
+
+#### `/git-clean-orphans` — Stale Git Cleanup
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Inventory and remove stale local git artifacts — merged worktrees, worktrees whose remote is gone, and local branches whose remote is gone (merged or not). Surfaces unmerged tips and reflog for user decision before any destructive action.
+
+**Pi/OMP primitive**: Skill + OMP-only command (`commands/git-clean-orphans.md` real file; `skills/git-clean-orphans/SKILL.md`). No `prompts/` entry, so Pi exposes it via `/skill:git-clean-orphans` only.
+
+**Behavior**: read-only by default; destructive steps are gated on explicit user confirmation.
+
+---
+
+#### `/product-tour` — Guided Product Tours
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Design and ship a first-run guided product tour over real UI — onboarding tours, walkthroughs, spotlight tips, demo-event guided flows. Stack-agnostic.
+
+**Pi/OMP primitive**: Skill + OMP-only command (`commands/product-tour.md` real file; `skills/product-tour/SKILL.md`). No `prompts/` entry, so Pi exposes it via `/skill:product-tour` only.
+
+**Use when**: adding onboarding tours or teaching the user a flow ("tour", "walkthrough", "guided onboarding").
 
 ---
 
@@ -1549,7 +1869,9 @@ This ensures **zero breaking changes** for existing projects.
 The wired extension is operational support, not the source of workflow
 truth. Durable context comes from AGENTS.md plus prompt/skill commands.
 
-### Current hooks
+### Current hooks and commands
+
+Lifecycle hooks (model auto-switch + TPS tracker):
 
 | Hook | Purpose |
 |-------|---------|
@@ -1557,19 +1879,37 @@ truth. Durable context comes from AGENTS.md plus prompt/skill commands.
 | `input` | Detect model-switch-eligible `/b-*` commands |
 | `before_agent_start` | Run model-switch setup/check before build/review commands |
 | `model_select` | Detect user-initiated model changes and respect them |
-| `agent_end` | Switch back to the original model after phase-scoped work |
-| TPS tracker hooks | Track token-per-second metrics during generation |
+| `agent_end` | Switch back to the original model after phase-scoped work; TPS wrap-up |
+| `agent_start`, `message_start` / `message_update` / `message_end` | TPS tracker generation metrics |
+
+Registered commands (deterministic code paths, each with a prompt/skill
+fallback when the extension is absent):
+
+| Command | Backing extension | Purpose |
+|---|---|---|
+| `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation — code-driven counterpart to `/b-pr` |
+| `/b-commit-improved` | `extensions/b-commit-improved/` | Deterministic Conventional Commit from `draft-commit.md` or model draft |
+| `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session checkpoint (preflight + scribe/auditor + apply) |
+| `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
+
+Opt-in hook:
+
+| Hook | Purpose |
+|-------|---------|
+| `turn_end` (plan-artifact) | When `buckPlanArtifact.enabled` (or `BUCK_PLAN_ARTIFACT=1`), infer OMP plan-mode exit and persist the plan into `.context/<date>.<slug>/plan-<slug>.md` |
 
 ### Model auto-switch
 
-The extension reads `buckModelMapping` from Pi settings, finds the active
+The extension reads `buckModelMapping` from Pi settings (or OMP role mapping
+via `extensions/omp-models.ts`), finds the active
 phase difficulty in `.context/`, switches to the mapped model for
 `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`, and switches back
 after the agent turn unless the user manually selected a different model.
 
 ### What is no longer extension-owned
 
-- `/b-save` is pure prompt/skill recordkeeping.
+- `/b-save` is pure prompt/skill recordkeeping (the deterministic variant is `/b-save-improved`).
+- `/b-commit` is a prompt wrapping the `git-commit` skill (the deterministic variant is `/b-commit-improved`).
 - There is no wired `/b-mode` command or plan-mode write guard.
 - There is no wired `/b-flow` or `/b-next` command.
 - Session-state injection and idle warnings are not part of the current
@@ -1611,19 +1951,21 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### New Work (Standard)
 
 ```
-/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit → /b-pr
 ```
+
+(`/b-pr` is optional — run it when the branch is ready for review. Deterministic variants: `/b-save-improved`, `/b-commit-improved`, `/b-pr-improved`.)
 
 ### New Work (with brainstorming)
 
 ```
-/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit
+/b-brainstorm → /b-plan → /b-present → /b-build → /b-review → /b-docs → /b-save → /b-commit → /b-pr
 ```
 
 ### Complex/Risky Work
 
 ```
-/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit
+/b-explore or /b-research → /b-plan → /b-build-hard → /b-review → /b-docs → /b-save → /b-commit → /b-pr
 ```
 
 ### Large Plan (Multi-Session)
@@ -1657,6 +1999,30 @@ This loop fixes **in-plan defects** — work the plan specified that is broken o
 
 OMP-first; works on any agent with `gh` + `git`. Skill-only — no `/fix-pr` slash wrapper.
 
+### Issue Lifecycle (outbound → inbound)
+
+```
+/skill:b-issue-create            # plan/spec/research → AFK-ready GitHub issue
+→ /b-triage <issue>              # inbound: redundancy check → verify → grill → agent brief
+→ /skill:b-auto-fix <issue>      # ready-for-agent: b-research → b-plan → b-build → b-review
+```
+
+`/b-triage` and `/skill:b-auto-fix` read the tracker config written by `/b-init-tracker`. To turn PR review comments into a plan instead of fixes, use `/b-pr-review-2-issues`.
+
+### Large Rebase / Merge Conflicts
+
+```
+/b-fix-rebase-conflict → (manual gate: git rebase --continue) → /b-review
+```
+
+### Fork Maintenance
+
+```
+/b-eval-upstream-prs             # triage upstream PRs, isolated validation, merge-order plan
+```
+
+Local-only — never comments on or pushes to the upstream repo.
+
 
 ### Ad-Hoc Work (no planning)
 
@@ -1669,24 +2035,61 @@ OMP-first; works on any agent with `gh` + `git`. Skill-only — no `/fix-pr` sla
 
 ## Discoverability
 
-Type `/b-` in Pi or OMP to see Buck workflow commands:
-- `/b-commit`
-- `/b-brainstorm`
-- `/b-build`
-- `/b-build-hard`
-- `/b-explore`
-- `/b-iterate`
-- `/b-plan`
-- `/b-plan-update`
-- `/b-present`
-- `/b-research`
-- `/b-review`
-- `/b-save` — pure prompt/skill recordkeeping command (run before `/b-commit`)
+Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by phase:
 
-- `/skill:b-phase` — Break large plans into phases (use after `/b-plan` when plan is large)
-- `/skill:b-grill-me` — Stress-test a plan via interview with complexity tracking
-- `/skill:b-grill-with-docs` — Same as b-grill-me, plus domain doc awareness (CONTEXT.md, ADRs)
-- `/skill:fix-pr` — Validate PR review comments; fix+push in-session or file issues (skill-only, no slash wrapper)
+**Discovery & Planning**
+- `/b-brainstorm` — interview-style intake
+- `/b-explore` — codebase exploration
+- `/b-research` — external/web research
+- `/b-capture` — live note-taking mode
+- `/b-arch-qa` *(skill-only)* — architecture Q&A with durable discussion doc
+- `/b-nasa-prd` — NASA-standard PRD authoring/audit
+- `/b-plan` — bounded implementation plan
+- `/b-plan-update` — revise an existing plan in place
+- `/b-phase` — break a large plan into phases
+- `/b-present` — presentation package
+- `/b-blueprint` *(skill-only)* — single-page HTML architecture blueprint
+- `/skill:b-grill` / `/skill:b-grill-me` / `/skill:b-grill-with-docs` / `/skill:b-grill-auto` *(skill-only)* — plan stress-testing variants
+- `/b-init-guardrails` + `/b-guardrails-check` — quality gate init and measurement
+- `/b-init-factory` — nested agent software factory
+- `/b-init-tracker` — issue tracker + triage label config
+
+**Build & Diagnose**
+- `/b-build` / `/b-build-hard` — implementation
+- `/b-iterate` — quick follow-up fixes
+- `/b-diagnose` — hard-bug diagnosis loop
+- `/b-fix-rebase-conflict` — semantic rebase/merge conflict resolution
+
+**Review, Issues & PRs**
+- `/b-review` — implementation review
+- `/b-triage` — inbound issue triage → `ready-for-agent`
+- `/skill:b-issue-create` *(skill-only)* — plan/spec → GitHub issue
+- `/skill:b-auto-fix` *(skill-only)* — auto-fix a `ready-for-agent` issue
+- `/b-pr` — create a GitHub PR from the current branch
+- `/b-pr-review-2-issues` — PR comments → grouped plan artifact
+- `/skill:fix-pr` *(skill-only)* — validate PR review comments; fix+push or file issues
+- `/b-eval-upstream-prs` — triage a fork's upstream PRs (local-only)
+- `/code-review` / `/code-review-universal` — release PR review / universal atomic PR review
+
+**Save & Commit**
+- `/b-recap` — read-only session recap
+- `/b-handoff` — portable cross-harness handoff doc
+- `/b-docs` / `/b-howto` — conditional living-doc and how-to updates
+- `/b-save` — session recordkeeping (run before `/b-commit`)
+- `/b-commit` — Conventional Commit, backed by the `git-commit` skill
+- `/skill:b-backlog` *(skill-only)* — delegate backlog-item capture
+- `/skill:b-memory-import` / `/skill:b-hindsight-import-projects` *(skill-only)* — Hindsight backfill (one project / many projects)
+- `/skill:b-loop` *(skill-only)* — stamp `omp_execution` on a phased plan
+
+**Deterministic extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
+- `/b-commit-improved` — code-driven Conventional Commit
+- `/b-save-improved` — code-driven session checkpoint
+- `/b-pr-improved` — code-driven PR creation
+- `/b-kamal-release` — kamal release pipeline (OMP slash command only)
+
+**OMP-only slash commands** (real files in `commands/`, no `prompts/` twin): `/b-kamal-release`, `/b-pr-improved`, `/git-clean-orphans`, `/product-tour`. On Pi, invoke the underlying skills by name instead.
+
+**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `skill-explainer`, `code-smells`, `crawl4ai`, `design-brief`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
 
 **OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
 - `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
@@ -1694,4 +2097,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands:
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-07-19
+Last updated: 2026-09-16

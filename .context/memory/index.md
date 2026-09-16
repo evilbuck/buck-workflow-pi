@@ -1,3 +1,7 @@
+- 2026-09-16 — [Docs catalog sync: buck-workflow.md, extension-loading.md, README](docs-catalog-sync-2026-09-16.md) — `completed` (extension-scope corrections, 20+ missing component sections, mermaid node-collision fixes, commands/ mirror drift documented + backlogged)
+
+  - 2026-09-16 | `docs-catalog-sync-2026-09-16.md` | domains: [docs] | topics: [buck-workflow-doc, extension-loading-doc, readme-catalog, commands-mirror-drift, mermaid] | status: completed
+
 - 2026-09-13 — [Skill Explainer plugin installation](skill-explainer-plugin-2026-09-13.md) — `completed` (verbatim archive copy; OMP/Pi package + Codex bundle + cross-harness installer coverage; 544 tests pass)
 
   - 2026-09-13 | `skill-explainer-plugin-2026-09-13.md` | domains: [skill, plugin, packaging] | topics: [skill-explainer, omp, codex, cross-harness] | status: completed

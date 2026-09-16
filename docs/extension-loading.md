@@ -76,7 +76,7 @@ my-plugin/                       my-package/
 
 For OMP-installed plugins with a `plugin.json`, the manifest can list `commands` as a path or glob. OMP's `omp.commands` manifest entry resolves directories only via `index.{ts,js,mjs,cjs}` — a directory of `*.md` files is **not** resolvable through that key. For Pi-style packages, `commands/` is auto-discovered from the package root.
 
-**This package resolves the discrepancy with a `commands/` mirror.** `prompts/*.md` is the single source of truth. `commands/*.md` are symlinks (`commands/b-plan.md` → `../prompts/b-plan.md`) so OMP's `omp-plugins` provider picks them up as slash commands without duplicating content. Adding a new prompt is one `ln -s` away.
+**This package resolves the discrepancy with a `commands/` mirror.** `prompts/*.md` is the single source of truth. Most `commands/*.md` are symlinks (`commands/b-plan.md` → `../prompts/b-plan.md`) so OMP's `omp-plugins` provider picks them up as slash commands without duplicating content — eight real-file exceptions are listed below. Adding a new prompt is one `ln -s` away.
 
 ### Cross-Platform Slash Command Pattern
 
@@ -102,6 +102,13 @@ $EDITOR prompts/b-newcommand.md
 ln -s ../prompts/b-newcommand.md commands/b-newcommand.md
 ```
 
+**Current exceptions (as of 2026-09):** eight `commands/*.md` entries are real files, not symlinks.
+
+- **Diverged twins** (4): `b-pr.md`, `b-pr-review-2-issues.md`, `b-commit-improved.md`, `b-save-improved.md` — the `prompts/` versions carry full prompt bodies; the `commands/` versions are thin skill-loader stubs. Both surfaces work, but Pi and OMP users see different bodies.
+- **OMP-only commands** (4): `b-kamal-release.md`, `b-pr-improved.md`, `git-clean-orphans.md`, `product-tour.md` — no `prompts/` twin, so Pi never registers them as slash commands; Pi users invoke the underlying skill by name (`/skill:product-tour`, etc.).
+
+To heal the drift: give each OMP-only file a real `prompts/` body, then replace the real file with a symlink (`rm commands/x.md && ln -s ../prompts/x.md commands/x.md`). For the diverged twins, either symlink to the full body or move the loader stub into `prompts/` — pick one source of truth per command.
+
 ## Current State of buck-workflow-pi
 
 ```
@@ -109,42 +116,57 @@ buck-workflow-pi/
   package.json              # buck-workflow
                             # `pi` and `omp` keys: extensions entry point
   extensions/
-    index.ts                # Model auto-switch for phased plans + TPS tracker
-    tps-tracker.ts          # Token-per-second tracking
+    index.ts                # Entry — default export wires everything marked (wired)
+    tps-tracker.ts          # (wired) Token-per-second tracking
+    omp-models.ts           # (wired, library) OMP role→model catalog + mappingFromOmpRoles
+    plan-artifact.ts        # (wired) opt-in plan-mode → .context/ bridge (turn_end hook)
+    extension-activity.ts   # (wired, library) shared live-activity progress helper
+    subprocess.ts           # (library) shared subprocess helpers
+    b-pr-improved/          # (wired) deterministic /b-pr-improved command
+    b-commit-improved/      # (wired) deterministic /b-commit-improved command
+    b-save-improved/        # (wired) deterministic /b-save-improved command
+    b-kamal-release/        # (wired) deterministic /b-kamal-release command
     b-flow/                 # (unwired) b-flow orchestration subsystem
     b-grill-auto/           # (unwired) b-grill-auto RPC subsystem
     grill-me-dialog.ts      # (unwired) grill-me dialog
     tmux-window-status.ts   # (unwired) tmux window status
-    buck-mode.test.ts       # Tests for extension behavior
+    *.test.ts               # Tests for extension behavior
   skills/
     b-build/SKILL.md
     b-plan/SKILL.md
     b-research/SKILL.md
     b-save/SKILL.md         # b-save as pure skill (no extension backing)
-    ... (19 skill directories)
+    ... (67 skill directories total)
   prompts/                  # source of truth for slash command bodies
     b-build.md
     b-plan.md
     b-save.md               # b-save prompt (reads state file directly)
     b-commit.md             # b-commit prompt (git-commit skill wrapper)
-    ... (14 prompt files)
-  commands/                 # symlink mirror so OMP discovers slash commands
+    ... (40 prompt files total)
+  commands/                 # mirror so OMP discovers slash commands
     b-build.md    -> ../prompts/b-build.md
     b-save.md     -> ../prompts/b-save.md
     b-commit.md   -> ../prompts/b-commit.md
-    ... (14 symlinks)
+    ... (44 entries total: 36 symlinks + 8 real files — see exceptions below)
 ```
 
 `package.json` declares both `pi` and `omp` keys. The `pi` key lists `extensions`, `prompts`, and `skills` because Pi's filter-object schema exposes them as first-class. The `omp` key lists only `extensions` because OMP's `omp-plugins` provider auto-discovers `skills/`, `commands/`, `prompts/`, and the other sibling directories directly from the package root — duplicating them in the `omp` manifest would be redundant and brittle. (JSON disallows comments, so this rationale lives here rather than in `package.json`.)
 
 ### Extension contents
 
-The extension (`extensions/index.ts`) is minimal — it contains only:
+`extensions/index.ts` is the single manifest entry; its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads `buckModelMapping` from Pi settings, inspects the active phase difficulty in phased plans, and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`. Switches back to the original model on `agent_end`. Includes a TUI model picker for initial setup.
-2. **TPS tracker** — Token-per-second tracking during model generation.
+1. **Model auto-switch** — Reads `buckModelMapping` from Pi settings (or OMP role mapping via `extensions/omp-models.ts`), inspects the active phase difficulty in phased plans, and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`. Switches back to the original model on `agent_end`. Includes a TUI model picker for initial setup.
+2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
+3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
+4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.
+5. **`/b-save-improved`** (`b-save-improved/`) — deterministic session checkpoint (preflight → scribe/auditor → apply).
+6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
+7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
 
-Everything else (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, b-grill-auto, session state machine, tmux status) has been removed from the extension. `/b-save` is now a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
+`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands. The four deterministic commands fall back to their skill counterparts (`b-pr`, `git-commit-improved`, `b-save-improved`) when the extension is not loaded — see the real-file command stubs under `commands/`.
+
+Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, b-grill-auto extension command, session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
 
 
 ## Sub-directory auto-discovery in OMP
@@ -193,6 +215,8 @@ This provider is independent of the `omp` field in `package.json`. The `omp` fie
 ```
 
 Pi requires explicit filter objects because its `packages` config supports `+`/`-` filtering.
+
+> The lists above are an **excerpted example**, not the current inventory — the package ships 60+ skills and 40 prompts. List only what you actually want loaded, or drop the filter keys to load everything.
 
 ### OMP (`~/.omp/agent/config.yml`)
 
