@@ -145,13 +145,28 @@ function loadExecPolicyWithBuiltins(cwd: string): { policy: ExecPolicy; skipped:
   };
 }
 
-/** Deterministic check contract (guardrails.json ecosystems), repo-local. */
-function readCheckContractCommands(cwd: string): string[] {
+/**
+ * Deterministic check contract (guardrails.json ecosystems), repo-local.
+ * v2 contracts record `test_runner` plus an optional `functional_test_cmd`;
+ * v1 recorded `test_cmd`. A missing file, parse failure, or a contract with
+ * no runnable command falls back to `npm test` so a Fixer checkpoint can
+ * never pass as verified without running anything (fail closed).
+ */
+export function readCheckContractCommands(cwd: string): string[] {
   const path = join(cwd, "guardrails.json");
   if (!existsSync(path)) return ["npm test"];
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf-8")) as { ecosystems?: Array<{ test_cmd?: string }> };
-    return parsed.ecosystems?.map((e) => e.test_cmd ?? "").filter(Boolean) ?? ["npm test"];
+    const parsed = JSON.parse(readFileSync(path, "utf-8")) as {
+      ecosystems?: Array<{ test_runner?: string | null; test_cmd?: string | null; functional_test_cmd?: string | null }>;
+    };
+    const commands = new Set<string>();
+    for (const eco of parsed.ecosystems ?? []) {
+      const primary = eco.test_runner ?? eco.test_cmd;
+      for (const field of [primary, eco.functional_test_cmd]) {
+        if (typeof field === "string" && field.trim() !== "") commands.add(field.trim());
+      }
+    }
+    return commands.size > 0 ? [...commands] : ["npm test"];
   } catch {
     return ["npm test"];
   }

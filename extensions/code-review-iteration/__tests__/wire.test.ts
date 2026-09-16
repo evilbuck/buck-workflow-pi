@@ -4,7 +4,7 @@ import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
-import { wire, parseArgs, reviewExecTool } from "../index.js";
+import { wire, parseArgs, reviewExecTool, readCheckContractCommands } from "../index.js";
 import { loadCatalog } from "../catalog.js";
 import { loadPersonas } from "../prompts.js";
 import { parseExecPolicy, readOnlyGitCommands, checkContractCommands } from "../policy.js";
@@ -154,6 +154,55 @@ describe("parseArgs", () => {
     expect(() => parseArgs("--reviewer-temperature 9")).toThrow(/temperature/);
     expect(() => parseArgs("--min-blocking low")).toThrow(/min-blocking/);
     expect(() => parseArgs("--max-passes 0")).toThrow(/max-passes/);
+  });
+});
+
+describe("check contract commands", () => {
+  const cleanup: string[] = [];
+
+  afterEach(() => {
+    for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  function contractDir(guardrails: unknown | null): string {
+    const dir = mkdtempSync(join(tmpdir(), "wire-contract-"));
+    cleanup.push(dir);
+    if (guardrails !== null) {
+      writeFileSync(join(dir, "guardrails.json"), JSON.stringify(guardrails));
+    }
+    return dir;
+  }
+
+  it("reads v2 test_runner (and functional_test_cmd when non-null) from this repo's real contract", () => {
+    const dir = contractDir(JSON.parse(readFileSync(join(HERE, "..", "..", "..", "guardrails.json"), "utf-8")));
+    const commands = readCheckContractCommands(dir);
+    expect(commands).toContain("vitest run");
+    expect(commands).not.toContain("");
+    expect(commands.some((c) => c === "(no runnable check command)")).toBe(false);
+  });
+
+  it("prefers v2 test_runner over the v1 test_cmd alias and includes non-null functional_test_cmd", () => {
+    const dir = contractDir({
+      version: 2,
+      ecosystems: [
+        { name: "typescript", test_runner: "vitest run", test_cmd: "echo v1-should-lose", functional_test_cmd: "npm run smoke" },
+        { name: "python", test_runner: null, test_cmd: "pytest -q", functional_test_cmd: null },
+      ],
+    });
+    expect(readCheckContractCommands(dir)).toEqual(["vitest run", "npm run smoke", "pytest -q"]);
+  });
+
+  it("keeps the no-file and parse-failure fallbacks", () => {
+    expect(readCheckContractCommands(contractDir(null))).toEqual(["npm test"]);
+    const broken = mkdtempSync(join(tmpdir(), "wire-contract-broken-"));
+    cleanup.push(broken);
+    writeFileSync(join(broken, "guardrails.json"), "{ not json");
+    expect(readCheckContractCommands(broken)).toEqual(["npm test"]);
+  });
+
+  it("fails closed to npm test when the contract has no runnable command", () => {
+    const dir = contractDir({ version: 2, ecosystems: [{ name: "python", test_runner: null, test_cmd: null }] });
+    expect(readCheckContractCommands(dir)).toEqual(["npm test"]);
   });
 });
 
