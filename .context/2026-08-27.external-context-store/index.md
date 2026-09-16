@@ -8,6 +8,8 @@ subject: 2026-08-27.external-context-store
 
 Branch-scoped, machine-portable store for Buck `.context` artifacts that cannot live in the repo. Intake via `/b-brainstorm`.
 
+Related: [2026-09-12.pluggable-artifact-store](../2026-09-12.pluggable-artifact-store/index.md) — solo v1 is a `.context` symlink to an XDG markdown store (gitignore opt-in). This subject stays the team CSV+KV hydrate path. Hindsight is never the artifact SoT.
+
 ## Artifacts
 
 - [brainstorm-external-context-store.md](brainstorm-external-context-store.md) — Initial brainstorm draft

@@ -1469,6 +1469,29 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
     └── archive/
 ```
 
+### Dual-mode `.context/` (in-repo vs external store)
+
+`.context/` is either a real directory in the repo, or a symlink to
+`~/.local/share/buck/projects/<host/org/repo>/` (honors `XDG_DATA_HOME`).
+The committed opt-in for external mode is a `.gitignore` line for
+`.context` (no trailing slash — `.context/` only matches a real
+directory and would let git commit the symlink). That line is the
+whole committed surface. Skills keep the same `YYYY-MM-DD.subject/`,
+`memory/`, `backlog/` layout either way. Worktrees that share a git
+remote share one XDG store.
+
+When `.context/` is missing, `skills/_shared/scripts/ensure-context-store.ts`
+chooses the mode: a pre-existing real directory is never converted; a
+missing + gitignored tree with `origin` gets the symlink; otherwise
+`mkdir -p .context/memory` (today's in-repo behavior). `git check-ignore`
+is authoritative, including global excludes. How-to:
+[use an external artifact store](howto/use-external-artifact-store.md).
+
+Solo sync across machines is this symlink. Team git-ancestry (CSV pointer
++ KV hydrate) lives on the sibling subject
+`2026-08-27.external-context-store` and does not replace this store.
+Hindsight stays an LTM fact-mirror, never the artifact SoT.
+
 ### Naming Convention
 
 **Subject Folders**: `YYYY-MM-DD.<kebab-case-subject>/`

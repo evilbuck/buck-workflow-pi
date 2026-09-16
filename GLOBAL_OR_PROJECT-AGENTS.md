@@ -31,7 +31,7 @@ Instead of "The reason this happens is that JavaScript's event loop adds promise
    - **Else** (non-OMP agents): use the configured memory skill. The skill path is specified in the project's `AGENTS.md` under "Memory Search Tool" (see configuration below). Load that skill and follow its search protocol.
    - **Fallback** (if no memory skill is configured or available): read `.context/memory/index.md` (most recent 3–5 entries) and open relevant memory files.
 2. Read `.context/backlog/todo.md` for active priorities (legacy fallback: `.context/backlog.md`)
-3. If `.context/` missing: `mkdir -p .context/memory`
+3. If `.context/` missing: run `bun <skills-dir>/_shared/scripts/ensure-context-store.ts` (in-repo mkdir, or an XDG symlink when `.context` is gitignored and `origin` exists). If bun or the script is unavailable: `mkdir -p .context/memory`
 
 **After completing ANY significant work:**
 1. Write persistent artifact to `.context/` (plan, spec, research, memory, or backlog update)
