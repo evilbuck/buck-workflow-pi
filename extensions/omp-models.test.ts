@@ -1,7 +1,15 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type * as PiCodingAgent from "@mariozechner/pi-coding-agent";
+const { createAgentSessionMock } = vi.hoisted(() => ({ createAgentSessionMock: vi.fn() }));
+
+vi.mock("@mariozechner/pi-coding-agent", async () => {
+  const actual = await vi.importActual<typeof PiCodingAgent>("@mariozechner/pi-coding-agent");
+  return { ...actual, createAgentSession: createAgentSessionMock };
+});
+
 import {
   EmptyModelResponseError,
   lastAssistantText,
@@ -10,6 +18,7 @@ import {
   parseModelRoles,
   readOmpModelRoles,
   resolveOmpRole,
+  runOmpModelSession,
 } from "./omp-models.js";
 
 const dirs: string[] = [];
@@ -29,6 +38,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+  createAgentSessionMock.mockReset();
 });
 
 describe("parseModelRoles", () => {
@@ -135,6 +145,37 @@ describe("EmptyModelResponseError", () => {
     }]).message).toBe(
       "Model returned no text (stop reason: error; error: model missing; content blocks: thinking).",
     );
+  });
+});
+
+describe("runOmpModelSession", () => {
+  it("injects the requested temperature into the model stream", async () => {
+    const observed: Array<Record<string, unknown>> = [];
+    const streamFn = vi.fn((_model: unknown, _context: unknown, options: Record<string, unknown>) => {
+      observed.push(options);
+      return Promise.resolve();
+    });
+    const session = {
+      agent: { streamFn },
+      prompt: async () => {
+        await session.agent.streamFn("model", [], {});
+      },
+      messages: [{ role: "assistant", content: "review complete" }],
+      subscribe: () => () => undefined,
+      abort: async () => undefined,
+      dispose: async () => undefined,
+    };
+    createAgentSessionMock.mockResolvedValue({ session });
+
+    await runOmpModelSession({
+      cwd: tmp(),
+      prompt: "review",
+      tools: ["read"],
+      temperature: 0.4,
+      timeoutMs: 1_000,
+    });
+
+    expect(observed).toEqual([{ temperature: 0.4 }]);
   });
 });
 

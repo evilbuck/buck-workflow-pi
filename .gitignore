@@ -1,4 +1,4 @@
-node_modules/*
+node_modules
 
 # Security audit output
 security-audit-report.json

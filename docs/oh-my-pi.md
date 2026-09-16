@@ -90,6 +90,14 @@ the global `~/{.pi,.omp}/agent/settings.json`):
 after the exit — abort exits with no follow-up turn are skipped. Dedupes via a
 `plan-artifact` session entry, so it is reload-safe and never double-writes.
 
+### `code-review-iteration` (bundled with buck-workflow)
+
+`/code-review` (`extensions/code-review-iteration/`) runs an isolated Reviewer → Fixer → fresh-Reviewer loop without filling the user's main agent context. Each Reviewer pass uses a disposable detached worktree and a policy-gated `review_exec` trust boundary for reproduction evidence (no `edit`, `write`, or general `bash`); the Fixer verifies then edits the mutable checkout. `extensions/index.ts` calls `wire()` from `extensions/code-review-iteration/index.ts`.
+
+File layout: `loop.ts`, `policy.ts`, `catalog.ts`, `prompts.ts`, `report.ts`, `run-state.ts`, `git-ops.ts`, `findings.ts`, `rubric.ts`, `frontmatter.ts`, `__tests__/`, plus editable markdown (`prompts/`, `personas/`, `models/`, `review-exec-policy.md`).
+
+Runtime artifacts live under `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/`. Design rationale: `.context/2026-09-12.code-review-iteration-extension/brainstorm-code-review-iteration-extension.md` and `docs/adr/0001-local-only-isolated-code-review-loop.md`.
+
 ## Settings
 
 Global: `~/.omp/agent/settings.json`  
