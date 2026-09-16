@@ -16,6 +16,7 @@ import { extractJson, maxBlockingHardness, validateFindingsPayload, type Validat
 import {
   abortRebase,
   capturePreRun,
+  changedPathsSince,
   checkpointCommit,
   createDetachedWorktree,
   detectBaseBranch,
@@ -23,6 +24,7 @@ import {
   gitCommonDir,
   hasOngoingGitOperation,
   isGitCheckout,
+  listUntracked,
   removeWorktree,
   resolveHead,
   resolveAndContinue,
@@ -171,6 +173,25 @@ async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promi
     deps.notify("No origin default branch detected and no --base given; refusing to review a stale base.", "error");
     return "failed";
   }
+  // Checkpoint the dirty start BEFORE fetching and rebasing: the checkpoint
+  // lands on the current base, so the rebase runs on a clean tree and never
+  // needs an autostash. With an autostash, a rebase conflict followed by
+  // `--continue` can leave the autostash reapply conflict (UU + markers) in
+  // the working tree, which the checkpoint would then commit.
+  const pre = capturePreRun(ctx.cwd);
+  if (pre.dirty) {
+    const selected = await deps.untrackedSelection(pre.untracked);
+    const sha = checkpointCommit(ctx.cwd, selected, "chore(code-review): pre-review checkpoint");
+    if (ctx.state) {
+      ctx.state.checkpoint_commit = sha;
+      ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
+    }
+    deps.notify(
+      `Dirty start checkpointed${sha ? ` at ${sha.slice(0, 12)}` : " (nothing staged)"}; ${selected.length}/${pre.untracked.length} untracked path(s) included.`,
+      "info",
+    );
+  }
+  if (ctx.state) ctx.state.base_branch = base;
   const fetched = fetchBase(ctx.cwd, base);
   if (!fetched.ok || !fetched.commit) {
     deps.notify(`git fetch origin ${base} failed: ${fetched.error ?? "unknown"}. Hard stop.`, "error");
@@ -193,23 +214,7 @@ async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promi
       return "failed";
     }
   }
-  const pre = capturePreRun(ctx.cwd);
-  if (pre.dirty) {
-    const selected = await deps.untrackedSelection(pre.untracked);
-    const sha = checkpointCommit(ctx.cwd, selected, "chore(code-review): pre-review checkpoint");
-    if (ctx.state) {
-      ctx.state.checkpoint_commit = sha;
-      ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
-    }
-    deps.notify(
-      `Dirty start checkpointed${sha ? ` at ${sha.slice(0, 12)}` : " (nothing staged)"}; ${selected.length}/${pre.untracked.length} untracked path(s) included.`,
-      "info",
-    );
-  }
-  if (ctx.state) {
-    ctx.state.base_branch = base;
-    ctx.state.base_commit = fetched.commit;
-  }
+  if (ctx.state) ctx.state.base_commit = fetched.commit;
   return "continue";
 }
 
@@ -250,9 +255,7 @@ function reviewRecord(deps: LoopDeps, ctx: LoopContext, reviewedHead: string, va
   return {
     persona: persona ? persona.name : "(replacement)",
     requested_model: state.reviewer_model,
-    effective_model: state.reviewer_model,
     requested_temperature: state.requested_temperature,
-    effective_temperature: state.requested_temperature,
     thinking_level: thinking,
     reviewed_head: reviewedHead,
     findings: validation.findings,
@@ -277,12 +280,42 @@ function commandRecorder(
 }
 
 function parseReviewerOutput(raw: string, evidenceIds: string[]): { validation: ValidatedReview } | { error: string } {
+  let validation: ValidatedReview;
   try {
-    const parsed = extractJson(raw);
-    return { validation: validateFindingsPayload(parsed, new Set(evidenceIds)) };
+    validation = validateFindingsPayload(extractJson(raw), new Set(evidenceIds));
   } catch (e: unknown) {
     return { error: `reviewer output unusable: ${(e as Error).message}` };
   }
+  if (validation.errors.length > 0) {
+    // A payload that violates the findings contract must never be read as
+    // "no findings": that would terminalize the loop as clean.
+    return { error: `reviewer payload failed validation:\n${validation.errors.join("\n")}` };
+  }
+  return { validation };
+}
+
+async function runSessionAndRecordReview(
+  deps: LoopDeps,
+  ctx: LoopContext,
+  pass: number,
+  reviewedHead: string,
+  worktreePath: string,
+  executedIds: string[],
+): Promise<{ review: PassReviewRecord } | { error: string }> {
+  const raw = await deps.runReviewerSession({
+    cwd: worktreePath,
+    prompt: reviewerPrompt(deps, ctx, pass, reviewedHead),
+    model: ctx.state?.reviewer_model ?? null,
+    temperature: ctx.state?.requested_temperature ?? null,
+    thinkingLevel: reviewThinking(deps, ctx.state?.reviewer_model ?? null),
+    onCommand: commandRecorder(deps, ctx, worktreePath, pass, executedIds),
+  });
+  const output = parseReviewerOutput(raw, executedIds);
+  if ("error" in output) return output;
+  const review = reviewRecord(deps, ctx, reviewedHead, output.validation);
+  writePassReview(ctx.runDir!, pass, review);
+  writePassReviewMarkdown(ctx.runDir!, pass, renderPassReviewMarkdown(review, pass));
+  return { review };
 }
 
 async function runReviewerPass(
@@ -295,22 +328,8 @@ async function runReviewerPass(
   const created = createDetachedWorktree(ctx.cwd, reviewedHead, worktreePath);
   if (!created.ok) return { error: `disposable worktree creation failed: ${created.error ?? "unknown"}` };
   const executedIds: string[] = [];
-  const thinking = reviewThinking(deps, ctx.state?.reviewer_model ?? null);
   try {
-    const raw = await deps.runReviewerSession({
-      cwd: worktreePath,
-      prompt: reviewerPrompt(deps, ctx, pass, reviewedHead),
-      model: ctx.state?.reviewer_model ?? null,
-      temperature: ctx.state?.requested_temperature ?? null,
-      thinkingLevel: thinking,
-      onCommand: commandRecorder(deps, ctx, worktreePath, pass, executedIds),
-    });
-    const output = parseReviewerOutput(raw, executedIds);
-    if ("error" in output) return output;
-    const review = reviewRecord(deps, ctx, reviewedHead, output.validation);
-    writePassReview(ctx.runDir!, pass, review);
-    writePassReviewMarkdown(ctx.runDir!, pass, renderPassReviewMarkdown(review, pass));
-    return { review };
+    return await runSessionAndRecordReview(deps, ctx, pass, reviewedHead, worktreePath, executedIds);
   } catch (e: unknown) {
     if (e instanceof LoopCancelledError) throw e;
     return { error: `reviewer session failed: ${(e as Error).message}` };
@@ -370,7 +389,7 @@ async function chooseFixer(deps: LoopDeps, ctx: LoopContext, requiredHardness: H
   });
   const selected = selection.selector === "" ? deps.fixerFallbackModel(requiredHardness) : selection.selector;
   const model = ctx.options.fixerModel ?? selected;
-  const entry = catalogEntryFor(catalog.entries, model) ?? selection.entry;
+  const entry = catalogEntryFor(catalog.entries, model);
   const thinking = entry ? thinkingFor(entry, requiredHardness) : null;
   return { model, selection, thinking };
 }
@@ -401,12 +420,13 @@ function fixerRecord(
   dispositions: FixerDisposition[],
   checks: { command: string; exitCode: number | null; passed: boolean },
   checkpoint: string | null,
+  changedPaths: string[],
 ): PassFixerRecord {
   return {
     model: fixerModel,
     requested_hardness: requiredHardness,
     dispositions,
-    changed_paths: dispositions.filter((d) => d.disposition === "valid").map((d) => d.finding_id),
+    changed_paths: changedPaths,
     checks: { command: checks.command, exit_code: checks.exitCode, passed: checks.passed },
     checkpoint_commit: checkpoint,
   };
@@ -421,6 +441,8 @@ async function runFixerPass(
 ): Promise<PassFixerRecord> {
   const choice = await chooseFixer(deps, ctx, requiredHardness);
   reportFixerChoice(deps, deps.loadCatalog(), choice.selection, ctx.options.fixerModel, requiredHardness);
+  const preHead = resolveHead(ctx.cwd);
+  const untrackedBefore = new Set(listUntracked(ctx.cwd));
   const raw = await deps.runFixerSession({
     cwd: ctx.cwd,
     prompt: assembleFixerPrompt({
@@ -433,13 +455,17 @@ async function runFixerPass(
   });
   const dispositions = parseDispositions(raw);
   const checks = await deps.runChecks(ctx.cwd);
+  // Stage files the Fixer created (e.g. a new regression test) so the
+  // checkpoint commit carries the whole fix; user-excluded untracked files
+  // stay out because only paths absent before the session are selected.
+  const fixerUntracked = listUntracked(ctx.cwd).filter((path) => !untrackedBefore.has(path));
   const checkpoint = checks.passed
-    ? checkpointCommit(ctx.cwd, [], `fix(code-review): pass ${pass} verified fixes`)
+    ? checkpointCommit(ctx.cwd, fixerUntracked, `fix(code-review): pass ${pass} verified fixes`)
     : null;
   ctx.state!.fixer_model = choice.model;
   ctx.state!.last_head = resolveHead(ctx.cwd);
   ctx.state!.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
-  return fixerRecord(choice.model, requiredHardness, dispositions, checks, checkpoint);
+  return fixerRecord(choice.model, requiredHardness, dispositions, checks, checkpoint, changedPathsSince(ctx.cwd, preHead, fixerUntracked));
 }
 
 function baseBranchFor(ctx: LoopContext): string {
@@ -553,6 +579,13 @@ async function terminalResult(
     const rel = repoRelative(ctx.cwd, reportPath);
     if (rel) checkpointCommit(ctx.cwd, [rel], "docs(code-review): record review-iteration report");
     if (ctx.state?.created_worktree) removeWorktree(ctx.cwd, ctx.state.created_worktree);
+  } else if (ctx.state && ctx.runDir) {
+    // The terminal report itself can add untracked files inside the repo
+    // (`.context/` subject); refresh the stored resume position so the run
+    // stays resumable instead of failing its own fingerprint check.
+    ctx.state.last_head = resolveHead(ctx.cwd);
+    ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
+    saveState(ctx.runDir, ctx.state);
   }
   return { status, runId: ctx.state?.run_id ?? "", reportPath };
 }
@@ -573,7 +606,9 @@ async function initializeRun(deps: LoopDeps, ctx: LoopContext): Promise<LoopResu
   const catalog = deps.loadCatalog();
   if (catalog.errors.length > 0) {
     deps.notify(`Model catalog preflight failed:\n${catalog.errors.join("\n")}`, "error");
-    return { status: "failed", runId: ctx.state?.run_id ?? "", reportPath: null };
+    // A resumed run is already persisted as running; terminalize it on disk
+    // so pruneRuntime and a later --resume see the failure.
+    return terminalResult(deps, ctx, "failed", `model catalog preflight failed (${catalog.errors.length} error(s))`);
   }
   for (const warning of catalog.warnings) deps.notify(warning, "warning");
   if (!ctx.state) {
@@ -585,6 +620,10 @@ async function initializeRun(deps: LoopDeps, ctx: LoopContext): Promise<LoopResu
   }
   const prepared = await prepareBaseAndCheckpoint(deps, ctx);
   if (prepared !== "continue") return terminalResult(deps, ctx, prepared, `base preparation failed: ${prepared}`);
+  // The rebase above may have moved HEAD; persist the post-rebase position so
+  // a crash before the first pass cannot make this run unresumable.
+  ctx.state.last_head = resolveHead(ctx.cwd);
+  ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
   saveState(ctx.runDir!, ctx.state!);
   return null;
 }

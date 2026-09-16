@@ -39,9 +39,7 @@ export interface PassFixerRecord {
 export interface PassReviewRecord {
   persona: string;
   requested_model: string | null;
-  effective_model: string | null;
   requested_temperature: number | null;
-  effective_temperature: number | null;
   thinking_level: string | null;
   reviewed_head: string;
   findings: ValidatedFinding[];

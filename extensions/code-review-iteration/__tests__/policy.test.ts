@@ -109,8 +109,29 @@ describe("sanitizedEnv", () => {
     expect(env.POLICY_TEST_SECRET).toBeUndefined();
     expect(Object.keys(env)).not.toContain("not a key!");
   });
-});
 
+  it("drops process-injection variables from extras", () => {
+    process.env.POLICY_TEST_NODE_OPTIONS = "--require=evil.js";
+    process.env.POLICY_TEST_BASH_ENV = "evil.sh";
+    process.env.LD_POLICY_TEST = "1";
+    const env = sanitizedEnv([
+      "POLICY_TEST_NODE_OPTIONS",
+      "POLICY_TEST_BASH_ENV",
+      "LD_POLICY_TEST",
+      "NODE_OPTIONS",
+      "BASH_ENV",
+      "LD_PRELOAD",
+      "PYTHONPATH",
+    ]);
+    expect(Object.keys(env)).not.toContain("POLICY_TEST_NODE_OPTIONS");
+    expect(Object.keys(env)).not.toContain("POLICY_TEST_BASH_ENV");
+    expect(Object.keys(env)).not.toContain("LD_POLICY_TEST");
+    expect(env.NODE_OPTIONS).toBeUndefined();
+    expect(env.BASH_ENV).toBeUndefined();
+    expect(env.LD_PRELOAD).toBeUndefined();
+    expect(env.PYTHONPATH).toBeUndefined();
+  });
+});
 describe("runReviewCommand", () => {
   const policy: ExecPolicy = parseExecPolicy(POLICY_MD);
   const root = process.cwd();
@@ -180,5 +201,14 @@ describe("runReviewCommand", () => {
     });
     expect(record.stdout_truncated).toBe(true);
     expect(record.stdout_excerpt.length).toBe(512);
+  });
+
+  it("caps excerpts by bytes so multibyte output cannot exceed the cap", async () => {
+    const record = await runReviewCommand(policy, root, {
+      id: "node-eval",
+      argv: ["node", "-e", "process.stdout.write('é'.repeat(400))"],
+    });
+    expect(record.stdout_truncated).toBe(true);
+    expect(Buffer.byteLength(record.stdout_excerpt, "utf8")).toBe(512);
   });
 });

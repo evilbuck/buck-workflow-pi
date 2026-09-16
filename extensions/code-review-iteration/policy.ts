@@ -29,6 +29,10 @@ export const SANITIZED_ENV_KEYS: readonly string[] = [
 /** Characters that indicate shell syntax — such commands are never auto-mapped. */
 const UNSAFE_SHELL_CHARS = /["'`|;&<>$()\\\n]/;
 
+/** Credential-like names and process-injection vectors never pass through. */
+const ENV_DENY_PATTERN =
+  /TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|COOKIE|NODE_OPTIONS|NODE_PATH|LD_|DYLD_|BASH_ENV|SHELLOPTS|ENV|PYTHON|PERL|RUBYOPT|RUBYLIB|GEM_HOME|GEM_PATH|AWKPATH|GIT_|IFS/i;
+
 export class PolicyError extends Error {
   constructor(message: string) {
     super(message);
@@ -233,7 +237,7 @@ export function sanitizedEnv(extraEnv: string[] | undefined): Record<string, str
     if (value !== undefined) env[key] = value;
   }
   for (const key of extraEnv ?? []) {
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || /TOKEN|SECRET|PASSWORD|KEY|CREDENTIAL|COOKIE/i.test(key)) continue;
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || ENV_DENY_PATTERN.test(key)) continue;
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
@@ -245,18 +249,19 @@ function attachCappedStream(
   maxBytes: number,
 ): { excerpt: string; truncated: boolean; digest: () => string } {
   const hash = createHash("sha256");
-  const cap = { excerpt: "", truncated: false };
+  const cap = { excerpt: "", bytes: 0, truncated: false };
   stream?.on("data", (chunk: Buffer | string) => {
     const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     hash.update(buf);
     if (cap.truncated) return;
-    const text = buf.toString();
-    const room = maxBytes - cap.excerpt.length;
-    if (text.length <= room) {
-      cap.excerpt += text;
+    const room = maxBytes - cap.bytes;
+    if (buf.length <= room) {
+      cap.excerpt += buf.toString();
+      cap.bytes += buf.length;
       return;
     }
-    cap.excerpt += text.slice(0, room);
+    cap.excerpt += buf.subarray(0, room).toString();
+    cap.bytes += room;
     cap.truncated = true;
   });
   return {

@@ -118,6 +118,27 @@ function readReproduction(raw: unknown, ctx: string, errors: string[]): Reproduc
   };
 }
 
+/** A "reproduced" claim must cite at least one known command id. */
+function reproducedCommandIdsInvalid(
+  commandIds: string[],
+  knownCommandIds: ReadonlySet<string>,
+  ctx: string,
+  errors: string[],
+): boolean {
+  let invalid = false;
+  if (commandIds.length === 0) {
+    errors.push(`${ctx}: reproduction status "reproduced" requires at least one command_id`);
+    invalid = true;
+  }
+  for (const id of commandIds) {
+    if (!knownCommandIds.has(id)) {
+      errors.push(`${ctx}: reproduction cites unknown command_id ${id}`);
+      invalid = true;
+    }
+  }
+  return invalid;
+}
+
 function validateReproduction(
   raw: unknown,
   knownCommandIds: ReadonlySet<string>,
@@ -132,19 +153,8 @@ function validateReproduction(
   }
   const note = typeof repro.note === "string" ? repro.note : "";
   const commandIds = Array.isArray(repro.commandIdsRaw) ? repro.commandIdsRaw.map((id) => String(id)) : [];
-  if (repro.status === "reproduced") {
-    let invalid = false;
-    if (commandIds.length === 0) {
-      errors.push(`${ctx}: reproduction status "reproduced" requires at least one command_id`);
-      invalid = true;
-    }
-    for (const id of commandIds) {
-      if (!knownCommandIds.has(id)) {
-        errors.push(`${ctx}: reproduction cites unknown command_id ${id}`);
-        invalid = true;
-      }
-    }
-    if (invalid) return null;
+  if (repro.status === "reproduced" && reproducedCommandIdsInvalid(commandIds, knownCommandIds, ctx, errors)) {
+    return null;
   }
   return { status: repro.status, commandIds, note };
 }

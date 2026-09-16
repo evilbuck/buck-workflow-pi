@@ -1,11 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { describe, it, expect, afterEach } from "vitest";
+import { readFileSync, writeFileSync, mkdirSync, rmSync, mkdtempSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { wire, parseArgs, reviewExecTool } from "../index.js";
 import { loadCatalog } from "../catalog.js";
 import { loadPersonas } from "../prompts.js";
 import { parseExecPolicy, readOnlyGitCommands, checkContractCommands } from "../policy.js";
+import { runtimeRoot, branchKey } from "../run-state.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -20,6 +23,16 @@ function createMockApi(): { api: ExtensionAPI; commands: Map<string, Record<stri
   } as unknown as ExtensionAPI;
   return { api, commands };
 }
+
+function handlerNotifications(args: string, cwd: string): Promise<string[]> {
+  const notifications: string[] = [];
+  const { api, commands } = createMockApi();
+  wire(api);
+  const handler = commands.get("code-review")!.handler as (a: string, ctx: unknown) => Promise<void>;
+  return handler(args, { cwd, ui: { notify: (m: string) => notifications.push(m) } })
+    .then(() => notifications, () => notifications);
+}
+
 
 describe("code-review wire", () => {
   it("registers the code-review command with completions and an async handler", () => {
@@ -71,6 +84,47 @@ describe("code-review wire", () => {
     const payload = JSON.parse((result.content[0] as { type: string; text: string }).text);
     expect(payload.evidence_id).toBe("c1");
     expect(payload.command_id).toBe("git-status");
+  });
+});
+
+describe("handler-level command runs", () => {
+  const cleanup: string[] = [];
+
+  afterEach(() => {
+    for (const dir of cleanup.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("prunes only terminated runs and refuses while one is still running", async () => {
+    const repo = mkdtempSync(join(tmpdir(), "wire-prune-"));
+    cleanup.push(repo);
+    const git = (args: string[]): string =>
+      execFileSync("git", args, { cwd: repo, encoding: "utf-8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+    git(["init", "-q", "-b", "master", "."]);
+    git(["config", "user.email", "t@t"]);
+    git(["config", "user.name", "t"]);
+    writeFileSync(join(repo, "a.txt"), "a\n");
+    git(["add", "-A"]);
+    git(["commit", "-qm", "init"]);
+    const runs = join(runtimeRoot(join(repo, ".git")), branchKey("master"));
+    mkdirSync(join(runs, "20260916T000000-done"), { recursive: true });
+    writeFileSync(join(runs, "20260916T000000-done", "state.json"), JSON.stringify({ schema_version: 1, status: "clean" }));
+    mkdirSync(join(runs, "20260916T000001-live"), { recursive: true });
+    writeFileSync(join(runs, "20260916T000001-live", "state.json"), JSON.stringify({ schema_version: 1, status: "running" }));
+    const refused = await handlerNotifications("--prune", repo);
+    expect(refused.join("\n")).toMatch(/Refusing to prune 1 running/);
+    writeFileSync(join(runs, "20260916T000001-live", "state.json"), JSON.stringify({ schema_version: 1, status: "clean" }));
+    const pruned = await handlerNotifications("--prune", repo);
+    expect(pruned.join("\n")).toMatch(/Pruned 2 code-review runtime artifact/);
+  });
+
+  it("runs the wired loop end to end far enough to fail outside a git checkout", async () => {
+    const nowhere = mkdtempSync(join(tmpdir(), "wire-nowhere-"));
+    cleanup.push(nowhere);
+    const notifications = await handlerNotifications("--persona balanced", nowhere);
+    const text = notifications.join("\n");
+    expect(text).toMatch(/Reviewer: /);
+    expect(text).toMatch(/non-bare git checkout/);
+    expect(text).toMatch(/Review loop ended failed/);
   });
 });
 

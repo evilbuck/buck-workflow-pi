@@ -14,7 +14,7 @@ export function renderPassReviewMarkdown(record: PassReviewRecord, pass: number)
     `# Review pass ${String(pass).padStart(2, "0")}`,
     "",
     `- Persona: ${record.persona}`,
-    `- Model: requested ${record.requested_model ?? "—"} · effective ${record.effective_model ?? "—"}${record.effective_temperature === null ? " (provider-default temperature)" : ` @ temperature ${record.effective_temperature}`}${record.thinking_level ? ` · thinking ${record.thinking_level}` : ""}`,
+    `- Model: ${record.requested_model ?? "—"}${record.requested_temperature === null ? " (provider-default temperature)" : ` @ temperature ${record.requested_temperature}`}${record.thinking_level ? ` · thinking ${record.thinking_level}` : ""}`,
     `- Reviewed HEAD: ${record.reviewed_head}`,
     `- Findings: ${record.findings.length}`,
   ];

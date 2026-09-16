@@ -162,9 +162,7 @@ describe("pass artifacts", () => {
       writePassReview(dir, 1, {
         persona: "balanced",
         requested_model: "zai/glm-5.3",
-        effective_model: "zai/glm-5.3",
         requested_temperature: 0.2,
-        effective_temperature: null,
         thinking_level: "high",
         reviewed_head: "a".repeat(40),
         findings: [],
@@ -174,9 +172,7 @@ describe("pass artifacts", () => {
       expect(() => writePassReview(dir, 1, {
         persona: "x",
         requested_model: null,
-        effective_model: null,
         requested_temperature: null,
-        effective_temperature: null,
         thinking_level: null,
         reviewed_head: "",
         findings: [],

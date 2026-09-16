@@ -183,6 +183,25 @@ describe("selectFixerModel", () => {
     expect(pick.reusedReviewer).toBe(true);
   });
 
+  it("normalizes a thinking-suffixed reviewer selector before exclusion", () => {
+    const only = selectFixerModel({
+      entries,
+      availableSelectors: ["zai/glm-5.3"],
+      requiredHardness: "hard",
+      reviewerSelector: "zai/glm-5.3:high",
+    });
+    expect(only.selector).toBe("zai/glm-5.3");
+    expect(only.reusedReviewer).toBe(true);
+    const alternative = selectFixerModel({
+      entries,
+      availableSelectors: all,
+      requiredHardness: "hard",
+      reviewerSelector: "zai/glm-5.3:high",
+    });
+    expect(alternative.selector).toBe("openai-codex/gpt-5.6-sol");
+    expect(alternative.reusedReviewer).toBe(false);
+  });
+
   it("signals fallback when no catalogued model is eligible or available", () => {
     const pick = selectFixerModel({ entries, availableSelectors: ["anthropic/claude-sonnet-5"], requiredHardness: "hard" });
     expect(pick.fallback).toBe(true);

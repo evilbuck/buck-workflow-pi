@@ -199,6 +199,11 @@ function providerOf(selector: string): string {
   return slash > 0 ? selector.slice(0, slash) : selector;
 }
 
+/** Strip a `:thinking` suffix so suffixed reviewer selectors match bare catalog selectors. */
+function baseSelector(selector: string): string {
+  return selector.split(":")[0];
+}
+
 function selectionKey(
   entry: ModelCatalogEntry,
   reviewer: string,
@@ -249,7 +254,7 @@ export function selectFixerModel(catalog: {
   if (eligible.length === 0) {
     return { selector: "", entry: null, reusedReviewer: false, fallback: true };
   }
-  const reviewer = catalog.reviewerSelector ?? "";
+  const reviewer = baseSelector(catalog.reviewerSelector ?? "");
   const reviewerEntry = catalog.entries.find((entry) => entry.selector === reviewer);
   const reviewerFamily = reviewerEntry?.family ?? null;
   const reviewerProvider = reviewer ? providerOf(reviewer) : null;

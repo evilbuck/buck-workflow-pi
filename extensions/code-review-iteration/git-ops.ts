@@ -19,6 +19,14 @@ const GIT_ENV = {
   GIT_COMMITTER_EMAIL: "code-review@buck.invalid",
 };
 
+// `git stash create` embeds committer timestamps in the stash commit, which
+// would make worktreeFingerprint drift with wall-clock time across resume
+// boundaries. Pin them so the fingerprint stays content-only.
+const STASH_FINGERPRINT_ENV = {
+  GIT_AUTHOR_DATE: "2000-01-01T00:00:00.000Z",
+  GIT_COMMITTER_DATE: "2000-01-01T00:00:00.000Z",
+};
+
 /** Run git synchronously; throws with stderr context on failure. */
 export function git(cwd: string, args: string[], env: NodeJS.ProcessEnv = {}): string {
   return execFileSync("git", args, {
@@ -175,6 +183,19 @@ export function checkpointCommit(cwd: string, untrackedSelected: string[], messa
   return resolveHead(cwd);
 }
 
+/**
+ * Repo-relative paths that differ from `sha`: committed since it, changed in
+ * the working tree, plus explicitly supplied untracked paths (fixer-created
+ * files are invisible to `git diff`).
+ */
+export function changedPathsSince(cwd: string, sha: string, untracked: string[]): string[] {
+  const committed = tryGit(cwd, ["diff", "--name-only", `${sha}..HEAD`]).stdout;
+  const working = tryGit(cwd, ["diff", "--name-only", sha]).stdout;
+  const paths = new Set([...committed.split("\n"), ...working.split("\n"), ...untracked]);
+  paths.delete("");
+  return [...paths].sort();
+}
+
 export function createDetachedWorktree(cwd: string, sha: string, path: string): { ok: boolean; error: string | null } {
   const result = tryGit(cwd, ["worktree", "add", "--detach", path, sha]);
   return { ok: result.ok, error: result.ok ? null : result.stderr };
@@ -199,7 +220,7 @@ export function removeWorktree(cwd: string, path: string): { ok: boolean; error:
  */
 export function worktreeFingerprint(cwd: string): string {
   const head = tryGit(cwd, ["rev-parse", "HEAD"]).stdout;
-  const stash = tryGit(cwd, ["stash", "create"]);
+  const stash = tryGit(cwd, ["stash", "create"], STASH_FINGERPRINT_ENV);
   if (stash.ok) {
     const untracked = tryGit(cwd, ["ls-files", "--others", "--exclude-standard"]).stdout;
     let untrackedDigest = "";

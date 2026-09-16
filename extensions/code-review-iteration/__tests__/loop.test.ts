@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, appendFileSync, existsSync, readFil
 import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
 import { execFileSync } from "node:child_process";
-import { runReviewLoop, type LoopDeps, type LoopOptions } from "../loop.js";
+import { runReviewLoop, LoopCancelledError, type LoopDeps, type LoopOptions } from "../loop.js";
 import { parseModelEntry, type CatalogLoad } from "../catalog.js";
 import { resolveHead } from "../git-ops.js";
 
@@ -98,6 +98,8 @@ interface ScriptedState {
   reviewerCalls: number;
   fixerOutputs: string[];
   fixerCalls: number;
+  fixerNewFiles: string[];
+  fixerSessions: Array<{ model: string | null; thinkingLevel: string | null }>;
   checksPassed: boolean;
   executedCommands: number;
   untrackedAnswer: string[] | null;
@@ -112,6 +114,8 @@ function makeDeps(overrides: Partial<ScriptedState> = {}): LoopDeps & ScriptedSt
     reviewerCalls: 0,
     fixerOutputs: [JSON.stringify({ dispositions: [{ finding_id: "F1", disposition: "valid", note: "verified" }] })],
     fixerCalls: 0,
+    fixerNewFiles: [],
+    fixerSessions: [],
     checksPassed: true,
     executedCommands: 0,
     untrackedAnswer: null,
@@ -131,6 +135,8 @@ function makeDeps(overrides: Partial<ScriptedState> = {}): LoopDeps & ScriptedSt
     async runFixerSession(opts) {
       // A real fixer edits the checkout; simulate a minimal verified fix.
       appendFileSync(join(opts.cwd, "app.js"), `// fixed by fixer pass ${state.fixerCalls + 1}\n`);
+      for (const file of state.fixerNewFiles) writeFileSync(join(opts.cwd, file), "// new coverage\n");
+      state.fixerSessions.push({ model: opts.model, thinkingLevel: opts.thinkingLevel ?? null });
       const index = state.fixerCalls++;
       return state.fixerOutputs[index] ?? state.fixerOutputs[state.fixerOutputs.length - 1];
     },
@@ -186,8 +192,8 @@ function makeDeps(overrides: Partial<ScriptedState> = {}): LoopDeps & ScriptedSt
   const merged = { ...deps } as LoopDeps & ScriptedState;
   const liveKeys = [
     "reviewerOutputs", "reviewerCalls", "fixerOutputs", "fixerCalls",
-    "checksPassed", "executedCommands", "untrackedAnswer", "notifyLog",
-    "contextRoot", "simulateCommand",
+    "fixerNewFiles", "fixerSessions", "checksPassed", "executedCommands",
+    "untrackedAnswer", "notifyLog", "contextRoot", "simulateCommand",
   ] as const;
   for (const key of liveKeys) {
     Object.defineProperty(merged, key, {
@@ -429,5 +435,196 @@ describe("runReviewLoop", () => {
     const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "openai-codex/gpt-5.6-luna" });
     expect(result.status).toBe("clean");
     expect(deps.notifyLog.join("\n")).toMatch(/below the required medium hardness/);
+  });
+
+  it("fails the run when the reviewer payload violates the findings contract", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: "none" })] });
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("failed");
+    expect(deps.fixerCalls).toBe(0);
+    const report = readFileSync(result.reportPath!, "utf-8");
+    expect(report).toMatch(/reviewer payload failed validation/);
+  });
+
+  it("fails the run when a reproduced finding cites an unknown command id", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({
+      reviewerOutputs: [findingJson({ reproduction: { status: "reproduced", command_ids: ["c9"], note: "claimed" } })],
+    });
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("failed");
+    const report = readFileSync(result.reportPath!, "utf-8");
+    expect(report).toMatch(/unknown command_id c9/);
+  });
+
+  it("terminalizes a resumed run on disk when catalog preflight fails", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({ checksPassed: false });
+    const blocked = await runReviewLoop(deps, clone, OPTIONS);
+    expect(blocked.status).toBe("blocked");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", blocked.runId);
+    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+    state.status = "running";
+    state.terminal = null;
+    writeFileSync(join(runDir, "state.json"), JSON.stringify(state));
+    const deps2 = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
+    deps2.loadCatalog = () => ({ entries: [], errors: ["glm.md: missing selector"], warnings: [] });
+    const result = await runReviewLoop(deps2, clone, { ...OPTIONS, resume: true });
+    expect(result.status).toBe("failed");
+    expect(result.runId).toBe(blocked.runId);
+    const after = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+    expect(after.status).toBe("failed");
+    expect(after.terminal?.reason).toMatch(/catalog preflight/);
+  });
+
+  it("checkpoints fixer-created files without sweeping excluded untracked files", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    writeFileSync(join(clone, "notes.md"), "keep out\n");
+    const deps = makeDeps({
+      reviewerOutputs: [findingJson(), JSON.stringify({ findings: [] })],
+      fixerNewFiles: ["regression.test.js"],
+      untrackedAnswer: [],
+    });
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("clean");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", result.runId);
+    const fixer = JSON.parse(readFileSync(join(runDir, "passes", "01", "fixer.json"), "utf-8"));
+    expect(fixer.checkpoint_commit).toBeTruthy();
+    expect(fixer.changed_paths).toContain("app.js");
+    expect(fixer.changed_paths).toContain("regression.test.js");
+    expect(fixer.changed_paths).not.toContain("notes.md");
+    const committed = g(clone, ["show", "--name-only", "--format=", fixer.checkpoint_commit]);
+    expect(committed).toContain("regression.test.js");
+    expect(committed).not.toContain("notes.md");
+  });
+
+  it("keeps a run resumable after its own resume-time rebase moved HEAD", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({ checksPassed: false });
+    const blocked = await runReviewLoop(deps, clone, OPTIONS);
+    expect(blocked.status).toBe("blocked");
+    const upstream = mkdtempSync(join(tmpdir(), "loop-upstream-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "base.txt"), "base advanced\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "advance base"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const dying = makeDeps({ reviewerOutputs: ["not json"] });
+    const failed = await runReviewLoop(dying, clone, { ...OPTIONS, resume: true });
+    expect(failed.status).toBe("failed");
+    expect(failed.runId).toBe(blocked.runId);
+    const deps3 = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
+    const resumed = await runReviewLoop(deps3, clone, { ...OPTIONS, resume: true });
+    expect(deps3.notifyLog.join("\n")).toMatch(/Resuming run/);
+    expect(resumed.runId).toBe(blocked.runId);
+    expect(resumed.status).toBe("clean");
+  });
+
+  it("runs an uncatalogued explicit fixer at the session-default thinking level", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({
+      reviewerOutputs: [findingJson(), JSON.stringify({ findings: [] })],
+    });
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "unknown/vendor-model" });
+    expect(result.status).toBe("clean");
+    expect(deps.fixerSessions).toHaveLength(1);
+    expect(deps.fixerSessions[0].model).toBe("unknown/vendor-model");
+    expect(deps.fixerSessions[0].thinkingLevel).toBeNull();
+  });
+
+  it("runs a catalogued explicit fixer at its catalogued thinking level", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({
+      reviewerOutputs: [findingJson(), JSON.stringify({ findings: [] })],
+    });
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "openai-codex/gpt-5.6-terra" });
+    expect(result.status).toBe("clean");
+    expect(deps.fixerSessions[0].thinkingLevel).toBe("medium");
+  });
+
+  it("ends cancelled when the reviewer session is cancelled mid-pass", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps();
+    deps.runReviewerSession = async () => {
+      throw new LoopCancelledError();
+    };
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("cancelled");
+  });
+
+  it("fails the pass when the reviewer session itself throws", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps();
+    deps.runReviewerSession = async () => {
+      throw new Error("omp session exploded");
+    };
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("failed");
+    const report = readFileSync(result.reportPath!, "utf-8");
+    expect(report).toMatch(/reviewer session failed: omp session exploded/);
+  });
+
+  it("reuses the reviewer model as fixer with a warning when it is the only capable model", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({
+      reviewerOutputs: [findingJson(), JSON.stringify({ findings: [] })],
+    });
+    deps.availableSelectors = async () => new Set(["zai/glm-5.3"]);
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    expect(result.status).toBe("clean");
+    expect(deps.notifyLog.join("\n")).toMatch(/reusing it/);
+    expect(deps.fixerSessions[0].model).toBe("zai/glm-5.3");
+  });
+
+  it("recovers from a resume rebase conflict via a hard fixer session without committing markers", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps({ checksPassed: false });
+    const blocked = await runReviewLoop(deps, clone, OPTIONS);
+    expect(blocked.status).toBe("blocked");
+    // Origin rewrites the same file the feature touched: the resume rebase conflicts.
+    const upstream = mkdtempSync(join(tmpdir(), "loop-conflict-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const deps2 = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
+    const scriptedFixer = deps2.runFixerSession.bind(deps2);
+    deps2.runFixerSession = async (opts) => {
+      if (opts.prompt.includes("rebase conflict")) {
+        writeFileSync(join(opts.cwd, "app.js"), "function login() { return true; }\n// resolved\n");
+        return "resolved";
+      }
+      return scriptedFixer(opts);
+    };
+    const resumed = await runReviewLoop(deps2, clone, { ...OPTIONS, resume: true });
+    const log = deps2.notifyLog.join("\n");
+    expect(log).toMatch(/Resuming run/);
+    expect(log).toMatch(/rebase conflict in 1 file/);
+    expect(resumed.status).toBe("clean");
+    expect(resumed.runId).toBe(blocked.runId);
+    // The rebased history must never carry conflict markers or an unmerged path.
+    expect(g(clone, ["status", "--porcelain"])).not.toMatch(/^UU/m);
+    const blob = g(clone, ["show", "HEAD:app.js"]);
+    expect(blob).not.toContain("<<<<<<<");
+    expect(blob).toContain("// resolved");
   });
 });

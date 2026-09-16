@@ -299,10 +299,14 @@ function makeDeps(cwd: string, parsed: ParsedArgs, activity: Activity, ui: Comma
       return record;
     },
     async runChecks(checkCwd) {
-      const command = readCheckContractCommands(checkCwd)[0] ?? "npm test";
-      const parts = command.split(/\s+/);
-      const result = await execFileCaptured(parts[0], parts.slice(1), checkCwd);
-      return { command, exitCode: result.code, passed: result.code === 0 };
+      // Same filter as the Reviewer policy: shell-syntax command strings are
+      // skipped with a warning, never guessed at with a whitespace split.
+      const { entries, skipped } = checkContractCommands(readCheckContractCommands(checkCwd));
+      for (const raw of skipped) notify(`Check command skipped (shell syntax is not auto-mapped): ${raw}`, "warning");
+      const entry = entries[0];
+      if (!entry) return { command: "(no runnable check command)", exitCode: null, passed: true };
+      const result = await execFileCaptured(entry.executable, [...entry.argvPrefix], checkCwd);
+      return { command: [entry.executable, ...entry.argvPrefix].join(" "), exitCode: result.code, passed: result.code === 0 };
     },
     async availableSelectors() {
       return intersectCatalogSelectors(catalog, notify);
