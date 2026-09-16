@@ -180,14 +180,14 @@ Most agents load both global and project-level files — the project-level one e
 ### Layered Architecture
 
 1. **Canonical skills** (`skills/`) — Portable workflow logic. Agent-neutral Markdown files that define *how* each workflow behaves. These are the source of truth.
-2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads `commands/*.md`; those files are symlinks back to `prompts/` so there is one source of truth.
-3. **Runtime automation** (`extensions/index.ts`) — Minimal Pi/OMP extension surface for model auto-switch and TPS tracking. Historical orchestration subsystems remain in `extensions/` but are not wired by the package manifest.
+2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads `commands/*.md`; those files are symlinks back to `prompts/` (eight real-file exceptions — see [OMP Command Mirror](#omp-command-mirror)) so there is one source of truth.
+3. **Runtime automation** (`extensions/index.ts`) — Composed Pi/OMP extension surface: model auto-switch, TPS tracking, deterministic `*-improved` commands, opt-in plan-artifact bridge. Historical orchestration subsystems remain in `extensions/` but are not wired by the package manifest.
 
 **Runtime mapping:**
 
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
-- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans and token-per-second tracking
+- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic `*-improved` commands, opt-in plan-artifact bridge
 - **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command; run before `/b-commit` to record durable session state
 
 ### Cross-Agent Parallels
@@ -218,6 +218,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-brainstorm` | `b-brainstorm` | Interview-style intake, capture initial thinking |
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
 | `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
+| `/b-eval-upstream-prs` | `b-eval-upstream-prs` | Evaluate a fork's upstream PRs — importance/friction/risk triage, isolated validation, merge-order plan (local-only) |
 | `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
 | `/b-init-factory` | `b-init-factory` | Initialize a nested agent software factory — factory-scoped AGENTS.md in a named folder, project default, or asked choice (never assume `.claude/`) |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
@@ -226,6 +227,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-nasa-prd` | `b-nasa-prd` | Write or audit a PRD to NASA's requirement-quality standard (SEH Appendix C) |
 | `/b-plan` | `b-plan` | Plan standalone or inside the full workflow; detect missing companions |
 | `/b-plan-update` | `b-plan-update` | Apply new context, artifacts, and scope changes to an existing plan in place |
+| `/b-phase` | `b-phase` | Break a large plan into sequential, independently-verifiable phases |
 | `/b-present` | `b-present` | Generate async-readable presentation package |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
@@ -235,7 +237,11 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-wizard` | `b-wizard` | Generate an interactive bash wizard for human-only setup steps (credentials, dashboards, cutovers) |
 | `/b-init-tracker` | `b-init-tracker` | Configure this repo's issue tracker + triage labels (idempotent) |
 | `/b-triage` | `b-triage` | Triage an inbound issue/PR — verify, grill if needed, write a behavioural agent brief |
+| `/b-pr` | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, rebase, diff-generated description |
+| `/b-pr-review-2-issues` | `b-pr-review-2-issues` | PR review comments → classified, grouped plan artifact (no issues created) |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
+| `/code-review` | `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
+| `/code-review-universal` | `code-review-universal` | Universal PR review — one atomic severity-tagged GitHub review with inline comments |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `/b-recap` | `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
@@ -243,7 +249,20 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 
 ### OMP Command Mirror
 
-`commands/*.md` are symlinks to `prompts/*.md`. They exist so OMP discovers the same slash commands that Pi exposes from `prompts/`.
+Most `commands/*.md` are symlinks to `prompts/*.md`. They exist so OMP discovers the same slash commands that Pi exposes from `prompts/`.
+
+**Exceptions** (real files, not symlinks): `b-pr.md`, `b-pr-review-2-issues.md`, `b-commit-improved.md`, and `b-save-improved.md` are thin skill-loader stubs whose `prompts/` twins carry full bodies; `b-kamal-release.md`, `b-pr-improved.md`, `git-clean-orphans.md`, and `product-tour.md` have no `prompts/` twin and are **OMP-only** slash commands. See [`docs/extension-loading.md`](docs/extension-loading.md#cross-platform-slash-command-pattern) for the heal procedure.
+
+### Extension-Backed Commands
+
+When the package extension is loaded (Pi/OMP), four commands run as deterministic code paths with live progress reporting instead of prompt-following:
+
+| Command | Backing | Skill fallback |
+|---------|---------|----------------|
+| `/b-commit-improved` | `extensions/b-commit-improved/` | `git-commit-improved` skill |
+| `/b-save-improved` | `extensions/b-save-improved/` | `b-save-improved` skill |
+| `/b-pr-improved` | `extensions/b-pr-improved/` | `b-pr` skill |
+| `/b-kamal-release` | `extensions/b-kamal-release/` | — |
 
 ### Pure Prompt Commands
 
@@ -257,6 +276,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 |-------|---------|
 | `b-brainstorm` | Interview-style intake — capture initial thinking and save a draft |
 | `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
+| `b-arch-qa` | Live architecture Q&A session that builds a durable discussion doc (skill-only) |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
 | `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
 | `b-init-factory` | Nested agent software factory init — factory-scoped AGENTS.md + empty factory `docs/`; target is told, project default, or asked |
@@ -276,16 +296,27 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `b-wizard` | Generates a bash wizard walking a human through credential/dashboard/cutover steps only they can perform; `template.sh` does the work |
 | `b-init-tracker` | Configures docs/agents/issue-tracker.md + triage-labels.md and an idempotent AGENTS.md managed block (Sections A+B of the upstream setup skill; domain docs are b-docs' job) |
 | `b-triage` | Redundancy/prior-rejection check → verify the claim → grill → durable behavioural agent brief (no file paths/line numbers) → produces the ready-for-agent state b-auto-fix consumes |
+| `b-issue-create` | Turn the active plan/spec/research into an AFK-ready GitHub issue, linked back into `.context/` (skill-only) |
+| `b-auto-fix` | Auto-fix a `ready-for-agent` GitHub issue via b-research → b-plan → b-build → b-review (skill-only) |
+| `b-backlog` | Delegate backlog-item authoring + `todo.md` registration to a subagent (skill-only) |
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation; does not replace `/b-save` |
 | `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
+| `b-hindsight-import-projects` | Multi-project wrapper over `b-memory-import` — bulk-import many projects' `.context/memory` in one pass (skill-only) |
 | `b-present` | Generate async-readable presentation package from artifacts |
+| `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
+| `b-loop` | Set/change/clear the `omp_execution` autonomous loop on an existing phased plan — advisory + stamp only (skill-only) |
 | `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
+| `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
+| `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
+| `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
 | `git-commit` | Create a Conventional Commits message and commit |
+| `git-commit-improved` | Deterministic Conventional Commits — code-driven counterpart (`/b-commit-improved` extension command) |
+| `b-save-improved` | Deterministic session checkpoint — code-driven counterpart to `b-save` (`/b-save-improved` extension command) |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
 | `b-grill-auto` | Grill a different AI model via RPC about a plan |
@@ -294,12 +325,25 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
 | `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
+| `b-create-styleguide` | Guided UX styleguide creation + idempotent maintenance, with a managed AGENTS.md/CLAUDE.md block |
+| `b-create-ux-guide` | Site → component inventory → markdown style guide + HTML research guide + `design-brief.json` |
+| `code-smells` | Reference catalog of the 23 code smells + parallel-subagent audit producing a remediation report |
+| `cross-platform-pi-omp-loading` | Package-authoring pattern for shipping one package that loads under both Pi and OMP |
+| `git-clean-orphans` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
+| `llm-wiki-vault` | Vault-native LLM Wiki for Obsidian PARA vaults — ingest, interlinked notes, knowledge-base maintenance |
+| `manage-herdr-panes` | Split, start, prompt, and read Herdr panes (requires `HERDR_ENV=1`) |
+| `node5-code-review` | Code review specialized for the node5 project |
+| `pi-rpc` | Drive a `pi --mode rpc` subprocess via JSON RPC over stdio |
+| `product-tour` | First-run guided product tours over real UI, stack-agnostic |
+| `skill-explainer` | Explain a skill/command and produce a visual HTML walkthrough report |
 
 ### Extension (Runtime Hooks)
 
-The wired package extension is intentionally small:
+One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
+- **Deterministic commands**: `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
+- **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
 Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
