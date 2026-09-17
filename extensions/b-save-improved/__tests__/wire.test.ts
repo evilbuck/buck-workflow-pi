@@ -8,6 +8,7 @@ import {
   assembleApplyPayload,
   buildDigest,
   buildRetainInstruction,
+  buildScribeChainExhaustedMessage,
   DIGEST_CAP,
   lastAssistantText,
   parseArgs,
@@ -328,6 +329,27 @@ describe("assembleApplyPayload / buildRetainInstruction", () => {
     expect(digest).toContain("user: hi");
     expect(digest).toContain("edit b.ts");
     expect(digest).toContain("read c.ts");
+  });
+});
+
+describe("buildScribeChainExhaustedMessage", () => {
+  it("lists every attempted role/model/error and points at the portable fallback", () => {
+    const message = buildScribeChainExhaustedMessage([
+      { role: "default", model: "minimax/MiniMax-M3:medium", error: "No API key found for minimax." },
+      { role: "smol", model: "opencode-go/deepseek-v4-flash:low", error: "No API key found for opencode-go." },
+    ]);
+    expect(message).toContain("Scribe failed on every configured model");
+    expect(message).toContain("default: minimax/MiniMax-M3:medium — No API key found for minimax.");
+    expect(message).toContain("smol: opencode-go/deepseek-v4-flash:low — No API key found for opencode-go.");
+    expect(message).toContain("--model <working-provider/model>");
+    expect(message).toContain("follow prompts/b-save.md step-by-step instead");
+  });
+
+  it("explains what to configure when no OMP roles resolve at all", () => {
+    const message = buildScribeChainExhaustedMessage([]);
+    expect(message).toContain("no OMP model roles are configured");
+    expect(message).toContain("modelRoles");
+    expect(message).toContain("follow prompts/b-save.md step-by-step instead");
   });
 });
 

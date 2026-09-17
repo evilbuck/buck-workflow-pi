@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../subprocess.js";
 import { createActivity, type ActivityEvent } from "../extension-activity.js";
-import { lastAssistantText, resolveOmpRole, runOmpModelSession } from "../omp-models.js";
+import { lastAssistantText, readOmpModelRoles, resolveOmpRole, runOmpModelSession } from "../omp-models.js";
 
 export { lastAssistantText };
 
@@ -537,6 +537,32 @@ export function buildRetainInstruction(
   ].join("\n");
 }
 
+const ROLE_FALLBACK_ORDER = ["smol", "plan", "slow", "task"] as const;
+
+export interface ScribeRoleAttempt {
+  role: string;
+  model: string;
+  error: string;
+}
+
+export function buildScribeChainExhaustedMessage(attempts: ScribeRoleAttempt[]): string {
+  if (attempts.length === 0) {
+    return [
+      "Scribe failed: no OMP model roles are configured.",
+      "Set modelRoles in .omp/config.yml or ~/.omp/agent/config.yml,",
+      "or re-run with --model <working-provider/model>.",
+      "Extension cannot run — follow prompts/b-save.md step-by-step instead (portable /b-save fallback).",
+    ].join(" ");
+  }
+  const attempted = attempts.map((a) => `${a.role}: ${a.model} — ${a.error.trim()}`).join("; ");
+  return [
+    `Scribe failed on every configured model (${attempted}).`,
+    "Set an API key for one of these providers (/login or the provider's key environment variable),",
+    "or re-run with --model <working-provider/model>.",
+    "Extension cannot run — follow prompts/b-save.md step-by-step instead (portable /b-save fallback).",
+  ].join(" ");
+}
+
 async function draftScribe(
   pi: ExtensionAPI,
   ctx: CommandCtx,
@@ -545,28 +571,39 @@ async function draftScribe(
   preflight: Record<string, unknown>,
   onActivity: (event: ActivityEvent) => void,
 ): Promise<ScribeOutput | null> {
-  const scribeModel = opts.model ?? resolveRoleModel(ctx.cwd, "scribe");
-  let scribeRaw = "";
-  try {
-    scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), scribeModel, onActivity, 120_000);
-  } catch (error) {
-    const modelError = error instanceof Error ? error.message : String(error);
-    const failure = `Scribe model ${scribeModel ?? "OMP default"} failed (${modelError}).`;
-    const recovery = "Change its OMP model role or re-run with --model <provider/model>.";
-    const fallbackModel = opts.model ? undefined : resolveOmpRole(ctx.cwd, "smol");
-    if (!fallbackModel || fallbackModel === scribeModel) {
-      fail(pi, ctx, "scribe", `${failure} ${recovery}`);
+  const prompt = buildScribePrompt(digest, preflight);
+  const attempts: ScribeRoleAttempt[] = [];
+  const tryModel = async (role: string, model: string | undefined): Promise<string | null> => {
+    if (!model) return null;
+    try {
+      return await runModelSession(ctx.cwd, [], prompt, model, onActivity, 120_000);
+    } catch (error) {
+      attempts.push({ role, model, error: error instanceof Error ? error.message : String(error) });
       return null;
     }
-    notify(ctx, `${failure} Retrying with fallback ${fallbackModel}.`, "warning");
-    try {
-      scribeRaw = await runModelSession(ctx.cwd, [], buildScribePrompt(digest, preflight), fallbackModel, onActivity, 120_000);
-    } catch (fallbackError) {
-      const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
-      fail(pi, ctx, "scribe", `${failure} Fallback model ${fallbackModel} also failed (${fallbackMessage}). ${recovery}`);
-      return null;
+  };
+
+  const roles = readOmpModelRoles(ctx.cwd);
+  let scribeRaw = await tryModel("default", opts.model ?? resolveRoleModel(ctx.cwd, "scribe"));
+  if (scribeRaw === null && !opts.model) {
+    if (attempts.length > 0 && attempts[0].error) {
+      notify(ctx, `Scribe model ${attempts[0].model} failed (${attempts[0].error}). Trying configured fallback roles…`, "warning");
+    }
+    for (const role of ROLE_FALLBACK_ORDER) {
+      const configured = roles[role];
+      const candidate = typeof configured === "string" && configured.trim() ? configured : resolveOmpRole(ctx.cwd, role);
+      if (!candidate) continue;
+      if (attempts.some((a) => a.model === candidate)) continue;
+      scribeRaw = await tryModel(role, candidate);
+      if (scribeRaw !== null) break;
     }
   }
+
+  if (scribeRaw === null) {
+    fail(pi, ctx, "scribe", buildScribeChainExhaustedMessage(attempts));
+    return null;
+  }
+
   const scribe = parseScribeResponse(scribeRaw);
   if (scribe) return scribe;
   fail(
