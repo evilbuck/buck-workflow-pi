@@ -25,6 +25,15 @@ const brief = JSON.parse(
 );
 const surface = brief.token_groups.find((g: { group: string }) => g.group === "surface").tokens;
 
+function addExtraTocEntry(source: string): string {
+  return source
+    .replace(
+      '  <li><a href="#verification">Verification</a></li>',
+      '  <li><a href="#extra">Extra</a></li>\n  <li><a href="#verification">Verification</a></li>',
+    )
+    .replace("</main>", ' <section class="top-level" id="extra"><h2>Extra</h2></section>\n</main>');
+}
+
 test.describe("blueprint template renders the shared design language", () => {
   test("paints the token palette, not a stylesheet default", async ({ page }) => {
     await page.goto(TEMPLATE);
@@ -54,6 +63,18 @@ test.describe("blueprint template renders the shared design language", () => {
     const rendered = (await page.locator(".mermaid").allTextContents()).join("\n");
     expect(rendered).not.toMatch(/syntax error|parse error|mermaid version/i);
   });
+  test("scroll-spy initializes from DOM links with an arbitrary TOC size", async ({ page }) => {
+    await page.addInitScript(
+      "window.__blueprintObserved = []; window.IntersectionObserver = class { observe(target) { window.__blueprintObserved.push(target.id); } };",
+    );
+    const source = readFileSync(join(ROOT, "skills/b-blueprint/references/blueprint-template.html"), "utf8");
+    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(addExtraTocEntry(source))}`);
+
+    const observed = (await page.evaluate("window.__blueprintObserved")) as string[];
+    expect(observed).toHaveLength(9);
+    expect(observed).toContain("extra");
+  });
+
 
   test("collapses the rail into a tap-to-open card on narrow viewports", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });

@@ -48,5 +48,5 @@ agent re-deciding a palette each time.
 - `npm test` — 28 vitest files / 482 tests, 70 bun tests. Baseline was 27 / 474.
 - Drift guard mutation-tested in both directions plus value drift; all three caught.
 - `uvx lizard -C 10 -w` on the new TypeScript — clean.
-- `npx playwright test tests/e2e/design-language.spec.ts --project=chromium` — 6/6.
+- `npx playwright test tests/e2e/design-language.spec.ts --project=chromium` — 7/7, including a nine-entry TOC scroll-spy regression.
 - `--write` re-run reports `already up to date` (checked-in blocks == renderer output).

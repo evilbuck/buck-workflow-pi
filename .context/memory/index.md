@@ -1,3 +1,7 @@
+- 2026-09-16 — [Blueprint scroll-spy review follow-up](blueprint-scroll-spy-review-2026-09-16.md) — `completed` (DOM-driven TOC regression coverage for nine entries; reported blockers already fixed)
+
+  - 2026-09-16 | `blueprint-scroll-spy-review-2026-09-16.md` | domains: [frontend, testing, review] | topics: [b-blueprint, scroll-spy, intersection-observer, e2e] | status: completed
+
 - 2026-09-16 — [fix-pr PR #31](fix-pr-31-2026-09-16.md) — `completed` (check-contract reader, node_modules symlink, autostash drop, UTF-8 cap)
 
   - 2026-09-16 | `fix-pr-31-2026-09-16.md` | domains: [review, extensions, testing] | topics: [fix-pr, code-review-iteration, check-contract, node_modules, autostash, utf8] | status: completed
