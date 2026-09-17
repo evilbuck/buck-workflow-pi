@@ -1,3 +1,7 @@
+- 2026-09-17 — [fix-pr PR #26 design-language](fix-pr-26-2026-09-17.md) — `completed` (move thought-dump-writer under skills/, harden TARGET scaffold against injection, sync aria/contrast/CDN warnings; Wooderson re-review no new findings, all checks green)
+
+  - 2026-09-17 | `fix-pr-26-2026-09-17.md` | domains: [review, frontend, design-system] | topics: [fix-pr, pr-26, thought-dump-writer, design-language, mermaid-cdn, aria, contrast, shell-injection] | status: completed
+
 - 2026-09-16 — [Blueprint branch push recovery](blueprint-branch-push-recovery-2026-09-16.md) — `completed` (rebased branch safely force-pushed with exact lease; remote and local `ca5d6dd`)
 
   - 2026-09-16 | `blueprint-branch-push-recovery-2026-09-16.md` | domains: [git, workflow] | topics: [rebase, force-with-lease, remote-tracking, branch-divergence] | status: completed
