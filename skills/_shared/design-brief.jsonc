@@ -101,7 +101,7 @@
         "--syn-kw": "#a1268f",
         "--syn-fn": "#2b57c4",
         "--syn-st": "#1c6b3e",
-        "--syn-cm": "#8a8179",
+        "--syn-cm": "#6f6862",
         "--syn-nu": "#b4530b",
         "--syn-ty": "#8a6410",
         "--syn-op": "#0f766e",
@@ -217,7 +217,7 @@
   // Rendered into consumers verbatim. `base` theme + explicit variables, because
   // the stock themes fight the warm ground.
   "mermaid": {
-    "cdn": "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js",
+    "cdn": "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js",
     "config": {
       "startOnLoad": true,
       "theme": "base",

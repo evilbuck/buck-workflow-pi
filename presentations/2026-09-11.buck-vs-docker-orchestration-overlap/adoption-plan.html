@@ -486,7 +486,7 @@ footer.end .wrap{max-width:1360px}
    btn.setAttribute('aria-expanded', String(open));
    btn.textContent = open ? 'Contents ▴' : 'Contents ▾';
  }); }
- links.forEach(function(a){ a.addEventListener('click', function(){ if(side.classList.contains('open')){ side.classList.remove('open'); btn.textContent='Contents ▾'; } }); });
+ links.forEach(function(a){ a.addEventListener('click', function(){ if(side.classList.contains('open')){ side.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); btn.textContent='Contents ▾'; } }); });
 })();
 </script>
 </body></html>

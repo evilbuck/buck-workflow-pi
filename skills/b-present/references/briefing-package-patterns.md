@@ -98,7 +98,7 @@ presentations/<slug>/
   --syn-kw:#a1268f;
   --syn-fn:#2b57c4;
   --syn-st:#1c6b3e;
-  --syn-cm:#8a8179;
+  --syn-cm:#6f6862;
   --syn-nu:#b4530b;
   --syn-ty:#8a6410;
   --syn-op:#0f766e;
@@ -322,7 +322,7 @@ always `minmax(min(330px,100%),1fr)`.
 <meta name="description" content="{{SUMMARY}}">
 <link rel="stylesheet" href="assets/styles.css">
 <!-- BEGIN generated:mermaid-init · from skills/_shared/design-brief.jsonc · do not edit by hand · regenerate with bun skills/_shared/scripts/render-design-tokens.ts --write -->
-<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js"></script>
 <script>mermaid.initialize({"startOnLoad":true,"theme":"base","themeVariables":{"background":"#ffffff","primaryColor":"#e6f5f3","primaryBorderColor":"#0f766e","primaryTextColor":"#1b1a18","secondaryColor":"#fdf1e3","tertiaryColor":"#faf8f4","lineColor":"#6f6862","textColor":"#3d3a36","fontFamily":"ui-sans-serif,-apple-system,\"Segoe UI\",Inter,Roboto,Helvetica,Arial,sans-serif","fontSize":"14px"},"flowchart":{"curve":"basis","useMaxWidth":true},"sequence":{"useMaxWidth":true}});</script>
 <!-- END generated:mermaid-init -->
 </head><body>
