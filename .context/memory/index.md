@@ -1,3 +1,5 @@
+- 2026-09-18 — [buck-loop extension phasing](buck-loop-extension-phasing-2026-09-18.md) — `completed` (seven execution phases; Phase 1 gate, Phases 2–4 parallel, Phase 5 join)
+
 - 2026-09-18 — [Software-factory recommendations plan](good-ideas-plan-2026-09-18.md) — `completed` (five report recommendations validated; implementation plan and backlog item created)
 
 - 2026-09-17 — [fix-pr PR #26 design-language](fix-pr-26-2026-09-17.md) — `completed` (move thought-dump-writer under skills/, harden TARGET scaffold against injection, sync aria/contrast/CDN warnings; Wooderson re-review no new findings, all checks green)

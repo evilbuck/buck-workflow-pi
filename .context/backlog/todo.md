@@ -3,6 +3,7 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+- [ ] [buck-loop extension — scrap XState, happy-path nested-session runner](items/buck-loop-extension.md) — high; see `.context/2026-09-18.buck-loop-extension/plan-buck-loop-extension.md`
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
@@ -22,6 +23,23 @@
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
 - [x] [Fix 3 live defects from the mattpocock/skills audit](items/mattpocock-audit-defects.md) — high; done 2026-09-10 as **Phase 1** → [`phase-1-live-defects.md`](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md)
 
+
+## buck-loop Extension Phases (2026-09-18)
+
+Overview: [`plan-buck-loop-extension-phases.md`](../2026-09-18.buck-loop-extension/plan-buck-loop-extension-phases.md).
+Umbrella: [buck-loop extension — scrap XState, happy-path nested-session runner](items/buck-loop-extension.md).
+After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
+
+- [ ] [Phase 1: Transition Contract](items/phase-1-transition-contract.md) — hard, `/b-build-hard` — [phase-1-transition-contract.md](../2026-09-18.buck-loop-extension/phase-1-transition-contract.md) — **active**
+
+### Upcoming Phases
+
+- [ ] [Phase 2: Artifact State](items/phase-2-artifact-state.md) — hard, `/b-build-hard` — [phase-2-artifact-state.md](../2026-09-18.buck-loop-extension/phase-2-artifact-state.md)
+- [ ] [Phase 3: Closed-Set Choice](items/phase-3-closed-set-choice.md) — hard, `/b-build-hard` — [phase-3-closed-set-choice.md](../2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md)
+- [ ] [Phase 4: Nested Work Sessions](items/phase-4-nested-work-sessions.md) — hard, `/b-build-hard` — [phase-4-nested-work-sessions.md](../2026-09-18.buck-loop-extension/phase-4-nested-work-sessions.md)
+- [ ] [Phase 5: Loop Supervisor](items/phase-5-loop-supervisor.md) — hard, `/b-build-hard` — [phase-5-loop-supervisor.md](../2026-09-18.buck-loop-extension/phase-5-loop-supervisor.md)
+- [ ] [Phase 6: Command Surface](items/phase-6-command-surface.md) — medium, `/b-build` — [phase-6-command-surface.md](../2026-09-18.buck-loop-extension/phase-6-command-surface.md)
+- [ ] [Phase 7: Documentation and Proof](items/phase-7-documentation-and-proof.md) — medium, `/b-build` — [phase-7-documentation-and-proof.md](../2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md)
 
 ## Decision Closure Phases (2026-09-16)
 
