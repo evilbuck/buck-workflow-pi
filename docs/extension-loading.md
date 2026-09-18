@@ -76,7 +76,7 @@ my-plugin/                       my-package/
 
 For OMP-installed plugins with a `plugin.json`, the manifest can list `commands` as a path or glob. OMP's `omp.commands` manifest entry resolves directories only via `index.{ts,js,mjs,cjs}` — a directory of `*.md` files is **not** resolvable through that key. For Pi-style packages, `commands/` is auto-discovered from the package root.
 
-**This package resolves the discrepancy with a `commands/` mirror.** `prompts/*.md` is the single source of truth. Most `commands/*.md` are symlinks (`commands/b-plan.md` → `../prompts/b-plan.md`) so OMP's `omp-plugins` provider picks them up as slash commands without duplicating content — eight real-file exceptions are listed below. Adding a new prompt is one `ln -s` away.
+**This package resolves the discrepancy with a `commands/` mirror.** `prompts/*.md` is the single source of truth. Every `commands/*.md` entry is a symlink (`commands/b-plan.md` → `../prompts/b-plan.md`) so OMP's `omp-plugins` provider picks them up as slash commands without duplicating content. The mirror is test-enforced (`scripts/commands-mirror.test.ts`) with **zero physical-file exceptions** — adding a new prompt is one `ln -s` away, and forgetting it fails CI.
 
 ### Cross-Platform Slash Command Pattern
 
@@ -102,12 +102,12 @@ $EDITOR prompts/b-newcommand.md
 ln -s ../prompts/b-newcommand.md commands/b-newcommand.md
 ```
 
-**Current exceptions (as of 2026-09):** eight `commands/*.md` entries are real files, not symlinks.
+**Mirror contract (healed 2026-09-18):** every `commands/*.md` entry is a symlink to `../prompts/<name>.md`; there are no physical-file exceptions.
 
-- **Diverged twins** (4): `b-pr.md`, `b-pr-review-2-issues.md`, `b-commit-improved.md`, `b-save-improved.md` — the `prompts/` versions carry full prompt bodies; the `commands/` versions are thin skill-loader stubs. Both surfaces work, but Pi and OMP users see different bodies.
-- **OMP-only commands** (4): `b-kamal-release.md`, `b-pr-improved.md`, `git-clean-orphans.md`, `product-tour.md` — no `prompts/` twin, so Pi never registers them as slash commands; Pi users invoke the underlying skill by name (`/skill:product-tour`, etc.).
+- **Diverged twins** (formerly `b-pr.md`, `b-pr-review-2-issues.md`, `b-commit-improved.md`, `b-save-improved.md`): the thin skill-loader stub body won and now lives in `prompts/` — the full duplicate prompt bodies had gone stale against their `SKILL.md` counterparts, and the `*-improved` stubs document the extension-vs-skill fallback path that matters on both runtimes.
+- **OMP-only commands** (formerly `b-kamal-release.md`, `b-pr-improved.md`, `git-clean-orphans.md`, `product-tour.md`): their bodies moved verbatim into `prompts/`, so Pi registers them as slash commands too.
 
-To heal the drift: give each OMP-only file a real `prompts/` body, then replace the real file with a symlink (`rm commands/x.md && ln -s ../prompts/x.md commands/x.md`). For the diverged twins, either symlink to the full body or move the loader stub into `prompts/` — pick one source of truth per command.
+Drift is now mechanically prevented: `scripts/commands-mirror.test.ts` (part of `npm test`) derives the expected mirror from `prompts/` and fails on any missing symlink, physical twin, or undeclared extra.
 
 ## Current State of buck-workflow-pi
 
@@ -136,19 +136,18 @@ buck-workflow-pi/
     b-plan/SKILL.md
     b-research/SKILL.md
     b-save/SKILL.md         # b-save as pure skill (no extension backing)
-    ... (67 skill directories total)
+    ... (64 skill directories total)
   prompts/                  # source of truth for slash command bodies
     b-build.md
     b-plan.md
     b-save.md               # b-save prompt (reads state file directly)
     b-commit.md             # b-commit prompt (git-commit skill wrapper)
-    ... (40 prompt files total)
-  commands/                 # mirror so OMP discovers slash commands
+    ... (43 prompt files total)
+  commands/                 # symlink mirror so OMP discovers slash commands
     b-build.md    -> ../prompts/b-build.md
     b-save.md     -> ../prompts/b-save.md
     b-commit.md   -> ../prompts/b-commit.md
-    ... (44 entries total: 36 symlinks + 8 real files — see exceptions below)
-```
+    ... (one symlink per prompts/*.md entry — 1:1, test-enforced)
 
 `package.json` declares both `pi` and `omp` keys. The `pi` key lists `extensions`, `prompts`, and `skills` because Pi's filter-object schema exposes them as first-class. The `omp` key lists only `extensions` because OMP's `omp-plugins` provider auto-discovers `skills/`, `commands/`, `prompts/`, and the other sibling directories directly from the package root — duplicating them in the `omp` manifest would be redundant and brittle. (JSON disallows comments, so this rationale lives here rather than in `package.json`.)
 

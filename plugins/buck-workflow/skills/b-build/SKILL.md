@@ -61,6 +61,7 @@ This makes browser verification **repeatable and cheap** — no manual testing r
 
 ```
 [ ] Confirm with user what interface changes are needed
+[ ] Name and confirm the **seams** under test before the first RED — which interface each test crosses, and that no assertion recomputes its expected value the way the code does (see `references/seams.md`; vocabulary: `skills/codebase-design/SKILL.md`)
 [ ] Confirm which behaviors to test (prioritize critical paths)
 [ ] Identify test type: vitest (unit) or Playwright (browser)
 [ ] List the behaviors to test (not implementation steps)
