@@ -9,6 +9,8 @@
 
   - 2026-09-16 | `docs-catalog-sync-2026-09-16.md` | domains: [docs] | topics: [buck-workflow-doc, extension-loading-doc, readme-catalog, commands-mirror-drift, mermaid] | status: completed
 
+- 2026-09-14 — [Anthropic denoise optimization](anthropic-denoise-optimization-2026-09-14.md) — `completed` (canonical prompt rewrite; Opus/Sonnet synthetic smoke checks; Sonnet over-answering limitation recorded)
+
 - 2026-09-13 — [Skill Explainer plugin installation](skill-explainer-plugin-2026-09-13.md) — `completed` (verbatim archive copy; OMP/Pi package + Codex bundle + cross-harness installer coverage; 544 tests pass)
 
   - 2026-09-13 | `skill-explainer-plugin-2026-09-13.md` | domains: [skill, plugin, packaging] | topics: [skill-explainer, omp, codex, cross-harness] | status: completed
