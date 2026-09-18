@@ -13,8 +13,9 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 
 | Tool | Purpose |
 |---|---|
+| `node` | runs the deterministic verdict engine (`scripts/check.mjs`) |
 | `git` | patch gate (diff-cover needs a diff), diff-scoped lint |
-| `bun` | runs commands (if TS ecosystem) |
+| `diff-cover`, `lizard` | patch + complexity measurements, when configured |
 
 ## Invocation
 
@@ -28,95 +29,65 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 
 Follow the five-step chain in `docs/contract-resolution.md`. Set `contract` and `contract_version` on the verdict from the chain outcome.
 
-- **Authoritative `guardrails.json`**: parse, validate schema, honour `version` (v1 → three new gates skipped per `ratchet-protocol.md` § v1 Compatibility), run all gates. `contract: "durable"`.
+- **Authoritative `guardrails.json`**: proceed to Step 1b (the deterministic runner). `contract: "durable"`.
 - **Managed block present but `guardrails.json` missing**: emit the broken-contract warning and fall through to step 3.
 - **`detect-stack.ts` reports ≥ 1 ecosystem**: build an ephemeral contract, run only the unit-test, functional-test, and lint gates. Skip coverage, patch, and complexity gates (no recorded baseline). `contract: "ephemeral"`. Emit the verbose warning.
 - **No ecosystem detected**: scan `README.md` for the first fenced code block after a heading matching `/^#{1,4}\s*(tests?|testing|development|dev|quality|checks?|contributing)\b/i`. Print it verbatim as unverified suggestions. Never execute it. `contract: "suggested"`.
 - **Nothing found**: emit the no-contract warning. `contract: "none"`. Gate result `unenforceable`.
 
-**Only fails hard on a malformed `guardrails.json`** (unparseable JSON, or missing `version`/`ecosystems`). A missing file is no longer an error.
+**Only fails hard on a malformed `guardrails.json`** (unparseable JSON, or missing `version`/`ecosystems`). A missing file is not an error.
 
-### Step 2: Run Test Gates
+### Step 1b: Run the Deterministic Verdict Engine (durable path)
 
-For each ecosystem in the contract:
+```bash
+node <skill_dir>/scripts/check.mjs --cwd <repo root>
+```
+
+The runner reads `guardrails.json`, executes the recorded commands (argv spawn — never a shell string), applies the `enforcement` states (`required` / `advisory` / `disabled`; defaults when the field is absent), and emits the structured verdict JSON on stdout. It exits `1` only when a **required** gate fails, `2` when `guardrails.json` is absent, and `1` on a malformed contract with a clear error.
+
+**The runner is the single computation source.** Do not re-implement gate logic in prose or re-derive gate values by hand — interpret the emitted verdict (`gates`, `diagnostics`, `ratchet_update`, `enforcement`). The same command (`npm run guardrails:check` in this repo) runs in pull-request CI; local and CI verdicts are byte-identical by construction. Contract resolution and the no-contract diagnostics (steps 2–5 of the chain) remain the skill's job; the runner never writes files.
+
+
+### Step 2: Ephemeral Path — Test and Lint Gates Only
+
+These steps apply **only to the ephemeral contract** (no `guardrails.json`; detected commands). The durable path computed everything inside the runner in Step 1b — do not repeat it by hand.
+
+**Test gates.** For each detected ecosystem:
 
 1. Run `test_runner`; capture exit code. On failure, capture the last 50 lines of output for the verdict.
 2. Run `functional_test_cmd` when non-null; capture exit code. On failure, capture the last 50 lines.
 
 Both gates are exit-code binary. `null` → `skipped`. Non-zero exit → `fail`. Zero → `pass`.
 
-### Step 3: Run the Lint Gate
-
-Per-ecosystem:
+**Lint gate.** Per-ecosystem:
 
 - `lint_cmd: null` → `lint_gate: "skipped"`.
-- `lint_accepts_paths: true` and `git_compare_branch` non-null → diff-scoped. Compute the changed file set:
-  ```bash
-  git diff --name-only --diff-filter=ACMR <git_compare_branch>...HEAD
-  git diff --name-only --diff-filter=ACMR HEAD
-  git ls-files --others --exclude-standard
-  ```
-  De-duplicate, filter to the ecosystem's own file extensions, append to `lint_cmd`. Empty set → `lint_gate: "skipped"`. Exit 0 → `pass`. Non-zero → `fail`.
-- `lint_accepts_paths: false` → run `lint_cmd` over the whole repo. Enforce (exit 0 required) **only if** `ratchet.baseline_lint_clean == true`. If `ratchet.baseline_lint_clean == false`, report the exit code as `advisory` and never fail. `lint_cmd: null` outside the durable-contract path → `lint_gate: "skipped"`.
+- `lint_accepts_paths: true` and a compare branch is resolvable → diff-scoped: compute the changed file set (`git diff --name-only --diff-filter=ACMR <compare>...HEAD`, same for `HEAD`, plus `git ls-files --others --exclude-standard`), de-duplicate, filter to the ecosystem's own file extensions, append to `lint_cmd`. Empty set → `skipped`. Exit 0 → `pass`. Non-zero → `fail`.
+- `lint_accepts_paths: false` → run `lint_cmd` over the whole repo and report the exit code as `advisory` — no `baseline_lint_clean` exists on an ephemeral contract, so whole-repo lint never fails the run.
 
-Set `lint.mode` to one of `"diff-scoped" | "whole-repo-enforced" | "whole-repo-advisory" | "skipped"`.
+Set `lint.mode` to one of `"diff-scoped" | "whole-repo-advisory" | "skipped"`.
 
-### Step 4: Run Coverage Commands
+Coverage, patch, complexity, and ratchet comparison exist only under a durable contract (they need recorded baselines) and are computed exclusively by the runner.
 
-For each ecosystem in `guardrails.json.ecosystems[]` (durable contract only):
+### Step 3: Return Structured Verdict
 
-1. Run the recorded coverage command:
-   ```bash
-   <coverage_tool> --coverage-reporter=<coverage_format>
-   ```
-
-2. Parse the output and extract:
-   - Global coverage percentage
-   - Per-file coverage (for patch gate)
-
-3. If `git` is available and `guardrails.json.git_compare_branch` is not `null`, run the patch gate using the recorded compare branch:
-   ```bash
-   diff-cover <coverage.xml> --compare-branch=<git_compare_branch> --fail-under=<targets.patch_coverage_min>
-   ```
-
-   Capture the patch coverage percentage. If `git` is missing or `git_compare_branch` is `null`, skip the patch gate entirely — no comparison target is available, so only the global ratchet applies.
-
-### Step 5: Run Complexity Commands
-
-For each ecosystem:
-
-1. Run the recorded complexity command:
-   ```bash
-   <complexity_cmd>
-   ```
-
-2. Parse the output and extract:
-   - Current complexity inventory: functions with cyclomatic complexity > `targets.cyclomatic_max` (10)
-   - Hard-ceiling candidates: functions with cyclomatic complexity > `targets.cyclomatic_hard_ceiling` (15)
-
-### Step 6: Compare Against Gates
-
-**Patch gate** (hard):
-- If patch coverage < `targets.patch_coverage_min` (90%): **FAIL**
-
-**Global ratchet** (monotonic):
-- If current coverage < `ratchet.baseline_coverage`: **FAIL** (regression)
-- If current coverage > `ratchet.baseline_coverage`: **PASS** (improvement; report a baseline update)
-
-**Complexity gate**:
-- If any **new or worsened non-baseline** function has complexity > `targets.cyclomatic_hard_ceiling` (15): **FAIL**
-- If any **new** function (not in baseline) has complexity > `targets.cyclomatic_max` (10): **FAIL**
-- If existing baseline hotspots remain unchanged or improve: **PASS** and report burn-down progress. A baseline hotspot above 15 does not fail day one unless it is new or worsened.
-
-### Step 7: Return Structured Verdict
-
-Emit the verdict as JSON:
+On the durable path, forward the runner's emitted verdict (add the contract-resolution outcome if the runner exited `2`). On the ephemeral path, assemble the verdict manually from Step 2.
 
 ```json
 {
   "status": "pass",
   "contract": "durable",
   "contract_version": 2,
+  "runner_version": "1.0.0",
+  "enforcement": {
+    "unit_test_gate": "required",
+    "functional_test_gate": "disabled",
+    "lint_gate": "disabled",
+    "patch_gate": "advisory",
+    "global_ratchet": "required",
+    "complexity_gate": "required"
+  },
+  "diagnostics": [],
   "tests": {
     "unit_gate": "pass",
     "unit_exit_code": 0,
@@ -172,9 +143,9 @@ Emit the verdict as JSON:
 
 When `contract_version: 1`, append the one-line upgrade hint exactly: `guardrails.json is v1 — run /b-init-guardrails to add lint and test gates.`
 
-### Step 8: Dispatch Contract
+### Step 4: Dispatch Contract
 
-This skill is the measurement procedure once invoked. It does **not** dispatch itself.
+This skill is the measurement procedure once invoked. It does **not** dispatch itself. On the durable path the dispatched work is one deterministic command — `node skills/b-guardrails-check/scripts/check.mjs` — so a background `task` or CI step returns the identical verdict the mainline agent would compute.
 
 **OMP (async caller mode):**
 

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Verified implementation-plan report for hardening Buck Workflow integrity and enforcement.">
+  <title>Hardening Buck Workflow — Verified Factory Improvements</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --paper:#f4f0e6; --paper-hi:#fcfaf4; --ink:#20251f; --muted:#657066; --rule:#cfc9bb; --moss:#264a3e; --moss-pale:#dce9df; --signal:#c8522f; --signal-pale:#fae2d8; --gold:#a9781e; --gold-pale:#f5ead0; --blue:#315c70; --blue-pale:#ddecf0; --red:#a4392f; --shadow:0 14px 34px rgba(36,42,34,.10); }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:400 16px/1.62 Manrope, ui-sans-serif, sans-serif; }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; opacity:.22; background-image:radial-gradient(rgba(40,48,39,.22) .55px, transparent .7px); background-size:7px 7px; mix-blend-mode:multiply; }
+    .wrap { width:min(1160px, calc(100% - 40px)); margin:auto; position:relative; }
+    header { padding:26px 0 70px; border-top:8px solid var(--moss); }
+    .eyebrow, .kicker, th, .meta, .pill, code { font-family:"DM Mono", ui-monospace, monospace; }
+    .eyebrow { display:flex; gap:11px; align-items:center; color:var(--moss); font-size:.73rem; letter-spacing:.09em; text-transform:uppercase; font-weight:500; }
+    .eyebrow::before { content:""; width:26px; height:1px; background:currentColor; }
+    .hero { display:grid; grid-template-columns:1.4fr .6fr; gap:48px; align-items:end; padding-top:46px; }
+    h1,h2,h3 { font-family:Fraunces, Georgia, serif; line-height:1.04; letter-spacing:-.035em; margin:0; }
+    h1 { max-width:850px; font-size:clamp(3.05rem, 7vw, 6.3rem); font-weight:600; }
+    h1 em { color:var(--signal); font-style:normal; }
+    h2 { font-size:clamp(2rem, 4vw, 3.25rem); font-weight:600; }
+    h3 { font-size:1.3rem; font-weight:600; }
+    p { margin:0 0 1em; }
+    .lede { margin-top:28px; max-width:720px; font-size:1.16rem; line-height:1.7; }
+    .hero-stamp { padding:21px; border:1px solid var(--moss); background:var(--moss); color:var(--paper-hi); box-shadow:var(--shadow); transform:rotate(1.4deg); }
+    .hero-stamp strong { display:block; margin:.45rem 0; font:600 1.18rem/1.15 Fraunces, Georgia, serif; }
+    .hero-stamp .meta { font-size:.7rem; color:#c4d7c9; letter-spacing:.06em; text-transform:uppercase; }
+    main { padding-bottom:90px; }
+    section { padding:72px 0; border-top:1px solid var(--rule); }
+    .section-head { display:grid; grid-template-columns:160px 1fr; gap:24px; margin-bottom:32px; }
+    .kicker { color:var(--signal); font-weight:500; font-size:.72rem; letter-spacing:.09em; text-transform:uppercase; padding-top:8px; }
+    .intro { max-width:760px; color:#3f493f; font-size:1.07rem; }
+    .callout { margin:32px 0 0; padding:26px 28px 24px; border-left:5px solid var(--signal); background:var(--paper-hi); box-shadow:var(--shadow); font:500 clamp(1.3rem, 2.7vw, 2rem)/1.28 Fraunces, Georgia, serif; }
+    .callout b { color:var(--signal); }
+    .cards { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; margin-top:30px; }
+    .card { padding:21px; background:rgba(252,250,244,.72); border:1px solid var(--rule); min-height:170px; }
+    .card .number { color:var(--signal); font:500 .75rem "DM Mono",monospace; }
+    .card p { margin-top:.55rem; margin-bottom:0; font-size:.91rem; line-height:1.55; }
+    .matrix { display:grid; grid-template-columns:repeat(5, 1fr); gap:0; border:1px solid var(--rule); background:var(--paper-hi); }
+    .matrix article { padding:20px; border-right:1px solid var(--rule); min-height:270px; }
+    .matrix article:last-child { border-right:0; }
+    .matrix h3 { margin:14px 0 10px; font-size:1.15rem; }
+    .matrix p { font-size:.85rem; line-height:1.52; color:#4c554c; }
+    .pill { display:inline-block; padding:4px 8px; border-radius:999px; font-size:.67rem; line-height:1; letter-spacing:.04em; font-weight:500; white-space:nowrap; }
+    .adapt { color:#174331; background:var(--moss-pale); } .reject { color:#783120; background:var(--signal-pale); } .adopt { color:#6b4c12; background:var(--gold-pale); }
+    .current { color:#255064; background:var(--blue-pale); } .planned { color:#6f341e; background:var(--signal-pale); }
+    .p0 { color:#6d2019; background:#f5d6ce; } .p01 { color:#664309; background:var(--gold-pale); } .p1 { color:#174331; background:var(--moss-pale); } .p2 { color:#255064; background:var(--blue-pale); }
+    .workstream { display:grid; grid-template-columns:105px 1fr; gap:28px; padding:28px 0; border-top:1px solid var(--rule); }
+    .workstream:first-of-type { border-top:0; }
+    .workstream-id { color:var(--moss); font:600 2.2rem/1 Fraunces,Georgia,serif; }
+    .workstream-id .pill { margin-top:9px; vertical-align:top; }
+    .workstream h3 { margin-bottom:12px; font-size:1.55rem; }
+    .flow { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; }
+    .flow div { padding:15px 16px; border-top:2px solid var(--moss); background:rgba(252,250,244,.7); font-size:.9rem; }
+    .flow strong { display:block; margin-bottom:5px; color:var(--moss); font:500 .69rem "DM Mono",monospace; text-transform:uppercase; letter-spacing:.08em; }
+    .table-wrap { overflow-x:auto; border:1px solid var(--rule); background:var(--paper-hi); }
+    table { width:100%; border-collapse:collapse; min-width:800px; font-size:.89rem; }
+    th { text-align:left; padding:14px 16px; color:var(--moss); background:#e8e4d9; font-size:.67rem; letter-spacing:.08em; text-transform:uppercase; }
+    td { padding:15px 16px; vertical-align:top; border-top:1px solid #dfdacd; line-height:1.48; }
+    td:first-child { width:28%; font-weight:600; }
+    td:nth-child(2) { color:#4c554c; }
+    .tick { color:var(--moss); font-weight:700; white-space:nowrap; }
+    .not-do { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+    .not-do article { padding:20px 22px; background:#eee9dd; border-left:3px solid var(--gold); }
+    .not-do h3 { font-size:1.1rem; margin-bottom:6px; }
+    .not-do p { margin:0; font-size:.9rem; }
+    .next { display:grid; grid-template-columns:1.1fr .9fr; gap:28px; }
+    .sequence { margin:0; padding:0; list-style:none; counter-reset:step; }
+    .sequence li { counter-increment:step; position:relative; padding:0 0 20px 46px; }
+    .sequence li::before { content:counter(step, decimal-leading-zero); position:absolute; left:0; top:1px; color:var(--signal); font:500 .75rem "DM Mono",monospace; }
+    .sequence li:not(:last-child)::after { content:""; position:absolute; left:11px; top:26px; bottom:2px; border-left:1px solid var(--rule); }
+    .risk { padding:17px 18px; margin-bottom:10px; background:var(--paper-hi); border:1px solid var(--rule); }
+    .risk strong { display:block; color:var(--signal); font:600 .77rem "DM Mono",monospace; text-transform:uppercase; letter-spacing:.06em; }
+    .glossary { margin-top:28px; padding:22px; border:1px dashed #a9aa9d; columns:2; column-gap:34px; background:rgba(252,250,244,.55); }
+    .glossary p { break-inside:avoid; font-size:.85rem; }
+    .glossary b { color:var(--moss); }
+    footer { padding:24px 0 42px; border-top:1px solid var(--rule); color:var(--muted); font-size:.78rem; }
+    code { padding:.08em .28em; background:#e8e4d9; font-size:.84em; color:#344238; }
+    @media (max-width:900px) { .hero,.next { grid-template-columns:1fr; } .hero-stamp { max-width:330px; } .cards { grid-template-columns:repeat(2,1fr); } .matrix { grid-template-columns:repeat(2,1fr); } .matrix article { border-bottom:1px solid var(--rule); } .matrix article:nth-child(2n) { border-right:0; } }
+    @media (max-width:620px) { .wrap { width:min(100% - 28px, 1160px); } header { padding-bottom:44px; } .section-head,.workstream { grid-template-columns:1fr; gap:12px; } section { padding:48px 0; } .cards,.flow,.not-do,.matrix { grid-template-columns:1fr; } .matrix article { border-right:0; } .workstream-id { display:flex; align-items:center; gap:12px; font-size:1.6rem; } .workstream-id .pill { margin:0; } .glossary { columns:1; } h1 { font-size:3rem; } }
+  </style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="eyebrow">Factory integrity report · verified 18 Sep 2026</div>
+  <div class="hero"><div><h1>Hardening Buck Workflow,<br><em>verified</em> against the live repo.</h1><p class="lede">This plan turns Buck Workflow’s most load-bearing documented promises into checks the machine can enforce: red tests, a deterministic quality verdict, and an opt-in security hook. It gives a junior engineer a clearer answer to “can I trust this?”: <strong>yes—because drift and failure fail loudly.</strong></p></div><aside class="hero-stamp"><span class="meta">Report status</span><strong>Plan written.<br>Not started.</strong><span class="meta">Every recommendation independently verified before planning</span></aside></div>
+</div></header>
+<main class="wrap">
+<section id="problem"><div class="section-head"><div class="kicker">01 / The problem</div><div><h2>Promises are not enforcement.</h2><p class="intro">Buck Workflow is a toolkit of agent skills, mirrored command prompts, installers, and quality guardrails. Today, many important contracts live only in prose or convention—the exact place where a copy can drift, an agent can forget, or a CI run can look green without checking the intended thing.</p></div></div>
+<div class="callout">Trust moves from <b>“someone remembers”</b> to <b>“the machine refuses.”</b></div>
+<div class="cards"><article class="card"><span class="number">01 · CATALOG</span><h3>Metadata can quietly break</h3><p>There are <code>64</code> direct skills; exactly one has no YAML frontmatter: <code>skills/code-review/SKILL.md</code>. Its own <code>pr-ref.test.ts</code> still passes <code>7/7</code> in <code>96ms</code>—passing tests did not verify the catalog promise.</p></article><article class="card"><span class="number">02 · BUNDLE</span><h3>Copies are already drifting</h3><p>The physical, self-contained Codex bundle has <code>30</code> skills and <code>8</code> live canonical-copy differences. No parity check turns that drift into an immediate failure.</p></article><article class="card"><span class="number">03 · MIRROR</span><h3>Mirrors need a decision</h3><p><code>commands/</code> has <code>43</code> entries: <code>35</code> symlinks and <code>8</code> physical files. Four physical twins diverge from <code>prompts/</code>; four have no prompt counterpart.</p></article><article class="card"><span class="number">04 · SECURITY</span><h3>A real scanner is unwired</h3><p>The <code>696</code>-line <code>security-audit.sh</code> scans secrets, PII, profanity, and history, but nothing invokes it in the repository.</p></article><article class="card"><span class="number">05 · GATES</span><h3>The contract is only prose</h3><p><code>guardrails.json</code> v2 has no <code>gates</code> key and no required/advisory/disabled states. Its six-gate verdict exists only in the <code>b-guardrails-check</code> skill narrative.</p></article><article class="card"><span class="number">06 · RUNNER</span><h3>Interpretation is the runtime</h3><p><code>skills/b-guardrails-check/</code> contains only documentation—no scripts directory or executable. An AI agent computes the verdict by reading instructions.</p></article></div>
+<div class="glossary"><p><b>YAML frontmatter</b> — a small structured header at the top of a skill file; tooling can reliably read its name and description.</p><p><b>Symlink / physical file</b> — a symlink points to one source of truth; a physical file is a separate copy that can diverge.</p><p><b>Quality gate</b> — a check that must produce a clear pass/fail decision before work proceeds.</p><p><b>Ratchet</b> — a baseline that may tighten but must not quietly get worse.</p><p><b>Pre-push hook</b> — a local Git action that runs just before a push; it can stop unsafe changes.</p><p><b>Hermetic test</b> — a test in a controlled environment, proving a package works without accidental help from the developer’s machine.</p></div>
+</section>
+<section id="provenance"><div class="section-head"><div class="kicker">02 / Provenance</div><div><h2>Five recommendations, independently corrected.</h2><p class="intro">The third-party comparison report was input—not authority. The plan preserves useful intent while changing recommendations where today’s checkout says the premise is stale or the proposed mechanism would damage packaging.</p></div></div>
+<div class="matrix"><article><span class="pill adapt">ADAPT</span><h3>Catalog integrity</h3><p>Adopt frontmatter and parity checks, but test the actual <code>64</code>-skill inventory and the current eight-copy drift.</p></article><article><span class="pill adapt">ADAPT</span><h3>Command distribution</h3><p>Replace the report’s unreproducible <code>53/55</code> symlink split with a deterministic contract derived from current <code>prompts/</code>.</p></article><article><span class="pill adapt">ADAPT</span><h3>Guardrail verdicts</h3><p>The report said five gates; verification found <code>6</code>. Make all six explicit and executable, not agent-interpreted prose.</p></article><article><span class="pill reject">REJECT → ADAPT</span><h3>Bundle symlink</h3><p>Reject symlinking the Codex bundle: it is intentionally physical and self-contained. Preserve that packaging property with byte-parity tests and explicit Codex-only exceptions.</p></article><article><span class="pill adopt">ADOPT NARROWLY</span><h3>Security hook</h3><p>Wire the existing scanner through an opt-in hook manager; never let installation silently overwrite other Git-hook tooling.</p></article></div>
+<p class="intro" style="margin-top:25px"><span class="pill current">CURRENT (MEASURED)</span> The report implied a test exclusion, but <code>skills/code-review/scripts/pr-ref.test.ts</code> passes <code>7/7</code> in <code>96ms</code>. <span class="pill planned">PLANNED</span> New contracts are derived from live reality, never stale headline counts.</p>
+</section>
+<section id="workstreams"><div class="section-head"><div class="kicker">03 / Workstreams</div><div><h2>Five routes from convention to refusal.</h2><p class="intro">Each workstream names a current failure mode, a bounded planned change, and the observable reason it is worth doing.</p></div></div>
+<article class="workstream"><div class="workstream-id">W1 <span class="pill p0">P0</span></div><div><h3>Skill catalog integrity</h3><div class="flow"><div><strong>Problem</strong>One skill lacks frontmatter; the self-contained bundle already has eight live copy differences.</div><div><strong>Planned change</strong>Fix that header; add a Vitest test for every direct skill’s valid frontmatter (unique name = directory, nonempty description); declare inventory and recursively byte-compare bundle copies, allowing only the two Codex-only skills: <code>b-build-hard</code> and <code>b-commit</code>.</div><div><strong>Benefit</strong>You can trust the catalog and bundle because a changed or missing contract becomes a red test—not a later surprise.</div></div></div></article>
+<article class="workstream"><div class="workstream-id">W2 <span class="pill p01">P0/P1</span></div><div><h3>Distribution &amp; install integrity</h3><div class="flow"><div><strong>Problem</strong>Command mirrors contain physical twins and special entries; an installation can appear fine only because a workstation PATH happens to help it.</div><div><strong>Planned change</strong>Finish the mirror decision, then test from <code>prompts/</code>: every prompt has exactly one command symlink, with no physical twins except documented exceptions. Add a hermetic smoke test: <code>npm pack</code> → temp-prefix install → <code>bash -lc 'buck-workflow --list'</code>.</div><div><strong>Benefit</strong>Mirror drift cannot silently return, and the published CLI is proven discoverable in a real login shell.</div></div></div></article>
+<article class="workstream"><div class="workstream-id">W3 <span class="pill p1">P1</span></div><div><h3>Guardrail enforcement</h3><div class="flow"><div><strong>Problem</strong>CI has one job—<code>npm ci</code>, then <code>npm test</code>—and no guardrail runner, Lizard, or diff-cover provisioning. Verdict rules are prose.</div><div><strong>Planned change</strong>Add explicit <code>required</code>/<code>advisory</code>/<code>disabled</code> states per gate. Extract verdict computation into one deterministic <code>check.mjs</code> used by both the skill and PR CI. Required failures exit nonzero; ratchets remain. Patch coverage begins advisory and is promoted only after green clean CI.</div><div><strong>Benefit</strong>“Tests pass before you claim done” stops depending on an agent’s interpretation; the same executable decides locally and in CI.</div></div></div></article>
+<article class="workstream"><div class="workstream-id">W4 <span class="pill p2">P2</span></div><div><h3>Opt-in pre-push security hook</h3><div class="flow"><div><strong>Problem</strong>A real <code>696</code>-line scanner is unused, while the installer’s <code>--verify</code> mode knows nothing about hooks.</div><div><strong>Planned change</strong>Provide <code>hooks install/status/remove</code>, plus a managed pre-push launcher for the audit. It chains existing hooks or safely refuses; it never silently overwrites <code>core.hooksPath</code>.</div><div><strong>Benefit</strong>Detectable secrets can block a push, while engineers keep control of their existing hook tooling and latency trade-offs.</div></div></div></article>
+<article class="workstream"><div class="workstream-id">W5 <span class="pill p2">P2</span></div><div><h3>Docs &amp; close-out</h3><div class="flow"><div><strong>Problem</strong>New enforcement is only useful when users understand its contracts and status.</div><div><strong>Planned change</strong>Sync living docs, then run <code>b-review</code> → <code>b-docs</code> → <code>b-save</code> → <code>b-commit</code>.</div><div><strong>Benefit</strong>The documented workflow matches the enforced workflow, and close-out is reviewed and recorded.</div></div></div></article>
+</section>
+<section id="evidence"><div class="section-head"><div class="kicker">04 / Trust anchor</div><div><h2>Evidence table.</h2><p class="intro">Every plan claim below is anchored to an observed fact from this checkout today—not inferred from the comparison report.</p></div></div>
+<div class="table-wrap"><table><thead><tr><th>Claim in plan</th><th>Measured today</th><th>Verdict</th></tr></thead><tbody>
+<tr><td>Catalog needs mechanical metadata validation</td><td><code>64</code> direct skill files; exactly one lacks YAML frontmatter: <code>skills/code-review/SKILL.md</code>, opening <code># Release PR Code Review — Reusable Prompt</code>. Its test exists and passes <code>7/7</code> in <code>96ms</code>.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Codex distribution needs parity enforcement</td><td><code>plugins/buck-workflow/skills/</code> is physical, self-contained, and has <code>30</code> skills. Codex-only: <code>b-build-hard</code>, <code>b-commit</code>. Eight live differences: <code>_shared</code>, <code>b-build</code>, <code>b-docs</code>, <code>b-grill-with-docs</code>, <code>b-research</code>, <code>b-review</code>, <code>b-save</code>, <code>fix-pr</code>.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Command mirror needs a deterministic decision</td><td><code>43</code> entries = <code>35</code> symlinks + <code>8</code> physical. Diverged twins: <code>b-pr</code>, <code>b-pr-review-2-issues</code>, <code>b-commit-improved</code>, <code>b-save-improved</code>. No prompt counterpart: <code>b-kamal-release</code>, <code>b-pr-improved</code>, <code>git-clean-orphans</code>, <code>product-tour</code>. Zero dangling links; all <code>39</code> prompts represented.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Existing security scan should guard pushes</td><td><code>scripts/security-audit.sh</code> is <code>696</code> lines, self-contained; scans secrets/PII/profanity/history; exits <code>0</code> clean, <code>1</code> findings, <code>2</code> usage error; supports <code>--json</code>, <code>--skip-history</code>, <code>--skip-pii</code>. Nothing invokes it except .gitignore/docs/history mentions.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Guardrails need enforcement state</td><td><code>guardrails.json</code> v2 keys are only <code>complexity_baseline</code>, <code>ecosystems</code>, <code>git_compare_branch</code>, <code>ratchet</code>, <code>targets</code>, <code>version</code>. No <code>gates</code>; no state fields. Six-gate verdict exists only in skill prose.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Verdict needs an executable</td><td><code>skills/b-guardrails-check/</code> has only <code>SKILL.md</code> and <code>docs/contract-resolution.md</code>; no scripts directory or executable.</td><td class="tick">✓ verified</td></tr>
+<tr><td>CI needs the deterministic runner</td><td><code>.github/workflows/test.yml</code> has one job: checkout, setup-bun, setup-node <code>22</code>, <code>npm ci</code>, <code>npm test</code>. <code>npm test</code> is <code>vitest run</code> plus two bun tests. No runner, Lizard, or diff-cover step.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Hook installation is not current installer behavior</td><td><code>scripts/install.mjs</code> has <code>--verify</code> mixed-checkout diagnostics and mentions “hook” <code>ZERO</code> times; normal install does not touch Git hooks.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Implementation has not begun</td><td>These planned files are absent: <code>scripts/skill-frontmatter.test.ts</code>, <code>scripts/hooks.mjs</code>, <code>scripts/hooks/pre-push</code>, <code>skills/b-guardrails-check/scripts/check.mjs</code>.</td><td class="tick">✓ verified</td></tr>
+<tr><td>Queueing is currently blocked elsewhere</td><td><code>.context/backlog/todo.md</code> is unmerged (<code>UU</code> in Git status). That conflict is separate work and must be resolved before this plan is queued or committed.</td><td class="tick">✓ verified</td></tr>
+</tbody></table></div>
+</section>
+<section id="limits"><div class="section-head"><div class="kicker">05 / Deliberate limits</div><div><h2>What this plan will not do.</h2><p class="intro">Boundaries protect the plan from replacing one vague promise with an overgrown, risky change.</p></div></div>
+<div class="not-do"><article><h3>No bundle symlink</h3><p>It would break the Codex bundle’s standalone, self-contained packaging.</p></article><article><h3>No stale counts as contracts</h3><p>The comparison report’s old numbers do not become rules; tests derive from measured structure.</p></article><article><h3>No unrelated debt cleanup</h3><p>Existing coverage and complexity debt is not fixed inside this enforcement plan.</p></article><article><h3>No automatic hook installation</h3><p>Package installation will not alter local Git hooks without an explicit opt-in.</p></article><article><h3>No revival of <code>b-flow</code></h3><p>The dead extension is outside this plan’s integrity and enforcement scope.</p></article></div>
+</section>
+<section id="status"><div class="section-head"><div class="kicker">06 / Status</div><div><h2>Ready to sequence, not ready to run.</h2><p class="intro"><span class="pill current">CURRENT (MEASURED)</span> The plan is written but not started. The named new files remain absent. A separate unresolved conflict blocks queueing or committing it.</p></div></div>
+<div class="next"><div><h3 style="margin-bottom:22px">Next steps</h3><ol class="sequence"><li><strong>Resolve <code>todo.md</code> conflict.</strong> The <code>UU</code> state in <code>.context/backlog/todo.md</code> is separate work and comes first.</li><li><strong>Run <code>/b-phase</code>.</strong> The plan spans four independent surfaces and needs a safe phased shape.</li><li><strong>Choose execution mode.</strong> Make that decision before enabling any autonomous loop.</li></ol></div><aside><h3 style="margin-bottom:17px">Risks to keep visible</h3><div class="risk"><strong>Single source of truth</strong>If the skill retains its own verdict logic, there will be two guardrail implementations. <code>check.mjs</code> must be the runner.</div><div class="risk"><strong>Reproducible CI</strong>Lizard and diff-cover resolve from workstation PATH rather than package dependencies; CI confidence is false until provisioning is reproducible.</div><div class="risk"><strong>Safe promotion</strong>Promoting the patch gate immediately could block unrelated PRs on existing debt.</div><div class="risk"><strong>Hook coexistence</strong>Hook latency and existing-hook behavior need careful chaining or a safe refusal.</div></aside></div>
+</section>
+</main>
+<footer><div class="wrap"><span class="eyebrow">Buck Workflow · integrity plan explainer</span><p style="margin:13px 0 0">Current state is measured; planned changes are explicitly labelled. This report explains the implementation plan, not shipped behavior.</p></div></footer>
+</body></html>

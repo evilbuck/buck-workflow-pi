@@ -29,7 +29,7 @@ the plugin from the Plugins Directory.
 
 ## Development
 
-`skills/` at the repository root is the canonical source. `plugins/buck-workflow/skills/` is a release bundle for Codex and must remain self-contained. When a shipped canonical skill changes, copy its full directory into this bundle before publishing and validate the plugin.
+`skills/` at the repository root is the canonical source. `plugins/buck-workflow/skills/` is a release bundle for Codex and must remain self-contained — never a symlink to the canonical tree. The bundle is a **curated inventory**: every entry is either a byte-for-byte recursive copy of the same-named canonical skill, or one of the two Codex-only skills (`b-build-hard`, `b-commit`) with no canonical twin. When a shipped canonical skill changes, re-copy its full directory into the bundle before publishing — `scripts/codex-plugin.test.ts` (part of `npm test`) enforces exact directory-set and recursive path/byte parity, so a stale or undeclared bundle copy fails CI.
 
 The repository marketplace is `.agents/plugins/marketplace.json`. For local
 testing, add the repository root with `codex plugin marketplace add .`, then

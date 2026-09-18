@@ -1,3 +1,7 @@
+---
+name: code-review
+description: Release PR code review — fan out parallel agents across the highest-risk change areas, trace every finding back to its originating PR, and write per-PR review files via the pr-context and submit-review scripts. Review only — never commits or pushes.
+---
 # Release PR Code Review — Reusable Prompt
 
 ## Purpose

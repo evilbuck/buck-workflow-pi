@@ -23,6 +23,7 @@ import {
 import { join, dirname, resolve, isAbsolute, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { hooksInstall, hooksStatus, hooksRemove } from "./hooks.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -531,6 +532,25 @@ export function verifySurfaces({
  * Parse CLI arguments into an options bag.
  * @param {string[]} argv - process.argv.slice(2)
  */
+function parseHooksPrefix(argv) {
+  if (argv[0] !== "hooks") return { command: null, hooksAction: null, start: 0 };
+  return { command: "hooks", hooksAction: argv[1] ?? "status", start: 2 };
+}
+const FLAG_BOOLEANS = {
+  "--dry-run": "dryRun",
+  "--force": "force",
+  "--list": "list",
+  "--verify": "verify",
+  "--help": "help",
+};
+
+const FLAG_VALUES = {
+  "--source": "source",
+  "--repo": "repo",
+  "--profile": "profile",
+  "--harness": "harnessIds",
+};
+
 export function parseArgs(argv) {
   const args = {
     dryRun: false,
@@ -540,37 +560,31 @@ export function parseArgs(argv) {
     list: false,
     verify: false,
     help: false,
+    command: null,
+    hooksAction: null,
+    repo: null,
+    profile: "full",
   };
 
-  for (let i = 0; i < argv.length; i++) {
-    switch (argv[i]) {
-      case "--dry-run":
-        args.dryRun = true;
-        break;
-      case "--force":
-        args.force = true;
-        break;
-      case "--source":
-        args.source = argv[++i];
-        break;
-      case "--harness":
-        args.harnessIds = argv[++i].split(",");
-        break;
-      case "--list":
-        args.list = true;
-        break;
-      case "--verify":
-        args.verify = true;
-        break;
-      case "--help":
-        args.help = true;
-        break;
+  const prefix = parseHooksPrefix(argv);
+  args.command = prefix.command;
+  args.hooksAction = prefix.hooksAction;
+
+  for (let i = prefix.start; i < argv.length; i++) {
+    const value = argv[i];
+    const booleanKey = FLAG_BOOLEANS[value];
+    if (booleanKey) {
+      args[booleanKey] = true;
+      continue;
     }
+    const valueKey = FLAG_VALUES[value];
+    if (!valueKey) continue;
+    args[valueKey] = argv[++i];
+    if (valueKey === "harnessIds") args.harnessIds = args.harnessIds.split(",");
   }
 
   return args;
 }
-
 // ---------------------------------------------------------------------------
 // summarize
 // ---------------------------------------------------------------------------
@@ -600,6 +614,7 @@ buck-workflow install — multi-harness symlink installer
 
 Usage:
   buck-workflow install [options]
+  buck-workflow hooks <install|status|remove> [options]
 
 Options:
   --dry-run              Print planned symlinks, write nothing
@@ -609,6 +624,15 @@ Options:
   --list                 Print detected harnesses and exit
   --verify               Report what each harness resolves to; write nothing
   --help                 Show this help
+
+Hooks (opt-in, repository-scoped; normal install never touches git hooks):
+  hooks install [--repo <path>] [--profile full|fast]
+                        Install the managed pre-push security-audit launcher
+                        (default profile: full — full git history scan)
+  hooks status [--repo <path>]
+                        Report hook state, source, profile, audit script path
+  hooks remove [--repo <path>]
+                        Remove the managed launcher; foreign hooks untouched
 `.trim();
 
 /**
@@ -747,6 +771,53 @@ export function runInstall(args, home, source) {
   return result.exitCode;
 }
 
+/**
+ * `buck-workflow hooks <install|status|remove>` — opt-in pre-push security
+ * audit management. Never invoked by the normal install path.
+ * @returns {number} exit code
+ */
+export function runHooks(args, source = REPO_ROOT) {
+  const repo = args.repo ? resolve(args.repo) : process.cwd();
+
+  if (args.hooksAction === "install") {
+    const result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
+    if (!result.ok) {
+      console.error(`hooks install: ${result.reason}`);
+      return 1;
+    }
+    console.log(`hooks install: ${result.action} ${result.target} (profile: ${result.profile})`);
+    return 0;
+  }
+
+  if (args.hooksAction === "remove") {
+    const result = hooksRemove({ repo, dryRun: args.dryRun });
+    if (!result.ok) {
+      console.error(`hooks remove: ${result.reason}`);
+      return 1;
+    }
+    const note = result.note ? ` — ${result.note}` : "";
+    console.log(`hooks remove: ${result.removed ?? "nothing to remove"}${note}`);
+    return 0;
+  }
+
+  if (args.hooksAction === "status") {
+    const status = hooksStatus({ repo });
+    console.log(`hooks dir:    ${status.hooksDir}`);
+    console.log(`installed:    ${status.installed}`);
+    if (status.installed) {
+      console.log(`source:       ${status.source}`);
+      console.log(`profile:      ${status.profile}`);
+      console.log(`audit script: ${status.auditScript ?? "MISSING (checkout moved?)"}`);
+    } else if (status.foreignHookPresent) {
+      console.log("note:         a foreign pre-push exists (buck-workflow will not touch it)");
+    }
+    return 0;
+  }
+
+  console.error(`hooks: unknown action "${args.hooksAction}" — expected install, status, or remove`);
+  return 2;
+}
+
 function main() {
   const args = parseArgs(process.argv.slice(2));
 
@@ -754,6 +825,8 @@ function main() {
     console.log(HELP);
     process.exit(0);
   }
+
+  if (args.command === "hooks") process.exit(runHooks(args));
 
   const home = homedir();
   const source = args.source ? resolve(args.source) : REPO_ROOT;

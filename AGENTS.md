@@ -154,9 +154,17 @@ If the session touched code, the check is **blocking** for completion. A session
 
 Do **not** run mid-edit; the working tree may be in an inconsistent state and yield false failures. `b-guardrails-check` only measures — it never dispatches itself and never edits.
 
+## Deterministic Runner
+
+The verdict is computed by one executable: `skills/b-guardrails-check/scripts/check.mjs`, invoked as `npm run guardrails:check`. `b-guardrails-check` and pull-request CI both call this runner; neither re-implements gate logic. It emits the verdict JSON on stdout and exits nonzero **only when a `required` gate fails** (exit 2 = no `guardrails.json`; exit 1 = malformed contract or required-gate failure).
+
+## Enforcement States
+
+Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, documented defaults apply. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
+
 ## How to Read a Verdict
 
-`/b-guardrails-check` resolves its contract via `skills/b-guardrails-check/docs/contract-resolution.md` and returns a structured verdict:
+`/b-guardrails-check` resolves its contract via `skills/b-guardrails-check/docs/contract-resolution.md` and returns the runner's structured verdict:
 
 ```json
 {

@@ -607,6 +607,21 @@ Install it once per agent:
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.
 
+## Git hooks are opt-in
+
+Installing Buck Workflow never configures git hooks. The optional pre-push
+security audit is a separate, repository-scoped opt-in:
+
+```bash
+buck-workflow hooks install   # managed pre-push launcher (scripts/security-audit.sh)
+buck-workflow hooks status    # report state, source, profile
+buck-workflow hooks remove    # remove the managed launcher; foreign hooks untouched
+```
+
+It refuses to overwrite or delete any pre-existing `pre-push` hook. See
+`docs/buck-workflow.md` § "Git pre-push security-audit hook" for profiles,
+latency, exit behavior, and calibration.
+
 ## Verify it worked
 
 After install or repair:

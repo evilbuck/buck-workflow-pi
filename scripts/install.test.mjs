@@ -515,7 +515,19 @@ describe("parseArgs", () => {
       list: false,
       verify: false,
       help: false,
+      command: null,
+      hooksAction: null,
+      repo: null,
+      profile: "full",
     });
+  });
+
+  it("parses the hooks subcommand and its options", () => {
+    const args = parseArgs(["hooks", "install", "--repo", "/tmp/x", "--profile", "fast"]);
+    expect(args.command).toBe("hooks");
+    expect(args.hooksAction).toBe("install");
+    expect(args.repo).toBe("/tmp/x");
+    expect(args.profile).toBe("fast");
   });
 
   it("parses --verify", () => {
@@ -957,4 +969,85 @@ describe("CLI entry point", () => {
     expect(proc.status).toBe(0);
     expect(proc.stdout).toContain("Detected harnesses");
   });
+});
+
+// ---------------------------------------------------------------------------
+// Packed package — bare-command discovery in an isolated login shell
+// ---------------------------------------------------------------------------
+describe("packed package discovery", () => {
+  const PACK_ROOT = join("/tmp", "buck-workflow-pack-test-" + process.pid);
+
+  beforeEach(() => mkdirSync(PACK_ROOT, { recursive: true }));
+  afterEach(() => rmSync(PACK_ROOT, { recursive: true, force: true }));
+
+  const npmOk = spawnSync("npm", ["--version"], { encoding: "utf8" }).status === 0;
+  const maybeIt = npmOk ? it : it.skip;
+
+  maybeIt(
+    "discovers and runs buck-workflow by bare name through bash -lc from an isolated npm prefix",
+    { timeout: 180_000 },
+    () => {
+      const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+      // 1. Pack without running lifecycle scripts (prepublishOnly = npm test).
+      const pack = spawnSync("npm", ["pack", "--ignore-scripts"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          npm_config_cache: join(PACK_ROOT, "npm-cache"),
+          npm_config_update_notifier: "false",
+        },
+      });
+      expect(pack.status).toBe(0);
+      const tgz = pack.stdout.trim().split("\n").pop();
+      expect(tgz).toMatch(/^buck-workflow-.*\.tgz$/);
+
+      // 2. Install into an isolated global prefix.
+      const prefix = join(PACK_ROOT, "prefix");
+      const install = spawnSync(
+        "npm",
+        ["install", "--global", "--prefix", prefix, join(repoRoot, tgz)],
+        {
+          cwd: PACK_ROOT,
+          encoding: "utf8",
+          env: {
+            ...process.env,
+            npm_config_cache: join(PACK_ROOT, "npm-cache"),
+            npm_config_update_notifier: "false",
+          },
+        },
+      );
+      expect(install.status).toBe(0);
+      expect(existsSync(join(prefix, "bin", "buck-workflow"))).toBe(true);
+
+      // 3. Isolated HOME: one detectable harness + a login profile that
+      //    deliberately puts the prefix's bin directory on PATH. No user
+      //    dotfiles are touched; the workstation's permanent PATH is not used.
+      const isoHome = join(PACK_ROOT, "home");
+      mkdirSync(join(isoHome, ".claude"), { recursive: true });
+      writeFileSync(
+        join(isoHome, ".bash_profile"),
+        `export PATH="${join(prefix, "bin")}:$PATH"\n`,
+      );
+
+      // 4. Login shell must find the command by bare name and run it.
+      const shell = spawnSync(
+        "bash",
+        ["-lc", "command -v buck-workflow && buck-workflow --list"],
+        {
+          cwd: PACK_ROOT,
+          encoding: "utf8",
+          env: {
+            HOME: isoHome,
+            PATH: [join(prefix, "bin"), dirname(process.execPath), "/usr/bin", "/bin"].join(":"),
+          },
+        },
+      );
+      expect(shell.status).toBe(0);
+      expect(shell.stdout).toContain(join(prefix, "bin", "buck-workflow"));
+      expect(shell.stdout).toContain("Detected harnesses");
+      expect(shell.stdout).toContain(join(prefix, "lib", "node_modules", "buck-workflow"));
+    },
+  );
 });

@@ -49,6 +49,51 @@ After subject resolution, load the best matching artifact from the resolved subj
 
 When baseline-inference is noisy (long-lived branches), state the baseline/evidence used and fall back to source-state verification.
 
+## Two Review Axes (Parallel Standards Pass)
+
+Every review runs on **two independent axes**. Neither axis may mask the
+other.
+
+| Axis | Question | Owner |
+|---|---|---|
+| **Spec / acceptance-contract** | Does the implementation satisfy the plan/spec/phase under review? | The mainline review agent (you) |
+| **Standards** | Is the diff good engineering by this repo's standards guides? | A **separate parallel `task` sub-agent** |
+
+### Standards axis fan-out (default)
+
+Spawn the standards pass as a parallel sub-agent (OMP: the `task` tool) seeded
+with:
+
+- the `code-review-universal` guides relevant to the diff's languages
+  (`skills/code-review-universal/`) — for a docs-only diff or one with no
+  matching language guide, seed with the general
+  `code-review-best-practices.md` and `code-quality-universal.md` guides
+  instead, and
+- a **diff-scoped subset** of the `code-smells` catalog — only the smells that
+  could plausibly fire on this diff's languages and change shape, **not** the
+  full catalog.
+
+**Context isolation is the point.** The standards agent runs in its own
+context so style findings cannot pollute the acceptance-contract reasoning.
+The spec axis stays in the mainline agent with the plan/spec/phase as its
+contract.
+
+### No-reranking rule
+
+Report the worst finding **per axis**. Never merge the two axes into a single
+ranked list — a merged ranking lets a loud standards nit outrank a quiet spec
+violation, which is exactly the masking this split exists to prevent. The
+review report presents findings grouped by axis, each axis with its own worst
+finding and verdict input.
+
+### Portable fallback (no background dispatch)
+
+Harnesses without background sub-agent dispatch run the standards pass as a
+**second, explicitly-scoped sequential pass** after the spec-axis pass, with
+the same seeding (relevant `code-review-universal` guides + diff-scoped
+`code-smells` subset) and the same no-reranking, per-axis output shape. The
+fallback changes concurrency, never the contract.
+
 ## Plan Completion Review Protocol
 
 When reviewing against a plan (`plan-*.md`), parse these fields and produce a **completion matrix**:
@@ -239,6 +284,8 @@ Follow these links for full context:
 - Check tests, security, and risky assumptions.
 - Classify every issue as **in-plan** (implementation defect against the plan → `/b-iterate`) or **out-of-plan** (newly surfaced work beyond the plan's scope → fresh `/b-plan` → `/b-build`). See "Issue Classification & Routing."
 - **Documentation impact is non-blocking.** When the implementation should be reflected in living docs (conventions, decisions, domain language), recommend `/b-docs` — but never fold it into the correctness verdict or the `iterate-*.md` artifact.
+- **How-to impact is non-blocking.** When a new or changed *user-facing action* (keybinding, CLI, everyday sequence) has no how-to, recommend `/b-howto`. Distinct from `/b-docs` (why vs how). Never fold it into the verdict or `iterate-*.md`.
+- **They compose.** If both are flagged, recommend `/b-docs` first (why before how). `b-docs` will load and follow `b-howto` for the actions it discovers. Running only `/b-howto` is enough when the *why* is already written — it will follow `b-docs` if not. Do not require the user to invoke both.
 
 ## Output
 
@@ -269,6 +316,11 @@ When reviewing against a plan/spec/phase path, include:
 | Step 3 | ❌ missing | No evidence found |
 | ... | ... | ... |
 
+### Review Axes
+- Spec axis worst finding: <finding or "none">
+- Standards axis worst finding: <finding or "none"> (parallel sub-agent, or sequential fallback pass — state which)
+- Cross-axis ranking: none (per-axis reporting only — never merge into one ranked list)
+
 ### Verification Status
 - Goal achieved: <yes/no/partial>
 - User goal: <met / partially met / not met> — <evidence from implementation>
@@ -290,7 +342,11 @@ When reviewing against a plan/spec/phase path, include:
 
 ### Documentation Impact
 - <"No documentation impact" · or a bullet per flagged area: convention / decision / language / architecture / constraint / deviation>
-- Recommended: <none · `/b-docs` before `/b-save`>
+- Recommended: <none · `/b-docs` before `/b-save` · `/b-docs` first if how-to impact is also flagged>
+
+### How-to Impact
+- <"No how-to impact" · or a bullet per new/changed user-facing action that needs a how-to>
+- Recommended: <none · `/b-howto` before `/b-save` · skip if `/b-docs` will follow it>
 
 ### Issue Classification
 - In-plan issues (implementation defects → `/b-iterate`): <list, or "none">
@@ -309,6 +365,7 @@ When reviewing against a plan/spec/phase path, include:
 ```text
 Summary
 Documentation impact: <none | flagged — run /b-docs before /b-save>
+How-to impact: <none | flagged — run /b-howto before /b-save, or /b-docs first if both>
 Suggested next step
 ```
 
@@ -319,7 +376,7 @@ This branch also covers **pass with out-of-plan follow-up** — the plan's own w
 **Write an iteration artifact** to the active subject folder before reporting — but **only for in-plan issues** (implementation defects against the plan under review).
 Only write this file when there are actual in-plan issues to address — do not create it for clean reviews.
 Out-of-plan issues (scope discoveries) are **never** written here — they are follow-up work surfaced in the report's `Recommended Next Step` (route to a fresh `/b-plan`), with no `iterate-*.md`. b-review writes no artifact for them, and they do not block the current plan.
-Documentation impact (conventions, decisions, language) is also **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`.
+Documentation impact (conventions, decisions, language) is also **never** written here — it goes in the report's Documentation Impact section and routes to `/b-docs`, not `b-iterate`. How-to impact (user-facing procedures) routes to `/b-howto` the same way.
 
 **Subject folder resolution:**
 1. Use the **active subject folder** if one was resolved during scope resolution
@@ -396,7 +453,7 @@ Suggested next step: <`/b-iterate` if in-plan issues · close accepted work then
 
 ## History & Closeout
 
-After accepted work: if documentation impact was flagged, recommend `/b-docs` to update living docs first; then `/b-save` to record the session; then `/b-commit` to commit:
+After accepted work: if documentation impact was flagged, recommend `/b-docs` first (it will follow `/b-howto` when a user-facing action needs a how-to); if only how-to impact was flagged, recommend `/b-howto` (it will follow `/b-docs` when the *why* is missing); then `/b-save` to record the session; then `/b-commit` to commit:
 - Check `.context/memory/index.md` to verify the work is recorded
 - Point user to `/b-save` if memory hasn't been updated
 

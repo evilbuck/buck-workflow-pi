@@ -56,7 +56,7 @@ Plans live in subject folders (intent). History lives in `.context/memory/` (rec
 `/b-save` prepares durable context (memory, backlog, draft commit material) for `/b-commit`, but does not commit itself. The standard completion sequence is:
 
 ```
-/b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact) → /b-save → /b-commit
+/b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact; follows /b-howto when needed) → /b-howto (if only how-to impact) → /b-save → /b-commit
 ```
 
 Out-of-plan findings (new scope beyond the plan) do not iterate — close accepted work, then start a separate `/b-plan` → `/b-build`.
