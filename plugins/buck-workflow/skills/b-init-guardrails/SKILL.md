@@ -120,7 +120,7 @@ If the inventory exceeds ~200 entries, offer to split to `.guardrails/complexity
 
 ### Phase 4: Write guardrails.json
 
-On approval, write `guardrails.json` at the repo root with the schema from `docs/ratchet-protocol.md`, including the `git_compare_branch` field from Phase 1's detection output. In refresh mode, apply only the approved asymmetric updates from the latest measurement.
+On approval, write `guardrails.json` at the repo root with the schema from `docs/ratchet-protocol.md`, including the `git_compare_branch` field from Phase 1's detection output and an explicit `enforcement` block. Propose the initial states from *Enforcement States* in `docs/ratchet-protocol.md` (tests + ratchet + complexity `required`; absent commands `disabled`; lint `advisory` until `baseline_lint_clean`; patch `advisory` until the CI compare base and coverage artifact are proven reproducible, then `required`). In refresh mode, apply only the approved asymmetric updates from the latest measurement, and never demote an enforcement state or weaken a baseline without recorded user approval — promotion is the only automatic direction.
 
 ### Phase 5: Wire Managed Block
 

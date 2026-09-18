@@ -54,6 +54,8 @@ Create files lazily — only when you have something to write.
 
 **Offer ADRs sparingly**: Only when all three are true: hard to reverse, surprising without context, result of a real trade-off. Follow [ADR-FORMAT.md](../b-grill-with-docs/ADR-FORMAT.md).
 
+*Format note: `CONTEXT-FORMAT.md` and `ADR-FORMAT.md` are derived from mattpocock/skills (MIT) — see `THIRD-PARTY-NOTICES.md`.*
+
 ## Complexity Tracking (from b-grill)
 
 This skill includes all metadata tracking from `b-grill` (user mode):

@@ -5,6 +5,8 @@
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)
+- [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
+- [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
@@ -19,6 +21,22 @@
 - [ ] [Complexity gate burn-down for pre-existing hotspots](items/complexity-burn-down.md) — medium; override recorded 2026-08-27, includes lizard parseArgs@32-677 artifact
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
 - [x] [Fix 3 live defects from the mattpocock/skills audit](items/mattpocock-audit-defects.md) — high; done 2026-09-10 as **Phase 1** → [`phase-1-live-defects.md`](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md)
+
+
+## Decision Closure Phases (2026-09-16)
+
+Overview: [`plan-decision-closure-protocol-phases.md`](../2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md).
+Umbrella: [Add decision closure across Buck Workflow](items/decision-closure-protocol.md).
+After Phase 1, Phases 2–4 may run in parallel.
+
+- [ ] Phase 1: Shared Protocol — hard — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md) — **active**
+
+### Upcoming Phases
+
+- [ ] Phase 2: Grill Variants — medium — [phase-2-grill-variants.md](../2026-09-16.decision-closure/phase-2-grill-variants.md)
+- [ ] Phase 3: Plan and Phase — medium — [phase-3-plan-and-phase.md](../2026-09-16.decision-closure/phase-3-plan-and-phase.md)
+- [ ] Phase 4: Build and Review — medium — [phase-4-build-and-review.md](../2026-09-16.decision-closure/phase-4-build-and-review.md)
+- [ ] Phase 5: Narrative and Proof — medium — [phase-5-narrative-and-proof.md](../2026-09-16.decision-closure/phase-5-narrative-and-proof.md)
 
 ## mattpocock Remediation Phases (2026-09-10)
 

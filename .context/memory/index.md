@@ -1,3 +1,5 @@
+- 2026-09-18 — [Software-factory recommendations plan](good-ideas-plan-2026-09-18.md) — `completed` (five report recommendations validated; implementation plan and backlog item created)
+
 - 2026-09-16 — [fix-pr PR #31](fix-pr-31-2026-09-16.md) — `completed` (check-contract reader, node_modules symlink, autostash drop, UTF-8 cap)
 
   - 2026-09-16 | `fix-pr-31-2026-09-16.md` | domains: [review, extensions, testing] | topics: [fix-pr, code-review-iteration, check-contract, node_modules, autostash, utf8] | status: completed

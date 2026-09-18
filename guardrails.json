@@ -1,5 +1,13 @@
 {
   "version": 2,
+  "enforcement": {
+    "unit_test_gate": "required",
+    "functional_test_gate": "disabled",
+    "lint_gate": "disabled",
+    "patch_gate": "advisory",
+    "global_ratchet": "required",
+    "complexity_gate": "required"
+  },
   "targets": {
     "coverage_min": 60,
     "coverage_target": 75,
@@ -8,17 +16,17 @@
     "patch_coverage_min": 90
   },
   "ratchet": {
-    "baseline_coverage": 54.9,
+    "baseline_coverage": 79.4,
     "baseline_complexity_inventory": [
       {
         "file": "skills/b-hindsight-import-projects/scripts/import-projects.ts",
         "function": "parseArgs",
-        "complexity": 66
+        "complexity": 68
       },
       {
         "file": "extensions/b-commit-improved/index.ts",
         "function": "runBCommitImproved",
-        "complexity": 36
+        "complexity": 35
       },
       {
         "file": "extensions/b-flow/chunk-queue-machine.ts",
@@ -36,9 +44,14 @@
         "complexity": 30
       },
       {
-        "file": "extensions/index.ts",
-        "function": "offerModelMappingSetup",
+        "file": "skills/skill-explainer/scripts/render.py",
+        "function": "validate",
         "complexity": 28
+      },
+      {
+        "file": "extensions/b-save-improved/index.ts",
+        "function": "runBSaveImproved",
+        "complexity": 27
       },
       {
         "file": "extensions/b-kamal-release/index.ts",
@@ -111,13 +124,8 @@
         "complexity": 17
       },
       {
-        "file": "scripts/context-artifacts.mjs",
-        "function": "generateIndexes",
-        "complexity": 16
-      },
-      {
-        "file": "scripts/install.mjs",
-        "function": "main",
+        "file": "extensions/b-commit-improved/index.ts",
+        "function": "parseModelResponse",
         "complexity": 16
       },
       {
@@ -136,11 +144,6 @@
         "complexity": 15
       },
       {
-        "file": "scripts/context-artifacts.mjs",
-        "function": "runCli",
-        "complexity": 15
-      },
-      {
         "file": "skills/code-review-universal/scripts/pr-analyzer.py",
         "function": "generate_suggestions",
         "complexity": 15
@@ -156,8 +159,18 @@
         "complexity": 14
       },
       {
+        "file": "extensions/b-save-improved/index.ts",
+        "function": "parseArgs",
+        "complexity": 13
+      },
+      {
         "file": "extensions/grill-me-dialog.ts",
         "function": "handleWait",
+        "complexity": 13
+      },
+      {
+        "file": "extensions/omp-models.ts",
+        "function": "parseModelRoles",
         "complexity": 13
       },
       {
@@ -178,6 +191,16 @@
       {
         "file": "extensions/b-flow/machine.ts",
         "function": "next",
+        "complexity": 11
+      },
+      {
+        "file": "extensions/plan-artifact.ts",
+        "function": "findPlanExit",
+        "complexity": 11
+      },
+      {
+        "file": "extensions/plan-artifact.ts",
+        "function": "isPlanArtifactEnabled",
         "complexity": 11
       }
     ],

@@ -244,7 +244,7 @@ For each valid item or tight theme-group:
    - actionable title
    - claim, evidence, paths, acceptance criteria
    - links to PR + comment URL
-   - labels: `ready-for-agent` if fully specified, else `needs-triage`; plus `bug`/`enhancement` as fit
+   - labels: `ready-for-agent` if fully specified, else `needs-triage` (see `docs/agents/triage-labels.md` when present; confirm with `gh label list` first); plus `bug`/`enhancement` as fit
 2. Prefer **one issue per theme** when comments share a root cause.
 3. Short PR comment listing filed issues.
 4. Do not implement on this path unless a single trivial valid item remains
