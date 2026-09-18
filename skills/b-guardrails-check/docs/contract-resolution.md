@@ -4,7 +4,7 @@ The order in which the check skill resolves a project's check contract. **First 
 
 ## 1. `guardrails.json` at repo root
 
-Authoritative. Parse the file, honour `version` (v1 → three new gates skipped, see `ratchet-protocol.md` § v1 Compatibility), run all gates. Set `status` according to the gates and the verdict rules in `SKILL.md`. Verdict field: `contract: "durable"`.
+Authoritative. Invoke the deterministic verdict engine — `node <skill_dir>/scripts/check.mjs --cwd <repo root>` — and use its emitted verdict verbatim. The runner honours `version` (v1 → three new gates skipped, see `ratchet-protocol.md` § v1 Compatibility), applies the `enforcement` states, and exits 1 only when a required gate fails. Do not re-implement gate computation in prose. Verdict field: `contract: "durable"`.
 
 ## 2. Managed block present but `guardrails.json` missing
 

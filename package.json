@@ -93,7 +93,8 @@
     "context:validate": "bun scripts/context-artifacts.ts validate",
     "presentations:serve": "bun scripts/serve-presentations.ts",
     "prepublishOnly": "npm test",
-    "release": "node scripts/publish.mjs"
+    "release": "node scripts/publish.mjs",
+    "guardrails:check": "node skills/b-guardrails-check/scripts/check.mjs"
   },
   "devDependencies": {
     "@mariozechner/pi-ai": "0.73.1",
