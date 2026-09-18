@@ -30,7 +30,7 @@ Overview: [`plan-buck-loop-extension-phases.md`](../2026-09-18.buck-loop-extensi
 Umbrella: [buck-loop extension — scrap XState, happy-path nested-session runner](items/buck-loop-extension.md).
 After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 
-- [ ] [Phase 1: Transition Contract](items/phase-1-transition-contract.md) — hard, `/b-build-hard` — [phase-1-transition-contract.md](../2026-09-18.buck-loop-extension/phase-1-transition-contract.md) — **active**
+- [x] [Phase 1: Transition Contract](archive/2026-09/phase-1-transition-contract.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass, 66/66
 
 ### Upcoming Phases
 

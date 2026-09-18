@@ -8,7 +8,7 @@ iterations: []
 spec: []
 memory:
   - buck-loop-extension-phasing-2026-09-18.md
----
+  - buck-loop-phase1-build-2026-09-18.md
 
 # Plan: buck-loop extension (scrap XState, happy-path runner)
 
