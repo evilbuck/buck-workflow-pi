@@ -2,6 +2,7 @@
 
   - 2026-09-18 | `fix-pr-25-2026-09-18.md` | domains: [review, workflow, agent-instructions] | topics: [fix-pr, pr-25, graphql-reviewthreads, paginate, fail-closed, untrusted-data, fork-isolation, consumer-sync, coderabbit] | status: completed
 
+- 2026-09-18 — [buck-loop Phase 1 build+review](buck-loop-phase1-build-2026-09-18.md) — `completed` (pure transition contract frozen; /b-review Pass; 66/66; guardrails pass; /b-commit next; Phases 2–4 unblocked)
 - 2026-09-18 — [buck-loop extension phasing](buck-loop-extension-phasing-2026-09-18.md) — `completed` (seven execution phases; Phase 1 gate, Phases 2–4 parallel, Phase 5 join)
 
 - 2026-09-18 — [Software-factory recommendations plan](good-ideas-plan-2026-09-18.md) — `completed` (five report recommendations validated; implementation plan and backlog item created)

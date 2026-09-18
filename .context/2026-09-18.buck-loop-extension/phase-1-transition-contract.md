@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 1
 order: 1
 plan: plan-buck-loop-extension.md
@@ -16,14 +16,14 @@ from_plan_steps: [1]
 depends_on: []
 dependency_type: NONE
 acceptance_criteria:
-  - "[ ] `LoopState`, `Snapshot`, `Choice`, and `Effect` express the parent plan's user-visible states and legal machine actions without importing XState."
-  - "[ ] `legalChoices(state, snapshot)` and `next(snapshot)` are pure: no filesystem, git, process, clock, or OMP SDK access."
-  - "[ ] Missing plan resolves to `blocked`; an incomplete phase resolves to `building`; all completed phases resolve to `done`; loop or iterate limits resolve to `blocked`."
-  - "[ ] Review priority is deterministic: iterate artifact before documentation impact before save."
-  - "[ ] Ambiguous review or postcondition cases return a closed `choose` effect containing only currently legal choices; no raw model string can transition state."
-  - "[ ] Focused transition-table tests pass and cover every required branch from parent plan step 1."
-completed_at: null
-completed_by: null
+  - "[x] `LoopState`, `Snapshot`, `Choice`, and `Effect` express the parent plan's user-visible states and legal machine actions without importing XState."
+  - "[x] `legalChoices(state, snapshot)` and `next(snapshot)` are pure: no filesystem, git, process, clock, or OMP SDK access."
+  - "[x] Missing plan resolves to `blocked`; an incomplete phase resolves to `building`; all completed phases resolve to `done`; loop or iterate limits resolve to `blocked`."
+  - "[x] Review priority is deterministic: iterate artifact before documentation impact before save."
+  - "[x] Ambiguous review or postcondition cases return a closed `choose` effect containing only currently legal choices; no raw model string can transition state."
+  - "[x] Focused transition-table tests pass and cover every required branch from parent plan step 1."
+completed_at: 2026-09-18
+completed_by: "/b-build-hard (omp)"
 ---
 
 # Phase 1: Transition Contract

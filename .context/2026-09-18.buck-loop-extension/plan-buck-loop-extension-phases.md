@@ -24,7 +24,7 @@ format: discrete
 
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
-| 1: Transition Contract | pending | hard | none | [phase-1-transition-contract.md](phase-1-transition-contract.md) |
+| 1: Transition Contract | completed | hard | none | [phase-1-transition-contract.md](phase-1-transition-contract.md) |
 | 2: Artifact State | pending | hard | none | [phase-2-artifact-state.md](phase-2-artifact-state.md) |
 | 3: Closed-Set Choice | pending | hard | none | [phase-3-closed-set-choice.md](phase-3-closed-set-choice.md) |
 | 4: Nested Work Sessions | pending | hard | none | [phase-4-nested-work-sessions.md](phase-4-nested-work-sessions.md) |

@@ -1,3 +1,5 @@
+- [x] [Phase 1: buck-loop transition contract](2026-09/phase-1-transition-contract.md) — done 2026-09-18 — frozen types.ts + table.ts; 66/66; `/b-review` Pass. `.context/2026-09-18.buck-loop-extension/phase-1-transition-contract.md`
+
 - [x] Stop b-commit-improved committing leftover draft placeholders (2026-08-26) — `.context/2026-08-26.b-commit-placeholder-sentinels/index.md`. Dollar-sign sentinels only; leftover angle-bracket titles refused. 16/16 tests.
 
 - [x] Run /b-init-guardrails on this repo (2026-08-26) — `.context/2026-08-26.b-init-guardrails-on-repo/index.md`. Durable `guardrails.json` v2; first check failed patch gate on pre-existing branch diffs.
