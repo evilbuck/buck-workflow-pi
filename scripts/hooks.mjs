@@ -33,6 +33,29 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const HOOK_MARKER = "# buck-workflow managed pre-push (security-audit)";
 export const HOOK_NAME = "pre-push";
 
+/**
+ * Ownership marker: the launcher's first line, preceded by its shebang.
+ *
+ * `HOOK_MARKER` alone is only a substring test — a foreign dispatcher that
+ * chains or embeds the launcher would count as "managed" and get overwritten
+ * or deleted. Ownership requires the marker to be the actual managed header:
+ * line 1 (shebang) or line 2, starting at column 1.
+ */
+export const BUCK_MANAGED_HEADER = `#!/usr/bin/env bash\n${HOOK_MARKER}`;
+
+/**
+ * Positive managed-hook identification: the file must carry the buck-workflow
+ * managed header within its first two lines (line 2 right after the shebang).
+ *
+ * @param {string} content - full hook file contents
+ * @returns {boolean}
+ */
+export function isManagedHook(content) {
+  const head = content.slice(0, 512);
+  const lines = head.split("\n", 2);
+  return lines.some((line) => line === HOOK_MARKER);
+}
+
 const PROFILES = {
   // full-history preserves the audit's default contract; measured ~46s on
   // buck-workflow-pi. fast (--skip-history) trades history coverage for
@@ -52,13 +75,27 @@ function gitOut(repo, ...args) {
  * `<git-dir>/hooks` otherwise.
  */
 export function resolveHooksDir(repo) {
-  const configured = gitOut(repo, "config", "--get", "core.hooksPath");
+  // `--path` makes git expand a leading `~` (and `~user`) itself. Without it
+  // Node resolves the literal `~/.githooks` as `<repo>/~/.githooks`.
+  const configured = gitOut(repo, "config", "--path", "--get", "core.hooksPath");
   if (configured) return resolve(repo, configured);
   const gitDir = gitOut(repo, "rev-parse", "--absolute-git-dir");
   if (!gitDir) {
     throw new Error(`${repo} is not a git repository (or git is unavailable)`);
   }
   return join(gitDir, "hooks");
+}
+
+/**
+ * POSIX single-quote `path` for safe embedding in a shell script:
+ * `BUCK_WORKFLOW_SOURCE='<path>'`. Embedded single quotes are spelled
+ * `'\''`, the standard end-quote/escaped-quote/reopen-quote idiom, so any
+ * metacharacter in the path stays literal at execution time.
+ * @param {string} path
+ * @returns {string}
+ */
+function shQuote(path) {
+  return `'${path.replaceAll("'", `'\\''`)}'`;
 }
 
 function launcherContent(source, profileName) {
@@ -68,7 +105,7 @@ function launcherContent(source, profileName) {
   }
   const template = readFileSync(join(__dirname, "hooks", "pre-push"), "utf8");
   return template
-    .replaceAll("__BUCK_WORKFLOW_SOURCE__", source)
+    .replaceAll("__BUCK_WORKFLOW_SOURCE_QUOTED__", shQuote(resolve(source)))
     .replaceAll("__BUCK_PROFILE_ARGS__", profile.args)
     .replaceAll("__BUCK_PROFILE_NAME__", profile.label);
 }
@@ -86,7 +123,9 @@ function existingHook(hooksDir) {
 function classifyExisting(hooksDir) {
   const found = existingHook(hooksDir);
   if (!found) return found;
-  found.managed = found.content.includes(HOOK_MARKER);
+  // Positive ownership: managed header within the first two lines.
+  // A mere marker substring is NOT ownership (foreign dispatchers can embed it).
+  found.managed = isManagedHook(found.content);
   return found;
 }
 
@@ -113,7 +152,14 @@ export function hooksInstall({ repo, source, profile = "full", dryRun = false })
   }
 
   if (dryRun) {
-    return { ok: true, dryRun: true, action: existing ? "replace-managed" : "create", target };
+    return {
+      ok: true,
+      dryRun: true,
+      action: existing ? "replace-managed" : "create",
+      target,
+      source: resolve(source),
+      profile,
+    };
   }
 
   mkdirSync(hooksDir, { recursive: true });
@@ -143,13 +189,24 @@ export function hooksStatus({ repo }) {
     info.foreignHookPresent = Boolean(existing);
     return info;
   }
-  const sourceMatch = existing.content.match(/BUCK_WORKFLOW_SOURCE="(.*)"/);
-  info.source = sourceMatch ? sourceMatch[1] : null;
+  const sourceMatch = existing.content.match(/BUCK_WORKFLOW_SOURCE='(.*)'/);
+  info.source = sourceMatch ? unescapeSh(sourceMatch[1]) : null;
   const profileMatch = existing.content.match(/Audit profile: (\w+)/);
   info.profile = profileMatch ? profileMatch[1] : null;
   const audit = info.source ? join(info.source, "scripts", "security-audit.sh") : null;
   info.auditScript = audit && existsSync(audit) ? audit : null;
   return info;
+}
+
+/**
+ * Reverse of shQuote's escaping: the captured value between the outer single
+ * quotes still contains the `'\''` idiom for embedded quotes; collapse it
+ * back to a literal `'`.
+ * @param {string} escaped
+ * @returns {string}
+ */
+function unescapeSh(escaped) {
+  return escaped.replaceAll(`'\\''`, `'`);
 }
 
 /** Remove the managed launcher. Foreign hooks are never touched. */
@@ -164,9 +221,14 @@ export function hooksRemove({ repo, dryRun = false }) {
       ok: false,
       reason:
         `refusing to remove pre-push at ${existing.path} — it is not managed by buck-workflow ` +
-        `(missing "${HOOK_MARKER}" marker). Remove it manually if intended.`,
+        `(missing "${HOOK_MARKER}" header). Remove it manually if intended.`,
     };
   }
   if (!dryRun) rmSync(existing.path);
-  return { ok: true, removed: existing.path };
+  return {
+    ok: true,
+    ...(dryRun
+      ? { dryRun: true, action: "would-remove", note: "dry run — nothing removed" }
+      : { removed: existing.path }),
+  };
 }
