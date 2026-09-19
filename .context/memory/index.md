@@ -1,3 +1,7 @@
+- 2026-09-18 — [fix-pr: PR #25 review feedback](fix-pr-25-2026-09-18.md) — `completed` (settled after 2 fix loops: GraphQL reviewThreads cursor-threaded settlement fetch, --paginate everywhere, untrusted-data + fork-isolation rules, plugin bundle + 5 prose consumers synced; pushes 22630d8, 66729ac)
+
+  - 2026-09-18 | `fix-pr-25-2026-09-18.md` | domains: [review, workflow, agent-instructions] | topics: [fix-pr, pr-25, graphql-reviewthreads, paginate, untrusted-data, fork-isolation, consumer-sync, coderabbit] | status: completed
+
 - 2026-09-17 — [fix-pr PR #26 design-language](fix-pr-26-2026-09-17.md) — `completed` (move thought-dump-writer under skills/, harden TARGET scaffold against injection, sync aria/contrast/CDN warnings; Wooderson re-review no new findings, all checks green)
 
   - 2026-09-17 | `fix-pr-26-2026-09-17.md` | domains: [review, frontend, design-system] | topics: [fix-pr, pr-26, thought-dump-writer, design-language, mermaid-cdn, aria, contrast, shell-injection] | status: completed
