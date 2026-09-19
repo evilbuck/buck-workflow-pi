@@ -1,3 +1,8 @@
+/**
+ * Temp git repos for buck-loop tests. Each `repo()` is an isolated checkout
+ * so tests never touch this project's real `.context/`. `cleanupRepos()`
+ * deletes them in `afterEach`.
+ */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -1,6 +1,26 @@
 /**
- * loop — bounded happy-path supervisor. Executes table effects; never
- * invents transitions. Worker prose is diagnostic only. Artifacts win.
+ * Supervisor: the while-loop that drives `/buck-loop`.
+ *
+ * This file is the only one that **does work**. Everything else either
+ * describes work (`table.ts`) or performs one isolated job (`run-step.ts`,
+ * `choice.ts`, `scan.ts`, `persist.ts`).
+ *
+ * Each tick:
+ *
+ * 1. If the snapshot is already `done` / `blocked` / `aborted`, stop.
+ * 2. Ask {@link next} (the pure table) for a {@link Transition}.
+ * 3. Persist the new state to `.context/workflow/buck-loop.json`.
+ * 4. Perform the effect:
+ *    - `run-skill` → spawn a nested coding session (`run-step.ts`).
+ *    - `choose` → ask a model for one legal action (`choice.ts`).
+ *    - `await-operator` → halt and wait for the human.
+ *    - `none` → nothing to do this tick.
+ * 5. Rescan disk. Artifacts win over whatever the child *said* it did.
+ * 6. Repeat, up to {@link SAFETY_TICK_CEILING} ticks.
+ *
+ * Nested-session prose is diagnostic only. The child's last sentence never
+ * picks the next state. The operator talks to this module through
+ * {@link handleLoop}: `start` / `resume` / `status` / `stop`.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -28,7 +48,13 @@ import type {
   WorkSkill,
 } from "./types.js";
 
+/** Hard cap on supervisor ticks in one invocation, independent of `maxLoops`. */
 const SAFETY_TICK_CEILING = 64;
+
+/**
+ * While we are inside a phase's mini-cycle, keep the same `phasePath` even
+ * if a rescan would pick a different incomplete phase (e.g. after a commit).
+ */
 const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "building",
   "reviewing",
@@ -37,12 +63,16 @@ const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "saving",
 ]);
 
+/** Public commands the slash-command layer may send. */
 export type LoopCommand = "start" | "resume" | "status" | "stop";
 
+/** What one `/buck-loop` invocation returns to the command handler. */
 export type LoopResult = {
   state: LoopState;
   reason: string;
 };
+
+/** Live progress event for the chat widget (`onProgress`). */
 export type LoopProgress = {
   state: LoopState;
   operation: "run-skill" | "choose";
@@ -50,6 +80,14 @@ export type LoopProgress = {
   target: string;
 };
 
+/**
+ * Injectable seams. Production uses the defaults; tests swap `runStep` /
+ * `choose` / `now` so CI never calls a live model.
+ *
+ * - `onProgress` — update the spinner label.
+ * - `onActivity` — stream nested-session tokens/tools into the widget.
+ * - `onFailure` — structured failure for the parent chat (`index.ts`).
+ */
 export type LoopDeps = {
   runStep: typeof defaultRunStep;
   choose: typeof defaultChoose;
@@ -74,6 +112,14 @@ const DEFAULT_DEPS: LoopDeps = {
   onActivity: () => undefined,
 };
 
+/**
+ * Entry point used by `index.ts`.
+ *
+ * @param opts.cwd - Project directory (the operator's workspace).
+ * @param opts.command - `start` needs `path`; the others read the saved run file.
+ * @param opts.path - Plan, phase, or subject path. Ignored unless `command` is `start`.
+ * @param opts.deps - Optional test doubles and UI callbacks.
+ */
 export async function handleLoop(opts: {
   cwd: string;
   command: LoopCommand;
@@ -88,12 +134,14 @@ export async function handleLoop(opts: {
   return resumeRun(cwd, deps);
 }
 
+/** Read the saved run file. No saved file → `idle`. Does not rescan artifacts. */
 export function statusOf(cwd: string): LoopResult {
   const projection = readProjection(cwd);
   if (!projection) return { state: "idle", reason: "no projection" };
   return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
 }
 
+/** Mark the saved run `aborted`. No saved file → no-op `idle`. */
 function stopRun(cwd: string, now: () => string): LoopResult {
   const projection = readProjection(cwd);
   if (!projection) return { state: "idle", reason: "no run to stop" };
@@ -103,6 +151,7 @@ function stopRun(cwd: string, now: () => string): LoopResult {
   return { state: "aborted", reason: t.why };
 }
 
+/** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
 async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
@@ -125,6 +174,10 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
   return drive(cwd, snapshot, target, deps);
 }
 
+/**
+ * Reload the saved run, rescan disk (artifacts win), and continue.
+ * A blocked run whose plan is still present is treated as USER_CONFIRMED.
+ */
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   const projection = readProjection(cwd);
   if (!projection) return { state: "idle", reason: "no projection to resume" };
@@ -137,6 +190,10 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   return drive(cwd, snapshot, path, deps);
 }
 
+/**
+ * The actual loop. Ask the table, persist, run the effect, rescan, repeat.
+ * `SAFETY_TICK_CEILING` is a last-ditch halt if the table ever livelocks.
+ */
 async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDeps): Promise<LoopResult> {
   let snapshot = initial;
   let lastFail: string | null = null;
@@ -165,6 +222,7 @@ function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
   return { state: snapshot.state, reason: lastWhyFromSnapshot(snapshot) };
 }
 
+/** Ask the table for the next edge. Illegal `next()` or `await-operator` halt the run. */
 function takeStep(
   snapshot: Snapshot,
   lastFail: string | null,
@@ -195,6 +253,7 @@ function unusedTransition(): Transition {
   return { to: "blocked", effect: { kind: "none" }, why: "unused" };
 }
 
+/** Perform `choose` or `run-skill`. `none` is a no-op this tick. */
 async function runEffect(
   cwd: string,
   snapshot: Snapshot,
@@ -292,6 +351,10 @@ function applyChosen(
   }
 }
 
+/**
+ * Spawn the nested skill, then rescan. The child's last sentence is ignored;
+ * disk facts in the rescan decide whether the session landed.
+ */
 async function executeSkill(
   cwd: string,
   snapshot: Snapshot,
@@ -484,6 +547,10 @@ function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapsh
   return existsSync(abs) && /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
 }
 
+/**
+ * Re-read plan/review files after a nested session. While `FROZEN_PHASE`
+ * holds, keep the same `phasePath` so a mid-cycle rescan cannot jump phases.
+ */
 function rescan(
   cwd: string,
   snapshot: Snapshot,
@@ -511,6 +578,7 @@ function rescan(
   };
 }
 
+/** Map a table skill to the nested skill name, including build-hard and howto-only docs. */
 function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedSkill {
   if (skill === "build") return difficultyOf(cwd, snapshot) === "hard" ? "b-build-hard" : "b-build";
   if (skill === "review") return "b-review";
@@ -522,6 +590,7 @@ function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedS
   return howtoOnly ? "b-howto" : "b-docs";
 }
 
+/** Phase/plan `difficulty:` frontmatter, else `medium`. Selects the child's model. */
 function difficultyOf(cwd: string, snapshot: Snapshot): "easy" | "medium" | "hard" {
   const rel = snapshot.phasePath ?? snapshot.planPath;
   if (!rel) return "medium";

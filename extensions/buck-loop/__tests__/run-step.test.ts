@@ -1,3 +1,8 @@
+/**
+ * Nested-session tests. `createAgentSession` is mocked — we assert the
+ * host options (no extension discovery, tool allowlist, in-memory history)
+ * and the `{ ok, text }` result. No live child agent is spawned.
+ */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -40,7 +45,7 @@ afterEach(() => { createAgentSessionMock.mockReset(); failSkillRead.value = fals
 describe("runStep", () => {
   it("leads with the canonical skill contract and names the exact phase path", async () => { const fake = arrange(); await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: ".context/example/phase-2.md", difficulty: "easy" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt.startsWith("---")).toBe(true); expect(prompt).toContain("# b-build: Implementation Agent with TDD"); expect(prompt).toContain(".context/example/phase-2.md"); expect(prompt).toContain("no authority to choose the next loop state"); });
   it("creates isolated sessions with the build tool allowlist", async () => { arrange(); await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ disableExtensionDiscovery: true, restrictToolNames: true, enableMCP: false, tools: ["read", "edit", "write", "grep", "bash"], toolNames: ["read", "edit", "write", "grep", "bash"] })); });
-  it.each([["b-review", ["read", "grep", "find", "ls", "bash", "write"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ cwd: tmp(), skill, planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools })); });
+  it.each([["b-review", ["read", "edit", "write", "grep", "find", "ls", "bash"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ cwd: tmp(), skill, planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools })); });
   it("authorizes the explicit loop commit on protected branches", async () => { const fake = arrange(); await runStep({ cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md", difficulty: "easy" }); expect(fake.prompt.mock.calls[0][0]).toContain("Treat this assignment as /b-commit force"); });
   it.each([["easy", "provider/smol"], ["medium", "provider/slow"], ["hard", "provider/default"]] as const)("routes %s work through configured model roles", async (difficulty, modelPattern) => { arrange(); const cwd = tmp(); writeRoles(cwd); await runStep({ cwd, skill: "b-build", planOrPhasePath: "plan.md", difficulty }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ modelPattern })); });
   it("exports a fifteen-minute work-session timeout", () => { expect(WORK_SESSION_TIMEOUT_MS).toBe(15 * 60_000); });

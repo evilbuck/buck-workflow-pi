@@ -1,15 +1,37 @@
 /**
- * types — the frozen buck-loop vocabulary.
+ * Frozen vocabulary for the unattended Buck workflow runner.
  *
- * Pure data only: no filesystem, git, process, clock, or OMP SDK access.
- * `Snapshot` carries semantic facts produced by scanning artifacts; the
- * transition table in `table.ts` consumes them and emits `Effect`s that
- * describe work without performing it. This module is the schema gate for
- * every later phase (scan, choice, work sessions, supervisor) — extend it
- * deliberately, never locally.
+ * This file is **data only**. It does not import the coding-agent host,
+ * does not read disk, and does not call a model. Every other file in
+ * this folder speaks this vocabulary:
+ *
+ * 1. `scan.ts` looks at plan/review files and fills a {@link Snapshot}.
+ * 2. `table.ts` reads that snapshot and returns a {@link Transition}
+ *    ("go to this state and do this {@link Effect}").
+ * 3. `loop.ts` performs the effect (run a skill, ask a model, or wait),
+ *    then rescans. Worker prose never chooses the next state.
+ *
+ * Extend types here, never by inventing a parallel shape in a later file.
  */
 
-/** User-visible states only. Scanning, classifying, and verifying are functions inside a state, not states. */
+/**
+ * User-visible states of one `/buck-loop` run.
+ *
+ * Scanning, classifying, and verifying are **functions inside a state**,
+ * not states of their own. The operator sees these eleven:
+ *
+ * - `idle` — nothing saved; waiting for `/buck-loop <path>`.
+ * - `resolving` — we have a path; looking up the plan/phase on disk.
+ * - `building` — nested session is implementing the current phase (`b-build`).
+ * - `reviewing` — nested session is reviewing the implementation (`b-review`).
+ * - `iterating` — nested session is fixing in-plan review issues (`b-iterate`).
+ * - `documenting` — nested session is updating living docs (`b-docs` / `b-howto`).
+ * - `saving` — nested session is writing session memory (`b-save`).
+ * - `committing` — nested session is creating a git commit (`b-commit`).
+ * - `blocked` — cannot continue safely; waiting for the operator.
+ * - `done` — every phase completed; the run is finished.
+ * - `aborted` — the operator typed `/buck-loop --stop`.
+ */
 export type LoopState =
   | "idle"
   | "resolving"
@@ -23,7 +45,11 @@ export type LoopState =
   | "done"
   | "aborted";
 
-/** States whose stay is filled by one nested work session. */
+/**
+ * States whose stay is filled by one nested coding session (a child agent
+ * that runs a skill). `idle` / `resolving` / `blocked` / `done` / `aborted`
+ * do not spawn a child.
+ */
 export type WorkState = Exclude<LoopState, "idle" | "resolving" | "blocked" | "done" | "aborted">;
 
 /**
@@ -55,8 +81,14 @@ export type PlanFacts =
  * stays `"confirmed"` and is ignored by the table.
  */
 export interface WorkFacts {
+  /** Has the nested session for this state run yet, succeeded, or failed? */
   sessionOutcome: "pending" | "ok" | "failed";
+  /** Failures already retried in this state. One retry is the ceiling. */
   retriesUsed: number;
+  /**
+   * After a successful session, did a rescan confirm the expected disk change?
+   * `ambiguous` is the only case that may ask a model (`retry` / `advance` / `block`).
+   */
   postcondition: "pending" | "confirmed" | "ambiguous";
 }
 
@@ -74,17 +106,25 @@ export type ReviewFacts =
   | { kind: "pending" }
   | {
       kind: "report";
+      /** False when the review markdown is missing required impact sections. */
       parseable: boolean;
+      /** True when an unfinished `iterate-*.md` exists in the subject folder. */
       iterateArtifact: boolean;
+      /** True when the report's Documentation Impact section is flagged. */
       docsImpact: boolean;
+      /** True when the report's How-to Impact section is flagged. */
       howtoImpact: boolean;
     };
 
 /**
- * A closed machine action an LLM may propose. The model can only ever name
- * one of these variants; `table.applyChoice` validates membership in the
- * current legal set before any transition is produced. No free text
- * transitions state.
+ * A closed machine action a language model may propose.
+ *
+ * The model can only ever name one of these six words. `table.applyChoice`
+ * checks membership in the current legal set before any transition is
+ * produced. Free-text answers never move the loop.
+ *
+ * Review-time (`reviewing`, report unparseable): `iterate` | `document` | `save` | `block`.
+ * Postcondition-time (work finished but disk looks ambiguous): `retry` | `advance` | `block`.
  */
 export type Choice =
   | { kind: "iterate" }
@@ -137,13 +177,23 @@ export interface Snapshot {
   history: TransitionRecord[];
 }
 
-/** A skill the supervisor must run in a nested work session. Which variant (e.g. build vs build-hard) is the runner's call. */
+/**
+ * A skill the supervisor must run in a nested coding session.
+ * Which variant (e.g. `b-build` vs `b-build-hard`) is chosen in `loop.ts`,
+ * not here.
+ */
 export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "commit";
 
 /**
- * Work effects and choice effects are separate closed variants: execution
- * code cannot smuggle a transition through free text. `run-skill` carries
- * only a `WorkSkill`; `choose` carries only machine-declared legal choices.
+ * What the supervisor must **do** after arriving in `Transition.to`.
+ *
+ * - `none` — just sit in that state (START, STOP, arriving at `done`).
+ * - `run-skill` — spawn a nested coding session for this skill.
+ * - `choose` — ask a model to pick from `legal` (already closed by the table).
+ * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
+ *
+ * Work and choice are separate variants so execution code cannot smuggle a
+ * transition through free text.
  */
 export type Effect =
   | { kind: "none" }

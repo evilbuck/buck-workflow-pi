@@ -1,3 +1,22 @@
+/**
+ * Closed-set choice: ask a language model to pick **one** legal action.
+ *
+ * This is not a coding session. The model gets no tools, cannot edit files,
+ * and cannot invent a new action name. We send a short prompt listing the
+ * legal enum, parse JSON `{ "choice": "...", "reason": "..." }`, and
+ * reject anything outside that set.
+ *
+ * Host API used here: `runOmpModelSession` (from `extensions/omp-models.ts`).
+ * That helper starts a tiny nested agent session with an empty tool list,
+ * waits up to 60s, and returns the model's text. We do not talk to
+ * `ExtensionAPI` ourselves.
+ *
+ * Contract:
+ * 1. Empty legal set → blocked, no model call.
+ * 2. First reply illegal / empty / non-JSON → one retry with a correction prefix.
+ * 3. Second failure → blocked. Never default-advance.
+ * 4. Every attempt writes `.context/<subject>/transition-audits/<id>.json`.
+ */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -5,6 +24,7 @@ import { resolveOmpRole, runOmpModelSession, type ActivityEvent } from "../omp-m
 import type { AcceptedChoice, Choice } from "./types.js";
 import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
 
+/** Accepted legal choice, or blocked with an optional diagnostic failure. */
 export type ChooseResult =
   | { status: "accepted"; accepted: AcceptedChoice }
   | { status: "blocked"; reason: string; failure?: CallFailureDetails };
@@ -16,6 +36,7 @@ type AttemptResult = {
   failure?: CallFailureDetails;
 };
 
+/** Pull the first `{...}` out of a model reply, including fenced ```json blocks. */
 function extractJsonObject(raw: string): unknown | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
@@ -30,6 +51,7 @@ function extractJsonObject(raw: string): unknown | null {
   }
 }
 
+/** Require `{ choice, reason }` strings where `choice` is in the legal set. */
 function parseChoice(raw: string, legalKinds: ReadonlySet<string>): ParsedResponse | null {
   const parsed = extractJsonObject(raw);
   if (
@@ -45,12 +67,17 @@ function parseChoice(raw: string, legalKinds: ReadonlySet<string>): ParsedRespon
   return legalKinds.has(response.choice) ? response : null;
 }
 
+/**
+ * Prompt listing only the legal enum. `correction` prefixes the retry so
+ * the model knows the previous reply was rejected.
+ */
 function promptFor(legalKinds: readonly string[], correction: boolean): string {
   const set = legalKinds.map((kind) => JSON.stringify(kind)).join(", ");
   const prefix = correction ? "Your previous response was illegal or malformed. " : "";
   return `${prefix}Choose exactly one action from this legal enum: ${set}. Reply only with JSON: { "choice": "<one legal kind>", "reason": "..." }.`;
 }
 
+/** Append one attempt to `.context/<subject>/transition-audits/` (legal set, raw text, accepted). */
 async function writeAudit(opts: {
   cwd: string;
   subject: string;
@@ -74,6 +101,12 @@ async function writeAudit(opts: {
   }, null, 2)}\n`);
 }
 
+/**
+ * Ask the model to pick from `legal`. Two attempts, then block.
+ *
+ * `resolveOmpRole` reads the operator's OMP model-role mapping (`smol`,
+ * then `default`) so we use the cheap/fast model for this tiny JSON call.
+ */
 export async function choose(opts: {
   cwd: string;
   subject: string;
@@ -136,6 +169,11 @@ async function attemptChoice(
   return { response, reason, ...(failure ? { failure } : {}) };
 }
 
+/**
+ * One tool-less model call. Empty `tools` means the model cannot read or
+ * edit the repo — it can only return text. `onActivity` forwards streaming
+ * tokens into the live progress widget.
+ */
 async function callChoiceModel(
   cwd: string,
   prompt: string,

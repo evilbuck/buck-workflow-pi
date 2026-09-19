@@ -37,3 +37,4 @@ Replace the deprecated XState `b-flow` supervisor with a new, observably invoked
 - Deprecation: `.context/2026-06-01.deprecate-b-flow/`
 - Advisory stamper (unchanged): `skills/b-loop/SKILL.md`
 - Nested-session pattern: `extensions/code-review-iteration/`, `extensions/omp-models.ts`
+- Follow-on picker plan: `.context/2026-09-19.buck-loop-subject-picker/`

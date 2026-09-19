@@ -1,17 +1,28 @@
 /**
- * scan — resolve an explicit plan/phase/subject path and read disk facts
- * into the frozen Phase 1 snapshot contract.
+ * Read the repo and turn an explicit path into snapshot facts.
  *
- * Never creates plans or subjects. Never imports extensions/b-flow.
- * `.context/workflow/buck-loop.json` is not consulted here; persist.ts
- * owns resume reconciliation.
+ * The operator (or `--resume`) must name a plan file, a phase file, or a
+ * subject folder. This module never guesses among multiple subjects and
+ * never creates plans. The saved run file
+ * (`.context/workflow/buck-loop.json`) is **not** read here — `persist.ts`
+ * owns resume.
+ *
+ * What "facts" means:
+ * - {@link PlanFacts} — is there a plan? phased? any incomplete phase ready?
+ * - {@link ReviewFacts} — is there an `iterate-*.md` or a `review-*.md`?
+ * - {@link WorkFacts} — if a nested session just finished, did disk change
+ *   the way this state expects (postcondition)?
+ *
+ * Postcondition is a **rescan of git/files**, not the child's last sentence.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import type { LoopState, PlanFacts, ReviewFacts, WorkFacts } from "./types.js";
 
+/** Subject folders look like `2026-09-18.todo` (date prefix, then a slug). */
 const SUBJECT_DIR_RE = /^\d{4}-\d{2}-\d{2}\./;
+/** Discrete phase files look like `phase-1-transition-contract.md`. */
 const PHASE_FILE_RE = /^phase-(\d+)-.+\.md$/;
 
 export type ScanOptions = {
@@ -24,6 +35,7 @@ export type ScanOptions = {
   retriesUsed?: number;
 };
 
+/** Disk facts the supervisor copies onto a {@link Snapshot}. Paths are repo-relative. */
 export type ScanResult = {
   subject: string | null;
   planPath: string | null;
@@ -62,6 +74,11 @@ const PENDING_WORK: WorkFacts = {
   postcondition: "pending",
 };
 
+/**
+ * Resolve `opts.path` against `projectRoot` (or `.context/`) and fill facts.
+ * A missing/ambiguous path returns `planFacts.kind === "missing"` — it does
+ * not throw, and it does not invent a plan.
+ */
 export function scan(opts: ScanOptions): ScanResult {
   const root = resolve(opts.projectRoot);
   const input = opts.path?.trim() ?? "";
@@ -93,6 +110,7 @@ function missing(reason: string): ScanResult {
   };
 }
 
+/** Resolve against cwd first, then `.context/`. Does not search further. */
 function locate(root: string, input: string): { abs: string } | { reason: string } {
   const direct = resolve(root, input);
   if (existsSync(direct)) return { abs: direct };
@@ -107,6 +125,7 @@ type Classified =
   | { kind: "plan"; abs: string; subjectDir: string }
   | { kind: "phase"; abs: string; subjectDir: string };
 
+/** Decide whether the path is a subject folder, plan file, or phase file. */
 function classify(abs: string): Classified {
   const st = statSync(abs);
   if (st.isDirectory()) return classifyDir(abs);
@@ -212,6 +231,11 @@ function listPhases(subjectDir: string): PhaseMeta[] {
   return out;
 }
 
+/**
+ * First incomplete phase whose `depends_on` phases are all `completed`.
+ * Empty list → unphased. All completed → phased-complete. Cycle or
+ * malformed YAML → blocked (surfaced as `planFacts.kind === "missing"`).
+ */
 function pickPhase(
   phases: PhaseMeta[],
 ):
@@ -248,6 +272,10 @@ function depsSatisfied(phase: PhaseMeta, byN: Map<number, PhaseMeta>): boolean {
   return phase.dependsOn.deps.every((n) => byN.get(n)?.status === "completed");
 }
 
+/**
+ * Iterate file wins over the report. A report without both impact sections
+ * is `parseable: false` so the table will not trust garbage flags.
+ */
 function scanReviewFacts(subjectDir: string): ReviewFacts {
   const iterateArtifact = hasIterate(subjectDir);
   const reportAbs = findReviewReport(subjectDir);
@@ -304,6 +332,11 @@ function firstContentLine(body: string): string {
   return "";
 }
 
+/**
+ * Body of a `### Heading` section. H2 (`##`) is not recognized — review
+ * reports must use H3 for Documentation / How-to Impact, or the
+ * `Documentation impact:` summary-line fallback.
+ */
 function sectionBody(text: string, heading: string): string | null {
   const marker = `### ${heading}`;
   const start = text.indexOf(marker);
@@ -322,6 +355,15 @@ function summaryLine(text: string, label: string): string | null {
 
 type PostFn = (ctx: PostCtx) => WorkFacts["postcondition"];
 
+/**
+ * Per-state "did the nested session actually land?" checks.
+ * `building` confirmed if the phase/plan is `status: completed`.
+ * `iterating` confirmed when the iterate file is gone (work absorbed).
+ * `documenting` confirmed if a living-doc path changed.
+ * `saving` confirmed if `.context/memory/` changed.
+ * `committing` confirmed if git is clean.
+ * `reviewing` is always confirmed — routing uses ReviewFacts instead.
+ */
 const POSTCONDITION: Partial<Record<LoopState, PostFn>> = {
   building: (ctx) => (ctx.complete || ctx.phaseStatus === "completed" ? "confirmed" : "ambiguous"),
   iterating: (ctx) => (ctx.iterate ? "ambiguous" : "confirmed"),

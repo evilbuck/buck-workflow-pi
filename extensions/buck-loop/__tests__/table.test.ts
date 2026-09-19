@@ -1,3 +1,8 @@
+/**
+ * Pure transition-table tests. Fixture snapshots, no disk and no model.
+ * Covers deterministic edges, closed `choose` sets, illegal choices, and
+ * operator-owned START / USER_CONFIRMED / STOP helpers.
+ */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {

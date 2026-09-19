@@ -1,17 +1,19 @@
 /**
- * table — the pure buck-loop transition contract.
+ * Pure "what happens next" rules for `/buck-loop`.
  *
- * Encodes the legal edges of the buck-loop state graph as plain functions:
- * no filesystem, git, process, clock, or OMP SDK access. Snapshots are
- * semantic facts produced by scanning; effects describe work but never
- * perform it. Deterministic guards always win; only genuinely ambiguous
- * review/postcondition situations surface a closed `choose` effect, and a
- * raw model string can never mutate state — `applyChoice` validates
- * membership in `legalChoices` before producing a transition.
+ * No filesystem, git, process, clock, or coding-agent host. Given a
+ * {@link Snapshot} of facts, this module returns a {@link Transition}:
+ * a target state plus an {@link Effect} describing work without doing it.
+ *
+ * Deterministic disk facts always win. A language model is only offered a
+ * closed list (`choose`) when a review report is unparseable or a
+ * postcondition scan is ambiguous. A raw model string can never mutate
+ * state — {@link applyChoice} checks membership in {@link legalChoices}
+ * first.
  *
  * Review priority is frozen: iterate artifact > documentation impact > save.
- * Operator-owned edges (START, USER_CONFIRMED, STOP) are exposed as pure
- * helpers; the command layer invokes them, `next` never self-serves them.
+ * Operator-owned edges ({@link start}, {@link userConfirmed}, {@link stopFrom})
+ * are helpers the command layer calls; {@link next} never fires them itself.
  */
 
 import type { Choice, LoopState, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
@@ -29,6 +31,7 @@ const WORK_SKILL: Partial<Record<LoopState, WorkSkill>> = {
   committing: "commit",
 };
 
+/** Thrown when {@link next} is asked from a state the command layer owns (`idle`, `blocked`, `done`, `aborted`). */
 export class IllegalTransitionError extends Error {
   constructor(state: LoopState, detail: string) {
     super(`illegal transition from ${state}: ${detail}`);
@@ -36,6 +39,7 @@ export class IllegalTransitionError extends Error {
   }
 }
 
+/** Thrown when {@link applyChoice} is given a kind that is not in {@link legalChoices} for this snapshot. */
 export class IllegalChoiceError extends Error {
   constructor(choice: Choice["kind"], state: LoopState) {
     super(`choice ${choice} is not legal in ${state} for this snapshot`);
@@ -257,6 +261,12 @@ function nonLoopDetail(state: LoopState): string {
   }
 }
 
+/**
+ * Decide the next edge from the current snapshot.
+ *
+ * Loop states only. Asking from `idle` / `blocked` / `done` / `aborted`
+ * throws — those edges belong to `/buck-loop` start, `--resume`, and `--stop`.
+ */
 export function next(s: Snapshot): Transition {
   const handler = NEXT_HANDLER[s.state];
   if (handler) return handler(s);

@@ -1,9 +1,7 @@
 /**
- * Seams under test:
- * - `writeProjection` / `readProjection` — versioned `.context/workflow/buck-loop.json`.
- * - `resume` — rescan then reconcile; artifacts win; unsafe disagreement blocks.
- * - Adapter: isolated temp git checkouts. Projection JSON is planted as literals.
- * - No XState snapshot file is created or read.
+ * Saved-run file tests. Projection JSON is planted as literals in a temp
+ * repo. Resume must rescan disk — artifacts win; unsafe disagreement blocks.
+ * No XState snapshot file is created or read.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";

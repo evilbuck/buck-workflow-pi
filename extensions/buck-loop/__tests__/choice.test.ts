@@ -1,3 +1,7 @@
+/**
+ * Closed-set choice tests. `runOmpModelSession` is mocked: we feed JSON
+ * strings and assert accept / retry / block plus the audit file on disk.
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

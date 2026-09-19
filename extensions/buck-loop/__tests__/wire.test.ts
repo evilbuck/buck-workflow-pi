@@ -1,7 +1,9 @@
 /**
- * Seams under test:
- * - `parseArgs` — closed command grammar
- * - `wireBuckLoop` — registers `/buck-loop` and delegates to `handleLoop`
+ * Command-surface tests. No nested agent is started.
+ *
+ * - `parseArgs` — the grammar `/buck-loop` accepts.
+ * - `wireBuckLoop` — registers the slash command with a fake host API and
+ *   checks that `handleLoop` is the only thing the handler calls.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";

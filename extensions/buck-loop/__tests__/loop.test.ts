@@ -1,8 +1,7 @@
 /**
- * Seams under test:
- * - `handleLoop` public command surface (start/resume/status/stop)
- * - Adapter: mocked `runStep` / `choose`; real scan + table + persist
- * - Worker prose is never parsed for the next state
+ * Supervisor tests. `runStep` and `choose` are fakes so CI never calls a
+ * live model. Real `scan` + `table` + `persist` still run against a temp
+ * git repo. The child's last sentence is never parsed for the next state.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";

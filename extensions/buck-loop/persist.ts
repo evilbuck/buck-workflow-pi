@@ -1,6 +1,14 @@
 /**
- * persist — versioned `.context/workflow/buck-loop.json` plus resume
- * reconciliation. Artifacts win. The projection never overrides disk truth.
+ * Saved-run file and resume reconciliation.
+ *
+ * The projection (`.context/workflow/buck-loop.json`) is a bookmark: which
+ * subject, which phase, how many loops, last accepted choice. It is **not**
+ * the source of truth. On `--resume`, we rescan the plan/review files and
+ * **artifacts win**. Unsafe disagreement (projection says `done` but an
+ * incomplete phase exists, or the subject folder vanished) → `blocked`.
+ *
+ * The projection is gitignored via `.git/info/exclude` so it is never
+ * committed. No XState snapshot lives here.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -35,6 +43,7 @@ const CHOICE_KINDS: Record<Choice["kind"], true> = {
   block: true,
 };
 
+/** On-disk bookmark. `version` must equal {@link PROJECTION_VERSION} or resume treats it as unreadable. */
 export type Projection = {
   version: typeof PROJECTION_VERSION;
   state: LoopState;
@@ -55,6 +64,10 @@ export type ResumeOptions = {
 
 const preparedProjectionRoots = new Set<string>();
 
+/**
+ * Make the projection locally gitignored (`.git/info/exclude`) and drop it
+ * from the index if it was ever tracked. Non-git trees still get a file.
+ */
 function prepareProjectionPath(projectRoot: string): void {
   const root = resolve(projectRoot);
   if (preparedProjectionRoots.has(root)) return;
@@ -82,6 +95,8 @@ function prepareProjectionPath(projectRoot: string): void {
     // Non-git projects still get a projection; commit verification will fail closed.
   }
 }
+
+/** Write the bookmark. Creates `.context/workflow/` as needed. */
 export function writeProjection(projectRoot: string, projection: Projection): void {
   prepareProjectionPath(projectRoot);
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
@@ -89,6 +104,7 @@ export function writeProjection(projectRoot: string, projection: Projection): vo
   writeFileSync(abs, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
 }
 
+/** Read and validate the bookmark. Missing or corrupt → `null` (treated as idle / blocked by callers). */
 export function readProjection(projectRoot: string): Projection | null {
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
   if (!existsSync(abs)) return null;
@@ -99,6 +115,12 @@ export function readProjection(projectRoot: string): Projection | null {
   }
 }
 
+/**
+ * Rebuild a {@link Snapshot} for `--resume`.
+ *
+ * No file → `idle` (or `resolving` if `path` was passed). Unreadable file →
+ * `blocked`. Otherwise rescan the named plan and {@link reconcile}.
+ */
 export function resume(opts: ResumeOptions): Snapshot {
   const root = resolve(opts.projectRoot);
   const file = join(root, PROJECTION_RELPATH);
@@ -113,6 +135,10 @@ export function resume(opts: ResumeOptions): Snapshot {
   return reconcile(root, projection, opts.path);
 }
 
+/**
+ * Merge bookmark + live scan. Subject gone or "done vs incomplete phase"
+ * is unsafe → `blocked`. Stale `building` + all phases complete → `done`.
+ */
 function reconcile(root: string, projection: Projection, pathOverride?: string): Snapshot {
   const subjectDir = join(root, ".context", projection.subject);
   if (!existsSync(subjectDir)) {

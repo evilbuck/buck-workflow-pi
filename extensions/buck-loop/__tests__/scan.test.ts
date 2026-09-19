@@ -1,8 +1,7 @@
 /**
- * Seams under test:
- * - `scan({ projectRoot, path })` — the only resolve+facts interface callers use.
- * - Adapter: isolated temp git checkouts (real fs + git). No live-repo scans.
- * - Expected values are literals (kinds, flags, filenames), not a second parser.
+ * Disk-scan tests. Each case is a temp git checkout with planted plan/phase
+ * files. Expected values are literals (kinds, flags, filenames), not a
+ * second parser. The live repo is never scanned.
  */
 import { afterEach, describe, expect, it } from "vitest";
 import { existsSync, readFileSync, rmSync } from "node:fs";
