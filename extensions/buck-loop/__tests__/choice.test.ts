@@ -24,7 +24,7 @@ function audits(cwd: string): Array<Record<string, unknown>> {
 }
 
 describe("choose", () => {
-  beforeEach(() => runOmpModelSession.mockReset());
+  beforeEach(() => { runOmpModelSession.mockReset(); });
   afterEach(cleanupRepos);
 
   it("accepts a first-attempt legal JSON choice and records its audit", async () => {
@@ -39,6 +39,18 @@ describe("choose", () => {
     expect(audits(cwd)).toEqual([
       expect.objectContaining({ legal, raw: '{"choice":"save","reason":"ready"}', accepted: true, reason: "ready", attempt: 1 }),
     ]);
+  });
+
+  it("streams closed-set choice activity through the supplied sink", async () => {
+    const onActivity = vi.fn();
+    runOmpModelSession.mockImplementation(async (opts: { onActivity?: (event: { kind: "text"; delta: string }) => void }) => {
+      opts.onActivity?.({ kind: "text", delta: "Selecting save" });
+      return '{"choice":"save","reason":"ready"}';
+    });
+
+    await choose({ cwd: repo(), subject, legal, onActivity });
+
+    expect(onActivity).toHaveBeenCalledWith({ kind: "text", delta: "Selecting save" });
   });
 
   it("rejects an illegal choice before accepting the second legal choice", async () => {

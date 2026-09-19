@@ -6,7 +6,9 @@ import {
   EmptyModelResponseError,
   lastAssistantText,
   mappingFromOmpRoles,
+  normalizeActivityEvent,
   ompAgentDir,
+  type ActivityEvent,
   type DifficultyTier,
 } from "../omp-models.js";
 import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
@@ -53,6 +55,7 @@ const toolsBySkill: Record<NestedSkill, string[]> = {
 type SessionHandle = {
   prompt: (text: string) => Promise<unknown>;
   abort: () => Promise<unknown> | unknown;
+  subscribe: (listener: (event: unknown) => void) => () => void;
   dispose?: () => Promise<unknown> | unknown;
   messages: Array<{ role?: string; content?: unknown; stopReason?: unknown }>;
 };
@@ -83,6 +86,7 @@ export async function runStep(opts: {
   skill: NestedSkill;
   planOrPhasePath: string;
   difficulty: DifficultyTier;
+  onActivity?: (event: ActivityEvent) => void;
 }): Promise<RunStepResult> {
   let skillBody: string;
   try {
@@ -108,6 +112,7 @@ export async function runStep(opts: {
   });
 
   let session: SessionHandle | undefined;
+  let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
   try {
@@ -142,6 +147,13 @@ export async function runStep(opts: {
 
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
+    if (opts.onActivity) {
+      const onActivity = opts.onActivity;
+      unsubscribe = session.subscribe((event) => {
+        const normalized = normalizeActivityEvent(event);
+        if (normalized) onActivity(normalized);
+      });
+    }
 
     let timedOut = false;
     timer = setTimeout(() => {
@@ -165,6 +177,7 @@ export async function runStep(opts: {
   } catch (error) {
     outcome = fail(error);
   } finally {
+    unsubscribe?.();
     if (timer) clearTimeout(timer);
   }
 

@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ActivityEvent } from "../../extension-activity.js";
 
 const handleLoop = vi.fn();
 vi.mock("../loop.js", () => ({ handleLoop: (...args: unknown[]) => handleLoop(...args) }));
@@ -113,6 +114,35 @@ describe("wireBuckLoop", () => {
     await pending;
     expect(statuses.at(-1)).toBeUndefined();
     expect(widgets.at(-1)).toBeUndefined();
+  });
+
+  it("renders the newest six nested activity rows", async () => {
+    handleLoop.mockImplementation(async (opts: { deps?: { onActivity?: (event: ActivityEvent) => void } }) => {
+      for (let index = 0; index < 10; index += 1) {
+        opts.deps?.onActivity?.({ kind: "toolStart", tool: "tool-" + index, target: index === 9 ? "x".repeat(100) : undefined });
+      }
+      opts.deps?.onActivity?.({ kind: "complete", ok: true, message: "agent finished" });
+      return { state: "done", reason: "all phases completed" };
+    });
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const widgets: Array<string[] | undefined> = [];
+
+    await commands.get("buck-loop")!.handler("plan.md", {
+      cwd: "/tmp/repo",
+      ui: {
+        notify: () => undefined,
+        setStatus: () => undefined,
+        setWidget: (_key, content) => widgets.push(content),
+      },
+    });
+
+    const viewport = widgets.find((lines) => lines?.some((line) => line.includes("tool-9")));
+    expect(viewport?.slice(1)).toHaveLength(6);
+    expect(viewport?.slice(1).every((line) => line.length <= 64)).toBe(true);
+    expect(viewport?.join(" ")).not.toContain("tool-0");
+    expect(viewport?.join(" ")).toContain("tool-9");
+    expect(viewport?.join(" ")).toContain("…");
   });
 
   it("returns structured nested-call failures to the parent agent", async () => {

@@ -306,5 +306,6 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 - Reproduction evidence flows through a **single trust boundary** (`review_exec` in `extensions/code-review-iteration/policy.ts`, allowlist in `extensions/code-review-iteration/review-exec-policy.md`): allowlisted command id + full argv + repo-relative cwd. No shell. Sanitized env. Denials are records, never exceptions.
 - Pass artifacts are **immutable** under `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/passes/NN/` (`review.json`, `review.md`, `fixer.json`, `fixer.md`, `commands.jsonl`; see `extensions/code-review-iteration/run-state.ts` and `extensions/code-review-iteration/loop.ts`). `state.json` is the only mutable file; it is rewritten atomically.
 - Per-session memory is git-portable `.context/memory/`. Harness-specific LTM mirrors are managed by `b-save`; the canonical source remains `.context/memory/`.
+- Nested `createAgentSession()` work in `/buck-loop` streams through `AgentSession.subscribe()` + `normalizeActivityEvent()` into `createActivity().ingest`. Unsubscribe before dispose, including prompt failure. `/buck-loop` uses a six-row activity viewport (`maxActivityLines: 6`, `maxLineWidth: 64`); other long-running commands keep the shared eight-row default.
 <!-- END b-docs:conventions -->
 

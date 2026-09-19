@@ -11,7 +11,9 @@ import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
 import { readProjection } from "../persist.js";
+import type { ChooseResult } from "../choice.js";
 import type { NestedSkill, RunStepResult } from "../run-step.js";
+import type { ActivityEvent } from "../../extension-activity.js";
 import type { Choice } from "../types.js";
 
 const SUBJECT = "2026-09-18.demo";
@@ -52,10 +54,24 @@ function phased(root: string, statuses: string[]): void {
   });
   writeTree(root, files);
 }
-function workDeps(runStep: (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty: string }) => Promise<RunStepResult>, choose = vi.fn(async () => ({ status: "blocked" as const, reason: "choose not expected" }))) {
+function workDeps(
+  runStep: (opts: {
+    cwd: string;
+    skill: NestedSkill;
+    planOrPhasePath: string;
+    difficulty: string;
+    onActivity?: (event: ActivityEvent) => void;
+  }) => Promise<RunStepResult>,
+  choose: (opts: {
+    cwd: string;
+    subject: string;
+    legal: readonly Choice[];
+    onActivity?: (event: ActivityEvent) => void;
+  }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
+) {
   return {
     runStep: vi.fn(runStep),
-    choose,
+    choose: vi.fn(choose),
     now: () => NOW,
   };
 }
@@ -296,6 +312,31 @@ describe("failure and choice", () => {
     expect(result.state).toBe("blocked");
     expect(choose).toHaveBeenCalled();
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-save");
+  });
+
+  it("forwards one activity sink through work and choice calls", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const onActivity = vi.fn();
+    const choose = vi.fn(async (opts: { onActivity?: (event: ActivityEvent) => void }) => {
+      opts.onActivity?.({ kind: "text", delta: "choice output" });
+      return {
+        status: "accepted" as const,
+        accepted: { choice: { kind: "save" } as Choice, reason: "treat as clean" },
+      };
+    });
+    const deps = {
+      ...workDeps(async (opts) => {
+        opts.onActivity?.({ kind: "text", delta: `${opts.skill} output` });
+        if (opts.skill === "b-review") return { ok: true, text: UNPARSEABLE_REVIEW };
+        return landingWork()(opts);
+      }, choose),
+      onActivity,
+    };
+
+    await expect(handleLoop({ cwd, command: "start", path: PLAN, deps })).resolves.toMatchObject({ state: "done" });
+    expect(onActivity).toHaveBeenCalledWith({ kind: "text", delta: "b-build output" });
+    expect(onActivity).toHaveBeenCalledWith({ kind: "text", delta: "choice output" });
   });
 
   it("applies only an accepted legal choice", async () => {

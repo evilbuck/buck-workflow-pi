@@ -99,7 +99,7 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
         return;
       }
 
-      const activity = createActivity({ ui: ctx.ui, command: "buck-loop" });
+      const activity = createActivity({ ui: ctx.ui, command: "buck-loop", maxActivityLines: 6, maxLineWidth: 64 });
       activity.phase(initialLabel(parsed));
       try {
         const result = await handleLoop({
@@ -108,6 +108,7 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
           path: parsed.command === "start" ? parsed.path : undefined,
           deps: {
             onProgress: (progress) => activity.phase(progress.label),
+            onActivity: activity.ingest,
             onFailure: (failure) => {
               activity.ingest({
                 kind: "toolEnd",

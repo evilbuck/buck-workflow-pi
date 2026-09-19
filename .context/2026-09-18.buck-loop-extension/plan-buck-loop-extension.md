@@ -10,6 +10,8 @@ iterations:
   - iterate-buck-loop-nested-work-sessions.md
   - iterate-buck-loop-loop-supervisor.md
   - iterate-buck-loop-loop-supervisor-2.md
+  - iterate-buck-loop-live-feedback.md
+  - iterate-buck-loop-streaming-output.md
 spec: []
 memory:
   - buck-loop-extension-phasing-2026-09-18.md
@@ -17,6 +19,8 @@ memory:
   - buck-loop-phase2-build-2026-09-18.md
   - buck-loop-phase2-review-2026-09-18.md
   - buck-loop-remaining-phases-2026-09-18.md
+  - buck-loop-live-feedback-2026-09-18.md
+  - buck-loop-streaming-output-2026-09-19.md
 
 # Plan: buck-loop extension (scrap XState, happy-path runner)
 

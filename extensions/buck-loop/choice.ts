@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { resolveOmpRole, runOmpModelSession } from "../omp-models.js";
+import { resolveOmpRole, runOmpModelSession, type ActivityEvent } from "../omp-models.js";
 import type { AcceptedChoice, Choice } from "./types.js";
 import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
 
@@ -78,6 +78,7 @@ export async function choose(opts: {
   cwd: string;
   subject: string;
   legal: readonly Choice[];
+  onActivity?: (event: ActivityEvent) => void;
 }): Promise<ChooseResult> {
   if (opts.legal.length === 0) {
     return { status: "blocked", reason: "No legal choices were supplied." };
@@ -105,7 +106,7 @@ export async function choose(opts: {
 }
 
 async function attemptChoice(
-  opts: { cwd: string; subject: string; legal: readonly Choice[] },
+  opts: { cwd: string; subject: string; legal: readonly Choice[]; onActivity?: (event: ActivityEvent) => void },
   legalSet: ReadonlySet<string>,
   model: string | undefined,
   attempt: number,
@@ -118,7 +119,7 @@ async function attemptChoice(
     role: "closed-set-choice",
     ...(model ? { model } : {}),
   };
-  const called = await callChoiceModel(opts.cwd, prompt, agent, model);
+  const called = await callChoiceModel(opts.cwd, prompt, agent, model, opts.onActivity);
   const response = parseChoice(called.raw, legalSet);
   const reason = response?.reason ?? called.reason ?? fallbackReason;
   const failure = response ? undefined : invalidChoiceFailure(prompt, agent, called.raw, reason, called.error);
@@ -140,6 +141,7 @@ async function callChoiceModel(
   prompt: string,
   agent: CallAgent,
   model: string | undefined,
+  onActivity: ((event: ActivityEvent) => void) | undefined,
 ): Promise<{ raw: string; reason?: string; error?: unknown }> {
   try {
     const raw = await runOmpModelSession({
@@ -150,6 +152,7 @@ async function callChoiceModel(
       timeoutMs: 60_000,
       agentPrefix: "buck-loop-choice",
       agentId: agent.id,
+      onActivity,
     });
     return { raw };
   } catch (error) {

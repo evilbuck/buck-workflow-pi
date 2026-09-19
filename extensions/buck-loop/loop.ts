@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
+import type { ActivityEvent } from "../extension-activity.js";
 import {
   PROJECTION_VERSION,
   readProjection,
@@ -55,6 +56,7 @@ export type LoopDeps = {
   now: () => string;
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
+  onActivity: (event: ActivityEvent) => void;
 };
 
 type EffectResult = {
@@ -69,6 +71,7 @@ const DEFAULT_DEPS: LoopDeps = {
   now: () => new Date().toISOString(),
   onProgress: () => undefined,
   onFailure: () => undefined,
+  onActivity: () => undefined,
 };
 
 export async function handleLoop(opts: {
@@ -235,7 +238,7 @@ async function chooseSafely(
   deps: LoopDeps,
 ): Promise<ChooseResult> {
   try {
-    return await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal });
+    return await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal, onActivity: deps.onActivity });
   } catch (error) {
     return {
       status: "blocked",
@@ -332,6 +335,7 @@ async function runNestedSkill(
       skill: nested,
       planOrPhasePath,
       difficulty: difficultyOf(cwd, snapshot),
+      onActivity: deps.onActivity,
     });
   } catch (error) {
     return {

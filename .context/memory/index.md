@@ -1,3 +1,4 @@
+- 2026-09-19 — [buck-loop nested LLM output viewport](buck-loop-streaming-output-2026-09-19.md) — `completed` (six-row nested SDK stream; 84 tests; guardrails pass)
 - 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `completed` (validated reviews; filed #34–#39; no in-session code fix)
 
   - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: completed
