@@ -31,7 +31,9 @@ export type WorkState = Exclude<LoopState, "idle" | "resolving" | "blocked" | "d
  * the scan (Phase 2) resolves subject ambiguity, phase ordering, and
  * completion status before producing these.
  *
- * - `missing` covers no plan, no subject, and multiple subjects without a path.
+ * - `missing` covers no plan, no subject, and multiple subjects without a path,
+ *   plus a phased plan where no incomplete phase is dependency-ready or a
+ *   phase's `depends_on` is malformed; `reason` says which.
  * - `phased-incomplete` means at least one non-completed phase file exists;
  *   the active one is `Snapshot.phasePath`.
  * - `phased-complete` means every discrete phase file reports completion.

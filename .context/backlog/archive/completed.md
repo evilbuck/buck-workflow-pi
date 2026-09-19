@@ -1,3 +1,5 @@
+- [x] [Phase 2: buck-loop artifact state](2026-09/phase-2-artifact-state.md) — done 2026-09-18 — scan.ts + persist.ts; 49/49; two iterate rounds; `/b-review` Pass with warnings. `.context/2026-09-18.buck-loop-extension/phase-2-artifact-state.md`
+
 - [x] [Phase 1: buck-loop transition contract](2026-09/phase-1-transition-contract.md) — done 2026-09-18 — frozen types.ts + table.ts; 66/66; `/b-review` Pass. `.context/2026-09-18.buck-loop-extension/phase-1-transition-contract.md`
 
 - [x] Stop b-commit-improved committing leftover draft placeholders (2026-08-26) — `.context/2026-08-26.b-commit-placeholder-sentinels/index.md`. Dollar-sign sentinels only; leftover angle-bracket titles refused. 16/16 tests.

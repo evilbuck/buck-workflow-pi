@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-buck-loop-extension.md
@@ -17,14 +17,14 @@ from_plan_steps: [2]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] An explicit plan, phase, or subject path resolves to the correct existing plan and first incomplete phase without auto-planning or guessing among multiple subjects."
-  - "[ ] The scan reports plan/phase completion, iterate artifacts, review documentation/how-to impact, git/postcondition facts, and safety reasons using Phase 1 snapshot types."
-  - "[ ] `.context/workflow/buck-loop.json` round-trips versioned projection state without creating or reading an XState snapshot."
-  - "[ ] Resume rescans artifacts before transition selection; stale `building` plus all phases completed resolves to `done`."
-  - "[ ] Unsafe disagreements, including projection `done` with an incomplete phase or a vanished subject, resolve to `blocked` with a reason."
-  - "[ ] Focused scan and persistence tests pass."
-completed_at: null
-completed_by: null
+  - "[x] An explicit plan, phase, or subject path resolves to the correct existing plan and first incomplete phase without auto-planning or guessing among multiple subjects."
+  - "[x] The scan reports plan/phase completion, iterate artifacts, review documentation/how-to impact, git/postcondition facts, and safety reasons using Phase 1 snapshot types."
+  - "[x] `.context/workflow/buck-loop.json` round-trips versioned projection state without creating or reading an XState snapshot."
+  - "[x] Resume rescans artifacts before transition selection; stale `building` plus all phases completed resolves to `done`."
+  - "[x] Unsafe disagreements, including projection `done` with an incomplete phase or a vanished subject, resolve to `blocked` with a reason."
+  - "[x] Focused scan and persistence tests pass."
+completed_at: 2026-09-18
+completed_by: "/b-build-hard (omp)"
 ---
 
 # Phase 2: Artifact State

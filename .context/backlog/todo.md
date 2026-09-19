@@ -31,10 +31,10 @@ Umbrella: [buck-loop extension — scrap XState, happy-path nested-session runne
 After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 
 - [x] [Phase 1: Transition Contract](archive/2026-09/phase-1-transition-contract.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass, 66/66
+- [x] [Phase 2: Artifact State](archive/2026-09/phase-2-artifact-state.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass with warnings, 49/49
 
 ### Upcoming Phases
 
-- [ ] [Phase 2: Artifact State](items/phase-2-artifact-state.md) — hard, `/b-build-hard` — [phase-2-artifact-state.md](../2026-09-18.buck-loop-extension/phase-2-artifact-state.md)
 - [ ] [Phase 3: Closed-Set Choice](items/phase-3-closed-set-choice.md) — hard, `/b-build-hard` — [phase-3-closed-set-choice.md](../2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md)
 - [ ] [Phase 4: Nested Work Sessions](items/phase-4-nested-work-sessions.md) — hard, `/b-build-hard` — [phase-4-nested-work-sessions.md](../2026-09-18.buck-loop-extension/phase-4-nested-work-sessions.md)
 - [ ] [Phase 5: Loop Supervisor](items/phase-5-loop-supervisor.md) — hard, `/b-build-hard` — [phase-5-loop-supervisor.md](../2026-09-18.buck-loop-extension/phase-5-loop-supervisor.md)
