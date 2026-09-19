@@ -165,6 +165,25 @@ describe("b-commit-improved deterministic plumbing", () => {
     }
   });
 
+  it("exits 0 when the staged patch exceeds execFileSync default maxBuffer", () => {
+    const dir = makeRepo();
+    try {
+      writeFileSync(join(dir, "big.txt"), "x".repeat(1_200_000) + "\n");
+      execFileSync("git", ["add", "big.txt"], { cwd: dir, stdio: ["pipe", "pipe", "pipe"] });
+      const r = runScript([], dir);
+      expect(r.code).toBe(0);
+      expect(r.json?.error).toBeUndefined();
+      expect(r.json?.staged_files).toEqual(["big.txt"]);
+      const diff = String(r.json?.diff);
+      expect(diff.startsWith("diff --git")).toBe(true);
+      expect(diff).toContain("... (truncated)");
+      expect(diff.length).toBeLessThanOrEqual(8200);
+      expect(diff).not.toContain("ENOBUFS");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("exits 1 on detached HEAD", () => {
     const dir = makeRepo();
     try {
