@@ -158,10 +158,10 @@ Generate diagrams **ONLY from information in the source**. Never invent relation
 ### Step 4: Build File Change Map
 
 Parse the source for file references. Classify each as:
-- **NEW** (green badge) — file is being created
-- **MODIFY** (amber badge) — existing file is being changed
-- **DELETE** (red badge) — file is being removed
-- **DEPS** (blue badge) — dependency change (package.json, etc.)
+- **NEW** — `<span class="badge b-new">` (status green)
+- **MODIFY** — `<span class="badge b-modify">` (status amber)
+- **DELETE** — `<span class="badge b-delete">` (status red)
+- **DEPS** — `<span class="badge b-deps">` (series cool) — dependency change (package.json, etc.)
 
 Extract from:
 - "Affected Files" sections in plans
@@ -185,12 +185,12 @@ Code snippet rules:
 
 ### Step 6: Assemble the HTML
 
-Use the blueprint HTML template from `references/blueprint-template.html` in this skill directory. The template includes:
-- Complete CSS (inline, no external dependencies except Mermaid CDN)
-- Syntax highlighting via CSS classes
-- Responsive layout
-- Print-friendly styles
-- Dark mode support
+Use the blueprint HTML template from `references/blueprint-template.html` in this skill directory. Fill the `{{PLACEHOLDERS}}`, delete unsupported sections, and renumber the remaining `<span class="h2n">` counters so they stay gapless. The template includes:
+- The generated design-token block and Mermaid init from `skills/_shared/design-brief.jsonc`
+- Complete CSS (inline, no external dependencies except the Mermaid CDN)
+- Syntax highlighting via CSS classes bound to `--syn-*` tokens
+- Sticky table-of-contents rail with scroll-spy, collapsing to a tap-to-open card under 1080px
+- Responsive and print styles
 
 ### Step 7: Write and Report
 
@@ -217,50 +217,45 @@ Source: <source-artifact-path>
 
 ### Syntax Highlighting Approach
 
-The blueprint uses **CSS-based syntax highlighting** with no JavaScript highlighting library. Define color classes for common token types:
+The blueprint uses **CSS-based syntax highlighting** with no JavaScript highlighting library. The token classes are defined in the template and bound to the shared palette — never hard-code a hex value in a snippet:
 
-```css
-.code-block .kw { color: #c678dd; }   /* keyword */
-.code-block .fn { color: #61afef; }   /* function */
-.code-block .st { color: #98c379; }   /* string */
-.code-block .cm { color: #5c6370; }   /* comment */
-.code-block .nu { color: #d19a66; }   /* number */
-.code-block .op { color: #56b6c2; }   /* operator */
-.code-block .ty { color: #e5c07b; }   /* type */
-```
+| Class | Token | Use |
+|---|---|---|
+| `.kw` | `--syn-kw` | keyword |
+| `.fn` | `--syn-fn` | function / method |
+| `.st` | `--syn-st` | string |
+| `.cm` | `--syn-cm` | comment |
+| `.nu` | `--syn-nu` | number |
+| `.ty` | `--syn-ty` | type |
+| `.op` | `--syn-op` | operator |
 
-When generating code snippets, wrap tokens in appropriate `<span class="kw">` etc. For long snippets or when syntax highlighting is impractical, use plain `<pre><code>` blocks — they're still readable.
+Wrap tokens in `<span class="kw">` etc. inside the `<pre>`. For long snippets, or when highlighting is impractical, use a plain `<pre>` — it is still on the same warm code surface and reads fine.
 
 ### Diff-Style Blocks
 
-For before/after comparisons, use a split layout:
+For before/after comparisons, use the split layout — it collapses to one column under 1080px:
 
 ```html
-<div class="diff-block">
-  <div class="diff-before">
-    <div class="diff-caption">Before — routes/auth.js</div>
-    <pre><code>old code here</code></pre>
+<div class="diffsplit">
+  <div class="code">
+    <div class="codecap"><span class="lang">before</span><span>routes/auth.ts</span></div>
+    <pre><span class="del">old line</span></pre>
   </div>
-  <div class="diff-after">
-    <div class="diff-caption">After — routes/auth.js</div>
-    <pre><code>new code here</code></pre>
+  <div class="code">
+    <div class="codecap"><span class="lang">after</span><span>routes/auth.ts</span></div>
+    <pre><span class="add">new line</span></pre>
   </div>
 </div>
 ```
 
-For inline diffs (single file changes), use `diff-add` and `diff-remove` line highlighting:
-
-```css
-.diff-add { background: rgba(22, 163, 74, 0.15); }
-.diff-remove { background: rgba(220, 38, 38, 0.15); }
-```
+For inline diffs inside a single block, wrap changed lines in `<span class="del">` / `<span class="add">`; they tint with `--diff-del` / `--diff-add`.
 
 ### Illustrative Snippet Badge
 
 When generating a code snippet that demonstrates a pattern (not copied from source):
 
 ```html
-<span class="badge badge-info">illustrative</span>
+<span class="badge b-illustrative">illustrative</span>
 ```
 
 ## Diagram Generation Rules
@@ -356,14 +351,27 @@ Group by action type (NEW first, then MODIFY, then DELETE) for quick scanning.
 
 ## Visual System
 
-The blueprint has a **dark-first aesthetic** optimized for technical readability:
+The blueprint uses the shared design language defined in **`skills/_shared/design-brief.jsonc`** — the same one `b-present` and every other generated HTML deliverable uses. Read the brief before adding a component or a colour.
 
-- Dark background (`#0d1117`) — easy on eyes for long review sessions
-- Monospace code blocks with syntax colors matching VS Code dark theme
-- Color-coded badges for file actions and severity
-- Generous spacing between sections
-- Print-friendly: switches to light theme with `@media print`
-- Responsive: stacks to single column on mobile
+In short: warm paper, not app chrome. An off-white ground, white raised panels, hairline warm-grey rules, one deep-teal accent carrying every interactive and emphatic state, two series accents for comparing labelled sides, and four status colours. Light-only by decision — printable and linkable, so there is no dark mode and no `prefers-color-scheme` block.
+
+Blueprint-specific mappings on top of the shared set:
+
+| Blueprint concept | Design-language element |
+|---|---|
+| File action badges | status colours — `b-new` / `b-modify` / `b-delete`, plus series cool for `b-deps` |
+| Code blocks | `--sunk` surface with a `--chip` caption strip and `--syn-*` token colours |
+| Diffs | `--diff-add` / `--diff-del` line tints |
+| Risk severity | `sev high` / `sev medium` / `sev low` chips |
+| Delivery phases | `.phase` cards with an accent counter square |
+
+The token block and Mermaid init in the template are **generated** from the brief. Do not hand-edit them:
+
+```bash
+bun skills/_shared/scripts/render-design-tokens.ts --write
+```
+
+`skills/_shared/scripts/design-language.test.ts` pins both blocks byte-for-byte, so an edited copy fails `npm test`.
 
 Read `references/blueprint-template.html` for the complete HTML/CSS boilerplate.
 
