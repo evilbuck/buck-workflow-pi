@@ -4,11 +4,15 @@ date: 2026-09-18
 subject: 2026-09-18.buck-loop-extension
 topics: [buck-loop, autonomous-loop, state-machine, omp-sdk, nested-sessions]
 research: []
-iterations: []
+iterations:
+  - iterate-buck-loop-artifact-state.md
+  - iterate-buck-loop-artifact-state-2.md
 spec: []
 memory:
   - buck-loop-extension-phasing-2026-09-18.md
   - buck-loop-phase1-build-2026-09-18.md
+  - buck-loop-phase2-build-2026-09-18.md
+  - buck-loop-phase2-review-2026-09-18.md
 
 # Plan: buck-loop extension (scrap XState, happy-path runner)
 

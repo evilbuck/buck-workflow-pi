@@ -25,7 +25,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Transition Contract | completed | hard | none | [phase-1-transition-contract.md](phase-1-transition-contract.md) |
-| 2: Artifact State | pending | hard | none | [phase-2-artifact-state.md](phase-2-artifact-state.md) |
+| 2: Artifact State | completed | hard | none | [phase-2-artifact-state.md](phase-2-artifact-state.md) |
 | 3: Closed-Set Choice | pending | hard | none | [phase-3-closed-set-choice.md](phase-3-closed-set-choice.md) |
 | 4: Nested Work Sessions | pending | hard | none | [phase-4-nested-work-sessions.md](phase-4-nested-work-sessions.md) |
 | 5: Loop Supervisor | pending | hard | none | [phase-5-loop-supervisor.md](phase-5-loop-supervisor.md) |
@@ -97,8 +97,8 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Transition Contract — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: Artifact State — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Transition Contract — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 2: Artifact State — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 3: Closed-Set Choice — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Nested Work Sessions — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: Loop Supervisor — build → review → iterate if in-plan issues → docs if doc impact → save → commit

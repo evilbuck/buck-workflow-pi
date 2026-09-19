@@ -1,3 +1,7 @@
+- 2026-09-18 — [buck-loop Phase 2 review](buck-loop-phase2-review-2026-09-18.md) — `completed` (`/b-review` Pass with warnings; 49/49; guardrails pass; `/b-commit` next)
+
+- 2026-09-18 — [buck-loop Phase 2 build and iterate](buck-loop-phase2-build-2026-09-18.md) — `completed` (scan+persist; two iterate rounds; 49/49 focused)
+
 - 2026-09-18 — [buck-loop Phase 1 build+review](buck-loop-phase1-build-2026-09-18.md) — `completed` (pure transition contract frozen; /b-review Pass; 66/66; guardrails pass; /b-commit next; Phases 2–4 unblocked)
 - 2026-09-18 — [buck-loop extension phasing](buck-loop-extension-phasing-2026-09-18.md) — `completed` (seven execution phases; Phase 1 gate, Phases 2–4 parallel, Phase 5 join)
 
