@@ -185,6 +185,18 @@ describe("subject lifecycle intents", () => {
     });
   });
 
+  it("treats a zero-plan subject as not-verified instead of ownership-ambiguous", () => {
+    const dir = subject();
+    write(dir, "index.md", "---\nstatus: active\n---\n");
+    write(dir, "phase-1-orphan.md", "---\nstatus: completed\n---\n");
+
+    const result = applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: dir });
+    expect(result).toMatchObject({ ok: false, code: "not-verified", changed: false });
+    expect(result.blockers).toContain("no plan provides closeout evidence");
+    expect(result.blockers.some((blocker) => blocker.includes("multi-plan"))).toBe(false);
+  });
+
+
   it("fails closed when explicit phase ownership is malformed", () => {
     const dir = subject();
     write(dir, "index.md", "---\nstatus: active\n---\n");

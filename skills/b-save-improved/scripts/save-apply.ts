@@ -434,7 +434,7 @@ function applyLifecycle(payload: AnyRecord): void {
     inspection = inspectSubjectLifecycle(subjectDir);
   }
   const hasPlanWork = readdirSync(subjectDir, { withFileTypes: true }).some(
-    (entry) => entry.isFile() && /^plan-.*\.md$/.test(entry.name) && !/-phases\.md$/.test(entry.name),
+    (entry) => entry.isFile() && /^plan-.*\.md$/.test(entry.name),
   );
   if (inspection.state === "draft" && hasPlanWork) {
     const activated = applySubjectLifecycleIntent({ kind: "activate", subjectDir });

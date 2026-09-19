@@ -336,7 +336,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 After creating phase files and the phases overview:
 1. Update the plan file's frontmatter `status` to `active` if it is currently `draft`.
-2. Run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`, then `activate --subject <folder> --json`. Treat semantic refusal as a lifecycle error; never fall back to editing the subject index.
+2. If the subject index is missing, run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`. If the subject is already active, skip initialize. Then run `activate --subject <folder> --json`. Treat semantic refusal as a lifecycle error; never fall back to editing the subject index.
 
 ## Notes
 

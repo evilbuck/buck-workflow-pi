@@ -113,6 +113,21 @@ function frontmatter(path: string): Record<string, unknown> {
   }
 }
 
+function attachUnownedPhase(
+  phase: string,
+  plans: string[],
+  phasesByPlan: Map<string, string[]>,
+  blockers: string[],
+): boolean {
+  if (plans.length === 1) {
+    phasesByPlan.get(plans[0])?.push(phase);
+    return false;
+  }
+  if (plans.length === 0) return false;
+  blockers.push(`${phase}: missing plan ownership in multi-plan subject`);
+  return true;
+}
+
 function assignPhaseOwnership(
   subjectDir: string,
   phases: string[],
@@ -124,13 +139,8 @@ function assignPhaseOwnership(
   for (const phase of phases) {
     const data = frontmatter(join(subjectDir, phase));
     const hasOwner = Object.prototype.hasOwnProperty.call(data, "plan");
-    if (!hasOwner && plans.length === 1) {
-      phasesByPlan.get(plans[0])?.push(phase);
-      continue;
-    }
     if (!hasOwner) {
-      blockers.push(`${phase}: missing plan ownership in multi-plan subject`);
-      ambiguous = true;
+      if (attachUnownedPhase(phase, plans, phasesByPlan, blockers)) ambiguous = true;
       continue;
     }
     if (typeof data.plan !== "string" || !data.plan.trim()) {

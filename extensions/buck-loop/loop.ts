@@ -157,7 +157,12 @@ function stopRun(cwd: string, now: () => string): LoopResult {
   if (!projection) return { state: "idle", reason: "no run to stop" };
   const t = stopFrom(projection.state);
   const snapshot = resume({ projectRoot: cwd });
-  persist(cwd, withTransition(snapshot, t, now()));
+  persist(cwd, withTransition({
+    ...snapshot,
+    subject: snapshot.subject ?? projection.subject,
+    planPath: snapshot.planPath ?? projection.planPath,
+    phasePath: snapshot.phasePath ?? projection.phasePath,
+  }, t, now()));
   return { state: "aborted", reason: t.why };
 }
 

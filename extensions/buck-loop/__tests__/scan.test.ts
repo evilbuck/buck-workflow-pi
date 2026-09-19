@@ -364,6 +364,24 @@ describe("scan: artifact facts", () => {
     });
   });
 
+  it("treats No additional documentation impact as no impact", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "No additional documentation impact",
+        "No additional how-to impact",
+      ),
+    });
+    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+      kind: "report",
+      parseable: true,
+      iterateArtifact: false,
+      docsImpact: false,
+      howtoImpact: false,
+    });
+  });
+
+
   it("parses H2 impact headings the same as H3", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {

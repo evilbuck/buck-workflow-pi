@@ -323,6 +323,9 @@ function findReviewReport(subjectDir: string): string | null {
   return join(subjectDir, names[names.length - 1]);
 }
 
+const NO_DOCS_IMPACT = /no (?:additional )?documentation impact/i;
+const NO_HOWTO_IMPACT = /no (?:additional )?how-to impact/i;
+
 function parseReviewImpact(text: string): { parseable: boolean; docsImpact: boolean; howtoImpact: boolean } {
   const docs = sectionBody(text, "Documentation Impact") ?? summaryLine(text, "Documentation impact");
   const howto = sectionBody(text, "How-to Impact") ?? summaryLine(text, "How-to impact");
@@ -331,8 +334,8 @@ function parseReviewImpact(text: string): { parseable: boolean; docsImpact: bool
   }
   return {
     parseable: true,
-    docsImpact: isFlagged(docs, /no documentation impact/i),
-    howtoImpact: isFlagged(howto, /no how-to impact/i),
+    docsImpact: isFlagged(docs, NO_DOCS_IMPACT),
+    howtoImpact: isFlagged(howto, NO_HOWTO_IMPACT),
   };
 }
 

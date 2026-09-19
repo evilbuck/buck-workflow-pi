@@ -11,7 +11,7 @@ Investigate external sources — APIs, libraries, documentation, web resources, 
 
 Background subagent dispatch is the **default**, not an option. `b-research` is a heavy, multi-source investigation — never bundle it into the main agent's context.
 
-- **OMP path**: dispatch via the `task` tool with a read-only research/scout agent. Run asynchronously — keep working on the main thread and surface findings when the subagent returns. Do not block the conversation waiting on it.
+- **OMP path**: dispatch via the `task` tool with a read-only research/scout agent. Run asynchronously — keep working on the main thread. The subagent returns findings; the mainline persists subject-local `research/` notes and the canonical summary so the write-gate stays on the writer. Do not block the conversation waiting on it.
 - **Portable fallback** (harnesses without background dispatch): run the same procedure sequentially in the foreground. This is the exception path — same subject folder, write-gate, and artifact model; only the concurrency is lost.
 - **Foreground exception**: run inline only when the lookup is trivial (one or two authoritative sources, no synthesis needed) or the harness cannot dispatch background work. Anything larger goes to a subagent.
 
