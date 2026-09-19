@@ -21,7 +21,7 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
   const actual = await vi.importActual<typeof PiCodingAgent>("@mariozechner/pi-coding-agent");
   return { ...actual, createAgentSession: createAgentSessionMock };
 });
-import { WORK_SESSION_TIMEOUT_MS, runStep } from "../run-step.js";
+import { WORK_SESSION_IDLE_TIMEOUT_MS, runStep } from "../run-step.js";
 
 const dirs: string[] = [];
 function tmp(): string { const dir = mkdtempSync(join(tmpdir(), "buck-loop-run-step-")); dirs.push(dir); return dir; }
@@ -48,7 +48,7 @@ describe("runStep", () => {
   it.each([["b-review", ["read", "edit", "write", "grep", "find", "ls", "bash"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ cwd: tmp(), skill, planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools })); });
   it("does not waive protected-branch force for nested loop commits", async () => { const fake = arrange(); await runStep({ cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md", difficulty: "easy" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt).not.toContain("Treat this assignment as /b-commit force"); expect(prompt).toContain("Do not use force"); });
   it.each([["easy", "provider/smol"], ["medium", "provider/slow"], ["hard", "provider/default"]] as const)("routes %s work through configured model roles", async (difficulty, modelPattern) => { arrange(); const cwd = tmp(); writeRoles(cwd); await runStep({ cwd, skill: "b-build", planOrPhasePath: "plan.md", difficulty }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ modelPattern })); });
-  it("exports a fifteen-minute work-session timeout", () => { expect(WORK_SESSION_TIMEOUT_MS).toBe(15 * 60_000); });
+  it("exports a fifteen-minute work-session idle timeout", () => { expect(WORK_SESSION_IDLE_TIMEOUT_MS).toBe(15 * 60_000); });
   it("returns only successful assistant text", async () => { arrange("completed"); await expect(runStep({ cwd: tmp(), skill: "b-iterate", planOrPhasePath: "plan.md", difficulty: "medium" })).resolves.toEqual({ ok: true, text: "completed" }); });
   it("streams normalized SDK activity and unsubscribes after prompt failure", async () => {
     const fake = arrange();
@@ -72,6 +72,31 @@ describe("runStep", () => {
     ]);
     expect(fake.unsubscribe).toHaveBeenCalledOnce();
   });
+  it("keeps a productive work session alive past the idle timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = arrange("completed");
+      fake.prompt.mockImplementation(() => new Promise<void>((resolve) => {
+        setTimeout(() => {
+          fake.emit({ type: "tool_execution_start", toolName: "read", args: { path: "src/index.ts" } });
+        }, WORK_SESSION_IDLE_TIMEOUT_MS - 1);
+        setTimeout(resolve, (WORK_SESSION_IDLE_TIMEOUT_MS * 2) - 2);
+      }));
+
+      const pending = runStep({
+        cwd: tmp(),
+        skill: "b-build",
+        planOrPhasePath: "plan.md",
+        difficulty: "easy",
+      });
+      await vi.advanceTimersByTimeAsync((WORK_SESSION_IDLE_TIMEOUT_MS * 2) - 2);
+
+      await expect(pending).resolves.toEqual({ ok: true, text: "completed" });
+      expect(fake.abort).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it.each([["throws", () => createAgentSessionMock.mockRejectedValue(new Error("boom")), "boom"], ["aborts", () => { const fake = arrange(); fake.prompt.mockRejectedValue(Object.assign(new Error("timed out"), { name: "AbortError" })); }, "timed out"], ["has empty output", () => arrange(""), "Model returned no text"]])("returns a structured failure when the session %s", async (_label, setup, message) => {
     setup();
     const result = await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "hard" });
@@ -85,12 +110,12 @@ describe("runStep", () => {
       },
     });
   });
-  it("fails when timeout abort yields partial assistant text", async () => {
+  it("fails when idle-timeout abort yields partial assistant text", async () => {
     vi.useFakeTimers();
     const fake = arrange("partial result");
     fake.prompt.mockImplementation(() => new Promise<void>((resolve) => { fake.abort.mockImplementation(async () => { resolve(); }); }));
     const pending = runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" });
-    await vi.advanceTimersByTimeAsync(WORK_SESSION_TIMEOUT_MS);
+    await vi.advanceTimersByTimeAsync(WORK_SESSION_IDLE_TIMEOUT_MS);
     await expect(pending).resolves.toMatchObject({ ok: false, text: "partial result", failure: { error: { name: "TimeoutError" } } });
     expect(fake.abort).toHaveBeenCalledOnce();
     vi.useRealTimers();

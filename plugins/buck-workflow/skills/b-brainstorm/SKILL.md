@@ -11,7 +11,7 @@ Interview the user one question at a time to understand what they want to build,
 
 - You may write only to `.context/**` and temporary scratch locations.
 - **Every b-brainstorm creates a subject folder immediately**: `.context/YYYY-MM-DD.<subject-name>/`
-- **Create `index.md`** with `status: draft` in the subject root linking the draft and any other artifacts. This is the stable entrypoint for downstream commands.
+- **Initialize lifecycle through the authority**: after creating `.context/YYYY-MM-DD.<subject-name>/`, run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`; never write subject lifecycle fields directly.
 - Maintain sidecar state inside the subject folder (`brainstorm-state-<slug>.json`).
 - Do not modify source files outside `.context/`.
 
@@ -35,7 +35,7 @@ Downstream skills (`b-plan`, `b-build`, `b-review`, `b-phase`, `b-save`) all rea
 
 **Subject Resolution**: Before starting, apply the shared protocol at `skills/_shared/subject-resolution.md` to detect existing subjects. If multiple subjects are found, present the numbered menu and wait for the user to pick. If exactly one subject is found, use it. If none, start a new subject folder.
 
-**Note**: `b-brainstorm` creates new subject folders with `index.md status: draft`. If the protocol resolves an existing subject, you may either resume that subject's brainstorm or start a new one alongside it.
+**Note**: `b-brainstorm` initializes new subject folders as drafts through the lifecycle CLI. If the protocol resolves an existing subject, you may either resume that subject's brainstorm or start a new one alongside it.
 2. **Start**: If the user provided a topic hint, use it to derive a draft slug. If a matching draft already exists in the resolved subject, offer to resume it.
 3. **Ask one question at a time**. Keep a soft cap of ~4 questions before attempting a draft. The first substantive question surfaces the user goal — *who* this is for and *what* changes for them. See the [User Goal](#user-goal) section for fallback behavior when the user can't articulate it or waives as a technical chore.
 4. **Draft when ready**: If you have enough information (or the user says "enough"), write a loose first draft.

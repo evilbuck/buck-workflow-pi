@@ -67,7 +67,7 @@ Every entry MUST cite **exact file paths** (and class names where relevant). An 
 1. Read the recent memory index and backlog (standard before-task workflow).
 2. Resolve the scope from the argument or context. State it in one sentence.
 3. **Ask where to write the three deliverables**, offering `docs/ux-style-guide.md`, `docs/ux-research.html`, and `docs/ux-design-brief.json` as defaults.
-4. Create a `.context/YYYY-MM-DD.<surface>-ux-guide/` subject folder with `index.md` and a rolling notes file.
+4. Create a `.context/YYYY-MM-DD.<surface>-ux-guide/` subject folder, invoke lifecycle `initialize` then `activate`, and add a rolling notes file.
 
 ### Phase 2 — Analyze (inventory)
 

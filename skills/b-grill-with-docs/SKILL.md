@@ -60,7 +60,7 @@ Create files lazily — only when you have something to write.
 
 This skill includes all metadata tracking from `b-grill` (user mode):
 
-- **Subject folder**: Create or join `.context/YYYY-MM-DD.<subject-name>/`
+- **Subject folder**: Create or join `.context/YYYY-MM-DD.<subject-name>/`; invoke lifecycle `initialize` for a new folder.
 - **Session file**: Write `grill-session-<topic>.md`
 - **Track**: question count, decision domains, question types, resolutions
 - **Break points**: Model identifies natural division points in the decision tree

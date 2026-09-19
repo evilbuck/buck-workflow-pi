@@ -335,8 +335,8 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 ### Step 5c: Update Plan Status
 
 After creating phase files and the phases overview:
-1. **Update the plan file's frontmatter**: set `status: active` if it is currently `draft`
-2. **Update `index.md` in the subject folder**: set `status: active`
+1. Update the plan file's frontmatter `status` to `active` if it is currently `draft`.
+2. Run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`, then `activate --subject <folder> --json`. Treat semantic refusal as a lifecycle error; never fall back to editing the subject index.
 
 ## Notes
 
@@ -419,8 +419,8 @@ Plan has 14 steps across 8 files spanning API, DB, and UI.
 - Phase based on risk, not just step count. A 6-step plan touching auth + billing should still be phased.
 
 **No subject folder exists:**
-- Create `.context/YYYY-MM-DD.<topic>/` subject folder first
-- Create the overview and phase files within it
+- Create `.context/YYYY-MM-DD.<topic>/`, invoke lifecycle `initialize`, and create the overview and phase files within it.
+- Invoke lifecycle `activate` after the phase artifacts exist.
 - Fallback: `.context/plans/` for legacy projects
 
 ## Integration with Buck Workflow

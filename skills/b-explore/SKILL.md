@@ -29,7 +29,7 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
 3. **Create `research/` subdirectory** inside the subject folder for rolling notes.
 4. **Write exploration file inside**: `research-<topic>.md` (keeps the canonical summary artifact name for compatibility)
-5. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts.
+5. Initialize the subject with `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`; the authority owns `index.md` lifecycle fields.
 
 **Example:**
 ```

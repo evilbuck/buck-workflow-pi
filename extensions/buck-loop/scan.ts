@@ -163,9 +163,13 @@ function loadResolved(
 ): Resolved | { reason: string } {
   const subjectDir = classified.kind === "subject" ? classified.abs : classified.subjectDir;
   const subject = basename(subjectDir);
-  const planAbs = classified.kind === "plan" ? classified.abs : pickSolePlan(subjectDir);
+  const planAbs = classified.kind === "plan"
+    ? classified.abs
+    : classified.kind === "phase"
+      ? resolvePhasePlan(classified.abs, subjectDir)
+      : pickSolePlan(subjectDir);
   if (typeof planAbs !== "string") return planAbs;
-  const phases = listPhases(subjectDir, planAbs, listPlans(subjectDir).length);
+  const phases = listPhases(subjectDir, planAbs);
   const picked = pickPhase(phases);
   if (picked.kind === "none") {
     return { subject, subjectDir, planAbs, phaseAbs: null, planFacts: { kind: "unphased" } };
@@ -191,6 +195,15 @@ function loadResolved(
   };
 }
 
+function resolvePhasePlan(phaseAbs: string, subjectDir: string): string | { reason: string } {
+  const metadata = readFrontmatter(phaseAbs);
+  if (!Object.prototype.hasOwnProperty.call(metadata, "plan")) return pickSolePlan(subjectDir);
+  const owner = metadata.plan?.trim();
+  if (!owner) return { reason: `phase has malformed plan ownership: ${basename(phaseAbs)}` };
+  const selected = listPlans(subjectDir).find((plan) => basename(plan) === basename(owner));
+  return selected ?? { reason: `phase names missing plan: ${owner}` };
+}
+
 function pickSolePlan(subjectDir: string): string | { reason: string } {
   const plans = listPlans(subjectDir);
   if (plans.length === 0) return { reason: "no plan in subject" };
@@ -213,16 +226,18 @@ function isPhasesOverview(name: string): boolean {
   return name.startsWith("plan-") && name.endsWith(".md") && name.includes("-phases");
 }
 
-function listPhases(subjectDir: string, planAbs: string, planCount: number): PhaseMeta[] {
+function listPhases(subjectDir: string, planAbs: string): PhaseMeta[] {
   const out: PhaseMeta[] = [];
+  const selectedPlan = basename(planAbs);
+  const allowUntagged = listPlans(subjectDir).length === 1;
   for (const name of listNames(subjectDir)) {
     const match = name.match(PHASE_FILE_RE);
     if (!match) continue;
     const abs = join(subjectDir, name);
     const fm = readFrontmatter(abs);
-    const owner = fm.plan ?? fm.plans;
-    if (planCount > 1 && !owner) continue;
-    if (owner && !owner.split(/[ ,]+/).some((value) => value === basename(planAbs) || value === planAbs)) continue;
+    const hasOwner = Object.prototype.hasOwnProperty.call(fm, "plan");
+    const owner = fm.plan?.trim();
+    if (hasOwner ? !owner || basename(owner) !== selectedPlan : !allowUntagged) continue;
     out.push({
       n: Number(match[1]),
       abs,

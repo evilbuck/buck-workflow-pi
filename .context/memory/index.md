@@ -1,10 +1,17 @@
 - 2026-09-19 — [Reusable state-machine planning](reusable-state-machine-plan-2026-09-19.md) — `completed` (validated pure-but-domain-coupled Buck table; chose a declarative pure evaluator; implementation plan + backlog item created)
+- 2026-09-19 — [Deterministic subject work-state build](subject-work-state-build-2026-09-19.md) — `completed` (final review passed; saved for commit; lifecycle close refused as designed because the completed plan is unphased)
+
+- 2026-09-19 — [buck-loop productive-session timeout](buck-loop-build-timeout-2026-09-19.md) — `completed` (two productive 900s builds hit a hard wall; timeout now resets on child activity; 174/174; guardrails pass; loop remains authoritatively blocked)
+
+- 2026-09-19 — [Subject work-state plan audit](subject-work-state-plan-audit-2026-09-19.md) — `completed` (four parallel scouts; deterministic lifecycle authority; active-save ordering; extension and Codex-bundle coverage; dedicated PR policy audit)
 
 - 2026-09-19 — [buck-loop inline JSDoc](buck-loop-jsdoc-2026-09-19.md) — `completed` (junior-readable `/** */` on every buck-loop file; host APIs explained in English; 169/169; guardrails pass)
 
 - 2026-09-19 — [buck-loop stall diagnosis](buck-loop-stall-diagnosis-2026-09-19.md) — `completed` (clean review heading drift triggered a context-free chooser; accepted block stopped the loop)
 - 2026-09-19 — [buck-loop nested LLM output viewport](buck-loop-streaming-output-2026-09-19.md) — `completed` (six-row nested SDK stream; 84 tests; guardrails pass)
+- 2026-09-19 — [buck-loop idempotency](buck-loop-idempotency-2026-09-19.md) — `active` (PARTIAL: state/resume/choice idempotent; non-atomic persist write + retry re-fires identical worker prompt; research note in ideas-questions subject)
 - 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `active` (loop 2: Wooderson residual warnings at 478dc6b)
+- [ideas-questions-answered-2026-09-19.md](ideas-questions-answered-2026-09-19.md) — answered remaining docs/ideas.md questions inline (advisor, telemetry, progress, iterate-limit); Q4/Q7 already covered.
 
   - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: active
 

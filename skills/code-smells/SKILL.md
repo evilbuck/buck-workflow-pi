@@ -63,7 +63,7 @@ If any are missing, **STOP** and name exactly which files are absent — partial
 ### 1. Scope and setup
 
 1. **Resolve scope.** Default = current working directory. Accept an explicit path/glob from the user (`src/`, `extensions/`, a single package). Record it in the report frontmatter.
-2. **Create the subject folder:** `.context/YYYY-MM-DD.code-smells-scan/` with an `index.md` carrying `status: active`.
+2. **Create the subject folder:** `.context/YYYY-MM-DD.code-smells-scan/`, then invoke lifecycle `initialize` and `activate` through `skills/_shared/scripts/subject-lifecycle.ts`.
 3. **Detect the knowledge graph.** Call `gitnexus_list_repos`. If it returns the target repo, the graph is available — prefer it for coupling/change smells. If not, fall back to `search` / `ast_grep` / git history (see playbook). Record `graph: available|fallback` in the report.
 4. **Confirm language mix** (so structural thresholds and `ast_grep` patterns target the right languages). Use `find` to enumerate source file types under scope.
 

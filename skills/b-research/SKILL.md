@@ -42,7 +42,7 @@ Background subagent dispatch is the **default**, not an option. `b-research` is 
 
 1. **Infer subject name** from the research topic (kebab-case)
 2. **Create dated folder**: `.context/YYYY-MM-DD.<subject-name>/`
-3. **Create `index.md`** with `status: draft` as the stable entrypoint linking all artifacts
+3. Run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json` so the authority creates the draft lifecycle projection.
 4. **Write incremental notes** in a subject-local `research/` subdirectory as you gather information
 5. **Consolidate into `research-<topic>.md`** in the subject root as the canonical summary artifact
 
@@ -50,7 +50,7 @@ Background subagent dispatch is the **default**, not an option. `b-research` is 
 ```
 .context/
 └── 2026-04-08.oauth-research/
-    ├── index.md    ← status: draft
+    ├── index.md    ← lifecycle authority projection
     ├── research/
     │   ├── notes-providers.md
     │   └── sources-oauth.md

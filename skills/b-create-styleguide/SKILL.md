@@ -266,7 +266,7 @@ The same block-marker contract applies to the visual guide and markdown referenc
 
 ### Phase 6 — Bookkeeping
 
-1. Create a `.context/YYYY-MM-DD.<surface>-styleguide/` subject folder with `index.md`.
+1. Create a `.context/YYYY-MM-DD.<surface>-styleguide/` subject folder, invoke lifecycle `initialize` then `activate`, and update only ordinary `index.md` content.
 2. Write a session memory file + update `.context/memory/index.md`.
 3. If the user wants a commit, prepare it (styleguide files + AGENTS.md/CLAUDE.md change only; no unrelated app code).
 

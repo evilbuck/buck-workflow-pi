@@ -53,14 +53,15 @@ export function planMd(): string {
   return "---\nstatus: active\n---\n# Demo plan\n";
 }
 
-export function phaseMd(n: number, status: string, dependsOn: number[] = []): string {
+export function phaseMd(n: number, status: string, dependsOn: number[] = [], plan?: string): string {
   const dep = `[${dependsOn.join(", ")}]`;
   const dtype = dependsOn.length > 0 ? "HARD" : "NONE";
+  const owner = plan ? `plan: ${plan}\n` : "";
   return `---
 status: ${status}
 phase: ${n}
 order: ${n}
-depends_on: ${dep}
+${owner}depends_on: ${dep}
 dependency_type: ${dtype}
 ---
 # Phase ${n}

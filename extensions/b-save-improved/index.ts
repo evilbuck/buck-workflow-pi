@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../subprocess.js";
 import { createActivity, type ActivityEvent } from "../extension-activity.js";
 import { lastAssistantText, resolveOmpRole, runOmpModelSession } from "../omp-models.js";
+import type { SubjectLifecycleResult } from "../../skills/_shared/scripts/subject-lifecycle.js";
 
 export { lastAssistantText };
 
@@ -28,6 +29,13 @@ export interface SaveArgs {
   subject: string | null;
   noRetain: boolean;
   model: string | undefined;
+}
+
+interface ApplyReport {
+  applied?: Array<{ path: string; action: string; reason?: string }>;
+  staged_inferred?: Array<{ slug?: string }>;
+  errors?: unknown[];
+  lifecycle?: SubjectLifecycleResult;
 }
 
 export function parseArgs(raw: string): SaveArgs {
@@ -497,7 +505,6 @@ export function assembleApplyPayload(
       path: it.path,
       addresses: it.addresses,
     })),
-    subject_index_status: "completed",
     loose_artifacts: preflight.loose_artifacts ?? [],
   };
 }
@@ -680,7 +687,7 @@ async function runBSaveImproved(
     if (opts.dryRun) applyArgs.push("--dry-run");
     if (opts.archiveInferred) applyArgs.push("--archive-inferred");
     const applied = await execFileCapturedWithStdin(applyArgs[0], applyArgs.slice(1), ctx.cwd, JSON.stringify(payload));
-    let report: { applied?: Array<{ path: string; action: string; reason?: string }>; staged_inferred?: Array<{ slug?: string }>; errors?: unknown[] } = {};
+    let report: ApplyReport = {};
     try {
       report = JSON.parse(applied.stdout) as typeof report;
     } catch {
@@ -700,6 +707,12 @@ async function runBSaveImproved(
     if ((report.staged_inferred ?? []).length > 0) {
       const slugs = (report.staged_inferred ?? []).map((s) => s.slug ?? JSON.stringify(s)).join(", ");
       notify(ctx, `Staged inferred: ${slugs}. Re-run /b-save-improved --archive-inferred to archive these.`, "warning");
+    }
+    const lifecycleRefused = report.lifecycle?.ok === false;
+    if (lifecycleRefused) {
+      const blockers = report.lifecycle?.blockers ?? [];
+      const detail = blockers.length > 0 ? `: ${blockers.join("; ")}` : "";
+      notify(ctx, `Subject not closed (${report.lifecycle?.code ?? "unknown"})${detail}`, "warning");
     }
     if (adjudicationSkipped) {
       notify(ctx, "Adjudication skipped — memory, index, cross-references, and explicit backlog completions still landed.", "warning");
@@ -740,7 +753,7 @@ async function runBSaveImproved(
         { triggerTurn: true },
       );
     }
-    activity.succeed("checkpoint written");
+    activity.succeed(lifecycleRefused ? "checkpoint written; subject not closed" : "checkpoint written");
   } catch (e: unknown) {
     activity.fail(`error: ${(e as Error).message}`);
     throw e;

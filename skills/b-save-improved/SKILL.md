@@ -17,9 +17,9 @@ this skill does not replace it.
 
 - A `.context/` directory containing the subject folder, plan/spec/phase/iterate
   artifacts, memory files, and backlog items.
-  If more than one is `active`, prompt the user to pick one **or create
-  `<today>.<slug-from-branch>`**. Candidates are newest-first. If none is
-  `active`, fall back to `status: draft`, otherwise synthesize that name.
+  Subject selection uses lifecycle `inspect` and `effectiveState`, never raw
+  scalar parsing. If more than one is active, prompt the user to pick one or
+  create `<today>.<slug-from-branch>`. If none is active, consider drafts.
 - Additional user context (free-form text in the slash-command arguments).
 - **`--dry-run`** — preview only; never mutate. Compute the apply payload,
   print the report, write nothing.
@@ -44,7 +44,7 @@ this skill does not replace it.
   `--archive-inferred` is set. Explicit completions always archive.
 - A missing `## User Goal` section in a plan is a warning, never a block.
 - `--dry-run` writes nothing — verify with `git status --porcelain` afterwards.
-- Subject status is authoritative; "lexically latest folder wins" shortcuts that ignore status are forbidden.
+- Lifecycle inspection is authoritative. Apply performs ordinary index/artifact mutations first, then `initialize`/`activate` as needed and `close-verified` last. A close refusal is reported without rolling back saved artifacts or directly editing lifecycle fields.
 - Model-derived backlog slugs must match `^[a-z0-9]+(?:-[a-z0-9]+)*$` (max 80). Apply refuses any path that resolves outside `.context/`.
 - Memory index prepend is idempotent on the memory filename appearing in any entry, not only the first line.
 - Loose artifacts are session-shaped files at `.context/` root (`plan|spec|research|iterate|brainstorm|phase-*.md`, `draft-commit.md`) — never `backlog.md` or other infrastructure files.
@@ -106,8 +106,10 @@ The remaining steps are deterministic and run in scripts:
    already proof.
 5. Assemble the apply payload (preflight facts + scribe output + auditor
    verdicts) and pipe it to `bun skills/b-save-improved/scripts/save-apply.ts`
-   on stdin. Use `--dry-run` to preview without writing, or
-   `--archive-inferred` to also archive inferred backlog items.
+   on stdin. The payload has no caller-selected subject lifecycle status.
+   Apply performs lifecycle intents last and returns the lifecycle result.
+   Use `--dry-run` to preview without writing, or `--archive-inferred` to also
+   archive inferred backlog items.
 6. If `memory_backend.expect_retain`, call `retain` (for `hindsight`/`mnemopi`)
    or `learn` (for `local`) with 1–N self-contained facts including artifact
    paths. Each fact is pre-drafted by the scribe. Skip if `backend` is null
