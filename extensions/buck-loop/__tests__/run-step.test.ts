@@ -28,27 +28,41 @@ describe("runStep", () => {
   it("leads with the canonical skill contract and names the exact phase path", async () => { const fake = arrange(); await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: ".context/example/phase-2.md", difficulty: "easy" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt.startsWith("---")).toBe(true); expect(prompt).toContain("# b-build: Implementation Agent with TDD"); expect(prompt).toContain(".context/example/phase-2.md"); expect(prompt).toContain("no authority to choose the next loop state"); });
   it("creates isolated sessions with the build tool allowlist", async () => { arrange(); await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ disableExtensionDiscovery: true, restrictToolNames: true, enableMCP: false, tools: ["read", "edit", "write", "grep", "bash"], toolNames: ["read", "edit", "write", "grep", "bash"] })); });
   it.each([["b-review", ["read", "grep", "find", "ls", "bash", "write"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ cwd: tmp(), skill, planOrPhasePath: "plan.md", difficulty: "easy" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools })); });
+  it("authorizes the explicit loop commit on protected branches", async () => { const fake = arrange(); await runStep({ cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md", difficulty: "easy" }); expect(fake.prompt.mock.calls[0][0]).toContain("Treat this assignment as /b-commit force"); });
   it.each([["easy", "provider/smol"], ["medium", "provider/slow"], ["hard", "provider/default"]] as const)("routes %s work through configured model roles", async (difficulty, modelPattern) => { arrange(); const cwd = tmp(); writeRoles(cwd); await runStep({ cwd, skill: "b-build", planOrPhasePath: "plan.md", difficulty }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ modelPattern })); });
   it("exports a fifteen-minute work-session timeout", () => { expect(WORK_SESSION_TIMEOUT_MS).toBe(15 * 60_000); });
   it("returns only successful assistant text", async () => { arrange("completed"); await expect(runStep({ cwd: tmp(), skill: "b-iterate", planOrPhasePath: "plan.md", difficulty: "medium" })).resolves.toEqual({ ok: true, text: "completed" }); });
-  it.each([["throws", () => createAgentSessionMock.mockRejectedValue(new Error("boom")), "boom"], ["aborts", () => { const fake = arrange(); fake.prompt.mockRejectedValue(Object.assign(new Error("timed out"), { name: "AbortError" })); }, "timed out"], ["has empty output", () => arrange(""), "Model returned no text"]])("returns a failure result when the session %s", async (_label, setup, message) => { setup(); const result = await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "hard" }); expect(result.ok).toBe(false); expect(result.text).toContain(message); });
+  it.each([["throws", () => createAgentSessionMock.mockRejectedValue(new Error("boom")), "boom"], ["aborts", () => { const fake = arrange(); fake.prompt.mockRejectedValue(Object.assign(new Error("timed out"), { name: "AbortError" })); }, "timed out"], ["has empty output", () => arrange(""), "Model returned no text"]])("returns a structured failure when the session %s", async (_label, setup, message) => {
+    setup();
+    const result = await runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "hard" });
+    expect(result).toMatchObject({
+      ok: false,
+      text: expect.stringContaining(message),
+      failure: {
+        prompt: expect.stringContaining("plan.md"),
+        agent: expect.objectContaining({ kind: "work-session", role: "b-build" }),
+        error: expect.objectContaining({ message: expect.stringContaining(message) }),
+      },
+    });
+  });
   it("fails when timeout abort yields partial assistant text", async () => {
     vi.useFakeTimers();
     const fake = arrange("partial result");
     fake.prompt.mockImplementation(() => new Promise<void>((resolve) => { fake.abort.mockImplementation(async () => { resolve(); }); }));
     const pending = runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" });
     await vi.advanceTimersByTimeAsync(WORK_SESSION_TIMEOUT_MS);
-    await expect(pending).resolves.toEqual({ ok: false, text: "partial result" });
+    await expect(pending).resolves.toMatchObject({ ok: false, text: "partial result", failure: { error: { name: "TimeoutError" } } });
     expect(fake.abort).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
   it("fails when the SDK resolves abort with nonempty assistant text", async () => {
     const fake = arrange("partial result");
     fake.messages = [{ role: "assistant", content: "partial result", stopReason: "aborted" }];
-    await expect(runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" })).resolves.toEqual({
+    await expect(runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" })).resolves.toMatchObject({
       ok: false,
       text: "partial result",
+      failure: { error: { name: "AbortError" } },
     });
   });
-  it("fails for a missing canonical skill before creating a session", async () => { failSkillRead.value = true; await expect(runStep({ cwd: tmp(), skill: "b-docs", planOrPhasePath: "plan.md", difficulty: "easy" })).resolves.toEqual({ ok: false, text: "missing skill" }); expect(createAgentSessionMock).not.toHaveBeenCalled(); });
+  it("fails for a missing canonical skill before creating a session", async () => { failSkillRead.value = true; await expect(runStep({ cwd: tmp(), skill: "b-docs", planOrPhasePath: "plan.md", difficulty: "easy" })).resolves.toMatchObject({ ok: false, text: "missing skill", failure: { prompt: null, agent: null, error: { message: "missing skill" } } }); expect(createAgentSessionMock).not.toHaveBeenCalled(); });
 });

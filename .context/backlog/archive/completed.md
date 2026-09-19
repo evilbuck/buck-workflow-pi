@@ -1,3 +1,5 @@
+- [x] [buck-loop extension](2026-09/buck-loop-extension.md) — done 2026-09-18 — visible activity, structured nested-failure handoff, real OMP loop reached done, 165 focused tests. `.context/2026-09-18.buck-loop-extension/`
+
 - [x] [Phase 7: buck-loop documentation and proof](2026-09/phase-7-documentation-and-proof.md) — done 2026-09-18 — ADR 0002; runner vs stamper; 161 tests; guardrails pass. `.context/2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md`
 
 - [x] [Phase 6: buck-loop command surface](2026-09/phase-6-command-surface.md) — done 2026-09-18 — `wireBuckLoop` registers `/buck-loop`; b-flow unwired. `.context/2026-09-18.buck-loop-extension/phase-6-command-surface.md`

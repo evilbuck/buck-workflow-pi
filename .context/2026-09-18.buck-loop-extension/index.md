@@ -27,6 +27,7 @@ Replace the deprecated XState `b-flow` supervisor with a new, observably invoked
 | `iterate-buck-loop-nested-work-sessions.md` | Iterate | Phase 4 tool allowlists + abort |
 | `iterate-buck-loop-loop-supervisor.md` | Iterate | Phase 5 review artifacts + phase freeze |
 | `iterate-buck-loop-loop-supervisor-2.md` | Iterate | Phase 5 review-zz naming |
+| `iterate-buck-loop-live-feedback.md` | Iterate | Live activity, nested failure handoff, commit completion, and smoke proof |
 | `draft-commit.md` | Draft | Next `/b-commit` message |
 
 ## Related

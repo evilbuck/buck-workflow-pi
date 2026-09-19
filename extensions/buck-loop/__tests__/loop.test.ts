@@ -5,12 +5,13 @@
  * - Worker prose is never parsed for the next state
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
 import { readProjection } from "../persist.js";
-import type { NestedSkill } from "../run-step.js";
+import type { NestedSkill, RunStepResult } from "../run-step.js";
 import type { Choice } from "../types.js";
 
 const SUBJECT = "2026-09-18.demo";
@@ -51,7 +52,7 @@ function phased(root: string, statuses: string[]): void {
   });
   writeTree(root, files);
 }
-function workDeps(runStep: (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty: string }) => Promise<{ ok: boolean; text: string }>, choose = vi.fn(async () => ({ status: "blocked" as const, reason: "choose not expected" }))) {
+function workDeps(runStep: (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty: string }) => Promise<RunStepResult>, choose = vi.fn(async () => ({ status: "blocked" as const, reason: "choose not expected" }))) {
   return {
     runStep: vi.fn(runStep),
     choose,
@@ -89,7 +90,6 @@ function landingWork() {
       git(cwd, ["add", "-f", rel]);
     }
     if (opts.skill === "b-commit") {
-      git(cwd, ["add", "-Af"]);
       git(cwd, ["commit", "-qm", "loop"]);
     }
     return { ok: true, text: opts.skill };
@@ -143,9 +143,10 @@ describe("happy path", () => {
   it("runs build → review → save → commit → next phase → done", async () => {
     const cwd = repo();
     phased(cwd, ["pending", "pending"]);
-    const deps = workDeps(landingWork());
+    const onProgress = vi.fn();
+    const deps = { ...workDeps(landingWork()), onProgress };
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     const calls = deps.runStep.mock.calls.map((call) => call[0]);
     const skills = calls.map((call) => call.skill);
     expect(skills.filter((s) => s === "b-build")).toHaveLength(2);
@@ -163,6 +164,12 @@ describe("happy path", () => {
     expect(calls.filter((call) => call.skill === "b-build")[1]?.planOrPhasePath).toContain("phase-2-p2.md");
     expect(readProjection(cwd)?.state).toBe("done");
     expect(readProjection(cwd)?.history.some((h) => h.to === "building")).toBe(true);
+    const labels = onProgress.mock.calls.map((call) => call[0].label);
+    expect(labels).toContain("Building phase-1-p1.md");
+    expect(labels).toContain("Reviewing phase-1-p1.md");
+    expect(labels).toContain("Saving session state");
+    expect(labels).toContain("Committing completed work");
+    expect(execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" })).toBe("");
   });
 
   it("routes iterate when the review artifact exists, then re-reviews", async () => {
@@ -200,6 +207,23 @@ describe("happy path", () => {
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-docs");
   });
 
+  it("uses a newly written review artifact when the worker summary omits impact headings", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const choose = vi.fn(async () => ({ status: "blocked" as const, reason: "choose not expected" }));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        writeTree(cwd, { [`.context/${SUBJECT}/review-phase-1.md`]: CLEAN_REVIEW });
+        return { ok: true, text: "Review passed; continue to save." };
+      }
+      return landingWork()(opts);
+    }, choose);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(choose).not.toHaveBeenCalled();
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
+  });
+
   it("uses the loop-written review report even when an older conventional review file exists", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
@@ -215,23 +239,49 @@ describe("happy path", () => {
 });
 
 describe("failure and choice", () => {
-  it("retries a failed work session once then blocks", async () => {
+  it("retries a failed work session once, reports each structured failure, then blocks", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     let builds = 0;
-    const deps = workDeps(async (opts) => {
-      if (opts.skill === "b-build") {
-        builds += 1;
-        return { ok: false, text: `fail-${builds}` };
-      }
-      return landingWork()(opts);
-    });
+    const onFailure = vi.fn();
+    const deps = {
+      ...workDeps(async (opts) => {
+        if (opts.skill === "b-build") {
+          builds += 1;
+          return {
+            ok: false,
+            text: `fail-${builds}`,
+            failure: {
+              prompt: `prompt-${builds}`,
+              agent: {
+                kind: "work-session" as const,
+                id: `buck-loop-work-${builds}`,
+                role: "b-build",
+                model: "provider/model",
+              },
+              error: { name: "ProviderError", message: `fail-${builds}` },
+            },
+          };
+        }
+        return landingWork()(opts);
+      }),
+      onFailure,
+    };
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(result.state).toBe("blocked");
     expect(builds).toBe(2);
     expect(result.reason).toMatch(/failed again after one retry/i);
     expect(result.reason).toContain("fail-2");
     expect(readProjection(cwd)?.history.at(-1)?.why).toContain("fail-2");
+    expect(onFailure).toHaveBeenCalledTimes(2);
+    expect(onFailure).toHaveBeenLastCalledWith(expect.objectContaining({
+      state: "building",
+      operation: "run-skill",
+      trying: expect.stringContaining("b-build"),
+      prompt: "prompt-2",
+      agent: expect.objectContaining({ id: "buck-loop-work-2", model: "provider/model" }),
+      error: { name: "ProviderError", message: "fail-2" },
+    }));
   });
 
   it("blocks when closed-set choice is rejected", async () => {

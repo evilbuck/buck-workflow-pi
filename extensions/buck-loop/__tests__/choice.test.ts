@@ -66,6 +66,13 @@ describe("choose", () => {
 
     const result = await choose({ cwd, subject, legal });
     expect(result.status).toBe("blocked");
+    expect(result).toMatchObject({
+      failure: {
+        prompt: expect.stringContaining("Choose exactly one action"),
+        agent: expect.objectContaining({ kind: "choice-session", role: "closed-set-choice" }),
+        error: expect.objectContaining({ name: "InvalidChoiceResponseError" }),
+      },
+    });
     expect(runOmpModelSession).toHaveBeenCalledTimes(2);
     expect(audits(cwd)).toEqual([
       expect.objectContaining({ legal, accepted: false, attempt: 1 }),

@@ -2,7 +2,8 @@
  * persist — versioned `.context/workflow/buck-loop.json` plus resume
  * reconciliation. Artifacts win. The projection never overrides disk truth.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { scan, type ScanResult } from "./scan.js";
 import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } from "./types.js";
@@ -52,7 +53,37 @@ export type ResumeOptions = {
   path?: string;
 };
 
+const preparedProjectionRoots = new Set<string>();
+
+function prepareProjectionPath(projectRoot: string): void {
+  const root = resolve(projectRoot);
+  if (preparedProjectionRoots.has(root)) return;
+  preparedProjectionRoots.add(root);
+  try {
+    const gitPath = execFileSync("git", ["rev-parse", "--git-path", "info/exclude"], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    const excludePath = resolve(root, gitPath);
+    mkdirSync(dirname(excludePath), { recursive: true });
+    const existing = existsSync(excludePath) ? readFileSync(excludePath, "utf8") : "";
+    if (!existing.split(/\r?\n/).includes(PROJECTION_RELPATH)) {
+      appendFileSync(excludePath, (existing && !existing.endsWith("\n") ? "\n" : "") + PROJECTION_RELPATH + "\n");
+    }
+    execFileSync("git", ["rm", "--cached", "-f", "--quiet", "--ignore-unmatch", "--", PROJECTION_RELPATH], {
+      cwd: root,
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  } catch {
+    // Non-git projects still get a projection; commit verification will fail closed.
+  }
+}
 export function writeProjection(projectRoot: string, projection: Projection): void {
+  prepareProjectionPath(projectRoot);
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
   mkdirSync(dirname(abs), { recursive: true });
   writeFileSync(abs, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
