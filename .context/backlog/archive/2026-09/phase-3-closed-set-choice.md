@@ -1,10 +1,10 @@
 ---
 title: Phase 3 — buck-loop closed-set choice
-status: active
+status: completed
 priority: high
 created: 2026-09-18
 updated: 2026-09-18
-completed: null
+completed: 2026-09-18
 related:
   - .context/2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md
   - .context/2026-09-18.buck-loop-extension/plan-buck-loop-extension-phases.md
@@ -16,4 +16,4 @@ related:
 
 Implement the tool-less OMP classification boundary: prompt only current legal choices, parse and validate JSON, retry once, fail closed, and write transition audits.
 
-Pickup: `.context/2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md`. HARD on Phase 1; `/b-build-hard`. May run in parallel with Phases 2 and 4 after Phase 1.
+Shipped 2026-09-18: `extensions/buck-loop/{choice.ts,__tests__/choice.test.ts}`. Illegal mocked choices retry once then block; legal choices audit `legal` + `accepted`. Pickup was `.context/2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md`.

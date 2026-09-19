@@ -126,6 +126,7 @@ buck-workflow-pi/
     b-commit-improved/      # (wired) deterministic /b-commit-improved command
     b-save-improved/        # (wired) deterministic /b-save-improved command
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
+    buck-loop/              # (wired) observably invoked /buck-loop runner
     b-flow/                 # (unwired) b-flow orchestration subsystem
     b-grill-auto/           # (unwired) b-grill-auto RPC subsystem
     grill-me-dialog.ts      # (unwired) grill-me dialog
@@ -162,6 +163,7 @@ buck-workflow-pi/
 5. **`/b-save-improved`** (`b-save-improved/`) — deterministic session checkpoint (preflight → scribe/auditor → apply).
 6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
+8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Pure transition table, nested isolated sessions, artifact postconditions. Distinct from `/skill:b-loop` (execution-mode stamper). See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands. The four deterministic commands fall back to their skill counterparts (`b-pr`, `git-commit-improved`, `b-save-improved`) when the extension is not loaded — see the real-file command stubs under `commands/`.
 

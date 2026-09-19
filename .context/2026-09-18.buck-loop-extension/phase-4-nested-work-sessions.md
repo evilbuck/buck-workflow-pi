@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-buck-loop-extension.md
@@ -15,15 +15,19 @@ from_plan_steps: [4]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `run-step.ts` loads the requested Buck skill body and names the exact plan or phase path in the nested-session prompt."
-  - "[ ] Nested work sessions set `disableExtensionDiscovery: true`, preventing `/buck-loop` recursion."
-  - "[ ] Tool sets are least-privilege by step: coding tools for build/iterate, read-heavy tools for review, and established improved-command patterns for docs, how-to, save, and commit."
-  - "[ ] Model routing follows phase difficulty exactly: easy→smol, medium→slow, hard→default, using existing OMP role mapping."
-  - "[ ] The timeout is a named 15-minute constant; abort, timeout, throw, or empty result returns a failed step."
-  - "[ ] The runner returns only `{ ok, text }` diagnostics and never interprets or selects the next loop state."
-  - "[ ] Focused nested-session tests pass with mocked `createAgentSession`."
-completed_at: null
-completed_by: null
+  - "[x] `run-step.ts` loads the requested Buck skill body and names the exact plan or phase path in the nested-session prompt."
+  - "[x] Nested work sessions set `disableExtensionDiscovery: true`, preventing `/buck-loop` recursion."
+  - "[x] Tool sets are least-privilege by step: coding tools for build/iterate, read-heavy tools for review, and established improved-command patterns for docs, how-to, save, and commit."
+  - "[x] Model routing follows phase difficulty exactly: easy→smol, medium→slow, hard→default, using existing OMP role mapping."
+  - "[x] The timeout is a named 15-minute constant; abort, timeout, throw, or empty result returns a failed step."
+  - "[x] The runner returns only `{ ok, text }` diagnostics and never interprets or selects the next loop state."
+  - "[x] Focused nested-session tests pass with mocked `createAgentSession`."
+completed_at: 2026-09-18
+completed_by: omp
+iterations:
+  - iterate-buck-loop-nested-work-sessions.md
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phase 4: Nested Work Sessions

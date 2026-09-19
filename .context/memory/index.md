@@ -1,3 +1,5 @@
+- 2026-09-18 — [buck-loop Phases 3–7](buck-loop-remaining-phases-2026-09-18.md) — `completed` (`/b-save`; `/buck-loop` shipped; 161 tests; guardrails pass; `/b-commit` next)
+
 - 2026-09-18 — [buck-loop Phase 2 review](buck-loop-phase2-review-2026-09-18.md) — `completed` (`/b-review` Pass with warnings; 49/49; guardrails pass; `/b-commit` next)
 
 - 2026-09-18 — [buck-loop Phase 2 build and iterate](buck-loop-phase2-build-2026-09-18.md) — `completed` (scan+persist; two iterate rounds; 49/49 focused)

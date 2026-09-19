@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 7
 order: 7
 plan: plan-buck-loop-extension.md
@@ -17,14 +17,16 @@ from_plan_steps: [7]
 depends_on: [6]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] ADR 0002 records why an observably invoked hand-rolled runner is allowed, why XState is rejected here, and why `b-loop` remains advisory."
-  - "[ ] Living docs distinguish `/buck-loop` (runner) from `/skill:b-loop` (execution-mode stamper) and list the new wire accurately."
-  - "[ ] The blanket `no new orchestrator extension` statement and b-flow deprecation note are corrected without claiming hidden main-session orchestration."
-  - "[ ] All `extensions/buck-loop` tests pass; required repository guardrails pass; no `xstate` or `extensions/b-flow/` import exists under the new directory."
-  - "[ ] Smoke: `/buck-loop --status` with no projection reports idle, and `/buck-loop --stop` with no run reports a no-op."
-  - "[ ] Every acceptance criterion in the parent plan is checked against code or exercised behavior before completion."
-completed_at: null
-completed_by: null
+  - "[x] ADR 0002 records why an observably invoked hand-rolled runner is allowed, why XState is rejected here, and why `b-loop` remains advisory."
+  - "[x] Living docs distinguish `/buck-loop` (runner) from `/skill:b-loop` (execution-mode stamper) and list the new wire accurately."
+  - "[x] The blanket `no new orchestrator extension` statement and b-flow deprecation note are corrected without claiming hidden main-session orchestration."
+  - "[x] All `extensions/buck-loop` tests pass; required repository guardrails pass; no `xstate` or `extensions/b-flow/` import exists under the new directory."
+  - "[x] Smoke: `/buck-loop --status` with no projection reports idle, and `/buck-loop --stop` with no run reports a no-op."
+  - "[x] Every acceptance criterion in the parent plan is checked against code or exercised behavior before completion."
+completed_at: 2026-09-18
+completed_by: omp
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phase 7: Documentation and Proof

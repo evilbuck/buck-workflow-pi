@@ -1,10 +1,10 @@
 ---
 title: Phase 7 — buck-loop documentation and proof
-status: active
+status: completed
 priority: medium
 created: 2026-09-18
 updated: 2026-09-18
-completed: null
+completed: 2026-09-18
 related:
   - .context/2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md
   - .context/2026-09-18.buck-loop-extension/plan-buck-loop-extension-phases.md
@@ -18,4 +18,4 @@ related:
 
 Record the architecture reversal in ADR 0002, distinguish `/buck-loop` from `/skill:b-loop`, update the wired-surface docs, run the full suite and guardrails, and smoke status/stop.
 
-Pickup: `.context/2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md`. HARD on Phase 6. Difficulty **medium**; `/b-build`.
+Shipped 2026-09-18: ADR 0002; living docs runner vs stamper; 161 focused tests; guardrails pass after `drive()` complexity split. Pickup was `.context/2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md`.

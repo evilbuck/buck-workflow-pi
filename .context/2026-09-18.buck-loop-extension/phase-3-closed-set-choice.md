@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-buck-loop-extension.md
@@ -15,14 +15,16 @@ from_plan_steps: [3]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] The helper calls `runOmpModelSession` with extension discovery disabled, MCP disabled, no tools, and restricted tool names."
-  - "[ ] The prompt exposes only the current legal enum and asks for JSON `{ choice, reason }`; it does not let the model define route types."
-  - "[ ] Parsed choices outside the legal set are rejected and retried once; a second illegal, empty, or non-JSON result blocks instead of advancing."
-  - "[ ] A legal mocked choice is the only transition result returned to the caller."
-  - "[ ] Every attempt writes a transition audit containing the legal set, raw output, and accepted or rejected outcome."
-  - "[ ] Focused choice tests pass without a live model."
-completed_at: null
-completed_by: null
+  - "[x] The helper calls `runOmpModelSession` with extension discovery disabled, MCP disabled, no tools, and restricted tool names."
+  - "[x] The prompt exposes only the current legal enum and asks for JSON `{ choice, reason }`; it does not let the model define route types."
+  - "[x] Parsed choices outside the legal set are rejected and retried once; a second illegal, empty, or non-JSON result blocks instead of advancing."
+  - "[x] A legal mocked choice is the only transition result returned to the caller."
+  - "[x] Every attempt writes a transition audit containing the legal set, raw output, and accepted or rejected outcome."
+  - "[x] Focused choice tests pass without a live model."
+completed_at: 2026-09-18
+completed_by: omp
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phase 3: Closed-Set Choice

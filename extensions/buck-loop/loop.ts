@@ -1,0 +1,397 @@
+/**
+ * loop — bounded happy-path supervisor. Executes table effects; never
+ * invents transitions. Worker prose is diagnostic only. Artifacts win.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { choose as defaultChoose, type ChooseResult } from "./choice.js";
+import {
+  PROJECTION_VERSION,
+  readProjection,
+  resume,
+  writeProjection,
+  type Projection,
+} from "./persist.js";
+import { runStep as defaultRunStep, type NestedSkill } from "./run-step.js";
+import { scan } from "./scan.js";
+import { applyChoice, next, start, stopFrom, userConfirmed } from "./table.js";
+import type {
+  AcceptedChoice,
+  Choice,
+  LoopState,
+  Snapshot,
+  Transition,
+  TransitionRecord,
+  WorkSkill,
+} from "./types.js";
+
+const SAFETY_TICK_CEILING = 64;
+const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
+  "building",
+  "reviewing",
+  "iterating",
+  "documenting",
+  "saving",
+]);
+
+export type LoopCommand = "start" | "resume" | "status" | "stop";
+
+export type LoopResult = {
+  state: LoopState;
+  reason: string;
+};
+
+export type LoopDeps = {
+  runStep: typeof defaultRunStep;
+  choose: typeof defaultChoose;
+  now: () => string;
+};
+
+type EffectResult = {
+  snapshot: Snapshot;
+  lastFail: string | null;
+  halt: LoopResult | null;
+};
+
+const DEFAULT_DEPS: LoopDeps = {
+  runStep: defaultRunStep,
+  choose: defaultChoose,
+  now: () => new Date().toISOString(),
+};
+
+export async function handleLoop(opts: {
+  cwd: string;
+  command: LoopCommand;
+  path?: string;
+  deps?: Partial<LoopDeps>;
+}): Promise<LoopResult> {
+  const cwd = resolve(opts.cwd);
+  const deps: LoopDeps = { ...DEFAULT_DEPS, ...opts.deps };
+  if (opts.command === "status") return statusOf(cwd);
+  if (opts.command === "stop") return stopRun(cwd, deps.now);
+  if (opts.command === "start") return startRun(cwd, opts.path, deps);
+  return resumeRun(cwd, deps);
+}
+
+export function statusOf(cwd: string): LoopResult {
+  const projection = readProjection(cwd);
+  if (!projection) return { state: "idle", reason: "no projection" };
+  return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
+}
+
+function stopRun(cwd: string, now: () => string): LoopResult {
+  const projection = readProjection(cwd);
+  if (!projection) return { state: "idle", reason: "no run to stop" };
+  const t = stopFrom(projection.state);
+  const snapshot = resume({ projectRoot: cwd });
+  persist(cwd, withTransition(snapshot, t, now()));
+  return { state: "aborted", reason: t.why };
+}
+
+async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
+  const target = path?.trim() ?? "";
+  if (!target) return { state: "idle", reason: "path is required to start" };
+  const scanned = scan({ projectRoot: cwd, path: target, state: "resolving" });
+  const snapshot: Snapshot = {
+    state: "resolving",
+    subject: scanned.subject,
+    planPath: scanned.planPath,
+    phasePath: scanned.phasePath,
+    planFacts: scanned.planFacts,
+    workFacts: scanned.workFacts,
+    reviewFacts: scanned.reviewFacts,
+    loopCount: 0,
+    maxLoops: 12,
+    iterateCyclesOnPhase: 0,
+    lastChoice: null,
+    history: [{ from: "idle", to: "resolving", at: deps.now(), why: start().why }],
+  };
+  persistIfPossible(cwd, snapshot);
+  return drive(cwd, snapshot, target, deps);
+}
+
+async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
+  const projection = readProjection(cwd);
+  if (!projection) return { state: "idle", reason: "no projection to resume" };
+  let snapshot = resume({ projectRoot: cwd });
+  if (projection.state === "blocked" && snapshot.state === "blocked" && snapshot.planFacts.kind !== "missing") {
+    snapshot = withTransition(snapshot, userConfirmed(), deps.now());
+    persistIfPossible(cwd, snapshot);
+  }
+  const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
+  return drive(cwd, snapshot, path, deps);
+}
+
+async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDeps): Promise<LoopResult> {
+  let snapshot = initial;
+  let lastFail: string | null = null;
+  for (let tick = 0; tick < SAFETY_TICK_CEILING; tick += 1) {
+    const stopped = haltIfTerminal(cwd, snapshot);
+    if (stopped) return stopped;
+    const step = takeStep(snapshot, lastFail, deps.now());
+    snapshot = step.snapshot;
+    persistIfPossible(cwd, snapshot);
+    if (step.halt) return step.halt;
+    const ran = await runEffect(cwd, snapshot, path, step.transition, deps);
+    snapshot = ran.snapshot;
+    lastFail = ran.lastFail ?? lastFail;
+    persistIfPossible(cwd, snapshot);
+    if (ran.halt) return ran.halt;
+  }
+  const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
+  snapshot = block(snapshot, reason, deps.now());
+  persistIfPossible(cwd, snapshot);
+  return { state: "blocked", reason };
+}
+
+function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
+  if (!isTerminal(snapshot.state)) return null;
+  persistIfPossible(cwd, snapshot);
+  return { state: snapshot.state, reason: lastWhyFromSnapshot(snapshot) };
+}
+
+function takeStep(
+  snapshot: Snapshot,
+  lastFail: string | null,
+  at: string,
+): { snapshot: Snapshot; transition: Transition; halt: LoopResult | null } {
+  let transition: Transition;
+  try {
+    transition = next(snapshot);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { snapshot: block(snapshot, reason, at), transition: unusedTransition(), halt: { state: "blocked", reason } };
+  }
+  transition = annotateFailure(transition, lastFail);
+  const nextSnapshot = withTransition(snapshot, transition, at);
+  if (transition.effect.kind === "await-operator") {
+    return { snapshot: nextSnapshot, transition, halt: { state: "blocked", reason: transition.effect.reason } };
+  }
+  return { snapshot: nextSnapshot, transition, halt: null };
+}
+
+function annotateFailure(transition: Transition, lastFail: string | null): Transition {
+  if (transition.effect.kind !== "await-operator" || !lastFail) return transition;
+  const reason = `${transition.why} (${lastFail})`;
+  return { ...transition, why: reason, effect: { kind: "await-operator", reason } };
+}
+
+function unusedTransition(): Transition {
+  return { to: "blocked", effect: { kind: "none" }, why: "unused" };
+}
+
+async function runEffect(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  transition: Transition,
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  if (transition.effect.kind === "choose") return runChoice(cwd, snapshot, path, transition.effect.legal, deps);
+  if (transition.effect.kind !== "run-skill") return { snapshot, lastFail: null, halt: null };
+  const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
+  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
+}
+
+async function runChoice(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  legal: readonly Choice[],
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  const chosen = await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal });
+  const applied = applyChosen(snapshot, chosen, deps.now());
+  persistIfPossible(cwd, applied.snapshot);
+  if (applied.stop) {
+    return { snapshot: applied.snapshot, lastFail: null, halt: { state: applied.snapshot.state, reason: applied.reason } };
+  }
+  const nextSnapshot = withTransition(applied.snapshot, applied.next, deps.now());
+  persistIfPossible(cwd, nextSnapshot);
+  if (applied.next.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
+  const ran = await executeSkill(cwd, nextSnapshot, path, applied.next.effect.skill, deps);
+  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
+}
+
+function applyChosen(
+  snapshot: Snapshot,
+  chosen: ChooseResult,
+  at: string,
+): { snapshot: Snapshot; stop: boolean; reason: string; next: Transition } {
+  if (chosen.status !== "accepted") {
+    const reason = chosen.reason;
+    return {
+      snapshot: block(snapshot, reason, at),
+      stop: true,
+      reason,
+      next: unusedTransition(),
+    };
+  }
+  const accepted: AcceptedChoice = chosen.accepted;
+  const withChoice = { ...snapshot, lastChoice: accepted };
+  try {
+    const transition = applyChoice(accepted.choice, withChoice);
+    return { snapshot: withChoice, stop: false, reason: transition.why, next: transition };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    return { snapshot: block(withChoice, reason, at), stop: true, reason, next: unusedTransition() };
+  }
+}
+
+async function executeSkill(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  skill: WorkSkill,
+  deps: LoopDeps,
+): Promise<{ snapshot: Snapshot; failedText: string | null }> {
+  const planOrPhasePath = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const result = await deps.runStep({
+    cwd,
+    skill: nestedSkill(cwd, skill, snapshot),
+    planOrPhasePath,
+    difficulty: difficultyOf(cwd, snapshot),
+  });
+  if (result.ok && skill === "review") persistReviewArtifact(cwd, snapshot, result.text, deps.now());
+  const retriesUsed = nextRetries(snapshot, result.ok);
+  const scanned = rescan(cwd, snapshot, path, {
+    sessionOutcome: result.ok ? "ok" : "failed",
+    retriesUsed,
+  });
+  return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+}
+
+function nextRetries(snapshot: Snapshot, ok: boolean): number {
+  if (ok) return snapshot.workFacts.retriesUsed;
+  return snapshot.workFacts.sessionOutcome === "failed" ? snapshot.workFacts.retriesUsed + 1 : 0;
+}
+
+function finishSkill(
+  cwd: string,
+  scanned: Snapshot,
+  skill: WorkSkill,
+  planOrPhasePath: string,
+  ok: boolean,
+  text: string,
+  retriesUsed: number,
+): { snapshot: Snapshot; failedText: string | null } {
+  if (ok && skill === "build" && builtPhaseLanded(cwd, planOrPhasePath, scanned.planFacts.kind)) {
+    return {
+      snapshot: { ...scanned, workFacts: { sessionOutcome: "ok", retriesUsed, postcondition: "confirmed" } },
+      failedText: null,
+    };
+  }
+  return { snapshot: scanned, failedText: ok ? null : text };
+}
+
+function persistReviewArtifact(cwd: string, snapshot: Snapshot, text: string, at: string): void {
+  if (!snapshot.subject || !text.trim()) return;
+  const dir = join(cwd, ".context", snapshot.subject);
+  mkdirSync(dir, { recursive: true });
+  const stamp = at.replace(/[:.]/g, "-");
+  writeFileSync(join(dir, `review-zz-buck-loop-${stamp}.md`), text.endsWith("\n") ? text : `${text}\n`);
+}
+
+function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapshot["planFacts"]["kind"]): boolean {
+  if (planKind === "phased-complete" || planKind === "unphased") return true;
+  const abs = resolve(cwd, planOrPhasePath);
+  return existsSync(abs) && /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
+}
+
+function rescan(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number },
+): Snapshot {
+  const scanPath = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const scanned = scan({
+    projectRoot: cwd,
+    path: scanPath,
+    state: snapshot.state,
+    sessionOutcome: work.sessionOutcome,
+    retriesUsed: work.retriesUsed,
+  });
+  const phasePath = FROZEN_PHASE.has(snapshot.state) ? snapshot.phasePath ?? scanned.phasePath : scanned.phasePath;
+  return {
+    ...snapshot,
+    subject: scanned.subject,
+    planPath: scanned.planPath,
+    phasePath,
+    planFacts: scanned.planFacts,
+    workFacts: scanned.workFacts,
+    reviewFacts: scanned.reviewFacts,
+    iterateCyclesOnPhase: phasePath === snapshot.phasePath ? snapshot.iterateCyclesOnPhase : 0,
+  };
+}
+
+function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedSkill {
+  if (skill === "build") return difficultyOf(cwd, snapshot) === "hard" ? "b-build-hard" : "b-build";
+  if (skill === "review") return "b-review";
+  if (skill === "iterate") return "b-iterate";
+  if (skill === "save") return "b-save";
+  if (skill === "commit") return "b-commit";
+  const howtoOnly =
+    snapshot.reviewFacts.kind === "report" && snapshot.reviewFacts.howtoImpact && !snapshot.reviewFacts.docsImpact;
+  return howtoOnly ? "b-howto" : "b-docs";
+}
+
+function difficultyOf(cwd: string, snapshot: Snapshot): "easy" | "medium" | "hard" {
+  const rel = snapshot.phasePath ?? snapshot.planPath;
+  if (!rel) return "medium";
+  return readDifficulty(resolve(cwd, rel));
+}
+
+function readDifficulty(abs: string): "easy" | "medium" | "hard" {
+  if (!abs || !existsSync(abs)) return "medium";
+  const match = /^difficulty:\s*(easy|medium|hard)\s*$/m.exec(readFileSync(abs, "utf8"));
+  return (match?.[1] as "easy" | "medium" | "hard" | undefined) ?? "medium";
+}
+
+function withTransition(snapshot: Snapshot, transition: Transition, at: string): Snapshot {
+  const record: TransitionRecord = { from: snapshot.state, to: transition.to, at, why: transition.why };
+  const loopCount =
+    transition.to === "building" && snapshot.state !== "building" ? snapshot.loopCount + 1 : snapshot.loopCount;
+  const iterateCyclesOnPhase =
+    transition.to === "iterating" && snapshot.state !== "iterating"
+      ? snapshot.iterateCyclesOnPhase + 1
+      : snapshot.iterateCyclesOnPhase;
+  return { ...snapshot, state: transition.to, loopCount, iterateCyclesOnPhase, history: [...snapshot.history, record] };
+}
+
+function block(snapshot: Snapshot, reason: string, at: string): Snapshot {
+  return withTransition(snapshot, { to: "blocked", effect: { kind: "await-operator", reason }, why: reason }, at);
+}
+
+function persistIfPossible(cwd: string, snapshot: Snapshot): void {
+  if (snapshot.subject && snapshot.planPath) persist(cwd, snapshot);
+}
+
+function persist(cwd: string, snapshot: Snapshot): void {
+  if (!snapshot.subject || !snapshot.planPath) return;
+  const projection: Projection = {
+    version: PROJECTION_VERSION,
+    state: snapshot.state,
+    subject: snapshot.subject,
+    planPath: snapshot.planPath,
+    phasePath: snapshot.phasePath,
+    loopCount: snapshot.loopCount,
+    iterateCyclesOnPhase: snapshot.iterateCyclesOnPhase,
+    maxLoops: snapshot.maxLoops,
+    lastChoice: snapshot.lastChoice,
+    history: snapshot.history,
+  };
+  writeProjection(cwd, projection);
+}
+
+function isTerminal(state: LoopState): boolean {
+  return state === "done" || state === "blocked" || state === "aborted";
+}
+
+function lastWhy(projection: Projection): string | undefined {
+  return projection.history[projection.history.length - 1]?.why;
+}
+
+function lastWhyFromSnapshot(snapshot: Snapshot): string {
+  return snapshot.history[snapshot.history.length - 1]?.why ?? snapshot.state;
+}
