@@ -16,6 +16,7 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 | `node` | runs the deterministic verdict engine (`scripts/check.mjs`) |
 | `git` | patch gate (diff-cover needs a diff), diff-scoped lint |
 | `diff-cover`, `lizard` | patch + complexity measurements, when configured |
+| `bun` | runs `detect-stack.ts` when `guardrails.json` is missing (step 3 of the resolution chain) |
 
 ## Invocation
 

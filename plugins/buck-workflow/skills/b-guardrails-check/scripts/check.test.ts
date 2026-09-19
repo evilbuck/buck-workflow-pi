@@ -298,9 +298,9 @@ describe("runCheck", () => {
     expect(verdict.status).toBe("pass");
   });
 
-  it("a coverage regression fails the global ratchet", async () => {
+  it("an unmeasurable coverage artifact skips the global ratchet", async () => {
     const dir = fixtureRepo(
-      "ratchet-regression",
+      "ratchet-unmeasurable",
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
@@ -311,6 +311,24 @@ describe("runCheck", () => {
     // No lcov file produced → coverage unmeasurable → ratchet skipped.
     const verdict = await runCheck({ cwd: dir });
     expect(verdict.gates.global_ratchet).toBe("skipped");
+  });
+
+  it("a coverage regression fails the global ratchet", async () => {
+    const dir = fixtureRepo(
+      "ratchet-regression",
+      baseContract({
+        ratchet: ratchet({ baseline_coverage: 54.9 }),
+        ecosystems: [
+          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+        ],
+      }),
+    );
+    mkdirSync(join(dir, "coverage"), { recursive: true });
+    writeFileSync(join(dir, "coverage", "lcov.info"), "LF:100\nLH:50\nend_of_record\n");
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.coverage.current).toBe(50);
+    expect(verdict.gates.global_ratchet).toBe("fail");
+    expect(verdict.status).toBe("fail");
   });
 
   it("missing guardrails.json is a hard error", async () => {

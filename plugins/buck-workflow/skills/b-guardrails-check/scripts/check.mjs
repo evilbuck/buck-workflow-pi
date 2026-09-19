@@ -161,6 +161,7 @@ function splitCsvLine(line) {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch.charCodeAt(0) === 34) {
+      inQuotes = !inQuotes;
     } else if (ch === "," && !inQuotes) {
       fields.push(current);
       current = "";
@@ -247,7 +248,7 @@ export function evaluateComplexity(current, baseline, { max, hardCeiling }) {
 function runGitCapturing(args, cwd) {
   const proc = runCommand(["git", ...args], cwd);
   if (proc.missing || proc.code !== 0) return null;
-  return proc.stdout
+  return proc.output
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);
