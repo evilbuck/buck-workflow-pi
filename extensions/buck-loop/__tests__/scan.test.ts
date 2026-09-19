@@ -333,6 +333,28 @@ describe("scan: artifact facts", () => {
     });
   });
 
+  it("parses H4 impact headings the same as H3", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: `# Review
+
+#### Documentation Impact
+- No documentation impact
+
+#### How-to Impact
+- No how-to impact
+`,
+    });
+    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+      kind: "report",
+      parseable: true,
+      iterateArtifact: false,
+      docsImpact: false,
+      howtoImpact: false,
+    });
+  });
+
+
   it("does not pick another plan's unowned phases when multiple plans exist", () => {
     const root = repo();
     writeTree(root, {

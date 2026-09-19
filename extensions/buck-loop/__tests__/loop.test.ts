@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
@@ -176,6 +176,32 @@ describe("handleLoop commands", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
+  it("refuses to resume with unrelated dirty files", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1,
+        state: "building",
+        subject: SUBJECT,
+        planPath: PLAN,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        loopCount: 1,
+        iterateCyclesOnPhase: 0,
+        maxLoops: 12,
+        lastChoice: null,
+        history: [{ from: "resolving", to: "building", at: NOW, why: "start" }],
+      }, null, 2),
+      "src/unrelated.ts": "export {}\n",
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+
 });
 
 describe("happy path", () => {
@@ -288,6 +314,21 @@ describe("happy path", () => {
     expect(choose).not.toHaveBeenCalled();
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
   });
+
+  it("does not persist a whitespace-only review report", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") return { ok: true, text: "\n  \n" };
+      return landingWork()(opts);
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    const names = readdirSync(join(cwd, `.context/${SUBJECT}`)).filter((name) =>
+      name.startsWith("review-zz-buck-loop-"),
+    );
+    expect(names).toEqual([]);
+  });
+
 
 
   it("uses the loop-written review report even when an older conventional review file exists", async () => {
@@ -483,4 +524,29 @@ describe("resume", () => {
     expect(result.state).toBe("done");
     expect(deps.runStep).toHaveBeenCalled();
   });
+
+  it("does not USER_CONFIRM a blocked resume when the scanned phase moved", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1,
+        state: "blocked",
+        subject: SUBJECT,
+        planPath: PLAN,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        loopCount: 1,
+        iterateCyclesOnPhase: 0,
+        maxLoops: 12,
+        lastChoice: null,
+        history: [{ from: "building", to: "blocked", at: NOW, why: "build failed twice" }],
+      }, null, 2),
+    });
+    rmSync(join(cwd, `.context/${SUBJECT}/phase-1-p1.md`));
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
 });

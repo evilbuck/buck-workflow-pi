@@ -4,7 +4,7 @@ The `guardrails.json` schema and the two-gate semantics that govern quality enfo
 
 ## Schema Definition
 
-`guardrails.json` lives at the repo root. Version 2:
+`guardrails.json` lives at the repo root. Version 2 example configuration (brownfield `/b-init-guardrails` initial states; these `enforcement` values are not omitted-field runner defaults):
 
 ```json
 {
@@ -57,7 +57,7 @@ Version 1 files are readable by v2 tooling — see *v1 Compatibility* below.
 
 **`version`** — Schema version. Currently `2`. Increment on breaking changes. Version 1 files are readable by v2 tooling — see *v1 Compatibility* below.
 
-**`enforcement`** — Optional explicit enforcement state per gate (see *Enforcement States*). Absent → documented defaults apply. Enforcement state is orthogonal to measurement semantics: ratchet baselines, burn-down inventories, and "new/worsened only" complexity checks are measurements; `enforcement` decides whether a failed measurement fails the run.
+**`enforcement`** — Optional explicit enforcement state per gate (see *Enforcement States*). Absent → `check.mjs` `DEFAULT_ENFORCEMENT`: `unit_test_gate`, `functional_test_gate`, `patch_gate`, `global_ratchet`, and `complexity_gate` are `required`; `lint_gate` is `advisory`. The schema sample above is one init configuration, not those omitted-field defaults. Enforcement state is orthogonal to measurement semantics: ratchet baselines, burn-down inventories, and "new/worsened only" complexity checks are measurements; `enforcement` decides whether a failed measurement fails the run.
 
 **`targets`** — The quality thresholds. All values are cited (see Threshold Table below).
 - `coverage_min` — Minimum acceptable global coverage (60%). Below this is a warning.
@@ -102,6 +102,8 @@ Every gate carries an explicit enforcement state, resolved from `guardrails.json
 **Promotion is explicit and monotonic** (`disabled` → `advisory` → `required`). Promote an advisory gate to `required` only after the same runner command is green in a clean CI environment. Demotion (`required` → `advisory`/`disabled`) or weakening a baseline requires recorded approval in session memory — it is never a side effect of a refresh.
 
 Recommended initial states for a brownfield repo: `unit_test_gate` and `global_ratchet` `required`; absent functional/lint commands `disabled` (the `null` command skips them anyway); `lint_gate` `advisory` until `ratchet.baseline_lint_clean` is `true`; `complexity_gate` `required` (its measurement is already new/worsened-only); `patch_gate` `advisory` until the compare base and coverage artifact are reproducible in CI, then `required`.
+
+Omitted `enforcement` uses `check.mjs` `DEFAULT_ENFORCEMENT` (`required` unit/functional/patch/ratchet/complexity, `advisory` lint), not the brownfield initial states above.
 
 ## Gate Semantics
 

@@ -209,7 +209,15 @@ function idleOrUnreadableProjection(cwd: string): LoopResult {
 }
 
 function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
-  if (projection.state !== "blocked" || snapshot.state !== "blocked" || snapshot.planFacts.kind === "missing") {
+  if (projection.state !== "blocked" || snapshot.state !== "blocked") {
+    return snapshot;
+  }
+  if (
+    snapshot.planFacts.kind === "missing" ||
+    snapshot.planPath !== projection.planPath ||
+    snapshot.phasePath !== projection.phasePath
+  ) {
+    persistIfPossible(cwd, snapshot);
     return snapshot;
   }
   const confirmed = withTransition(snapshot, userConfirmed(), at);
@@ -385,7 +393,7 @@ function applyChosen(
     return { snapshot: withChoice, stop: false, reason: transition.why, next: transition };
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    return { snapshot: block(withChoice, reason, at), stop: true, reason, next: unusedTransition() };
+    return { snapshot: block(snapshot, reason, at), stop: true, reason, next: unusedTransition() };
   }
 }
 
@@ -471,7 +479,7 @@ function recordReviewArtifact(
   at: string,
   before: ReviewArtifactSnapshot | null,
 ): void {
-  if (!result.ok || skill !== "review") return;
+  if (!result.ok || skill !== "review" || !result.text.trim()) return;
   persistReviewArtifact(cwd, snapshot, result.text, at, before);
 }
 function progressLabel(state: LoopState, target: string): string {
@@ -517,31 +525,33 @@ function refuseUnsafeWorkspace(cwd: string, mode: "start" | "resume"): LoopResul
   if (PROTECTED_BRANCHES[branch]) {
     return { state: "blocked", reason: `refusing to ${mode} on protected branch ${branch}` };
   }
-  if (mode === "start") {
-    const dirty = gitLine(cwd, "status", "--porcelain")
-      .split("\n")
-      .filter((line) => {
-        if (!line) return false;
-        const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, "");
-        return path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/");
-      });
-    if (dirty.length > 0) {
-      return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
-    }
+  const dirty = gitOutput(cwd, "status", "--porcelain")
+    .split("\n")
+    .filter((line) => {
+      if (line.length < 4) return false;
+      const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, "");
+      return path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/");
+    });
+  if (dirty.length > 0) {
+    return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
   }
   return null;
 }
 
-function gitLine(cwd: string, ...args: string[]): string {
+function gitOutput(cwd: string, ...args: string[]): string {
   try {
     return execFileSync("git", ["-C", cwd, ...args], {
       encoding: "utf8",
       timeout: 10_000,
       stdio: ["pipe", "pipe", "pipe"],
-    }).trim();
+    }).replace(/\s+$/, "");
   } catch {
     return "";
   }
+}
+
+function gitLine(cwd: string, ...args: string[]): string {
+  return gitOutput(cwd, ...args).trim();
 }
 
 function decisionContext(snapshot: Snapshot, why: string): string {
@@ -621,6 +631,7 @@ function persistReviewArtifact(
       }).at(-1)?.[1].text
     : undefined;
   const authoritative = changedArtifact ?? text;
+  if (!authoritative.trim()) return;
   const stamp = at.replace(/[:.]/g, "-");
   writeFileSync(join(dir, `review-zz-buck-loop-${stamp}.md`), authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`);
 }

@@ -553,6 +553,11 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--nope"])).toThrow(/unknown option/);
   });
 
+  it("rejects leftover positional tokens after --harness", () => {
+    expect(() => parseArgs(["--harness", "pi", "claude"])).toThrow(/unexpected argument/);
+  });
+
+
   it("parses --harness ids (comma-separated)", () => {
     expect(parseArgs(["--harness", "pi,claude"]).harnessIds).toEqual([
       "pi",

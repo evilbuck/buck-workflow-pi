@@ -47,6 +47,8 @@
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { createActivity, type ActivityUI } from "../extension-activity.js";
 import { handleLoop, statusOf, type LoopCommand } from "./loop.js";
 import { formatFailureForAgent, serializeCallError, type AgentCallFailure } from "./call-failure.js";
@@ -165,7 +167,7 @@ function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }
   try {
     state = statusOf(cwd).state;
   } catch {
-    // The original supervisor error remains the actionable failure.
+    if (existsSync(join(cwd, ".context/workflow/buck-loop.json"))) state = "blocked";
   }
   return {
     state,

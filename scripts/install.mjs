@@ -581,7 +581,7 @@ export function parseArgs(argv) {
     const valueKey = FLAG_VALUES[value];
     if (!valueKey) {
       if (value.startsWith("-")) throw new Error(`unknown option: ${value}`);
-      continue;
+      throw new Error(`unexpected argument: ${value}`);
     }
     if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
       throw new Error(`option requires a value: ${value}`);

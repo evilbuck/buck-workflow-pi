@@ -3,8 +3,9 @@
  * repo. Resume must rescan disk — artifacts win; unsafe disagreement blocks.
  * No XState snapshot file is created or read.
  */
-import { afterEach, describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { cleanupRepos, planMd, phaseMd, repo, writeTree } from "./fixtures.js";
 import {
@@ -237,4 +238,17 @@ describe("persist contract", () => {
     expect(src).not.toMatch(/from ["']xstate["']/);
     expect(src).not.toMatch(/orchestration\.snapshot\.json/);
   });
+
+  it("writes a stderr diagnostic when projection hygiene cannot run", () => {
+    const root = mkdtempSync(join(tmpdir(), "buck-loop-nongit-"));
+    const write = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      writeProjection(root, projection());
+      expect(write.mock.calls.map((call) => String(call[0])).join("")).toMatch(/projection hygiene skipped/);
+    } finally {
+      write.mockRestore();
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
 });

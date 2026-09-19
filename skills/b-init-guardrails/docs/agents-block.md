@@ -29,7 +29,7 @@ The verdict is computed by one executable: `skills/b-guardrails-check/scripts/ch
 
 ## Enforcement States
 
-Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, documented defaults apply. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
+Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, the runner uses `DEFAULT_ENFORCEMENT` in `check.mjs`: unit/functional/patch/ratchet/complexity `required`, lint `advisory`. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
 
 ## How to Read a Verdict
 

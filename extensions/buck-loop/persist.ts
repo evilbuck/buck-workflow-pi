@@ -92,7 +92,9 @@ function prepareProjectionPath(projectRoot: string): void {
       stdio: ["pipe", "pipe", "pipe"],
     });
   } catch {
-    // Non-git projects still get a projection; commit verification will fail closed.
+    process.stderr.write(
+      `buck-loop: projection hygiene skipped for ${root}; ${PROJECTION_RELPATH} may be committed if staged\n`,
+    );
   }
 }
 
