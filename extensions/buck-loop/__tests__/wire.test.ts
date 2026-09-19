@@ -15,15 +15,22 @@ import { parseArgs, USAGE, wireBuckLoop } from "../index.js";
 
 function createMockApi(): {
   api: ExtensionAPI;
-  commands: Map<string, { handler: (args: string, ctx: { cwd: string; ui: { notify: (m: string, l?: string) => void } }) => Promise<void> }>;
+  commands: Map<string, { handler: (args: string, ctx: { cwd: string; ui: {
+    notify: (m: string, l?: string) => void;
+    setStatus?: (key: string, text: string | undefined) => void;
+    setWidget?: (key: string, content: string[] | undefined) => void;
+  } }) => Promise<void> }>;
+  sendMessage: ReturnType<typeof vi.fn>;
 } {
   const commands = new Map();
+  const sendMessage = vi.fn();
   const api = {
     registerCommand(name: string, spec: { handler: (args: string, ctx: unknown) => Promise<void> }) {
       commands.set(name, spec);
     },
+    sendMessage,
   } as unknown as ExtensionAPI;
-  return { api, commands };
+  return { api, commands, sendMessage };
 }
 
 afterEach(() => handleLoop.mockReset());
@@ -67,17 +74,76 @@ describe("wireBuckLoop", () => {
     const handler = commands.get("buck-loop")!.handler;
 
     await handler("plan.md", ctx);
-    expect(handleLoop).toHaveBeenLastCalledWith({ cwd: "/tmp/repo", command: "start", path: "plan.md" });
+    expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "start", path: "plan.md" }));
 
     await handler("--resume", ctx);
-    expect(handleLoop).toHaveBeenLastCalledWith({ cwd: "/tmp/repo", command: "resume", path: undefined });
+    expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "resume", path: undefined }));
 
     await handler("--status", ctx);
-    expect(handleLoop).toHaveBeenLastCalledWith({ cwd: "/tmp/repo", command: "status", path: undefined });
+    expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "status", path: undefined }));
 
     await handler("--stop", ctx);
-    expect(handleLoop).toHaveBeenLastCalledWith({ cwd: "/tmp/repo", command: "stop", path: undefined });
-    expect(notes.some((n) => n.startsWith("idle:"))).toBe(true);
+    expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "stop", path: undefined }));
+    expect(notes.some((n) => n.includes("idle:"))).toBe(true);
+  });
+  it("shows live activity before the supervisor settles and clears it afterward", async () => {
+    let settle!: (value: { state: string; reason: string }) => void;
+    handleLoop.mockImplementation((opts: { deps?: { onProgress?: (event: { label: string }) => void } }) => {
+      opts.deps?.onProgress?.({ label: "Building phase-1-demo.md" });
+      return new Promise((resolve) => { settle = resolve; });
+    });
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const statuses: Array<string | undefined> = [];
+    const widgets: Array<string[] | undefined> = [];
+    const pending = commands.get("buck-loop")!.handler("plan.md", {
+      cwd: "/tmp/repo",
+      ui: {
+        notify: () => undefined,
+        setStatus: (_key, text) => statuses.push(text),
+        setWidget: (_key, content) => widgets.push(content),
+      },
+    });
+
+    expect(statuses.some((text) => text?.includes("Starting plan.md"))).toBe(true);
+    expect(statuses.some((text) => text?.includes("Building phase-1-demo.md"))).toBe(true);
+    expect(widgets.some((content) => content?.join("\n").includes("buck-loop"))).toBe(true);
+
+    settle({ state: "done", reason: "all phases completed" });
+    await pending;
+    expect(statuses.at(-1)).toBeUndefined();
+    expect(widgets.at(-1)).toBeUndefined();
+  });
+
+  it("returns structured nested-call failures to the parent agent", async () => {
+    const failure = {
+      state: "building",
+      operation: "run-skill",
+      trying: "Run b-build for phase-1-demo.md",
+      prompt: "canonical b-build prompt",
+      agent: { kind: "work-session", id: "buck-loop-work-123", role: "b-build", model: "provider/model" },
+      error: { name: "Error", message: "provider unavailable", stack: "Error: provider unavailable" },
+    };
+    handleLoop.mockImplementation(async (opts: { deps?: { onFailure?: (event: typeof failure) => void } }) => {
+      opts.deps?.onFailure?.(failure);
+      return { state: "blocked", reason: "provider unavailable" };
+    });
+    const { api, commands, sendMessage } = createMockApi();
+    wireBuckLoop(api);
+
+    await commands.get("buck-loop")!.handler("plan.md", { cwd: "/tmp/repo", ui: { notify: () => undefined } });
+
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customType: "buck-loop-call-failure",
+        display: true,
+        details: failure,
+        content: expect.stringContaining("provider unavailable"),
+      }),
+      { triggerTurn: true, deliverAs: "nextTurn" },
+    );
+    expect(sendMessage.mock.calls[0]?.[0].content).toContain("canonical b-build prompt");
+    expect(sendMessage.mock.calls[0]?.[0].content).toContain("buck-loop-work-123");
   });
 
   it("prints usage and does not start work on missing path", async () => {

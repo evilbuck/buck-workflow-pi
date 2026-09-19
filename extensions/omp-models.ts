@@ -226,6 +226,8 @@ export async function runOmpModelSession(opts: {
   temperature?: number;
   /** Agent-id prefix; defaults to the original b-save-improved identity. */
   agentPrefix?: string;
+  /** Exact agent id when the caller must report a failed call to its parent. */
+  agentId?: string;
   customTools?: NonNullable<Parameters<typeof createAgentSession>[0]>["customTools"];
   /** Thinking level; defaults to "off" as before. */
   thinkingLevel?: string;
@@ -251,7 +253,7 @@ export async function runOmpModelSession(opts: {
     disableExtensionDiscovery: true,
     enableMCP: false,
     enableLsp: false,
-    agentId: `${opts.agentPrefix ?? "b-save-improved-model"}-${randomUUID()}`,
+    agentId: opts.agentId ?? `${opts.agentPrefix ?? "b-save-improved-model"}-${randomUUID()}`,
     sessionManager: SessionManager.inMemory(cwd),
   };
   if (modelOverride) sessionOpts.modelPattern = modelOverride;

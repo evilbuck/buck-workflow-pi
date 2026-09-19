@@ -2,8 +2,9 @@
  * loop — bounded happy-path supervisor. Executes table effects; never
  * invents transitions. Worker prose is diagnostic only. Artifacts win.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
   PROJECTION_VERSION,
@@ -12,7 +13,8 @@ import {
   writeProjection,
   type Projection,
 } from "./persist.js";
-import { runStep as defaultRunStep, type NestedSkill } from "./run-step.js";
+import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
+import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
 import { applyChoice, next, start, stopFrom, userConfirmed } from "./table.js";
 import type {
@@ -40,11 +42,19 @@ export type LoopResult = {
   state: LoopState;
   reason: string;
 };
+export type LoopProgress = {
+  state: LoopState;
+  operation: "run-skill" | "choose";
+  label: string;
+  target: string;
+};
 
 export type LoopDeps = {
   runStep: typeof defaultRunStep;
   choose: typeof defaultChoose;
   now: () => string;
+  onProgress: (progress: LoopProgress) => void;
+  onFailure: (failure: AgentCallFailure) => void;
 };
 
 type EffectResult = {
@@ -57,6 +67,8 @@ const DEFAULT_DEPS: LoopDeps = {
   runStep: defaultRunStep,
   choose: defaultChoose,
   now: () => new Date().toISOString(),
+  onProgress: () => undefined,
+  onFailure: () => undefined,
 };
 
 export async function handleLoop(opts: {
@@ -200,16 +212,55 @@ async function runChoice(
   legal: readonly Choice[],
   deps: LoopDeps,
 ): Promise<EffectResult> {
-  const chosen = await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal });
+  emitProgress(deps, {
+    state: snapshot.state,
+    operation: "choose",
+    label: "Resolving " + snapshot.state + " decision",
+    target: snapshot.phasePath ?? snapshot.planPath ?? path,
+  });
+  const chosen = await chooseSafely(cwd, snapshot, legal, deps);
+  reportChoiceFailure(snapshot, chosen, deps);
   const applied = applyChosen(snapshot, chosen, deps.now());
   persistIfPossible(cwd, applied.snapshot);
   if (applied.stop) {
     return { snapshot: applied.snapshot, lastFail: null, halt: { state: applied.snapshot.state, reason: applied.reason } };
   }
-  const nextSnapshot = withTransition(applied.snapshot, applied.next, deps.now());
+  return continueChoice(cwd, applied.snapshot, path, applied.next, deps);
+}
+
+async function chooseSafely(
+  cwd: string,
+  snapshot: Snapshot,
+  legal: readonly Choice[],
+  deps: LoopDeps,
+): Promise<ChooseResult> {
+  try {
+    return await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal });
+  } catch (error) {
+    return {
+      status: "blocked",
+      reason: error instanceof Error ? error.message : String(error),
+      failure: { prompt: null, agent: null, error: serializeCallError(error) },
+    };
+  }
+}
+
+function reportChoiceFailure(snapshot: Snapshot, chosen: ChooseResult, deps: LoopDeps): void {
+  if (chosen.status !== "blocked" || !chosen.failure) return;
+  emitFailure(deps, enrichFailure(snapshot, "choose", "Choose the next legal transition", chosen.failure));
+}
+
+async function continueChoice(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  transition: Transition,
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  const nextSnapshot = withTransition(snapshot, transition, deps.now());
   persistIfPossible(cwd, nextSnapshot);
-  if (applied.next.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
-  const ran = await executeSkill(cwd, nextSnapshot, path, applied.next.effect.skill, deps);
+  if (transition.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
+  const ran = await executeSkill(cwd, nextSnapshot, path, transition.effect.skill, deps);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
 }
 
@@ -246,19 +297,123 @@ async function executeSkill(
   deps: LoopDeps,
 ): Promise<{ snapshot: Snapshot; failedText: string | null }> {
   const planOrPhasePath = snapshot.phasePath ?? snapshot.planPath ?? path;
-  const result = await deps.runStep({
-    cwd,
-    skill: nestedSkill(cwd, skill, snapshot),
-    planOrPhasePath,
-    difficulty: difficultyOf(cwd, snapshot),
+  const nested = nestedSkill(cwd, skill, snapshot);
+  const reviewArtifactsBefore = skill === "review" ? snapshotReviewArtifacts(cwd, snapshot) : null;
+  emitProgress(deps, {
+    state: snapshot.state,
+    operation: "run-skill",
+    label: progressLabel(snapshot.state, planOrPhasePath),
+    target: planOrPhasePath,
   });
-  if (result.ok && skill === "review") persistReviewArtifact(cwd, snapshot, result.text, deps.now());
+
+  const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps);
+  reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
+  recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
   const scanned = rescan(cwd, snapshot, path, {
     sessionOutcome: result.ok ? "ok" : "failed",
     retriesUsed,
   });
   return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+}
+
+async function runNestedSkill(
+  cwd: string,
+  snapshot: Snapshot,
+  skill: WorkSkill,
+  nested: NestedSkill,
+  planOrPhasePath: string,
+  deps: LoopDeps,
+): Promise<RunStepResult> {
+  try {
+    if (skill === "commit") stageCommitWork(cwd);
+    return await deps.runStep({
+      cwd,
+      skill: nested,
+      planOrPhasePath,
+      difficulty: difficultyOf(cwd, snapshot),
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      text: error instanceof Error ? error.message : String(error),
+      failure: { prompt: null, agent: null, error: serializeCallError(error) },
+    };
+  }
+}
+
+function reportSkillFailure(
+  snapshot: Snapshot,
+  nested: NestedSkill,
+  planOrPhasePath: string,
+  result: RunStepResult,
+  deps: LoopDeps,
+): void {
+  if (result.ok) return;
+  const failure = result.failure ?? {
+    prompt: null,
+    agent: null,
+    error: serializeCallError({ name: "NestedCallError", message: result.text }),
+  };
+  emitFailure(deps, enrichFailure(snapshot, "run-skill", "Run " + nested + " for " + planOrPhasePath, failure));
+}
+
+function recordReviewArtifact(
+  cwd: string,
+  snapshot: Snapshot,
+  skill: WorkSkill,
+  result: RunStepResult,
+  at: string,
+  before: ReviewArtifactSnapshot | null,
+): void {
+  if (!result.ok || skill !== "review") return;
+  persistReviewArtifact(cwd, snapshot, result.text, at, before);
+}
+function progressLabel(state: LoopState, target: string): string {
+  const name = basename(target);
+  switch (state) {
+    case "building": return "Building " + name;
+    case "reviewing": return "Reviewing " + name;
+    case "iterating": return "Iterating " + name;
+    case "documenting": return "Documenting " + name;
+    case "saving": return "Saving session state";
+    case "committing": return "Committing completed work";
+    default: return "Running " + name;
+  }
+}
+
+function emitProgress(deps: LoopDeps, progress: LoopProgress): void {
+  try {
+    deps.onProgress(progress);
+  } catch {
+    // Progress surfaces never control the state machine.
+  }
+}
+
+function emitFailure(deps: LoopDeps, failure: AgentCallFailure): void {
+  try {
+    deps.onFailure(failure);
+  } catch {
+    // Parent-agent handoff is best-effort; the durable blocked state still wins.
+  }
+}
+
+function enrichFailure(
+  snapshot: Snapshot,
+  operation: AgentCallFailure["operation"],
+  trying: string,
+  details: CallFailureDetails,
+): AgentCallFailure {
+  return { state: snapshot.state, operation, trying, ...details };
+}
+
+function stageCommitWork(cwd: string): void {
+  execFileSync("git", ["add", "-A"], {
+    cwd,
+    encoding: "utf8",
+    timeout: 10_000,
+    stdio: ["pipe", "pipe", "pipe"],
+  });
 }
 
 function nextRetries(snapshot: Snapshot, ok: boolean): number {
@@ -284,12 +439,39 @@ function finishSkill(
   return { snapshot: scanned, failedText: ok ? null : text };
 }
 
-function persistReviewArtifact(cwd: string, snapshot: Snapshot, text: string, at: string): void {
+type ReviewArtifactSnapshot = Map<string, { text: string; mtimeMs: number }>;
+
+function snapshotReviewArtifacts(cwd: string, snapshot: Snapshot): ReviewArtifactSnapshot {
+  const artifacts: ReviewArtifactSnapshot = new Map();
+  if (!snapshot.subject) return artifacts;
+  const dir = join(cwd, ".context", snapshot.subject);
+  if (!existsSync(dir)) return artifacts;
+  for (const name of readdirSync(dir).filter((entry) => /^review-(?!zz-buck-loop-).*\.md$/.test(entry)).sort()) {
+    const abs = join(dir, name);
+    artifacts.set(name, { text: readFileSync(abs, "utf8"), mtimeMs: statSync(abs).mtimeMs });
+  }
+  return artifacts;
+}
+
+function persistReviewArtifact(
+  cwd: string,
+  snapshot: Snapshot,
+  text: string,
+  at: string,
+  before: ReviewArtifactSnapshot | null,
+): void {
   if (!snapshot.subject || !text.trim()) return;
   const dir = join(cwd, ".context", snapshot.subject);
   mkdirSync(dir, { recursive: true });
+  const changedArtifact = before
+    ? [...snapshotReviewArtifacts(cwd, snapshot)].filter(([name, current]) => {
+        const previous = before.get(name);
+        return !previous || previous.text !== current.text || previous.mtimeMs !== current.mtimeMs;
+      }).at(-1)?.[1].text
+    : undefined;
+  const authoritative = changedArtifact ?? text;
   const stamp = at.replace(/[:.]/g, "-");
-  writeFileSync(join(dir, `review-zz-buck-loop-${stamp}.md`), text.endsWith("\n") ? text : `${text}\n`);
+  writeFileSync(join(dir, `review-zz-buck-loop-${stamp}.md`), authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`);
 }
 
 function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapshot["planFacts"]["kind"]): boolean {

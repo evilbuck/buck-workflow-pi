@@ -3,7 +3,6 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
-- [ ] [buck-loop extension — scrap XState, happy-path nested-session runner](items/buck-loop-extension.md) — high; see `.context/2026-09-18.buck-loop-extension/plan-buck-loop-extension.md`
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
@@ -27,7 +26,7 @@
 ## buck-loop Extension Phases (2026-09-18)
 
 Overview: [`plan-buck-loop-extension-phases.md`](../2026-09-18.buck-loop-extension/plan-buck-loop-extension-phases.md).
-Umbrella: [buck-loop extension — scrap XState, happy-path nested-session runner](items/buck-loop-extension.md).
+Umbrella: [buck-loop extension — scrap XState, happy-path nested-session runner](archive/2026-09/buck-loop-extension.md).
 After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 
 - [x] [Phase 1: Transition Contract](archive/2026-09/phase-1-transition-contract.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass, 66/66

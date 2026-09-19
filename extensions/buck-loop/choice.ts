@@ -3,12 +3,18 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { resolveOmpRole, runOmpModelSession } from "../omp-models.js";
 import type { AcceptedChoice, Choice } from "./types.js";
+import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
 
 export type ChooseResult =
   | { status: "accepted"; accepted: AcceptedChoice }
-  | { status: "blocked"; reason: string };
+  | { status: "blocked"; reason: string; failure?: CallFailureDetails };
 
 type ParsedResponse = { choice: string; reason: string };
+type AttemptResult = {
+  response: ParsedResponse | null;
+  reason: string;
+  failure?: CallFailureDetails;
+};
 
 function extractJsonObject(raw: string): unknown | null {
   const trimmed = raw.trim();
@@ -79,45 +85,93 @@ export async function choose(opts: {
 
   const legalKinds = opts.legal.map((choice) => choice.kind);
   const legalSet = new Set(legalKinds);
+  const model = resolveOmpRole(opts.cwd, "smol") ?? resolveOmpRole(opts.cwd, "default");
   let lastReason = "The model did not return a valid legal choice.";
+  let lastFailure: CallFailureDetails | undefined;
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    let raw = "";
-    try {
-      raw = await runOmpModelSession({
-        cwd: opts.cwd,
-        tools: [],
-        prompt: promptFor(legalKinds, attempt === 2),
-        modelOverride: resolveOmpRole(opts.cwd, "smol") ?? resolveOmpRole(opts.cwd, "default"),
-        timeoutMs: 60_000,
-        agentPrefix: "buck-loop-choice",
-      });
-    } catch (error) {
-      lastReason = error instanceof Error ? error.message : "Model session failed.";
-    }
-
-    const parsed = extractJsonObject(raw);
-    const response = parseChoice(raw, legalSet);
-    const reason = response?.reason ?? lastReason;
-    await writeAudit({
-      cwd: opts.cwd,
-      subject: opts.subject,
-      legal: opts.legal,
-      raw,
-      parsed,
-      accepted: response !== null,
-      reason,
-      attempt,
-    });
-
-    if (response) {
+    const result = await attemptChoice(opts, legalSet, model, attempt, lastReason);
+    if (result.response) {
       return {
         status: "accepted",
-        accepted: { choice: { kind: response.choice } as Choice, reason: response.reason },
+        accepted: { choice: { kind: result.response.choice } as Choice, reason: result.response.reason },
       };
     }
-    lastReason = reason;
+    lastReason = result.reason;
+    lastFailure = result.failure;
   }
 
-  return { status: "blocked", reason: lastReason };
+  return { status: "blocked", reason: lastReason, ...(lastFailure ? { failure: lastFailure } : {}) };
+}
+
+async function attemptChoice(
+  opts: { cwd: string; subject: string; legal: readonly Choice[] },
+  legalSet: ReadonlySet<string>,
+  model: string | undefined,
+  attempt: number,
+  fallbackReason: string,
+): Promise<AttemptResult> {
+  const prompt = promptFor([...legalSet], attempt === 2);
+  const agent: CallAgent = {
+    kind: "choice-session",
+    id: "buck-loop-choice-" + randomUUID(),
+    role: "closed-set-choice",
+    ...(model ? { model } : {}),
+  };
+  const called = await callChoiceModel(opts.cwd, prompt, agent, model);
+  const response = parseChoice(called.raw, legalSet);
+  const reason = response?.reason ?? called.reason ?? fallbackReason;
+  const failure = response ? undefined : invalidChoiceFailure(prompt, agent, called.raw, reason, called.error);
+  await writeAudit({
+    cwd: opts.cwd,
+    subject: opts.subject,
+    legal: opts.legal,
+    raw: called.raw,
+    parsed: extractJsonObject(called.raw),
+    accepted: response !== null,
+    reason,
+    attempt,
+  });
+  return { response, reason, ...(failure ? { failure } : {}) };
+}
+
+async function callChoiceModel(
+  cwd: string,
+  prompt: string,
+  agent: CallAgent,
+  model: string | undefined,
+): Promise<{ raw: string; reason?: string; error?: unknown }> {
+  try {
+    const raw = await runOmpModelSession({
+      cwd,
+      tools: [],
+      prompt,
+      modelOverride: model,
+      timeoutMs: 60_000,
+      agentPrefix: "buck-loop-choice",
+      agentId: agent.id,
+    });
+    return { raw };
+  } catch (error) {
+    return {
+      raw: "",
+      reason: error instanceof Error ? error.message : "Model session failed.",
+      error,
+    };
+  }
+}
+
+function invalidChoiceFailure(
+  prompt: string,
+  agent: CallAgent,
+  raw: string,
+  reason: string,
+  callError: unknown,
+): CallFailureDetails {
+  const error = callError ?? {
+    name: "InvalidChoiceResponseError",
+    message: reason,
+    rawResponse: raw,
+  };
+  return { prompt, agent, error: serializeCallError(error) };
 }
