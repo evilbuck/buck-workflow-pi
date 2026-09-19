@@ -1,3 +1,7 @@
+- 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `completed` (validated reviews; filed #34–#39; no in-session code fix)
+
+  - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: completed
+
 - 2026-09-18 — [buck-loop live feedback and fail-safe](buck-loop-live-feedback-2026-09-18.md) — `completed` (visible activity; structured parent handoff; live loop reached done; 165 tests)
 
 - 2026-09-18 — [buck-loop Todo CLI smoke project](buck-loop-smoke-project-2026-09-18.md) — `completed` (live loop reached done; commit `209fbca`; 18/18 tests; exact manual CLI output)
