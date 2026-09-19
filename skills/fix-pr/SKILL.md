@@ -378,16 +378,25 @@ At each poll:
    thread resolution state, and conversation comments. Compare immutable IDs
    with the seen-ID set; counts alone are not evidence of new feedback. Thread
    resolution is exposed only by GraphQL — `gh pr view --json` and the REST
-   comment endpoints do not carry it:
+   comment endpoints do not carry it. Thread every page: `reviewThreads` has no
+   `isResolved` filter, so resolved threads fill early pages and a 100-thread
+   cap silently hides open threads on long-lived PRs.
 
    ```bash
-   gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100){pageInfo{hasNextPage endCursor}nodes{id isResolved path line}}}}}' \
-     -f owner=<owner> -f name=<repo> -F number=<N>
+   after=""; rows=""
+   while :; do
+     resp="$(gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}nodes{id isResolved path line}}}}}' \
+       -f owner=<owner> -f name=<repo> -F number=<N> ${after:+-f after="$after"})"
+     rows+="$(echo "$resp" | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | "\(.id)\t\(.isResolved)\t\(.path):\(.line)"')"$'\n'
+     after="$(echo "$resp" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')"
+     echo "$resp" | jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' >/dev/null || break
+   done
+   printf '%s' "$rows"   # id<TAB>isResolved<TAB>path:line for EVERY thread
    ```
 
-   Follow `pageInfo.hasNextPage` cursors until every thread page is read; the
-   completion contract's "every review thread is resolved" is verified from
-   this call's `isResolved` values plus current-HEAD revalidation evidence.
+   The completion contract's "every review thread is resolved" is verified from
+   the accumulated `isResolved` values across all pages plus current-HEAD
+   revalidation evidence — never from a single first page.
 2. Mark new IDs seen and revalidate every new finding against current HEAD.
    Feedback submitted after the push but pinned to an older commit is still
    evaluated against current HEAD.
