@@ -460,14 +460,15 @@ cumulative minutes:  2, 4, 6, 8, 10, 15, 20, 30</pre>
     <div class="tags"><span class="pill det"><span class="dot det"></span> Deterministic format</span></div>
     <ol>
       <li>Write <code class="inline">.context/memory/fix-pr-&lt;pr&gt;-YYYY-MM-DD.md</code> (or the active
-        subject's memory artifact): PR URL, head repository, <code class="inline">headRefName</code>, absolute
-        worktree path, one validation table retained across every loop, per-loop pushed SHA + verification
+        subject's memory artifact): PR URL, head repository, <code class="inline">headRefName</code>, a
+        non-identifying worktree handle (branch + last-pushed SHA — not a local absolute path; records may
+        live in a public repo), one validation table retained across every loop, per-loop pushed SHA + verification
         commands/results + review IDs + poll times, issue URLs in issues-only mode, and one terminal status.</li>
       <li>Update <code class="inline">.context/memory/index.md</code>.</li>
     </ol>
     <pre>PR #&lt;N&gt; — &lt;title&gt;
 Status: &lt;settled | review_pending | max_loops_reached | issues_only | dry_run&gt;
-Worktree: &lt;absolute path | none for dry-run&gt;
+Worktree: &lt;branch + last-pushed SHA | none for dry-run&gt;
 Head: &lt;head-repository&gt;:&lt;headRefName&gt;
 Loops: &lt;completed&gt;/&lt;max&gt;
 Pushes: &lt;sha list | none&gt;
