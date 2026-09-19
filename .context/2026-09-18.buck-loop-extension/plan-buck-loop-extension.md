@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.buck-loop-extension
 topics: [buck-loop, autonomous-loop, state-machine, omp-sdk, nested-sessions]
@@ -7,12 +7,16 @@ research: []
 iterations:
   - iterate-buck-loop-artifact-state.md
   - iterate-buck-loop-artifact-state-2.md
+  - iterate-buck-loop-nested-work-sessions.md
+  - iterate-buck-loop-loop-supervisor.md
+  - iterate-buck-loop-loop-supervisor-2.md
 spec: []
 memory:
   - buck-loop-extension-phasing-2026-09-18.md
   - buck-loop-phase1-build-2026-09-18.md
   - buck-loop-phase2-build-2026-09-18.md
   - buck-loop-phase2-review-2026-09-18.md
+  - buck-loop-remaining-phases-2026-09-18.md
 
 # Plan: buck-loop extension (scrap XState, happy-path runner)
 
@@ -236,16 +240,16 @@ Missing path and no resumable projection → print usage and stop. Do not guess 
 
 ## Acceptance criteria
 
-- [ ] `/buck-loop` is registered from `extensions/index.ts`. `b-flow` remains unwired. No `xstate` import under `extensions/buck-loop/`.
-- [ ] Given a fixture phased plan with phase 1 incomplete, `next(scan())` is `building` with no LLM call.
-- [ ] After a review artifact that includes `iterate-*.md`, next is `iterating`, not `saving`.
-- [ ] After a clean review (no iterate, no docs section), next is `saving`.
-- [ ] Mocked LLM returning a choice outside `legal` is rejected; second failure blocks; machine does not advance.
-- [ ] Mocked LLM returning a legal choice is the transition taken; audit file records `legal` + `accepted`.
-- [ ] Resume: projection `state: building` but all phase files `status: completed` → `done` (artifacts win).
-- [ ] Missing plan → `blocked` with a reason, not a nested `b-plan`.
-- [ ] Nested work sessions set `disableExtensionDiscovery: true`.
-- [ ] Living docs name `/buck-loop` (runner) vs `/skill:b-loop` (stamper). ADR 0002 exists.
+- [x] `/buck-loop` is registered from `extensions/index.ts`. `b-flow` remains unwired. No `xstate` import under `extensions/buck-loop/`.
+- [x] Given a fixture phased plan with phase 1 incomplete, `next(scan())` is `building` with no LLM call.
+- [x] After a review artifact that includes `iterate-*.md`, next is `iterating`, not `saving`.
+- [x] After a clean review (no iterate, no docs section), next is `saving`.
+- [x] Mocked LLM returning a choice outside `legal` is rejected; second failure blocks; machine does not advance.
+- [x] Mocked LLM returning a legal choice is the transition taken; audit file records `legal` + `accepted`.
+- [x] Resume: projection `state: building` but all phase files `status: completed` → `done` (artifacts win).
+- [x] Missing plan → `blocked` with a reason, not a nested `b-plan`.
+- [x] Nested work sessions set `disableExtensionDiscovery: true`.
+- [x] Living docs name `/buck-loop` (runner) vs `/skill:b-loop` (stamper). ADR 0002 exists.
 
 ## Verification
 

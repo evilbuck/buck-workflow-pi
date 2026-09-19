@@ -19,7 +19,7 @@ build → review → iterate (if in-plan issues) → docs (if doc impact) → sa
 session) the user invokes on the first turn of each phase, and stamps the
 choice onto each phase file's frontmatter (and the matching cell in the
 phases-overview table) so `/b-build` / `/b-iterate` / `/b-review` surface it
-at start-of-phase.
+at start-of-phase. This skill does not run the loop; `/buck-loop` does.
 
 ## Surface — No Slash Command Mirror (Deferral)
 

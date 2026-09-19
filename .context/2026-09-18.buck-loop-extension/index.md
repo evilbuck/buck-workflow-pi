@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.buck-loop-extension
 topics: [buck-loop, autonomous-loop, state-machine, omp-sdk, xstate-removal]
@@ -22,6 +22,12 @@ Replace the deprecated XState `b-flow` supervisor with a new, observably invoked
 | `phase-5-loop-supervisor.md` | Phase | Bounded integrating supervisor |
 | `phase-6-command-surface.md` | Phase | `/buck-loop` parsing and extension wiring |
 | `phase-7-documentation-and-proof.md` | Phase | ADR, living docs, guardrails, and command smoke |
+| `iterate-buck-loop-artifact-state.md` | Iterate | Phase 2 round 1 |
+| `iterate-buck-loop-artifact-state-2.md` | Iterate | Phase 2 round 2 |
+| `iterate-buck-loop-nested-work-sessions.md` | Iterate | Phase 4 tool allowlists + abort |
+| `iterate-buck-loop-loop-supervisor.md` | Iterate | Phase 5 review artifacts + phase freeze |
+| `iterate-buck-loop-loop-supervisor-2.md` | Iterate | Phase 5 review-zz naming |
+| `draft-commit.md` | Draft | Next `/b-commit` message |
 
 ## Related
 

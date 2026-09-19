@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-buck-loop-extension.md
@@ -15,15 +15,20 @@ from_plan_steps: [5]
 depends_on: [2, 3, 4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] The supervisor repeatedly performs `next(scan(snapshot))` → one effect → postcondition rescan → persisted transition; worker prose never selects state."
-  - "[ ] Failed, empty, thrown, or timed-out work sessions retry once and then transition to `blocked` with a durable reason."
-  - "[ ] `loopCount >= maxLoops` and three iterate cycles on one phase block further work."
-  - "[ ] Ambiguous cases call the closed-set choice helper and apply only an accepted legal choice."
-  - "[ ] `--stop` support writes `aborted`; resume reconciles artifacts before work; every accepted transition appends durable history."
-  - "[ ] After commit, the next incomplete phase returns to `building`; no remaining phase returns `done`."
-  - "[ ] Focused supervisor tests pass with mocked work and choice sessions, including artifact-wins resume."
-completed_at: null
-completed_by: null
+  - "[x] The supervisor repeatedly performs `next(scan(snapshot))` → one effect → postcondition rescan → persisted transition; worker prose never selects state."
+  - "[x] Failed, empty, thrown, or timed-out work sessions retry once and then transition to `blocked` with a durable reason."
+  - "[x] `loopCount >= maxLoops` and three iterate cycles on one phase block further work."
+  - "[x] Ambiguous cases call the closed-set choice helper and apply only an accepted legal choice."
+  - "[x] `--stop` support writes `aborted`; resume reconciles artifacts before work; every accepted transition appends durable history."
+  - "[x] After commit, the next incomplete phase returns to `building`; no remaining phase returns `done`."
+  - "[x] Focused supervisor tests pass with mocked work and choice sessions, including artifact-wins resume."
+completed_at: 2026-09-18
+completed_by: omp
+iterations:
+  - iterate-buck-loop-loop-supervisor.md
+  - iterate-buck-loop-loop-supervisor-2.md
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phase 5: Loop Supervisor

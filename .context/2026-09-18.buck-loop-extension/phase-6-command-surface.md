@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-buck-loop-extension.md
@@ -16,14 +16,16 @@ from_plan_steps: [6]
 depends_on: [5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `wireBuckLoop(pi)` registers `/buck-loop` and `extensions/index.ts` invokes that wire exactly once."
-  - "[ ] The command accepts exactly `<path-to-plan|phase|subject>`, `--resume`, `--status`, or `--stop`, with rejected conflicting or unknown arguments."
-  - "[ ] Missing path without a resumable projection prints usage and performs no scan guess or nested work."
-  - "[ ] `--status` is read-only; `--stop` delegates to durable abort and is a no-op message when no run exists."
-  - "[ ] `extensions/b-flow/` remains unwired and no file under `extensions/buck-loop/` imports `xstate`."
-  - "[ ] Focused argument and wire tests pass."
-completed_at: null
-completed_by: null
+  - "[x] `wireBuckLoop(pi)` registers `/buck-loop` and `extensions/index.ts` invokes that wire exactly once."
+  - "[x] The command accepts exactly `<path-to-plan|phase|subject>`, `--resume`, `--status`, or `--stop`, with rejected conflicting or unknown arguments."
+  - "[x] Missing path without a resumable projection prints usage and performs no scan guess or nested work."
+  - "[x] `--status` is read-only; `--stop` delegates to durable abort and is a no-op message when no run exists."
+  - "[x] `extensions/b-flow/` remains unwired and no file under `extensions/buck-loop/` imports `xstate`."
+  - "[x] Focused argument and wire tests pass."
+completed_at: 2026-09-18
+completed_by: omp
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phase 6: Command Surface

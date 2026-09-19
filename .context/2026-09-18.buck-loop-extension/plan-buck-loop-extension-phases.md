@@ -1,11 +1,13 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.buck-loop-extension
 topics: [phasing, buck-loop, autonomous-loop, state-machine, omp-sdk, nested-sessions]
 source_plan: plan-buck-loop-extension.md
 phases: 7
 format: discrete
+memory:
+  - buck-loop-remaining-phases-2026-09-18.md
 ---
 
 # Phased Plan: buck-loop extension
@@ -26,11 +28,11 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Transition Contract | completed | hard | none | [phase-1-transition-contract.md](phase-1-transition-contract.md) |
 | 2: Artifact State | completed | hard | none | [phase-2-artifact-state.md](phase-2-artifact-state.md) |
-| 3: Closed-Set Choice | pending | hard | none | [phase-3-closed-set-choice.md](phase-3-closed-set-choice.md) |
-| 4: Nested Work Sessions | pending | hard | none | [phase-4-nested-work-sessions.md](phase-4-nested-work-sessions.md) |
-| 5: Loop Supervisor | pending | hard | none | [phase-5-loop-supervisor.md](phase-5-loop-supervisor.md) |
-| 6: Command Surface | pending | medium | none | [phase-6-command-surface.md](phase-6-command-surface.md) |
-| 7: Documentation and Proof | pending | medium | none | [phase-7-documentation-and-proof.md](phase-7-documentation-and-proof.md) |
+| 3: Closed-Set Choice | completed | hard | none | [phase-3-closed-set-choice.md](phase-3-closed-set-choice.md) |
+| 4: Nested Work Sessions | completed | hard | none | [phase-4-nested-work-sessions.md](phase-4-nested-work-sessions.md) |
+| 5: Loop Supervisor | completed | hard | none | [phase-5-loop-supervisor.md](phase-5-loop-supervisor.md) |
+| 6: Command Surface | completed | medium | none | [phase-6-command-surface.md](phase-6-command-surface.md) |
+| 7: Documentation and Proof | completed | medium | none | [phase-7-documentation-and-proof.md](phase-7-documentation-and-proof.md) |
 
 ## Dependency Matrix
 
@@ -99,11 +101,11 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Transition Contract — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Artifact State — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Closed-Set Choice — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 4: Nested Work Sessions — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 5: Loop Supervisor — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 6: Command Surface — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 7: Documentation and Proof — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Closed-Set Choice — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 4: Nested Work Sessions — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 5: Loop Supervisor — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 6: Command Surface — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 7: Documentation and Proof — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes
 

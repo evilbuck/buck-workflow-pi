@@ -32,14 +32,11 @@ After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 
 - [x] [Phase 1: Transition Contract](archive/2026-09/phase-1-transition-contract.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass, 66/66
 - [x] [Phase 2: Artifact State](archive/2026-09/phase-2-artifact-state.md) — hard, `/b-build-hard` — done 2026-09-18 — review Pass with warnings, 49/49
-
-### Upcoming Phases
-
-- [ ] [Phase 3: Closed-Set Choice](items/phase-3-closed-set-choice.md) — hard, `/b-build-hard` — [phase-3-closed-set-choice.md](../2026-09-18.buck-loop-extension/phase-3-closed-set-choice.md)
-- [ ] [Phase 4: Nested Work Sessions](items/phase-4-nested-work-sessions.md) — hard, `/b-build-hard` — [phase-4-nested-work-sessions.md](../2026-09-18.buck-loop-extension/phase-4-nested-work-sessions.md)
-- [ ] [Phase 5: Loop Supervisor](items/phase-5-loop-supervisor.md) — hard, `/b-build-hard` — [phase-5-loop-supervisor.md](../2026-09-18.buck-loop-extension/phase-5-loop-supervisor.md)
-- [ ] [Phase 6: Command Surface](items/phase-6-command-surface.md) — medium, `/b-build` — [phase-6-command-surface.md](../2026-09-18.buck-loop-extension/phase-6-command-surface.md)
-- [ ] [Phase 7: Documentation and Proof](items/phase-7-documentation-and-proof.md) — medium, `/b-build` — [phase-7-documentation-and-proof.md](../2026-09-18.buck-loop-extension/phase-7-documentation-and-proof.md)
+- [x] [Phase 3: Closed-Set Choice](archive/2026-09/phase-3-closed-set-choice.md) — hard, `/b-build-hard` — done 2026-09-18
+- [x] [Phase 4: Nested Work Sessions](archive/2026-09/phase-4-nested-work-sessions.md) — hard, `/b-build-hard` — done 2026-09-18
+- [x] [Phase 5: Loop Supervisor](archive/2026-09/phase-5-loop-supervisor.md) — hard, `/b-build-hard` — done 2026-09-18
+- [x] [Phase 6: Command Surface](archive/2026-09/phase-6-command-surface.md) — medium, `/b-build` — done 2026-09-18
+- [x] [Phase 7: Documentation and Proof](archive/2026-09/phase-7-documentation-and-proof.md) — medium, `/b-build` — done 2026-09-18
 
 ## Decision Closure Phases (2026-09-16)
 
