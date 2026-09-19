@@ -1,3 +1,5 @@
+- 2026-09-19 — [Reusable state-machine planning](reusable-state-machine-plan-2026-09-19.md) — `completed` (validated pure-but-domain-coupled Buck table; chose a declarative pure evaluator; implementation plan + backlog item created)
+
 - 2026-09-19 — [buck-loop inline JSDoc](buck-loop-jsdoc-2026-09-19.md) — `completed` (junior-readable `/** */` on every buck-loop file; host APIs explained in English; 169/169; guardrails pass)
 
 - 2026-09-19 — [buck-loop stall diagnosis](buck-loop-stall-diagnosis-2026-09-19.md) — `completed` (clean review heading drift triggered a context-free chooser; accepted block stopped the loop)

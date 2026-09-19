@@ -5,6 +5,7 @@
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; clean review heading drift can reach an enum-only chooser that accepts `block`
+- [ ] [Extract reusable pure state-machine evaluator](items/reusable-state-machine-core.md) — medium; split Buck policy from a domain-neutral pure decision core
 - [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
 - [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
