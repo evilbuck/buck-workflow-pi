@@ -157,10 +157,24 @@ describe("safety limits", () => {
     expect(t.why).toContain("iterate limit");
   });
 
-  it("exposes limitsExceeded for both counters", () => {
+  it("exposes limitsExceeded for the global loop ceiling only", () => {
     expect(limitsExceeded(snap({ loopCount: 5, maxLoops: 5 }))).toBe(true);
-    expect(limitsExceeded(snap({ iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toBe(true);
+    expect(limitsExceeded(snap({ iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toBe(false);
     expect(limitsExceeded(snap())).toBe(false);
+  });
+
+  it("still saves a clean review when the iterate ceiling is reached", () => {
+    const t = next(reviewDone({ parseable: true }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }));
+    expect(t.to).toBe("saving");
+    expect(t.effect).toEqual({ kind: "run-skill", skill: "save" });
+  });
+
+  it("still documents when review flags docs impact at the iterate ceiling", () => {
+    const t = next(
+      reviewDone({ parseable: true, docsImpact: true }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }),
+    );
+    expect(t.to).toBe("documenting");
+    expect(t.effect).toEqual({ kind: "run-skill", skill: "docs" });
   });
 });
 
@@ -316,11 +330,16 @@ describe("legalChoices", () => {
     ]);
   });
 
-  it("offers nothing once limits are exceeded — the deterministic block wins", () => {
+  it("keeps non-iterate choices at the iterate ceiling and empties only at the loop ceiling", () => {
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 }))).toEqual([]);
     expect(
       legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: 3 })),
-    ).toEqual([]);
+    ).toEqual([{ kind: "retry" }, { kind: "advance" }, { kind: "block" }]);
+    expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: 3 }))).toEqual([
+      { kind: "document" },
+      { kind: "save" },
+      { kind: "block" },
+    ]);
   });
 });
 

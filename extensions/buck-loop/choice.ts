@@ -71,10 +71,10 @@ function parseChoice(raw: string, legalKinds: ReadonlySet<string>): ParsedRespon
  * Prompt listing only the legal enum. `correction` prefixes the retry so
  * the model knows the previous reply was rejected.
  */
-function promptFor(legalKinds: readonly string[], correction: boolean): string {
+function promptFor(legalKinds: readonly string[], correction: boolean, context?: string): string {
   const set = legalKinds.map((kind) => JSON.stringify(kind)).join(", ");
   const prefix = correction ? "Your previous response was illegal or malformed. " : "";
-  return `${prefix}Choose exactly one action from this legal enum: ${set}. Reply only with JSON: { "choice": "<one legal kind>", "reason": "..." }.`;
+  return `${prefix}${context ? `Decision context: ${context}. ` : ""}Choose exactly one action from this legal enum: ${set}. Reply only with JSON: { "choice": "<one legal kind>", "reason": "..." }.`;
 }
 
 /** Append one attempt to `.context/<subject>/transition-audits/` (legal set, raw text, accepted). */
@@ -86,6 +86,7 @@ async function writeAudit(opts: {
   parsed: unknown | null;
   accepted: boolean;
   reason: string;
+  context?: string;
   attempt: number;
 }): Promise<void> {
   const directory = join(opts.cwd, ".context", opts.subject, "transition-audits");
@@ -97,6 +98,7 @@ async function writeAudit(opts: {
     parsed: opts.parsed,
     accepted: opts.accepted,
     reason: opts.reason,
+    context: opts.context,
     attempt: opts.attempt,
   }, null, 2)}\n`);
 }
@@ -111,6 +113,7 @@ export async function choose(opts: {
   cwd: string;
   subject: string;
   legal: readonly Choice[];
+  context?: string;
   onActivity?: (event: ActivityEvent) => void;
 }): Promise<ChooseResult> {
   if (opts.legal.length === 0) {
@@ -139,13 +142,13 @@ export async function choose(opts: {
 }
 
 async function attemptChoice(
-  opts: { cwd: string; subject: string; legal: readonly Choice[]; onActivity?: (event: ActivityEvent) => void },
+  opts: { cwd: string; subject: string; legal: readonly Choice[]; context?: string; onActivity?: (event: ActivityEvent) => void },
   legalSet: ReadonlySet<string>,
   model: string | undefined,
   attempt: number,
   fallbackReason: string,
 ): Promise<AttemptResult> {
-  const prompt = promptFor([...legalSet], attempt === 2);
+  const prompt = promptFor([...legalSet], attempt === 2, opts.context);
   const agent: CallAgent = {
     kind: "choice-session",
     id: "buck-loop-choice-" + randomUUID(),
@@ -156,16 +159,14 @@ async function attemptChoice(
   const response = parseChoice(called.raw, legalSet);
   const reason = response?.reason ?? called.reason ?? fallbackReason;
   const failure = response ? undefined : invalidChoiceFailure(prompt, agent, called.raw, reason, called.error);
-  await writeAudit({
-    cwd: opts.cwd,
-    subject: opts.subject,
-    legal: opts.legal,
-    raw: called.raw,
-    parsed: extractJsonObject(called.raw),
-    accepted: response !== null,
-    reason,
-    attempt,
-  });
+  try {
+    await writeAudit({
+      cwd: opts.cwd, subject: opts.subject, legal: opts.legal, context: opts.context, raw: called.raw,
+      parsed: extractJsonObject(called.raw), accepted: response !== null, reason, attempt,
+    });
+  } catch (error) {
+    return { response: null, reason: `could not write choice audit: ${error instanceof Error ? error.message : String(error)}` };
+  }
   return { response, reason, ...(failure ? { failure } : {}) };
 }
 

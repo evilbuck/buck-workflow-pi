@@ -48,6 +48,13 @@ import type {
   WorkSkill,
 } from "./types.js";
 
+const PROTECTED_BRANCHES: Record<string, true> = {
+  main: true,
+  master: true,
+  dev: true,
+  develop: true,
+};
+
 /** Hard cap on supervisor ticks in one invocation, independent of `maxLoops`. */
 const SAFETY_TICK_CEILING = 64;
 
@@ -134,10 +141,13 @@ export async function handleLoop(opts: {
   return resumeRun(cwd, deps);
 }
 
-/** Read the saved run file. No saved file → `idle`. Does not rescan artifacts. */
+/** Read the saved run file. Missing → `idle`; unreadable → `blocked`. */
 export function statusOf(cwd: string): LoopResult {
+  const projectionFile = join(cwd, ".context/workflow/buck-loop.json");
   const projection = readProjection(cwd);
-  if (!projection) return { state: "idle", reason: "no projection" };
+  if (!projection) return existsSync(projectionFile)
+    ? { state: "blocked", reason: "unreadable projection" }
+    : { state: "idle", reason: "no projection" };
   return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
 }
 
@@ -153,6 +163,8 @@ function stopRun(cwd: string, now: () => string): LoopResult {
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
 async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
+  const refused = refuseUnsafeWorkspace(cwd, "start");
+  if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
   const scanned = scan({ projectRoot: cwd, path: target, state: "resolving" });
@@ -179,16 +191,32 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
  * A blocked run whose plan is still present is treated as USER_CONFIRMED.
  */
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
+  const refused = refuseUnsafeWorkspace(cwd, "resume");
+  if (refused) return refused;
   const projection = readProjection(cwd);
-  if (!projection) return { state: "idle", reason: "no projection to resume" };
+  if (!projection) return idleOrUnreadableProjection(cwd);
   let snapshot = resume({ projectRoot: cwd });
-  if (projection.state === "blocked" && snapshot.state === "blocked" && snapshot.planFacts.kind !== "missing") {
-    snapshot = withTransition(snapshot, userConfirmed(), deps.now());
-    persistIfPossible(cwd, snapshot);
-  }
+  snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
   return drive(cwd, snapshot, path, deps);
 }
+
+function idleOrUnreadableProjection(cwd: string): LoopResult {
+  if (existsSync(join(cwd, ".context/workflow/buck-loop.json"))) {
+    return { state: "blocked", reason: "unreadable projection" };
+  }
+  return { state: "idle", reason: "no projection to resume" };
+}
+
+function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
+  if (projection.state !== "blocked" || snapshot.state !== "blocked" || snapshot.planFacts.kind === "missing") {
+    return snapshot;
+  }
+  const confirmed = withTransition(snapshot, userConfirmed(), at);
+  persistIfPossible(cwd, confirmed);
+  return confirmed;
+}
+
 
 /**
  * The actual loop. Ask the table, persist, run the effect, rescan, repeat.
@@ -261,7 +289,9 @@ async function runEffect(
   transition: Transition,
   deps: LoopDeps,
 ): Promise<EffectResult> {
-  if (transition.effect.kind === "choose") return runChoice(cwd, snapshot, path, transition.effect.legal, deps);
+  if (transition.effect.kind === "choose") {
+    return runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps);
+  }
   if (transition.effect.kind !== "run-skill") return { snapshot, lastFail: null, halt: null };
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
@@ -272,6 +302,7 @@ async function runChoice(
   snapshot: Snapshot,
   path: string,
   legal: readonly Choice[],
+  why: string,
   deps: LoopDeps,
 ): Promise<EffectResult> {
   emitProgress(deps, {
@@ -280,7 +311,7 @@ async function runChoice(
     label: "Resolving " + snapshot.state + " decision",
     target: snapshot.phasePath ?? snapshot.planPath ?? path,
   });
-  const chosen = await chooseSafely(cwd, snapshot, legal, deps);
+  const chosen = await chooseSafely(cwd, snapshot, legal, why, deps);
   reportChoiceFailure(snapshot, chosen, deps);
   const applied = applyChosen(snapshot, chosen, deps.now());
   persistIfPossible(cwd, applied.snapshot);
@@ -294,10 +325,17 @@ async function chooseSafely(
   cwd: string,
   snapshot: Snapshot,
   legal: readonly Choice[],
+  why: string,
   deps: LoopDeps,
 ): Promise<ChooseResult> {
   try {
-    return await deps.choose({ cwd, subject: snapshot.subject ?? "unknown", legal, onActivity: deps.onActivity });
+    return await deps.choose({
+      cwd,
+      subject: snapshot.subject ?? "unknown",
+      legal,
+      context: decisionContext(snapshot, why),
+      onActivity: deps.onActivity,
+    });
   } catch (error) {
     return {
       status: "blocked",
@@ -473,6 +511,52 @@ function enrichFailure(
 ): AgentCallFailure {
   return { state: snapshot.state, operation, trying, ...details };
 }
+
+function refuseUnsafeWorkspace(cwd: string, mode: "start" | "resume"): LoopResult | null {
+  const branch = gitLine(cwd, "branch", "--show-current");
+  if (PROTECTED_BRANCHES[branch]) {
+    return { state: "blocked", reason: `refusing to ${mode} on protected branch ${branch}` };
+  }
+  if (mode === "start") {
+    const dirty = gitLine(cwd, "status", "--porcelain")
+      .split("\n")
+      .filter((line) => {
+        if (!line) return false;
+        const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, "");
+        return path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/");
+      });
+    if (dirty.length > 0) {
+      return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
+    }
+  }
+  return null;
+}
+
+function gitLine(cwd: string, ...args: string[]): string {
+  try {
+    return execFileSync("git", ["-C", cwd, ...args], {
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function decisionContext(snapshot: Snapshot, why: string): string {
+  const review = snapshot.reviewFacts.kind === "report"
+    ? `parseable=${snapshot.reviewFacts.parseable} docsImpact=${snapshot.reviewFacts.docsImpact} howtoImpact=${snapshot.reviewFacts.howtoImpact}`
+    : `review=${snapshot.reviewFacts.kind}`;
+  return [
+    `state=${snapshot.state}`,
+    `phase=${snapshot.phasePath ?? snapshot.planPath ?? ""}`,
+    `why=${why}`,
+    review,
+    `postcondition=${snapshot.workFacts.postcondition}`,
+  ].join(" ");
+}
+
 
 function stageCommitWork(cwd: string): void {
   execFileSync("git", ["add", "-A"], {

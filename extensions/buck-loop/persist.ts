@@ -10,7 +10,7 @@
  * The projection is gitignored via `.git/info/exclude` so it is never
  * committed. No XState snapshot lives here.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { scan, type ScanResult } from "./scan.js";
@@ -96,12 +96,14 @@ function prepareProjectionPath(projectRoot: string): void {
   }
 }
 
-/** Write the bookmark. Creates `.context/workflow/` as needed. */
+/** Write the bookmark atomically. Creates `.context/workflow/` as needed. */
 export function writeProjection(projectRoot: string, projection: Projection): void {
   prepareProjectionPath(projectRoot);
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
+  const temporary = `${abs}.${process.pid}.tmp`;
   mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
+  writeFileSync(temporary, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
+  renameSync(temporary, abs);
 }
 
 /** Read and validate the bookmark. Missing or corrupt → `null` (treated as idle / blocked by callers). */
@@ -161,6 +163,8 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
       ...counters(projection),
     });
   }
+  const kept = keepCompletedProjectedPhase(root, projection, scanned);
+  if (kept) return kept;
   const iterateCyclesOnPhase =
     scanned.phasePath === projection.phasePath ? projection.iterateCyclesOnPhase : 0;
   return fromScan(scanned, {
@@ -168,6 +172,35 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
     ...counters(projection),
     iterateCyclesOnPhase,
   });
+}
+
+
+function keepCompletedProjectedPhase(
+  root: string,
+  projection: Projection,
+  scanned: ScanResult,
+): Snapshot | null {
+  if (staleBuildingComplete(projection, scanned)) return null;
+  if (scanned.phasePath === projection.phasePath) return null;
+  if (!projection.phasePath) return null;
+  if (!projectedPhaseCompleted(root, projection.phasePath)) return null;
+  return fromScan(scanned, {
+    state: projection.state,
+    phasePath: projection.phasePath,
+    workFacts: { sessionOutcome: "ok", retriesUsed: 0, postcondition: "confirmed" },
+    ...counters(projection),
+    iterateCyclesOnPhase: projection.iterateCyclesOnPhase,
+  });
+}
+
+function projectedPhaseCompleted(root: string, phasePath: string): boolean {
+  const abs = resolve(root, phasePath);
+  if (!existsSync(abs)) return false;
+  try {
+    return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
+  } catch {
+    return false;
+  }
 }
 
 function staleBuildingComplete(projection: Projection, scanned: ScanResult): boolean {

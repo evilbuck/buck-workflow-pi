@@ -89,6 +89,7 @@ describe("direct root-skill catalog", () => {
       const text = readFileSync(join(skillsRoot, dir, "SKILL.md"), "utf8");
       const { name, description } = parseFrontmatter(text);
       if (!name || !description) offenders.push(`${dir} (name=${name ?? "∅"})`);
+      else if (name !== dir) offenders.push(`${dir} (name=${name})`);
     }
     expect(offenders).toEqual([]);
   });

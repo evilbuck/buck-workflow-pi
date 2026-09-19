@@ -65,6 +65,7 @@ function workDeps(
     cwd: string;
     subject: string;
     legal: readonly Choice[];
+    context?: string;
     onActivity?: (event: ActivityEvent) => void;
   }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
 ) {
@@ -152,6 +153,29 @@ describe("handleLoop commands", () => {
     expect(result.state).toBe("blocked");
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+
+  it("refuses to start on a protected branch", async () => {
+    const cwd = repo();
+    git(cwd, ["checkout", "-q", "-b", "master"]);
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/protected branch master/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses to start with unrelated dirty files", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
 });
 
 describe("happy path", () => {
@@ -238,6 +262,33 @@ describe("happy path", () => {
     expect(choose).not.toHaveBeenCalled();
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
   });
+
+  it("saves a clean H2 review instead of asking the chooser to block", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const choose = vi.fn(async () => ({ status: "blocked" as const, reason: "chooser must not run" }));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        writeTree(cwd, {
+          [`.context/${SUBJECT}/review-phase-1.md`]: `# Review
+
+## Documentation Impact
+- No documentation impact
+
+## How-to Impact
+- No how-to impact
+`,
+        });
+        return { ok: true, text: "Review passed." };
+      }
+      return landingWork()(opts);
+    }, choose);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(choose).not.toHaveBeenCalled();
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
+  });
+
 
   it("uses the loop-written review report even when an older conventional review file exists", async () => {
     const cwd = repo();

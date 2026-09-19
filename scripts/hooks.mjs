@@ -52,13 +52,17 @@ function gitOut(repo, ...args) {
  * `<git-dir>/hooks` otherwise.
  */
 export function resolveHooksDir(repo) {
-  const configured = gitOut(repo, "config", "--get", "core.hooksPath");
+  const configured = gitOut(repo, "config", "--path", "--get", "core.hooksPath");
   if (configured) return resolve(repo, configured);
   const gitDir = gitOut(repo, "rev-parse", "--absolute-git-dir");
   if (!gitDir) {
     throw new Error(`${repo} is not a git repository (or git is unavailable)`);
   }
   return join(gitDir, "hooks");
+}
+
+function posixSingleQuote(value) {
+  return "'" + value.replaceAll("'", "'\"'\"'") + "'";
 }
 
 function launcherContent(source, profileName) {
@@ -68,7 +72,7 @@ function launcherContent(source, profileName) {
   }
   const template = readFileSync(join(__dirname, "hooks", "pre-push"), "utf8");
   return template
-    .replaceAll("__BUCK_WORKFLOW_SOURCE__", source)
+    .replaceAll("__BUCK_WORKFLOW_SOURCE__", posixSingleQuote(source))
     .replaceAll("__BUCK_PROFILE_ARGS__", profile.args)
     .replaceAll("__BUCK_PROFILE_NAME__", profile.label);
 }
@@ -86,7 +90,7 @@ function existingHook(hooksDir) {
 function classifyExisting(hooksDir) {
   const found = existingHook(hooksDir);
   if (!found) return found;
-  found.managed = found.content.includes(HOOK_MARKER);
+  found.managed = found.content.startsWith(`#!/usr/bin/env bash\n${HOOK_MARKER}\n`);
   return found;
 }
 
@@ -113,7 +117,7 @@ export function hooksInstall({ repo, source, profile = "full", dryRun = false })
   }
 
   if (dryRun) {
-    return { ok: true, dryRun: true, action: existing ? "replace-managed" : "create", target };
+    return { ok: true, dryRun: true, action: existing ? "replace-managed" : "create", target, source: resolve(source), profile };
   }
 
   mkdirSync(hooksDir, { recursive: true });
@@ -143,8 +147,8 @@ export function hooksStatus({ repo }) {
     info.foreignHookPresent = Boolean(existing);
     return info;
   }
-  const sourceMatch = existing.content.match(/BUCK_WORKFLOW_SOURCE="(.*)"/);
-  info.source = sourceMatch ? sourceMatch[1] : null;
+  const sourceMatch = existing.content.match(/^BUCK_WORKFLOW_SOURCE=('(?:[^']|'"'"')*')$/m);
+  info.source = sourceMatch ? sourceMatch[1].slice(1, -1).replaceAll("'\"'\"'", "'") : null;
   const profileMatch = existing.content.match(/Audit profile: (\w+)/);
   info.profile = profileMatch ? profileMatch[1] : null;
   const audit = info.source ? join(info.source, "scripts", "security-audit.sh") : null;
@@ -167,6 +171,7 @@ export function hooksRemove({ repo, dryRun = false }) {
         `(missing "${HOOK_MARKER}" marker). Remove it manually if intended.`,
     };
   }
-  if (!dryRun) rmSync(existing.path);
+  if (dryRun) return { ok: true, dryRun: true, removed: null, wouldRemove: existing.path };
+  rmSync(existing.path);
   return { ok: true, removed: existing.path };
 }

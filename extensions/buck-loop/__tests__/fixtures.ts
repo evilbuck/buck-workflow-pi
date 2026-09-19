@@ -29,7 +29,7 @@ export function git(cwd: string, args: string[]): void {
 export function repo(prefix = "buck-loop-"): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
   dirs.push(dir);
-  git(dir, ["init", "-q", "-b", "master"]);
+  git(dir, ["init", "-q", "-b", "loop-work"]);
   git(dir, ["config", "user.email", "t@t"]);
   git(dir, ["config", "user.name", "t"]);
   return dir;

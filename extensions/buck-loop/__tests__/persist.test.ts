@@ -136,6 +136,17 @@ describe("resume reconciliation", () => {
     expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
+  it("keeps a completed projected phase instead of advancing on resume", () => {
+    const root = repo();
+    phased(root, ["completed", "pending"]);
+    writeProjection(root, projection({ state: "building" }));
+    const snap = resume({ projectRoot: root });
+    expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
+    expect(snap.state).toBe("building");
+    expect(snap.workFacts.postcondition).toBe("confirmed");
+  });
+
+
   it("returns idle missing when there is no projection and no path", () => {
     const snap = resume({ projectRoot: repo() });
     expect(snap.state).toBe("idle");

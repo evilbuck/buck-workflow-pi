@@ -47,9 +47,9 @@ export class IllegalChoiceError extends Error {
   }
 }
 
-/** True when either safety counter has reached its ceiling. */
+/** True when the global safety counter has reached its ceiling. */
 export function limitsExceeded(s: Snapshot): boolean {
-  return s.loopCount >= s.maxLoops || s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE;
+  return s.loopCount >= s.maxLoops;
 }
 
 function blocked(reason: string): Transition {
@@ -67,16 +67,16 @@ function skillFor(state: LoopState): WorkSkill {
 }
 
 /**
- * Work-emitting transitions are gated by the safety counters: a loop at the
- * maximum, or three iterate cycles on one phase, blocks before another work
- * effect or choice is emitted. Transitions to `done`/`blocked` pass through.
+ * Work-emitting transitions are gated by the global loop ceiling.
+ * Three iterate cycles on one phase block only iterate work; save, docs,
+ * commit, and other non-iterate effects still proceed.
  */
 function gated(t: Transition, s: Snapshot): Transition {
   if (t.effect.kind !== "run-skill" && t.effect.kind !== "choose") return t;
   if (s.loopCount >= s.maxLoops) {
     return blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`);
   }
-  if (s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE) {
+  if (s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE && t.effect.kind === "run-skill" && t.effect.skill === "iterate") {
     return blocked(
       `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
     );
@@ -119,9 +119,14 @@ function postconditionChoices(s: Snapshot): readonly Choice[] {
  */
 export function legalChoices(state: LoopState, s: Snapshot): readonly Choice[] {
   if (limitsExceeded(s)) return [];
-  if (state === "reviewing") return reviewChoices(s);
-  if (WORK_SKILL[state] !== undefined) return postconditionChoices(s);
-  return [];
+  const choices = state === "reviewing"
+    ? reviewChoices(s)
+    : WORK_SKILL[state] !== undefined
+      ? postconditionChoices(s)
+      : [];
+  return s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE
+    ? choices.filter((choice) => choice.kind !== "iterate")
+    : choices;
 }
 
 /** Handle the shared session lifecycle (not-yet-run / failed / retried) for a work state. Returns null when the session finished ok. */

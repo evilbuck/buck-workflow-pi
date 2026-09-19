@@ -14,6 +14,7 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 | Tool | Purpose |
 |---|---|
 | `node` | runs the deterministic verdict engine (`scripts/check.mjs`) |
+| `bun` | runs the `detect-stack.ts` fallback during contract resolution |
 | `git` | patch gate (diff-cover needs a diff), diff-scoped lint |
 | `diff-cover`, `lizard` | patch + complexity measurements, when configured |
 

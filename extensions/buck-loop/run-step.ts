@@ -118,7 +118,7 @@ function loadSkill(skill: NestedSkill): string {
 /** Skill body first, then a hard boundary: the child may not choose the next loop state. */
 function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string): string {
   const hardVariant = skill === "b-build-hard" ? "\nThis is the hard variant of b-build.\n" : "";
-  const commitAuthorization = skill === "b-commit" ? "\nThe operator explicitly invoked /buck-loop, authorizing this commit step. Treat this assignment as /b-commit force so the staged checkpoint is committed even on a protected branch.\n" : "";
+  const commitAuthorization = skill === "b-commit" ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n" : "";
   return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${commitAuthorization}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
 }
 
@@ -214,15 +214,19 @@ export async function runStep(opts: {
       });
     }
 
-    let timedOut = false;
-    timer = setTimeout(() => {
-      timedOut = true;
-      void session?.abort();
-    }, WORK_SESSION_TIMEOUT_MS);
-    // Blocks until the child finishes or abort() fires from the timer.
-    await session.prompt(prompt);
+    const promptPromise = session.prompt(prompt);
+    const winner = await Promise.race([
+      promptPromise.then(() => "prompt" as const),
+      new Promise<"timeout">((resolve) => {
+        timer = setTimeout(() => resolve("timeout"), WORK_SESSION_TIMEOUT_MS);
+      }),
+    ]);
+    if (winner === "timeout") {
+      void Promise.resolve(session.abort()).catch(() => undefined);
+      void promptPromise.catch(() => undefined);
+    }
     const text = lastAssistantText(session.messages);
-    if (timedOut) {
+    if (winner === "timeout") {
       outcome = fail(
         { name: "TimeoutError", message: "Nested " + opts.skill + " session timed out after " + WORK_SESSION_TIMEOUT_MS + "ms." },
         text || "timed out",

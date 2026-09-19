@@ -7,7 +7,8 @@ import {
   existsSync,
   chmodSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
   HOOK_MARKER,
@@ -17,6 +18,7 @@ import {
   hooksRemove,
 } from "./hooks.mjs";
 
+const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const ROOT = join("/tmp", "hooks-test-" + process.pid);
 const SOURCE = join(ROOT, "buck-workflow");
 
@@ -104,6 +106,14 @@ describe("hooks lifecycle", () => {
     expect(status.profile).toBe("fast");
     expect(status.hooksDir).toBe(join(repo, ".git", "hooks"));
   });
+  it("shell-quotes the source path and reports it unchanged", () => {
+    const repo = makeRepo("quoted-source");
+    const source = join(ROOT, "buck-workflow's");
+    const result = hooksInstall({ repo, source, profile: "full" });
+    expect(result.ok).toBe(true);
+    expect(readFileSync(join(repo, ".git", "hooks", "pre-push"), "utf8")).toContain("BUCK_WORKFLOW_SOURCE='");
+    expect(hooksStatus({ repo }).source).toBe(source);
+  });
 
   it("reinstall is idempotent — content unchanged", () => {
     const repo = makeRepo("idempotent");
@@ -123,13 +133,18 @@ describe("hooks lifecycle", () => {
     const hooksDir = join(repo, ".git", "hooks");
     mkdirSync(hooksDir, { recursive: true });
     const foreign = join(hooksDir, "pre-push");
-    const original = "#!/bin/sh\nexec other-audit \"$@\"\n";
+    const original = `#!/bin/sh
+# ${HOOK_MARKER}
+exec other-audit "$@"
+`;
     writeFileSync(foreign, original);
 
     const result = hooksInstall({ repo, source: SOURCE, profile: "full" });
     expect(result.ok).toBe(false);
     expect(result.reason).toMatch(/pre-existing pre-push/i);
     expect(result.reason).toMatch(/--force|chain/i);
+    expect(readFileSync(foreign, "utf8")).toBe(original);
+    expect(hooksRemove({ repo }).ok).toBe(false);
     expect(readFileSync(foreign, "utf8")).toBe(original);
   });
 
@@ -161,6 +176,10 @@ describe("hooks lifecycle", () => {
     const repo = makeRepo("removal");
     hooksInstall({ repo, source: SOURCE, profile: "full" });
     const hook = join(repo, ".git", "hooks", "pre-push");
+
+    const dryRun = hooksRemove({ repo, dryRun: true });
+    expect(dryRun).toMatchObject({ dryRun: true, removed: null, wouldRemove: hook });
+    expect(existsSync(hook)).toBe(true);
 
     const result = hooksRemove({ repo });
     expect(result.ok).toBe(true);
@@ -200,8 +219,7 @@ describe("pre-push launcher exit propagation", () => {
   });
   afterEach(() => rmSync(ROOT, { recursive: true, force: true }));
 
-  const REAL_SOURCE = join(import.meta.dirname, "..");
-
+  const REAL_SOURCE = join(SCRIPTS_DIR, "..");
   it("a clean repo pushes: launcher exits 0", () => {
     const repo = makeRepo("pushclean");
     const result = hooksInstall({ repo, source: REAL_SOURCE, profile: "fast" });
@@ -232,8 +250,7 @@ describe("CLI dispatch — node install.mjs hooks …", () => {
   beforeEach(() => rmSync(ROOT, { recursive: true, force: true }));
   afterEach(() => rmSync(ROOT, { recursive: true, force: true }));
 
-  const CLI = join(import.meta.dirname, "install.mjs");
-
+  const CLI = join(SCRIPTS_DIR, "install.mjs");
   function cli(...args) {
     return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
   }
@@ -247,8 +264,7 @@ describe("CLI dispatch — node install.mjs hooks …", () => {
 
   it("hooks install then status round-trips through the CLI", () => {
     const repo = makeRepo("cli-roundtrip");
-    const install = cli("hooks", "install", "--repo", repo, "--profile", "fast", "--source", import.meta.dirname + "/..");
-    expect(install.status).toBe(0);
+    const install = cli("hooks", "install", "--repo", repo, "--profile", "fast", "--source", SCRIPTS_DIR + "/..");
     expect(install.stdout).toContain("profile: fast");
 
     const status = cli("hooks", "status", "--repo", repo);
@@ -269,7 +285,7 @@ describe("CLI dispatch — node install.mjs hooks …", () => {
 
   it("hooks remove via CLI exits 0 and uninstalls", () => {
     const repo = makeRepo("cli-remove");
-    expect(cli("hooks", "install", "--repo", repo, "--source", import.meta.dirname + "/..").status).toBe(0);
+    expect(cli("hooks", "install", "--repo", repo, "--source", SCRIPTS_DIR + "/..").status).toBe(0);
     const remove = cli("hooks", "remove", "--repo", repo);
     expect(remove.status).toBe(0);
     expect(cli("hooks", "status", "--repo", repo).stdout).toContain("installed:    false");

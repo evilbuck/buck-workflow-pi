@@ -534,6 +534,7 @@ export function verifySurfaces({
  */
 function parseHooksPrefix(argv) {
   if (argv[0] !== "hooks") return { command: null, hooksAction: null, start: 0 };
+  if (argv[1]?.startsWith("-")) throw new Error(`unknown option: ${argv[1]}`);
   return { command: "hooks", hooksAction: argv[1] ?? "status", start: 2 };
 }
 const FLAG_BOOLEANS = {
@@ -578,7 +579,13 @@ export function parseArgs(argv) {
       continue;
     }
     const valueKey = FLAG_VALUES[value];
-    if (!valueKey) continue;
+    if (!valueKey) {
+      if (value.startsWith("-")) throw new Error(`unknown option: ${value}`);
+      continue;
+    }
+    if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+      throw new Error(`option requires a value: ${value}`);
+    }
     args[valueKey] = argv[++i];
     if (valueKey === "harnessIds") args.harnessIds = args.harnessIds.split(",");
   }
@@ -778,55 +785,67 @@ export function runInstall(args, home, source) {
  */
 export function runHooks(args, source = REPO_ROOT) {
   const repo = args.repo ? resolve(args.repo) : process.cwd();
-
-  if (args.hooksAction === "install") {
-    const result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
-    if (!result.ok) {
-      console.error(`hooks install: ${result.reason}`);
-      return 1;
-    }
-    console.log(`hooks install: ${result.action} ${result.target} (profile: ${result.profile})`);
-    return 0;
-  }
-
-  if (args.hooksAction === "remove") {
-    const result = hooksRemove({ repo, dryRun: args.dryRun });
-    if (!result.ok) {
-      console.error(`hooks remove: ${result.reason}`);
-      return 1;
-    }
-    const note = result.note ? ` — ${result.note}` : "";
-    console.log(`hooks remove: ${result.removed ?? "nothing to remove"}${note}`);
-    return 0;
-  }
-
-  if (args.hooksAction === "status") {
-    const status = hooksStatus({ repo });
-    console.log(`hooks dir:    ${status.hooksDir}`);
-    console.log(`installed:    ${status.installed}`);
-    if (status.installed) {
-      console.log(`source:       ${status.source}`);
-      console.log(`profile:      ${status.profile}`);
-      console.log(`audit script: ${status.auditScript ?? "MISSING (checkout moved?)"}`);
-    } else if (status.foreignHookPresent) {
-      console.log("note:         a foreign pre-push exists (buck-workflow will not touch it)");
-    }
-    return 0;
-  }
-
+  if (args.hooksAction === "install") return logHooksInstall(args, repo, source);
+  if (args.hooksAction === "remove") return logHooksRemove(args, repo);
+  if (args.hooksAction === "status") return logHooksStatus(repo);
   console.error(`hooks: unknown action "${args.hooksAction}" — expected install, status, or remove`);
   return 2;
 }
 
+function logHooksInstall(args, repo, source) {
+  const result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
+  if (!result.ok) {
+    console.error(`hooks install: ${result.reason}`);
+    return 1;
+  }
+  console.log(`hooks install: ${result.action} ${result.target} (profile: ${result.profile})`);
+  return 0;
+}
+
+function logHooksRemove(args, repo) {
+  const result = hooksRemove({ repo, dryRun: args.dryRun });
+  if (!result.ok) {
+    console.error(`hooks remove: ${result.reason}`);
+    return 1;
+  }
+  const note = result.note ? ` — ${result.note}` : "";
+  const action = result.dryRun ? `would remove ${result.wouldRemove}` : (result.removed ?? "nothing to remove");
+  console.log(`hooks remove: ${action}${note}`);
+  return 0;
+}
+
+function logHooksStatus(repo) {
+  const status = hooksStatus({ repo });
+  console.log(`hooks dir:    ${status.hooksDir}`);
+  console.log(`installed:    ${status.installed}`);
+  if (status.installed) {
+    console.log(`source:       ${status.source}`);
+    console.log(`profile:      ${status.profile}`);
+    console.log(`audit script: ${status.auditScript ?? "MISSING (checkout moved?)"}`);
+  } else if (status.foreignHookPresent) {
+    console.log("note:         a foreign pre-push exists (buck-workflow will not touch it)");
+  }
+  return 0;
+}
+
+
 function main() {
-  const args = parseArgs(process.argv.slice(2));
+  let args;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`buck-workflow: ${error.message}`);
+    process.exit(2);
+  }
 
   if (args.help) {
     console.log(HELP);
     process.exit(0);
   }
 
-  if (args.command === "hooks") process.exit(runHooks(args));
+  if (args.command === "hooks") {
+    process.exit(runHooks(args, args.source ? resolve(args.source) : REPO_ROOT));
+  }
 
   const home = homedir();
   const source = args.source ? resolve(args.source) : REPO_ROOT;

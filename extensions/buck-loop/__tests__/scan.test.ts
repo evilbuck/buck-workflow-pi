@@ -312,6 +312,60 @@ describe("scan: artifact facts", () => {
     });
   });
 
+  it("parses H2 impact headings the same as H3", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: `# Review
+
+## Documentation Impact
+- No documentation impact
+
+## How-to Impact
+- No how-to impact
+`,
+    });
+    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+      kind: "report",
+      parseable: true,
+      iterateArtifact: false,
+      docsImpact: false,
+      howtoImpact: false,
+    });
+  });
+
+  it("does not pick another plan's unowned phases when multiple plans exist", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-alpha.md`]: phaseMd(1, "pending"),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
+    expect(result.phasePath).toBeNull();
+    expect(result.planFacts).toEqual({ kind: "unphased" });
+  });
+
+  it("picks phases owned by the named plan in a multi-plan subject", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-beta.md`]: `---
+status: pending
+phase: 1
+plan: plan-beta.md
+depends_on: []
+---
+# Beta phase
+`,
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-beta.md`);
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+  });
+
+
   it("sets docsImpact when Documentation Impact is flagged", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {

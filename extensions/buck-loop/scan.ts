@@ -165,7 +165,7 @@ function loadResolved(
   const subject = basename(subjectDir);
   const planAbs = classified.kind === "plan" ? classified.abs : pickSolePlan(subjectDir);
   if (typeof planAbs !== "string") return planAbs;
-  const phases = listPhases(subjectDir);
+  const phases = listPhases(subjectDir, planAbs, listPlans(subjectDir).length);
   const picked = pickPhase(phases);
   if (picked.kind === "none") {
     return { subject, subjectDir, planAbs, phaseAbs: null, planFacts: { kind: "unphased" } };
@@ -213,13 +213,16 @@ function isPhasesOverview(name: string): boolean {
   return name.startsWith("plan-") && name.endsWith(".md") && name.includes("-phases");
 }
 
-function listPhases(subjectDir: string): PhaseMeta[] {
+function listPhases(subjectDir: string, planAbs: string, planCount: number): PhaseMeta[] {
   const out: PhaseMeta[] = [];
   for (const name of listNames(subjectDir)) {
     const match = name.match(PHASE_FILE_RE);
     if (!match) continue;
     const abs = join(subjectDir, name);
     const fm = readFrontmatter(abs);
+    const owner = fm.plan ?? fm.plans;
+    if (planCount > 1 && !owner) continue;
+    if (owner && !owner.split(/[ ,]+/).some((value) => value === basename(planAbs) || value === planAbs)) continue;
     out.push({
       n: Number(match[1]),
       abs,
@@ -332,18 +335,13 @@ function firstContentLine(body: string): string {
   return "";
 }
 
-/**
- * Body of a `### Heading` section. H2 (`##`) is not recognized — review
- * reports must use H3 for Documentation / How-to Impact, or the
- * `Documentation impact:` summary-line fallback.
- */
 function sectionBody(text: string, heading: string): string | null {
-  const marker = `### ${heading}`;
-  const start = text.indexOf(marker);
+  const lines = text.split("\n");
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const start = lines.findIndex((line) => new RegExp(`^#{1,6} ${escaped}\\s*$`).test(line));
   if (start < 0) return null;
-  const after = text.slice(start + marker.length);
-  const next = after.search(/\n#{1,3} /);
-  const body = (next < 0 ? after : after.slice(0, next)).trim();
+  const next = lines.slice(start + 1).findIndex((line) => /^#{1,6} /.test(line));
+  const body = lines.slice(start + 1, next < 0 ? undefined : start + 1 + next).join("\n").trim();
   return body.length > 0 ? body : null;
 }
 

@@ -128,12 +128,14 @@ describe("parseComplexityCsv", () => {
     const csv = [
       "5,1,33,2,6,\"die@82-87@skills/x.ts\",\"skills/x.ts\",\"die\",\"die ( msg )\",82,87",
       "13,12,82,1,14,\"f@1-2@./skills/y.ts\",\"./skills/y.ts\",\"f\",\"f ( a , b )\",1,2",
+      "8,2,40,1,9,\"g@1-9@./skills/a,b.ts\",\"./skills/a,b.ts\",\"g\",\"g ( )\",1,9",
       "summary-garbage-line,that,is,not,a,row",
     ].join("\n");
     const rows = parseComplexityCsv(csv);
     expect(rows).toEqual([
       { file: "skills/x.ts", function: "die", complexity: 1 },
       { file: "skills/y.ts", function: "f", complexity: 12 },
+      { file: "skills/a,b.ts", function: "g", complexity: 2 },
     ]);
   });
 });
@@ -298,7 +300,7 @@ describe("runCheck", () => {
     expect(verdict.status).toBe("pass");
   });
 
-  it("a coverage regression fails the global ratchet", async () => {
+  it("skips the global ratchet when coverage is unmeasurable", async () => {
     const dir = fixtureRepo(
       "ratchet-regression",
       baseContract({
@@ -311,6 +313,22 @@ describe("runCheck", () => {
     // No lcov file produced → coverage unmeasurable → ratchet skipped.
     const verdict = await runCheck({ cwd: dir });
     expect(verdict.gates.global_ratchet).toBe("skipped");
+  });
+
+  it("fails the global ratchet when lcov coverage is below the baseline", async () => {
+    const dir = fixtureRepo(
+      "ratchet-regression-with-lcov",
+      baseContract({
+        ratchet: ratchet({ baseline_coverage: 54.9 }),
+        ecosystems: [
+          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+        ],
+      }),
+    );
+    mkdirSync(join(dir, "coverage"), { recursive: true });
+    writeFileSync(join(dir, "coverage", "lcov.info"), "LF:10\nLH:5\n");
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.gates.global_ratchet).toBe("fail");
   });
 
   it("missing guardrails.json is a hard error", async () => {

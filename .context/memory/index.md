@@ -2,9 +2,9 @@
 
 - 2026-09-19 — [buck-loop stall diagnosis](buck-loop-stall-diagnosis-2026-09-19.md) — `completed` (clean review heading drift triggered a context-free chooser; accepted block stopped the loop)
 - 2026-09-19 — [buck-loop nested LLM output viewport](buck-loop-streaming-output-2026-09-19.md) — `completed` (six-row nested SDK stream; 84 tests; guardrails pass)
-- 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `completed` (validated reviews; filed #34–#39; no in-session code fix)
+- 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `active` (rebased onto 90c1111; implemented #34–#39 plus chooser stall / timeout race / protected-branch refuse)
 
-  - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: completed
+  - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: active
 
 - 2026-09-18 — [fix-pr: PR #25 review feedback](fix-pr-25-2026-09-18.md) — `completed` (settled after 5 fix loops: fail-closed reviewThreads GraphQL walk, --paginate everywhere, untrusted-data + fork-isolation rules, non-identifying worktree records, consumers synced; rebased onto master, MERGEABLE/CLEAN)
 

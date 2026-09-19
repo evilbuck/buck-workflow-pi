@@ -545,6 +545,13 @@ describe("parseArgs", () => {
   it("parses --source <path>", () => {
     expect(parseArgs(["--source", "/foo/bar"]).source).toBe("/foo/bar");
   });
+  it("rejects a value flag without a value", () => {
+    expect(() => parseArgs(["--repo"])).toThrow(/requires a value/);
+  });
+
+  it("rejects unknown options", () => {
+    expect(() => parseArgs(["--nope"])).toThrow(/unknown option/);
+  });
 
   it("parses --harness ids (comma-separated)", () => {
     expect(parseArgs(["--harness", "pi,claude"]).harnessIds).toEqual([
@@ -990,7 +997,7 @@ describe("packed package discovery", () => {
       const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
       // 1. Pack without running lifecycle scripts (prepublishOnly = npm test).
-      const pack = spawnSync("npm", ["pack", "--ignore-scripts"], {
+      const pack = spawnSync("npm", ["pack", "--ignore-scripts", "--pack-destination", PACK_ROOT], {
         cwd: repoRoot,
         encoding: "utf8",
         env: {
@@ -1007,7 +1014,7 @@ describe("packed package discovery", () => {
       const prefix = join(PACK_ROOT, "prefix");
       const install = spawnSync(
         "npm",
-        ["install", "--global", "--prefix", prefix, join(repoRoot, tgz)],
+        ["install", "--global", "--prefix", prefix, join(PACK_ROOT, tgz)],
         {
           cwd: PACK_ROOT,
           encoding: "utf8",

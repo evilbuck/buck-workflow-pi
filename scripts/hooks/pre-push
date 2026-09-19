@@ -6,7 +6,7 @@
 # Exits 0 clean, 1 findings detected, 2 usage error — propagated unchanged from
 # scripts/security-audit.sh. Never edit by hand; reinstall instead.
 
-BUCK_WORKFLOW_SOURCE="__BUCK_WORKFLOW_SOURCE__"
+BUCK_WORKFLOW_SOURCE=__BUCK_WORKFLOW_SOURCE__
 AUDIT="$BUCK_WORKFLOW_SOURCE/scripts/security-audit.sh"
 
 if [ ! -f "$AUDIT" ]; then
