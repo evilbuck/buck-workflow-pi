@@ -1,3 +1,7 @@
+- 2026-09-18 — [fix-pr: PR #25 review feedback](fix-pr-25-2026-09-18.md) — `completed` (settled after 5 fix loops: fail-closed reviewThreads GraphQL walk, --paginate everywhere, untrusted-data + fork-isolation rules, non-identifying worktree records, consumers synced; rebased onto master, MERGEABLE/CLEAN)
+
+  - 2026-09-18 | `fix-pr-25-2026-09-18.md` | domains: [review, workflow, agent-instructions] | topics: [fix-pr, pr-25, graphql-reviewthreads, paginate, fail-closed, untrusted-data, fork-isolation, consumer-sync, coderabbit] | status: completed
+
 - 2026-09-17 — [fix-pr PR #26 design-language](fix-pr-26-2026-09-17.md) — `completed` (move thought-dump-writer under skills/, harden TARGET scaffold against injection, sync aria/contrast/CDN warnings; Wooderson re-review no new findings, all checks green)
 
   - 2026-09-17 | `fix-pr-26-2026-09-17.md` | domains: [review, frontend, design-system] | topics: [fix-pr, pr-26, thought-dump-writer, design-language, mermaid-cdn, aria, contrast, shell-injection] | status: completed
@@ -32,6 +36,10 @@
   - 2026-09-12 | `code-review-iteration-brainstorm-2026-09-12.md` | domains: [extensions, review, workflow] | topics: [omp, isolated-sessions, review-loop, model-routing, reviewer-personas, worktrees] | status: completed
 
   - 2026-09-12 | `fix-pr-24-2026-09-12.md` | domains: [review, extensions, testing] | topics: [fix-pr, pr-24, extension-activity, terminal-flush, fake-clock, spawn-mock] | status: completed
+
+- 2026-09-12 — [fix-pr: head-branch worktrees and bounded re-review](fix-pr-resolution-loop-2026-09-12.md) — `completed`
+
+  - 2026-09-12 | `fix-pr-resolution-loop-2026-09-12.md` | domains: [workflow, agent-instructions, github] | topics: [fix-pr, git-worktree, review-loop, max-loop, polling, orchestrate, subagents] | status: completed
 
 - 2026-09-11 — [Unified live activity for extensions (gates open)](extension-activity-progress-2026-09-11.md) — `active` (plan + 4-phase build + iterate; 334 vitest pass; patch-coverage gate + OMP TUI smoke open)
 

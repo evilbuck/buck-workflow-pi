@@ -27,9 +27,11 @@ contract:
   is failure. Serialize only when one subagent produces a contract (types,
   schema, files) the next consumes wholesale.
 - **Verify after every phase.** Never advance on a red gate.
-- **Subagents do not verify, lint, or format.** Subagents edit only. The
-  orchestrator runs `bun check`, `bun test`, and `lsp diagnostics` once at
-  the end.
+- **Subagents do not own final verification.** They may perform bounded
+  read-only exploration, claim validation, or edits within an assigned slice,
+  but they do not run the orchestrator's final lint, test, format, or diagnostic
+  gates. The orchestrator runs required gates after each completed phase.
+
 - **Right-size the offload.** Don't wrap a one-line config fix in a full
   subagent.
 

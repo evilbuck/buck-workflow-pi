@@ -45,10 +45,12 @@ PR_JSON="$(gh pr view "$PR" --repo "$REPO" \
   --json number,title,body,headRefName,baseRefName,state,url,files,reviews,comments)" \
   || { echo "error: gh pr view $PR --repo $REPO failed (auth? permissions?)" >&2; exit 4; }
 
-INLINE_JSON="$(gh api "repos/$REPO/pulls/$PR/comments")" \
+# --paginate: emit every page; a first-page-only feed silently drops findings
+# on PRs with more comments than one page holds.
+INLINE_JSON="$(gh api --paginate "repos/$REPO/pulls/$PR/comments")" \
   || { echo "error: gh api repos/$REPO/pulls/$PR/comments failed" >&2; exit 4; }
 
-CONVO_JSON="$(gh api "repos/$REPO/issues/$PR/comments")" \
+CONVO_JSON="$(gh api --paginate "repos/$REPO/issues/$PR/comments")" \
   || { echo "error: gh api repos/$REPO/issues/$PR/comments failed" >&2; exit 4; }
 
 # Verify PR was actually found (gh returns {} for unknown PRs rather than failing).
