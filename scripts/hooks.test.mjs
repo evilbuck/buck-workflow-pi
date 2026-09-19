@@ -7,10 +7,12 @@ import {
   existsSync,
   chmodSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
+  BUCK_MANAGED_HEADER,
   HOOK_MARKER,
+  isManagedHook,
   resolveHooksDir,
   hooksInstall,
   hooksStatus,
@@ -66,6 +68,15 @@ describe("resolveHooksDir", () => {
     git(repo, "config", "core.hooksPath", ".githooks");
     expect(resolveHooksDir(repo)).toBe(custom);
   });
+
+  it("expands a leading ~ in core.hooksPath via --path", () => {
+    const repo = makeRepo("tilde");
+    git(repo, "config", "core.hooksPath", "~/.githooks");
+    const dir = resolveHooksDir(repo);
+    expect(dir).not.toBe(join(repo, "~", ".githooks"));
+    expect(dir.startsWith("/")).toBe(true);
+    expect(dir).not.toContain("/~/");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -88,11 +99,99 @@ describe("hooks lifecycle", () => {
     const hook = join(repo, ".git", "hooks", "pre-push");
     expect(existsSync(hook)).toBe(true);
     const content = readFileSync(hook, "utf8");
-    expect(content).toContain(HOOK_MARKER);
+    expect(content.startsWith(BUCK_MANAGED_HEADER)).toBe(true);
     expect(content).toContain(SOURCE);
+    // POSIX-quoted: a path with metacharacters must not break the launcher.
+    expect(content).toContain(`BUCK_WORKFLOW_SOURCE='${SOURCE}'`);
     // Executable bit set.
     const mode = spawnSync("stat", ["-c", "%a", hook], { encoding: "utf8" });
     expect(mode.stdout.trim()).toBe("755");
+  });
+
+  it("POSIX-quotes a source path containing single quotes", () => {
+    const repo = makeRepo("quote");
+    const tricky = `${SOURCE}/it's a "buck" checkout`;
+    const result = hooksInstall({ repo, source: tricky, profile: "fast" });
+    expect(result.ok).toBe(true);
+
+    const hook = join(repo, ".git", "hooks", "pre-push");
+    const content = readFileSync(hook, "utf8");
+    expect(content).toContain(`BUCK_WORKFLOW_SOURCE='${tricky.replaceAll("'", `'\\''`)}'`);
+
+    // The generated assignment must survive bash parsing: executing just that
+    // line and echoing the variable yields the source path verbatim.
+    const line = content.split("\n").find((l) => l.startsWith("BUCK_WORKFLOW_SOURCE="));
+    const echo = spawnSync(
+      "bash",
+      ["-c", `${line}\nprintf "%s" "$BUCK_WORKFLOW_SOURCE"`],
+      { encoding: "utf8" },
+    );
+    expect(echo.stdout).toBe(tricky);
+  });
+
+  it("isManagedHook requires the header in the first two lines", () => {
+    const launcher = `#!/usr/bin/env bash\n${HOOK_MARKER}\n# rest\n`;
+    expect(isManagedHook(launcher)).toBe(true);
+    // Marker further down (embedded/chained) is not ownership.
+    expect(isManagedHook(`#!/bin/sh\n# dispatcher\nfoo\n# ${HOOK_MARKER}\n`)).toBe(false);
+    expect(isManagedHook("")).toBe(false);
+  });
+
+  it("does not claim ownership of a foreign dispatcher that embeds the marker", () => {
+    const repo = makeRepo("embedded");
+    const hooksDir = join(repo, ".git", "hooks");
+    mkdirSync(hooksDir, { recursive: true });
+    const dispatcher = join(hooksDir, "pre-push");
+    const original = [
+      "#!/bin/sh",
+      "# my-dispatcher v1 — chains several audits",
+      'case "$1" in *) ;; esac',
+      `# ${HOOK_MARKER}`,
+      "# end chained integration note",
+      'exec my-own-audit "$@"',
+      "",
+    ].join("\n");
+    writeFileSync(dispatcher, original);
+
+    const install = hooksInstall({ repo, source: SOURCE, profile: "full" });
+    expect(install.ok).toBe(false);
+    expect(install.reason).toMatch(/not managed by buck-workflow/i);
+    expect(readFileSync(dispatcher, "utf8")).toBe(original);
+
+    const remove = hooksRemove({ repo });
+    expect(remove.ok).toBe(false);
+    expect(remove.reason).toMatch(/not managed by buck-workflow/i);
+    expect(readFileSync(dispatcher, "utf8")).toBe(original);
+    expect(hooksStatus({ repo }).installed).toBe(false);
+  });
+
+  it("dry-run install reports the profile and source without writing", () => {
+    const repo = makeRepo("dryinstall");
+    const result = hooksInstall({ repo, source: SOURCE, profile: "fast", dryRun: true });
+    expect(result.ok).toBe(true);
+    expect(result.dryRun).toBe(true);
+    expect(result.action).toBe("create");
+    expect(result.profile).toBe("fast");
+    expect(result.source).toBe(resolve(SOURCE));
+    expect(existsSync(join(repo, ".git", "hooks", "pre-push"))).toBe(false);
+  });
+
+  it("dry-run remove reports without claiming a removal", () => {
+    const repo = makeRepo("dryremove");
+    hooksInstall({ repo, source: SOURCE, profile: "full" });
+    const hook = join(repo, ".git", "hooks", "pre-push");
+
+    const result = hooksRemove({ repo, dryRun: true });
+    expect(result.ok).toBe(true);
+    expect(result.dryRun).toBe(true);
+    expect(result.action).toBe("would-remove");
+    expect(result.removed).toBeUndefined();
+    expect(existsSync(hook)).toBe(true);
+
+    const real = hooksRemove({ repo });
+    expect(real.ok).toBe(true);
+    expect(real.removed).toBe(hook);
+    expect(existsSync(hook)).toBe(false);
   });
 
   it("reports installed status with source and profile", () => {
@@ -238,6 +337,45 @@ describe("CLI dispatch — node install.mjs hooks …", () => {
     return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
   }
 
+  it("hooks install forwards --source through the CLI (not the package root)", () => {
+    const repo = makeRepo("cli-source");
+    const elsewhere = join(ROOT, "elsewhere");
+    mkdirSync(join(elsewhere, "scripts"), { recursive: true });
+    writeFileSync(
+      join(elsewhere, "scripts", "security-audit.sh"),
+      "#!/usr/bin/env bash\nexit 0\n",
+    );
+
+    const install = cli("hooks", "install", "--repo", repo, "--source", elsewhere);
+    expect(install.status).toBe(0);
+    expect(install.stdout).toContain("profile: full");
+
+    const content = readFileSync(join(repo, ".git", "hooks", "pre-push"), "utf8");
+    expect(content).toContain(`BUCK_WORKFLOW_SOURCE='${elsewhere}'`);
+    expect(content).not.toContain(resolve(import.meta.dirname, ".."));
+  });
+
+  it("unknown flags exit 2 with a usage error before any write", () => {
+    const repo = makeRepo("cli-unknown-flag");
+    const proc = cli("hooks", "install", "--repo", repo, "--profil", "fast");
+    expect(proc.status).toBe(2);
+    expect(proc.stderr).toContain("unknown option(s): --profil");
+
+    // A typoed profile must not silently install the default "full".
+    expect(existsSync(join(repo, ".git", "hooks", "pre-push"))).toBe(false);
+  });
+
+  it("a value flag missing its argument exits 2 without writing", () => {
+    const repo = makeRepo("cli-missing-value");
+    const proc = cli("hooks", "install", "--repo");
+    expect(proc.status).toBe(2);
+    expect(proc.stderr).toContain("missing value for --repo");
+
+    const status = cli("hooks", "status", "--repo", repo);
+    expect(status.stdout).toContain("hooks dir:");
+    expect(status.stdout).toContain(repo);
+  });
+
   it("hooks status on a repo without hooks reports not installed (exit 0)", () => {
     const repo = makeRepo("cli-status");
     const proc = cli("hooks", "status", "--repo", repo);
@@ -273,6 +411,15 @@ describe("CLI dispatch — node install.mjs hooks …", () => {
     const remove = cli("hooks", "remove", "--repo", repo);
     expect(remove.status).toBe(0);
     expect(cli("hooks", "status", "--repo", repo).stdout).toContain("installed:    false");
+  });
+
+  it("hooks remove --dry-run reports without claiming a removal", () => {
+    const repo = makeRepo("cli-dryremove");
+    expect(cli("hooks", "install", "--repo", repo, "--source", import.meta.dirname + "/..").status).toBe(0);
+    const proc = cli("hooks", "remove", "--repo", repo, "--dry-run");
+    expect(proc.status).toBe(0);
+    expect(proc.stdout).toContain("dry run — nothing removed");
+    expect(existsSync(join(repo, ".git", "hooks", "pre-push"))).toBe(true);
   });
 
   it("unknown hooks action exits 2", () => {

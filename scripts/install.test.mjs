@@ -519,6 +519,8 @@ describe("parseArgs", () => {
       hooksAction: null,
       repo: null,
       profile: "full",
+      unknownFlags: [],
+      missingValues: [],
     });
   });
 

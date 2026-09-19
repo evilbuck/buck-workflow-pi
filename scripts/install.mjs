@@ -564,6 +564,8 @@ export function parseArgs(argv) {
     hooksAction: null,
     repo: null,
     profile: "full",
+    unknownFlags: [],
+    missingValues: [],
   };
 
   const prefix = parseHooksPrefix(argv);
@@ -578,12 +580,51 @@ export function parseArgs(argv) {
       continue;
     }
     const valueKey = FLAG_VALUES[value];
-    if (!valueKey) continue;
-    args[valueKey] = argv[++i];
+    if (!valueKey) {
+      // Unknown flag: recorded so main() can fail closed with a usage error.
+      // Silently skipping it lets a typoed --profil leave --profile "full".
+      args.unknownFlags.push(value);
+      continue;
+    }
+    const next = argv[i + 1];
+    if (next === undefined) {
+      // A value flag with no argument (e.g. `hooks install --repo`) must not
+      // silently fall back to a default like process.cwd().
+      args.missingValues.push(value);
+      break;
+    }
+    i++;
+    args[valueKey] = next;
     if (valueKey === "harnessIds") args.harnessIds = args.harnessIds.split(",");
   }
 
   return args;
+}
+
+/**
+ * Cross-check parsed args and return a usage error message, or null when the
+ * invocation is well-formed. Checked in main() before any command runs so a
+ * malformed invocation can never write anything.
+ * @param {ReturnType<typeof parseArgs>} args
+ * @returns {string|null}
+ */
+export function argsUsageError(args) {
+  const problems = [];
+  if (args.missingValues.length > 0) {
+    problems.push(
+      `missing value for ${args.missingValues.map((f) => `${f} <value>`).join(", ")}`,
+    );
+  }
+  if (args.unknownFlags.length > 0) {
+    // A stray bare word (collateral after a typoed flag) is not an "option";
+    // name it separately so the message stays accurate.
+    const flags = args.unknownFlags.filter((f) => f.startsWith("-"));
+    const extras = args.unknownFlags.filter((f) => !f.startsWith("-"));
+    if (flags.length > 0) problems.push(`unknown option(s): ${flags.join(", ")}`);
+    if (extras.length > 0) problems.push(`unexpected argument(s): ${extras.join(", ")}`);
+  }
+  if (problems.length === 0) return null;
+  return `usage error: ${problems.join("; ")}\n\n${HELP}`;
 }
 // ---------------------------------------------------------------------------
 // summarize
@@ -626,9 +667,11 @@ Options:
   --help                 Show this help
 
 Hooks (opt-in, repository-scoped; normal install never touches git hooks):
-  hooks install [--repo <path>] [--profile full|fast]
+  hooks install [--repo <path>] [--profile full|fast] [--source <path>]
                         Install the managed pre-push security-audit launcher
-                        (default profile: full — full git history scan)
+                        (default profile: full — full git history scan.
+                        --source: buck-workflow checkout containing
+                        scripts/security-audit.sh; default: this package)
   hooks status [--repo <path>]
                         Report hook state, source, profile, audit script path
   hooks remove [--repo <path>]
@@ -780,7 +823,14 @@ export function runHooks(args, source = REPO_ROOT) {
   const repo = args.repo ? resolve(args.repo) : process.cwd();
 
   if (args.hooksAction === "install") {
-    const result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
+    let result;
+    try {
+      result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
+    } catch (err) {
+      // e.g. unknown --profile value: fail closed before anything is written.
+      console.error(`hooks install: ${err.message}`);
+      return 2;
+    }
     if (!result.ok) {
       console.error(`hooks install: ${result.reason}`);
       return 1;
@@ -795,8 +845,12 @@ export function runHooks(args, source = REPO_ROOT) {
       console.error(`hooks remove: ${result.reason}`);
       return 1;
     }
-    const note = result.note ? ` — ${result.note}` : "";
-    console.log(`hooks remove: ${result.removed ?? "nothing to remove"}${note}`);
+    if (result.note) {
+      // Covers both "nothing installed" and the dry-run no-write report.
+      console.log(`hooks remove: ${result.note}`);
+      return 0;
+    }
+    console.log(`hooks remove: removed ${result.removed}`);
     return 0;
   }
 
@@ -826,7 +880,17 @@ function main() {
     process.exit(0);
   }
 
-  if (args.command === "hooks") process.exit(runHooks(args));
+  const usageError = argsUsageError(args);
+  if (usageError) {
+    console.error(usageError);
+    process.exit(2);
+  }
+
+  // `hooks` honors --source exactly like `install`: the launcher must point
+  // at the checkout the operator named, not this CLI package's root.
+  if (args.command === "hooks") {
+    process.exit(runHooks(args, args.source ? resolve(args.source) : REPO_ROOT));
+  }
 
   const home = homedir();
   const source = args.source ? resolve(args.source) : REPO_ROOT;
