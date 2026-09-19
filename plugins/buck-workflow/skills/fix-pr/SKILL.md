@@ -439,7 +439,9 @@ schedule is 30 minutes total and never busy-loops.
 Always write `.context/memory/fix-pr-<pr>-YYYY-MM-DD.md` (or the active
 subject's memory artifact) and update `.context/memory/index.md`. Record:
 
-- PR URL, head repository, `headRefName`, and absolute worktree path
+- PR URL, head repository, and `headRefName`; reference the worktree by a
+  non-identifying handle (branch + last-pushed SHA), not a local absolute
+  path — memory artifacts may live in a public repo
 - one validation table retained across every loop
 - per-loop pushed SHA, verification commands/results, review IDs, and poll times
 - issue URLs in issues-only mode
@@ -451,7 +453,7 @@ Closeout format:
 ```text
 PR #<N> — <title>
 Status: <settled | review_pending | max_loops_reached | issues_only | dry_run>
-Worktree: <absolute path | none for dry-run>
+Worktree: <branch + last-pushed SHA | none for dry-run>
 Head: <head-repository>:<headRefName>
 Loops: <completed>/<max>
 Pushes: <sha list | none>
