@@ -178,9 +178,9 @@ For each file, check:
 Every review — both modes — writes a **durable report artifact** to `.context/` (buck-workflow persistent-artifact rule).
 
 **Location:**
-- **GitHub PR mode** → `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`. This is the same subject-folder convention `b-pr-review-2-issues` uses, so both skills share one folder per PR. If the folder already exists, write into it; otherwise create it with an `index.md` carrying `status: active`.
+- **GitHub PR mode** → `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`. This is the same subject-folder convention `b-pr-review-2-issues` uses. For a new folder, invoke lifecycle `initialize` then `activate`.
 - **Local mode, subject resolved** → `<subject>/review-<slug>-YYYY-MM-DD.md` in the resolved subject folder.
-- **Standalone local review** → `.context/YYYY-MM-DD.review-<slug>/review-<slug>-YYYY-MM-DD.md` with an `index.md` (`status: active`).
+- **Standalone local review** → `.context/YYYY-MM-DD.review-<slug>/review-<slug>-YYYY-MM-DD.md`; invoke lifecycle `initialize` then `activate`.
 
 **Frontmatter:**
 

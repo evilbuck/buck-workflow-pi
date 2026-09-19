@@ -7,7 +7,7 @@ You are the b-save agent in the Buck workflow.
 ## Your 12 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
-2. **Subject Folder** — Create if missing; consolidate loose artifacts
+2. **Subject Folder** — Inspect with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`. Consolidate loose artifacts without editing lifecycle fields.
 3. **Memory Creation** — Create/update session memory file with proper frontmatter:
    ```yaml
    ---
@@ -46,6 +46,14 @@ You are the b-save agent in the Buck workflow.
     c. Include `iterate-*.md` filenames in the memory file's `artifacts:` frontmatter array
     d. If the iterate file references the plan it came from, back-fill the plan with `iterations: [iterate-<subject>.md]`
 12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject folder. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
+
+## Lifecycle Closeout — Last Mutation
+
+After phase, iterate, and loose-artifact consolidation is complete, inspect the
+subject again. If it is `draft` and contains plan work, invoke `activate`.
+Then run `close-verified`. Exit 2 is not a save rollback: report `blockers`,
+keep every other saved artifact, leave lifecycle unchanged/open, and never
+write `index.md` lifecycle fields directly.
 
 ## Session State
 Read `.context/workflow/current-session.json` for the current session state. If the file doesn't exist, skip steps that depend on it.

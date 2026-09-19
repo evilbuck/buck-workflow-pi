@@ -77,14 +77,15 @@ active subject when appropriate; otherwise create one:
 
 1. Infer a subject name from the conversation topic (kebab-case).
 2. Create `.context/YYYY-MM-DD.<subject-name>/`.
-3. Create `index.md` with `status: active`.
+3. Run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`.
 4. Write `plan-<topic>.md` inside it.
+5. Run `bun skills/_shared/scripts/subject-lifecycle.ts activate --subject <folder> --json`.
 
 **Example:**
 ```
 .context/
 └── 2026-04-08.auth-feature/
-    ├── index.md    ← status: active
+    ├── index.md    ← lifecycle authority projection
     └── plan-oauth-login.md
 ```
 
@@ -101,13 +102,14 @@ finds no subject, proceed as a fresh session.
 Do **not** read `skills/_shared/subject-resolution.md`. Resolve locally:
 
 1. Use an explicit subject path/name from the user when provided.
-2. If `.context/workflow/current-session.json` exists, use its memory file's
-   `subject:` only when that subject folder exists and its `index.md` is still
-   `status: active`; a stale pointer is not selection evidence.
-3. Inspect the `status:` in each present
-   `.context/YYYY-MM-DD.<subject>/index.md`. A generated
-   `.context/index/subjects.json` may be used only as a cache when its
-   freshness is verifiable; the subject `index.md` files remain canonical.
+2. If `.context/workflow/current-session.json` exists, inspect its memory
+   file's `subject:` folder through
+   `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`.
+   Reuse it only when `effectiveState` is `active`; a stale closed pointer is
+   not selection evidence.
+3. Inspect each `.context/YYYY-MM-DD.<subject>/` through the same authority.
+   A generated `.context/index/subjects.json` may be used only as a cache when
+   its freshness is verifiable.
 4. Zero active subjects means create a fresh folder. Exactly one may be
    selected silently. For multiple active subjects, present **every** active
    subject in a numbered list and wait for selection. A tool's option cap is
@@ -141,10 +143,11 @@ still completes the planning deliverable:
    Ask only questions that materially change scope, acceptance criteria,
    risks, or verification.
 3. Resolve or create the subject folder with the local protocol above.
-4. Write `index.md` with `status: active` and a `plan-*.md` using the Plan
-   Frontmatter Template. The plan must include User Goal, Goal, context and
-   assumptions, scope and out-of-scope, affected files, implementation steps,
-   acceptance criteria, verification, and risks.
+4. Initialize the subject through the lifecycle CLI, write the `plan-*.md`
+   using the Plan Frontmatter Template, then invoke `activate`. The plan must
+   include User Goal, Goal, context and assumptions, scope and out-of-scope,
+   affected files, implementation steps, acceptance criteria, verification,
+   and risks.
 5. Do not create or update backlog, memory, phase, eval-cell, review, or commit
    artifacts. Do not recommend unavailable Buck skills as executable next
    steps.

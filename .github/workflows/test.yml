@@ -22,6 +22,21 @@ jobs:
       - run: npm ci
       - run: npm test
 
+  lifecycle_audit:
+    name: Subject lifecycle policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run subject-lifecycle:check
+
   guardrails:
     name: Guardrails contract
     runs-on: ubuntu-latest

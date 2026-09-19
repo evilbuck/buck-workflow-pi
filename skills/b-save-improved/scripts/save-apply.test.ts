@@ -83,12 +83,13 @@ describe("save-apply", () => {
   it("enriches subject index frontmatter without clobbering an existing body", () => {
     const root = fixture();
     try {
-      run(root, basePayload({ subject_index_status: "completed" }));
+      const report = run(root, basePayload());
       const text = readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8");
       expect(text).toContain("# Save");
       expect(text).toContain("topics: [b-save-improved, determinism]");
       expect(text).toContain("memory: [b-save-improved-2026-08-26.md]");
-      expect(text).toContain("status: completed");
+      expect(text).toContain("status: active");
+      expect(report.lifecycle).toMatchObject({ ok: false, code: "not-verified" });
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
@@ -97,7 +98,6 @@ describe("save-apply", () => {
     try {
       write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n");
       run(root, basePayload({
-        subject_index_status: "completed",
         memory: {
           path: ".context/memory/b-save-improved-2026-08-26.md",
           frontmatter: {
@@ -250,7 +250,6 @@ describe("save-apply", () => {
     try {
       write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n\n# Save\n\n## What shipped\n\nOld text.\n");
       run(root, basePayload({
-        subject_index_status: "completed",
         memory: {
           path: ".context/memory/b-save-improved-2026-08-26.md",
           frontmatter: {
@@ -290,6 +289,21 @@ describe("save-apply", () => {
       expect((readFileSync(join(root, ".context/2026-08-26.save/spec-x.md"), "utf8").match(/plan-x\.md/g) ?? []).length).toBe(1);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
+
+  it("keeps a memory-only subject draft instead of activating it without plan work", () => {
+    const root = fixture();
+    try {
+      rmSync(join(root, ".context/2026-08-26.save"), { recursive: true, force: true });
+      const report = run(root, basePayload({
+        subject: { name: "2026-08-26.save", path: ".context/2026-08-26.save", create: true },
+      }));
+      const index = readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8");
+      expect(index).toContain("status: draft");
+      expect(report.lifecycle).toMatchObject({ ok: false, code: "not-verified", resultingState: "draft" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("runApply in-process", () => {
@@ -321,7 +335,6 @@ describe("runApply in-process", () => {
         phase_table_fixes: [{ file: "phase-1.md", status: "completed" }],
         iterates_complete: [{ path: "iterate-x.md", addresses: "plan-x.md" }],
         loose_artifacts: [".context/loose.md"],
-        subject_index_status: "completed",
       }));
       expect(code).toBe(0);
       expect(existsSync(join(root, ".context/backlog/archive/2026-08/x.md"))).toBe(true);

@@ -18,13 +18,13 @@ If `.context/workflow/orchestration.json` exists with a `currentState` that is n
 
 Read `.context/workflow/current-session.json`. If it exists, extract the subject from the `memory_file` path:
 - Memory files follow the pattern `.context/memory/<topic>-YYYY-MM-DD.md`
-- Check the memory file's frontmatter for a `subject:` field
-- If the subject folder exists on disk → use it. Skip to Step 7.
-- If the subject folder does not exist → fall through to Step 4.
+- Check the memory file's frontmatter for a `subject:` field.
+- If that subject folder exists, run `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. Reuse the pointer only when `effectiveState` is `active` or `draft`; closed or malformed pointers fall through to Step 4.
+- If the subject folder does not exist, fall through to Step 4.
 
 ## Step 4: Scan Subject Folders
 
-List all `.context/YYYY-MM-DD.*/` directories. For each, read **only** the `status:` line from `index.md` frontmatter. If `index.md` is missing, classify as `active` (legacy compat).
+List all `.context/YYYY-MM-DD.*/` directories. Inspect each with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`; use `effectiveState` and fail closed on malformed provenance.
 
 **Artifact classification** (from filenames only — no full reads):
 
@@ -40,7 +40,7 @@ List all `.context/YYYY-MM-DD.*/` directories. For each, read **only** the `stat
 
 ## Step 5: Present Selection (If Needed)
 
-Filter to subjects with `status: active` (or `draft` if no active subjects).
+Filter to subjects whose inspected `effectiveState` is `active` (or `draft` if no active subjects).
 
 - **Zero subjects** → proceed with skill as starting fresh.
 - **Exactly one subject** → use it silently. Log: "Auto-selected: `<subject>`".
@@ -79,17 +79,16 @@ Subject (and optionally phase) are now resolved. Continue with the skill's speci
 
 ## Status Field Convention
 
-Every subject folder's `index.md` carries an explicit `status:` field:
+The compatible `status:` scalar is a projection owned by
+`skills/_shared/scripts/subject-lifecycle.ts`. Callers express intent through:
 
-| Status | Meaning | When shown in menu |
-|--------|---------|-------------------|
-| `draft` | Brainstorm/research in progress, no plan yet | Only when no active subjects exist |
-| `active` | Plan/spec exists, work underway or available | Always |
-| `completed` | All objectives met | Never (use `--all` to include) |
+| Intent | Legal transition |
+|--------|------------------|
+| `initialize` | missing → draft |
+| `activate` | draft → active |
+| `close-verified` | active → completed after internal evidence verification |
+| `reopen --reason <text>` | completed → active after explicit confirmation |
 
-**Who sets the status:**
-- `b-brainstorm` / `b-research` / `b-explore` / `b-capture` → `status: draft` when creating the subject folder
-- `b-plan` → `status: active` when writing the first plan artifact
-- `b-save` → `status: completed` when all artifacts are completed
-
-**Legacy fallback:** If `index.md` is absent or has no `status:` field, derive from artifact frontmatter. Classify as `active` if any artifact has `status: draft` or `active`.
+Never write lifecycle fields directly. Use `inspect --json` for selection.
+Legacy metadata is interpreted by the authority; verified-closed legacy subjects
+are excluded from reuse until `close-verified` canonicalizes them.

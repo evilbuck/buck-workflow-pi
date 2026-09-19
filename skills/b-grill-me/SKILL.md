@@ -19,7 +19,7 @@ Every session creates or joins a subject folder:
 
 1. Check `.context/YYYY-MM-DD.*/` for a matching topic
 2. **Found**: Join it — write the grill session file there
-3. **Not found**: Create `.context/YYYY-MM-DD.<subject-name>/`
+3. **Not found**: Create `.context/YYYY-MM-DD.<subject-name>/` and invoke lifecycle `initialize`.
 
 ## Metadata Tracking
 

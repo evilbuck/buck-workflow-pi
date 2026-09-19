@@ -13,6 +13,21 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 - **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, `/buck-loop`, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
+### Subject lifecycle authority
+
+`skills/_shared/scripts/subject-lifecycle.ts` is the only supported writer for
+subject lifecycle fields in `.context/<subject>/index.md`. Callers use four
+intents: `initialize` (missing → draft), `activate` (draft → active),
+`close-verified` (active → completed after plan-scoped evidence verification),
+and confirmed `reopen` (completed → active with a reason). `inspect` reports
+canonical and legacy provenance plus the effective state used for selection.
+
+Plan, phase, iterate, spec, memory, and backlog `status:` fields are separate
+artifact contracts. Callers may update those fields directly; they must not
+emulate a subject lifecycle transition. `npm run subject-lifecycle:check`
+enforces this policy across shipped TypeScript and workflow instructions. The
+Codex bundle carries a byte-identical `_shared` authority copy.
+
 ## Runtime package mapping
 
 Pi and OMP discover slash commands differently. This package keeps one

@@ -40,13 +40,13 @@ Do not modify application code.
 
 ## Turn 1 — scaffold before any dump lands
 
-Resolve subject via `skills/_shared/subject-resolution.md`. If none, infer from `$ARGUMENTS` or the first dump. Create `index.md` with `status: draft`.
+Resolve subject via `skills/_shared/subject-resolution.md`. If none, infer from `$ARGUMENTS` or the first dump, create the folder, and run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`.
 
 Create:
 
 ```
 <notes-root>/
-  index.md                 # status: draft; what this is; file map
+  index.md                 # lifecycle authority projection; what this is; file map
   notes/raw-capture-log.md # the spine — append-only pointers, newest at bottom
   notes/entries/           # one immutable file per dump; never rewritten
   glossary.md

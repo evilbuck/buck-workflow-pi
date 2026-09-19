@@ -129,6 +129,34 @@ describe("listSubjectFolders / readSubjectStatus", () => {
     expect(folders[1]?.status).toBe("completed");
     expect(readSubjectStatus(join(root, ".context", "not-a-subject"))).toBeNull();
   });
+
+  it("excludes stale legacy active subjects whose owned phases are complete", () => {
+    const root = tmpRoot();
+    const folder = join(root, ".context", "2026-08-26.stale");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "index.md"), "---\nstatus: active\n---\n");
+    writeFileSync(join(folder, "plan-demo.md"), "# Plan\n");
+    writeFileSync(
+      join(folder, "phase-1-demo.md"),
+      "---\nstatus: completed\nplan: plan-demo.md\n---\n",
+    );
+
+    expect(readSubjectStatus(folder)).toBe("completed");
+    expect(listSubjectFolders(root)[0]?.status).toBe("completed");
+  });
+
+  it("does not expose malformed canonical metadata as an active subject", () => {
+    const root = tmpRoot();
+    const folder = join(root, ".context", "2026-08-26.malformed");
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(
+      join(folder, "index.md"),
+      "---\nstatus: active\nlifecycle_schema: 1\nlifecycle_revision: nope\nlifecycle_last_transition: activate\n---\n",
+    );
+
+    expect(readSubjectStatus(folder)).toBeNull();
+    expect(listSubjectFolders(root)[0]?.status).toBeNull();
+  });
 });
 
 describe("parseBacklogTodo", () => {

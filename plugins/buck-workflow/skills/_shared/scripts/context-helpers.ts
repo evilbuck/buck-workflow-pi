@@ -1,5 +1,6 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
+import { inspectSubjectLifecycle } from "./subject-lifecycle.js";
 
 // ---------- frontmatter parse (moved from import-context-memory.ts) ----------
 
@@ -406,14 +407,9 @@ export interface SubjectFolder {
 }
 
 export function readSubjectStatus(folder: string): SubjectFolder["status"] {
-  let text: string;
-  try {
-    text = readFileSync(join(folder, "index.md"), "utf-8");
-  } catch {
-    return null;
-  }
-  const m = text.match(/^status:\s*["']?(draft|active|completed)["']?\s*$/m);
-  return m ? (m[1] as SubjectFolder["status"]) : null;
+  const inspection = inspectSubjectLifecycle(folder);
+  if (inspection.provenance === "malformed") return null;
+  return inspection.effectiveState === "missing" ? null : inspection.effectiveState;
 }
 
 export function listSubjectFolders(root: string): SubjectFolder[] {

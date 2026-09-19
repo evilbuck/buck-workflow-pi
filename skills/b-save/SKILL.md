@@ -25,7 +25,7 @@ When invoked, the LLM receives the prompt instructions and executes them directl
 ## The 12 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
-2. **Subject Folder** — Create if missing; consolidate loose artifacts
+2. **Subject Folder** — Inspect through the lifecycle authority. When creating a folder, invoke `initialize`; consolidate loose artifacts without editing lifecycle fields.
 3. **Memory Creation** — Create/update session memory file with proper frontmatter
 4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
 5. **Backlog Update** — Mark completed items, add new/deferred items
@@ -36,6 +36,12 @@ When invoked, the LLM receives the prompt instructions and executes them directl
 10. **Phase State Consolidation** — Verify phased plan file states match reality
 11. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
 12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
+
+After responsibilities 10 and 11 and all loose-artifact consolidation, finish
+subject lifecycle last. If inspected state is `draft` and plan work exists,
+invoke `activate`; then invoke `close-verified`. Exit 2 is a semantic refusal:
+report its blockers, retain every other saved artifact, leave lifecycle open,
+and never fall back to direct `index.md` edits.
 
 ## Two memory layers
 

@@ -353,6 +353,10 @@ describe("golden parity: preflight + payload + apply", () => {
         "---\nstatus: active\nsubject: 2026-08-26.golden\nspec: spec-feature.md\n---\n\n# Plan\n\n## User Goal\n\nParity.\n",
       );
       writeFileSync(join(subjectDir, "spec-feature.md"), "---\nstatus: active\nplans: []\n---\n\n# Spec\n");
+      writeFileSync(
+        join(subjectDir, "phase-1-feature.md"),
+        "---\nstatus: completed\nplan: plan-feature.md\n---\n\n# Phase 1\n",
+      );
       writeFileSync(join(root, ".context/memory/index.md"), "- 2026-05-08 | `old.md` | status: completed\n");
 
       const pre = JSON.parse(
@@ -383,6 +387,7 @@ describe("golden parity: preflight + payload + apply", () => {
       const payload = assembleApplyPayload(pre, scribe, [
         { path: "spec-feature.md", verdict: "complete", evidence: "extensions/a.ts:42" },
       ]);
+      expect(payload).not.toHaveProperty("subject_index_status");
       const apply = (p: unknown) => JSON.parse(execFileSync("bun", [APPLY], {
         cwd: root, input: JSON.stringify(p), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"],
       }));

@@ -93,7 +93,7 @@ type: <classified-type>
 
 1. **Create subject folder**: `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/`
    - Example: `.context/2026-06-12.42-fix-auth-middleware-race/`
-2. **Create `index.md`** with `status: active`
+2. Initialize then activate the subject through `bun skills/_shared/scripts/subject-lifecycle.ts <initialize|activate> --subject <folder> --json`; do not write lifecycle fields directly.
 3. **Move comment files** into the subject folder
 4. **Group actionable + question comments by topic/theme**:
    - AI reads comment bodies and infers semantic themes (auth, error handling, tests, UI, performance, etc.)
@@ -133,10 +133,10 @@ Follow `b-plan` conventions. Determine scope:
 | ≤8 steps, ≤5 files, single layer | Single `plan-pr-solutions.md` |
 | >8 steps OR >5 files OR multi-layer | Phased plan: `plan-*-phases.md` + `phase-N-*.md` |
 
-**Subject folder frontmatter** (`index.md`):
+**Subject folder metadata** (`index.md`; lifecycle fields are added only by the
+authority invoked in Phase 5):
 ```yaml
 ---
-status: active
 date: YYYY-MM-DD
 subject: YYYY-MM-DD.<pr-number>-<kebab-title>
 topics: [pr-review, feedback, <theme-slugs>]

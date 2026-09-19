@@ -141,10 +141,52 @@ describe("resolveReportSubject", () => {
       const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
       expect(subject.created).toBe(true);
       expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration"));
-      expect(readFileSync(join(subject.dir, "index.md"), "utf-8")).toMatch(/status: active/);
+      const index = readFileSync(join(subject.dir, "index.md"), "utf-8");
+      expect(index).toMatch(/status: active/);
+      expect(index).toMatch(/lifecycle_schema: 1/);
       const path = writeFinalReport(subject.dir, "run-1", "# report");
       expect(path).toBe(join(subject.dir, "review-iteration-run-1.md"));
       expect(existsSync(path)).toBe(true);
+    } finally {
+      rmSync(ctx, { recursive: true, force: true });
+    }
+  });
+
+  it("creates a distinct subject instead of reusing a completed same-day report subject", () => {
+    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    try {
+      const completed = join(ctx, "2026-09-12.code-review-iteration");
+      mkdirSync(completed, { recursive: true });
+      writeFileSync(
+        join(completed, "index.md"),
+        "---\nstatus: completed\nlifecycle_schema: 1\nlifecycle_revision: 2\nlifecycle_last_transition: close-verified\n---\n",
+      );
+
+      const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
+
+      expect(subject.created).toBe(true);
+      expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration-2"));
+      expect(readFileSync(join(completed, "index.md"), "utf8")).not.toContain("status: active");
+      expect(readFileSync(join(subject.dir, "index.md"), "utf8")).toContain("status: active");
+    } finally {
+      rmSync(ctx, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores malformed active-looking subjects", () => {
+    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    try {
+      const malformed = join(ctx, "2026-09-11.malformed");
+      mkdirSync(malformed, { recursive: true });
+      writeFileSync(
+        join(malformed, "index.md"),
+        "---\nstatus: active\nlifecycle_schema: 1\nlifecycle_revision: nope\nlifecycle_last_transition: activate\n---\n",
+      );
+
+      const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
+
+      expect(subject.created).toBe(true);
+      expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration"));
     } finally {
       rmSync(ctx, { recursive: true, force: true });
     }

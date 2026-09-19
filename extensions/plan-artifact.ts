@@ -32,6 +32,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
+import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../skills/_shared/scripts/subject-lifecycle.js";
 
 const MARKER_TYPE = "plan-artifact";
 
@@ -192,63 +193,109 @@ export function isPlanArtifactEnabled(cwd: string): boolean {
   return false;
 }
 
+interface PlanArtifactContext {
+  cwd: string;
+  hasUI: boolean;
+  sessionManager: {
+    getEntries: () => unknown[];
+    getArtifactsDir?: () => string | null;
+    getSessionFile?: () => string | undefined;
+  };
+  ui: { notify: (message: string, level: "info") => void };
+}
+
+function exitWasPersisted(entries: unknown[], exitId: string): boolean {
+  return entries.some((entry) => {
+    const custom = entry as CustomEntryShape | undefined;
+    return custom?.type === "custom"
+      && custom?.customType === MARKER_TYPE
+      && custom?.data?.exitId === exitId;
+  });
+}
+
+function readNonemptyPlan(path: string): string | null {
+  try {
+    const content = readFileSync(path, "utf8");
+    return content.trim() ? content : null;
+  } catch {
+    return null;
+  }
+}
+
+function selectSubjectDirectory(cwd: string, date: string, slug: string): { subject: string; subjectDir: string } {
+  const baseSubject = `${date}.${slug}`;
+  let subject = baseSubject;
+  let subjectDir = join(cwd, ".context", subject);
+  for (let suffix = 2; existsSync(subjectDir); suffix++) {
+    const inspection = inspectSubjectLifecycle(subjectDir);
+    if (inspection.provenance !== "malformed" && inspection.effectiveState !== "completed") break;
+    subject = `${baseSubject}-${suffix}`;
+    subjectDir = join(cwd, ".context", subject);
+  }
+  return { subject, subjectDir };
+}
+
+function ensureSubjectIndex(subjectDir: string, date: string, subject: string, slug: string): void {
+  const indexPath = join(subjectDir, "index.md");
+  if (existsSync(indexPath)) return;
+  const indexContent = [
+    "---",
+    `date: ${date}`,
+    `subject: ${subject}`,
+    "title: Plan from OMP plan mode",
+    "---",
+    "",
+    `# ${slug}`,
+    "",
+    "Persisted from OMP plan mode.",
+    "",
+    `- [plan-${slug}.md](plan-${slug}.md) — \`active\``,
+    "",
+  ].join("\n");
+  writeFileSync(indexPath, indexContent);
+}
+
+function activateSubject(subjectDir: string): boolean {
+  let lifecycle = inspectSubjectLifecycle(subjectDir);
+  if (lifecycle.state === "missing") {
+    const initialized = applySubjectLifecycleIntent({ kind: "initialize", subjectDir });
+    if (!initialized.ok) return false;
+    lifecycle = inspectSubjectLifecycle(subjectDir);
+  }
+  const needsActivation = lifecycle.state === "draft"
+    || (lifecycle.state === "active" && !lifecycle.canonical);
+  if (needsActivation) {
+    return applySubjectLifecycleIntent({ kind: "activate", subjectDir }).ok;
+  }
+  return lifecycle.state === "active";
+}
+
+function persistPlanExit(pi: ExtensionAPI, ctx: PlanArtifactContext, exit: PlanExit): void {
+  const planAbs = resolvePlanDiskPath(exit.planFilePath, ctx);
+  if (!planAbs) return;
+  const content = readNonemptyPlan(planAbs);
+  if (content === null) return;
+  const date = new Date().toISOString().slice(0, 10);
+  const slug = slugFromPlanUrl(exit.planFilePath);
+  const { subject, subjectDir } = selectSubjectDirectory(ctx.cwd, date, slug);
+  mkdirSync(subjectDir, { recursive: true });
+  ensureSubjectIndex(subjectDir, date, subject, slug);
+  if (!activateSubject(subjectDir)) return;
+  const target = join(subjectDir, `plan-${slug}.md`);
+  writeFileSync(target, withFrontmatter(content, { date, subject, planUrl: exit.planFilePath }));
+  pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target, subject });
+  if (ctx.hasUI) ctx.ui.notify(`plan-artifact: ${relative(ctx.cwd, target)}`, "info");
+}
+
 export function wire(pi: ExtensionAPI): void {
   pi.on("turn_end", async (_event, ctx) => {
     try {
       const entries: unknown[] = ctx.sessionManager.getEntries();
       const exit = findPlanExit(entries);
       if (!exit) return;
-      const already = entries.some((e) => {
-        const c = e as CustomEntryShape | undefined;
-        return c?.type === "custom" && c?.customType === MARKER_TYPE && c?.data?.exitId === exit.exitId;
-      });
-      if (already) return; // dedupe: marker entry already recorded this exit
+      if (exitWasPersisted(entries, exit.exitId)) return;
       if (!isPlanArtifactEnabled(ctx.cwd)) return;
-
-      const planAbs = resolvePlanDiskPath(exit.planFilePath, ctx);
-      if (!planAbs) return;
-
-      let content: string;
-      try {
-        content = readFileSync(planAbs, "utf8");
-      } catch {
-        return; // plan file missing on disk — nothing to persist
-      }
-      if (!content.trim()) return;
-
-      const date = new Date().toISOString().slice(0, 10);
-      const slug = slugFromPlanUrl(exit.planFilePath);
-      const subject = `${date}.${slug}`;
-      const subjectDir = join(ctx.cwd, ".context", subject);
-      mkdirSync(subjectDir, { recursive: true });
-      const target = join(subjectDir, `plan-${slug}.md`);
-      writeFileSync(target, withFrontmatter(content, { date, subject, planUrl: exit.planFilePath }));
-
-      // Create index.md for buck-workflow subject resolution
-      const indexPath = join(subjectDir, "index.md");
-      if (!existsSync(indexPath)) {
-        const indexContent = [
-          "---",
-          "status: active",
-          `date: ${date}`,
-          `subject: ${subject}`,
-          `title: Plan from OMP plan mode`,
-          "---",
-          "",
-          `# ${slug}`,
-          "",
-          "Persisted from OMP plan mode.",
-          "",
-          `- [plan-${slug}.md](plan-${slug}.md) — \`active\``,
-          "",
-        ].join("\n");
-        writeFileSync(indexPath, indexContent);
-      }
-
-      pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target, subject });
-      if (ctx.hasUI) {
-        ctx.ui.notify(`plan-artifact: ${relative(ctx.cwd, target)}`, "info");
-      }
+      persistPlanExit(pi, ctx, exit);
     } catch {
       // never break the session on persistence failures
     }
