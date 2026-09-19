@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { basename, join, resolve } from "node:path";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
+  PROJECTION_RELPATH,
   PROJECTION_VERSION,
   readProjection,
   resume,
@@ -123,8 +124,11 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
 }
 
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
+  if (!existsSync(join(cwd, PROJECTION_RELPATH))) {
+    return { state: "idle", reason: "no projection to resume" };
+  }
   const projection = readProjection(cwd);
-  if (!projection) return { state: "idle", reason: "no projection to resume" };
+  if (!projection) return { state: "blocked", reason: "unreadable projection" };
   let snapshot = resume({ projectRoot: cwd });
   if (projection.state === "blocked" && snapshot.state === "blocked" && snapshot.planFacts.kind !== "missing") {
     snapshot = withTransition(snapshot, userConfirmed(), deps.now());

@@ -6,11 +6,12 @@
  * - No XState snapshot file is created or read.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, planMd, phaseMd, repo, writeTree } from "./fixtures.js";
 import {
   PROJECTION_RELPATH,
+  PROJECTION_TMP_RELPATH,
   readProjection,
   resume,
   writeProjection,
@@ -227,5 +228,87 @@ describe("persist contract", () => {
     expect(src).not.toMatch(/from ["'][^"']*b-flow/);
     expect(src).not.toMatch(/from ["']xstate["']/);
     expect(src).not.toMatch(/orchestration\.snapshot\.json/);
+  });
+});
+
+
+describe("resume-back to a completed projected phase (issue #36)", () => {
+  it("stays on the projected completed phase instead of advancing while phases remain", () => {
+    const root = repo();
+    phased(root, ["completed", "pending"]);
+    writeProjection(
+      root,
+      projection({ state: "building", phasePath: `.context/${SUBJECT}/phase-1-p1.md` }),
+    );
+    const snap = resume({ projectRoot: root });
+    expect(snap.state).toBe("building");
+    expect(snap.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
+    expect(snap.workFacts).toEqual({ sessionOutcome: "ok", retriesUsed: 0, postcondition: "confirmed" });
+    expect(snap.iterateCyclesOnPhase).toBe(1);
+  });
+
+  it("keeps the stale-building done shortcut when every phase is completed", () => {
+    const root = repo();
+    phased(root, ["completed", "completed"]);
+    writeProjection(
+      root,
+      projection({ state: "building", iterateCyclesOnPhase: 0 }),
+    );
+    const snap = resume({ projectRoot: root });
+    expect(snap.state).toBe("done");
+    expect(snap.phasePath).toBeNull();
+  });
+
+  it("falls through to the scanned phase when the projected phase file has vanished", () => {
+    const root = repo();
+    phased(root, ["completed", "pending"]);
+    rmSync(join(root, ".context", SUBJECT, "phase-1-p1.md"));
+    writeProjection(root, projection({ state: "building" }));
+    const snap = resume({ projectRoot: root });
+    expect(snap.state).toBe("building");
+    expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
+    expect(snap.workFacts.sessionOutcome).toBe("pending");
+  });
+
+  it("falls through to the scanned phase when the projected phase file is not completed", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-demo.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-demo-phases.md`]: "---\nstatus: active\n---\n# Phases\n",
+      [`.context/${SUBJECT}/phase-1-p1.md`]: phaseMd(1, "in-progress", [2]),
+      [`.context/${SUBJECT}/phase-2-p2.md`]: phaseMd(2, "pending"),
+    });
+    writeProjection(
+      root,
+      projection({ state: "building", phasePath: `.context/${SUBJECT}/phase-1-p1.md` }),
+    );
+    const snap = resume({ projectRoot: root });
+    expect(snap.state).toBe("building");
+    expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
+    expect(snap.workFacts.sessionOutcome).toBe("pending");
+  });
+});
+
+describe("atomic projection write (issue #36)", () => {
+  it("leaves no temp file behind after a successful write", () => {
+    const root = repo();
+    writeProjection(root, projection());
+    expect(existsSync(join(root, PROJECTION_TMP_RELPATH))).toBe(false);
+    expect(readProjection(root)).toEqual(projection());
+  });
+
+  it("preserves the previous projection when writing fails", () => {
+    const root = repo();
+    writeProjection(root, projection());
+    const good = readProjection(root);
+    expect(good).not.toBeNull();
+    chmodSync(join(root, ".context/workflow"), 0o555);
+    try {
+      expect(() => writeProjection(root, projection({ loopCount: 9 }))).toThrow();
+      expect(readProjection(root)).toEqual(good);
+    } finally {
+      chmodSync(join(root, ".context/workflow"), 0o755);
+    }
   });
 });

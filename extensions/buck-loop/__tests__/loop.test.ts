@@ -393,3 +393,61 @@ describe("resume", () => {
     expect(deps.runStep).toHaveBeenCalled();
   });
 });
+
+
+describe("resume-back regression (issue #36)", () => {
+  it("reviews and commits the completed projected phase before building the next", async () => {
+    const cwd = repo();
+    phased(cwd, ["completed", "pending"]);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify(
+        {
+          version: 1,
+          state: "building",
+          subject: SUBJECT,
+          planPath: PLAN,
+          phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+          loopCount: 1,
+          iterateCyclesOnPhase: 0,
+          maxLoops: 12,
+          lastChoice: null,
+          history: [{ from: "resolving", to: "building", at: NOW, why: "start" }],
+        },
+        null,
+        2,
+      ),
+    });
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("done");
+    const calls = deps.runStep.mock.calls.map((call) => call[0]);
+    expect(calls[0]?.skill).toBe("b-review");
+    expect(calls[0]?.planOrPhasePath).toContain("phase-1-p1.md");
+    const firstBuild = calls.findIndex((call) => call.skill === "b-build");
+    const firstCommit = calls.findIndex((call) => call.skill === "b-commit");
+    expect(firstBuild).toBeGreaterThan(firstCommit);
+    expect(
+      calls
+        .filter((call) => call.skill === "b-build")
+        .every((call) => call.planOrPhasePath.includes("phase-2-p2.md")),
+    ).toBe(true);
+  });
+
+  it("blocks instead of going idle when the projection file is unreadable", async () => {
+    const cwd = repo();
+    writeTree(cwd, { ".context/workflow/buck-loop.json": "{not-json" });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/unreadable projection/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("stays idle when the projection file is missing", async () => {
+    const cwd = repo();
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("idle");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+});

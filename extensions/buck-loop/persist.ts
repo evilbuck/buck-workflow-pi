@@ -2,7 +2,7 @@
  * persist — versioned `.context/workflow/buck-loop.json` plus resume
  * reconciliation. Artifacts win. The projection never overrides disk truth.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { scan, type ScanResult } from "./scan.js";
@@ -10,6 +10,8 @@ import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } fr
 
 export const PROJECTION_RELPATH = ".context/workflow/buck-loop.json";
 export const PROJECTION_VERSION = 1 as const;
+/** Sibling temp file: the projection is written here first, then renamed over the target. */
+export const PROJECTION_TMP_RELPATH = `${PROJECTION_RELPATH}.tmp`;
 const DEFAULT_MAX_LOOPS = 12;
 
 const LOOP_STATES: Record<LoopState, true> = {
@@ -86,7 +88,18 @@ export function writeProjection(projectRoot: string, projection: Projection): vo
   prepareProjectionPath(projectRoot);
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
   mkdirSync(dirname(abs), { recursive: true });
-  writeFileSync(abs, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
+  const tmpAbs = join(resolve(projectRoot), PROJECTION_TMP_RELPATH);
+  try {
+    writeFileSync(tmpAbs, `${JSON.stringify(projection, null, 2)}\n`, "utf8");
+    renameSync(tmpAbs, abs);
+  } catch (error) {
+    try {
+      unlinkSync(tmpAbs);
+    } catch {
+      /* best effort: the temp file is a sibling nobody reads */
+    }
+    throw error;
+  }
 }
 
 export function readProjection(projectRoot: string): Projection | null {
@@ -97,6 +110,14 @@ export function readProjection(projectRoot: string): Projection | null {
   } catch {
     return null;
   }
+}
+
+/** True when the projection's own phase file already reads completed on disk. */
+function projectedPhaseCompleted(root: string, projection: Projection): boolean {
+  if (!projection.phasePath) return false;
+  const abs = resolve(root, projection.phasePath);
+  if (!existsSync(abs)) return false;
+  return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
 }
 
 export function resume(opts: ResumeOptions): Snapshot {
@@ -135,8 +156,31 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
       ...counters(projection),
     });
   }
-  const iterateCyclesOnPhase =
-    scanned.phasePath === projection.phasePath ? projection.iterateCyclesOnPhase : 0;
+  // Resume-back (issue #36): a building run whose projected phase already
+  // reads completed on disk died between the phase's build and the
+  // supervisor's postcondition persist. The scan advances to the next
+  // incomplete phase, which would skip this phase's review/save/commit —
+  // so reconcile back onto the projected phase with the postcondition the
+  // artifacts prove, and let the table run review -> save -> commit.
+  const resumeBackToCompletedPhase =
+    projection.state === "building" &&
+    scanned.planFacts.kind === "phased-incomplete" &&
+    scanned.phasePath !== projection.phasePath &&
+    projectedPhaseCompleted(root, projection);
+  const iterateCyclesOnPhase = resumeBackToCompletedPhase
+    ? projection.iterateCyclesOnPhase
+    : scanned.phasePath === projection.phasePath
+      ? projection.iterateCyclesOnPhase
+      : 0;
+  if (resumeBackToCompletedPhase) {
+    return fromScan(scanned, {
+      state: "building",
+      phasePath: projection.phasePath,
+      workFacts: { sessionOutcome: "ok", retriesUsed: 0, postcondition: "confirmed" },
+      ...counters(projection),
+      iterateCyclesOnPhase,
+    });
+  }
   return fromScan(scanned, {
     state: staleBuildingComplete(projection, scanned) ? "done" : projection.state,
     ...counters(projection),
