@@ -116,20 +116,32 @@ export async function runStep(opts: {
     session = created.session as SessionHandle;
 
     let aborted = false;
-    const timer = setTimeout(() => {
-      aborted = true;
-      void session?.abort();
-    }, WORK_SESSION_TIMEOUT_MS);
+    let settle: (() => void) | undefined;
+    const timeout = new Promise<"timeout">((resolve) => {
+      settle = () => {
+        aborted = true;
+        settle = undefined;
+        resolve("timeout");
+      };
+    });
+    const timer = setTimeout(() => settle?.(), WORK_SESSION_TIMEOUT_MS);
+    const promptSettled = session.prompt(promptFor(opts.skill, skillBody, opts.planOrPhasePath));
+    void promptSettled.catch(() => {}); // consumed by the race; never unhandled
     try {
-      await session.prompt(promptFor(opts.skill, skillBody, opts.planOrPhasePath));
+      const outcome = await Promise.race([promptSettled.then(() => "done" as const), timeout]);
       const text = lastAssistantText(session.messages);
-      if (aborted || assistantStopReason(session.messages) === "aborted") {
+      if (outcome === "timeout" || assistantStopReason(session.messages) === "aborted") {
         return { ok: false, text: text || "timed out" };
       }
       if (!text) throw new EmptyModelResponseError(session.messages);
       return { ok: true, text };
     } finally {
       clearTimeout(timer);
+      // The 15-minute ceiling settles runStep independently of prompt()/abort().
+      // Abort is best effort: its rejection is consumed so it can never surface
+      // as unhandled, and a hung abort() cannot hang runStep.
+      if (aborted) void Promise.resolve(session?.abort()).catch(() => {});
+      settle?.(); // settle the losing racer so it cannot leak
     }
   } catch (error) {
     return { ok: false, text: errorText(error) };

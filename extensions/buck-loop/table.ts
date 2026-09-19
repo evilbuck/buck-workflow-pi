@@ -16,7 +16,7 @@
 
 import type { Choice, LoopState, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
 
-/** Three iterate cycles on one phase is the hard ceiling before blocking. */
+/** Three iterate cycles on one phase is the ceiling; a fourth iterate cycle on the same phase blocks, while save/docs/commit and non-iterate choices still proceed. */
 export const MAX_ITERATE_CYCLES_PER_PHASE = 3;
 
 /** States whose stay is filled by one nested work session, and the skill that fills it. */
@@ -43,9 +43,18 @@ export class IllegalChoiceError extends Error {
   }
 }
 
-/** True when either safety counter has reached its ceiling. */
+/** True when the global loop counter has reached its ceiling. */
 export function limitsExceeded(s: Snapshot): boolean {
-  return s.loopCount >= s.maxLoops || s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE;
+  return s.loopCount >= s.maxLoops;
+}
+
+/**
+ * True when another iterate cycle may start on this phase. The per-phase
+ * ceiling gates only *starting* a fourth iterate cycle — save, docs, commit,
+ * and non-iterate choices still proceed so the phase can finish.
+ */
+export function iterateBlocked(s: Snapshot): boolean {
+  return s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE;
 }
 
 function blocked(reason: string): Transition {
@@ -72,12 +81,16 @@ function gated(t: Transition, s: Snapshot): Transition {
   if (s.loopCount >= s.maxLoops) {
     return blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`);
   }
-  if (s.iterateCyclesOnPhase >= MAX_ITERATE_CYCLES_PER_PHASE) {
-    return blocked(
-      `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
-    );
-  }
   return t;
+}
+
+/** Block a run-skill/choose edge that would begin a fourth iterate cycle on one phase. */
+function iterateGate(t: Transition, s: Snapshot): Transition {
+  return iterateBlocked(s)
+    ? blocked(
+        `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
+      )
+    : t;
 }
 
 const REVIEW_CHOICE_SET: readonly Choice[] = [
@@ -115,7 +128,7 @@ function postconditionChoices(s: Snapshot): readonly Choice[] {
  */
 export function legalChoices(state: LoopState, s: Snapshot): readonly Choice[] {
   if (limitsExceeded(s)) return [];
-  if (state === "reviewing") return reviewChoices(s);
+  if (state === "reviewing") return iterateBlocked(s) ? [] : reviewChoices(s);
   if (WORK_SKILL[state] !== undefined) return postconditionChoices(s);
   return [];
 }
@@ -185,7 +198,7 @@ function nextReviewing(s: Snapshot): Transition {
   }
   const r = s.reviewFacts;
   if (r.iterateArtifact) {
-    return gated(runSkill("iterating", "iterate", "iterate artifact present; in-plan issues win"), s);
+    return iterateGate(runSkill("iterating", "iterate", "iterate artifact present; in-plan issues win"), s);
   }
   if (r.docsImpact || r.howtoImpact) {
     return gated(runSkill("documenting", "docs", "review flagged documentation impact"), s);
@@ -266,7 +279,7 @@ export function next(s: Snapshot): Transition {
 function applyReviewChoice(choice: Choice, s: Snapshot): Transition {
   switch (choice.kind) {
     case "iterate":
-      return runSkill("iterating", "iterate", "accepted choice: iterate on in-plan issues");
+      return iterateGate(runSkill("iterating", "iterate", "accepted choice: iterate on in-plan issues"), s);
     case "document":
       return runSkill("documenting", "docs", "accepted choice: document the impact");
     case "save":
@@ -295,8 +308,9 @@ function applyPostconditionChoice(choice: Choice, s: Snapshot): Transition {
  * Apply a model-proposed choice. The choice must be a member of the closed
  * legal set for this snapshot; anything else throws and the machine stays
  * put — no raw model string can transition state. Because `legalChoices`
- * returns an empty set once limits are exceeded, accepted choices are never
- * limit-gated here.
+ * returns an empty set once the loop limit is exceeded (or the iterate
+ * ceiling is hit in `reviewing`), accepted choices are never limit-gated
+ * here; `iterateGate` is defense in depth for the iterate edge.
  */
 export function applyChoice(choice: Choice, s: Snapshot): Transition {
   const legal = legalChoices(s.state, s);

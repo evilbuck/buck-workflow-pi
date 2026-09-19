@@ -36,7 +36,8 @@ export type ScanResult = {
 type Resolved = {
   subject: string;
   subjectDir: string;
-  planAbs: string;
+  /** Absolute selected plan path, or null when the subject proves to be unphased. */
+  planAbs: string | null;
   phaseAbs: string | null;
   /** `missing` here means dependency-blocked or malformed metadata, not a vanished path. */
   planFacts: PlanFacts;
@@ -47,6 +48,8 @@ type PhaseMeta = {
   abs: string;
   status: string;
   dependsOn: DependsOn;
+  /** `plan:` frontmatter of the phase file, when it names its parent plan. */
+  planRef: string | null;
 };
 
 type PostCtx = {
@@ -74,7 +77,7 @@ export function scan(opts: ScanOptions): ScanResult {
   if ("reason" in resolved) return missing(resolved.reason);
   return {
     subject: resolved.subject,
-    planPath: toRel(root, resolved.planAbs),
+    planPath: resolved.planAbs ? toRel(root, resolved.planAbs) : null,
     phasePath: resolved.phaseAbs ? toRel(root, resolved.phaseAbs) : null,
     planFacts: resolved.planFacts,
     reviewFacts: scanReviewFacts(resolved.subjectDir),
@@ -144,9 +147,13 @@ function loadResolved(
 ): Resolved | { reason: string } {
   const subjectDir = classified.kind === "subject" ? classified.abs : classified.subjectDir;
   const subject = basename(subjectDir);
-  const planAbs = classified.kind === "plan" ? classified.abs : pickSolePlan(subjectDir);
-  if (typeof planAbs !== "string") return planAbs;
-  const phases = listPhases(subjectDir);
+  const planName = classified.kind === "plan" ? basename(classified.abs) : pickSolePlanName(subjectDir);
+  if (planName === null) {
+    return { subject, subjectDir, planAbs: null, phaseAbs: null, planFacts: { kind: "unphased" } };
+  }
+  if (typeof planName !== "string") return planName;
+  const planAbs = join(subjectDir, planName);
+  const phases = phasesOfPlan(listPhases(subjectDir), planName, listPlans(subjectDir).length > 1);
   const picked = pickPhase(phases);
   if (picked.kind === "none") {
     return { subject, subjectDir, planAbs, phaseAbs: null, planFacts: { kind: "unphased" } };
@@ -172,11 +179,11 @@ function loadResolved(
   };
 }
 
-function pickSolePlan(subjectDir: string): string | { reason: string } {
+function pickSolePlanName(subjectDir: string): string | { reason: string } {
   const plans = listPlans(subjectDir);
   if (plans.length === 0) return { reason: "no plan in subject" };
   if (plans.length > 1) return { reason: "multiple plans in subject; pass an explicit plan path" };
-  return plans[0];
+  return basename(plans[0]);
 }
 
 function listPlans(dir: string): string[] {
@@ -206,10 +213,25 @@ function listPhases(subjectDir: string): PhaseMeta[] {
       abs,
       status: fm.status ?? "pending",
       dependsOn: parseDependsOn(fm.depends_on ?? "[]"),
+      planRef: fm.plan ?? null,
     });
   }
   out.sort((a, b) => a.n - b.n);
   return out;
+}
+
+/**
+ * Phases belong to a plan only through the `plan:` frontmatter that b-phase
+ * writes into every phase file. In a multi-plan subject, an unattributed
+ * phase cannot be proven to belong to the selected plan — and picking a
+ * phase from a sibling plan would run the wrong work — so only explicitly
+ * attributed phases are eligible, and none proves in → the plan is unphased.
+ * A single-plan subject is unambiguous: every phase belongs to its sole plan.
+ */
+function phasesOfPlan(phases: PhaseMeta[], planName: string, multiPlanSubject: boolean): PhaseMeta[] {
+  if (!multiPlanSubject) return phases;
+  const attributed = phases.filter((p) => p.planRef === planName);
+  return attributed.length > 0 ? attributed : [];
 }
 
 function pickPhase(
@@ -341,7 +363,11 @@ function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions): Wor
   const assess = POSTCONDITION[state];
   if (!assess) return { sessionOutcome, retriesUsed, postcondition: "pending" };
   const changed = gitChangedFiles(root);
-  const phaseStatus = resolved.phaseAbs ? readStatus(resolved.phaseAbs) : readStatus(resolved.planAbs);
+  const phaseStatus = resolved.phaseAbs
+    ? readStatus(resolved.phaseAbs)
+    : resolved.planAbs
+      ? readStatus(resolved.planAbs)
+      : null;
   const postcondition = assess({
     changed,
     phaseStatus,

@@ -42,6 +42,27 @@ describe("runStep", () => {
     expect(fake.abort).toHaveBeenCalledOnce();
     vi.useRealTimers();
   });
+  it("settles on timeout even when prompt() never resolves and abort() rejects", async () => {
+    vi.useFakeTimers();
+    const fake = arrange("partial result");
+    fake.prompt.mockImplementation(() => new Promise<void>(() => {}));
+    fake.abort.mockRejectedValue(new Error("abort exploded"));
+    const pending = runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" });
+    await vi.advanceTimersByTimeAsync(WORK_SESSION_TIMEOUT_MS);
+    await expect(pending).resolves.toEqual({ ok: false, text: "partial result" });
+    expect(fake.abort).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
+  it("returns a timeout failure when the timeout wins the race with no partial text", async () => {
+    vi.useFakeTimers();
+    const fake = arrange("");
+    fake.prompt.mockImplementation(() => new Promise<void>(() => {}));
+    const pending = runStep({ cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", difficulty: "easy" });
+    await vi.advanceTimersByTimeAsync(WORK_SESSION_TIMEOUT_MS);
+    await expect(pending).resolves.toEqual({ ok: false, text: "timed out" });
+    expect(fake.abort).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+  });
   it("fails when the SDK resolves abort with nonempty assistant text", async () => {
     const fake = arrange("partial result");
     fake.messages = [{ role: "assistant", content: "partial result", stopReason: "aborted" }];

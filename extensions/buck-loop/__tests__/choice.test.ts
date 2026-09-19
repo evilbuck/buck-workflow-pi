@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type * as OmpModels from "../../omp-models.js";
 import { cleanupRepos, repo } from "./fixtures.js";
@@ -104,5 +104,19 @@ describe("choose", () => {
   it("blocks an empty legal set without calling the model", async () => {
     await expect(choose({ cwd: repo(), subject, legal: [] })).resolves.toMatchObject({ status: "blocked" });
     expect(runOmpModelSession).not.toHaveBeenCalled();
+  });
+
+  it("blocks instead of rejecting when a file blocks the audit directory", async () => {
+    const cwd = repo();
+    runOmpModelSession.mockResolvedValue('{"choice":"save","reason":"ready"}');
+    mkdirSync(join(cwd, ".context", subject), { recursive: true });
+    writeFileSync(join(cwd, ".context", subject, "transition-audits"), "a file where the audit directory goes");
+
+    const result = await choose({ cwd, subject, legal });
+    expect(result).toMatchObject({ status: "blocked" });
+    if (result.status === "blocked") {
+      expect(result.reason).toContain("Failed to write transition audit");
+    }
+    expect(runOmpModelSession).toHaveBeenCalledTimes(1);
   });
 });

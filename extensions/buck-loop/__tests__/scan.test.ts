@@ -41,6 +41,19 @@ function reportMd(docs: string, howto: string): string {
 `;
 }
 
+function phaseWithPlanMd(n: number, status: string, planFile: string): string {
+  return `---
+status: ${status}
+phase: ${n}
+order: ${n}
+plan: ${planFile}
+depends_on: []
+dependency_type: NONE
+---
+# Phase ${n}
+`;
+}
+
 function asReport(facts: ReviewFacts): Extract<ReviewFacts, { kind: "report" }> {
   expect(facts.kind).toBe("report");
   if (facts.kind !== "report") throw new Error("expected report facts");
@@ -139,6 +152,47 @@ describe("scan: path resolution", () => {
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
     expect(result.planFacts).toEqual({ kind: "unphased" });
     expect(result.phasePath).toBeNull();
+  });
+
+  it("selects only phases attributed to the named plan in a multi-plan subject", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-alpha.md`]: phaseWithPlanMd(1, "pending", "plan-alpha.md"),
+      [`.context/${SUBJECT}/phase-2-alpha.md`]: phaseWithPlanMd(2, "pending", "plan-alpha.md"),
+      [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
+    expect(result.planFacts).toEqual({ kind: "unphased" });
+    expect(result.phasePath).toBeNull();
+  });
+
+  it("runs only the selected plan's phase when a subject holds multiple plans", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-alpha.md`]: phaseWithPlanMd(1, "pending", "plan-alpha.md"),
+      [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-beta.md`]: phaseWithPlanMd(1, "pending", "plan-beta.md"),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-beta.md`);
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+  });
+
+  it("fails closed when a multi-plan subject's phases carry no plan attribution", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-p1.md`]: phaseMd(1, "pending"),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
+    expect(result.phasePath).toBeNull();
+    expect(result.planFacts).toEqual({ kind: "unphased" });
   });
 
   it("reports unphased when a plan has no phase files", () => {

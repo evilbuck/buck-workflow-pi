@@ -5,6 +5,7 @@ import {
   IllegalTransitionError,
   MAX_ITERATE_CYCLES_PER_PHASE,
   applyChoice,
+  iterateBlocked,
   legalChoices,
   limitsExceeded,
   next,
@@ -152,9 +153,51 @@ describe("safety limits", () => {
     expect(t.why).toContain("iterate limit");
   });
 
-  it("exposes limitsExceeded for both counters", () => {
+  it("still saves after a clean review at the iterate ceiling", () => {
+    const t = next(reviewDone({}, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }));
+    expect(t).toEqual({ to: "saving", effect: { kind: "run-skill", skill: "save" }, why: expect.any(String) });
+  });
+
+  it("still documents after a docs-impact review at the iterate ceiling", () => {
+    const t = next(reviewDone({ docsImpact: true }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }));
+    expect(t).toEqual({ to: "documenting", effect: { kind: "run-skill", skill: "docs" }, why: expect.any(String) });
+  });
+
+  it("still offers the postcondition choice at the iterate ceiling", () => {
+    const t = next(workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }));
+    expect(t.to).toBe("building");
+    expect(t.effect).toEqual({
+      kind: "choose",
+      legal: [{ kind: "retry" }, { kind: "advance" }, { kind: "block" }],
+    });
+  });
+
+  it("still finishes the phase at the iterate ceiling (committing → building)", () => {
+    const t = next(
+      workSnap(
+        "committing",
+        {},
+        { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE, phasePath: PHASE_PATH },
+      ),
+    );
+    expect(t).toEqual({ to: "building", effect: { kind: "run-skill", skill: "build" }, why: expect.any(String) });
+  });
+
+  it("still gates everything at the global loop limit", () => {
+    const save = next(reviewDone({}, { loopCount: 12, maxLoops: 12 }));
+    expect(save.to).toBe("blocked");
+    expect(save.why).toContain("loop limit");
+    const choose = next(workSnap("building", { postcondition: "ambiguous" }, { loopCount: 12, maxLoops: 12 }));
+    expect(choose.to).toBe("blocked");
+    expect(choose.why).toContain("loop limit");
+  });
+
+  it("exposes limitsExceeded for the loop counter and iterateBlocked for the per-phase ceiling", () => {
     expect(limitsExceeded(snap({ loopCount: 5, maxLoops: 5 }))).toBe(true);
-    expect(limitsExceeded(snap({ iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toBe(true);
+    expect(limitsExceeded(snap({ loopCount: 0, maxLoops: 12 }))).toBe(false);
+    expect(limitsExceeded(snap({ loopCount: 4, maxLoops: 12 }))).toBe(false);
+    expect(iterateBlocked(snap({ iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toBe(true);
+    expect(iterateBlocked(snap({ iterateCyclesOnPhase: 0 }))).toBe(false);
     expect(limitsExceeded(snap())).toBe(false);
   });
 });
@@ -313,15 +356,20 @@ describe("legalChoices", () => {
 
   it("offers nothing once limits are exceeded — the deterministic block wins", () => {
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 }))).toEqual([]);
+    // The per-phase iterate ceiling suppresses the review choice set (which
+    // contains `iterate`) but never the postcondition choice set (which
+    // cannot start an iterate cycle).
+    expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: 3 }))).toEqual([]);
     expect(
       legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: 3 })),
-    ).toEqual([]);
+    ).toEqual([{ kind: "retry" }, { kind: "advance" }, { kind: "block" }]);
   });
 });
 
 describe("applyChoice", () => {
   it("takes the accepted review choice", () => {
     const s = reviewDone({ parseable: false });
+    expect(applyChoice({ kind: "iterate" }, s).to).toBe("iterating");
     expect(applyChoice({ kind: "save" }, s)).toEqual({
       to: "saving",
       effect: { kind: "run-skill", skill: "save" },
@@ -362,8 +410,16 @@ describe("applyChoice", () => {
     expect(() => applyChoice({ kind: "iterate" }, build)).toThrow(IllegalChoiceError);
   });
 
-  it("rejects every choice once limits are exceeded", () => {
+  it("rejects every choice once the loop limit is exceeded", () => {
     const s = reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 });
+    expect(() => applyChoice({ kind: "save" }, s)).toThrow(IllegalChoiceError);
+  });
+
+  it("rejects an iterate choice at the per-phase ceiling — the whole review set is suppressed", () => {
+    const s = reviewDone({ parseable: false }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE });
+    // legalChoices is empty at the ceiling by design: no choose effect fires,
+    // and save/docs happen through the deterministic edges of nextReviewing.
+    expect(() => applyChoice({ kind: "iterate" }, s)).toThrow(IllegalChoiceError);
     expect(() => applyChoice({ kind: "save" }, s)).toThrow(IllegalChoiceError);
   });
 

@@ -99,16 +99,23 @@ export async function choose(opts: {
     const parsed = extractJsonObject(raw);
     const response = parseChoice(raw, legalSet);
     const reason = response?.reason ?? lastReason;
-    await writeAudit({
-      cwd: opts.cwd,
-      subject: opts.subject,
-      legal: opts.legal,
-      raw,
-      parsed,
-      accepted: response !== null,
-      reason,
-      attempt,
-    });
+    try {
+      await writeAudit({
+        cwd: opts.cwd,
+        subject: opts.subject,
+        legal: opts.legal,
+        raw,
+        parsed,
+        accepted: response !== null,
+        reason,
+        attempt,
+      });
+    } catch (error) {
+      return {
+        status: "blocked",
+        reason: `Failed to write transition audit: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
 
     if (response) {
       return {
