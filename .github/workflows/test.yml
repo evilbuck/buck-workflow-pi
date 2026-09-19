@@ -21,3 +21,29 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+
+  guardrails:
+    name: Guardrails contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the configured compare branch (origin/master)
+          # exists for diff-cover — required before patch coverage can be
+          # promoted from advisory to required.
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - name: Provision pinned measurement tools
+        run: pip install lizard==1.24.0 diff-cover==10.5.1
+      - name: Deterministic guardrails verdict
+        run: npm run guardrails:check

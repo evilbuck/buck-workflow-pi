@@ -77,7 +77,6 @@ const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", 
 // space so the line buffer never receives a literal `\x1b[` that could move
 // the cursor or clear the screen in the widget.
 const CONTROL_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x07|\x08|\r|\x0c/g;
-const MULTI_NL_RE = /\n{2,}/g;
 
 /**
  * Render-safe text. Newlines collapse to single spaces so a single widget
@@ -96,15 +95,54 @@ export function sanitizeLine(input: string, maxWidth: number): string {
 	return cleaned.slice(0, maxWidth - 1) + "…";
 }
 
-function coalesceText(buffer: string[], line: string, maxWidth: number): void {
-	const cleaned = line.replace(CONTROL_RE, " ").replace(/\s+/g, " ").trim();
-	if (!cleaned) return;
-	if (buffer.length === 0) {
-		buffer.push(sanitizeLine(cleaned, maxWidth));
-		return;
+function normalizeTextDelta(delta: string): string {
+	const newline = String.fromCharCode(10);
+	const carriageReturn = String.fromCharCode(13);
+	const tab = String.fromCharCode(9);
+	return delta
+		.replaceAll(carriageReturn + newline, newline)
+		.replaceAll(carriageReturn, newline)
+		.replace(CONTROL_RE, " ")
+		.replaceAll(tab, " ");
+}
+
+function trimOldest(buffer: string[], maxLines: number): void {
+	if (buffer.length > maxLines) buffer.splice(0, buffer.length - maxLines);
+}
+
+function wrapFragment(buffer: string[], fragment: string, width: number, maxLines: number): void {
+	if (buffer.length === 0) buffer.push("");
+	let remaining = fragment;
+	while (remaining.length > 0) {
+		const lineIndex = buffer.length - 1;
+		const current = buffer[lineIndex] ?? "";
+		const room = width - current.length;
+		if (room <= 0) {
+			buffer.push("");
+			trimOldest(buffer, maxLines);
+			continue;
+		}
+		buffer[lineIndex] = current + remaining.slice(0, room);
+		remaining = remaining.slice(room);
+		if (remaining) {
+			buffer.push("");
+			trimOldest(buffer, maxLines);
+		}
 	}
-	const merged = `${buffer[buffer.length - 1]} ${cleaned}`.trim();
-	buffer[buffer.length - 1] = sanitizeLine(merged, maxWidth);
+}
+
+function coalesceText(buffer: string[], delta: string, maxWidth: number, maxLines: number): void {
+	const width = Math.max(1, maxWidth);
+	const cap = Math.max(1, maxLines);
+	const newline = String.fromCharCode(10);
+	const fragments = normalizeTextDelta(delta).split(newline);
+	for (const [index, fragment] of fragments.entries()) {
+		if (index > 0) {
+			buffer.push("");
+			trimOldest(buffer, cap);
+		}
+		if (fragment) wrapFragment(buffer, fragment, width, cap);
+	}
 }
 
 function realClock(): NonNullable<ActivityOptions["clock"]> {
@@ -210,7 +248,8 @@ export function createActivity(options: ActivityOptions): Activity {
 	const flushPendingLines = (): void => {
 		if (state.pendingLines.length === 0) return;
 		for (const line of state.pendingLines) {
-			state.activityLines.push(line);
+			const cleaned = sanitizeLine(line, maxLineWidth);
+			if (cleaned) state.activityLines.push(cleaned);
 		}
 		state.pendingLines.length = 0;
 		if (state.activityLines.length > maxActivityLines) {
@@ -259,7 +298,7 @@ export function createActivity(options: ActivityOptions): Activity {
 	const handleEvent = (event: ActivityEvent): void => {
 		switch (event.kind) {
 			case "text":
-				coalesceText(state.pendingLines, event.delta, maxLineWidth);
+				coalesceText(state.pendingLines, event.delta, maxLineWidth, maxActivityLines);
 				scheduleWidgetRender();
 				return;
 			case "toolStart": {

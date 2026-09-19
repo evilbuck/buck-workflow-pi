@@ -154,9 +154,17 @@ If the session touched code, the check is **blocking** for completion. A session
 
 Do **not** run mid-edit; the working tree may be in an inconsistent state and yield false failures. `b-guardrails-check` only measures — it never dispatches itself and never edits.
 
+## Deterministic Runner
+
+The verdict is computed by one executable: `skills/b-guardrails-check/scripts/check.mjs`, invoked as `npm run guardrails:check`. `b-guardrails-check` and pull-request CI both call this runner; neither re-implements gate logic. It emits the verdict JSON on stdout and exits nonzero **only when a `required` gate fails** (exit 2 = no `guardrails.json`; exit 1 = malformed contract or required-gate failure).
+
+## Enforcement States
+
+Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, the runner uses `DEFAULT_ENFORCEMENT` in `check.mjs`: unit/functional/patch/ratchet/complexity `required`, lint `advisory`. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
+
 ## How to Read a Verdict
 
-`/b-guardrails-check` resolves its contract via `skills/b-guardrails-check/docs/contract-resolution.md` and returns a structured verdict:
+`/b-guardrails-check` resolves its contract via `skills/b-guardrails-check/docs/contract-resolution.md` and returns the runner's structured verdict:
 
 ```json
 {
@@ -298,5 +306,6 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 - Reproduction evidence flows through a **single trust boundary** (`review_exec` in `extensions/code-review-iteration/policy.ts`, allowlist in `extensions/code-review-iteration/review-exec-policy.md`): allowlisted command id + full argv + repo-relative cwd. No shell. Sanitized env. Denials are records, never exceptions.
 - Pass artifacts are **immutable** under `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/passes/NN/` (`review.json`, `review.md`, `fixer.json`, `fixer.md`, `commands.jsonl`; see `extensions/code-review-iteration/run-state.ts` and `extensions/code-review-iteration/loop.ts`). `state.json` is the only mutable file; it is rewritten atomically.
 - Per-session memory is git-portable `.context/memory/`. Harness-specific LTM mirrors are managed by `b-save`; the canonical source remains `.context/memory/`.
+- Nested `createAgentSession()` work in `/buck-loop` streams through `AgentSession.subscribe()` + `normalizeActivityEvent()` into `createActivity().ingest`. Unsubscribe before dispose, including prompt failure. `/buck-loop` uses a six-row activity viewport (`maxActivityLines: 6`, `maxLineWidth: 64`); other long-running commands keep the shared eight-row default.
 <!-- END b-docs:conventions -->
 

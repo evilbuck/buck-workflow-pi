@@ -1,10 +1,10 @@
 ---
 title: Heal commands/ mirror drift — 8 real files instead of symlinks
-status: active
+status: completed
 priority: medium
 created: 2026-09-16
-updated: 2026-09-16
-completed: null
+updated: 2026-09-18
+completed: 2026-09-18
 related:
   - commands/
   - prompts/

@@ -10,6 +10,7 @@ import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
+import { wireBuckLoop } from "./buck-loop/index.js";
 import { mappingFromOmpRoles } from "./omp-models.js";
 
 
@@ -329,6 +330,8 @@ export default function (pi: ExtensionAPI) {
   wireBSaveImproved(pi);
   // --- code-review-iteration: isolated Reviewer/Fixer loop ---
   wireCodeReviewIteration(pi);
+  // --- buck-loop: observably invoked happy-path runner ---
+  wireBuckLoop(pi);
 
   // --- Session lifecycle ---
 

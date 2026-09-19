@@ -34,6 +34,7 @@ List all `.context/YYYY-MM-DD.*/` directories. For each, read **only** the `stat
 | `plan-*.md` | `"plan"` |
 | `iterate-*.md` | `"iteration pending"` |
 | `research-*.md` only | `"research"` |
+| `notes/raw-capture-log.md` | `"capture"` |
 | `brainstorm-*.md` only | `"brainstorm"` |
 | No recognized artifacts | `"active"` |
 
@@ -87,7 +88,7 @@ Every subject folder's `index.md` carries an explicit `status:` field:
 | `completed` | All objectives met | Never (use `--all` to include) |
 
 **Who sets the status:**
-- `b-brainstorm` / `b-research` / `b-explore` → `status: draft` when creating the subject folder
+- `b-brainstorm` / `b-research` / `b-explore` / `b-capture` → `status: draft` when creating the subject folder
 - `b-plan` → `status: active` when writing the first plan artifact
 - `b-save` → `status: completed` when all artifacts are completed
 

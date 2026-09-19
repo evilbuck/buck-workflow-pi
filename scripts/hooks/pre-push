@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# buck-workflow managed pre-push (security-audit)
+#
+# Installed by `buck-workflow hooks install`; removed by `buck-workflow hooks remove`.
+# Audit profile: __BUCK_PROFILE_NAME__ (see docs/buck-workflow.md — "Security audit pre-push hook").
+# Exits 0 clean, 1 findings detected, 2 usage error — propagated unchanged from
+# scripts/security-audit.sh. Never edit by hand; reinstall instead.
+
+BUCK_WORKFLOW_SOURCE=__BUCK_WORKFLOW_SOURCE__
+AUDIT="$BUCK_WORKFLOW_SOURCE/scripts/security-audit.sh"
+
+if [ ! -f "$AUDIT" ]; then
+  echo "buck-workflow pre-push: security-audit.sh not found at $AUDIT" >&2
+  echo "  The buck-workflow checkout that installed this hook has moved." >&2
+  echo "  Re-run: buck-workflow hooks install (or hooks remove) from its new location." >&2
+  exit 1
+fi
+
+exec "$AUDIT" --repo "$(git rev-parse --show-toplevel)" __BUCK_PROFILE_ARGS__

@@ -10,7 +10,7 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` — mostly symlinks to the same prompt bodies, with eight real-file exceptions documented in [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, and an opt-in plan-artifact bridge
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, `/buck-loop`, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ## Runtime package mapping
@@ -47,6 +47,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
 | `/b-loop` (skill-only) | Skill | Skill | `skills/b-loop/SKILL.md` — stamp `omp_execution` on phase files; advisory only |
+| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner; not `/b-loop` |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
 | `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
@@ -62,7 +63,7 @@ Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, the deterministic `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` commands, and the opt-in plan-artifact `turn_end` hook.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, the deterministic `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` commands, `/buck-loop`, and the opt-in plan-artifact `turn_end` hook.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-flow/`, `extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
@@ -148,11 +149,7 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not write a new b-flow-style extension.** The b-flow
-  deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`)
-  is the lesson: extension-based orchestration that is not observably
-  invoked is dead weight. All omp-integration surfaces are
-  **prompt-level or skill-level changes** the user runs from the TUI.
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner with a pure table, nested isolated sessions, and artifact postconditions. It does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
@@ -459,7 +456,7 @@ flowchart TD
 | [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
 | [**Deterministic extension commands**](#deterministic-extension-commands) | Extension commands | `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Code-driven counterparts with skill fallbacks; wired via `extensions/index.ts` |
 
-**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` mirror (mostly symlinks — see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy) for the eight real-file exceptions). The wired extension (`extensions/index.ts`) registers the deterministic `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved` commands, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
+**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` mirror — one symlink per `prompts/*.md`, zero physical-file exceptions, enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers the deterministic `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved` commands, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -755,8 +752,10 @@ informs: []  # Plans/specs this research fed into
 - Detects the repo stack and existing quality tooling.
 - Resolves `lint_cmd`, `functional_test_cmd`, and `test_runner` per ecosystem via the resolution chain; Phase 2 proposes-then-approves; user can decline any tool to record it as `null`.
 - Measures the current coverage, complexity, and lint baseline; runs unit and functional suites once.
-- Writes `guardrails.json` v2 with patch gate, global ratchet, base lint mode, and per-ecosystem lint/functional/test commands.
+- Writes `guardrails.json` v2 with patch gate, global ratchet, base lint mode, per-ecosystem lint/functional/test commands, and an explicit `enforcement` block (`required` / `advisory` / `disabled` per gate — see `skills/b-init-guardrails/docs/ratchet-protocol.md` § Enforcement States; promotion is monotonic, demotion needs recorded approval).
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
+
+**Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.mjs`, exposed as `npm run guardrails:check` and run in the PR CI `guardrails` job. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction, and it exits nonzero only when a **required** gate fails.
 
 **Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes. Each phase's contract is the blocking v2 completion gate (see `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
 
@@ -1901,6 +1900,42 @@ Opt-in hook:
 | Hook | Purpose |
 |-------|---------|
 | `turn_end` (plan-artifact) | When `buckPlanArtifact.enabled` (or `BUCK_PLAN_ARTIFACT=1`), infer OMP plan-mode exit and persist the plan into `.context/<date>.<slug>/plan-<slug>.md` |
+
+### Git pre-push security-audit hook (opt-in)
+
+Buck Workflow ships a 696-line repository security scanner
+(`scripts/security-audit.sh`) that is **not wired anywhere by default**. The
+`buck-workflow hooks` CLI makes it an explicit, repository-scoped pre-push
+gate. Normal package installation never configures git hooks.
+
+| Command | Effect |
+|---|---|
+| `buck-workflow hooks install [--repo <path>] [--profile full\|fast]` | Installs a managed `pre-push` launcher into the repository's actual hooks directory (honours `core.hooksPath`) |
+| `buck-workflow hooks status [--repo <path>]` | Reports hooks dir, install state, pinned source, profile, and audit-script path |
+| `buck-workflow hooks remove [--repo <path>]` | Removes the managed launcher; foreign hooks are never touched |
+
+**Coexistence guarantees:** a pre-existing `pre-push` that is not
+buck-workflow-managed is never overwritten or removed — install and remove
+both refuse with an actionable diagnostic describing how to chain the two
+audits manually. Reinstalling is idempotent (content and mtime unchanged).
+
+**Profiles:** `full` (default) scans tracked files plus the full git history,
+preserving the audit's default contract — measured ≈46s on this repository.
+`fast` passes `--skip-history` — measured ≈45s here (no local win; the
+working-tree scan dominates), but far cheaper on long-history repositories.
+Pick `fast` consciously: it trades history coverage for push latency.
+
+**Exit behavior:** the launcher `exec`s the audit and propagates its exits
+unchanged — `0` clean (push proceeds), `1` findings detected (push blocked),
+`2` usage error (push blocked; fix the invocation). Verified by smoke-push to
+a local bare remote: a clean push succeeds, a seeded AWS-key finding blocks
+with exit 1, and `hooks remove` restores the prior push behavior exactly.
+
+**Calibration note:** repositories with pre-existing pattern matches (test
+fixtures, documentation examples) will fail every push until a
+`--whitelist-file` is curated; this repository itself currently has 13
+working-tree matches inside `.context/` audit documentation. Run
+`bash scripts/security-audit.sh --repo .` once before enabling.
 
 ### Model auto-switch
 

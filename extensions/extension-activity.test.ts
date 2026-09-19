@@ -168,6 +168,44 @@ describe("createActivity model ingestion", () => {
 		expect(activityLines.join(" ")).toContain("Reading package.json");
 	});
 
+	it("wraps streamed text and retains only the newest activity rows", () => {
+		const cap = captureUI();
+		const clock = fakeClock();
+		const activity = createActivity({
+			ui: cap.ui,
+			command: "buck-loop",
+			clock,
+			maxActivityLines: 3,
+			maxLineWidth: 5,
+		});
+		activity.phase("building");
+		activity.ingest({
+			kind: "text",
+			delta: ["11111", "22222", "33333", "44444"].join(String.fromCharCode(10)),
+		});
+		drainWidget(clock);
+		const activityLines = cap.widgets.at(-1)?.lines?.slice(1);
+		expect(activityLines).toEqual(["22222", "33333", "44444"]);
+	});
+	it("keeps only the newest rows from a large wrapped text delta", () => {
+		const cap = captureUI();
+		const clock = fakeClock();
+		const activity = createActivity({
+			ui: cap.ui,
+			command: "buck-loop",
+			clock,
+			maxActivityLines: 3,
+			maxLineWidth: 4,
+		});
+		activity.phase("building");
+		activity.ingest({
+			kind: "text",
+			delta: Array.from({ length: 40 }, (_unused, index) => `L${String(index).padStart(2, "0")}`).join(String.fromCharCode(10)),
+		});
+		drainWidget(clock);
+		expect(cap.widgets.at(-1)?.lines?.slice(1)).toEqual(["L37", "L38", "L39"]);
+	});
+
 	it("shows toolStart / toolEnd lines around text deltas without losing them", () => {
 		const cap = captureUI();
 		const clock = fakeClock();

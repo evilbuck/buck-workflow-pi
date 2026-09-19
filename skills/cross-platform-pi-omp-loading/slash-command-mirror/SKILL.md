@@ -90,14 +90,15 @@ Per-file is the safer default because the relationship is visible at a glance an
 
 ## Drift mitigation
 
-Without a script, contributors may add a new `prompts/foo.md` and forget the matching `commands/foo.md` symlink. The slash command will work in Pi but not OMP — silent breakage.
+Without enforcement, contributors may add a new `prompts/foo.md` and forget the matching `commands/foo.md` symlink. The slash command will work in Pi but not OMP — silent breakage. Physical-file drift is worse: a real `commands/foo.md` twin diverges from its prompt body and the two runtimes execute different procedures.
 
-Two options:
+Options, weakest to strongest:
 
 1. **Document the step in a CONTRIBUTING note** — minimal, easy to skip.
-2. **Add a `scripts/sync-commands.sh` and a `bun run sync-commands` npm script** — runs the `mkdir -p commands && for f in prompts/*.md; do ln -sf ...` loop. Reference it from `CONTRIBUTING.md` and run it in CI as a check (`[ $(ls commands/*.md | wc -l) -eq $(ls prompts/*.md | wc -l) ]`).
+2. **Add a `scripts/sync-commands.sh` and a `bun run sync-commands` npm script** — runs the `mkdir -p commands && for f in prompts/*.md; do ln -sf ...` loop. Reference it from `CONTRIBUTING.md`.
+3. **Deterministic drift test derived from the tree** (what `buck-workflow-pi` does) — `scripts/commands-mirror.test.ts` asserts every `prompts/*.md` has a `commands/<name>.md` symlink to `../prompts/<name>.md`, every `commands/*.md` is such a symlink, and there are no extras. It derives names from the directory listing, never from historical counts, so adding a prompt without its symlink fails CI immediately.
 
-The plan that introduced this pattern in `buck-workflow-pi` deliberately did not auto-run the sync from `prepare`/`postinstall` to keep the package install-clean. The CI check is enough for a small package; the auto-run becomes valuable above ~10 prompt files.
+`buck-workflow-pi` settled on the all-symlink contract with **zero physical-file exceptions** (healed 2026-09-18; previously 8 real files). When adopting this pattern, prefer option 3 — the invariant test is the only mitigation that cannot silently rot.
 
 ## Verification
 
