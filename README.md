@@ -310,7 +310,7 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
 | `b-loop` | Set/change/clear the `omp_execution` autonomous loop on an existing phased plan — advisory + stamp only (skill-only) |
-| `fix-pr` | Validate PR review comments against code; fix+push in-session or file issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
+| `fix-pr` | Validate PR review comments against code; fix+push every valid finding on the head branch, then poll re-review until settled; `--issues-only` files issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
 | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
 | `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
@@ -371,7 +371,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-iterate → /b-review` | Follow-up fix loop |
-| `/skill:fix-pr <pr>` | Action PR review comments — validate, then fix+push or file issues (skill-only) |
+| `/skill:fix-pr <pr>` | Action PR review comments — validate, fix+push, poll re-review until settled; `--issues-only` to file issues instead (skill-only) |
 | `/b-plan → /b-review → /b-docs → /b-save → /b-commit` | Plan and review without exploration |
 
 ### Ad-Hoc Work

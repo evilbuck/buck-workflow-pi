@@ -66,7 +66,7 @@ invocations on agents that use skill loaders):
 | `/b-phase` | Break a plan into sequential phases |
 | `/b-grill-me` | Stress-test a plan through structured interviewing |
 | `/git-commit` | Conventional Commits message + commit |
-| `/skill:fix-pr` | Validate PR review comments; fix+push or file issues (**skill-only** — no slash wrapper) |
+| `/skill:fix-pr` | Validate PR review comments; fix+push until settled, or `--issues-only` (**skill-only** — no slash wrapper) |
 
 The skills themselves live in `skills/<name>/SKILL.md` of this repo and are
 agent-neutral. Skill-only entries (no `prompts/` + `commands/` pair) are

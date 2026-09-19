@@ -433,7 +433,7 @@ flowchart TD
 | [**b-wizard**](#b-wizard--interactive-setup-wizards) | Prompt template + Skill | `/b-wizard` | `prompts/b-wizard.md` + `skills/b-wizard/` | Generates a bash wizard for human-only setup steps; `template.sh` does the work |
 | [**b-init-tracker**](#b-init-tracker--issue-tracker-config-init) | Prompt template + Skill | `/b-init-tracker` | `prompts/b-init-tracker.md` + `skills/b-init-tracker/` | Configure this repo's issue tracker + triage labels (idempotent managed AGENTS.md block) |
 | [**b-triage**](#b-triage--inbound-issue-triage) | Prompt template + Skill | `/b-triage` | `prompts/b-triage.md` + `skills/b-triage/` | Triage inbound issues/PRs into the ready-for-agent state b-auto-fix consumes |
-| [**fix-pr**](#fix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Fix PR review findings on the real head branch; push, poll, and repeat until settled (no slash wrapper) |
+| [**fix-pr**](#skillfix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Fix PR review findings on the real head branch; push, poll, and repeat until settled (no slash wrapper) |
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
@@ -1331,7 +1331,7 @@ Suggested next step
 8. Repeat fixes when a new review finds valid issues, capped at 10 loops by default
 9. Finish `settled` only after an independent post-push review confirms resolution; otherwise record `review_pending` or `max_loops_reached`
 
-**Flags**: `--max-loop=<n>` (default 10), `--issues-only`, `--dry-run`
+**Flags**: `--max-loop=<n>` (default 10; fix mode only), `--issues-only`, `--dry-run`
 
 **Next Steps**: `review_pending` resumes from polling on the next invocation; `max_loops_reached` requires an explicit new budget. Run `/b-save` if more session bookkeeping remains.
 

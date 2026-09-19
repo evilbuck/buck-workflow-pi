@@ -143,7 +143,7 @@
   Each step is tagged so you can see what the machine does, what the model judges, and what gets delegated.</p>
   <div class="hero-meta">
     <span>📄 skills/fix-pr/SKILL.md</span>
-    <span>🔧 scripts/fetch-feedback.sh</span>
+    <span>🔧 skills/fix-pr/scripts/fetch-feedback.sh</span>
     <span>🌳 worktree pinned to headRefName</span>
     <span>🔁 poll-until-settled (default 10 loops)</span>
   </div>
@@ -202,12 +202,12 @@
     <pre><span class="c"># fix-pr               → resolve PR from current branch
 # fix-pr 42            → target PR #42
 # fix-pr &lt;url&gt;          → target by URL</span>
-fix-pr &lt;pr&gt; --dry-run          <span class="c"># validate + inventory only. NEVER mutates</span>
+fix-pr &lt;pr&gt; --dry-run          <span class="c"># validate + inventory only; no repo/PR mutation</span>
 fix-pr &lt;pr&gt; --issues-only      <span class="c"># file issues for valid findings; never fix</span>
 fix-pr &lt;pr&gt; --max-loop=&lt;n&gt;     <span class="c"># override the default 10 fix/review loops</span></pre>
     <div class="note warn"><strong><code class="inline">--dry-run</code> is a hard no-mutate promise:</strong>
-    no worktree switch, no commits, no pushes, no issues. Reading pinned code via GitHub APIs is fine; touching
-    anything is not.</div>
+    no worktree switch, no commits, no pushes, no comments, no issues. Reading pinned code via GitHub APIs is
+    fine. The local memory record in Step 6 is the only write a dry run performs.</div>
     <div class="note"><strong>Default means fix, regardless of size.</strong> Finding count, file count, and
     estimated duration guide how the fix is decomposed into commits — they never route work to issues. Only
     <code class="inline">--issues-only</code> does that.</div>
@@ -256,9 +256,9 @@ git -C &lt;worktree&gt; rev-parse HEAD       == &lt;headRefOid&gt;</pre>
     <p><strong>OMP-preferred:</strong> <code class="inline">read pr://&lt;N&gt;</code> and
     <code class="inline">read pr://&lt;N&gt;?comments=1</code>. <strong>Universal fallback:</strong></p>
     <pre>gh pr view &lt;N&gt; --repo &lt;owner/repo&gt; --json number,title,body,state,url,files,reviews,comments,headRefName,headRefOid
-gh api repos/{owner}/{repo}/pulls/&lt;N&gt;/reviews
-gh api repos/{owner}/{repo}/pulls/&lt;N&gt;/comments
-gh api repos/{owner}/{repo}/issues/&lt;N&gt;/comments</pre>
+gh api --paginate repos/{owner}/{repo}/pulls/&lt;N&gt;/reviews
+gh api --paginate repos/{owner}/{repo}/pulls/&lt;N&gt;/comments
+gh api --paginate repos/{owner}/{repo}/issues/&lt;N&gt;/comments</pre>
     <p><strong>Diff:</strong> full diff via <code class="inline">gh pr diff &lt;N&gt; --repo &lt;owner/repo&gt;</code>.
     For one file, use the worktree or the contents API — not <code class="inline">gh pr diff &lt;N&gt; -- &lt;path&gt;</code>:</p>
     <pre>git -C &lt;worktree&gt; diff &lt;baseRefOid&gt;...&lt;headRefOid&gt; -- &lt;path&gt;

@@ -179,7 +179,7 @@ Links use filenames within same subject folder. Memory links use memory filename
 - New work: `b-research → b-plan → b-build → b-review → b-docs → b-save → b-commit`
 - Complex: `b-research → b-plan → b-build-hard → b-review → b-docs → b-save → b-commit`
 - Quick fix: `b-iterate → b-review → b-docs → b-save → b-commit`
-- PR review feedback: `fix-pr` (skill-only: `/skill:fix-pr <pr>`) — validate comments, then fix+push or file issues
+- PR review feedback: `fix-pr` (skill-only: `/skill:fix-pr <pr>`) — validate comments, fix+push every valid finding, poll for independent re-review until settled; `--issues-only` files issues instead
 
 `/b-init-guardrails` (once per repo) creates the contract; `/b-guardrails-check` runs it. The completion gate above depends on both.
 
@@ -219,7 +219,7 @@ Create `CONTEXT.md` and `docs/adr/` lazily — on first use. Do not invent paral
 | Documentation writing | writing/documentation |
 | Code refactoring | refactor |
 | Code review (authoring feedback) | review / `code-review-universal` |
-| PR review comments to action (fix or issues) | `fix-pr` (`/skill:fix-pr`) |
+| PR review comments to action (fix loop, or `--issues-only`) | `fix-pr` (`/skill:fix-pr`) |
 
 Use environment-specific agents only when they actually exist.
 
