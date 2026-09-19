@@ -1,3 +1,7 @@
+- 2026-09-19 — [fix-pr PR #33](fix-pr-33-2026-09-19.md) — `completed` (validated reviews; filed #34–#39; no in-session code fix)
+
+  - 2026-09-19 | `fix-pr-33-2026-09-19.md` | domains: [review, extensions, ci, testing] | topics: [fix-pr, buck-loop, guardrails, hooks, npm-ci] | status: completed
+
 - 2026-09-18 — [fix-pr: PR #25 review feedback](fix-pr-25-2026-09-18.md) — `completed` (settled after 5 fix loops: fail-closed reviewThreads GraphQL walk, --paginate everywhere, untrusted-data + fork-isolation rules, non-identifying worktree records, consumers synced; rebased onto master, MERGEABLE/CLEAN)
 
   - 2026-09-18 | `fix-pr-25-2026-09-18.md` | domains: [review, workflow, agent-instructions] | topics: [fix-pr, pr-25, graphql-reviewthreads, paginate, fail-closed, untrusted-data, fork-isolation, consumer-sync, coderabbit] | status: completed
