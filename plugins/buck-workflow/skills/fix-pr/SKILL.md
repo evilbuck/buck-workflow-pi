@@ -378,25 +378,40 @@ At each poll:
    thread resolution state, and conversation comments. Compare immutable IDs
    with the seen-ID set; counts alone are not evidence of new feedback. Thread
    resolution is exposed only by GraphQL — `gh pr view --json` and the REST
-   comment endpoints do not carry it. Thread every page: `reviewThreads` has no
-   `isResolved` filter, so resolved threads fill early pages and a 100-thread
-   cap silently hides open threads on long-lived PRs.
+   comment endpoints do not carry it. Thread every page and **fail closed**:
+   `reviewThreads` has no `isResolved` filter, so resolved threads fill early
+   pages and a 100-thread cap silently hides open threads on long-lived PRs;
+   any fetch failure, GraphQL `errors` array, malformed page, or
+   `hasNextPage` that is not exactly `true`/`false` must abort the run — a
+   partial walk never reaches the settlement check.
 
    ```bash
    after=""; rows=""
    while :; do
      resp="$(gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$after){pageInfo{hasNextPage endCursor}nodes{id isResolved path line}}}}}' \
-       -f owner=<owner> -f name=<repo> -F number=<N> ${after:+-f after="$after"})"
-     rows+="$(echo "$resp" | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | "\(.id)\t\(.isResolved)\t\(.path):\(.line)"')"$'\n'
-     after="$(echo "$resp" | jq -r '.data.repository.pullRequest.reviewThreads.pageInfo.endCursor')"
-     echo "$resp" | jq -e '.data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage' >/dev/null || break
+       -f owner=<owner> -f name=<repo> -F number=<N> ${after:+-f after="$after"})" || {
+       echo "reviewThreads fetch failed (gh exit $?); refusing to evaluate settlement" >&2; exit 5; }
+     page="$(jq -e 'if .errors then error("graphql errors") else .data.repository.pullRequest.reviewThreads // error("missing reviewThreads") end' <<<"$resp")" || {
+       echo "GraphQL errors or malformed reviewThreads page; refusing to evaluate settlement" >&2; exit 5; }
+     rows+="$(jq -r '.nodes[] | "\(.id)\t\(.isResolved)\t\(.path):\(.line)"' <<<"$page")"$'\n'
+     next="$(jq -r '.pageInfo.hasNextPage' <<<"$page")"
+     case "$next" in
+       false) break ;;
+       true)  after="$(jq -r '.pageInfo.endCursor' <<<"$page")"
+              [ -n "$after" ] && [ "$after" != "null" ] || {
+                echo "missing endCursor on a true page; refusing to evaluate settlement" >&2; exit 5; } ;;
+       *)     echo "hasNextPage='$next' is not exactly true/false; refusing to evaluate settlement" >&2; exit 5 ;;
+     esac
    done
    printf '%s' "$rows"   # id<TAB>isResolved<TAB>path:line for EVERY thread
    ```
 
    The completion contract's "every review thread is resolved" is verified from
    the accumulated `isResolved` values across all pages plus current-HEAD
-   revalidation evidence — never from a single first page.
+   revalidation evidence — never from a single first page. `break` fires only
+   on a literal `false`; a `null` `hasNextPage`, a truncated response, or a
+   non-zero `gh` exit aborts with exit status 5 instead — an aborted walk
+   reports failure or `review_pending`, never `settled`.
 2. Mark new IDs seen and revalidate every new finding against current HEAD.
    Feedback submitted after the push but pinned to an older commit is still
    evaluated against current HEAD.
