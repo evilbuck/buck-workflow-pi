@@ -9,7 +9,7 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
-- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` — mostly symlinks to the same prompt bodies, with eight real-file exceptions documented in [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
+- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` — prompt-backed commands are symlinks to the same prompt bodies. OMP-only commands may be real files; they are not mirror exceptions. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
 - **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, `/buck-loop`, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 

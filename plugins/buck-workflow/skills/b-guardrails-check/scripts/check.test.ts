@@ -313,14 +313,15 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "node write-lcov.js", coverage_format: "lcov" }),
         ],
       }),
     );
-    mkdirSync(join(dir, "coverage"), { recursive: true });
     writeFileSync(
-      join(dir, "coverage", "lcov.info"),
-      "TN:\nSF:a.js\nDA:1,1\nDA:2,0\nLF:2\nLH:1\nend_of_record\n",
+      join(dir, "write-lcov.js"),
+      "const fs = require('fs');\n" +
+        "fs.mkdirSync('coverage', { recursive: true });\n" +
+        "fs.writeFileSync('coverage/lcov.info', 'TN:\\nSF:a.js\\nDA:1,1\\nDA:2,0\\nLF:2\\nLH:1\\nend_of_record\\n');\n",
     );
     const verdict = await runCheck({ cwd: dir });
     expect(verdict.coverage.current).toBe(50);
@@ -339,6 +340,27 @@ describe("runCheck", () => {
       }),
     );
     const verdict = await runCheck({ cwd: dir });
+    expect(verdict.gates.global_ratchet).toBe("fail");
+    expect(verdict.status).toBe("fail");
+  });
+
+  it("does not treat a leftover lcov.info as the current measurement", async () => {
+    const dir = fixtureRepo(
+      "stale-lcov",
+      baseContract({
+        ratchet: ratchet({ baseline_coverage: 54.9 }),
+        ecosystems: [
+          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+        ],
+      }),
+    );
+    mkdirSync(join(dir, "coverage"), { recursive: true });
+    writeFileSync(
+      join(dir, "coverage", "lcov.info"),
+      "TN:\nSF:a.js\nDA:1,1\nLF:1\nLH:1\nend_of_record\n",
+    );
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.coverage.current).toBeNull();
     expect(verdict.gates.global_ratchet).toBe("fail");
     expect(verdict.status).toBe("fail");
   });
