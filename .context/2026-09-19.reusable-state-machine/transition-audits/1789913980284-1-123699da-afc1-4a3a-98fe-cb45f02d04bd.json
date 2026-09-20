@@ -1,0 +1,21 @@
+{
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    },
+    {
+      "kind": "block"
+    }
+  ],
+  "raw": "{\"choice\":\"advance\",\"reason\":\"No prior failure or blocker context in this turn; default to proceeding to the next workflow step.\"}",
+  "parsed": {
+    "choice": "advance",
+    "reason": "No prior failure or blocker context in this turn; default to proceeding to the next workflow step."
+  },
+  "accepted": true,
+  "reason": "No prior failure or blocker context in this turn; default to proceeding to the next workflow step.",
+  "attempt": 1
+}
