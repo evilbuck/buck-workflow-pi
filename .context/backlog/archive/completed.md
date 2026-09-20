@@ -1,3 +1,11 @@
+- [x] [Extract reusable pure state-machine evaluator](2026-09/reusable-state-machine-core.md) — done 2026-09-20 — domain-neutral evaluator; Buck adapter cutover; architecture proof; 187 Buck-loop tests and guardrails pass. `.context/2026-09-19.reusable-state-machine/`
+
+- [x] [Phase 3: Architecture documentation and proof](2026-09/phase-3-architecture-documentation-and-proof.md) — done 2026-09-20 — evaluator/adapter docs; non-Buck smoke; 121 focused + 187 Buck-loop tests; final review and guardrails pass. `.context/2026-09-19.reusable-state-machine/phase-3-architecture-documentation-and-proof.md`
+
+- [x] [Phase 2: Buck machine migration](2026-09/phase-2-buck-machine-migration.md) — done 2026-09-20 — Buck definition over defineMachine; table.ts removed; complexity split; 89/89; guardrails pass. `.context/2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md`
+
+- [x] [Phase 1: Generic evaluator contract](2026-09/phase-1-generic-evaluator-contract.md) — done 2026-09-20 — pure synchronous evaluator; closed-choice isolation rejects shared memory; repeat review and durable guardrails passed. `.context/2026-09-19.reusable-state-machine/phase-1-generic-evaluator-contract.md`
+
 - [x] [Deterministic subject lifecycle and plan-scoped scan](2026-09/subject-work-state.md) — done 2026-09-19 — final review passed; lifecycle authority, complete caller cutover, Codex parity, policy audit, and guardrails verified. `.context/2026-09-19.subject-work-state/`
 
 - [x] [buck-loop extension](2026-09/buck-loop-extension.md) — done 2026-09-18 — visible activity, structured nested-failure handoff, real OMP loop reached done, 165 focused tests. `.context/2026-09-18.buck-loop-extension/`

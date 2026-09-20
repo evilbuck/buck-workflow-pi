@@ -1,11 +1,17 @@
 ---
-status: active
+status: completed
 date: 2026-09-19
 subject: 2026-09-19.reusable-state-machine
 topics: [state-machine, extensions, buck-loop, architecture, refactor]
 research: []
-iterations: []
-memory: []
+iterations:
+  - iterate-reusable-state-machine.md
+memory:
+  - reusable-state-machine-phasing-2026-09-19.md
+  - reusable-state-machine-phase-1-build-2026-09-20.md
+  - reusable-state-machine-phase-2-iterate-2026-09-20.md
+  - reusable-state-machine-phase-2-save-2026-09-20.md
+  - reusable-state-machine-phase-3-build-2026-09-20.md
 ---
 
 # Plan: Extract a reusable pure state-machine evaluator

@@ -38,12 +38,12 @@
  * ## File map (read in this order)
  *
  * - {@link ./types.ts}        — states, snapshot, effects (the vocabulary)
- * - {@link ./table.ts}        — pure "what happens next" rules (no I/O)
+ * - {@link ./machine.ts}      — Buck definition over the pure evaluator (no I/O)
  * - {@link ./scan.ts}         — read plan/review files from disk into a snapshot
  * - {@link ./persist.ts}      — save/resume `.context/workflow/buck-loop.json`
  * - {@link ./choice.ts}       — ask a model to pick from a closed enum
  * - {@link ./run-step.ts}     — spawn a nested coding session to run one skill
- * - {@link ./loop.ts}         — the while-loop that drives the table
+ * - {@link ./loop.ts}         — the while-loop that drives the machine
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";

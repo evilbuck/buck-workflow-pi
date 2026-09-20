@@ -164,7 +164,7 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner with a pure table, nested isolated sessions, and artifact postconditions. It does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
@@ -1534,7 +1534,7 @@ Suggested next step
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Summarize the current session in one scan-friendly page (<500 words) for immediate orientation: initial purpose, why it mattered, work covered, direction changes, important files, and latest user request.
+**Purpose**: Summarize the current session in one scan-friendly page (<500 words) for immediate orientation: initial purpose, why it mattered, work covered, direction changes, important files, and latest user request. Also include commits since branching and uncommitted work (via a read-only scout).
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-recap.md`, `commands/b-recap.md`, `skills/b-recap/SKILL.md`)
 
@@ -1555,11 +1555,13 @@ Suggested next step
 ```
 
 **Synthesis Rules**:
-1. **Initial Purpose & Why** — Earliest substantive request and motivation.
-2. **Work Covered** — Grouped into 2–4 objective-level areas, emphasizing the latest focus.
-3. **Direction Changes** — Note material pivots, or state that work progressed along the initial plan.
-4. **Important Files** — 3–6 representative session-attributable paths with significance notes.
-5. **Latest Request & Current State** — Last substantive user request before `/b-recap` and current progress.
+1. **Initial Purpose & Why** — Earliest substantive request in this session and motivation. Branch-delta purpose is extra context, not a substitute.
+2. **Work Covered** — Session areas first (2–4 objective-level groups, latest focus last), then a Branch Delta area when the working tree or commits-since-base add work.
+3. **Direction Changes** — Session pivots only, or state that work progressed along the initial plan.
+4. **Important Files** — 3–6 representative paths: session-touched first, then commits since the default-base merge-base, then staged/unstaged/untracked.
+5. **Latest Request & Current State** — Last substantive user request before `/b-recap`, plus `branch · N ahead of <base> · dirty/clean`.
+
+Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout). The skill is the source of truth.
 
 #### `/b-handoff` — Portable Session Handoff
 

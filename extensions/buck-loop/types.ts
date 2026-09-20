@@ -6,7 +6,7 @@
  * this folder speaks this vocabulary:
  *
  * 1. `scan.ts` looks at plan/review files and fills a {@link Snapshot}.
- * 2. `table.ts` reads that snapshot and returns a {@link Transition}
+ * 2. `machine.ts` reads that snapshot and returns a {@link Transition}
  *    ("go to this state and do this {@link Effect}").
  * 3. `loop.ts` performs the effect (run a skill, ask a model, or wait),
  *    then rescans. Worker prose never chooses the next state.
@@ -78,7 +78,7 @@ export type PlanFacts =
  * `postcondition` is `"confirmed"` (rescan verified the expected artifact
  * change) or `"ambiguous"` (e.g. files changed but phase status unchanged).
  * Review sessions decide through `ReviewFacts` instead; their postcondition
- * stays `"confirmed"` and is ignored by the table.
+ * stays `"confirmed"` and is ignored by the machine.
  */
 export interface WorkFacts {
   /** Has the nested session for this state run yet, succeeded, or failed? */
@@ -119,7 +119,7 @@ export type ReviewFacts =
 /**
  * A closed machine action a language model may propose.
  *
- * The model can only ever name one of these six words. `table.applyChoice`
+ * The model can only ever name one of these six words. `machine.applyChoice`
  * checks membership in the current legal set before any transition is
  * produced. Free-text answers never move the loop.
  *
@@ -140,7 +140,7 @@ export interface AcceptedChoice {
   reason: string;
 }
 
-/** One recorded hop; `at` is an ISO timestamp supplied by the supervisor — the table never reads a clock. */
+/** One recorded hop; `at` is an ISO timestamp supplied by the supervisor — the machine never reads a clock. */
 export interface TransitionRecord {
   from: LoopState;
   to: LoopState;
@@ -149,7 +149,7 @@ export interface TransitionRecord {
 }
 
 /**
- * The single input to the transition table: a projection of identity,
+ * The single input to the machine: a projection of identity,
  * safety counters, and artifact facts. The persisted file
  * `.context/workflow/buck-loop.json` serializes a subset; artifacts win on
  * disagreement.
@@ -171,9 +171,9 @@ export interface Snapshot {
   maxLoops: number;
   /** Iterate cycles spent on the current phase; resets when the phase changes. */
   iterateCyclesOnPhase: number;
-  /** Last accepted LLM choice, if any. Diagnostic; the table does not read it. */
+  /** Last accepted LLM choice, if any. Diagnostic; the machine does not read it. */
   lastChoice: AcceptedChoice | null;
-  /** Transition history. Diagnostic; the table does not read it. */
+  /** Transition history. Diagnostic; the machine does not read it. */
   history: TransitionRecord[];
 }
 
@@ -189,7 +189,7 @@ export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "comm
  *
  * - `none` — just sit in that state (START, STOP, arriving at `done`).
  * - `run-skill` — spawn a nested coding session for this skill.
- * - `choose` — ask a model to pick from `legal` (already closed by the table).
+ * - `choose` — ask a model to pick from `legal` (already closed by the machine).
  * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
  *
  * Work and choice are separate variants so execution code cannot smuggle a

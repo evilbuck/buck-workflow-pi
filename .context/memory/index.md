@@ -1,3 +1,16 @@
+- 2026-09-20 — [Review-loop state-machine migration build](review-loop-state-machine-build-2026-09-20.md) — `completed` (review passed; second evaluator consumer; 159/159 focused tests; durable guardrails pass; unphased lifecycle remains open)
+- 2026-09-20 — [Reusable state-machine Phase 3 build](reusable-state-machine-phase-3-build-2026-09-20.md) — `completed` (evaluator/adapter docs; 121 focused + 187 Buck tests; non-Buck smoke; durable guardrails pass)
+- 2026-09-20 — [Reusable state-machine Phase 2 save](reusable-state-machine-phase-2-save-2026-09-20.md) — `completed` (Buck adapter cutover; table.ts gone; iterate closed complexity; 89/89; lifecycle open for Phase 3)
+
+- 2026-09-20 — [Reusable state-machine Phase 2 iterate](reusable-state-machine-phase-2-iterate-2026-09-20.md) — `completed` (split reviewing/committing builders; complexity_gate pass; 89/89)
+
+- 2026-09-20 — [Reusable state-machine Phase 1 build](reusable-state-machine-phase-1-build-2026-09-20.md) — `completed` (generic evaluator contract passed repeat review; 15/15 focused tests; durable guardrails pass; Phase 2 remains pending)
+
+- 2026-09-19 — [fix-pr PR #44](fix-pr-44-2026-09-19.md) — `active` (loop 1: rebased onto master, review fixes at 65175a4, settlement review pending)
+
+  - 2026-09-19 | `fix-pr-44-2026-09-19.md` | domains: [review, workflow, extensions] | topics: [fix-pr, pr-44, subject-lifecycle, rebase] | status: active
+
+- 2026-09-19 — [Reusable state-machine phasing](reusable-state-machine-phasing-2026-09-19.md) — `completed` (three-phase HARD chain: generic evaluator contract → Buck migration → architecture docs and proof; Phase 1 queued)
 - 2026-09-19 — [Reusable state-machine planning](reusable-state-machine-plan-2026-09-19.md) — `completed` (validated pure-but-domain-coupled Buck table; chose a declarative pure evaluator; implementation plan + backlog item created)
 - 2026-09-19 — [Deterministic subject work-state build](subject-work-state-build-2026-09-19.md) — `completed` (final review passed; saved for commit; lifecycle close refused as designed because the completed plan is unphased)
 

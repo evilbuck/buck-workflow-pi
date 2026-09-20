@@ -1,6 +1,6 @@
 ---
 name: b-recap
-description: Summarize the current session in one scan-friendly page (<500 words) — initial purpose, why it mattered, work covered, direction changes, important files, and latest user request. Read-only orientation; does not replace /b-save.
+description: Summarize the current session in one scan-friendly page (<500 words) — initial purpose, why it mattered, work covered, direction changes, important files, and latest user request. Also include commits since branching and uncommitted work via a scout. Read-only orientation; does not replace /b-save.
 ---
 
 # b-recap: Session Recap
@@ -18,38 +18,91 @@ Provide a concise, evidence-grounded summary of the current session in one scan-
 
 ## Evidence Hierarchy
 
-When reconstructing the session narrative, apply this strict precedence order:
+1. **Primary: This Session** — the user's prompts, steering, and clarifications; assistant turns and confirmed tool actions in the visible transcript. Always recap this session, even when it is empty.
+2. **Secondary: Compaction & Artifacts** — compaction blocks; active subject folder (`.context/YYYY-MM-DD.<topic>/`), plan (`plan-*.md`), or session memory (`.context/memory/`).
+3. **Additional: Branch Delta** — commits since the default-base merge-base, plus staged, unstaged, and untracked work. Required. Extra orientation; never a substitute for the session recap.
 
-1. **Primary: Active Conversation & Direct User Messages**
-   - The user's prompts, instructions, steering, and clarifications.
-   - Assistant turns and confirmed tool actions within the visible transcript.
-2. **Secondary: Compaction Summaries & Session Artifacts**
-   - System compaction blocks summarizing prior conversation turns.
-   - Explicit active subject folder artifacts (`.context/YYYY-MM-DD.<topic>/`), active plan (`plan-*.md`), or session memory (`.context/memory/`).
-3. **Corroborating: Repository Status & Working Tree**
-   - `git status` and `git diff` only corroborate files mentioned in conversation, tool calls, or active subject plans.
-   - **Do not** attribute pre-existing, unrelated dirty files to this session unless conversation or artifact evidence links them to the session's work.
+Conversation wins on “what this chat requested.”
 
 ## Synthesis Procedure
 
-1. **Identify Initial Purpose & Why**:
-   - Locate the earliest substantive user instruction in the session.
-   - State the core goal and why it mattered (the business, architectural, or technical motivation).
-2. **Cluster Work Covered**:
-   - Group work into 2–4 objective-level areas rather than a chronological play-by-play.
-   - If multiple areas exist, highlight the final area as the **Latest Focus** with slightly richer detail.
-3. **Detect Material Direction Changes**:
-   - Document explicit pivots, scope adjustments, or design course corrections instructed by the user or necessitated by discovery.
-   - If work proceeded along the initial path without a major pivot, explicitly state:
-     `No material direction changes; work progressed along the initial plan.`
-4. **Select Important Files (3–6 Paths)**:
-   - Identify representative changed or added files that bear behavior, crucial configuration, verification tests, or primary documentation.
-   - **Group closely related paths** (e.g., a skill + its prompt wrapper + command symlink, or a catalog row in README + docs) and treat the group as one representative item. This prevents related surfaces from blowing past the 3–6 cap.
-   - Provide one concise clause per path (or group) explaining its role.
-   - If no files were touched in the session, state: `No session-attributable file changes found.`
-5. **Capture Latest Request & Current State**:
-   - Extract the last substantive request made by the user before invoking `/b-recap`.
-   - State the current state of that work (e.g., in progress, implemented awaiting verification, ready for review).
+1. **Inspect Branch Delta via scout** (required, before writing):
+   Dispatch **one** read-only scout (`agent: "scout"`). Copy the command block and return schema below into the scout's task. Mainline does not run these git commands — the scout keeps raw git output out of recap context.
+
+   ```
+   task({
+     i: "Inspecting branch delta",
+     context: "Read-only git inspect for /b-recap. No edits.",
+     tasks: [{
+       name: "BranchDelta",
+       agent: "scout",
+       task: "<paste this section's command blocks and return schema; run only those commands; return only the compact delta; do not recap the session>"
+     }]
+   })
+   ```
+
+   Scout runs **only** this block, in order. Local git only (no fetch, checkout, stash, or stage):
+
+   ```bash
+   git rev-parse --abbrev-ref HEAD
+   git symbolic-ref -q refs/remotes/origin/HEAD
+   git rev-parse --verify --quiet origin/main
+   git rev-parse --verify --quiet origin/master
+   git rev-parse --verify --quiet origin/trunk
+   ```
+
+   Base = `symbolic-ref` with `refs/remotes/` stripped; else the first of `origin/main`, `origin/master`, `origin/trunk` that `rev-parse` accepted.
+
+   If base resolved and HEAD is not that base:
+
+   ```bash
+   git merge-base HEAD <base>
+   git log --oneline --no-decorate <merge-base>..HEAD
+   git diff --stat <merge-base>...HEAD
+   ```
+
+   Always:
+
+   ```bash
+   git status --porcelain
+   git diff --stat
+   git diff --cached --stat
+   ```
+
+   Scout returns **only** this compact delta (no raw dumps; cap commit subjects at 20):
+
+   ```
+   branch: <name>
+   base: <ref>|unresolved
+   merge_base: <short-sha>|empty
+   commits_ahead: <N>
+   commits:
+   - <subject>
+   committed_stat: <one-line summary>
+   unstaged_stat: <summary or clean>
+   staged_stat: <summary or clean>
+   untracked:
+   - <path>
+   ```
+
+   Done when that payload is in hand. Mainline synthesizes from the session **plus** this payload.
+2. **Identify Initial Purpose & Why**:
+   - Earliest substantive user instruction in this session.
+   - If this chat has none, say so. Then add branch-delta purpose as extra context, labeled as branch not chat.
+3. **Cluster Work Covered**:
+   - Session areas first (2–4 objective-level groups). Label the last session area **Latest Focus** when the session had work.
+   - Add a **Branch Delta** area when commits-since-branch or the working tree contain work not already in those session areas.
+4. **Detect Material Direction Changes**:
+   - Session pivots only. If none: `No material direction changes; work progressed along the initial plan.`
+5. **Select Important Files (3–6 Paths)**:
+   - Session-touched files first, then fill remaining slots from the branch delta (commits since merge-base, then staged / unstaged / untracked).
+   - Prefer behavior-bearing source, crucial configuration, verification tests, or primary documentation.
+   - **Group closely related paths** (e.g., a skill + its prompt wrapper + command symlink) as one item.
+   - One clause per path (or group) plus evidence: conversation, commit-since-branch, or working-tree.
+   - Empty fallback only when the session, artifacts, commits-since-branch, *and* the working tree are all empty: `No session-attributable file changes found.`
+6. **Capture Latest Request & Current State**:
+   - Latest User Request = last substantive user request before `/b-recap`. If none, say none. Never the recap invocation.
+   - Current State = session progress **and** `branch <name> · N commits ahead of <base> · dirty: unstaged/staged/untracked` (or `clean`).
 
 ## Output Template
 

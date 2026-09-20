@@ -292,7 +292,7 @@ function depsSatisfied(phase: PhaseMeta, byN: Map<number, PhaseMeta>): boolean {
 
 /**
  * Iterate file wins over the report. A report without both impact sections
- * is `parseable: false` so the table will not trust garbage flags.
+ * is `parseable: false` so the machine will not trust garbage flags.
  */
 function scanReviewFacts(subjectDir: string): ReviewFacts {
   const iterateArtifact = hasIterate(subjectDir);
