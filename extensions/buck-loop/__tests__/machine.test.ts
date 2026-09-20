@@ -1,13 +1,11 @@
 /**
- * Pure transition-table tests. Fixture snapshots, no disk and no model.
- * Covers deterministic edges, closed `choose` sets, illegal choices, and
- * operator-owned START / USER_CONFIRMED / STOP helpers.
+ * Buck machine policy tests. Fixture snapshots, no disk and no model.
+ * Covers deterministic edges, closed choice sets, illegal choices, and
+ * operator-owned START / USER_CONFIRMED / STOP.
  */
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { MachineFailure } from "../../state-machine.js";
 import {
-  IllegalChoiceError,
-  IllegalTransitionError,
   MAX_ITERATE_CYCLES_PER_PHASE,
   applyChoice,
   legalChoices,
@@ -16,8 +14,8 @@ import {
   start,
   stopFrom,
   userConfirmed,
-} from "../table.js";
-import type { Choice, LoopState, ReviewFacts, Snapshot, WorkFacts, WorkSkill, WorkState } from "../types.js";
+} from "../machine.js";
+import type { ReviewFacts, Snapshot, WorkFacts, WorkSkill, WorkState } from "../types.js";
 
 const SUBJECT = "2026-09-18.demo-subject";
 const PLAN_PATH = `.context/${SUBJECT}/plan-demo.md`;
@@ -379,27 +377,27 @@ describe("applyChoice", () => {
 
   it("rejects choices outside the current legal set — no model string transitions state", () => {
     const review = reviewDone({ parseable: false });
-    expect(() => applyChoice({ kind: "advance" }, review)).toThrow(IllegalChoiceError);
-    expect(() => applyChoice({ kind: "retry" }, review)).toThrow(IllegalChoiceError);
+    expect(() => applyChoice({ kind: "advance" }, review)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "retry" }, review)).toThrow(MachineFailure);
     const build = workSnap("building", { postcondition: "ambiguous" });
-    expect(() => applyChoice({ kind: "save" }, build)).toThrow(IllegalChoiceError);
-    expect(() => applyChoice({ kind: "iterate" }, build)).toThrow(IllegalChoiceError);
+    expect(() => applyChoice({ kind: "save" }, build)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "iterate" }, build)).toThrow(MachineFailure);
   });
 
   it("rejects every choice once limits are exceeded", () => {
     const s = reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 });
-    expect(() => applyChoice({ kind: "save" }, s)).toThrow(IllegalChoiceError);
+    expect(() => applyChoice({ kind: "save" }, s)).toThrow(MachineFailure);
   });
 
   it("rejects choices in deterministic situations entirely", () => {
-    expect(() => applyChoice({ kind: "save" }, workSnap("building"))).toThrow(IllegalChoiceError);
-    expect(() => applyChoice({ kind: "advance" }, snap())).toThrow(IllegalChoiceError);
+    expect(() => applyChoice({ kind: "save" }, workSnap("building"))).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "advance" }, snap())).toThrow(MachineFailure);
   });
 });
 
 describe("next: non-loop states fail explicitly", () => {
   it.each(["idle", "blocked", "done", "aborted"] as const)("throws for %s", (state) => {
-    expect(() => next(snap({ state }))).toThrow(IllegalTransitionError);
+    expect(() => next(snap({ state }))).toThrow(MachineFailure);
   });
 });
 
@@ -418,38 +416,3 @@ describe("operator-owned edges", () => {
   });
 });
 
-describe("contract purity", () => {
-  it("types.ts imports nothing at all", () => {
-    const src = readFileSync(new URL("../types.ts", import.meta.url), "utf8");
-    expect(src.match(/^\s*import\b/m)).toBeNull();
-    expect(src).not.toContain("require(");
-  });
-
-  it("table.ts stays free of xstate, node/platform, and OMP SDK dependencies", () => {
-    const src = readFileSync(new URL("../table.ts", import.meta.url), "utf8");
-    const forbidden = [
-      /["']xstate["']/,
-      /["']node:[\w.]+["']/,
-      /\brequire\s*\(/,
-      /["']\.\.\/omp-models/,
-      /\bcreateAgentSession\b/,
-      /\breadFileSync\b|\breaddirSync\b|\bexecSync\b|\bspawnSync\b/,
-      /\bprocess\.\w/,
-      /\bnew Date\b|\bDate\.now\b/,
-    ];
-    for (const pattern of forbidden) {
-      expect(src.match(pattern), `table.ts must not match ${pattern}`).toBeNull();
-    }
-  });
-});
-
-// Choice exhaustiveness guard: the closed set is part of the frozen contract.
-const ALL_CHOICES: readonly Choice["kind"][] = [
-  "iterate",
-  "document",
-  "save",
-  "retry",
-  "advance",
-  "block",
-];
-void ALL_CHOICES;

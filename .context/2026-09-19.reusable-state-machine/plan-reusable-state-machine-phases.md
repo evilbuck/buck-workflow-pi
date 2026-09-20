@@ -25,7 +25,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Generic Evaluator Contract | completed | medium | none | [phase-1-generic-evaluator-contract.md](phase-1-generic-evaluator-contract.md) |
-| 2: Buck Machine Migration | pending | hard | none | [phase-2-buck-machine-migration.md](phase-2-buck-machine-migration.md) |
+| 2: Buck Machine Migration | completed | hard | none | [phase-2-buck-machine-migration.md](phase-2-buck-machine-migration.md) |
 | 3: Architecture Documentation and Proof | pending | medium | none | [phase-3-architecture-documentation-and-proof.md](phase-3-architecture-documentation-and-proof.md) |
 
 ## Dependency Matrix
@@ -85,7 +85,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 ## Execution Checklist
 
 - [x] Phase 1: Generic Evaluator Contract — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: Buck Machine Migration — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 2: Buck Machine Migration — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 3: Architecture Documentation and Proof — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes

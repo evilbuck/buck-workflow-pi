@@ -1,6 +1,6 @@
 /**
  * Supervisor tests. `runStep` and `choose` are fakes so CI never calls a
- * live model. Real `scan` + `table` + `persist` still run against a temp
+ * live model. Real `scan` + `machine` + `persist` still run against a temp
  * git repo. The child's last sentence is never parsed for the next state.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";

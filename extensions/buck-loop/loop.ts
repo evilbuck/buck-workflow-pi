@@ -2,13 +2,13 @@
  * Supervisor: the while-loop that drives `/buck-loop`.
  *
  * This file is the only one that **does work**. Everything else either
- * describes work (`table.ts`) or performs one isolated job (`run-step.ts`,
+ * describes work (`machine.ts`) or performs one isolated job (`run-step.ts`,
  * `choice.ts`, `scan.ts`, `persist.ts`).
  *
  * Each tick:
  *
  * 1. If the snapshot is already `done` / `blocked` / `aborted`, stop.
- * 2. Ask {@link next} (the pure table) for a {@link Transition}.
+ * 2. Ask {@link next} (the compiled Buck machine) for a {@link Transition}.
  * 3. Persist the new state to `.context/workflow/buck-loop.json`.
  * 4. Perform the effect:
  *    - `run-skill` → spawn a nested coding session (`run-step.ts`).
@@ -37,7 +37,7 @@ import {
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
-import { applyChoice, next, start, stopFrom, userConfirmed } from "./table.js";
+import { applyChoice, next, start, stopFrom, userConfirmed } from "./machine.js";
 import type {
   AcceptedChoice,
   Choice,
@@ -232,8 +232,8 @@ function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Sna
 
 
 /**
- * The actual loop. Ask the table, persist, run the effect, rescan, repeat.
- * `SAFETY_TICK_CEILING` is a last-ditch halt if the table ever livelocks.
+ * The actual loop. Ask the machine, persist, run the effect, rescan, repeat.
+ * `SAFETY_TICK_CEILING` is a last-ditch halt if the machine ever livelocks.
  */
 async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDeps): Promise<LoopResult> {
   let snapshot = initial;
@@ -263,7 +263,7 @@ function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
   return { state: snapshot.state, reason: lastWhyFromSnapshot(snapshot) };
 }
 
-/** Ask the table for the next edge. Illegal `next()` or `await-operator` halt the run. */
+/** Ask the machine for the next edge. Illegal `next()` or `await-operator` halt the run. */
 function takeStep(
   snapshot: Snapshot,
   lastFail: string | null,
@@ -678,7 +678,7 @@ function rescan(
   };
 }
 
-/** Map a table skill to the nested skill name, including build-hard and howto-only docs. */
+/** Map a machine skill to the nested skill name, including build-hard and howto-only docs. */
 function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedSkill {
   if (skill === "build") return difficultyOf(cwd, snapshot) === "hard" ? "b-build-hard" : "b-build";
   if (skill === "review") return "b-review";

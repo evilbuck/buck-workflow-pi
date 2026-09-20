@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-reusable-state-machine.md
@@ -21,16 +21,16 @@ from_plan_steps: [3, 4, 5, 6]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `extensions/buck-loop/machine.ts` is the only module combining generic evaluator rules with Buck states, facts, skills, choices, events, and effects."
-  - "[ ] Existing automatic transitions, START / USER_CONFIRMED / STOP edges, retry and safety ceilings, completion behavior, and iterate > docs/how-to > save priority remain behaviorally identical."
-  - "[ ] Buck automatic priorities are mutually exclusive guards; no declaration-order priority enters the generic evaluator."
-  - "[ ] `loop.ts` remains the sole effect interpreter and retains scanning, persistence, timestamps, counters, model calls, nested sessions, retries, and durable block conversion."
-  - "[ ] Ambiguous, no-route, illegal-choice, and invalid-event decisions become the existing durable `blocked` outcome with an operationally useful reason."
-  - "[ ] Every legacy table export caller is migrated; `table.ts`, `table.test.ts`, aliases, re-exports, and dead comments are removed."
-  - "[ ] `extensions/b-flow/**` remains untouched and unwired; no dependency is added."
-  - "[ ] Focused core and Buck-loop suites pass."
-completed_at: null
-completed_by: null
+  - "[x] `extensions/buck-loop/machine.ts` is the only module combining generic evaluator rules with Buck states, facts, skills, choices, events, and effects."
+  - "[x] Existing automatic transitions, START / USER_CONFIRMED / STOP edges, retry and safety ceilings, completion behavior, and iterate > docs/how-to > save priority remain behaviorally identical."
+  - "[x] Buck automatic priorities are mutually exclusive guards; no declaration-order priority enters the generic evaluator."
+  - "[x] `loop.ts` remains the sole effect interpreter and retains scanning, persistence, timestamps, counters, model calls, nested sessions, retries, and durable block conversion."
+  - "[x] Ambiguous, no-route, illegal-choice, and invalid-event decisions become the existing durable `blocked` outcome with an operationally useful reason."
+  - "[x] Every legacy table export caller is migrated; `table.ts`, `table.test.ts`, aliases, re-exports, and dead comments are removed."
+  - "[x] `extensions/b-flow/**` remains untouched and unwired; no dependency is added."
+  - "[x] Focused core and Buck-loop suites pass."
+completed_at: 2026-09-20
+completed_by: b-build-hard
 ---
 
 # Phase 2: Buck Machine Migration

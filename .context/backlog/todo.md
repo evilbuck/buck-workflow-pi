@@ -34,7 +34,7 @@ Strict HARD chain: Phase 1 → Phase 2 → Phase 3.
 
 ### Upcoming Phases
 
-- [ ] [Phase 2: Buck Machine Migration](items/phase-2-buck-machine-migration.md) — hard, `/b-build-hard` — [phase-2-buck-machine-migration.md](../2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md)
+- [x] [Phase 2: Buck Machine Migration](../backlog/archive/2026-09/phase-2-buck-machine-migration.md) — hard, `/b-build-hard` — done 2026-09-20 — [phase-2-buck-machine-migration.md](../2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md)
 - [ ] [Phase 3: Architecture Documentation and Proof](items/phase-3-architecture-documentation-and-proof.md) — medium, `/b-build` — [phase-3-architecture-documentation-and-proof.md](../2026-09-19.reusable-state-machine/phase-3-architecture-documentation-and-proof.md)
 ## buck-loop Extension Phases (2026-09-18)
 

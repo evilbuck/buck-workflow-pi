@@ -9,6 +9,9 @@ iterations:
 memory:
   - reusable-state-machine-phasing-2026-09-19.md
   - reusable-state-machine-phase-1-build-2026-09-20.md
+  - reusable-state-machine-phase-2-iterate-2026-09-20.md
+  - reusable-state-machine-phase-2-save-2026-09-20.md
+---
 
 # Plan: Extract a reusable pure state-machine evaluator
 

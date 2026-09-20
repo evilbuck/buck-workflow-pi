@@ -1,3 +1,5 @@
+- [x] [Phase 2: Buck machine migration](2026-09/phase-2-buck-machine-migration.md) — done 2026-09-20 — Buck definition over defineMachine; table.ts removed; complexity split; 89/89; guardrails pass. `.context/2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md`
+
 - [x] [Phase 1: Generic evaluator contract](2026-09/phase-1-generic-evaluator-contract.md) — done 2026-09-20 — pure synchronous evaluator; closed-choice isolation rejects shared memory; repeat review and durable guardrails passed. `.context/2026-09-19.reusable-state-machine/phase-1-generic-evaluator-contract.md`
 
 - [x] [Deterministic subject lifecycle and plan-scoped scan](2026-09/subject-work-state.md) — done 2026-09-19 — final review passed; lifecycle authority, complete caller cutover, Codex parity, policy audit, and guardrails verified. `.context/2026-09-19.subject-work-state/`

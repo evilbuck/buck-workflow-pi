@@ -1,3 +1,7 @@
+- 2026-09-20 — [Reusable state-machine Phase 2 save](reusable-state-machine-phase-2-save-2026-09-20.md) — `completed` (Buck adapter cutover; table.ts gone; iterate closed complexity; 89/89; lifecycle open for Phase 3)
+
+- 2026-09-20 — [Reusable state-machine Phase 2 iterate](reusable-state-machine-phase-2-iterate-2026-09-20.md) — `completed` (split reviewing/committing builders; complexity_gate pass; 89/89)
+
 - 2026-09-20 — [Reusable state-machine Phase 1 build](reusable-state-machine-phase-1-build-2026-09-20.md) — `completed` (generic evaluator contract passed repeat review; 15/15 focused tests; durable guardrails pass; Phase 2 remains pending)
 
 - 2026-09-19 — [fix-pr PR #44](fix-pr-44-2026-09-19.md) — `active` (loop 1: rebased onto master, review fixes at 65175a4, settlement review pending)
