@@ -99,6 +99,19 @@ Every gate carries an explicit enforcement state, resolved from `guardrails.json
 | `advisory` | Reported, never blocks. | `advisory` | 0 |
 | `disabled` | Not run at all. | `skipped` | 0 |
 
+**Runtime defaults** (`DEFAULT_ENFORCEMENT` in `skills/b-guardrails-check/scripts/check.mjs`) apply when `guardrails.json.enforcement` is absent:
+
+| Gate | Default |
+|---|---|
+| `unit_test_gate` | `required` |
+| `functional_test_gate` | `required` |
+| `lint_gate` | `advisory` |
+| `patch_gate` | `required` |
+| `global_ratchet` | `required` |
+| `complexity_gate` | `required` |
+
+These defaults are stricter than the brownfield init recommendation: omitting the `enforcement` block turns functional tests and patch coverage **on** as required gates. Record explicit `disabled`/`advisory` states when a brownfield repo is not ready for those gates.
+
 **Promotion is explicit and monotonic** (`disabled` → `advisory` → `required`). Promote an advisory gate to `required` only after the same runner command is green in a clean CI environment. Demotion (`required` → `advisory`/`disabled`) or weakening a baseline requires recorded approval in session memory — it is never a side effect of a refresh.
 
 Recommended initial states for a brownfield repo: `unit_test_gate` and `global_ratchet` `required`; absent functional/lint commands `disabled` (the `null` command skips them anyway); `lint_gate` `advisory` until `ratchet.baseline_lint_clean` is `true`; `complexity_gate` `required` (its measurement is already new/worsened-only); `patch_gate` `advisory` until the compare base and coverage artifact are reproducible in CI, then `required`.

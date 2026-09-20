@@ -18,8 +18,8 @@
  * - Exits 1 on a malformed guardrails.json with a clear error.
  */
 
-import { existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
+import { delimiter, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -114,7 +114,7 @@ function runCommand(argv, cwd) {
     ...process.env,
     PATH: [join(cwd, "node_modules", ".bin"), process.env.PATH || ""]
       .filter(Boolean)
-      .join(":"),
+      .join(delimiter),
   };
   const proc = spawnSync(argv[0], argv.slice(1), {
     cwd,
@@ -256,9 +256,16 @@ function runGitCapturing(args, cwd) {
 }
 
 function changedFiles(cwd, compareBranch, diagnostics) {
-  const merged = new Set();
-  for (const args of [
+  const compare = runGitCapturing(
     ["diff", "--name-only", "--diff-filter=ACMR", `${compareBranch}...HEAD`],
+    cwd,
+  );
+  if (compare === null) {
+    diagnostics.push(`git diff ${compareBranch}...HEAD failed — changed-file set unavailable`);
+    return null;
+  }
+  const merged = new Set(compare);
+  for (const args of [
     ["diff", "--name-only", "--diff-filter=ACMR", "HEAD"],
     ["ls-files", "--others", "--exclude-standard"],
   ]) {
@@ -372,7 +379,8 @@ function runTestSuites(ctx) {
       if (!cmd) continue;
       const proc = ctx.run(parseArgv(cmd));
       if (proc.missing) {
-        ctx.diagnostics.push(`${suite.key} gate: tool not found for "${cmd}" — skipped`);
+        ctx.diagnostics.push(`${suite.key} gate: tool not found for "${cmd}" — unavailable`);
+        if (measurement !== "pass") measurement = "fail";
         continue;
       }
       exitCode = proc.code;
@@ -389,8 +397,10 @@ function runTestSuites(ctx) {
 }
 
 function lintDiffScoped(ctx, eco) {
+  const listed = changedFiles(ctx.dir, ctx.contract.git_compare_branch, ctx.diagnostics);
+  if (listed === null) return { mode: "diff-scoped", files: 0, proc: null, unavailable: true };
   const exts = extensionsFor(eco);
-  const files = changedFiles(ctx.dir, ctx.contract.git_compare_branch, ctx.diagnostics).filter(
+  const files = listed.filter(
     (f) => exts.length === 0 || exts.some((ext) => f.endsWith(ext)),
   );
   if (files.length === 0) return { mode: "diff-scoped", files: 0, proc: null };
@@ -418,6 +428,10 @@ function lintOnce(ctx, eco) {
 }
 
 function lintOutcome(ctx, eco, result) {
+  if (result.unavailable) {
+    ctx.diagnostics.push("lint gate: changed-file set unavailable");
+    return { measurement: "fail", exitCode: null, failed: true };
+  }
   if (!result.proc) return { measurement: "skipped", exitCode: null, failed: false };
   if (result.proc.missing) {
     ctx.diagnostics.push(`lint gate: tool not found for "${eco.lint_cmd}" — skipped`);
@@ -455,6 +469,8 @@ function runLintGate(ctx) {
 }
 
 function runCoverageTool(ctx) {
+  let failed = false;
+  const candidate = join(ctx.dir, "coverage", "lcov.info");
   for (const eco of ctx.contract.ecosystems) {
     if (!eco.coverage_tool) continue;
     if ((eco.coverage_format || "lcov") !== "lcov") {
@@ -463,19 +479,23 @@ function runCoverageTool(ctx) {
       );
       continue;
     }
+    if (existsSync(candidate)) unlinkSync(candidate);
     const proc = ctx.run(parseArgv(eco.coverage_tool));
     if (proc.missing) {
-      ctx.diagnostics.push(`coverage gate: tool not found for "${eco.coverage_tool}" — skipped`);
+      ctx.diagnostics.push(`coverage gate: tool not found for "${eco.coverage_tool}" — unavailable`);
+      failed = true;
       continue;
     }
     if (proc.code !== 0) {
       ctx.diagnostics.push(`coverage command failed (exit ${proc.code})`);
+      failed = true;
       continue;
     }
-    const candidate = join(ctx.dir, "coverage", "lcov.info");
-    if (existsSync(candidate)) return candidate;
+    if (existsSync(candidate)) return { lcovPath: candidate, failed: false };
+    ctx.diagnostics.push("coverage gate: coverage/lcov.info missing after a successful coverage command — unavailable");
+    failed = true;
   }
-  return null;
+  return { lcovPath: null, failed };
 }
 /** Parse diff-cover's "Total coverage: N%" line without a regex. */
 function extractPatchPercent(output) {
@@ -486,6 +506,10 @@ function extractPatchPercent(output) {
 }
 
 function runPatchGate(ctx, lcovPath) {
+  if (ctx.coverageFailed) {
+    ctx.verdict.coverage.patch_gate = applyEnforcement("fail", ctx.enforcement.patch_gate);
+    return;
+  }
   if (!lcovPath) {
     ctx.diagnostics.push("patch gate: no coverage artifact — skipped");
     return;
@@ -502,6 +526,7 @@ function runPatchGate(ctx, lcovPath) {
   ]);
   if (proc.missing) {
     ctx.diagnostics.push("patch gate: diff-cover not found on PATH — skipped");
+    ctx.verdict.coverage.patch_gate = applyEnforcement("fail", ctx.enforcement.patch_gate);
     return;
   }
   const pct = extractPatchPercent(proc.output);
@@ -513,6 +538,10 @@ function runPatchGate(ctx, lcovPath) {
 }
 
 function runGlobalRatchet(ctx) {
+  if (ctx.coverageFailed) {
+    ctx.verdict.gates.global_ratchet = applyEnforcement("fail", ctx.enforcement.global_ratchet);
+    return;
+  }
   const current = ctx.verdict.coverage.current;
   const baseline = ctx.contract.ratchet?.baseline_coverage;
   if (current === null || current === undefined || baseline === null || baseline === undefined) {
@@ -603,6 +632,7 @@ export async function runCheck({ cwd = process.cwd() } = {}) {
     max: contract.targets?.cyclomatic_max ?? 10,
     hardCeiling: contract.targets?.cyclomatic_hard_ceiling ?? 15,
     run: (argv) => runCommand(argv, dir),
+    coverageFailed: false,
   };
 
   if (contract.version === 1) {
@@ -614,9 +644,10 @@ export async function runCheck({ cwd = process.cwd() } = {}) {
 
   const needsCoverage =
     enforcement.global_ratchet !== "disabled" || enforcement.patch_gate !== "disabled";
-  const lcovPath = needsCoverage ? runCoverageTool(ctx) : null;
-  if (lcovPath) verdict.coverage.current = parseLcov(readFileSync(lcovPath, "utf8"));
-  if (enforcement.patch_gate !== "disabled") runPatchGate(ctx, lcovPath);
+  const coverage = needsCoverage ? runCoverageTool(ctx) : { lcovPath: null, failed: false };
+  ctx.coverageFailed = coverage.failed;
+  if (coverage.lcovPath) verdict.coverage.current = parseLcov(readFileSync(coverage.lcovPath, "utf8"));
+  if (enforcement.patch_gate !== "disabled") runPatchGate(ctx, coverage.lcovPath);
   if (enforcement.global_ratchet !== "disabled") runGlobalRatchet(ctx);
   if (enforcement.complexity_gate !== "disabled") runComplexityGate(ctx);
 

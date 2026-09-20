@@ -9,5 +9,5 @@ $ARGUMENTS
 Load and follow the `b-pr-review-2-issues` skill:
 
 ```
-skills/b-pr-review-2-issues/SKILL.md
+../skills/b-pr-review-2-issues/SKILL.md
 ```

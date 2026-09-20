@@ -9,5 +9,5 @@ $ARGUMENTS
 Load and follow the `git-clean-orphans` skill:
 
 ```
-skills/git-clean-orphans/SKILL.md
+../skills/git-clean-orphans/SKILL.md
 ```

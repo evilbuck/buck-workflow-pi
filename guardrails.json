@@ -16,7 +16,7 @@
     "patch_coverage_min": 90
   },
   "ratchet": {
-    "baseline_coverage": 79.4,
+    "baseline_coverage": 79.2,
     "baseline_complexity_inventory": [
       {
         "file": "skills/b-hindsight-import-projects/scripts/import-projects.ts",

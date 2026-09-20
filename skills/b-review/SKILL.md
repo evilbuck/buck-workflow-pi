@@ -78,6 +78,8 @@ context so style findings cannot pollute the acceptance-contract reasoning.
 The spec axis stays in the mainline agent with the plan/spec/phase as its
 contract.
 
+Wait for the standards result before writing the report or verdict. If no result returns, mark the review incomplete and omit a standards-axis result rather than inventing one.
+
 ### No-reranking rule
 
 Report the worst finding **per axis**. Never merge the two axes into a single

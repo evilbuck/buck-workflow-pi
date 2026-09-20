@@ -785,7 +785,8 @@ export function runInstall(args, home, source) {
  */
 export function runHooks(args, source = REPO_ROOT) {
   const repo = args.repo ? resolve(args.repo) : process.cwd();
-  if (args.hooksAction === "install") return logHooksInstall(args, repo, source);
+  const hookSource = args.source ? resolve(args.source) : source;
+  if (args.hooksAction === "install") return logHooksInstall(args, repo, hookSource);
   if (args.hooksAction === "remove") return logHooksRemove(args, repo);
   if (args.hooksAction === "status") return logHooksStatus(repo);
   console.error(`hooks: unknown action "${args.hooksAction}" — expected install, status, or remove`);
@@ -793,12 +794,24 @@ export function runHooks(args, source = REPO_ROOT) {
 }
 
 function logHooksInstall(args, repo, source) {
-  const result = hooksInstall({ repo, source, profile: args.profile, dryRun: args.dryRun });
+  if (args.profile !== "full" && args.profile !== "fast") {
+    console.error(`hooks: invalid profile "${args.profile}"`);
+    return 1;
+  }
+  const result = hooksInstall({
+    repo,
+    source,
+    profile: args.profile,
+    dryRun: args.dryRun,
+  });
   if (!result.ok) {
     console.error(`hooks install: ${result.reason}`);
     return 1;
   }
-  console.log(`hooks install: ${result.action} ${result.target} (profile: ${result.profile})`);
+  const prefix = args.dryRun ? "[DRY RUN] " : "";
+  console.log(
+    `${prefix}hooks install: ${result.action} ${result.target} (profile: ${args.profile})`,
+  );
   return 0;
 }
 

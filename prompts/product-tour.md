@@ -9,7 +9,7 @@ $ARGUMENTS
 Load and follow the `product-tour` skill:
 
 ```
-skills/product-tour/SKILL.md
+../skills/product-tour/SKILL.md
 ```
 
 **Start in interview mode.** Question the user (one at a time) about intent,
