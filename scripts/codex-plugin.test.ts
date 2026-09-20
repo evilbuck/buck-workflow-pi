@@ -41,6 +41,7 @@ const curatedBundle = {
     "b-review",
     "b-save",
     "code-review-universal",
+    "codebase-design",
     "crawl4ai",
     "design-brief",
     "fix-pr",
@@ -62,6 +63,9 @@ function listTree(root: string): string[] {
   const walk = (dir: string, prefix: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isSymbolicLink()) {
+        throw new Error(`symlink not allowed in curated bundle: ${rel}`);
+      }
       if (entry.isDirectory()) walk(join(dir, entry.name), rel);
       else if (entry.isFile()) out.push(rel);
     }

@@ -52,9 +52,9 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-wizard` | Prompt template | Slash command symlink | `prompts/b-wizard.md`; `commands/b-wizard.md`; `skills/b-wizard/SKILL.md` + `template.sh` |
 | `/b-init-tracker` | Prompt template | Slash command symlink | `prompts/b-init-tracker.md`; `commands/b-init-tracker.md`; `skills/b-init-tracker/SKILL.md` |
 | `/b-triage` | Prompt template | Slash command symlink | `prompts/b-triage.md`; `commands/b-triage.md`; `skills/b-triage/SKILL.md` |
-| `/b-pr` | Prompt template + Skill | Slash command | `prompts/b-pr.md`; `commands/b-pr.md` (thin loader real file); `skills/b-pr/SKILL.md` |
+| `/b-pr` | Prompt template + Skill | Slash command | `prompts/b-pr.md`; `commands/b-pr.md` (symlink); `skills/b-pr/SKILL.md` |
 | `/b-pr-improved` | Extension command | Slash command (real file) | `commands/b-pr-improved.md`; `extensions/b-pr-improved/`; falls back to `skills/b-pr/` |
-| `/b-pr-review-2-issues` | Prompt template + Skill | Slash command | `prompts/b-pr-review-2-issues.md`; `commands/b-pr-review-2-issues.md` (thin loader real file); `skills/b-pr-review-2-issues/SKILL.md` |
+| `/b-pr-review-2-issues` | Prompt template + Skill | Slash command | `prompts/b-pr-review-2-issues.md`; `commands/b-pr-review-2-issues.md` (symlink); `skills/b-pr-review-2-issues/SKILL.md` |
 | `/b-eval-upstream-prs` | Prompt template + Skill | Slash command symlink | `prompts/b-eval-upstream-prs.md`; `commands/b-eval-upstream-prs.md`; `skills/b-eval-upstream-prs/SKILL.md` |
 | `b-issue-create` (skill-only) | Skill | Skill | `skills/b-issue-create/SKILL.md` — no `prompts/`/`commands/` wrapper |
 | `b-auto-fix` (skill-only) | Skill | Skill | `skills/b-auto-fix/SKILL.md` — consumes `ready-for-agent` issues from `b-triage` |
@@ -770,7 +770,7 @@ informs: []  # Plans/specs this research fed into
 - Writes `guardrails.json` v2 with patch gate, global ratchet, base lint mode, per-ecosystem lint/functional/test commands, and an explicit `enforcement` block (`required` / `advisory` / `disabled` per gate — see `skills/b-init-guardrails/docs/ratchet-protocol.md` § Enforcement States; promotion is monotonic, demotion needs recorded approval).
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
 
-**Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.mjs`, exposed as `npm run guardrails:check` and run in the PR CI `guardrails` job. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction, and it exits nonzero only when a **required** gate fails.
+**Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.mjs`, exposed as `npm run guardrails:check` and run in the PR CI `guardrails` job. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction. Exit 1 for a required-gate failure or a malformed contract; exit 2 when `guardrails.json` is missing.
 
 **Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes. Each phase's contract is the blocking v2 completion gate (see `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
 
@@ -1357,7 +1357,7 @@ Suggested next step
 
 **Purpose**: Ingest all comments from a GitHub PR (URL or number), classify them (actionable / question / nit / duplicate / context_skip), group by semantic theme with user approval, and produce a buck-workflow **plan artifact** (single or phased) in `.context/`.
 
-**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr-review-2-issues.md`, `commands/b-pr-review-2-issues.md` — thin loader real file, `skills/b-pr-review-2-issues/SKILL.md`).
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr-review-2-issues.md`, `commands/b-pr-review-2-issues.md` symlink, `skills/b-pr-review-2-issues/SKILL.md`).
 
 **Key rule**: **stops at the plan** — it never creates GitHub issues (despite the historical name) and is read-only on source code. For acting on comments, use `/skill:fix-pr`.
 
@@ -1712,7 +1712,7 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **Purpose**: Create a GitHub pull request from the current feature branch, with a two-part description — human-scannable impact summary plus agent-actionable technical detail.
 
-**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr.md`, `commands/b-pr.md` — thin loader real file, `skills/b-pr/SKILL.md` + `scripts/pr-preflight.ts`).
+**Pi/OMP primitive**: Prompt command + skill (`prompts/b-pr.md`, `commands/b-pr.md` symlink, `skills/b-pr/SKILL.md` + `scripts/pr-preflight.ts`).
 
 **Behavior**:
 1. Runs the preflight script to detect base-branch candidates and asks which to target
@@ -1751,7 +1751,7 @@ Four slash commands are backed by **code, not prompt-following**. Each is wired 
 
 **Purpose**: Inventory and remove stale local git artifacts — merged worktrees, worktrees whose remote is gone, and local branches whose remote is gone (merged or not). Surfaces unmerged tips and reflog for user decision before any destructive action.
 
-**Pi/OMP primitive**: Skill + OMP-only command (`commands/git-clean-orphans.md` real file; `skills/git-clean-orphans/SKILL.md`). No `prompts/` entry, so Pi exposes it via `/skill:git-clean-orphans` only.
+**Pi/OMP primitive**: Prompt command + skill (`prompts/git-clean-orphans.md`, `commands/git-clean-orphans.md` symlink, `skills/git-clean-orphans/SKILL.md`).
 
 **Behavior**: read-only by default; destructive steps are gated on explicit user confirmation.
 
@@ -1763,7 +1763,7 @@ Four slash commands are backed by **code, not prompt-following**. Each is wired 
 
 **Purpose**: Design and ship a first-run guided product tour over real UI — onboarding tours, walkthroughs, spotlight tips, demo-event guided flows. Stack-agnostic.
 
-**Pi/OMP primitive**: Skill + OMP-only command (`commands/product-tour.md` real file; `skills/product-tour/SKILL.md`). No `prompts/` entry, so Pi exposes it via `/skill:product-tour` only.
+**Pi/OMP primitive**: Prompt command + skill (`prompts/product-tour.md`, `commands/product-tour.md` symlink, `skills/product-tour/SKILL.md`).
 
 **Use when**: adding onboarding tours or teaching the user a flow ("tour", "walkthrough", "guided onboarding").
 
@@ -1942,9 +1942,9 @@ Pick `fast` consciously: it trades history coverage for push latency.
 
 **Exit behavior:** the launcher `exec`s the audit and propagates its exits
 unchanged — `0` clean (push proceeds), `1` findings detected (push blocked),
-`2` usage error (push blocked; fix the invocation). Verified by smoke-push to
-a local bare remote: a clean push succeeds, a seeded AWS-key finding blocks
-with exit 1, and `hooks remove` restores the prior push behavior exactly.
+`2` usage error (push blocked; fix the invocation). Verified by executing the
+installed launcher with `bash <hook>`: a clean tree exits 0, a seeded AWS-key
+finding exits 1.
 
 **Calibration note:** repositories with pre-existing pattern matches (test
 fixtures, documentation examples) will fail every push until a

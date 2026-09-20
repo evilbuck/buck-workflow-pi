@@ -56,7 +56,7 @@ describe("prompts ↔ commands symlink mirror", () => {
   it("commands/ contains no undeclared extras beyond the prompt set", () => {
     const prompts: Record<string, true> = {};
     for (const name of mdNames(promptsDir)) prompts[name] = true;
-    const extras = mdNames(commandsDir).filter((name) => !prompts[name]);
+    const extras = readdirSync(commandsDir).filter((name) => !prompts[name]);
     expect(extras).toEqual([]);
   });
 });

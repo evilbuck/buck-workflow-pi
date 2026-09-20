@@ -15,10 +15,25 @@ function directSkillDirs(): string[] {
 }
 
 
+function decodeYamlScalar(raw: string): string {
+  const t = raw.trim();
+  if (t === "" || t === "~" || t === "null") return "";
+  if (
+    (t.startsWith('"') && t.endsWith('"') && t.length >= 2) ||
+    (t.startsWith("'") && t.endsWith("'") && t.length >= 2)
+  ) {
+    return t.slice(1, -1);
+  }
+  return t;
+}
+
 function extractName(body: string[]): string | null {
   for (const line of body) {
-    const match = line.match(/^name:\s*(.+)$/);
-    if (match) return match[1].trim();
+    const match = line.match(/^name:\s*(.*)$/);
+    if (match) {
+      const value = decodeYamlScalar(match[1]);
+      return value.trim() === "" ? null : value;
+    }
   }
   return null;
 }
@@ -28,7 +43,10 @@ function extractDescription(body: string[]): string | null {
     const match = body[i].match(/^description:\s*(.*)$/);
     if (!match) continue;
     const inline = match[1].trim();
-    if (inline && !/^[|>][+-]?$/.test(inline)) return inline;
+    if (inline && !/^[|>][+-]?$/.test(inline)) {
+      const value = decodeYamlScalar(inline);
+      return value.trim() === "" ? null : value;
+    }
     if (!/^[|>][+-]?$/.test(inline)) continue;
     return blockScalar(body, i);
   }
@@ -45,10 +63,9 @@ function blockScalar(body: string[], start: number): string {
 }
 
 /**
- * Minimal frontmatter extraction: opening `---`, closing `---`, a single-line
- * `name:`, and a `description:` that is either inline or a YAML block scalar
- * (`>`, `|-`, `>-`, `|`). Good enough for the catalog invariant; not a YAML
- * parser.
+ * Frontmatter extraction: opening `---`, closing `---`, a `name:` scalar,
+ * and a `description:` that is either an inline YAML scalar or a block
+ * scalar (`>`, `|-`, `>-`, `|`). Quoted empty strings are rejected.
  */
 function parseFrontmatter(text: string): {
   name: string | null;
@@ -90,6 +107,17 @@ describe("direct root-skill catalog", () => {
       const { name, description } = parseFrontmatter(text);
       if (!name || !description) offenders.push(`${dir} (name=${name ?? "∅"})`);
       else if (name !== dir) offenders.push(`${dir} (name=${name})`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("every direct skill name equals its directory", () => {
+    const offenders: string[] = [];
+    for (const dir of directSkillDirs()) {
+      const { name } = parseFrontmatter(
+        readFileSync(join(skillsRoot, dir, "SKILL.md"), "utf8"),
+      );
+      if (name !== dir) offenders.push(`${dir} (name=${name ?? "∅"})`);
     }
     expect(offenders).toEqual([]);
   });
