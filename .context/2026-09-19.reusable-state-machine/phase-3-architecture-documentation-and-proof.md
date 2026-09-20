@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-reusable-state-machine.md
@@ -16,15 +16,15 @@ from_plan_steps: [7, 8]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] ADR 0002 records the internal pure evaluator seam without reversing the rejection of XState or a generic async orchestration runtime."
-  - "[ ] Extension documentation describes a Buck definition over a pure evaluator rather than a reusable Buck transition table."
-  - "[ ] Focused core/migration tests and the full Buck-loop suite pass."
-  - "[ ] `npm run guardrails:check` returns a passing durable-contract verdict."
-  - "[ ] LSP and repository search show no caller, alias, re-export, or dead comment for the deleted legacy table interface."
-  - "[ ] A throwaway non-Buck import smoke exercises automatic, choice, stale-choice rejection, and external-event paths; the script is deleted after the run."
-  - "[ ] The final diff preserves current chooser, loop, hook, and guardrail behavior, leaves `extensions/b-flow/**` untouched, and adds no dependency."
-completed_at: null
-completed_by: null
+  - "[x] ADR 0002 records the internal pure evaluator seam without reversing the rejection of XState or a generic async orchestration runtime."
+  - "[x] Extension documentation describes a Buck definition over a pure evaluator rather than a reusable Buck transition table."
+  - "[x] Focused core/migration tests and the full Buck-loop suite pass."
+  - "[x] `npm run guardrails:check` returns a passing durable-contract verdict."
+  - "[x] LSP and repository search show no caller, alias, re-export, or dead comment for the deleted legacy table interface."
+  - "[x] A throwaway non-Buck import smoke exercises automatic, choice, stale-choice rejection, and external-event paths; the script is deleted after the run."
+  - "[x] The final diff preserves current chooser, loop, hook, and guardrail behavior, leaves `extensions/b-flow/**` untouched, and adds no dependency."
+completed_at: 2026-09-20
+completed_by: b-build
 ---
 
 # Phase 3: Architecture Documentation and Proof

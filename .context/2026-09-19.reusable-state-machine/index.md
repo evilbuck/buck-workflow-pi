@@ -1,10 +1,10 @@
 ---
-status: active
+status: completed
 date: 2026-09-19
 subject: 2026-09-19.reusable-state-machine
 lifecycle_schema: 1
-lifecycle_revision: 1
-lifecycle_last_transition: activate
+lifecycle_revision: 2
+lifecycle_last_transition: close-verified
 ---
 
 # Reusable state-machine evaluator

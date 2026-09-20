@@ -164,7 +164,7 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner with a pure table, nested isolated sessions, and artifact postconditions. It does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The

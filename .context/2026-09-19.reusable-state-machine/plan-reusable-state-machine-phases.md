@@ -1,11 +1,13 @@
 ---
-status: active
+status: completed
 date: 2026-09-19
 subject: 2026-09-19.reusable-state-machine
 topics: [phasing, state-machine, extensions, buck-loop, architecture, refactor]
 source_plan: plan-reusable-state-machine.md
 phases: 3
 format: discrete
+memory:
+  - reusable-state-machine-phase-3-build-2026-09-20.md
 ---
 
 # Phased Plan: Reusable Pure State-Machine Evaluator
@@ -26,7 +28,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Generic Evaluator Contract | completed | medium | none | [phase-1-generic-evaluator-contract.md](phase-1-generic-evaluator-contract.md) |
 | 2: Buck Machine Migration | completed | hard | none | [phase-2-buck-machine-migration.md](phase-2-buck-machine-migration.md) |
-| 3: Architecture Documentation and Proof | pending | medium | none | [phase-3-architecture-documentation-and-proof.md](phase-3-architecture-documentation-and-proof.md) |
+| 3: Architecture Documentation and Proof | completed | medium | none | [phase-3-architecture-documentation-and-proof.md](phase-3-architecture-documentation-and-proof.md) |
 
 ## Dependency Matrix
 
@@ -86,7 +88,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Generic Evaluator Contract — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Buck Machine Migration — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Architecture Documentation and Proof — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Architecture Documentation and Proof — build → review → save completed; commit next
 
 ## Notes
 

@@ -1,17 +1,17 @@
 ---
 title: Extract reusable pure state-machine evaluator
-status: active
+status: completed
 priority: medium
 created: 2026-09-19
-updated: 2026-09-19
-completed: null
+updated: 2026-09-20
+completed: 2026-09-20
 related:
   - .context/2026-09-19.reusable-state-machine/plan-reusable-state-machine.md
   - .context/2026-09-19.reusable-state-machine/plan-reusable-state-machine-phases.md
   - .context/2026-09-19.reusable-state-machine/phase-1-generic-evaluator-contract.md
   - .context/2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md
   - .context/2026-09-19.reusable-state-machine/phase-3-architecture-documentation-and-proof.md
-  - extensions/buck-loop/table.ts
+  - extensions/state-machine.ts
   - extensions/buck-loop/types.ts
   - extensions/buck-loop/loop.ts
 ---
@@ -34,4 +34,5 @@ Create a domain-neutral, synchronous evaluator for flat automatic, closed-choice
 2. Buck machine migration — hard, `/b-build-hard`
 3. Architecture documentation and proof — medium, `/b-build`
 
-Pickup: `.context/2026-09-19.reusable-state-machine/plan-reusable-state-machine-phases.md`.
+Done 2026-09-20: generic evaluator extracted, Buck migrated without behavior drift, legacy table removed, architecture documented, independent smoke passed, and durable guardrails remained green.
+

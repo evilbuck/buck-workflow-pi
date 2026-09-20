@@ -26,16 +26,6 @@
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
 - [x] [Fix 3 live defects from the mattpocock/skills audit](items/mattpocock-audit-defects.md) — high; done 2026-09-10 as **Phase 1** → [`phase-1-live-defects.md`](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md)
 
-## Reusable State-Machine Phases (2026-09-19)
-
-Overview: [`plan-reusable-state-machine-phases.md`](../2026-09-19.reusable-state-machine/plan-reusable-state-machine-phases.md).
-Umbrella: [Extract reusable pure state-machine evaluator](items/reusable-state-machine-core.md).
-Strict HARD chain: Phase 1 → Phase 2 → Phase 3.
-
-### Upcoming Phases
-
-- [x] [Phase 2: Buck Machine Migration](../backlog/archive/2026-09/phase-2-buck-machine-migration.md) — hard, `/b-build-hard` — done 2026-09-20 — [phase-2-buck-machine-migration.md](../2026-09-19.reusable-state-machine/phase-2-buck-machine-migration.md)
-- [ ] [Phase 3: Architecture Documentation and Proof](items/phase-3-architecture-documentation-and-proof.md) — medium, `/b-build` — [phase-3-architecture-documentation-and-proof.md](../2026-09-19.reusable-state-machine/phase-3-architecture-documentation-and-proof.md)
 ## buck-loop Extension Phases (2026-09-18)
 
 Overview: [`plan-buck-loop-extension-phases.md`](../2026-09-18.buck-loop-extension/plan-buck-loop-extension-phases.md).
