@@ -345,7 +345,6 @@ is a blocker rather than permission to force-push.
 
 ### Phase 5b — Issues-only handoff
 
-
 This path runs only under `--issues-only`. For each valid item or tight
 root-cause group:
 

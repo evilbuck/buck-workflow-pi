@@ -379,7 +379,8 @@ function runTestSuites(ctx) {
       if (!cmd) continue;
       const proc = ctx.run(parseArgv(cmd));
       if (proc.missing) {
-        ctx.diagnostics.push(`${suite.key} gate: tool not found for "${cmd}" — skipped`);
+        ctx.diagnostics.push(`${suite.key} gate: tool not found for "${cmd}" — unavailable`);
+        if (measurement !== "pass") measurement = "fail";
         continue;
       }
       exitCode = proc.code;
