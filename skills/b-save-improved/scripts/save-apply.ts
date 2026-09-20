@@ -6,10 +6,15 @@ import {
 import {
   readFrontmatter, setFrontmatterFields, appendFrontmatterListItem, planMemoryRefStyle, extractTitle,
 } from "../../_shared/scripts/context-helpers.js";
+import {
+  applySubjectLifecycleIntent,
+  inspectSubjectLifecycle,
+  type SubjectLifecycleResult,
+} from "../../_shared/scripts/subject-lifecycle.js";
 declare const Bun: { stdin: { text(): Promise<string> } };
 
 type Applied = { path: string; action: "created" | "updated" | "moved" | "skipped"; reason: string };
-type Report = { applied: Applied[]; staged_inferred: unknown[]; errors: string[]; error?: string };
+type Report = { applied: Applied[]; staged_inferred: unknown[]; errors: string[]; error?: string; lifecycle?: SubjectLifecycleResult };
 type AnyRecord = Record<string, any>;
 
 const dryRun = process.argv.includes("--dry-run");
@@ -350,7 +355,6 @@ function subjectIndexSections(payload: AnyRecord, memoryFile: string, existing: 
 function createSubjectIndexText(fields: AnyRecord, payload: AnyRecord, memoryFile: string): string {
   const text = [
     "---",
-    `status: ${yamlScalar(fields.status)}`,
     `date: ${yamlScalar(fields.date)}`,
     `subject: ${yamlScalar(fields.subject)}`,
     `topics: ${inline(fields.topics)}`,
@@ -366,7 +370,6 @@ function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
   const path = join(payload.subject.path, "index.md");
   const memoryFile = basename(payload.memory.path);
   const fields = {
-    status: payload.subject_index_status ?? "completed",
     date: payload.today,
     subject: payload.subject.name,
     topics: union(fm.topics),
@@ -379,7 +382,6 @@ function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
   const old = readFileSync(containedContextPath(path), "utf8");
   const parsed = readFrontmatter(old);
   const merged = setFrontmatterFields(old, {
-    status: fields.status,
     date: fields.date,
     subject: fields.subject,
     topics: union(parsed.data.topics, fields.topics),
@@ -419,6 +421,31 @@ function applyLoose(payload: AnyRecord): void {
   }
 }
 
+function applyLifecycle(payload: AnyRecord): void {
+  if (dryRun) return;
+  const subjectDir = containedContextPath(payload.subject.path);
+  let inspection = inspectSubjectLifecycle(subjectDir);
+  if (inspection.state === "missing") {
+    const initialized = applySubjectLifecycleIntent({ kind: "initialize", subjectDir });
+    if (!initialized.ok) {
+      report.lifecycle = initialized;
+      return;
+    }
+    inspection = inspectSubjectLifecycle(subjectDir);
+  }
+  const hasPlanWork = readdirSync(subjectDir, { withFileTypes: true }).some(
+    (entry) => entry.isFile() && /^plan-.*\.md$/.test(entry.name),
+  );
+  if (inspection.state === "draft" && hasPlanWork) {
+    const activated = applySubjectLifecycleIntent({ kind: "activate", subjectDir });
+    if (!activated.ok) {
+      report.lifecycle = activated;
+      return;
+    }
+  }
+  report.lifecycle = applySubjectLifecycleIntent({ kind: "close-verified", subjectDir });
+}
+
 function validateBacklog(payload: AnyRecord): void {
   const items = [...payload.backlog.new_items, ...payload.backlog.complete_explicit, ...payload.backlog.complete_inferred];
   for (const item of items) {
@@ -435,6 +462,9 @@ function validateCrossrefs(payload: AnyRecord): void {
 }
 
 function validateSpecPlans(payload: AnyRecord): void {
+  if (Object.prototype.hasOwnProperty.call(payload, "subject_index_status")) {
+    throw new Error("subject_index_status is not supported; lifecycle is computed");
+  }
   for (const ref of payload.spec_plans) {
     if (!ref || typeof ref.spec !== "string" || typeof ref.plan !== "string") throw new Error("spec_plans entries need spec and plan strings");
     containedContextPath(subjectFile(payload, ref.spec));
@@ -475,6 +505,7 @@ function applyAll(payload: AnyRecord): void {
   applyBacklog(payload);
   applyStatuses(payload);
   applyLoose(payload);
+  applyLifecycle(payload);
 }
 
 function ensureArray(target: AnyRecord, key: string): void {
@@ -508,6 +539,7 @@ export function runApply(payload: AnyRecord): number {
   report.staged_inferred = [];
   report.errors = [];
   delete report.error;
+  delete report.lifecycle;
   const invalid = required(payload);
   if (invalid) return failSchema(invalid);
   defaults(payload);

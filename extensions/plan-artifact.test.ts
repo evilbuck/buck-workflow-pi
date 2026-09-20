@@ -184,6 +184,8 @@ describe("wire (integration)", () => {
     expect(written).toContain("# Plan: Widget");
     const indexContent = readFileSync(indexPath, "utf8");
     expect(indexContent).toContain("status: active");
+    expect(indexContent).toContain("lifecycle_schema: 1");
+    expect(indexContent).toContain("lifecycle_last_transition: activate");
     expect(indexContent).toContain("[plan-widget.md](plan-widget.md)");
     expect(pi.appendEntry).toHaveBeenCalledTimes(1);
     expect(pi.appendEntry).toHaveBeenCalledWith("plan-artifact", expect.objectContaining({ exitId: "e2" }));
@@ -193,6 +195,31 @@ describe("wire (integration)", () => {
     entries.push(markerEntry("e2") as unknown as never);
     await fireTurnEnd(handlers, ctx);
     expect(pi.appendEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it("never writes a new plan into a completed same-day subject", async () => {
+    const { pi, handlers, ctx, cwd } = setupSession("widget-plan.md");
+    const date = new Date().toISOString().slice(0, 10);
+    const completedDir = join(cwd, ".context", `${date}.widget`);
+    mkdirSync(completedDir, { recursive: true });
+    writeFileSync(
+      join(completedDir, "index.md"),
+      "---\nstatus: completed\nlifecycle_schema: 1\nlifecycle_revision: 2\nlifecycle_last_transition: close-verified\n---\n\n# Finished\n",
+    );
+    ctx.sessionManager.getEntries = vi.fn(() => [
+      modeChange("e1", "plan", { planFilePath: "local://widget-plan.md" }),
+      modeChange("e2", "none"),
+    ] as unknown[]);
+
+    await fireTurnEnd(handlers, ctx);
+
+    expect(existsSync(join(completedDir, "plan-widget.md"))).toBe(false);
+    const freshDir = join(cwd, ".context", `${date}.widget-2`);
+    expect(existsSync(join(freshDir, "plan-widget.md"))).toBe(true);
+    expect(pi.appendEntry).toHaveBeenCalledWith(
+      "plan-artifact",
+      expect.objectContaining({ subject: `${date}.widget-2` }),
+    );
   });
 
   it("respects BUCK_PLAN_ARTIFACT=0 overriding enabled settings", async () => {

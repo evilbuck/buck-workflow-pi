@@ -380,7 +380,7 @@ Documentation impact (conventions, decisions, language) is also **never** writte
 
 **Subject folder resolution:**
 1. Use the **active subject folder** if one was resolved during scope resolution
-2. If **no subject folder exists**, create one: `.context/YYYY-MM-DD.<subject>/`
+2. If **no subject folder exists**, create `.context/YYYY-MM-DD.<subject>/` and invoke lifecycle `initialize` then `activate`.
 3. Write the artifact inside: `.context/YYYY-MM-DD.<subject>/iterate-<subject>.md`
 
 ```

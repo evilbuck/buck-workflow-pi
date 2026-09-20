@@ -22,7 +22,7 @@ This skill is an **auxiliary companion to `/b-plan`** — it never creates a new
 
 Follow the shared protocol at `skills/_shared/subject-resolution.md` verbatim. If the protocol resolves a subject, use it for all downstream artifact discovery. If the protocol finds no subject, work from the user's inline description.
 
-After subject resolution, read the subject's `index.md` and verify its `status:` field. This skill operates on plans belonging to subjects whose status is `active` or `draft`.
+After subject resolution, inspect it with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. This skill operates on plans whose effective lifecycle is `active` or `draft`.
 
 ## Plan Target Selection
 
@@ -40,8 +40,8 @@ No plan to update in this subject. Run `/b-plan` to create one.
 
 **Status guard:**
 
-- If `index.md` `status:` is `active` or `draft` → proceed.
-- If `index.md` `status:` is `completed` → STOP and ask. Only on explicit user confirmation, set `index.md` back to `status: active` and record the reopen in the revision log under `## Revision Log` with an `Added:` entry noting "subject reopened for update".
+- If inspected `effectiveState` is `active` or `draft` → proceed.
+- If it is `completed` → STOP and ask. Only on explicit user confirmation, run `bun skills/_shared/scripts/subject-lifecycle.ts reopen --subject <folder> --reason "<reason>" --json`, then record the reopen in the plan revision log under `## Revision Log`.
 
 ## Input Intake
 
@@ -69,7 +69,7 @@ This is the core procedure. Follow in order:
 ### 1. Read fully before editing
 
 - Read the target plan end-to-end (no partial reads — section boundaries matter).
-- Read the subject `index.md` frontmatter (status, subject name).
+- Reuse the lifecycle inspection result for subject state. Read the subject `index.md` frontmatter only for non-lifecycle metadata such as the subject name; never interpret `status` or canonical `lifecycle_*` fields directly.
 - Read any artifact listed under `research:` in the plan's frontmatter that the user has just superseded or amended.
 
 ### 2. Build the change set
@@ -123,7 +123,7 @@ Complete this pass in the same update — never leave dangling references to rem
 ### 5. Frontmatter updates
 
 - Set `updated: YYYY-MM-DD` (today).
-- Keep original `date` and `status` (unless the status guard in Plan Target Selection reopened the subject — then set `status: active`).
+- Keep the plan's original `date` and plan `status`; subject reopen is a separate lifecycle operation and never changes plan frontmatter implicitly.
 - Append new entries to `research:` and `iterations:` when new artifacts informed the update.
 - Back-fill `informs:` on newly referenced research files (mirror b-plan's Cross-Reference Stitching rules, including its full-mode-only applicability: if b-plan would not have stitched the back-link in non-full mode, do not stitch it here either).
 

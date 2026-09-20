@@ -3,7 +3,10 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+- [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
+- [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
+- [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; clean review heading drift can reach an enum-only chooser that accepts `block`
 - [ ] [Extract reusable pure state-machine evaluator](items/reusable-state-machine-core.md) — medium; split Buck policy from a domain-neutral pure decision core
 - [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)

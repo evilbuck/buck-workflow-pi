@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   CONSUMER_FILES,
@@ -13,8 +14,7 @@ import {
   renderTokenBlock,
   spliceGeneratedBlock,
 } from "./render-design-tokens.js";
-
-const ROOT = join(import.meta.dirname, "..", "..", "..");
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const BRIEF = "skills/_shared/design-brief.jsonc";
 
 const read = (rel: string) => readFileSync(join(ROOT, rel), "utf8");

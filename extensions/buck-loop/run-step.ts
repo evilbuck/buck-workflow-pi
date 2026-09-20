@@ -10,7 +10,7 @@
  *    host SDK call that creates a child agent with its own tools, model,
  *    and chat history, inside the same process.
  * 3. Sends the skill text plus the plan/phase path as the child's prompt.
- * 4. Waits up to {@link WORK_SESSION_TIMEOUT_MS} (15 minutes), then aborts.
+ * 4. Aborts after {@link WORK_SESSION_IDLE_TIMEOUT_MS} without child activity; productive sessions keep running.
  * 5. Returns `{ ok, text }`. It does **not** decide the next loop state.
  *    The supervisor rescans disk to see what actually landed.
  *
@@ -62,8 +62,8 @@ export type RunStepResult = {
   failure?: CallFailureDetails;
 };
 
-/** Abort the child after 15 minutes. Matches the code-review-iteration precedent. */
-export const WORK_SESSION_TIMEOUT_MS = 15 * 60_000;
+/** Abort after 15 minutes without SDK activity; productive sessions have no fixed wall-clock limit. */
+export const WORK_SESSION_IDLE_TIMEOUT_MS = 15 * 60_000;
 
 /** Skill markdown, relative to `skills/`. Commit uses `git-commit`, not a `b-commit` file. */
 const skillPaths: Record<NestedSkill, string> = {
@@ -206,29 +206,26 @@ export async function runStep(opts: {
     // Host SDK: spawn a child coding agent in-process. Option reasons are in the file header.
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
-    if (opts.onActivity) {
-      const onActivity = opts.onActivity;
-      unsubscribe = session.subscribe((event) => {
-        const normalized = normalizeActivityEvent(event);
-        if (normalized) onActivity(normalized);
-      });
-    }
-
-    const promptPromise = session.prompt(prompt);
-    const winner = await Promise.race([
-      promptPromise.then(() => "prompt" as const),
-      new Promise<"timeout">((resolve) => {
-        timer = setTimeout(() => resolve("timeout"), WORK_SESSION_TIMEOUT_MS);
-      }),
-    ]);
-    if (winner === "timeout") {
-      void Promise.resolve(session.abort()).catch(() => undefined);
-      void promptPromise.catch(() => undefined);
-    }
+    let timedOut = false;
+    const resetIdleTimer = (): void => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        timedOut = true;
+        void session?.abort();
+      }, WORK_SESSION_IDLE_TIMEOUT_MS);
+    };
+    unsubscribe = session.subscribe((event) => {
+      resetIdleTimer();
+      const normalized = normalizeActivityEvent(event);
+      if (normalized) opts.onActivity?.(normalized);
+    });
+    resetIdleTimer();
+    // Blocks until the child finishes or the inactivity timer aborts it.
+    await session.prompt(prompt);
     const text = lastAssistantText(session.messages);
-    if (winner === "timeout") {
+    if (timedOut) {
       outcome = fail(
-        { name: "TimeoutError", message: "Nested " + opts.skill + " session timed out after " + WORK_SESSION_TIMEOUT_MS + "ms." },
+        { name: "TimeoutError", message: "Nested " + opts.skill + " session was inactive for " + WORK_SESSION_IDLE_TIMEOUT_MS + "ms." },
         text || "timed out",
       );
     } else if (assistantStopReason(session.messages) === "aborted") {

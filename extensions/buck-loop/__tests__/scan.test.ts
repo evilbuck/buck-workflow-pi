@@ -159,6 +159,58 @@ describe("scan: path resolution", () => {
     expect(result.phasePath).toBeNull();
   });
 
+  it("scopes phases to the explicitly selected plan", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-epic.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-picker.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-epic.md`]: phaseMd(1, "completed", [], "plan-epic.md"),
+    });
+
+    const picker = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-picker.md` });
+    expect(picker.planFacts).toEqual({ kind: "unphased" });
+    expect(picker.phasePath).toBeNull();
+
+    const epic = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-epic.md` });
+    expect(epic.planFacts).toEqual({ kind: "phased-complete" });
+    expect(epic.phasePath).toBeNull();
+  });
+
+  it("keeps untagged phase compatibility only for a sole plan", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }]);
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
+  });
+
+  it("resolves an explicitly selected owned phase in a multi-plan subject", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-epic.md`]: planMd(),
+      [`.context/${SUBJECT}/plan-picker.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-picker.md`]: phaseMd(1, "pending", [], "plan-picker.md"),
+    });
+
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-1-picker.md` });
+    expect(result.planPath).toBe(`.context/${SUBJECT}/plan-picker.md`);
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-picker.md`);
+  });
+
+  it("does not treat an explicit empty plan owner as an untagged sole-plan phase", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-demo.md`]: planMd(),
+      [`.context/${SUBJECT}/phase-1-demo.md`]:
+        "---\nstatus: completed\nplan:\nphase: 1\norder: 1\ndepends_on: []\ndependency_type: HARD\n---\n# Phase 1\n",
+    });
+
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+
+    expect(result.planFacts).toEqual({ kind: "unphased" });
+    expect(result.phasePath).toBeNull();
+  });
+
   it("selects the first incomplete phase whose HARD dependencies are completed", () => {
     const root = repo();
     phased(root, [
@@ -311,6 +363,24 @@ describe("scan: artifact facts", () => {
       howtoImpact: false,
     });
   });
+
+  it("treats No additional documentation impact as no impact", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "No additional documentation impact",
+        "No additional how-to impact",
+      ),
+    });
+    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+      kind: "report",
+      parseable: true,
+      iterateArtifact: false,
+      docsImpact: false,
+      howtoImpact: false,
+    });
+  });
+
 
   it("parses H2 impact headings the same as H3", () => {
     const root = repo();

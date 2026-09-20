@@ -131,6 +131,43 @@ describe("b-save-improved handler", () => {
     expect(recordCommandError).not.toHaveBeenCalled();
   });
 
+  it("surfaces lifecycle refusal while preserving the written checkpoint", async () => {
+    execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
+    execFileCapturedWithStdin.mockResolvedValue({
+      code: 0,
+      stdout: JSON.stringify({
+        applied: [{ path: "m.md", action: "created", reason: "write" }],
+        staged_inferred: [],
+        errors: [],
+        lifecycle: {
+          ok: false,
+          code: "not-verified",
+          blockers: ["plan-example.md remains active"],
+        },
+      }),
+      stderr: "",
+    });
+    createAgentSession.mockResolvedValue(sessionWith(scribeJson));
+    const { api, commands } = createMockApi();
+    wire(api);
+    const notes: Array<[string, string | undefined]> = [];
+    await commands.get("b-save-improved")!.handler("--no-retain", {
+      cwd: "/tmp",
+      sessionManager: { getEntries: () => [] },
+      ui: { notify: (message: string, level?: string) => notes.push([message, level]) },
+    });
+    expect(notes).toContainEqual(["created m.md — write", "info"]);
+    expect(notes).toContainEqual([
+      "Subject not closed (not-verified): plan-example.md remains active",
+      "warning",
+    ]);
+    expect(notes).toContainEqual([
+      "b-save-improved: checkpoint written; subject not closed",
+      "info",
+    ]);
+    expect(recordCommandError).not.toHaveBeenCalled();
+  });
+
   it("uses a restricted OMP child session for the scribe", async () => {
     execFileCaptured.mockResolvedValue({ code: 0, stdout: JSON.stringify(preflightOk), stderr: "" });
     execFileCapturedWithStdin.mockResolvedValue({

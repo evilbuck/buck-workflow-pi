@@ -123,10 +123,11 @@ function runCommand(argv, cwd) {
     maxBuffer: 1024 * 1024 * 64,
   });
   if (proc.error) {
-    return { code: null, missing: true, output: "" };
+    return { code: null, missing: true, output: "", stdout: "" };
   }
-  const output = `${proc.stdout || ""}${proc.stderr || ""}`;
-  return { code: proc.status, missing: false, output };
+  const stdout = proc.stdout || "";
+  const output = `${stdout}${proc.stderr || ""}`;
+  return { code: proc.status, missing: false, output, stdout };
 }
 
 function tail(output, lines = 50) {
@@ -248,7 +249,7 @@ export function evaluateComplexity(current, baseline, { max, hardCeiling }) {
 function runGitCapturing(args, cwd) {
   const proc = runCommand(["git", ...args], cwd);
   if (proc.missing || proc.code !== 0) return null;
-  return proc.output
+  return proc.stdout
     .split("\n")
     .map((l) => l.trim())
     .filter(Boolean);

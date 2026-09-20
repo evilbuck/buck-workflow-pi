@@ -6,8 +6,9 @@
  * omitted. Raw prompts, hidden reasoning, and model transcripts stay out.
  */
 
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import type { PassFixerRecord, PassReviewRecord, RunState } from "./run-state.js";
+import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../skills/_shared/scripts/subject-lifecycle.js";
 
 export function renderPassReviewMarkdown(record: PassReviewRecord, pass: number): string {
   const lines: string[] = [
@@ -109,10 +110,6 @@ export interface ReportSubject {
   created: boolean;
 }
 
-function subjectStatus(indexText: string): string | null {
-  const match = /^status:\s*(\S+)/m.exec(indexText);
-  return match ? match[1] : "active";
-}
 
 /**
  * Resolve the active `.context/` subject for the terminal report; creates a
@@ -124,9 +121,11 @@ export function resolveReportSubject(contextDir: string, today = new Date()): Re
   if (existsSync(contextDir)) {
     for (const entry of readdirSync(contextDir, { withFileTypes: true })) {
       if (!entry.isDirectory() || !/^\d{4}-\d{2}-\d{2}\./.test(entry.name)) continue;
-      const index = `${contextDir}/${entry.name}/index.md`;
-      if (!existsSync(index)) continue;
-      if (subjectStatus(readFileSync(index, "utf-8")) === "active") subjects.push(entry.name);
+      const dir = `${contextDir}/${entry.name}`;
+      const inspection = inspectSubjectLifecycle(dir);
+      if (inspection.provenance !== "malformed" && inspection.effectiveState === "active") {
+        subjects.push(entry.name);
+      }
     }
   }
   if (subjects.length > 0) {
@@ -134,16 +133,22 @@ export function resolveReportSubject(contextDir: string, today = new Date()): Re
     return { dir: `${contextDir}/${subjects[subjects.length - 1]}`, created: false };
   }
   const date = today.toISOString().slice(0, 10);
-  const dir = `${contextDir}/${date}.code-review-iteration`;
+  const baseDir = `${contextDir}/${date}.code-review-iteration`;
+  let dir = baseDir;
+  for (let suffix = 2; existsSync(dir); suffix++) {
+    dir = `${baseDir}-${suffix}`;
+  }
   mkdirSync(dir, { recursive: true });
   const index = `${dir}/index.md`;
-  if (!existsSync(index)) {
-    writeFileSync(
-      index,
-      `---\nstatus: active\ncreated: ${date}\n---\n\n# Code review iteration reports\n\nTerminal reports from the isolated review loop land here.\n`,
-      "utf-8",
-    );
-  }
+  writeFileSync(
+    index,
+    `---\ncreated: ${date}\n---\n\n# Code review iteration reports\n\nTerminal reports from the isolated review loop land here.\n`,
+    "utf-8",
+  );
+  const initialized = applySubjectLifecycleIntent({ kind: "initialize", subjectDir: dir });
+  if (!initialized.ok) throw new Error(`could not initialize report subject: ${initialized.code}`);
+  const activated = applySubjectLifecycleIntent({ kind: "activate", subjectDir: dir });
+  if (!activated.ok) throw new Error(`could not activate report subject: ${activated.code}`);
   return { dir, created: true };
 }
 

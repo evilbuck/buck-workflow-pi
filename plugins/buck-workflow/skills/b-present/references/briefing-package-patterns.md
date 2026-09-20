@@ -474,13 +474,38 @@ The source view inherits the shared stylesheet so it stays in the same visual fa
 
 ```javascript
 // Source view must load marked.js before this file.
+function sanitizeHtml(html) {
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  doc.querySelectorAll("script,iframe,object,embed").forEach((node) => node.remove());
+  for (const el of doc.querySelectorAll("*")) {
+    for (const attr of [...el.attributes]) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      if (name.startsWith("on") || (name === "href" && value.startsWith("javascript:"))) {
+        el.removeAttribute(attr.name);
+      }
+    }
+  }
+  return doc.body.innerHTML;
+}
+
 function renderSource(filename) {
   fetch(filename)
     .then(r => r.text())
-    .then(md => { document.getElementById('rendered').innerHTML = marked.parse(md); })
+    .then(md => {
+      document.getElementById("rendered").innerHTML = sanitizeHtml(marked.parse(md));
+    })
     .catch(err => {
-      document.getElementById('rendered').innerHTML =
-        '<div class="callout warn"><h4>Source unavailable</h4><p>' + err.message + '</p></div>';
+      const rendered = document.getElementById("rendered");
+      rendered.replaceChildren();
+      const box = document.createElement("div");
+      box.className = "callout warn";
+      const heading = document.createElement("h4");
+      heading.textContent = "Source unavailable";
+      const detail = document.createElement("p");
+      detail.textContent = err.message;
+      box.append(heading, detail);
+      rendered.append(box);
     });
 }
 ```

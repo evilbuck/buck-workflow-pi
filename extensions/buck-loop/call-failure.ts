@@ -48,13 +48,21 @@ export type AgentCallFailure = CallFailureDetails & {
   trying: string;
 };
 
+function safeString(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return "[unprintable value]";
+  }
+}
+
 function serializableDetail(value: unknown): unknown {
   if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
     return value;
   }
   if (typeof value === "bigint") return value.toString();
   if (Array.isArray(value)) return value.map(serializableDetail);
-  return String(value);
+  return safeString(value);
 }
 
 /** Flatten any thrown value into {@link SerializedCallError} for JSON. */
@@ -65,9 +73,9 @@ export function serializeCallError(error: unknown): SerializedCallError {
     );
     return {
       name: error.name || "Error",
-      message: error.message || String(error),
+      message: error.message || safeString(error),
       ...(error.stack ? { stack: error.stack } : {}),
-      ...(error.cause !== undefined ? { cause: String(error.cause) } : {}),
+      ...(error.cause !== undefined ? { cause: safeString(error.cause) } : {}),
       ...(Object.keys(details).length > 0 ? { details } : {}),
     };
   }
@@ -81,13 +89,13 @@ export function serializeCallError(error: unknown): SerializedCallError {
     );
     return {
       name: typeof record.name === "string" ? record.name : "Error",
-      message: typeof record.message === "string" ? record.message : String(error),
+      message: typeof record.message === "string" ? record.message : safeString(error),
       ...(typeof record.stack === "string" ? { stack: record.stack } : {}),
       ...(Object.keys(details).length > 0 ? { details } : {}),
     };
   }
 
-  return { name: "Error", message: String(error) };
+  return { name: "Error", message: safeString(error) };
 }
 
 /**
