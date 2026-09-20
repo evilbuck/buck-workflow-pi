@@ -10,9 +10,10 @@
 
 import { readFileSync } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
+import { MachineFailure } from "../state-machine.js";
 import type { CatalogLoad, FixerSelection, ModelCatalogEntry } from "./catalog.js";
 import { reviewerThinking, selectFixerModel, thinkingFor } from "./catalog.js";
-import { extractJson, maxBlockingHardness, validateFindingsPayload, type ValidatedFinding } from "./findings.js";
+import { extractJson, validateFindingsPayload, type ValidatedFinding } from "./findings.js";
 import {
   abortRebase,
   capturePreRun,
@@ -34,6 +35,15 @@ import {
   currentBranch,
 } from "./git-ops.js";
 import { assembleFixerPrompt, assembleReviewerPrompt, type Persona } from "./prompts.js";
+import {
+  machineFailureReason,
+  project,
+  reviewMachine,
+  type ReviewFacts,
+  type ReviewOutput,
+  type ReviewProjection,
+  type ReviewState,
+} from "./machine.js";
 import type { CommandRecord, ReviewExecRequest } from "./policy.js";
 import {
   appendCommandRecord,
@@ -601,60 +611,122 @@ function freshContext(cwd: string, options: LoopOptions): LoopContext {
   };
 }
 
-async function initializeRun(deps: LoopDeps, ctx: LoopContext): Promise<LoopResult | null> {
+async function bootstrapRun(deps: LoopDeps, ctx: LoopContext): Promise<void> {
   await tryResume(deps, ctx);
+  if (ctx.state) return;
+  const pre = capturePreRun(ctx.cwd);
+  ctx.state = newLoopState(ctx, pre.head, worktreeFingerprint(ctx.cwd));
+  const created = createRun(ctx.commonDir, ctx.state);
+  ctx.runDir = created.dir;
+  ctx.state = created.state;
+}
+
+interface MachineRuntime extends ReviewProjection {
+  state: ReviewState;
+}
+
+function currentPassArtifacts(ctx: LoopContext): {
+  review: PassReviewRecord | null;
+  fixer: PassFixerRecord | null;
+} {
+  if (!ctx.state || !ctx.runDir || ctx.state.pass < 1) return { review: null, fixer: null };
+  const dir = passDirFor(ctx.runDir, ctx.state.pass);
+  return {
+    review: readJsonIfExists<PassReviewRecord>(join(dir, "review.json")),
+    fixer: readJsonIfExists<PassFixerRecord>(join(dir, "fixer.json")),
+  };
+}
+
+function seedResumePosition(deps: LoopDeps, ctx: LoopContext, runtime: MachineRuntime): void {
+  const artifacts = currentPassArtifacts(ctx);
+  if (artifacts.review && !artifacts.fixer) {
+    runtime.state = "triaging";
+    runtime.review = artifacts.review;
+    runtime.fixer = null;
+    deps.notify(`Resuming incomplete fixer for pass ${ctx.state!.pass}.`, "info");
+    return;
+  }
+  if (ctx.state!.pass >= ctx.state!.max_passes) {
+    runtime.state = "fixing";
+    runtime.resumedAtPassBound = true;
+    runtime.review = artifacts.review;
+    runtime.fixer = artifacts.fixer;
+  }
+}
+
+function persistPreparedPosition(ctx: LoopContext): void {
+  ctx.state!.last_head = resolveHead(ctx.cwd);
+  ctx.state!.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
+  saveState(ctx.runDir!, ctx.state!);
+}
+
+async function executeCatalogPreflight(
+  deps: LoopDeps,
+  runtime: MachineRuntime,
+): Promise<void> {
   const catalog = deps.loadCatalog();
   if (catalog.errors.length > 0) {
     deps.notify(`Model catalog preflight failed:\n${catalog.errors.join("\n")}`, "error");
-    // A resumed run is already persisted as running; terminalize it on disk
-    // so pruneRuntime and a later --resume see the failure.
-    return terminalResult(deps, ctx, "failed", `model catalog preflight failed (${catalog.errors.length} error(s))`);
+    runtime.catalogOk = false;
+    runtime.catalogError = `${catalog.errors.length} error(s)`;
+    return;
   }
   for (const warning of catalog.warnings) deps.notify(warning, "warning");
-  if (!ctx.state) {
-    const pre = capturePreRun(ctx.cwd);
-    ctx.state = newLoopState(ctx, pre.head, worktreeFingerprint(ctx.cwd));
-    const created = createRun(ctx.commonDir, ctx.state);
-    ctx.runDir = created.dir;
-    ctx.state = created.state;
-  }
+  runtime.catalogOk = true;
+  runtime.catalogError = undefined;
+}
+
+async function executeBasePreparation(
+  deps: LoopDeps,
+  ctx: LoopContext,
+  runtime: MachineRuntime,
+): Promise<void> {
   const prepared = await prepareBaseAndCheckpoint(deps, ctx);
-  if (prepared !== "continue") return terminalResult(deps, ctx, prepared, `base preparation failed: ${prepared}`);
-  // The rebase above may have moved HEAD; persist the post-rebase position so
-  // a crash before the first pass cannot make this run unresumable.
-  ctx.state.last_head = resolveHead(ctx.cwd);
-  ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
-  saveState(ctx.runDir!, ctx.state!);
-  return null;
-}
-
-async function resolveReviewedPass(
-  deps: LoopDeps,
-  ctx: LoopContext,
-  pass: number,
-  review: PassReviewRecord,
-): Promise<LoopResult | null> {
-  const blocking = blockingFindings(review.findings, ctx.options.minBlocking);
-  if (blocking.length === 0) {
-    const reason = review.findings.length === 0
-      ? "reviewer reported no findings"
-      : `no ${ctx.options.minBlocking}-or-higher findings remain (${review.findings.length} report-only)`;
-    const result = await terminalResult(deps, ctx, "clean", reason);
-    deps.notify(`✅ Clean: ${reason}. Report: ${result.reportPath ?? "(write failed)"}`, "info");
-    return result;
+  if (prepared !== "continue") {
+    runtime.baseReady = false;
+    runtime.baseError = prepared;
+    return;
   }
-  const required = maxBlockingHardness(blocking);
-  if (!required) return terminalResult(deps, ctx, "failed", "blocking findings present but no fix hardness computable");
-  return runFixerForPass(deps, ctx, pass, blocking, required);
+  runtime.baseReady = true;
+  runtime.baseError = undefined;
+  persistPreparedPosition(ctx);
+  seedResumePosition(deps, ctx, runtime);
 }
 
-async function runFixerForPass(
+async function executeReviewerPass(
   deps: LoopDeps,
   ctx: LoopContext,
-  pass: number,
-  blocking: ValidatedFinding[],
-  required: Hardness,
-): Promise<LoopResult | null> {
+  runtime: MachineRuntime,
+): Promise<void> {
+  const state = ctx.state!;
+  const pass = state.pass + 1;
+  state.pass = pass;
+  deps.notify(`Review pass ${pass}/${state.max_passes} — ${state.persona} · ${state.reviewer_model ?? "session default"}`, "info");
+  const outcome = await runReviewerPass(deps, ctx, pass);
+  runtime.fixer = null;
+  if ("error" in outcome) {
+    runtime.review = null;
+    runtime.reviewError = outcome.error;
+    return;
+  }
+  runtime.review = outcome.review;
+  runtime.reviewError = undefined;
+  state.last_head = outcome.review.reviewed_head;
+  saveState(ctx.runDir!, state);
+}
+
+async function executeFixerPass(
+  deps: LoopDeps,
+  ctx: LoopContext,
+  runtime: MachineRuntime,
+  facts: ReviewFacts,
+): Promise<void> {
+  if (!runtime.review || !facts.review?.hardness) {
+    throw new Error("review machine requested a fixer without blocking findings and hardness");
+  }
+  const pass = ctx.state!.pass;
+  const blocking = blockingFindings(runtime.review.findings, ctx.options.minBlocking);
+  const required = facts.review.hardness;
   deps.notify(`Fixer pass ${pass}: ${blocking.length} blocking finding(s), required hardness ${required}.`, "info");
   const fixer = await runFixerPass(deps, ctx, pass, blocking, required);
   writePassFixer(
@@ -664,38 +736,48 @@ async function runFixerForPass(
     `# Pass ${String(pass).padStart(2, "0")} fixer\n\nModel ${fixer.model ?? "—"}; checks ${fixer.checks.passed ? "passed" : "FAILED"}; checkpoint ${fixer.checkpoint_commit ?? "none"}.\n`,
   );
   saveState(ctx.runDir!, ctx.state!);
-  if (!fixer.checks.passed) {
-    return terminalResult(
-      deps,
-      ctx,
-      "blocked",
-      `deterministic checks failed after fixer pass ${pass} (${fixer.checks.command} exit ${fixer.checks.exit_code ?? "—"}); no checkpoint commit created`,
-    );
+  runtime.fixer = fixer;
+  if (fixer.checks.passed) {
+    deps.notify(`Fixer pass ${pass} committed ${fixer.checkpoint_commit?.slice(0, 12) ?? "?"}; starting fresh review.`, "info");
   }
-  deps.notify(`Fixer pass ${pass} committed ${fixer.checkpoint_commit?.slice(0, 12) ?? "?"}; starting fresh review.`, "info");
-  return null;
 }
 
-async function resumeIncompleteFixer(deps: LoopDeps, ctx: LoopContext): Promise<LoopResult | null> {
-  if (!ctx.state || !ctx.runDir || ctx.state.pass < 1) return null;
-  const dir = passDirFor(ctx.runDir, ctx.state.pass);
-  const review = readJsonIfExists<PassReviewRecord>(join(dir, "review.json"));
-  const fixer = readJsonIfExists<PassFixerRecord>(join(dir, "fixer.json"));
-  if (!review || fixer) return null;
-  deps.notify(`Resuming incomplete fixer for pass ${ctx.state.pass}.`, "info");
-  return resolveReviewedPass(deps, ctx, ctx.state.pass, review);
+async function executeTerminalOutput(
+  deps: LoopDeps,
+  ctx: LoopContext,
+  output: Extract<ReviewOutput, { effect: "terminal" }>,
+): Promise<LoopResult> {
+  const result = await terminalResult(deps, ctx, output.status, output.reason);
+  if (output.status === "clean") {
+    deps.notify(`✅ Clean: ${output.reason}. Report: ${result.reportPath ?? "(write failed)"}`, "info");
+  }
+  return result;
 }
 
-async function runOnePass(deps: LoopDeps, ctx: LoopContext): Promise<LoopResult | null> {
-  const state = ctx.state!;
-  const pass = state.pass + 1;
-  state.pass = pass;
-  deps.notify(`Review pass ${pass}/${state.max_passes} — ${state.persona} · ${state.reviewer_model ?? "session default"}`, "info");
-  const outcome = await runReviewerPass(deps, ctx, pass);
-  if ("error" in outcome) return terminalResult(deps, ctx, "failed", outcome.error);
-  state.last_head = outcome.review.reviewed_head;
-  saveState(ctx.runDir!, state);
-  return resolveReviewedPass(deps, ctx, pass, outcome.review);
+async function executeMachineOutput(
+  deps: LoopDeps,
+  ctx: LoopContext,
+  runtime: MachineRuntime,
+  facts: ReviewFacts,
+  output: ReviewOutput,
+): Promise<LoopResult | null> {
+  if (output.effect === "terminal") return executeTerminalOutput(deps, ctx, output);
+  switch (output.effect) {
+    case "run-catalog-preflight":
+      await executeCatalogPreflight(deps, runtime);
+      return null;
+    case "prepare-base":
+      await executeBasePreparation(deps, ctx, runtime);
+      return null;
+    case "run-reviewer-pass":
+      await executeReviewerPass(deps, ctx, runtime);
+      return null;
+    case "none":
+      return null;
+    case "run-fixer-pass":
+      await executeFixerPass(deps, ctx, runtime, facts);
+      return null;
+  }
 }
 
 /**
@@ -708,22 +790,21 @@ export async function runReviewLoop(deps: LoopDeps, cwd: string, options: LoopOp
   }
   const ctx = freshContext(cwd, options);
   try {
-    const initialized = await initializeRun(deps, ctx);
-    if (initialized) return initialized;
-    const incomplete = await resumeIncompleteFixer(deps, ctx);
-    if (incomplete) return incomplete;
-    while (ctx.state!.pass < ctx.state!.max_passes) {
-      const result = await runOnePass(deps, ctx);
+    await bootstrapRun(deps, ctx);
+    const runtime: MachineRuntime = { state: "initializing" };
+    while (true) {
+      const facts = project(ctx.state!, runtime);
+      const decision = reviewMachine.advance(facts);
+      if (decision.kind !== "transition") {
+        throw new Error("review machine exposed an unsupported choice");
+      }
+      runtime.state = decision.to;
+      const result = await executeMachineOutput(deps, ctx, runtime, facts, decision.output);
       if (result) return result;
     }
-    return terminalResult(
-      deps,
-      ctx,
-      "exhausted",
-      `blocking findings unresolved after ${ctx.state!.max_passes} review passes`,
-    );
   } catch (e: unknown) {
     const status = e instanceof LoopCancelledError ? "cancelled" : "failed";
-    return terminalResult(deps, ctx, status, (e as Error).message);
+    const reason = e instanceof MachineFailure ? machineFailureReason(e) : (e as Error).message;
+    return terminalResult(deps, ctx, status, reason);
   }
 }

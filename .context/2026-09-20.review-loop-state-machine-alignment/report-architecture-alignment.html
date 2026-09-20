@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Loop × Pure Evaluator — Architecture Alignment Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #fbfaf7;
+    --paper-deep: #f4f2ec;
+    --card: #ffffff;
+    --ink: #20242c;
+    --ink-soft: #4c5462;
+    --ink-faint: #8a91a0;
+    --line: #e4e1d8;
+    --line-strong: #cfcabc;
+    --rust: #b4552d;
+    --rust-wash: #faf0ea;
+    --rust-line: #e8cdbc;
+    --teal: #0d7268;
+    --teal-wash: #ecf5f3;
+    --teal-line: #c2ded9;
+    --amber: #a07617;
+    --amber-wash: #faf5e6;
+    --green: #2f7d4f;
+    --green-wash: #edf5ef;
+    --serif-display: "Fraunces", Georgia, "Times New Roman", serif;
+    --serif-body: "Newsreader", Georgia, serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    --shadow-card: 0 1px 2px rgba(32,36,44,.04), 0 8px 24px -12px rgba(32,36,44,.10);
+    --shadow-lift: 0 2px 4px rgba(32,36,44,.05), 0 16px 40px -16px rgba(32,36,44,.16);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background:
+      radial-gradient(1200px 500px at 85% -5%, rgba(13,114,104,.05), transparent 60%),
+      radial-gradient(900px 420px at -10% 12%, rgba(180,85,45,.045), transparent 55%),
+      var(--paper);
+    color: var(--ink);
+    font-family: var(--serif-body);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    opacity: .35;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.045'/%3E%3C/svg%3E");
+    z-index: 0;
+  }
+
+  .sheet { position: relative; z-index: 1; max-width: 1080px; margin: 0 auto; padding: 0 40px 120px; }
+
+  /* ---------- masthead ---------- */
+  header.masthead { padding: 72px 0 40px; border-bottom: 2px solid var(--ink); position: relative; }
+  .kicker {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 600;
+    letter-spacing: .22em; text-transform: uppercase; color: var(--rust);
+    display: flex; align-items: center; gap: 14px;
+  }
+  .kicker::after { content: ""; flex: 1; height: 1px; background: var(--line-strong); }
+  h1 {
+    font-family: var(--serif-display);
+    font-weight: 600;
+    font-size: clamp(34px, 5vw, 54px);
+    line-height: 1.06;
+    letter-spacing: -.015em;
+    margin: 22px 0 8px;
+    max-width: 21ch;
+  }
+  h1 em { font-style: italic; font-weight: 500; color: var(--teal); }
+  .deck { font-size: 20px; color: var(--ink-soft); max-width: 62ch; margin-top: 14px; font-style: italic; }
+  .byline { display: flex; flex-wrap: wrap; gap: 10px 28px; margin-top: 30px; font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  .byline b { color: var(--ink-soft); font-weight: 600; }
+
+  /* ---------- verdict ---------- */
+  .verdict {
+    margin: 40px 0 0;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--teal);
+    border-radius: 10px;
+    padding: 26px 30px;
+    box-shadow: var(--shadow-card);
+    display: grid; grid-template-columns: 1fr auto; gap: 8px 32px; align-items: start;
+  }
+  .verdict h2 {
+    font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--teal); grid-column: 1 / -1;
+  }
+  .verdict p { font-size: 18px; }
+  .verdict p strong { font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line-strong);
+    color: var(--ink-soft); background: var(--paper-deep);
+  }
+  .chip.gain { background: var(--teal-wash); border-color: var(--teal-line); color: var(--teal); }
+  .chip.keep { background: var(--green-wash); border-color: #cfe3d5; color: var(--green); }
+  .chip.na { background: var(--amber-wash); border-color: #e7d9ae; color: var(--amber); }
+
+  /* ---------- sections ---------- */
+  section { margin-top: 84px; }
+  .sec-head { display: flex; align-items: baseline; gap: 20px; margin-bottom: 26px; }
+  .sec-no {
+    font-family: var(--serif-display); font-weight: 300; font-style: italic;
+    font-size: 44px; color: var(--line-strong); line-height: 1; flex-shrink: 0;
+  }
+  .sec-head h2 {
+    font-family: var(--serif-display); font-weight: 600; letter-spacing: -.01em;
+    font-size: 30px; line-height: 1.15;
+  }
+  .sec-head .sub { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--ink-faint); margin-left: auto; text-align: right; flex-shrink: 0; }
+  p.lede { font-size: 19px; color: var(--ink-soft); max-width: 66ch; margin-bottom: 22px; }
+  p.lede strong { color: var(--ink); font-weight: 600; }
+  p + p { margin-top: 14px; }
+
+  code {
+    font-family: var(--mono); font-size: .82em;
+    background: var(--paper-deep); border: 1px solid var(--line);
+    padding: 1px 5px; border-radius: 5px; white-space: nowrap;
+  }
+  .path { color: var(--rust); }
+  .path-new { color: var(--teal); }
+
+  /* ---------- ledger (side-by-side) ---------- */
+  .ledger {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 22px;
+    margin: 26px 0;
+  }
+  .ledger .col {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 24px 26px 26px; box-shadow: var(--shadow-card); position: relative; overflow: hidden;
+  }
+  .ledger .col.today { border-top: 3px solid var(--rust); }
+  .ledger .col.proposed { border-top: 3px solid var(--teal); }
+  .col-tag {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .2em;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+  .today .col-tag { color: var(--rust); }
+  .proposed .col-tag { color: var(--teal); }
+  .ledger h3 { font-family: var(--serif-display); font-size: 21px; font-weight: 600; margin-bottom: 12px; letter-spacing: -.01em; }
+  .ledger ul { list-style: none; }
+  .ledger li { padding: 9px 0 9px 26px; position: relative; border-bottom: 1px dashed var(--line); font-size: 15.5px; }
+  .ledger li:last-child { border-bottom: none; }
+  .ledger li::before { position: absolute; left: 2px; top: 9px; font-family: var(--mono); font-size: 13px; }
+  .today li::before { content: "→"; color: var(--rust); }
+  .proposed li::before { content: "◆"; color: var(--teal); font-size: 10px; top: 13px; }
+  .ledger li b { font-weight: 600; }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-card); border: 1px solid var(--line); font-size: 15px; }
+  thead th {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    text-align: left; color: var(--ink-soft); background: var(--paper-deep);
+    padding: 12px 16px; border-bottom: 2px solid var(--ink);
+  }
+  tbody td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr { transition: background .15s ease; }
+  tbody tr:hover { background: #f8f7f2; }
+  td.dim { font-weight: 600; font-family: var(--serif-display); font-size: 15.5px; width: 17%; }
+  td .m { font-family: var(--mono); font-size: 12.5px; }
+  td.now { border-left: 3px solid var(--rust-line); }
+  td.next { border-left: 3px solid var(--teal-line); }
+  .tag-t { font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
+  .tag-today { color: var(--rust); } .tag-next { color: var(--teal); }
+  /* ---------- diagrams ---------- */
+  .figure {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 28px 26px 18px; box-shadow: var(--shadow-card); margin: 26px 0;
+  }
+  .figure figcaption { font-family: var(--mono); font-size: 11.5px; color: var(--ink-faint); margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); line-height: 1.7; }
+  .figure figcaption b { color: var(--ink-soft); }
+  .fig-label { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 14px; }
+  .fig-label.rust { color: var(--rust); } .fig-label.teal { color: var(--teal); }
+  svg { display: block; width: 100%; height: auto; }
+  .svg-box { fill: var(--card); stroke: var(--line-strong); stroke-width: 1.4; }
+  .svg-box-accent { fill: #fdf6f1; stroke: var(--rust); stroke-width: 1.5; }
+  .svg-box-mint { fill: var(--teal-wash); stroke: var(--teal); stroke-width: 1.5; }
+  .svg-term { stroke-width: 1.5; }
+  .svg-label { font-family: var(--mono); font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .svg-sub { font-family: var(--mono); font-size: 9.5px; fill: var(--ink-faint); }
+  .svg-edge { stroke: var(--ink-faint); stroke-width: 1.4; fill: none; marker-end: url(#arrow); }
+  .svg-edge-rust { stroke: var(--rust); }
+  .svg-edge-teal { stroke: var(--teal); }
+  .svg-edge-note { font-family: var(--mono); font-size: 10px; fill: var(--ink-soft); }
+  .badge {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 700; fill: #fff;
+  }
+  .badge-bg { fill: var(--rust); }
+
+  /* ---------- code ---------- */
+  pre {
+    background: #232730; color: #e8e6df; border-radius: 12px;
+    padding: 22px 24px; overflow-x: auto; font-family: var(--mono);
+    font-size: 13px; line-height: 1.7; box-shadow: var(--shadow-card);
+    margin: 22px 0;
+  }
+  pre .c { color: #8b93a5; font-style: italic; }
+  pre .k { color: #93c5fd; }
+  pre .t { color: #7dd3c8; }
+  pre .s { color: #f3c98b; }
+  pre .f { color: #e9a684; }
+
+  /* ---------- callouts ---------- */
+  .callout {
+    border: 1px solid var(--line); border-radius: 12px; background: var(--card);
+    padding: 20px 24px; margin: 22px 0; box-shadow: var(--shadow-card);
+    display: grid; grid-template-columns: auto 1fr; gap: 6px 18px;
+  }
+  .callout .ico { font-family: var(--serif-display); font-size: 22px; line-height: 1.2; }
+  .callout.warn { border-left: 4px solid var(--amber); } .callout.warn .ico, .callout.warn h4 { color: var(--amber); }
+  .callout.risk { border-left: 4px solid var(--rust); } .callout.risk .ico, .callout.risk h4 { color: var(--rust); }
+  .callout.quote { border-left: 4px solid var(--teal); } .callout.quote .ico, .callout.quote h4 { color: var(--teal); }
+  .callout h4 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; }
+  .callout p { grid-column: 2; font-size: 15.5px; }
+  .callout blockquote { font-style: italic; color: var(--ink-soft); }
+  .callout cite { display: block; font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--ink-faint); margin-top: 8px; }
+
+  /* ---------- steps ---------- */
+  ol.steps { list-style: none; counter-reset: step; margin: 22px 0; }
+  ol.steps li {
+    counter-increment: step; display: grid; grid-template-columns: 54px 1fr; gap: 18px;
+    padding: 18px 0; border-bottom: 1px solid var(--line);
+  }
+  ol.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    font-family: var(--serif-display); font-style: italic; font-weight: 300;
+    font-size: 30px; color: var(--line-strong); line-height: 1;
+  }
+  ol.steps h4 { font-family: var(--serif-display); font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+  ol.steps p { font-size: 15.5px; color: var(--ink-soft); }
+  ol.steps p code { font-size: .8em; }
+
+  /* ---------- alternatives cards ---------- */
+  .alts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin: 24px 0; }
+  .alt {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; box-shadow: var(--shadow-card); position: relative;
+  }
+  .alt.recommended { border: 1.5px solid var(--teal); box-shadow: var(--shadow-lift); }
+  .alt h4 { font-family: var(--serif-display); font-size: 17.5px; font-weight: 600; margin: 8px 0 8px; }
+  .alt .verdict-chip {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .alt .picked { background: var(--teal); color: #fff; }
+  .alt .rejected { background: var(--rust-wash); color: var(--rust); border: 1px solid var(--rust-line); }
+  .alt p { font-size: 14px; color: var(--ink-soft); }
+  .alt p b { color: var(--ink); }
+
+  /* ---------- footer ---------- */
+  footer {
+    margin-top: 100px; padding-top: 26px; border-top: 2px solid var(--ink);
+    font-family: var(--mono); font-size: 12px; color: var(--ink-faint); line-height: 2;
+  }
+  footer b { color: var(--ink-soft); }
+  .src-list { columns: 2; column-gap: 48px; margin-top: 8px; }
+
+  /* ---------- motion ---------- */
+  @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  header.masthead, .verdict, section, footer { animation: rise .6s cubic-bezier(.2,.7,.2,1) both; }
+  section:nth-of-type(1) { animation-delay: .08s; } section:nth-of-type(2) { animation-delay: .14s; }
+  section:nth-of-type(3) { animation-delay: .20s; } section:nth-of-type(4) { animation-delay: .26s; }
+  section:nth-of-type(5) { animation-delay: .32s; } section:nth-of-type(6) { animation-delay: .38s; }
+  section:nth-of-type(7) { animation-delay: .44s; } section:nth-of-type(8) { animation-delay: .50s; }
+  section:nth-of-type(9) { animation-delay: .56s; }
+
+  @media (max-width: 860px) {
+    .ledger { grid-template-columns: 1fr; }
+    .alts { grid-template-columns: 1fr; }
+    .verdict { grid-template-columns: 1fr; }
+    .sheet { padding: 0 22px 80px; }
+    .src-list { columns: 1; }
+  }
+
+  @media print {
+    body { background: #fff; }
+    body::before { display: none; }
+    .sheet { max-width: none; }
+    header.masthead, .verdict, section, footer { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+<!-- ================= MASTHEAD ================= -->
+<header class="masthead">
+  <div class="kicker">Architecture alignment report · buck-workflow-pi</div>
+  <h1>The review loop, re-decided by a <em>pure evaluator</em></h1>
+  <p class="deck">Comparing <code class="path">extensions/code-review-iteration/loop.ts</code> as it stands today — an imperative supervisor whose decisions are scattered across control flow — with a proposed alignment onto the domain-neutral rule evaluator in <code class="path-new">extensions/state-machine.ts</code>, the same seam <code>/buck-loop</code> already runs on.</p>
+  <div class="byline">
+    <span><b>Date</b> 2026-09-20</span>
+    <span><b>Subject</b> 2026-09-20.review-loop-state-machine-alignment</span>
+    <span><b>Status</b> draft — for decision</span>
+    <span><b>Surface</b> extensions/code-review-iteration/ (16 files, ~4,000 LOC incl. tests)</span>
+  </div>
+
+  <div class="verdict">
+    <h2>Recommendation</h2>
+    <p><strong>Align the decision layer only.</strong> Introduce <code class="path-new">extensions/code-review-iteration/machine.ts</code>: an explicit ten-state review machine (five work states, five terminals) whose rules are pure predicates over a facts projection. <code class="path">loop.ts</code> keeps every effect — git, model sessions, pass artifacts, RunState persistence — but stops <em>deciding</em> with control flow; it asks the machine, executes the returned output, and rescans facts. No schema bump, no new orchestration runtime, no behavior change: the 24-scenario integration suite is the migration contract.</p>
+    <div class="chips">
+      <span class="chip gain">Decisions centralized: 6 sites → 1 rule table</span>
+      <span class="chip gain">Resume unified: one projection, no special case</span>
+      <span class="chip keep">Effects, artifacts &amp; API untouched</span>
+      <span class="chip na">Evaluator choice/send machinery: intentionally unused here</span>
+    </div>
+  </div>
+</header>
+
+<!-- ================= 01 CURRENT ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">01</span>
+    <h2>Current architecture — the implicit machine</h2>
+    <span class="sub">loop.ts · 729 lines</span>
+  </div>
+  <p class="lede">Today's review loop is a <strong>well-behaved imperative supervisor with an invisible state graph</strong>. It works: bounded passes, immutable artifacts, resumable runs, five terminal statuses. But the graph exists only as the shape of the control flow — there is no place to read it, no place to test it in isolation, and no single answer to "what state is this run in?"</p>
+
+  <div class="figure">
+    <div class="fig-label rust">Figure 1 — runReviewLoop today: decisions (D) buried in orchestration</div>
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Current imperative flow of runReviewLoop with six decision points highlighted">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#8a91a0"/>
+        </marker>
+        <marker id="arrowR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#b4552d"/>
+        </marker>
+      </defs>
+      <!-- flow boxes -->
+      <rect class="svg-box" x="16" y="56" width="128" height="52" rx="8"/>
+      <text class="svg-label" x="80" y="78" text-anchor="middle">initializeRun</text>
+      <text class="svg-sub" x="80" y="94" text-anchor="middle">loop.ts:604</text>
+
+      <rect class="svg-box" x="182" y="56" width="196" height="52" rx="8"/>
+      <text class="svg-label" x="280" y="78" text-anchor="middle">prepareBaseAndCheckpoint</text>
+      <text class="svg-sub" x="280" y="94" text-anchor="middle">loop.ts:170 — returns "continue"</text>
+
+      <rect class="svg-box" x="416" y="56" width="180" height="52" rx="8"/>
+      <text class="svg-label" x="506" y="78" text-anchor="middle">resumeIncompleteFixer</text>
+      <text class="svg-sub" x="506" y="94" text-anchor="middle">loop.ts:679 — peeks artifacts</text>
+
+      <rect class="svg-box-accent" x="634" y="42" width="180" height="80" rx="8"/>
+      <text class="svg-label" x="724" y="68" text-anchor="middle">while pass &lt; max</text>
+      <text class="svg-sub" x="724" y="85" text-anchor="middle">runOnePass → reviewer →</text>
+      <text class="svg-sub" x="724" y="99" text-anchor="middle">resolveReviewedPass → fixer</text>
+      <text class="svg-sub" x="724" y="113" text-anchor="middle">loop.ts:689–724</text>
+
+      <rect class="svg-box" x="852" y="56" width="132" height="52" rx="8"/>
+      <text class="svg-label" x="918" y="78" text-anchor="middle">terminalResult</text>
+      <text class="svg-sub" x="918" y="94" text-anchor="middle">loop.ts:570</text>
+
+      <line class="svg-edge" x1="144" y1="82" x2="178" y2="82"/>
+      <line class="svg-edge" x1="378" y1="82" x2="412" y2="82"/>
+      <line class="svg-edge" x1="596" y1="82" x2="630" y2="82"/>
+      <line class="svg-edge" x1="814" y1="82" x2="848" y2="82"/>
+
+      <!-- decision badges -->
+      <g>
+        <rect class="badge-bg" x="30" y="128" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="139" text-anchor="middle">D1</text>
+        <text class="svg-edge-note" x="58" y="139">catalog preflight → failed (loop.ts:606)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="154" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="165" text-anchor="middle">D2</text>
+        <text class="svg-edge-note" x="58" y="165">base prep ok / fetch fail / rebase unresolved (loop.ts:171,196,205)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="180" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="191" text-anchor="middle">D3</text>
+        <text class="svg-edge-note" x="58" y="191">resume position = review.json present, fixer.json absent (loop.ts:680–686)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="206" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="217" text-anchor="middle">D4</text>
+        <text class="svg-edge-note" x="58" y="217">clean vs fix: blockingFindings().length (loop.ts:637–648)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="232" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="243" text-anchor="middle">D5</text>
+        <text class="svg-edge-note" x="58" y="243">checks.passed → checkpoint or blocked (loop.ts:462–467, 667)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="258" width="20" height="14" rx="3"/>
+        <text class="badge" x="40" y="269" text-anchor="middle">D6</text>
+        <text class="svg-edge-note" x="58" y="269">exhaustion via while-condition fall-through (loop.ts:715–724)</text>
+      </g>
+      <g>
+        <rect class="badge-bg" x="30" y="284" width="20" height="14" rx="3" opacity=".55"/>
+        <text class="badge" x="40" y="295" text-anchor="middle">D7</text>
+        <text class="svg-edge-note" x="58" y="295" opacity=".8">cancelled vs failed by exception type in catch-all (loop.ts:725–728)</text>
+      </g>
+    </svg>
+    <figcaption><b>Reading.</b> Every terminal status is produced by a different mechanism: an early-return <code>terminalResult(…, "failed")</code> here, a string sentinel <code>"continue"</code> there, a <code>while</code> fall-through for <code>exhausted</code>, and exception typing for <code>cancelled</code>. The run's position is reconstructed on resume by peeking at pass artifacts (<code>resumeIncompleteFixer</code>) — a second, divergent copy of the forward-path logic.</figcaption>
+  </div>
+
+  <div class="ledger">
+    <div class="col today">
+      <div class="col-tag">Current · today</div>
+      <h3>Traits of the imperative design</h3>
+      <ul>
+        <li><b>State is implicit.</b> "Where am I?" = <code>RunState.status</code> + <code>pass</code> + which pass artifacts exist, re-derived ad hoc at each site.</li>
+        <li><b>Decisions live in control flow.</b> Seven decision points (D1–D7) are spread across five functions; none is unit-testable without the git/model harness.</li>
+        <li><b>Resume is a special case.</b> <code>resumeIncompleteFixer</code> re-implements a slice of the pass logic by reading <code>review.json</code>/<code>fixer.json</code>.</li>
+        <li><b>Terminal classification is scattered.</b> Five statuses are written from nine call sites; the reason strings are built inline.</li>
+        <li><b>Sequencing and I/O are fused.</b> Deciding the next step and performing git/session effects happen in the same function bodies.</li>
+        <li><b>Testing is integration-only.</b> The 630-line <code>loop.test.ts</code> exercises every decision through real temp-repo clones.</li>
+      </ul>
+    </div>
+    <div class="col proposed">
+      <div class="col-tag">Proposed · aligned</div>
+      <h3>Traits over the pure evaluator</h3>
+      <ul>
+        <li><b>State is explicit.</b> A nine-state <code>ReviewState</code> union; <code>stateOf(facts)</code> is the single projection from <code>RunState</code> + pass artifacts.</li>
+        <li><b>Decisions live in one rule table.</b> Named, grep-able automatic rules in <code>machine.ts</code>; pure predicates, truth-table testable.</li>
+        <li><b>Resume is the same code.</b> Resuming <em>is</em> projecting facts — the forward path and recovery path share one <code>stateOf</code>.</li>
+        <li><b>Terminals are declared once.</b> Five terminal states; outputs carry <code>{ status, reason }</code> so the supervisor has one write path.</li>
+        <li><b>Effects stay in the supervisor.</b> <code>loop.ts</code> interprets opaque outputs; the evaluator cannot touch git, models, or the clock.</li>
+        <li><b>Two test tiers.</b> Pure truth-table tests for every edge + the unchanged 24-scenario integration suite as the behavior contract.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 02 EVALUATOR ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">02</span>
+    <h2>The evaluator contract being aligned to</h2>
+    <span class="sub">state-machine.ts · 441 lines · proven in production</span>
+  </div>
+  <p class="lede"><code class="path-new">extensions/state-machine.ts</code> is a <strong>synchronous, pure rule evaluator</strong> extracted from <code>/buck-loop</code> and already load-bearing: <code class="path">extensions/buck-loop/machine.ts:542</code> defines <code>buckMachine</code> over it. It owns exactly three operations and refuses every illegal situation with a typed failure.</p>
+
+  <table>
+    <thead>
+      <tr><th style="width:18%">Operation</th><th style="width:34%">Semantics</th><th>Relevance to the review loop</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="dim"><code>advance(facts)</code></td>
+        <td>Exactly one enabled automatic rule → <code>TransitionDecision</code>; otherwise the legal <code>choices</code> set; otherwise <code>NO_ROUTE</code>.</td>
+        <td><b>The whole migration.</b> Every current decision point D1–D6 becomes an automatic rule with a mutually-exclusive guard.</td>
+      </tr>
+      <tr>
+        <td class="dim"><code>choose(facts, c)</code></td>
+        <td>Revalidates a returned choice against current facts; stale choices rejected (<code>ILLEGAL_CHOICE</code>), never replayed.</td>
+        <td><b>Unused here — by design.</b> The review loop has no operator-choice surface; pretending otherwise would manufacture scope.</td>
+      </tr>
+      <tr>
+        <td class="dim"><code>send(facts, e)</code></td>
+        <td>External event matched by key; exactly one enabled rule must pass.</td>
+        <td><b>Deferred.</b> Cancellation today is exception typing at the supervisor boundary; routing it through <code>send</code> is a listed alternative, not the recommendation.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout quote">
+    <span class="ico">§</span>
+    <h4>Why this seam exists at all</h4>
+    <p>The evaluator's own header states the division of labor the migration must respect: <em>"Consumers own facts, states, events, choices, and opaque outputs. This module only selects one valid route."</em> Thirteen <code>MachineFailure</code> codes (<code>AMBIGUOUS_AUTOMATIC</code>, <code>NO_ROUTE</code>, <code>INVALID_TARGET</code>, …) make every ambiguity a loud, typed error — the same fail-closed posture the review loop already applies to reviewer payloads and checks.</p>
+  </div>
+
+  <table style="margin-top:8px">
+    <thead>
+      <tr><th style="width:26%">Guarantee (state-machine.ts)</th><th>What it buys the review loop</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="dim">Pure &amp; synchronous — no I/O, clock, promises (lines 1–7, 165–199)</td><td>Rules are truth-table testable in microseconds; no mocking of git or sessions to test a decision.</td></tr>
+      <tr><td class="dim">Ambiguity is an error, not a priority order</td><td>The seven today-scattered decisions must be written as mutually exclusive guards — precedence becomes visible in the rule table, not buried in <code>if</code> ordering.</td></tr>
+      <tr><td class="dim">Opaque <code>Output</code> generic</td><td>Outputs carry <code>{ effect, status?, reason }</code>; the evaluator never learns what a "fixer" is.</td></tr>
+      <tr><td class="dim">Terminal states refuse <code>advance</code></td><td><code>clean</code>/<code>blocked</code>/<code>exhausted</code>/<code>failed</code>/<code>cancelled</code> become states the machine structurally cannot fall out of.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================= 03 PROPOSED ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">03</span>
+    <h2>Proposed alignment — the explicit machine</h2>
+    <span class="sub">+1 module · machine.ts ~220 LOC</span>
+  </div>
+  <p class="lede">One new module, <code class="path-new">extensions/code-review-iteration/machine.ts</code>, declares the review lifecycle over <code>defineMachine</code>. <code class="path">loop.ts</code> becomes a thinner supervisor: <strong>project facts → advance → execute output → persist → rescan</strong>.</p>
+
+  <div class="figure">
+    <div class="fig-label teal">Figure 2 — proposed ReviewState graph (automatic rules only; terminals solid)</div>
+    <svg viewBox="0 0 1000 430" role="img" aria-label="Proposed explicit state graph for the review loop">
+      <defs>
+        <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#0d7268"/>
+        </marker>
+        <marker id="arrowF" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#b4552d"/>
+        </marker>
+      </defs>
+
+      <!-- states -->
+      <g>
+        <rect class="svg-box-mint" x="20" y="80" width="160" height="56" rx="9"/>
+        <text class="svg-label" x="100" y="104" text-anchor="middle">initializing</text>
+        <text class="svg-sub" x="100" y="120" text-anchor="middle">preflight + create/resume</text>
+      </g>
+      <g>
+        <rect class="svg-box-mint" x="250" y="80" width="180" height="56" rx="9"/>
+        <text class="svg-label" x="340" y="104" text-anchor="middle">preparingBase</text>
+        <text class="svg-sub" x="340" y="120" text-anchor="middle">checkpoint · fetch · rebase</text>
+      </g>
+      <g>
+        <rect class="svg-box-mint" x="500" y="80" width="150" height="56" rx="9"/>
+        <text class="svg-label" x="575" y="104" text-anchor="middle">reviewing</text>
+        <text class="svg-sub" x="575" y="120" text-anchor="middle">runReviewerPass</text>
+      </g>
+      <g>
+        <rect class="svg-box-mint" x="710" y="80" width="140" height="56" rx="9"/>
+        <text class="svg-label" x="780" y="104" text-anchor="middle">triaging</text>
+        <text class="svg-sub" x="780" y="120" text-anchor="middle">classify findings</text>
+      </g>
+      <g>
+        <rect class="svg-box-mint" x="710" y="240" width="140" height="56" rx="9"/>
+        <text class="svg-label" x="780" y="264" text-anchor="middle">fixing</text>
+        <text class="svg-sub" x="780" y="280" text-anchor="middle">fixer + runChecks</text>
+      </g>
+
+      <!-- terminals -->
+      <g>
+        <rect x="900" y="20" width="84" height="42" rx="21" fill="#edf5ef" stroke="#2f7d4f" class="svg-term"/>
+        <text class="svg-label" x="942" y="46" text-anchor="middle" fill="#2f7d4f">clean</text>
+      </g>
+      <g>
+        <rect x="900" y="240" width="84" height="42" rx="21" fill="#faf0ea" stroke="#b4552d" class="svg-term"/>
+        <text class="svg-label" x="942" y="266" text-anchor="middle" fill="#b4552d">exhausted</text>
+      </g>
+      <g>
+        <rect x="710" y="356" width="140" height="42" rx="21" fill="#faf0ea" stroke="#b4552d" class="svg-term"/>
+        <text class="svg-label" x="780" y="382" text-anchor="middle" fill="#b4552d">blocked</text>
+      </g>
+      <g>
+        <rect x="250" y="240" width="180" height="42" rx="21" fill="#faf0ea" stroke="#b4552d" class="svg-term"/>
+        <text class="svg-label" x="340" y="266" text-anchor="middle" fill="#b4552d">failed</text>
+      </g>
+      <g>
+        <rect x="20" y="240" width="160" height="42" rx="21" fill="#f4f2ec" stroke="#8a91a0" stroke-dasharray="5 4" class="svg-term"/>
+        <text class="svg-label" x="100" y="266" text-anchor="middle" fill="#4c5462">cancelled</text>
+        <text class="svg-sub" x="100" y="330" text-anchor="middle">reached at the supervisor boundary today</text>
+        <text class="svg-sub" x="100" y="344" text-anchor="middle">(exception typing, loop.ts:726 — unchanged)</text>
+      </g>
+
+      <!-- edges -->
+      <line class="svg-edge svg-edge-teal" x1="180" y1="108" x2="246" y2="108" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="213" y="98" text-anchor="middle">catalogOk</text>
+
+      <line class="svg-edge svg-edge-teal" x1="430" y1="108" x2="496" y2="108" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="463" y="98" text-anchor="middle">baseReady</text>
+
+      <line class="svg-edge svg-edge-teal" x1="650" y1="108" x2="706" y2="108" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="678" y="98" text-anchor="middle">review parsed</text>
+
+      <line class="svg-edge svg-edge-teal" x1="816" y1="98" x2="896" y2="48" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="852" y="56" text-anchor="middle">blocking = 0</text>
+
+      <line class="svg-edge svg-edge-teal" x1="780" y1="136" x2="780" y2="236" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="788" y="192">blocking ≥ 1</text>
+
+      <path class="svg-edge svg-edge-teal" d="M 710 276 C 620 300, 620 170, 640 142" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="596" y="226" text-anchor="middle">checks passed ∧ pass &lt; max</text>
+
+      <line class="svg-edge svg-edge-teal" x1="850" y1="268" x2="896" y2="268" marker-end="url(#arrow2)"/>
+      <text class="svg-edge-note" x="864" y="252" text-anchor="middle">pass = max</text>
+
+      <line class="svg-edge svg-edge-rust" x1="780" y1="296" x2="780" y2="352" marker-end="url(#arrowF)"/>
+      <text class="svg-edge-note" x="712" y="330">checks failed</text>
+
+      <path class="svg-edge svg-edge-rust" d="M 100 136 C 100 200, 200 250, 246 258" marker-end="url(#arrowF)"/>
+      <text class="svg-edge-note" x="120" y="205">preflight error</text>
+
+      <path class="svg-edge svg-edge-rust" d="M 340 136 C 340 180, 340 200, 340 236" marker-end="url(#arrowF)"/>
+      <text class="svg-edge-note" x="352" y="176">no base · fetch fail</text>
+      <text class="svg-edge-note" x="352" y="190">rebase unresolved</text>
+
+      <path class="svg-edge svg-edge-rust" d="M 575 136 C 575 200, 480 250, 434 258" marker-end="url(#arrowF)"/>
+      <text class="svg-edge-note" x="498" y="166" text-anchor="middle">payload invalid</text>
+      <text class="svg-edge-note" x="498" y="180" text-anchor="middle">session threw</text>
+    </svg>
+    <figcaption><b>Reading.</b> Ten states, five terminal. Every arrow is a named, pure automatic rule — e.g. <code>triage-clean</code>, <code>fixer-blocked</code>, <code>passes-exhausted</code> — evaluated as a set: two enabled at once is <code>AMBIGUOUS_AUTOMATIC</code>, never a silent priority. The <code>fixing → reviewing</code> loop-back reproduces today's subtlety that the fixer runs even on the final pass; exhaustion is declared only when the next review cannot start.</figcaption>
+  </div>
+
+  <h3 style="font-family:var(--serif-display);font-size:21px;margin:30px 0 6px;">The shape of the new facts projection</h3>
+  <pre><code><span class="c">// extensions/code-review-iteration/machine.ts (sketch)</span>
+<span class="k">export type</span> <span class="t">ReviewState</span> =
+  | <span class="s">"initializing"</span> | <span class="s">"preparingBase"</span> | <span class="s">"reviewing"</span> | <span class="s">"triaging"</span> | <span class="s">"fixing"</span>
+  | <span class="s">"clean"</span> | <span class="s">"blocked"</span> | <span class="s">"exhausted"</span> | <span class="s">"failed"</span> | <span class="s">"cancelled"</span>;
+
+<span class="k">export interface</span> <span class="t">ReviewFacts</span> {
+  state: <span class="t">ReviewState</span>;          <span class="c">// derived by stateOf() — never persisted</span>
+  pass: <span class="k">number</span>; maxPasses: <span class="k">number</span>;
+  catalogOk: <span class="k">boolean</span>;
+  baseReady: <span class="k">boolean</span>;           <span class="c">// RunState.base_commit !== null</span>
+  baseError?: <span class="k">string</span>;           <span class="c">// detect/fetch/rebase failure captured by supervisor</span>
+  review?: { blocking: <span class="k">number</span> } <span class="c">// pass NN/review.json   — present ⇒ review parsed</span>
+  reviewError?: <span class="k">string</span>;        <span class="c">// payload contract / session failure</span>
+  fixer?:  { checksPassed: <span class="k">boolean</span> }; <span class="c">// pass NN/fixer.json — present ⇒ fixer ran</span>
+}
+
+<span class="k">export type</span> <span class="t">ReviewOutput</span> =
+  | { effect: <span class="s">"run-catalog-preflight"</span> } | { effect: <span class="s">"prepare-base"</span> }
+  | { effect: <span class="s">"run-reviewer-pass"</span> }     | { effect: <span class="s">"triage-findings"</span> }
+  | { effect: <span class="s">"run-fixer-pass"</span> }
+  | { effect: <span class="s">"terminal"</span>; status: <span class="t">RunStatus</span>; reason: <span class="k">string</span> };
+
+<span class="k">export const</span> <span class="f">reviewMachine</span> = <span class="f">defineMachine</span>&lt;<span class="t">ReviewState</span>, <span class="t">ReviewFacts</span>, <span class="k">never</span>, <span class="k">never</span>, <span class="t">ReviewOutput</span>&gt;({
+  <span class="f">stateOf</span>: (f) =&gt; f.state,
+  <span class="f">choiceKey</span>: <span class="f">unsupported</span>,      <span class="c">// no choice surface — compile-time never</span>
+  <span class="f">eventKey</span>:  <span class="f">unsupported</span>,
+  <span class="f">states</span>: {
+    <span class="s">"triaging"</span>: {
+      <span class="f">automatic</span>: [
+        { id: <span class="s">"triage-clean"</span>,     <span class="f">when</span>: zeroBlocking,        <span class="f">target</span>: <span class="s">"clean"</span>,    <span class="f">output</span>: terminal(<span class="s">"clean"</span>, …) },
+        { id: <span class="s">"triage-to-fixer"</span>,  <span class="f">when</span>: hasBlocking,         <span class="f">target</span>: <span class="s">"fixing"</span>,   <span class="f">output</span>: () =&gt; ({ effect: <span class="s">"run-fixer-pass"</span> }) },
+        { id: <span class="s">"triage-uncomputable"</span>, <span class="f">when</span>: hardnessMissing, <span class="f">target</span>: <span class="s">"failed"</span>,   <span class="f">output</span>: terminal(<span class="s">"failed"</span>, …) },
+      ],
+    },
+    <span class="s">"fixing"</span>: {
+      <span class="f">automatic</span>: [
+        { id: <span class="s">"fixer-continue"</span>,   <span class="f">when</span>: checksPassedAndPassesRemain, <span class="f">target</span>: <span class="s">"reviewing"</span>, … },
+        { id: <span class="s">"passes-exhausted"</span>, <span class="f">when</span>: checksPassedAndPassesSpent,  <span class="f">target</span>: <span class="s">"exhausted"</span>, … },
+        { id: <span class="s">"fixer-blocked"</span>,    <span class="f">when</span>: checksFailed,               <span class="f">target</span>: <span class="s">"blocked"</span>,  … },
+      ],
+    },
+    <span class="c">// … initializing / preparingBase / reviewing likewise; five terminal: { terminal: true }</span>
+  },
+});</code></pre>
+
+  <div class="callout">
+    <span class="ico">⇄</span>
+    <h4>The supervisor tick after migration</h4>
+    <p><code>stateOf(project(runDir, state))</code> → <code>reviewMachine.advance(facts)</code> → interpret <code>output.effect</code> with today's exact functions (<code>prepareBaseAndCheckpoint</code>, <code>runReviewerPass</code>, <code>runFixerPass</code>, …) → write artifacts/RunState → loop. A <code>MachineFailure</code> — which should be unreachable for a well-formed projection — is converted to <code>failed</code> with the code and context in the reason, mirroring how <code>/buck-loop</code> durably blocks on machine failure.</p>
+  </div>
+</section>
+
+<!-- ================= 04 SIDE BY SIDE ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">04</span>
+    <h2>Side by side</h2>
+    <span class="sub">the core comparison</span>
+  </div>
+  <p class="lede">The same ten dimensions, scored against what each design makes <strong>easy to see, hard to get wrong, and cheap to change</strong>.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:16%">Dimension</th>
+        <th style="width:42%"><span class="tag-t tag-today">Today — imperative</span></th>
+        <th><span class="tag-t tag-next">Proposed — evaluator-backed</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="dim">State representation</td>
+        <td class="now">Implicit: <span class="m">RunState.status</span> + <span class="m">pass</span> + artifact presence, re-derived differently at each site.</td>
+        <td class="next">Explicit <span class="m">ReviewState</span> union; one pure <span class="m">stateOf(facts)</span> projection is the only source of "where am I".</td>
+      </tr>
+      <tr>
+        <td class="dim">Decision location</td>
+        <td class="now">Seven decision points (D1–D7) across five functions; precedence encoded in control-flow order.</td>
+        <td class="next">One rule table in <span class="m">machine.ts</span>; precedence encoded as mutually exclusive guards, ambiguity = typed error.</td>
+      </tr>
+      <tr>
+        <td class="dim">Pass-loop control</td>
+        <td class="now"><span class="m">while (pass &lt; max)</span> in <span class="m">runReviewLoop</span>; exhaustion is fall-through; fixer-on-final-pass subtlety lives in the loop shape.</td>
+        <td class="next">Rules <span class="m">fixer-continue</span> / <span class="m">passes-exhausted</span> / <span class="m">fixer-blocked</span> state the same policy in named predicates.</td>
+      </tr>
+      <tr>
+        <td class="dim">Resume / recovery</td>
+        <td class="now"><span class="m">resumeIncompleteFixer</span> special-cases "review.json present, fixer.json absent" — a hand-copy of forward logic.</td>
+        <td class="next">Resume <em>is</em> projection: same <span class="m">stateOf</span> reads the same artifacts; no recovery-only branch to drift.</td>
+      </tr>
+      <tr>
+        <td class="dim">Terminal classification</td>
+        <td class="now">Five statuses written from nine <span class="m">terminalResult</span> call sites; reasons string-built inline.</td>
+        <td class="next">Five declared terminal states; <span class="m">terminal</span> outputs carry <span class="m">{status, reason}</span>; one supervisor write path.</td>
+      </tr>
+      <tr>
+        <td class="dim">Illegal situations</td>
+        <td class="now">Guarded by convention (early returns, sentinel strings); no shared vocabulary of failure.</td>
+        <td class="next"><span class="m">MachineFailure</span> with 13 codes + structured context; supervisor converts to <span class="m">failed</span> with code in reason.</td>
+      </tr>
+      <tr>
+        <td class="dim">Purity boundary</td>
+        <td class="now">Decision and effect fused: e.g. <span class="m">resolveReviewedPass</span> both classifies findings and invokes the fixer.</td>
+        <td class="next">Decisions pure and synchronous; effects executed only by <span class="m">loop.ts</span> — the evaluator structurally cannot do I/O.</td>
+      </tr>
+      <tr>
+        <td class="dim">Testability</td>
+        <td class="now">Decisions testable only through 24 real-git integration scenarios (630-line harness).</td>
+        <td class="next">Truth-table tests for all ~13 edges run instantly; integration suite retained unchanged as behavior contract.</td>
+      </tr>
+      <tr>
+        <td class="dim">Evaluator surface used</td>
+        <td class="now">—</td>
+        <td class="next"><span class="m">advance()</span> only. <span class="m">choose()</span>/<span class="m">send()</span> compile to <span class="m">never</span> — honest scope: no operator choices, no events in this loop.</td>
+      </tr>
+      <tr>
+        <td class="dim">Blast radius</td>
+        <td class="now">Baseline.</td>
+        <td class="next">+<span class="m">machine.ts</span> (~220 LOC) + truth-table tests; <span class="m">loop.ts</span> shrinks as decision branches leave; public API <span class="m">runReviewLoop(deps, cwd, options)</span> unchanged; run-state / git-ops / prompts / policy / findings / catalog / report untouched.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================= 05 BEHAVIOR MAP ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">05</span>
+    <h2>Behavior map — every current decision, relocated</h2>
+    <span class="sub">migration contract: no observable change</span>
+  </div>
+  <p class="lede">Each row is one behavior that exists today, the rule that will own it, and the guard that must keep it mutually exclusive. This table is the acceptance checklist for the truth-table tests.</p>
+
+  <table>
+    <thead>
+      <tr><th style="width:30%">Today (file:line)</th><th style="width:26%">Rule (proposed)</th><th>Guard / facts condition</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="m">initializeRun catalog errors → failed (loop.ts:606–612)</td><td class="m">preflight-failed</td><td class="m">state=initializing ∧ ¬catalogOk</td></tr>
+      <tr><td class="m">initializeRun ok → prepare (loop.ts:614–628)</td><td class="m">preflight-ok</td><td class="m">state=initializing ∧ catalogOk</td></tr>
+      <tr><td class="m">no base / fetch fail / rebase unresolved → failed (loop.ts:171–175, 196–204, 210–215)</td><td class="m">base-failed</td><td class="m">state=preparingBase ∧ baseError≠∅</td></tr>
+      <tr><td class="m">prep "continue" → first pass (loop.ts:218)</td><td class="m">base-ready</td><td class="m">state=preparingBase ∧ baseReady</td></tr>
+      <tr><td class="m">reviewer error / worktree fail → failed (loop.ts:329, 335, 695)</td><td class="m">review-failed</td><td class="m">state=reviewing ∧ reviewError≠∅</td></tr>
+      <tr><td class="m">review parsed → classify (loop.ts:694–698)</td><td class="m">review-parsed</td><td class="m">state=reviewing ∧ review≠∅</td></tr>
+      <tr><td class="m">zero blocking → clean + report (loop.ts:637–644)</td><td class="m">triage-clean</td><td class="m">review.blocking = 0</td></tr>
+      <tr><td class="m">hardness uncomputable → failed (loop.ts:646–647)</td><td class="m">triage-uncomputable</td><td class="m">blocking ≥ 1 ∧ hardness = ∅</td></tr>
+      <tr><td class="m">blocking → fixer pass (loop.ts:648, 651–677)</td><td class="m">triage-to-fixer</td><td class="m">blocking ≥ 1 ∧ hardness ≠ ∅</td></tr>
+      <tr><td class="m">checks pass + commits + fresh review (loop.ts:667–675)</td><td class="m">fixer-continue</td><td class="m">checksPassed ∧ pass &lt; maxPasses</td></tr>
+      <tr><td class="m">while-condition exhaust (loop.ts:715–724)</td><td class="m">passes-exhausted</td><td class="m">checksPassed ∧ pass = maxPasses</td></tr>
+      <tr><td class="m">checks fail → blocked, no checkpoint (loop.ts:667–674)</td><td class="m">fixer-blocked</td><td class="m">¬checksPassed</td></tr>
+      <tr><td class="m">resume artifact peek (loop.ts:679–687)</td><td class="m"><i>— becomes projection</i></td><td class="m">stateOf: review present ∧ fixer absent ⇒ triaging</td></tr>
+      <tr><td class="m">catch-all: cancelled vs failed (loop.ts:725–728)</td><td class="m"><i>— stays at boundary</i></td><td class="m">supervisor maps <i>LoopCancelledError</i> → <i>cancelled</i>, else <i>failed</i> (unchanged)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <span class="ico">✳</span>
+    <h4>Behavioral subtlety preserved by design</h4>
+    <p>Today the fixer runs even after the final review pass (blocking findings on pass N = max still trigger <span class="m">runFixerForPass</span>); <span class="m">exhausted</span> is only declared when the <em>next</em> review cannot start. The proposed graph encodes exactly this: <span class="m">triage-to-fixer</span> is unconditional on blocking, and exhaustion is decided in <span class="m">fixing</span> by comparing <span class="m">pass</span> to <span class="m">maxPasses</span>. A naive "review → exhausted" shortcut would be a silent behavior change — the truth-table tests pin it.</p>
+  </div>
+</section>
+
+<!-- ================= 06 UNCHANGED ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">06</span>
+    <h2>What deliberately does not change</h2>
+    <span class="sub">isolation of the migration</span>
+  </div>
+  <div class="ledger">
+    <div class="col" style="border-top:3px solid var(--green)">
+      <div class="col-tag" style="color:var(--green)">Untouched modules</div>
+      <h3>Everything below the decision layer</h3>
+      <ul>
+        <li><b>git-ops.ts</b> — checkpoint, fetch, rebase, worktrees, fingerprints</li>
+        <li><b>policy.ts</b> — <span class="m">review_exec</span> allowlist &amp; trust boundary</li>
+        <li><b>findings.ts</b> · <b>rubric.ts</b> · <b>catalog.ts</b> — payload validation, hardness, model selection</li>
+        <li><b>prompts.ts</b> · <b>personas/</b> · <b>prompts/</b> — reviewer &amp; fixer prompt assembly</li>
+        <li><b>run-state.ts</b> — <span class="m">RUN_STATE_SCHEMA</span> stays <b>1</b>; artifact layout immutable</li>
+        <li><b>report.ts</b> · <b>frontmatter.ts</b> — final report &amp; subject resolution</li>
+        <li><b>index.ts</b> — command wiring; <span class="m">/code-review</span> surface identical</li>
+      </ul>
+    </div>
+    <div class="col" style="border-top:3px solid var(--green)">
+      <div class="col-tag" style="color:var(--green)">Unchanged contracts</div>
+      <h3>What consumers can rely on</h3>
+      <ul>
+        <li><span class="m">runReviewLoop(deps, cwd, options)</span> signature and <span class="m">LoopResult</span> shape</li>
+        <li>All five terminal statuses and their trigger conditions</li>
+        <li>Pass artifact names, layout under <span class="m">&lt;git-common-dir&gt;/code-review-iteration/</span>, immutability</li>
+        <li>Resume semantics: fingerprint drift refusal, retained runs, incomplete-fixer pickup</li>
+        <li>The 24 integration scenarios in <span class="m">__tests__/loop.test.ts</span> pass as-written</li>
+        <li>Never pushes; checkpoint commits only</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 07 ALTERNATIVES ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">07</span>
+    <h2>Alternatives considered</h2>
+    <span class="sub">and why not (yet)</span>
+  </div>
+  <div class="alts">
+    <div class="alt recommended">
+      <span class="verdict-chip picked">Recommended</span>
+      <h4>Decision layer only</h4>
+      <p><b>machine.ts + thin supervisor.</b> Smallest change that removes the actual problem (implicit, scattered, untestable decisions). Keeps the evaluator's no-runtime promise. <b>~1 module, ~220 LOC + tests.</b></p>
+    </div>
+    <div class="alt">
+      <span class="verdict-chip rejected">Rejected</span>
+      <h4>Full buck-loop-shaped port</h4>
+      <p><b>Split into scan/persist/run-step modules</b>, re-derive facts from disk each tick, generic effect loop. ~3× the work, re-litigates a loop that already works, and walks straight into the "another orchestration framework" failure mode the state-machine plan warned against.</p>
+    </div>
+    <div class="alt">
+      <span class="verdict-chip rejected">Deferred</span>
+      <h4>Operator events via <code>send()</code></h4>
+      <p><b>Route cancellation through machine events</b> instead of <span class="m">LoopCancelledError</span> at the boundary. Cleaner typing, but touches the cancel path's UX and tests for marginal gain. Natural follow-up once the decision layer lands.</p>
+    </div>
+  </div>
+  <div class="callout risk">
+    <span class="ico">⚠</span>
+    <h4>Persisted machine state — rejected</h4>
+    <p>Adding <span class="m">machine_state</span> to <span class="m">RunState</span> (schema bump → 2) would orphan in-flight schema-1 runs and force <span class="m">validateResume</span> migration handling — all to store what <span class="m">stateOf</span> derives for free from fields and artifacts that are already durable. Derivation also keeps resume honest: the state on disk can never disagree with the artifacts on disk.</p>
+  </div>
+</section>
+
+<!-- ================= 08 RISKS ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">08</span>
+    <h2>Risks &amp; standing invariants</h2>
+    <span class="sub">what could go wrong, and the fences</span>
+  </div>
+  <table>
+    <thead><tr><th style="width:24%">Risk</th><th>Mitigation / invariant</th></tr></thead>
+    <tbody>
+      <tr><td class="dim">Silent behavior change</td>
+        <td>The 24 integration scenarios are the frozen contract; they must pass <em>unmodified</em>. The §05 behavior map doubles as the truth-table test checklist. The fixer-on-final-pass subtlety gets an explicit pinning test.</td></tr>
+      <tr><td class="dim">Framework creep</td>
+        <td>Standing rule from the prior extraction plan: <em>the reusable seam is the pure decision evaluator, not an asynchronous orchestration runtime</em>. No effects-in-machine, no persistence hooks, no async supervisor — outputs stay opaque data.</td></tr>
+      <tr><td class="dim">False reuse / ceremony</td>
+        <td>Honest accounting: this loop uses only <span class="m">advance()</span>. The win is decision centralization + a shared, tested vocabulary with <span class="m">buckMachine</span> — not feature utilization. If that trade feels thin, the full-port alternative is strictly worse, not a better deal.</td></tr>
+      <tr><td class="dim">Guard drift between rules and writes</td>
+        <td>Because state is derived and outputs carry the single <span class="m">{status, reason}</span> write, the machine table and persisted state cannot disagree; the supervisor loses its independent early-return paths.</td></tr>
+      <tr><td class="dim">Projection cost</td>
+        <td><span class="m">stateOf</span> reads at most two small JSON files already being read today (resume peek); no new scanning layer, no stat storms.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ================= 09 VERIFICATION ================= -->
+<section>
+  <div class="sec-head">
+    <span class="sec-no">09</span>
+    <h2>Verification plan</h2>
+    <span class="sub">how we prove nothing broke</span>
+  </div>
+  <ol class="steps">
+    <li>
+      <div><h4>Truth-table first</h4>
+      <p>New <span class="m">__tests__/machine.test.ts</span>: every §05 row asserted as rule-id + decision (<span class="m">to</span> + <span class="m">output.status</span>), including ambiguity refusal (two enabled guards → <span class="m">AMBIGUOUS_AUTOMATIC</span>) and terminal refusal. Runs in milliseconds, no fixtures.</p></div>
+    </li>
+    <li>
+      <div><h4>Integration suite, unmodified</h4>
+      <p><span class="m">npx vitest run extensions/code-review-iteration/__tests__/loop.test.ts</span> — all 24 scenarios green with zero edits is the behavioral contract. Any test that needs editing is a behavior change: stop and re-plan.</p></div>
+    </li>
+    <li>
+      <div><h4>Guardrails</h4>
+      <p><span class="m">npm run guardrails:check</span> — unit gate, diff-scoped lint, patch coverage ≥ 90%, global ratchet at 79.5%.</p></div>
+    </li>
+    <li>
+      <div><h4>Surface audit</h4>
+      <p>LSP references confirm <span class="m">runReviewLoop</span> / <span class="m">LoopResult</span> callers unchanged; <span class="m">grep</span> for <span class="m">terminalResult(… "failed")</span> shows the remaining call sites only inside supervisor effect handlers.</p></div>
+    </li>
+  </ol>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer>
+  <b>Sources read for this report</b>
+  <div class="src-list">
+    <div>extensions/code-review-iteration/loop.ts (#97DE, 729 ln) — full read</div>
+    <div>extensions/code-review-iteration/run-state.ts (#8D86) — RunState, statuses, resume</div>
+    <div>extensions/code-review-iteration/__tests__/loop.test.ts (#A122) — 24 scenarios</div>
+    <div>extensions/state-machine.ts (#A805, 441 ln) — evaluator contract</div>
+    <div>extensions/buck-loop/machine.ts (#45F2) — buckMachine precedent</div>
+    <div>extensions/buck-loop/loop.ts (#C54F) · types.ts (#C530) — supervisor pattern</div>
+    <div>.context/2026-09-19.reusable-state-machine/plan-reusable-state-machine.md — seam invariants, out-of-scope record</div>
+  </div>
+  <div style="margin-top:18px;">
+    Generated 2026-09-20 · subject <b>2026-09-20.review-loop-state-machine-alignment</b> · status <b>draft — for decision</b> · Next: confirm scope, then <b>/b-plan</b> formalization (or proceed straight to <b>/b-build</b> against this report as the plan artifact).
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

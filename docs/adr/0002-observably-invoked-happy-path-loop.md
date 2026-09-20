@@ -6,6 +6,8 @@ Deprecated XState `b-flow` is unwired because hidden orchestration is dead weigh
 
 Ship `extensions/buck-loop/` as an explicit `/buck-loop` command. The operator supplies a plan, phase, or subject path (or `--resume` / `--status` / `--stop`). `extensions/buck-loop/machine.ts` owns the Buck workflow definition: states, facts, guards, choices, events, effects, retry limits, and priority. It delegates synchronous route selection and fail-closed validation to the domain-neutral `extensions/state-machine.ts` evaluator. The Buck supervisor remains the sole interpreter of effects and owner of scanning, persistence, model calls, nested sessions, clocks, retries, and durable blocking. Every user-visible hop is therefore either a deterministic disk/git check or a machine-validated legal enum. Nested workers cannot recurse (`disableExtensionDiscovery`) and cannot choose the next state.
 
+`extensions/code-review-iteration/machine.ts` is the evaluator's second production consumer. Its review-loop supervisor retains git, model, artifact, resume, and terminal-report effects; the shared evaluator owns only synchronous lifecycle route selection.
+
 ## Considered Options
 
 - Restore XState `b-flow`: rejected. Snapshot restore re-invokes actors; unguarded arms skip scan results; the classifier never called a model.

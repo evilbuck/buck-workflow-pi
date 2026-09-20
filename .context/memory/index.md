@@ -1,3 +1,4 @@
+- 2026-09-20 — [Review-loop state-machine migration build](review-loop-state-machine-build-2026-09-20.md) — `completed` (review passed; second evaluator consumer; 159/159 focused tests; durable guardrails pass; unphased lifecycle remains open)
 - 2026-09-20 — [Reusable state-machine Phase 3 build](reusable-state-machine-phase-3-build-2026-09-20.md) — `completed` (evaluator/adapter docs; 121 focused + 187 Buck tests; non-Buck smoke; durable guardrails pass)
 - 2026-09-20 — [Reusable state-machine Phase 2 save](reusable-state-machine-phase-2-save-2026-09-20.md) — `completed` (Buck adapter cutover; table.ts gone; iterate closed complexity; 89/89; lifecycle open for Phase 3)
 
