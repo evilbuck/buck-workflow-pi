@@ -37,6 +37,14 @@ const FAILURE_SUMMARY: Record<MachineFailureCode, string> = {
   UNSUPPORTED_CHOICE: "choice cannot be isolated",
 };
 
+/**
+ * Thrown for every illegal machine operation. Fails closed: no defaults, no
+ * silent fallbacks, no declaration-order tiebreakers.
+ *
+ * Handle with `error.code` (machine-readable, from {@link MachineFailureCode})
+ * and `error.context` (structured detail: state, ruleIds, legalChoiceKeys, …).
+ * Assert on `code` in tests, never on message text.
+ */
 export class MachineFailure extends Error {
   constructor(
     readonly code: MachineFailureCode,
@@ -102,8 +110,42 @@ export type AdvanceDecision<State, Choice, Output> =
   | ChoiceDecision<State, Choice>;
 
 export interface CompiledMachine<State, Facts, Choice, Event, Output> {
+  /**
+   * Drives the loop tick. Returns a `transition` when exactly one automatic
+   * rule is enabled, or a `choices` listing the currently legal options when
+   * an outside decision is required. Feed a returned choice back into
+   * {@link CompiledMachine.choose} — choices go stale when facts change.
+   *
+   * @param facts - Current snapshot; `stateOf(facts)` must name a declared state.
+   * @returns One validated transition or the legal choice set.
+   * @throws {MachineFailure} `MISSING_STATE`, `TERMINAL_STATE`,
+   *   `AMBIGUOUS_AUTOMATIC`, `AMBIGUOUS_ROUTE`, `NO_ROUTE`, `INVALID_TARGET`,
+   *   or `UNSUPPORTED_CHOICE`.
+   */
   advance(facts: Facts): AdvanceDecision<State, Choice, Output>;
+  /**
+   * Consumes a choice previously returned by {@link CompiledMachine.advance}.
+   * Matched by `choiceKey` against choices legal for the *current* facts —
+   * stale choices are rejected, never replayed.
+   *
+   * @param facts - Current snapshot.
+   * @param choice - One of the choices `advance` returned.
+   * @returns The validated transition, with the declared choice deep-cloned
+   *   into `output` so no mutable memory is shared with the caller.
+   * @throws {MachineFailure} `MISSING_STATE`, `TERMINAL_STATE`, `ILLEGAL_CHOICE`,
+   *   `INVALID_TARGET`, or `UNSUPPORTED_CHOICE`.
+   */
   choose(facts: Facts, choice: Choice): TransitionDecision<State, Output>;
+  /**
+   * Applies an external signal (operator command, UI event). Matched by
+   * `eventKey`; exactly one matching rule's `when` must pass.
+   *
+   * @param facts - Current snapshot.
+   * @param event - The incoming signal.
+   * @returns The validated transition.
+   * @throws {MachineFailure} `MISSING_STATE`, `INVALID_TERMINAL_EVENT`,
+   *   `UNKNOWN_EVENT`, `INVALID_EVENT`, `AMBIGUOUS_EVENT`, `INVALID_TARGET`.
+   */
   send(facts: Facts, event: Event): TransitionDecision<State, Output>;
 }
 
@@ -120,6 +162,41 @@ type IsolatedChoiceRule<State, Facts, Choice, Output> = {
 };
 
 
+/**
+ * Compiles a machine definition into an evaluator with three operations:
+ * `advance` (drive the loop), `choose` (consume a picked choice), and `send`
+ * (apply an external event). All are synchronous and pure in `facts`; every
+ * illegal situation throws {@link MachineFailure} rather than guessing.
+ *
+ * Outputs describe effects; the caller executes them. The evaluator owns no
+ * state between calls — everything it knows comes from the facts passed in.
+ *
+ * @param machine - Declarative definition: state extraction, choice/event
+ *   identity keys, and per-state rules. Every rule needs a unique, grep-able
+ *   `id`; `when` predicates must be pure and mutually exclusive within a list.
+ * @returns A compiled machine. It is stateless and safe to share.
+ *
+ * @example
+ * ```ts
+ * type State = "draft" | "published";
+ * type Facts = { state: State; ready: boolean };
+ *
+ * const machine = defineMachine<State, Facts, never, never, null>({
+ *   stateOf: (f) => f.state,
+ *   choiceKey: (c) => c,
+ *   eventKey: (e) => e,
+ *   states: {
+ *     draft: {
+ *       automatic: [{ id: "go", when: (f) => f.ready, target: "published", output: () => null }],
+ *     },
+ *     published: { terminal: true },
+ *   },
+ * });
+ *
+ * machine.advance({ state: "draft", ready: true });
+ * // => { kind: "transition", from: "draft", to: "published", output: null }
+ * ```
+ */
 export function defineMachine<State extends PropertyKey, Facts, Choice, Event, Output>(
   machine: MachineDefinition<State, Facts, Choice, Event, Output>,
 ): CompiledMachine<State, Facts, Choice, Event, Output> {

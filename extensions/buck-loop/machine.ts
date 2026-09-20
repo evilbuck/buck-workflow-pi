@@ -7,8 +7,8 @@
 import { defineMachine, MachineFailure, type AdvanceDecision } from "../state-machine.js";
 import type { Choice, LoopState, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
 
-/** Three iterate cycles on one phase is the hard ceiling before blocking. */
-export const MAX_ITERATE_CYCLES_PER_PHASE = 3;
+/** Six iterate cycles on one phase is the hard ceiling before blocking. */
+export const MAX_ITERATE_CYCLES_PER_PHASE = 6;
 
 const WORK_SKILL: Record<WorkState, WorkSkill> = {
   building: "build",

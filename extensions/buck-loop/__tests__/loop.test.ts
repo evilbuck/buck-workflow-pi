@@ -466,7 +466,7 @@ describe("failure and choice", () => {
     expect(deps2.runStep).not.toHaveBeenCalled();
   });
 
-  it("blocks after three iterate cycles on one phase", async () => {
+  it("blocks after six iterate cycles on one phase", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const deps = workDeps(async (opts) => {
@@ -481,7 +481,7 @@ describe("failure and choice", () => {
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/iterate limit reached/i);
-    expect(deps.runStep.mock.calls.map((call) => call[0].skill).filter((s) => s === "b-iterate")).toHaveLength(3);
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill).filter((s) => s === "b-iterate")).toHaveLength(6);
   });
 });
 

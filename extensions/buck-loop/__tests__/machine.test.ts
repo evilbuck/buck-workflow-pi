@@ -331,9 +331,9 @@ describe("legalChoices", () => {
   it("keeps non-iterate choices at the iterate ceiling and empties only at the loop ceiling", () => {
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 }))).toEqual([]);
     expect(
-      legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: 3 })),
+      legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE })),
     ).toEqual([{ kind: "retry" }, { kind: "advance" }, { kind: "block" }]);
-    expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: 3 }))).toEqual([
+    expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toEqual([
       { kind: "document" },
       { kind: "save" },
       { kind: "block" },
