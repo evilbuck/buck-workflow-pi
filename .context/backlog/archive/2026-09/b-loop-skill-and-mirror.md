@@ -1,10 +1,10 @@
 ---
 title: b-loop skill — advisory + stamp, with deferred slash-command mirror
-status: active
+status: completed
 priority: medium
 created: 2026-07-05
-updated: 2026-07-05
-completed: null
+updated: 2026-09-20
+completed: 2026-09-20
 related:
   - skills/b-loop/SKILL.md
   - skills/b-phase/SKILL.md
@@ -16,6 +16,8 @@ related:
 ---
 
 # b-loop skill + slash-command mirror follow-up
+
+**Closed 2026-09-20:** `skills/b-loop/` deleted. Never had a slash mirror. F1–F3 superseded. `/buck-loop` runs plans; `b-plan`/`b-phase` own `omp_execution`.
 
 ## What shipped (2026-07-05)
 

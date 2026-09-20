@@ -61,8 +61,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-backlog` (skill-only) | Skill | Skill | `skills/b-backlog/SKILL.md` — backlog item authoring delegated to a subagent |
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
-| `/b-loop` (skill-only) | Skill | Skill | `skills/b-loop/SKILL.md` — stamp `omp_execution` on phase files; advisory only |
-| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner; not `/b-loop` |
+| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
 | `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
@@ -80,27 +79,13 @@ Practical translation rules:
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
 - Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, the deterministic `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` commands, `/buck-loop`, and the opt-in plan-artifact `turn_end` hook.
 
-**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-flow/`, `extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
+**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
-## b-flow — Deprecated / Unwired Historical Subsystem
+## b-flow — Removed
 
-`extensions/b-flow/` remains in the repository as historical code and tests,
-but it is **not wired by `package.json`** and should not be documented as the
-current autonomous workflow surface. The deprecation lesson is deliberate:
-extension-based orchestration that is not observably invoked becomes dead
-weight.
-
-Current autonomous-loop guidance lives in prompt/skill surfaces instead:
-
-- Use `b-plan` and `b-phase` for normal phase decomposition.
-- Use OMP's user-toggled primitives (`/goal set`, `orchestrate`, `workflow`)
-  only when the plan/phase recommends `omp_execution`.
-- Use `/b-save` as a pure prompt/skill for durable session recordkeeping.
-
-Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
-archival reference, not as active user-facing setup.
+XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/buck-loop` for an existing-plan runner. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
 
 ---
 
@@ -143,10 +128,6 @@ for the decision log.
   or contains review/audit/sweep/migrate language, `b-plan` recommends
   the field in the plan's Execution Instructions. It does **not** auto-set
   the field.
-- **`/skill:b-loop` for post-hoc stamping.** Recommends a loop from plan
-  shape and stamps `omp_execution` / `omp_goal_budget` onto an existing
-  phased plan's phase files (and the overview's `## Phase Summary` table)
-  without re-running `b-plan`. Advisory only — it never runs the loop.
 - **Eval-cell template for `workflow` plans.** When
   `omp_execution: workflow` is selected, `b-plan` writes a starter
   `.context/<subject>/eval-<topic>.py` (Python) that fans one
@@ -455,7 +436,6 @@ flowchart TD
 | [**b-arch-qa**](#b-arch-qa--architecture-qa-session) | Skill | `/skill:b-arch-qa` | `skills/b-arch-qa/SKILL.md` | Live architecture/codebase Q&A that builds a durable discussion doc (skill-only) |
 | [**b-blueprint**](#b-blueprint--architecture-blueprint) | Skill | `/skill:b-blueprint` | `skills/b-blueprint/SKILL.md` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | [**b-grill**](#b-grill--unified-grilling) | Skill | `/skill:b-grill` | `skills/b-grill/SKILL.md` | Unified grilling — `user` mode interviews the user, `auto` mode grills another model via RPC (skill-only) |
-| [**b-loop**](#b-loop--execution-loop-stamping) | Skill | `/skill:b-loop` | `skills/b-loop/SKILL.md` | Set/change/clear `omp_execution` loop on an existing phased plan (advisory + stamp only) |
 | [**b-backlog**](#b-backlog--backlog-item-capture) | Skill | `/skill:b-backlog` | `skills/b-backlog/SKILL.md` | Delegate backlog-item authoring + `todo.md` registration to a subagent (skill-only) |
 | [**b-fix-rebase-conflict**](#b-fix-rebase-conflict--semantic-conflict-resolution) | Prompt template + Skill | `/b-fix-rebase-conflict` | `prompts/b-fix-rebase-conflict.md` + `skills/b-fix-rebase-conflict/SKILL.md` | Resolve large rebase/merge conflicts via semantic merge over commit messages, diffs, `.context/` artifacts |
 | [**b-pr**](#b-pr--pull-request-creation) | Prompt template + Skill | `/b-pr` | `prompts/b-pr.md` + `skills/b-pr/SKILL.md` | Create a GitHub PR from the current feature branch — base-branch resolution, rebase, diff-generated description, `gh` create |
@@ -522,7 +502,7 @@ The following older subsystems are **not** wired by the package manifest:
 |---|---|
 | `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
-| `/b-flow` / `/b-next` orchestration | Historical code in `extensions/b-flow/`; not an active command |
+| `/b-flow` / `/b-next` orchestration | Removed 2026-09-20 |
 | `b-grill-auto` extension command | Historical/unwired (`extensions/b-grill-auto/`); the skill remains available |
 | Session-state injection / tmux status | Removed/unwired (`extensions/tmux-window-status.ts`, `grill-me-dialog.ts` kept as unused code) |
 
@@ -973,20 +953,6 @@ This works even with zero conversation history — a cold-start agent gets full 
 **Backwards Compatibility**: Legacy single-file `plan-*-phases.md` plans (without `format: discrete` frontmatter) continue to work. The extension and b-build/b-build-hard prompts detect format automatically.
 
 **Next Steps**: Execute Phase 1 via `/b-build` or `/b-build-hard`, guided by the phase's difficulty/model hint
-
----
-
-#### `/skill:b-loop` — Execution-Loop Stamping
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
-**Purpose**: Set, change, or clear the autonomous execution loop on an *existing* phased plan. Recommends `none | orchestrate | workflow | goal` from plan shape, then stamps `omp_execution` / `omp_goal_budget` onto the chosen phase files (and the matching cell in the phases-overview `## Phase Summary` table) so the user knows which keyword to drop on the first turn of each phase.
-
-**Pi/OMP primitive**: Skill only (`skills/b-loop/SKILL.md`) — no `prompts/`/`commands/` wrapper.
-
-**Behavior**: Advisory + stamp only. Does not run or drive a loop — the user still types the keyword or runs `/goal set` themselves (see [OMP Autonomous Loops](#omp-autonomous-loops)).
-
-**When to use**: After `/skill:b-phase`, when you want to opt individual phases into OMP's loop primitives without re-running `b-plan`.
 
 ---
 
@@ -1967,7 +1933,7 @@ after the agent turn unless the user manually selected a different model.
 - `/b-save` is pure prompt/skill recordkeeping (the deterministic variant is `/b-save-improved`).
 - `/b-commit` is a prompt wrapping the `git-commit` skill (the deterministic variant is `/b-commit-improved`).
 - There is no wired `/b-mode` command or plan-mode write guard.
-- There is no wired `/b-flow` or `/b-next` command.
+- `/b-flow` / `/b-next` were removed.
 - Session-state injection and idle warnings are not part of the current
   package surface.
 
@@ -2136,7 +2102,6 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by 
 - `/b-commit` — Conventional Commit, backed by the `git-commit` skill
 - `/skill:b-backlog` *(skill-only)* — delegate backlog-item capture
 - `/skill:b-memory-import` / `/skill:b-hindsight-import-projects` *(skill-only)* — Hindsight backfill (one project / many projects)
-- `/skill:b-loop` *(skill-only)* — stamp `omp_execution` on a phased plan
 
 **Deterministic extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
 - `/b-commit-improved` — code-driven Conventional Commit
@@ -2154,4 +2119,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by 
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-09-16
+Last updated: 2026-09-20

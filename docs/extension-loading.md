@@ -127,7 +127,6 @@ buck-workflow-pi/
     b-save-improved/        # (wired) deterministic /b-save-improved command
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
     buck-loop/              # (wired) observably invoked /buck-loop runner
-    b-flow/                 # (unwired) b-flow orchestration subsystem
     b-grill-auto/           # (unwired) b-grill-auto RPC subsystem
     grill-me-dialog.ts      # (unwired) grill-me dialog
     tmux-window-status.ts   # (unwired) tmux window status
@@ -163,11 +162,11 @@ buck-workflow-pi/
 5. **`/b-save-improved`** (`b-save-improved/`) — deterministic session checkpoint (preflight → scribe/auditor → apply).
 6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
-8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the domain-neutral synchronous evaluator in `extensions/state-machine.ts` for dispatch and fail-closed route validation; the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. Distinct from `/skill:b-loop` (execution-mode stamper). See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
+8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the domain-neutral synchronous evaluator in `extensions/state-machine.ts` for dispatch and fail-closed route validation; the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 
-Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, b-grill-auto extension command, session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
+Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow (deleted), b-grill-auto extension command, session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
 
 
 ## Sub-directory auto-discovery in OMP

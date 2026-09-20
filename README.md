@@ -309,7 +309,6 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
-| `b-loop` | Set/change/clear the `omp_execution` autonomous loop on an existing phased plan — advisory + stamp only (skill-only) |
 | `fix-pr` | Validate PR review comments against code; fix+push every valid finding on the head branch, then poll re-review until settled; `--issues-only` files issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
 | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
@@ -345,7 +344,7 @@ One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Deterministic commands**: `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
-Removed/unwired subsystems include `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, `b-grill-auto` extension command wiring, tmux status, and session state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
+Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`. Unwired: `b-grill-auto` extension command, tmux status, session-state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 

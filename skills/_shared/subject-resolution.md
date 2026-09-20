@@ -10,9 +10,9 @@ Apply this protocol **before** beginning skill-specific work when invoked withou
 
 If the user provided a path, subject name, or inline description — use it. Skip to Step 7.
 
-## Step 2: Check for b-flow Session
+## Step 2: Check leftover orchestration.json
 
-If `.context/workflow/orchestration.json` exists with a `currentState` that is not `idle`, `done`, or `aborted` — b-flow is managing this session. Use the b-flow subject. Skip to Step 7.
+If `.context/workflow/orchestration.json` exists with a `currentState` that is not `idle`, `done`, or `aborted` — use its `subject` field (legacy projection from the removed b-flow orchestrator). Skip to Step 7.
 
 ## Step 3: Check Session Memory for Subject
 

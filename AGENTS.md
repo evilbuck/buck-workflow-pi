@@ -73,7 +73,7 @@ For the full rationale and migration details, see `.context/2026-05-12.prompt-to
 
 ```
 skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-docs, b-howto, b-save, b-memory-import, b-present, b-phase, fix-pr, git-clean-orphans, git-commit, b-grill*, run-in-idle-pane, …)
-extensions/      # Pi extensions for runtime automation (b-flow, b-grill-auto)
+extensions/      # Pi extensions for runtime automation (buck-loop, b-*-improved, …)
 prompts/         # Pi prompt templates — thin wrappers that invoke skills (including b-commit wrapping git-commit skill)
 docs/            # Documentation
 presentations/   # Output from b-present
