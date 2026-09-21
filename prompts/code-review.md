@@ -18,3 +18,7 @@ Load and follow the `code-review` skill:
 ```
 skills/code-review/SKILL.md
 ```
+
+With the package extension loaded, `/code-review` runs the local Reviewer/Fixer
+loop in `extensions/code-review-iteration/`. This prompt is the portable
+release-PR review skill; do not rename the extension command.

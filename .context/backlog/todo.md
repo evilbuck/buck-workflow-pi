@@ -3,7 +3,6 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
-- [ ] [Skill/command/extension surface cleanup](items/skill-surface-cleanup.md) — medium; Tier 1 dead extensions, then b-save thin-wrap + code-review path; see `.context/2026-09-21.skill-command-extension-audit/research-skill-command-extension-audit.md`
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
@@ -26,14 +25,16 @@
 ## Skill Surface Cleanup Phases (2026-09-21)
 
 Overview: [`plan-skill-surface-cleanup-phases.md`](../2026-09-21.skill-command-extension-audit/plan-skill-surface-cleanup-phases.md).
-Umbrella: [Skill/command/extension surface cleanup](items/skill-surface-cleanup.md).
+Umbrella: [Skill/command/extension surface cleanup](archive/2026-09/skill-surface-cleanup.md).
 Phases share no files; recommended order is Phase 1 first.
 
 - [x] Phase 1: Dead Unwired Extensions — medium — [phase-1-dead-unwired-extensions.md](../2026-09-21.skill-command-extension-audit/phase-1-dead-unwired-extensions.md) — done 2026-09-21
 
-### Upcoming Phases
+- [x] [Phase 2: b-save Thin-Wrap and Code-Review Paths](archive/2026-09/phase-2-bsave-and-code-review.md) — done 2026-09-21
 
-- [ ] Phase 2: b-save Thin-Wrap and Code-Review Paths — medium — [phase-2-bsave-and-code-review.md](../2026-09-21.skill-command-extension-audit/phase-2-bsave-and-code-review.md)
+### Follow-up
+
+- [ ] [Sync living docs to canonical b-save skill](items/sync-b-save-canonical-docs.md) — low; replace stale wording that says the prompt executes the procedure directly
 
 ## buck-loop Extension Phases (2026-09-18)
 

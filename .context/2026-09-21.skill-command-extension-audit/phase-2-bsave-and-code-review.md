@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-skill-surface-cleanup.md
@@ -18,16 +18,16 @@ from_plan_steps: [6, 7, 8]
 depends_on: []
 dependency_type: NONE
 acceptance_criteria:
-  - "[ ] `prompts/b-save.md` loads `skills/b-save/SKILL.md` (≈13-line loader like `prompts/b-commit.md`)."
-  - "[ ] `skills/b-save/SKILL.md` still contains the 12 responsibilities plus the archive/phase/iterate/write-scope detail that today lives only in the prompt."
-  - "[ ] Skill `How It Works` treats the skill as canonical; the prompt only loads it."
-  - "[ ] `commands/b-save.md` still symlinks to `../prompts/b-save.md`."
-  - "[ ] Canonical `b-save` is byte-identical to `plugins/buck-workflow/skills/b-save/`."
-  - "[ ] `skills/code-review/SKILL.md` has zero `/mnt/c/Code/plans` strings; per-PR files go under `.context/` matching `code-review-universal` (`SKILL.md:181-183`)."
-  - "[ ] No-arg local reviews still write `CODE-REVIEW.md` at repo root."
-  - "[ ] `prompts/code-review.md` states the extension vs portable-skill dual. Do not rename the extension command."
-completed_at: null
-completed_by: null
+  - "[x] `prompts/b-save.md` loads `skills/b-save/SKILL.md` (≈13-line loader like `prompts/b-commit.md`)."
+  - "[x] `skills/b-save/SKILL.md` still contains the 12 responsibilities plus the archive/phase/iterate/write-scope detail that today lives only in the prompt."
+  - "[x] Skill `How It Works` treats the skill as canonical; the prompt only loads it."
+  - "[x] `commands/b-save.md` still symlinks to `../prompts/b-save.md`."
+  - "[x] Canonical `b-save` is byte-identical to `plugins/buck-workflow/skills/b-save/`."
+  - "[x] `skills/code-review/SKILL.md` has zero `/mnt/c/Code/plans` strings; per-PR files go under `.context/` matching `code-review-universal` (`SKILL.md:181-183`)."
+  - "[x] No-arg local reviews still write `CODE-REVIEW.md` at repo root."
+  - "[x] `prompts/code-review.md` states the extension vs portable-skill dual. Do not rename the extension command."
+completed_at: 2026-09-21
+completed_by: b-build
 ---
 
 # Phase 2: b-save Thin-Wrap and Code-Review Paths

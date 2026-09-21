@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-21
 subject: 2026-09-21.skill-command-extension-audit
 topics: [cleanup, extensions, b-save, code-review, grill-me-dialog, tmux-window-status, b-grill-auto]
 research: [research-skill-command-extension-audit.md]
 iterations: []
 spec:
-memory: [dead-unwired-extensions-build-2026-09-21.md]
+memory: [dead-unwired-extensions-build-2026-09-21.md, bsave-code-review-build-2026-09-21.md]
 ---
 
 # Plan: Skill / command / extension surface cleanup
@@ -94,10 +94,10 @@ Execute audit slices 1–2: delete three unwired extension modules, repair skill
 - [x] `extensions/index.ts` still wires the same eight modules + model auto-switch. `buck-mode.test.ts` still passes.
 - [x] No live `skills/` or `prompts/` instruction calls `grill-me_dialog`.
 - [x] `guardrails.json` complexity inventory has no rows for deleted files; complexity_gate still passes.
-- [ ] `prompts/b-save.md` loads `skills/b-save/SKILL.md`; skill still contains the 12 responsibilities plus the archive/phase/iterate detail that today lives only in the prompt.
-- [ ] `commands/b-save.md` still symlinks to `../prompts/b-save.md`.
-- [ ] `skills/code-review/SKILL.md` has zero `/mnt/c/Code/plans` strings; per-PR files go under `.context/`.
-- [ ] `prompts/code-review.md` states the extension dual.
+- [x] `prompts/b-save.md` loads `skills/b-save/SKILL.md`; skill still contains the 12 responsibilities plus the archive/phase/iterate detail that today lives only in the prompt.
+- [x] `commands/b-save.md` still symlinks to `../prompts/b-save.md`.
+- [x] `skills/code-review/SKILL.md` has zero `/mnt/c/Code/plans` strings; per-PR files go under `.context/`.
+- [x] `prompts/code-review.md` states the extension dual.
 - [x] Live docs no longer describe the three modules as on-disk unwired code.
 - [x] `test-b-grill-auto-extension` is completed/archived.
 

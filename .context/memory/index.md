@@ -1,3 +1,5 @@
+- 2026-09-21 — [b-save thin loader and portable code-review paths](bsave-code-review-build-2026-09-21.md) — `completed` (Phase 2 review passed; canonical save skill and portable review paths verified; docs wording follow-up tracked)
+
 - 2026-09-21 — [Dead unwired extensions — Phase 1 build and review](dead-unwired-extensions-build-2026-09-21.md) — `completed` (review passed clean; dead extension code deleted; grill file/chat handoff; Codex parity and guardrails pass)
 
   - 2026-09-21 | `dead-unwired-extensions-build-2026-09-21.md` | domains: [extensions, skills, docs, testing] | topics: [dead-code, grill-document-mode, guardrails, codex-plugin, backlog] | status: completed — review passed with no findings

@@ -8,7 +8,7 @@
   ],
   "implementation_happened": true,
   "save_completed": true,
-  "memory_file": ".context/memory/dead-unwired-extensions-build-2026-09-21.md",
+  "memory_file": ".context/memory/bsave-code-review-build-2026-09-21.md",
   "subject": "2026-09-21.skill-command-extension-audit",
   "files_modified": [
     ".context/2026-09-21.skill-command-extension-audit/draft-commit.md",
@@ -37,13 +37,24 @@
     "skills/b-grill/SKILL.md",
     "skills/b-grill-auto/SKILL.md",
     "skills/b-grill-me/SKILL.md",
-    "skills/b-grill-with-docs/SKILL.md"
+    "skills/b-grill-with-docs/SKILL.md",
+    ".context/2026-09-21.skill-command-extension-audit/phase-2-bsave-and-code-review.md",
+    ".context/memory/bsave-code-review-build-2026-09-21.md",
+    "plugins/buck-workflow/skills/b-save/SKILL.md",
+    "prompts/b-save.md",
+    "prompts/code-review.md",
+    "skills/b-save/SKILL.md",
+    "skills/code-review/SKILL.md",
+    ".context/2026-09-21.skill-command-extension-audit/index.md",
+    ".context/backlog/archive/2026-09/phase-2-bsave-and-code-review.md",
+    ".context/backlog/archive/2026-09/skill-surface-cleanup.md",
+    ".context/backlog/items/sync-b-save-canonical-docs.md"
   ],
   "guided_workflow": null,
   "guided_stage": "save",
   "plan_mode_active": false,
   "buck_workflow_mode_active": true,
   "buck_workflow_mode_source": "nested",
-  "buck_workflow_mode_reason": "Assigned b-build for Phase 1 dead unwired extensions",
+  "buck_workflow_mode_reason": "Assigned b-build for Phase 2 b-save and code-review paths",
   "restrict_cwd_active": false
 }

@@ -1,9 +1,10 @@
 ---
-status: active
+status: completed
 date: 2026-09-21
 subject: 2026-09-21.skill-command-extension-audit
 topics: [phasing, cleanup, extensions, b-save, code-review]
 source_plan: plan-skill-surface-cleanup.md
+memory: [dead-unwired-extensions-build-2026-09-21.md, bsave-code-review-build-2026-09-21.md]
 phases: 2
 format: discrete
 ---
@@ -25,7 +26,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Dead Unwired Extensions | completed | medium | none | [phase-1-dead-unwired-extensions.md](phase-1-dead-unwired-extensions.md) |
-| 2: b-save Thin-Wrap and Code-Review Paths | pending | medium | none | [phase-2-bsave-and-code-review.md](phase-2-bsave-and-code-review.md) |
+| 2: b-save Thin-Wrap and Code-Review Paths | completed | medium | none | [phase-2-bsave-and-code-review.md](phase-2-bsave-and-code-review.md) |
 
 ## Dependency Matrix
 
@@ -81,12 +82,12 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Dead Unwired Extensions — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Dead Unwired Extensions — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 2: b-save Thin-Wrap and Code-Review Paths — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes
 
-- Parent plan already `status: active`. Slice 3 and README Prompt Templates catalog rows stay out of scope.
+- Parent plan is `status: completed`. Slice 3 and README Prompt Templates catalog rows stay out of scope.
 - Codex bundle: Phase 1 recopies `b-grill`, `b-grill-me`, `b-grill-with-docs`. Phase 2 recopies `b-save`. Never add bundled `b-grill-auto` or `code-review`.
 - `prompts/` ↔ `commands/` is 43/43 symlinks. Phase 2 edits `prompts/b-save.md` only.
 - Historical `.context/` subject folders that mention the deleted extensions stay as record.

@@ -1,3 +1,7 @@
+- [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`
+
+- [x] [Phase 2: b-save Thin-Wrap and Code-Review Paths](2026-09/phase-2-bsave-and-code-review.md) — done 2026-09-21 — canonical save skill, 13-line loader, portable review paths, passing review and guardrails
+
 - [x] [Phase 1: Dead Unwired Extensions](2026-09/phase-1-dead-unwired-extensions.md) — done 2026-09-21 — deleted three unwired extension surfaces, replaced grill dialog calls with file/chat handoff, and preserved guardrail and Codex bundle parity
 
 - [x] [Test b-grill-auto extension in live Pi session](2026-09/test-b-grill-auto-extension.md) — done 2026-09-21 — extension deleted; skill remains

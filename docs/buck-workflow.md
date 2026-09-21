@@ -1566,10 +1566,10 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
 `/b-save` is a **pure prompt/skill command**. There is no extension handler.
-The model executes the prompt instructions directly, reads
-`.context/workflow/current-session.json` when it exists, and writes durable
-files under `.context/`. Step 8 may call harness memory tools (`retain` /
-`learn`) when present — that is intentional, not a second HTTP client.
+The thin prompt loads canonical `skills/b-save/SKILL.md`; the model follows that
+procedure, reads `.context/workflow/current-session.json` when it exists, and
+writes durable files under `.context/`. Step 8 may call harness memory tools
+(`retain` / `learn`) when present — that is intentional, not a second HTTP client.
 
 **Usage**:
 ```

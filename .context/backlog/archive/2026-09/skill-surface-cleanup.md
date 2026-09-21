@@ -1,10 +1,10 @@
 ---
 title: Skill/command/extension surface cleanup
-status: active
+status: completed
 priority: medium
 created: 2026-09-21
 updated: 2026-09-21
-completed: null
+completed: 2026-09-21
 related:
   - .context/2026-09-21.skill-command-extension-audit/plan-skill-surface-cleanup.md
   - .context/2026-09-21.skill-command-extension-audit/plan-skill-surface-cleanup-phases.md
@@ -49,3 +49,5 @@ Grill family: four skills stay until a canonical entry is chosen.
 ## Catalog
 
 README Prompt Templates table is missing `/product-tour` and `/git-clean-orphans` (and a few aliases/stubs). Do this after slices 1–2.
+
+Completed 2026-09-21. Both discrete phases passed independent review and durable guardrails. Stale living-doc wording about the new canonical `b-save` skill is tracked separately in `sync-b-save-canonical-docs.md`.
