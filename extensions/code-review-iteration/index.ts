@@ -39,6 +39,7 @@ import {
 } from "./policy.js";
 import { currentBranch, gitCommonDir } from "./git-ops.js";
 import { listRuns } from "./run-state.js";
+import { openHostModelRegistry, type HostAuthStorage, type HostModelRegistry } from "./model-registry.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const MODELS_DIR = join(HERE, "models");
@@ -247,17 +248,24 @@ function fallbackModel(cwd: string, tier: Hardness): string | null {
   return resolveOmpRole(cwd, "default") ?? null;
 }
 
-function registeredModelSelectors(): Set<string> {
-  const agentDir = ompAgentDir();
-  const registry = ModelRegistry.create(
-    AuthStorage.create(join(agentDir, "auth.json")),
-    join(agentDir, "models.json"),
-  );
-  return new Set(registry.getAvailable().map((model) => `${model.provider}/${model.id}`));
+async function registeredModelSelectors(): Promise<{ selectors: Set<string>; enumerated: boolean }> {
+  // Pi types declare static create; OMP's aliased class only has a constructor.
+  const hostModelRegistry = ModelRegistry as unknown as HostModelRegistry;
+  const hostAuthStorage = AuthStorage as unknown as HostAuthStorage;
+  const registry = await openHostModelRegistry(hostModelRegistry, hostAuthStorage, ompAgentDir());
+  if (!registry) return { selectors: new Set(), enumerated: false };
+  return {
+    selectors: new Set(registry.getAvailable().map((model) => `${model.provider}/${model.id}`)),
+    enumerated: true,
+  };
 }
 
-function intersectCatalogSelectors(catalog: CatalogLoad, notify: CommandUI["notify"]): Set<string> {
-  const registered = registeredModelSelectors();
+async function intersectCatalogSelectors(catalog: CatalogLoad, notify: CommandUI["notify"]): Promise<Set<string>> {
+  const { selectors: registered, enumerated } = await registeredModelSelectors();
+  if (!enumerated) {
+    notify("Could not enumerate registered models; role fallbacks remain available.", "warning");
+    return new Set();
+  }
   const selectors = new Set(catalog.entries.map((entry) => entry.selector).filter((selector) => registered.has(selector)));
   if (selectors.size === 0) notify("No catalog model has configured live authentication; role fallbacks remain available.", "warning");
   return selectors;
