@@ -1,3 +1,7 @@
+- [x] [Document current eval-kernel and async job contracts](2026-09/eval-kernel-async-task-doc-gap.md) — done 2026-09-21 — current handle-based eval API, task/hub boundary, result retention, and migrated workflow examples. `.context/2026-09-18.doc-honesty/`
+
+- [x] [b-loop skill — advisory + stamp + deferred slash mirror](2026-09/b-loop-skill-and-mirror.md) — done 2026-09-20 — skill deleted; never had a slash mirror; `/buck-loop` is the runner; `b-plan`/`b-phase` own `omp_execution`
+
 - [x] [Extract reusable pure state-machine evaluator](2026-09/reusable-state-machine-core.md) — done 2026-09-20 — domain-neutral evaluator; Buck adapter cutover; architecture proof; 187 Buck-loop tests and guardrails pass. `.context/2026-09-19.reusable-state-machine/`
 
 - [x] [Phase 3: Architecture documentation and proof](2026-09/phase-3-architecture-documentation-and-proof.md) — done 2026-09-20 — evaluator/adapter docs; non-Buck smoke; 121 focused + 187 Buck-loop tests; final review and guardrails pass. `.context/2026-09-19.reusable-state-machine/phase-3-architecture-documentation-and-proof.md`

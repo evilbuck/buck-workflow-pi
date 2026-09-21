@@ -9,8 +9,8 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
-- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads `commands/` — prompt-backed commands are symlinks to the same prompt bodies. OMP-only commands may be real files; they are not mirror exceptions. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, the deterministic `*-improved` commands, `/buck-loop`, and an opt-in plan-artifact bridge
+- **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ### Subject lifecycle authority
@@ -35,13 +35,13 @@ source of truth for command bodies and mirrors only the registration surface:
 
 | Buck concept | Pi primitive | OMP primitive | Current implementation |
 |---|---|---|---|
-| Most `/b-*` workflow entrypoints | Prompt templates | Slash commands | `prompts/b-*.md`; `commands/b-*.md` symlinks |
+| Prompt-backed workflow entrypoints | Prompt templates | Slash commands | `prompts/*.md`; one matching `commands/*.md` symlink per prompt |
 | Reusable helper capabilities | Skills | Skills | `skills/*/SKILL.md` |
 | Runtime hooks | Extension | Extension | `extensions/index.ts` |
 | `/b-save` | Prompt template | Slash command symlink | `prompts/b-save.md`; `commands/b-save.md`; `skills/b-save/SKILL.md` (+ optional OMP retain) |
 | `/b-docs` | Prompt template | Slash command symlink | `prompts/b-docs.md`; `commands/b-docs.md`; `skills/b-docs/SKILL.md` |
 | `/b-howto` | Prompt template | Slash command symlink | `prompts/b-howto.md`; `commands/b-howto.md`; `skills/b-howto/SKILL.md` |
-| `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session recap) |
+| `/b-recap` | Prompt template | Slash command symlink | `prompts/b-recap.md`; `commands/b-recap.md`; `skills/b-recap/SKILL.md` (read-only session + branch-delta recap) |
 | `/b-commit` | Prompt template | Slash command | `prompts/b-commit.md`; `commands/b-commit.md`; `skills/git-commit/SKILL.md` |
 | `fix-pr` (skill-only) | Skill | Skill | `skills/fix-pr/SKILL.md` — no `prompts/`/`commands/` wrapper; invoke `/skill:fix-pr` |
 | `/b-diagnose` | Prompt template | Slash command symlink | `prompts/b-diagnose.md`; `commands/b-diagnose.md`; `skills/b-diagnose/SKILL.md` |
@@ -53,7 +53,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-init-tracker` | Prompt template | Slash command symlink | `prompts/b-init-tracker.md`; `commands/b-init-tracker.md`; `skills/b-init-tracker/SKILL.md` |
 | `/b-triage` | Prompt template | Slash command symlink | `prompts/b-triage.md`; `commands/b-triage.md`; `skills/b-triage/SKILL.md` |
 | `/b-pr` | Prompt template + Skill | Slash command | `prompts/b-pr.md`; `commands/b-pr.md` (symlink); `skills/b-pr/SKILL.md` |
-| `/b-pr-improved` | Extension command | Slash command (real file) | `commands/b-pr-improved.md`; `extensions/b-pr-improved/`; falls back to `skills/b-pr/` |
+| `/b-pr-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-pr-improved.md`; `commands/b-pr-improved.md`; `extensions/b-pr-improved/`; falls back to `skills/b-pr/` |
 | `/b-pr-review-2-issues` | Prompt template + Skill | Slash command | `prompts/b-pr-review-2-issues.md`; `commands/b-pr-review-2-issues.md` (symlink); `skills/b-pr-review-2-issues/SKILL.md` |
 | `/b-eval-upstream-prs` | Prompt template + Skill | Slash command symlink | `prompts/b-eval-upstream-prs.md`; `commands/b-eval-upstream-prs.md`; `skills/b-eval-upstream-prs/SKILL.md` |
 | `b-issue-create` (skill-only) | Skill | Skill | `skills/b-issue-create/SKILL.md` — no `prompts/`/`commands/` wrapper |
@@ -61,46 +61,32 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-backlog` (skill-only) | Skill | Skill | `skills/b-backlog/SKILL.md` — backlog item authoring delegated to a subagent |
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
-| `/b-loop` (skill-only) | Skill | Skill | `skills/b-loop/SKILL.md` — stamp `omp_execution` on phase files; advisory only |
-| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner; not `/b-loop` |
+| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
 | `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
-| `/b-commit-improved` | Extension command | Slash command (real file) | `commands/b-commit-improved.md`; `prompts/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit-improved/` |
-| `/b-save-improved` | Extension command | Slash command (real file) | `commands/b-save-improved.md`; `prompts/b-save-improved.md`; `extensions/b-save-improved/`; falls back to `skills/b-save-improved/` |
-| `/b-kamal-release` | Extension command | Slash command (real file, OMP-only) | `commands/b-kamal-release.md`; `extensions/b-kamal-release/` |
-| `/git-clean-orphans` | Skill | Slash command (real file, OMP-only) | `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
-| `/product-tour` | Skill | Slash command (real file, OMP-only) | `commands/product-tour.md`; `skills/product-tour/SKILL.md` |
-| `/code-review` | Prompt template + Skill | Slash command symlink | `prompts/code-review.md`; `commands/code-review.md`; `skills/code-review/` |
+| `/b-commit-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-commit-improved.md`; `commands/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit-improved/` |
+| `/b-save-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-save-improved.md`; `commands/b-save-improved.md`; `extensions/b-save-improved/`; falls back to `skills/b-save-improved/` |
+| `/b-kamal-release` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-kamal-release.md`; `commands/b-kamal-release.md`; `extensions/b-kamal-release/` |
+| `/git-clean-orphans` | Prompt template + Skill | Slash command symlink | `prompts/git-clean-orphans.md`; `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
+| `/product-tour` | Prompt template + Skill | Slash command symlink | `prompts/product-tour.md`; `commands/product-tour.md`; `skills/product-tour/SKILL.md` |
+| `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
+| `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, the deterministic `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` commands, `/buck-loop`, and the opt-in plan-artifact `turn_end` hook.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
 
-**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-flow/`, `extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
+**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
-## b-flow — Deprecated / Unwired Historical Subsystem
+## b-flow — Removed
 
-`extensions/b-flow/` remains in the repository as historical code and tests,
-but it is **not wired by `package.json`** and should not be documented as the
-current autonomous workflow surface. The deprecation lesson is deliberate:
-extension-based orchestration that is not observably invoked becomes dead
-weight.
-
-Current autonomous-loop guidance lives in prompt/skill surfaces instead:
-
-- Use `b-plan` and `b-phase` for normal phase decomposition.
-- Use OMP's user-toggled primitives (`/goal set`, `orchestrate`, `workflow`)
-  only when the plan/phase recommends `omp_execution`.
-- Use `/b-save` as a pure prompt/skill for durable session recordkeeping.
-
-Detailed b-flow internals are preserved in [docs/b-flow.md](b-flow.md) as an
-archival reference, not as active user-facing setup.
+XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/buck-loop` for an existing-plan runner. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
 
 ---
 
@@ -120,7 +106,7 @@ for the decision log.
 |---|---|---|
 | **`/goal set <objective>`** | User-invoked slash command — **persistent runtime state** | Adds a `goal` tool; injects `goal-mode-active.md`; tracks a token+time budget; enforces a 6-step completion-audit protocol on every active-goal turn. |
 | **`orchestrate` keyword** | User types `orchestrate` as a standalone lowercase prose word | Injects a hidden `orchestrate-notice`; switches the model into the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase). |
-| **`workflow` keyword** | User types `workflow` or `workflows` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python in the `eval` tool, fanning out via `agent()` / `parallel()` / `pipeline()` with a per-turn budget ceiling. |
+| **`workflow` keyword** | User types `workflow` or `workflows` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python in the `eval` tool, fanning out via `agent()` handles and joining them with `wait()` under the active budget ceiling. |
 
 ### How buck-workflow surfaces them
 
@@ -143,10 +129,6 @@ for the decision log.
   or contains review/audit/sweep/migrate language, `b-plan` recommends
   the field in the plan's Execution Instructions. It does **not** auto-set
   the field.
-- **`/skill:b-loop` for post-hoc stamping.** Recommends a loop from plan
-  shape and stamps `omp_execution` / `omp_goal_budget` onto an existing
-  phased plan's phase files (and the overview's `## Phase Summary` table)
-  without re-running `b-plan`. Advisory only — it never runs the loop.
 - **Eval-cell template for `workflow` plans.** When
   `omp_execution: workflow` is selected, `b-plan` writes a starter
   `.context/<subject>/eval-<topic>.py` (Python) that fans one
@@ -164,7 +146,7 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `/skill:b-loop` remains the advisory stamper. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
@@ -358,7 +340,7 @@ flowchart LR
 
 ### Pi Implementation Matrix
 
-**Core loop only.** The [Quick Reference Table](#quick-reference-table) is the authoritative catalog of every command, skill, and extension backing file; this diagram shows the primary plan→build→review→save wiring.
+**Core loop only.** The [Quick Reference Table](#quick-reference-table) catalogs the primary Buck workflow components; `skills/`, `prompts/`, `commands/`, and `extensions/index.ts` remain the complete implementation inventories. This diagram shows the primary plan→build→review→save wiring.
 
 ```mermaid
 flowchart TD
@@ -423,6 +405,7 @@ flowchart TD
 | [**b-explore**](#1-discovery-phase) | Prompt template | `/b-explore` | `prompts/b-explore.md` | Explore codebases, trace architecture, map data flows |
 | [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
 | [**b-capture**](#b-capture--note-taking-mode) | Prompt template + Skill | `/b-capture` | `prompts/b-capture.md` + `skills/b-capture/SKILL.md` | Note-taking mode — dump as we go via subagent; no polish until told |
+| **thought-dump-writer** | Skill | `/skill:thought-dump-writer` | `skills/thought-dump-writer/SKILL.md` | One lightly cleaned living markdown note with a git checkpoint after every change |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
 | [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
@@ -449,13 +432,12 @@ flowchart TD
 | [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
-| [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
+| [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Read-only recap of the session plus commits since branch base and staged/unstaged/untracked work (<500 words) |
 | [**b-save**](#b-save--session-recordkeeping) | Prompt template + Skill | `/b-save` | `prompts/b-save.md` + `skills/b-save/SKILL.md` | Write session memory, stitch cross-references, update backlog/spec state; optional OMP retain + optional non-OMP memory-skill re-index |
 | [**b-memory-import**](#b-memory-import--hindsight-backfill) | Skill + Bun script | `/skill:b-memory-import` | `skills/b-memory-import/` | One-shot/backfill `.context/memory` → Hindsight retain (not every `/b-save`) |
 | [**b-arch-qa**](#b-arch-qa--architecture-qa-session) | Skill | `/skill:b-arch-qa` | `skills/b-arch-qa/SKILL.md` | Live architecture/codebase Q&A that builds a durable discussion doc (skill-only) |
 | [**b-blueprint**](#b-blueprint--architecture-blueprint) | Skill | `/skill:b-blueprint` | `skills/b-blueprint/SKILL.md` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | [**b-grill**](#b-grill--unified-grilling) | Skill | `/skill:b-grill` | `skills/b-grill/SKILL.md` | Unified grilling — `user` mode interviews the user, `auto` mode grills another model via RPC (skill-only) |
-| [**b-loop**](#b-loop--execution-loop-stamping) | Skill | `/skill:b-loop` | `skills/b-loop/SKILL.md` | Set/change/clear `omp_execution` loop on an existing phased plan (advisory + stamp only) |
 | [**b-backlog**](#b-backlog--backlog-item-capture) | Skill | `/skill:b-backlog` | `skills/b-backlog/SKILL.md` | Delegate backlog-item authoring + `todo.md` registration to a subagent (skill-only) |
 | [**b-fix-rebase-conflict**](#b-fix-rebase-conflict--semantic-conflict-resolution) | Prompt template + Skill | `/b-fix-rebase-conflict` | `prompts/b-fix-rebase-conflict.md` + `skills/b-fix-rebase-conflict/SKILL.md` | Resolve large rebase/merge conflicts via semantic merge over commit messages, diffs, `.context/` artifacts |
 | [**b-pr**](#b-pr--pull-request-creation) | Prompt template + Skill | `/b-pr` | `prompts/b-pr.md` + `skills/b-pr/SKILL.md` | Create a GitHub PR from the current feature branch — base-branch resolution, rebase, diff-generated description, `gh` create |
@@ -463,15 +445,15 @@ flowchart TD
 | [**b-issue-create**](#b-issue-create--plan-to-github-issue) | Skill | `/skill:b-issue-create` | `skills/b-issue-create/SKILL.md` | Turn the active plan/spec/research context into an AFK-ready GitHub issue (skill-only) |
 | [**b-auto-fix**](#b-auto-fix--issue-autofix-pipeline) | Skill | `/skill:b-auto-fix` | `skills/b-auto-fix/SKILL.md` | Auto-fix a `ready-for-agent` GitHub issue via b-research → b-plan → b-build → b-review (skill-only) |
 | [**b-eval-upstream-prs**](#b-eval-upstream-prs--upstream-pr-evaluation) | Prompt template + Skill | `/b-eval-upstream-prs` | `prompts/b-eval-upstream-prs.md` + `skills/b-eval-upstream-prs/SKILL.md` | Triage/evaluate a fork's upstream PRs (importance/friction/risk, isolated validation, merge order); local-only |
-| [**code-review**](#code-review--release-pr-review) | Prompt template + Skill | `/code-review` | `prompts/code-review.md` + `skills/code-review/` | Release-candidate PR review — parallel agents over high-risk areas, per-PR review files |
+| [**code-review**](#code-review--release-pr-review) | Prompt template + Skill + extension command | `/code-review` | Portable: `prompts/code-review.md` + `skills/code-review/`; local runtime: `extensions/code-review-iteration/` | Portable release-PR review; wired Pi/OMP command runs bounded local Reviewer → optional Fixer → fresh-Reviewer passes |
 | [**code-review-universal**](#code-review-universal--universal-pr-review) | Prompt template + Skill | `/code-review-universal` | `prompts/code-review-universal.md` + `skills/code-review-universal/` | Language-agnostic PR review; posts one atomic severity-tagged GitHub review with inline comments |
 | [**skill-explainer**](#skill-explainer--skill-walkthrough-reports) | Skill | `/skill:skill-explainer` | `skills/skill-explainer/SKILL.md` | Explain a skill/command and produce a visual HTML report of its flow and effects (skill-only) |
-| [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Skill | `/git-clean-orphans` (OMP) | `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
-| [**product-tour**](#product-tour--guided-product-tours) | Skill | `/product-tour` (OMP) | `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
+| [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
+| [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
 | [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
-| [**Deterministic extension commands**](#deterministic-extension-commands) | Extension commands | `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Code-driven counterparts with skill fallbacks; wired via `extensions/index.ts` |
+| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-loop` runs plans and `/code-review` runs local review/fix passes |
 
-**Implementation note:** this package exposes `/b-*` primarily through prompt templates. OMP discovers the same commands through the `commands/` mirror — one symlink per `prompts/*.md`, zero physical-file exceptions, enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers the deterministic `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved` commands, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
+**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -487,11 +469,11 @@ flowchart TD
 `package.json` wires exactly one extension entry: `extensions/index.ts`.
 Its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads `buckModelMapping` (or OMP role mapping via
-   `extensions/omp-models.ts`), detects the active phased-plan difficulty,
-   switches model tier for `/b-build`, `/b-build-hard`, `/b-iterate`, and
-   `/b-review`, then switches back after `agent_end` unless the user manually
-   changed models.
+1. **Model auto-switch** — Reads OMP `modelRoles` through
+   `extensions/omp-models.ts`, with legacy Pi `buckModelMapping` as fallback;
+   detects the active phased-plan difficulty, switches model tier for
+   `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`, then switches
+   back after `agent_end` unless the user manually changed models.
 2. **TPS tracker** — Token-per-second generation metrics
    (`extensions/tps-tracker.ts`).
 3. **`/b-pr-improved`** — Deterministic, code-driven PR creation
@@ -507,14 +489,20 @@ Its default export composes every wired subsystem:
 7. **Plan-artifact bridge** — Opt-in (`buckPlanArtifact.enabled` or
    `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook in `extensions/plan-artifact.ts`
    that detects OMP plan-mode exit and persists the plan file into the
-   `.context/<YYYY-MM-DD>.<slug>/plan-<slug>.md` subject convention so
-   `/b-build` subject resolution finds it.
+   `.context/<YYYY-MM-DD>.<slug>/plan-<slug>.md` subject convention so `/b-build` subject resolution finds it.
+8. **`/buck-loop`** — Observably invoked existing-plan runner
+   (`extensions/buck-loop/`). Nested isolated sessions; artifacts win on resume. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+9. **`/code-review` local iteration** — Bounded Reviewer → optional Fixer →
+   fresh-Reviewer passes (`extensions/code-review-iteration/`). Reviewer work
+   runs in disposable detached worktrees and reproduction crosses the
+   policy-bounded `review_exec` tool.
 
 The four `*-improved` / `b-kamal-release` commands report progress through
 the shared `extensions/extension-activity.ts` helper and fall back to their
-skill counterparts (`b-pr`, `git-commit-improved`, `b-save-improved` skills)
-when the extension is not loaded. `extensions/subprocess.ts` and
-`extensions/omp-models.ts` are shared libraries, not standalone subsystems.
+skill counterparts where one exists (`b-pr`, `git-commit-improved`,
+`b-save-improved`). The local review loop uses the same activity surface.
+`extensions/subprocess.ts` and `extensions/omp-models.ts` are shared libraries,
+not standalone subsystems.
 
 The following older subsystems are **not** wired by the package manifest:
 
@@ -522,7 +510,7 @@ The following older subsystems are **not** wired by the package manifest:
 |---|---|
 | `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
-| `/b-flow` / `/b-next` orchestration | Historical code in `extensions/b-flow/`; not an active command |
+| `/b-flow` / `/b-next` orchestration | Removed 2026-09-20 |
 | `b-grill-auto` extension command | Historical/unwired (`extensions/b-grill-auto/`); the skill remains available |
 | Session-state injection / tmux status | Removed/unwired (`extensions/tmux-window-status.ts`, `grill-me-dialog.ts` kept as unused code) |
 
@@ -976,20 +964,6 @@ This works even with zero conversation history — a cold-start agent gets full 
 
 ---
 
-#### `/skill:b-loop` — Execution-Loop Stamping
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
-**Purpose**: Set, change, or clear the autonomous execution loop on an *existing* phased plan. Recommends `none | orchestrate | workflow | goal` from plan shape, then stamps `omp_execution` / `omp_goal_budget` onto the chosen phase files (and the matching cell in the phases-overview `## Phase Summary` table) so the user knows which keyword to drop on the first turn of each phase.
-
-**Pi/OMP primitive**: Skill only (`skills/b-loop/SKILL.md`) — no `prompts/`/`commands/` wrapper.
-
-**Behavior**: Advisory + stamp only. Does not run or drive a loop — the user still types the keyword or runs `/goal set` themselves (see [OMP Autonomous Loops](#omp-autonomous-loops)).
-
-**When to use**: After `/skill:b-phase`, when you want to opt individual phases into OMP's loop primitives without re-running `b-plan`.
-
----
-
 #### `/b-present` — Presentation Package
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
@@ -1369,11 +1343,11 @@ Suggested next step
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Production-readiness review of a release-candidate PR (typically `dev → main`). Fans out parallel agents across the highest-risk change areas, traces every finding back to the originating PR and author, and writes per-PR review files that can be handed directly to each contributor.
+**Portable prompt/skill purpose**: Production-readiness review of a release-candidate PR (typically `dev → main`). It fans out across the highest-risk change areas, traces findings to originating PRs and authors, and writes per-PR review files (`prompts/code-review.md`, `commands/code-review.md`, `skills/code-review/`).
 
-**Pi/OMP primitive**: Prompt command + skill (`prompts/code-review.md`, `commands/code-review.md` symlink, `skills/code-review/`).
+**Wired Pi/OMP command purpose**: When `extensions/index.ts` is loaded, `/code-review` is registered by `extensions/code-review-iteration/` instead. It reviews the current local checkout in bounded Reviewer → optional Fixer → fresh-Reviewer passes, with disposable Reviewer worktrees and immutable pass artifacts.
 
-**Contrast**: `code-review-universal` reviews one PR and posts a single atomic GitHub review; `code-review` reviews a *release* PR as a set of contributing PRs and writes local per-PR files.
+**Contrast**: `code-review-universal` reviews one PR and posts a single atomic GitHub review. Portable `code-review` reviews a release PR as contributing PRs; the wired local command iterates on the current checkout without GitHub lifecycle actions.
 
 ---
 
@@ -1732,16 +1706,18 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-Four slash commands are backed by **code, not prompt-following**. Each is wired through `extensions/index.ts`, reports live progress via `extensions/extension-activity.ts`, and has a prompt/skill fallback when the extension is not loaded.
+Six slash commands are backed by **code, not only prompt-following**, when `extensions/index.ts` is loaded. The four `*-improved` / `b-kamal-release` commands report live progress via `extensions/extension-activity.ts` and have a prompt/skill fallback where listed. `/buck-loop` has no skill fallback; `/code-review` falls back to the distinct portable release-PR workflow.
 
 | Command | Backing | What it does | Skill fallback |
 |---|---|---|---|
+| `/buck-loop` | `extensions/buck-loop/` | Observably invoked existing-plan runner: nested isolated sessions, artifact-wins resume | — |
+| `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop | `prompts/code-review.md` + `skills/code-review/` (release-PR workflow) |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit-improved/` |
 | `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session-record checkpoint: preflight → scribe + auditor model roles → apply. Leaves step 8 (`retain`/`learn`) to the mainline agent | `skills/b-save-improved/` |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation: preflight, base resolution, rebase with bounded model-assisted conflict resolution, `gh pr create` | `skills/b-pr/` |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Kamal deploy/release pipeline with ring-buffered output (last ~20 lines kept only on failure) | — |
 
-**Relationship to the prompt commands**: the improved variants trade the model's judgment for determinism and progress visibility. `/b-commit`, `/b-save`, and `/b-pr` remain the portable, every-harness path; the `*-improved` variants require the wired extension (Pi/OMP).
+**Relationship to the prompt commands**: the improved variants trade the model's judgment for determinism and progress visibility. `/b-commit`, `/b-save`, and `/b-pr` remain the portable paths. `/code-review` is name-overloaded deliberately: portable prompt/skill means release-PR review; the wired Pi/OMP command means local review/fix iteration.
 
 ---
 
@@ -1902,8 +1878,7 @@ Lifecycle hooks (model auto-switch + TPS tracker):
 | `agent_end` | Switch back to the original model after phase-scoped work; TPS wrap-up |
 | `agent_start`, `message_start` / `message_update` / `message_end` | TPS tracker generation metrics |
 
-Registered commands (deterministic code paths, each with a prompt/skill
-fallback when the extension is absent):
+Registered commands (runtime code paths; fallback behavior is named where one exists):
 
 | Command | Backing extension | Purpose |
 |---|---|---|
@@ -1911,6 +1886,8 @@ fallback when the extension is absent):
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Deterministic Conventional Commit from `draft-commit.md` or model draft |
 | `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session checkpoint (preflight + scribe/auditor + apply) |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
+| `/buck-loop` | `extensions/buck-loop/` | Existing-plan runner with nested isolated sessions and artifact-wins resume |
+| `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop |
 
 Opt-in hook:
 
@@ -1956,18 +1933,18 @@ working-tree matches inside `.context/` audit documentation. Run
 
 ### Model auto-switch
 
-The extension reads `buckModelMapping` from Pi settings (or OMP role mapping
-via `extensions/omp-models.ts`), finds the active
-phase difficulty in `.context/`, switches to the mapped model for
-`/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`, and switches back
-after the agent turn unless the user manually selected a different model.
+The extension reads OMP `modelRoles` through `extensions/omp-models.ts`, with
+legacy Pi `buckModelMapping` as fallback. It finds the active phase difficulty
+in `.context/`, switches to the mapped model for `/b-build`, `/b-build-hard`,
+`/b-iterate`, and `/b-review`, and switches back after the agent turn unless
+the user manually selected a different model.
 
 ### What is no longer extension-owned
 
 - `/b-save` is pure prompt/skill recordkeeping (the deterministic variant is `/b-save-improved`).
 - `/b-commit` is a prompt wrapping the `git-commit` skill (the deterministic variant is `/b-commit-improved`).
 - There is no wired `/b-mode` command or plan-mode write guard.
-- There is no wired `/b-flow` or `/b-next` command.
+- `/b-flow` / `/b-next` were removed.
 - Session-state injection and idle warnings are not part of the current
   package surface.
 
@@ -2092,13 +2069,13 @@ Local-only — never comments on or pushes to the upstream repo.
 
 ## Discoverability
 
-Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by phase:
+Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog, grouped by phase; `skills/` is the complete capability inventory:
 
 **Discovery & Planning**
 - `/b-brainstorm` — interview-style intake
 - `/b-explore` — codebase exploration
 - `/b-research` — external/web research
-- `/b-capture` — live note-taking mode
+- `/b-capture` — live note-taking mode; polish deferred until explicitly requested
 - `/b-arch-qa` *(skill-only)* — architecture Q&A with durable discussion doc
 - `/b-nasa-prd` — NASA-standard PRD authoring/audit
 - `/b-plan` — bounded implementation plan
@@ -2126,27 +2103,29 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by 
 - `/b-pr-review-2-issues` — PR comments → grouped plan artifact
 - `/skill:fix-pr` *(skill-only)* — fix PR review findings in a head-branch worktree; push, poll, and repeat until settled
 - `/b-eval-upstream-prs` — triage a fork's upstream PRs (local-only)
-- `/code-review` / `/code-review-universal` — release PR review / universal atomic PR review
+- `/code-review` — portable release-PR review, or bounded local review/fix iteration when the extension is loaded
+- `/code-review-universal` — universal atomic PR review
 
 **Save & Commit**
-- `/b-recap` — read-only session recap
+- `/b-recap` — read-only session + branch-delta recap
 - `/b-handoff` — portable cross-harness handoff doc
 - `/b-docs` / `/b-howto` — conditional living-doc and how-to updates
 - `/b-save` — session recordkeeping (run before `/b-commit`)
 - `/b-commit` — Conventional Commit, backed by the `git-commit` skill
 - `/skill:b-backlog` *(skill-only)* — delegate backlog-item capture
 - `/skill:b-memory-import` / `/skill:b-hindsight-import-projects` *(skill-only)* — Hindsight backfill (one project / many projects)
-- `/skill:b-loop` *(skill-only)* — stamp `omp_execution` on a phased plan
 
-**Deterministic extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
+**Runtime extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
+- `/buck-loop` — existing-plan happy-path runner
+- `/code-review` — bounded local Reviewer → optional Fixer → fresh-Reviewer loop
 - `/b-commit-improved` — code-driven Conventional Commit
 - `/b-save-improved` — code-driven session checkpoint
 - `/b-pr-improved` — code-driven PR creation
-- `/b-kamal-release` — kamal release pipeline (OMP slash command only)
+- `/b-kamal-release` — kamal release pipeline
 
-**OMP-only slash commands** (real files in `commands/`, no `prompts/` twin): `/b-kamal-release`, `/b-pr-improved`, `/git-clean-orphans`, `/product-tour`. On Pi, invoke the underlying skills by name instead.
+**Prompt-backed slash commands:** every `commands/*.md` entry is a symlink to the matching `prompts/*.md`; Pi and OMP share the same prompt bodies.
 
-**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `skill-explainer`, `code-smells`, `crawl4ai`, `design-brief`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
+**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `thought-dump-writer`, `skill-explainer`, `code-smells`, `crawl4ai`, `design-brief`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
 
 **OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
 - `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
@@ -2154,4 +2133,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Full catalog, grouped by 
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-09-16
+Last updated: 2026-09-21

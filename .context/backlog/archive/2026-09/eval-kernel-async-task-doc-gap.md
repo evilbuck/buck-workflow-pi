@@ -1,10 +1,10 @@
 ---
 title: docs/eval-kernel.md omits the async task/hub job contract
-status: active
+status: completed
 priority: medium
 created: 2026-07-26
-updated: 2026-07-26
-completed: null
+updated: 2026-09-21
+completed: 2026-09-21
 related:
   - docs/eval-kernel.md
   - .context/2026-07-26.b-init-guardrails/research-harness-gate-mechanics.md
@@ -32,12 +32,12 @@ they either serialize unnecessarily or invent their own wording. `b-init-guardra
 directly: its whole "don't block the mainline agent" requirement rests on a contract the repo does
 not document.
 
-## Fix
+## Resolution
 
-Add an async-dispatch section to `docs/eval-kernel.md` (or a sibling doc, since `task`/`hub` are
-*not* eval-kernel prelude helpers — that distinction is itself part of the confusion): the job
-contract, ID lifetime (~5 min post-settlement), `agent://` / `history://` recovery, and when to
-prefer async `task` over blocking `parallel()`.
+Completed 2026-09-21. `docs/eval-kernel.md` now distinguishes persistent
+eval-kernel handles from asynchronous session `task` / `hub` jobs, documents
+result references and retention, and replaces the removed `parallel()`,
+`pipeline()`, and `llm()` APIs with current handle-based examples.
 
-Cross-reference from `skills/code-smells/SKILL.md` §2 Execution model, which currently presents
-blocking fan-out as the only option.
+`skills/code-smells/SKILL.md` now uses `agent()` handles plus `wait()` for
+OMP and retains batched asynchronous `task` jobs as the portable fallback.

@@ -63,8 +63,7 @@
     ]
   },
   "dependencies": {
-    "typescript": "^6.0.3",
-    "xstate": "^5.0.0"
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "@mariozechner/pi-coding-agent": "*",

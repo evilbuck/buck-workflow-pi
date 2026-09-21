@@ -13,12 +13,12 @@ Structured website crawling and content extraction using [Crawl4AI](https://gith
 - Crawling API reference docs for offline analysis
 - Bulk extraction of content from a domain for synthesis
 - Converting JavaScript-rendered pages into readable markdown
-- When `web_search` + `fetch_content` aren't enough for the research depth needed
+- When ordinary web search and single-page extraction are not deep enough
 
 ## When NOT to Use
 
-- Quick single-page lookups → use `fetch_content` directly
-- Simple API/usage questions → use `web_search` or `code_search`
+- Quick single-page lookups → use the harness's configured URL reader or extractor
+- Simple API/usage questions → use configured web or repository code search
 - Internal codebase investigation → use `b-explore`
 
 ## Install / Bootstrap
@@ -124,7 +124,7 @@ async def extract_api_docs(url):
 When invoked by `b-research`, follow this pattern:
 
 1. **Check availability** — Run the bootstrap check above
-2. **If unavailable** — Note the limitation and use `fetch_content` as fallback for individual pages
+2. **If unavailable** — Note the limitation and use the configured single-page extractor for individual pages
 3. **If available** — Use Crawl4AI for bulk extraction, saving results to `research/` subdirectory
 4. **Process output** — Read and synthesize the crawled content into research notes
 5. **Cite sources** — Track which URLs contributed to which findings
@@ -133,8 +133,8 @@ When invoked by `b-research`, follow this pattern:
 
 When Crawl4AI is not installed:
 
-1. Use `fetch_content` for individual pages (works for most research)
-2. Use `web_search` with `includeContent: true` for multi-page discovery
+1. Use the configured URL reader or extractor for individual pages
+2. Use the configured web-search tool for discovery, then read the relevant source pages
 3. Note in the research output that deeper crawling was not available
 4. Recommend installation if the research would benefit from it
 

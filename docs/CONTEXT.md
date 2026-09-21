@@ -13,7 +13,7 @@ The OMP SDK session that verifies each blocking finding independently and edits 
 _Avoid_: auto-fix agent, patcher
 
 **Pass**:
-One full Reviewer → Fixer → fresh Reviewer cycle with immutable artifacts in `passes/NN/`.
+One Reviewer evaluation plus an optional Fixer response when blocking findings exist. A clean Reviewer result can terminate the Run without a Fixer; immutable artifacts remain under `passes/NN/`.
 _Avoid_: iteration, round, run
 
 **Reviewer pass / Fixer pass**:
@@ -29,7 +29,7 @@ The single mutable `state.json` for a Run, written atomically.
 _Avoid_: session state, job state
 
 **PassReviewRecord / PassFixerRecord**:
-The JSON shapes in `passes/NN/review.json` and `fixes/NN/fixer.json`.
+The JSON shapes in `passes/NN/review.json` and `passes/NN/fixer.json`.
 _Avoid_: review output, fixer output
 
 **`review_exec`**:
@@ -63,8 +63,8 @@ _Avoid_: scoring, severity matrix
 ## Relationships
 
 - A **Run** spans up to N **Passes** (default 3).
-- A **Pass** contains exactly one **Reviewer pass** followed by exactly one **Fixer pass**.
-- A **Reviewer pass** produces one **PassReviewRecord**; a **Fixer pass** produces one **PassFixerRecord**.
+- A **Pass** contains exactly one **Reviewer pass** and, only when blocking findings require changes, one **Fixer pass**.
+- A **Reviewer pass** produces one **PassReviewRecord**; a **Fixer pass**, when run, produces one **PassFixerRecord**.
 - A **PassReviewRecord** may cite zero or more **Evidence ids** in its **Reproduction** objects.
 - **Hardness** drives Fixer routing; **Criticality** drives the pass bound.
 - Each **`review_exec`** invocation appends one **`commands.jsonl`** record and mints one **Evidence id**.

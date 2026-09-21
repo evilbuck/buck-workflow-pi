@@ -73,7 +73,7 @@ For the full rationale and migration details, see `.context/2026-05-12.prompt-to
 
 ```
 skills/          # Canonical portable skills (b-brainstorm, b-research, b-plan, b-build, b-iterate, b-review, b-docs, b-howto, b-save, b-memory-import, b-present, b-phase, fix-pr, git-clean-orphans, git-commit, b-grill*, run-in-idle-pane, …)
-extensions/      # Pi extensions for runtime automation (b-flow, b-grill-auto)
+extensions/      # Pi extensions for runtime automation (buck-loop, b-*-improved, …)
 prompts/         # Pi prompt templates — thin wrappers that invoke skills (including b-commit wrapping git-commit skill)
 docs/            # Documentation
 presentations/   # Output from b-present
@@ -231,9 +231,9 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 - Fix the reported lint errors in the files you changed.
 - Never widen the lint ignore config to silence the gate. If a lint_cmd is genuinely wrong, re-run `/b-init-guardrails` to refresh.
 
-**Patch gate failure** (changed lines < 90% covered):
-- Add tests for the changed lines before committing.
-- Do not lower the threshold; the patch gate is non-negotiable.
+**Patch gate below threshold** (changed lines < 90% covered):
+- If enforcement is `required`, add tests for the changed lines before committing.
+- If enforcement is `advisory`, report it and track follow-up work. Do not lower the threshold to make the verdict green.
 
 **Global ratchet failure** (coverage regressed below baseline):
 - Add tests to bring coverage back to or above the baseline.

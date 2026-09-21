@@ -395,24 +395,24 @@ This is a phased execution-ready plan. Treat each phase as one unit:
 ```
 
 ## Eval Cell Template for `workflow` Plans
+
 This section is full-mode-only and applies only when the active OMP capability
 needed for `workflow` plans is available.
 
-
 When the recommendation above is `workflow`, `b-plan` writes a starter
-`.context/<subject>/eval-<topic>.py` file into the subject folder. The
-cell is a **deliverable artifact** the user edits before invoking the
-`workflow` keyword. omp's `eval` tool executes it in the persistent
-Python kernel; `agent()` / `parallel()` / `pipeline()` are imported
-from the kernel prelude (see omp `src/eval/py/prelude.py`).
+`.context/<subject>/eval-<topic>.py` file into the subject folder. The cell is
+a **deliverable artifact** that the user edits before invoking the `workflow`
+keyword. OMP's `eval` tool executes it in the persistent Python kernel, where
+`agent()`, `completion()`, `wait()`, `phase()`, and `log()` are
+predeclared globals. Do not import a `prelude` module.
 
 **Why an artifact, not a hint.** A real `.py` file is:
 
-- Editable in the IDE / kernel (with autocomplete and type checks).
+- Editable in the IDE and reusable across workflow turns.
 - Verifiable — `python -c "import ast; ast.parse(open(path).read())"`
   catches syntax errors before the workflow keyword is invoked.
-- Self-contained — the cell carries the imports, schema, and per-phase
-  dispatch in one place. Hint-only snippets get fragmented across turns.
+- Self-contained — the cell carries the schema and per-phase dispatch in one
+  place. Hint-only snippets get fragmented across turns.
 
 **Template** (replace `<…>` placeholders):
 
@@ -421,49 +421,70 @@ from the kernel prelude (see omp `src/eval/py/prelude.py`).
 """
 <plan title> — workflow-mode fan-out.
 
-Edit this cell before invoking the `workflow` keyword in omp. The kernel
-imports the helpers below; the cell runs as the workflow's first turn.
+Edit this cell before invoking the `workflow` keyword in OMP. The eval kernel
+predeclares the helper globals used below.
 
 Hard contract:
   - This is a deliverable artifact, not throwaway scratch.
-  - One `agent()` call per phase, returning a structured findings object
-    with the `schema=` parameter.
-  - A barrier stage verifies the findings; a synthesis stage adjudicates.
+  - One agent() handle per phase, each returning the findings schema.
+  - wait() is the barrier; completion() performs final synthesis.
 """
 
 from __future__ import annotations
 
-# eval-kernel prelude helpers (always in scope inside the omp eval tool).
+import json
+
 try:
-    from prelude import agent, parallel, pipeline, llm, phase, log, budget  # noqa: F401
-except ImportError:
-    # The eval cell is OMP-specific. On non-OMP runtimes, the helpers do not
-    # exist; surface a clear no-op so the user knows the cell is not portable.
-    def _no_op(*_args, **_kwargs):
-        print("eval cell: omp runtime required (prelude helpers missing); skipped.")
-        return None
-    agent = parallel = pipeline = llm = phase = log = budget = _no_op  # type: ignore
+    agent
+    completion
+    wait
+    phase
+    log
+except NameError:
+    PRELUDE_AVAILABLE = False
+else:
+    PRELUDE_AVAILABLE = True
 
 SUBJECT = "<subject-folder-name>"
 PHASES = [
     # (phase_number, slug, difficulty, brief)
     (1, "<slug-1>", "medium", "<one-sentence phase-1 brief>"),
-    (2, "<slug-2>", "easy",   "<one-sentence phase-2 brief>"),
+    (2, "<slug-2>", "easy", "<one-sentence phase-2 brief>"),
     # ...
 ]
 
-# Findings schema — every agent() returns a dict matching this shape.
 FINDINGS_SCHEMA = {
     "type": "object",
     "properties": {
         "phase": {"type": "integer"},
-        "slug":  {"type": "string"},
-        "verdict": {"type": "string", "enum": ["pass", "warn", "fail", "blocked"]},
+        "slug": {"type": "string"},
+        "verdict": {
+            "type": "string",
+            "enum": ["pass", "warn", "fail", "blocked"],
+        },
         "evidence": {"type": "array", "items": {"type": "string"}},
-        "risks":    {"type": "array", "items": {"type": "string"}},
+        "risks": {"type": "array", "items": {"type": "string"}},
         "open_questions": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["phase", "slug", "verdict", "evidence", "risks", "open_questions"],
+    "required": [
+        "phase",
+        "slug",
+        "verdict",
+        "evidence",
+        "risks",
+        "open_questions",
+    ],
+    "additionalProperties": False,
+}
+
+OVERALL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["go", "iterate", "block"]},
+        "rationale": {"type": "string"},
+        "blocking_phases": {"type": "array", "items": {"type": "integer"}},
+    },
+    "required": ["verdict", "rationale", "blocking_phases"],
     "additionalProperties": False,
 }
 
@@ -474,96 +495,68 @@ def build_prompt(phase_num: int, slug: str, difficulty: str, brief: str) -> str:
         f"You are reviewing Phase {phase_num} ({slug}, difficulty={difficulty}) "
         f"of the {SUBJECT!r} plan.\n\n"
         f"Brief: {brief}\n\n"
-        f"Read the active phase file at `.context/{SUBJECT}/phase-{phase_num}-{slug}.md`. "
-        f"Verify each acceptance criterion against the actual current repo state — "
-        f"do not trust checkboxes or commit messages. Return structured findings "
-        f"matching the schema: verdict, evidence (cite file:line or test name), "
-        f"risks, open_questions. If you cannot run a check, mark it as a risk, "
-        f"not a pass."
+        f"Read the active phase file at "
+        f"`.context/{SUBJECT}/phase-{phase_num}-{slug}.md`. "
+        "Verify each acceptance criterion against the actual current repo state. "
+        "Return structured findings matching the supplied schema. Cite file:line "
+        "or a check name for evidence. If a check cannot run, record a risk rather "
+        "than claiming a pass."
     )
 
 
-# Stage 1 — fan out one `agent()` per phase in parallel.
-phase("workflow: fan out per-phase review")
-findings_per_phase = parallel(
-    [lambda n=num, s=slug, d=diff, b=brief: agent(
-        build_prompt(n, s, d, b),
-        agent_type="task",
-        model=None,  # let the kernel pick per-tick
-        schema=FINDINGS_SCHEMA,
-        label=f"phase-{n}-{s}",
-    ) for (num, slug, diff, brief) in PHASES]
-)
+if PRELUDE_AVAILABLE:
+    phase("workflow: fan out per-phase review")
+    handles = [
+        agent(
+            build_prompt(number, slug, difficulty, brief),
+            agent="task",
+            label=f"phase-{number}-{slug}",
+            schema=FINDINGS_SCHEMA,
+        )
+        for number, slug, difficulty, brief in PHASES
+    ]
 
-# Stage 2 — barrier: all phases reviewed before synthesis.
-phase("workflow: synthesize")
-overall = pipeline(
-    findings_per_phase,
-    # stage 1: aggregate verdicts, log per-phase summary
-    lambda findings: [
-        log(f"phase {f['phase']} ({f['slug']}): {f['verdict']} — "
-            f"{len(f['evidence'])} evidence, {len(f['risks'])} risks")
-        for f in findings
-    ] or findings,
-    # stage 2: judge — escalate any `fail` or `blocked` to the user
-    lambda findings: llm(
-        "Synthesize these per-phase findings into a single go/no-go verdict "
-        "for the plan. Cite the per-phase evidence. Do not paraphrase "
-        "the findings — adjudicate.",
+    # Barrier: every independent phase review settles before synthesis.
+    findings_per_phase = wait(handles, raise_errors=False)
+    for finding in findings_per_phase:
+        if isinstance(finding, dict):
+            log(
+                f"phase {finding['phase']} ({finding['slug']}): "
+                f"{finding['verdict']} — {len(finding['evidence'])} evidence, "
+                f"{len(finding['risks'])} risks"
+            )
+        else:
+            log(f"phase review failed: {finding}")
+
+    phase("workflow: synthesize")
+    overall = completion(
+        "Synthesize these per-phase findings into one go/no-go verdict. "
+        "Cite the supplied evidence, preserve failures, and do not invent checks.\n\n"
+        + json.dumps(findings_per_phase, default=str),
         model="default",
-        schema={
-            "type": "object",
-            "properties": {
-                "verdict": {"type": "string", "enum": ["go", "iterate", "block"]},
-                "rationale": {"type": "string"},
-                "blocking_phases": {"type": "array", "items": {"type": "integer"}},
-            },
-            "required": ["verdict", "rationale", "blocking_phases"],
-            "additionalProperties": False,
-        },
-    ),
-)
+        schema=OVERALL_SCHEMA,
+    ).wait()
 
-# Stage 3 — surface the final verdict to the user.
-log(f"workflow verdict: {overall.get('verdict', 'unknown')}")
-log(f"rationale: {overall.get('rationale', '')}")
-if overall.get("blocking_phases"):
-    log(f"blocking phases: {overall['blocking_phases']}")
-
-# Hard stop if a hard ceiling is set and the cell is about to exceed it.
-if budget.remaining() is not None and budget.remaining() < 5_000:
-    log(f"workflow eval cell: budget remaining {budget.remaining()}; "
-        f"halting fan-out and surfacing partial results.")
+    log(f"workflow verdict: {overall.get('verdict', 'unknown')}")
+    log(f"rationale: {overall.get('rationale', '')}")
+    if overall.get("blocking_phases"):
+        log(f"blocking phases: {overall['blocking_phases']}")
+else:
+    print("eval cell: OMP eval-kernel helpers are unavailable; skipped.")
 ```
 
-> **See also:** [`docs/eval-kernel.md`](../../docs/eval-kernel.md) for the full
-> helper API, budget semantics, schemas, and failure modes. The eval cell is
-> OMP-only — on other harnesses the prelude is absent and the cell degrades to
-> a no-op via the runtime probe above.
+> **See also:** [`docs/eval-kernel.md`](https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/eval-kernel.md)
+> for the current helper API, handle semantics, schemas, failure behavior, and
+> session-job boundary. The eval cell is OMP-only; plain Python performs the
+> explicit no-op branch above.
 
-Two real example cells live in
-`.context/2026-06-06.omp-integration-buck-workflow/`. In `full` mode, read them
-before authoring a cell; in every other mode, do not probe for or read them.
-They fill the placeholders in the F6 template above and demonstrate two
-different fan-out shapes.
-| Cell | Pattern | When to use |
-|---|---|---|
-| `eval-review-audit.py` | `parallel()` per phase → `pipeline()` log → `llm()` judge | Plan is phased; you want one review subagent per phase and a single go/no-go verdict at the end. |
-| `eval-migration-sweep.py` | `parallel()` per directory → `pipeline()` log → `llm()` multi-criterion judge | Work is a migration / sweep / audit across multiple directories; the judge returns a structured ready-to-migrate verdict with a `compatibility_score` and a `blockers` list. |
-Both cells:
-- Use the runtime probe from Phase 1, so they degrade to a no-op on non-OMP.
-- Use a `__main__` guard that exits cleanly when run as `python3 eval-*.py`
-  for plain-Python syntax checking without the prelude.
-- Cite [`docs/eval-kernel.md`](../../docs/eval-kernel.md) for the full
-  helper API and failure modes.
-If you write a cell that combines both shapes (e.g., per-target *and*
-per-phase), copy the cell whose first half matches and graft the second
-half from the other. The two patterns compose — there is no third shape.
-**`b-plan` writes this file** to `.context/<subject>/eval-<topic>.py`
-when the recommendation table above yields `workflow`. The cell is
-always emitted as a **starter** — the user edits the `PHASES` list and
-`build_prompt()` body before invoking. If a JavaScript variant is
-requested, swap `prelude` imports for `tool.eval-py` and re-emit in JS.
+Historical eval cells under `.context/` record the API available when they
+were written and are not templates. Generate new cells from this section and
+the current eval-kernel reference. **`b-plan` writes this file** when the
+recommendation table above yields `workflow`; the user must still fill the
+`PHASES` list and tailor `build_prompt()` before invoking it. If a JavaScript
+variant is requested, author it against the current JavaScript eval prelude
+rather than translating the obsolete historical cells.
 
 ## Recommended Plan Structure
 

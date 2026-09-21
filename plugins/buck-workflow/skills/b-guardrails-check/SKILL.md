@@ -167,7 +167,7 @@ The mainline agent keeps working; the verdict auto-delivers when ready.
 
 If the harness is not OMP, the caller runs this skill synchronously at a coherent checkpoint and waits for the verdict.
 
-**Runtime detection rule** (quoted from `b-loop`):
+**Runtime detection rule:**
 
 > The live OMP `task` tool is genuinely async (fire-and-forget + auto-delivery). No other harness has an equivalent; they get checkpoint-blocking.
 

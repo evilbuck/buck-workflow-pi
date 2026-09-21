@@ -45,24 +45,32 @@ my-package/
 {
   "pi": {
     "extensions": ["./extensions/index.ts"],
-    "prompts":    ["./prompts"],
-    "skills":     ["./skills"]
+    "prompts": ["./prompts"],
+    "skills": ["./skills"]
   },
   "omp": {
-    "extensions": ["./extensions/index.ts"]
+    "extensions": ["./extensions/index.ts"],
+    "commands": ["./commands"],
+    "skills": ["./skills"]
   }
 }
 ```
 
 Rules of thumb:
-- The `pi` key lists `extensions`/`prompts`/`skills` because Pi's filter-object schema exposes them as first-class filter arrays.
-- The `omp` key lists only `extensions`. The other surfaces are auto-discovered by OMP's `omp-plugins` provider (see below), so duplicating them in the manifest is redundant and brittle.
-- JSON disallows comments; the rationale for why the `omp` field is intentionally minimal lives in this skill (or the package's `docs/`), not in `package.json`.
-- Adding `omp` is cosmetic for OMP's directory resolver (the `pi` fallback in `loader.ts` makes `pi.extensions` work in OMP today). Add it for explicitness and to make the package self-describing for OMP consumers reading the manifest.
+
+- Pi declares `extensions`, `prompts`, and `skills`.
+- OMP declares `extensions`, `commands`, and `skills`. Keep these explicit
+  arrays as the package's published registration contract even though OMP also
+  auto-discovers supported sibling directories.
+- OMP slash commands come from `commands/`, not `prompts/`; keep
+  `commands/*.md` as same-named symlinks to the canonical prompt bodies.
+- JSON disallows comments. Keep loader rationale in this skill or project docs,
+  not in `package.json`.
 
 ## OMP sub-directory auto-discovery
 
-OMP's `omp-plugins` provider (`packages/coding-agent/src/discovery/omp-plugins.ts`) walks each registered package root and reads these sibling directories unconditionally:
+OMP's `omp-plugins` provider walks registered package roots and discovers
+supported sibling directories:
 
 | Sibling | Loaded as |
 |---|---|
@@ -74,16 +82,17 @@ OMP's `omp-plugins` provider (`packages/coding-agent/src/discovery/omp-plugins.t
 | `tools/` | `Tool` items |
 | `.mcp.json` / `mcp.json` | MCP server config |
 
-This provider is independent of the `omp` field in `package.json`. The `omp` field is read by the extension loader for `extensions`/`themes`/`skills` arrays; `omp-plugins` handles the rest by directory walk.
+Auto-discovery supplements the explicit `omp` manifest arrays. In this repo,
+`package.json` declares `extensions`, `commands`, and `skills`, while the
+root sibling layout provides the same surfaces to directory-based installs.
 
-## OMP `omp.commands` manifest entry is a dead end for `*.md` prompts
+## OMP command registration
 
-OMP's plugin manifest only resolves directory entries via `index.{ts,js,mjs,cjs}`. Pointing `omp.commands` at `prompts/` doesn't work because `prompts/` has no `index.ts`. The only paths to slash commands in OMP are:
-
-1. A `commands/` directory at the package root (auto-discovered by `omp-plugins`), or
-2. Per-file entries in a `plugin.json` manifest.
-
-For Pi-style packages, option 1 is the answer — see the sub-skill.
+Point `omp.commands` at `./commands`, where each Markdown file is a
+same-named symlink to its canonical `prompts/` source. Do not point it at
+`prompts/`: OMP loads that directory as reusable prompt templates rather than
+slash commands. Root-level `commands/` auto-discovery and the explicit
+`omp.commands` entry intentionally agree on the same directory.
 
 ## Extension API shim gaps
 

@@ -1,368 +1,204 @@
 # Eval-Kernel Contract
 
-> **Source-verified against omp v15.10.0** (`src/eval/py/prelude.py`,
-> `src/goals/runtime.ts`, `src/prompts/system/workflow-notice.md`).
-> Last verified: 2026-06-07.
+This document describes the current OMP `eval` runtime and the separate asynchronous `task` / `hub` job surface. Read it before authoring an `eval-<topic>.py` cell.
 
-This document captures the contract of omp's persistent **eval kernel**
-for downstream skills (and for the next agent that picks up the work).
-If you author an `eval-<topic>.py` cell, read this first.
+## Runtime model
 
-## What it is
+`eval` runs code in a persistent Python or JavaScript kernel:
 
-The eval kernel is a **persistent Python (or JavaScript) state** exposed
-by omp's `eval` tool. State persists across:
+- Python and JavaScript have separate state.
+- Top-level names survive later cells in the same language. Reuse them; do not redeclare JavaScript `const` / `let` names.
+- `reset: true` wipes only the selected language kernel.
+- Top-level `await` works. In Python, use it directly; `asyncio.run(...)` fails because an event loop already exists.
+- Child agents use independent kernels. Parent-kernel variables are not shared with them.
+- Work incrementally: imports → definitions → checks → use. Re-run setup only after a reset or kernel crash.
 
-- Multiple cells in the same session
-- Tool calls made by subagents
-- Subagent invocations via `agent()`
+The helpers below are predeclared globals in the kernel. A source file used as an eval cell does not need `from prelude import ...`.
 
-The kernel imports a small set of **prelude helpers** that give a Python
-program access to omp's subagent dispatch, fan-out pools, staged
-pipelines, LLM judge, status events, and per-turn budget.
+## Core helpers
 
-When the user types the `workflow` keyword, omp injects
-`src/prompts/system/workflow-notice.md`, which steers the model to
-**author Python in the `eval` tool** rather than dispatching `task`
-subagents directly. The eval cell is the *body* of the workflow.
+### Data and artifacts
 
-The full kernel is OMP-specific. On other harnesses (Pi, Claude Code,
-OpenCode, Codex) the helpers do not exist; the cell either fails or, if
-it is wrapped in the `try / except ImportError` runtime probe that
-`b-plan`'s "Eval Cell Template" section emits, degrades to a no-op. See
-[Cross-platform](#cross-platform) below.
+- `display(value)` / `print(...)` — emit cell output.
+- `read(path, offset=1, limit=None)` — read repository files and internal URLs.
+- `write(path, content)` — write a file or internal artifact.
+- `env(key=None, value=None)` — read or set kernel environment values.
+- `output(*ids, ...)` — read stored job output.
 
-## Helpers
+### `agent(...)` and `wait(...)`
 
-Every helper lives in `prelude` and is imported in the cell header:
+`agent(prompt, agent="task", ...)` starts a child and returns an `AgentHandle` immediately. Useful options include `label`, `schema`, `schemaMode`, `isolated`, `apply`, `merge`, and a child tool allowlist.
 
-```python
-from prelude import agent, parallel, pipeline, llm, phase, log, budget  # noqa: F401
-```
+A handle exposes:
 
-(Phase 1's runtime probe wraps this import in `try / except ImportError`
-so the cell degrades to a no-op on non-OMP runtimes.)
+- `.wait(timeout=None)` — wait for the final result.
+- `.send(message)` — send follow-up input.
+- `.cancel()` — stop the child.
+- `.output()` — read currently available output.
+- `.handle` — stable `agent://<id>` reference.
 
-### `agent(prompt, *, agent_type, model, context, label, schema) → object`
-
-Run ONE subagent. Subagents **hand back raw data**, not summaries — so
-always pass `schema=` to receive a parsed JSON object back.
+Unwaited results auto-deliver to the parent session. Use `wait(handles)` as a barrier; `raise_errors=False` keeps one failed branch from discarding successful siblings.
 
 ```python
-# Signature
-agent(prompt: str, *,
-      agent_type: str = "task",
-      model: str | None = None,
-      context: list[str] | None = None,
-      label: str | None = None,
-      schema: dict | None = None) -> object
-
-# Returns
-# When schema is set: a parsed object matching the JSON Schema.
-# When schema is None: free-form text from the subagent.
-
-# Example
-result = agent(
-    "Review the acceptance criteria in the active phase file.",
-    agent_type="task",
-    model=None,  # let the kernel pick per-tick
-    schema={
-        "type": "object",
-        "properties": {
-            "verdict": {"type": "string", "enum": ["pass", "fail"]},
-            "evidence": {"type": "array", "items": {"type": "string"}},
-        },
-        "required": ["verdict", "evidence"],
-        "additionalProperties": False,
-    },
-    label="phase-review",
-)
-```
-
-### `parallel(thunks) → list`
-
-Run zero-arg callables through a bounded pool. **Pool width equals
-`task.maxConcurrency`** — fan out as wide as the work divides. A thunk
-that raises propagates: the first throw stops the pool and bubbles up
-to the cell.
-
-```python
-# Signature
-parallel(thunks: list[Callable[[], T]]) -> list[T]
-
-# Returns
-# One result per thunk, in input order.
-
-# Example (binding the loop variable with a default arg)
-findings = parallel(
-    [lambda p=phase: agent(
-        build_prompt(p),
-        schema=FINDINGS_SCHEMA,
-        label=f"phase-{p}",
-    ) for phase in PHASES]
-)
-```
-
-In a loop, **bind with a default arg** (`lambda d=d: …` or
-`lambda n=num, s=slug, …: …`) — every thunk captures the *last* loop
-value otherwise.
-
-### `pipeline(items, *stages) → result`
-
-Map each item through a sequence of one-arg callables. There is a
-**barrier between stages**: every item clears stage N before any item
-enters stage N+1. This is the place to put a verify-after-every-stage
-check.
-
-```python
-# Signature
-pipeline(items: list[T], *stages: Callable[[T], U]) -> U
-
-# Returns
-# The result of the LAST stage applied to the (now possibly-shrunk) list.
-
-# Example — fan out, log per-phase, judge overall
-overall = pipeline(
-    findings_per_phase,                                  # items
-    lambda findings: [log(f"phase {f['phase']}: {f['verdict']}")
-                      for f in findings] or findings,    # stage 1
-    lambda findings: llm(                                # stage 2
-        "Synthesize these findings into a go/no-go verdict. "
-        "Cite the per-phase evidence. Do not paraphrase.",
-        schema=GO_NO_GO_SCHEMA,
-    ),
-)
-```
-
-### `llm(prompt, *, model, system, schema) → object`
-
-Oneshot, stateless LLM call. **Use it as a judge.** Tiers: `"smol"`
-(fast), `"default"` (this session's model), `"slow"` (most capable).
-
-```python
-# Signature
-llm(prompt: str, *,
-    model: str = "default",
-    system: str | None = None,
-    schema: dict | None = None) -> object
-
-# Returns
-# A string when schema is None. A parsed object when schema is set.
-
-# Example
-verdict = llm(
-    "Adjudicate these per-target findings into a ready-to-migrate verdict. "
-    "Score compatibility on [0, 1]. Estimate effort on trivial..epic.",
-    model="default",
-    schema={
-        "type": "object",
-        "properties": {
-            "ready_to_migrate": {"type": "boolean"},
-            "compatibility_score": {"type": "number", "minimum": 0, "maximum": 1},
-            "effort_estimate": {"type": "string",
-                                "enum": ["trivial", "small", "medium", "large", "epic"]},
-            "blockers": {"type": "array", "items": {"type": "string"}},
-        },
-        "required": ["ready_to_migrate", "compatibility_score",
-                     "effort_estimate", "blockers"],
-        "additionalProperties": False,
-    },
-)
-```
-
-### `phase(title)` / `log(message)`
-
-Emit status events for the TUI. Use `phase(title)` to start a logical
-group; use `log(message)` for progress lines. Both surface above the
-status tree.
-
-```python
-phase("workflow: fan out per-phase review")
-findings = parallel([...])
-log(f"completed {len(findings)} phase reviews")
-```
-
-### `budget`
-
-Per-turn budget object with `.total`, `.spent()`, and `.remaining()`.
-The kernel checks `budget.remaining()` on every `agent()` spawn; once
-the ceiling is hit, **`agent()` refuses to spawn**.
-
-```python
-# API
-budget.total: int | None         # ceiling or None
-budget.spent() -> int            # tokens spent this turn
-budget.remaining() -> int | float.inf  # remaining (Infinity when total is None)
-budget.hard: bool                # whether the ceiling is enforced (advisory vs hard)
-```
-
-A `+Nk` directive in a user message is **advisory** — you self-limit
-via `budget.remaining()`. A `+Nk!` directive (or Goal Mode) is **hard** —
-`agent()` refuses to spawn once `spent()` reaches the ceiling.
-
-Read `budget.remaining()` *before* a fan-out and stop early if you
-are running low. Log anything you drop — **no silent caps**.
-
-## Budget
-
-The budget object is shared with the **goal-mode runtime** when a goal
-is active. The token-accounting rule (from
-`src/goals/runtime.ts:87-99`):
-
-```
-goalTokenDelta = max(0, Δinput) + max(0, ΔcacheWrite) + max(0, Δoutput)
-```
-
-`cacheRead` is **excluded** because it is reused prefix, not new work.
-omp deviates from codex here on purpose.
-
-Hard vs. soft ceiling:
-
-| Directive | Effect on `agent()` |
-|---|---|
-| *(no directive)* | No ceiling. `budget.remaining()` returns `math.inf`. |
-| `+Nk` (advisory) | The cell is expected to self-limit. `agent()` still spawns. |
-| `+Nk!` (hard) | `agent()` refuses to spawn once `budget.spent() >= N`. The cell should check `budget.remaining()` and halt cleanly. |
-| Goal Mode (`/goal set`) | The active goal's `token_budget` is the hard ceiling. Same refusal behavior. |
-
-A `+Nk` / `+Nk!` directive applies to the **current turn** (the agent
-turn that receives the message). Goal Mode applies for the **whole
-goal's lifetime** (across turns until `goal({op:"complete"})` or
-`goal({op:"drop"})`).
-
-**Budget exhaustion is not completion.** A truncated cell is a
-`🔄 partial` result, not a pass. Surface what is missing.
-
-## Schemas
-
-Pass a JSON Schema via `schema=` to force structured output from
-`agent()` or `llm()`. The kernel validates the LLM's response against
-the schema and returns a parsed object.
-
-**Required rule**: every schema dict in the eval kernel MUST set
-`additionalProperties: false`. The kernel rejects parsers that
-silently drop extras — strict schema is the default, not the option.
-
-```python
-# Minimum schema shape
-SCHEMA = {
+FINDINGS_SCHEMA = {
     "type": "object",
     "properties": {
-        "verdict": {"type": "string", "enum": ["pass", "fail"]},
+        "phase": {"type": "integer"},
+        "verdict": {"type": "string", "enum": ["pass", "warn", "fail", "blocked"]},
         "evidence": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["verdict", "evidence"],
-    "additionalProperties": False,   # required
+    "required": ["phase", "verdict", "evidence"],
+    "additionalProperties": False,
 }
+
+handles = [
+    agent(
+        f"Review phase {number} against its acceptance criteria.",
+        agent="task",
+        label=f"phase-{number}",
+        schema=FINDINGS_SCHEMA,
+    )
+    for number in (1, 2, 3)
+]
+findings = wait(handles, raise_errors=False)
 ```
 
-If you need a free-form field, declare it explicitly with
-`{"type": "string"}` or `{"type": "array", "items": {"type": "string"}}`.
-Do not rely on the parser to allow extras.
+Dependencies must form an acyclic graph. A child cannot wait on its own descendant. For dependent waves, wait for or reference upstream output in the downstream prompt; use `local://...` artifacts for larger shared payloads.
 
-### decision_domains → PHASES
+### `completion(...)` and `judge(...)`
 
-When a `b-grill-me` or `b-grill-with-docs` session has produced
-`decision_domains` AND a `b-plan` invocation has recommended
-`omp_execution: workflow`, the auto-derive mapping (see
-`skills/b-grill-me/SKILL.md` and `skills/b-grill-with-docs/SKILL.md`
-§ "Feeding the workflow-kernel cell") emits one `PHASES` entry per
-domain. The invariants are:
+`completion(...)` is a stateless oneshot model call. It returns a handle; call `.wait()` for text or a schema-parsed object. Model tiers are `smol`, `default`, and `slow`.
 
-- **One `agent()` per domain.** The cell's `parallel()` list length
-  equals the number of `decision_domains` (NOT the number of plan
-  phases — the two are independent).
-- **Schema is unchanged.** The auto-derived cell uses the same
-  `FINDINGS_SCHEMA` (per-phase `{verdict, evidence, risks,
-  open_questions}`). The mapping does not introduce a new schema.
-- **Judge prompt names the domains.** The synthesis `llm()` prompt
-  includes the domain names explicitly so the judge can adjudicate
-  per-domain rather than per-phase. The `build_prompt()` in the
-  auto-derived cell passes `domain.name` into the prompt body.
+`judge(state, questions)` performs inexpensive typed classification, boolean, or score judgments over one shared state. Prefer it to a free-form completion when the decision fits one of those shapes.
 
-If the `b-grill*` session produced no `decision_domains` (a small
-"pre-flight" interview, or a session that concluded
-`boundary_assessment: cohesive`), the cell falls back to the
-user-fills-by-hand flow from Phase 3 — the user edits the F6 starter
-template directly.
+```python
+import json
 
-## Failure modes
+GO_NO_GO_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["go", "iterate", "block"]},
+        "rationale": {"type": "string"},
+    },
+    "required": ["verdict", "rationale"],
+    "additionalProperties": False,
+}
 
-| Failure | Behavior |
+overall = completion(
+    "Adjudicate these phase findings. Cite evidence; do not merely paraphrase.\n\n"
+    + json.dumps(findings, indent=2),
+    model="default",
+    schema=GO_NO_GO_SCHEMA,
+).wait()
+```
+
+### `workpool(...)`
+
+`workpool()` creates a keep-alive worker pool for an open-ended stream of independent items. Push items as they become available, inspect status, then close the pool. Use ordinary `agent()` handles plus `wait()` for a fixed batch.
+
+### Kernel-defined tools
+
+`@tool` or `tool(fn, ...)` exposes a kernel function to child agents. Pass its name through an agent or workpool tool allowlist. Remove obsolete definitions with `tool.undefine(name)`.
+
+### Progress and budget
+
+- `phase(title)` starts a visible logical phase.
+- `log(message)` emits a progress line.
+- `await budget.total()`, `await budget.spent()`, and `await budget.remaining()` inspect the active token budget.
+
+A `+Nk` ceiling is advisory. `+Nk!` is hard. Budget exhaustion is not completion: surface partial results and the omitted work.
+
+## Fixed-batch workflow cell
+
+A current workflow cell uses handles and an explicit barrier, then adjudicates the gathered evidence:
+
+```python
+phase("workflow: review phases")
+handles = [
+    agent(build_prompt(*entry), agent="task", label=f"phase-{entry[0]}", schema=FINDINGS_SCHEMA)
+    for entry in PHASES
+]
+findings_per_phase = wait(handles, raise_errors=False)
+
+for finding in findings_per_phase:
+    if isinstance(finding, dict):
+        log(f"phase {finding['phase']}: {finding['verdict']}")
+
+overall = completion(
+    "Produce one go/iterate/block verdict from these findings:\n\n"
+    + json.dumps(findings_per_phase, indent=2),
+    model="default",
+    schema=GO_NO_GO_SCHEMA,
+).wait()
+log(f"workflow verdict: {overall['verdict']}")
+```
+
+The former `parallel()`, `pipeline()`, and `llm()` helpers are not part of the current prelude:
+
+| Former pattern | Current pattern |
 |---|---|
-| `agent()` past a hard ceiling | Raises (the cell catches it or the kernel surfaces it). |
-| `agent()` returns malformed JSON against `schema=` | Raises a parse error. Wrap the call in `try / except` if you want to degrade. |
-| `parallel()` thunk raises | **First throw propagates** and stops the pool. There is no built-in retry. |
-| `pipeline()` stage raises | Same as `parallel()` — the first throw propagates. |
-| `phase()` / `log()` write to a closed TUI | No-op (the events were already emitted, the surface is gone). |
-| `budget.remaining()` is `math.inf` | `if budget.remaining() < 5_000: log("halting")` will **never** fire — guard with `if budget.remaining() is not None and budget.remaining() < 5_000:`. |
-| Subagent's LLM call hits a provider error | The subagent retries (per the subagent's own retry policy). The parent `agent()` does not retry. |
+| `parallel(thunks)` | Create multiple `agent()` handles, then `wait(handles)` |
+| `pipeline(items, stages...)` | Explicit Python/JavaScript stages separated by `wait()` barriers |
+| `llm(prompt, schema=...)` | `completion(prompt, schema=...).wait()` or typed `judge(...)` |
+| `agent(..., agent_type="task")` | `agent(..., agent="task")` |
+| synchronous `budget.remaining()` | `await budget.remaining()` |
 
-**Always check `budget.remaining() is not None` before comparing** —
-the convention in the b-plan template is exactly that, and the
-example cells in `.context/<subject>/eval-*.py` follow it.
+## Async `task` / `hub` jobs are separate
 
-## Cross-platform
+The session-level `task` and `hub` tools are not eval-prelude helpers. They dispatch independent jobs outside the kernel:
 
-The eval cell is **OMP-only**. On Pi, Claude Code, OpenCode, and
-Codex, the `prelude` module is not present.
+- `task` accepts a batch and returns job IDs immediately; the mainline agent keeps working.
+- `hub` lists jobs, waits for IDs, reads the inbox, sends messages, or cancels jobs.
+- Settled results auto-deliver.
+- `agent://<id>` addresses a result artifact; `history://<id>` addresses the agent transcript when recovery is needed.
+- Job-result retention is short-lived—operationally about five minutes after settlement—so consume or persist important output promptly.
 
-- **Phase 1's runtime probe** wraps `from prelude import ...` in
-  `try / except ImportError` and binds the helpers to a `_no_op`
-  fallback that prints a one-line message. A non-OMP cell that the
-  user accidentally runs degrades to a no-op instead of crashing.
-- **Phase 1's header guard** opens each `prompts/omp-*.md` slash
-  command with a "Harness note" blockquote that declares the
-  command a no-op on non-OMP harnesses.
-- **`b-plan`'s "OMP Execution Recommendation" table** has a top-row
-  guard that returns `none` on non-OMP, so the plan never recommends
-  the `workflow` keyword where the kernel cannot run.
+Use `task` / `hub` for background scouts, independent checks, and work whose result can arrive asynchronously. Use eval handles when computation needs persistent kernel state, explicit dependency waves, structured schemas, kernel-defined tools, or in-cell synthesis.
 
-For the full cross-harness story, see
-[`docs/buck-workflow.md#omp-autonomous-loops`](buck-workflow.md#omp-autonomous-loops).
+Conceptual session-tool calls:
 
-## Patterns
+```text
+task({
+  context: "Shared repository and acceptance context",
+  tasks: [
+    { name: "api-scout", task: "Inspect the API surface and report evidence", agent: "task" },
+    { name: "test-scout", task: "Inspect test coverage and report gaps", agent: "task" }
+  ]
+})
 
-The workflow-notice itself surfaces a small vocabulary of patterns.
-Use them as building blocks:
+hub({ op: "wait", ids: ["<job-id>"] })
+```
 
-- **Adversarial verify** — N refuters, keep when majority survives.
-- **Perspective-diverse verify** — give each verifier a distinct lens
-  (correctness, security, perf, does-it-reproduce).
-- **Judge panel** — N attempts from different angles, scored by
-  parallel judges; synthesize from the winner, graft the best of the
-  rest.
-- **Loop-until-dry** — keep spawning finders until K consecutive
-  rounds surface nothing new; dedup against everything **seen**, not
-  just what was confirmed, or it never converges.
-- **Completeness critic** — a final agent that asks "what's missing
-  — modality not run, claim unverified, file unread?" Its answer is
-  the next round.
-- **Budget/count loops** — `while budget.remaining() > 50_000: …`.
-- **No silent caps** — log what you dropped.
+Do not describe `task` as blocking and do not import it from the eval prelude.
+
+## Failure behavior
+
+- A schema mismatch fails that handle rather than silently dropping fields.
+- `wait(handles)` raises by default when a child fails; use `raise_errors=False` only when partial results are meaningful and explicitly handled.
+- A child does not inherit parent-kernel variables or closures. Put required context in the prompt or a shared artifact.
+- A dependency graph must remain acyclic.
+- Provider and tool failures remain failures; do not convert missing evidence into a pass.
+- Use a bounded timeout where an external operation can stall.
+
+## Cross-platform scope
+
+The persistent eval kernel and its predeclared helpers are OMP-specific. Other harnesses may expose different execution or subagent APIs. A portable skill must probe the active runtime and either choose its native mechanism or state that the OMP workflow cell is unavailable; it must not pretend obsolete helpers exist.
 
 ## Authoring checklist
 
-Before invoking the `workflow` keyword:
+Before invoking a workflow cell:
 
-- [ ] `PHASES` list is filled with real phase files (not placeholders).
-- [ ] Every `agent()` has a `schema=` with `additionalProperties: false`.
-- [ ] `parallel()` thunks bind loop variables with a default arg.
-- [ ] `pipeline()` stages are 1-arg callables (not zero-arg).
-- [ ] `budget.remaining()` is checked *before* each fan-out.
-- [ ] Cell ends with `if __name__ == "__main__":` for plain-Python
-      syntax checking without the prelude.
-- [ ] `python3 -c "import ast; ast.parse(open('<cell>').read())"`
-      succeeds.
+- [ ] Replace every placeholder with real paths and acceptance criteria.
+- [ ] Give each independent child a complete prompt and a unique label.
+- [ ] Use strict schemas where downstream code depends on fields.
+- [ ] Join fixed batches with `wait()` and handle failures deliberately.
+- [ ] Keep dependencies acyclic.
+- [ ] Use top-level `await` for budget or other async helpers.
+- [ ] Syntax-check a stored Python cell with `ast.parse`.
+- [ ] Persist important async job output before the short result-retention window expires.
 
 ## See also
 
-- [`docs/buck-workflow.md#omp-autonomous-loops`](buck-workflow.md#omp-autonomous-loops) —
-  the buck-workflow side of the integration.
-- `.context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md` —
-  full source-verified analysis of the workflow contract.
-- `.context/2026-06-06.omp-integration-buck-workflow/eval-review-audit.py` —
-  per-phase review-audit example cell.
-- `.context/2026-06-06.omp-integration-buck-workflow/eval-migration-sweep.py` —
-  per-directory migration-sweep example cell with a multi-criterion
-  `llm()` judge.
+- [`docs/buck-workflow.md#omp-autonomous-loops`](buck-workflow.md#omp-autonomous-loops)
+- [`skills/b-plan/SKILL.md`](../skills/b-plan/SKILL.md) — current workflow-cell template
+- [`skills/b-guardrails-check/SKILL.md`](../skills/b-guardrails-check/SKILL.md) — background check dispatch using session `task`
