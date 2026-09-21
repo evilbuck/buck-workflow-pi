@@ -99,11 +99,6 @@
         "complexity": 18
       },
       {
-        "file": "extensions/b-grill-auto/grill-state.ts",
-        "function": "buildSessionBody",
-        "complexity": 17
-      },
-      {
         "file": "skills/b-auto-fix/scripts/auto-fix.ts",
         "function": "main",
         "complexity": 17
@@ -124,11 +119,6 @@
         "complexity": 16
       },
       {
-        "file": "extensions/grill-me-dialog.ts",
-        "function": "renderResult",
-        "complexity": 15
-      },
-      {
         "file": "skills/code-review-universal/scripts/pr-analyzer.py",
         "function": "generate_suggestions",
         "complexity": 15
@@ -146,11 +136,6 @@
       {
         "file": "extensions/b-save-improved/index.ts",
         "function": "parseArgs",
-        "complexity": 13
-      },
-      {
-        "file": "extensions/grill-me-dialog.ts",
-        "function": "handleWait",
         "complexity": 13
       },
       {

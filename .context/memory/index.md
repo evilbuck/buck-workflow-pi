@@ -1,3 +1,15 @@
+- 2026-09-21 — [Dead unwired extensions — Phase 1 build and review](dead-unwired-extensions-build-2026-09-21.md) — `completed` (review passed clean; dead extension code deleted; grill file/chat handoff; Codex parity and guardrails pass)
+
+  - 2026-09-21 | `dead-unwired-extensions-build-2026-09-21.md` | domains: [extensions, skills, docs, testing] | topics: [dead-code, grill-document-mode, guardrails, codex-plugin, backlog] | status: completed — review passed with no findings
+
+- 2026-09-21 — [Skill surface cleanup phasing](skill-surface-cleanup-phasing-2026-09-21.md) — `completed` (two medium `/b-build` phases; NONE dependency; Phase 1 queued)
+
+  - 2026-09-21 | `skill-surface-cleanup-phasing-2026-09-21.md` | domains: [planning, skills, extensions] | topics: [phasing, skill-surface-cleanup, b-save, code-review] | status: completed
+
+- 2026-09-21 — [Skill/command/extension audit](skill-command-extension-audit-2026-09-21.md) — `completed` (64 skills, 43/43 prompt-command symlinks, 3 unwired extension deletes; ranked cleanup in subject folder)
+
+  - 2026-09-21 | `skill-command-extension-audit-2026-09-21.md` | domains: [audit, skills, extensions, docs] | topics: [cleanup, overlap, deprecation, prompts-commands-mirror] | status: completed
+
 - 2026-09-21 — [Documentation–implementation sync](documentation-implementation-sync-2026-09-21.md) — `completed` (five-scout living-doc audit; current eval API; harness/command/runtime catalogs; 11 focused tests and durable guardrails pass)
 
 - 2026-09-20 — [Dead b-loop extension cleanup](cleanup-dead-b-loop-2026-09-20.md) — `completed` (deleted `extensions/b-flow/` + `xstate`; coverage ratchet 79.2 → 84)

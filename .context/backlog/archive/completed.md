@@ -1,3 +1,7 @@
+- [x] [Phase 1: Dead Unwired Extensions](2026-09/phase-1-dead-unwired-extensions.md) — done 2026-09-21 — deleted three unwired extension surfaces, replaced grill dialog calls with file/chat handoff, and preserved guardrail and Codex bundle parity
+
+- [x] [Test b-grill-auto extension in live Pi session](2026-09/test-b-grill-auto-extension.md) — done 2026-09-21 — extension deleted; skill remains
+
 - [x] [Document current eval-kernel and async job contracts](2026-09/eval-kernel-async-task-doc-gap.md) — done 2026-09-21 — current handle-based eval API, task/hub boundary, result retention, and migrated workflow examples. `.context/2026-09-18.doc-honesty/`
 
 - [x] [b-loop skill — advisory + stamp + deferred slash mirror](2026-09/b-loop-skill-and-mirror.md) — done 2026-09-20 — skill deleted; never had a slash mirror; `/buck-loop` is the runner; `b-plan`/`b-phase` own `omp_execution`

@@ -5,7 +5,7 @@ description: Interview a different AI model relentlessly about a plan or design,
 
 # b-grill-auto: Automated Grilling with Different Model
 
-> **Note**: This is a skill-only workflow. Invoke `/skill:b-grill-auto` (or `/skill:b-grill auto`); the historical extension directory is not wired into the runtime.
+> **Note**: This is a skill-only workflow. Invoke `/skill:b-grill-auto` (or `/skill:b-grill auto`); its implementation lives in `skills/b-grill-auto/`.
 
 Interview a different AI model (via Pi RPC mode) relentlessly about every aspect of their plan. Track question complexity as metadata that feeds into `b-phase` for plan sizing.
 

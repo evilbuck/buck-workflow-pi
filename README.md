@@ -347,7 +347,7 @@ One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
-Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`. Unwired: `b-grill-auto` extension command, tmux status, session-state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
+Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, the `b-grill-auto` extension command, tmux status, and session-state injection. The `b-grill-auto` skill remains available. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 

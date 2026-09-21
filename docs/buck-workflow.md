@@ -80,7 +80,7 @@ Practical translation rules:
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
 - Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
 
-**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
+**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; `b-grill-auto` remains available as a skill. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
@@ -511,8 +511,8 @@ The following older subsystems are **not** wired by the package manifest:
 | `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
 | `/b-flow` / `/b-next` orchestration | Removed 2026-09-20 |
-| `b-grill-auto` extension command | Historical/unwired (`extensions/b-grill-auto/`); the skill remains available |
-| Session-state injection / tmux status | Removed/unwired (`extensions/tmux-window-status.ts`, `grill-me-dialog.ts` kept as unused code) |
+| `b-grill-auto` extension command | Removed 2026-09-21; the skill remains available |
+| Session-state injection / tmux status | Removed; obsolete tmux status and grill dialog modules deleted 2026-09-21 |
 
 The durable-artifact behavior now comes from AGENTS.md instructions and
 prompt/skill workflows, not from an always-on session-state supervisor.
