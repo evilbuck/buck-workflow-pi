@@ -100,9 +100,9 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 - Fix the reported lint errors in the files you changed.
 - Never widen the lint ignore config to silence the gate. If a lint_cmd is genuinely wrong, re-run `/b-init-guardrails` to refresh.
 
-**Patch gate failure** (changed lines < 90% covered):
-- Add tests for the changed lines before committing.
-- Do not lower the threshold; the patch gate is non-negotiable.
+**Patch gate below threshold** (changed lines < 90% covered):
+- If enforcement is `required`, add tests for the changed lines before committing.
+- If enforcement is `advisory`, report it and track follow-up work. Do not lower the threshold to make the verdict green.
 
 **Global ratchet failure** (coverage regressed below baseline):
 - Add tests to bring coverage back to or above the baseline.

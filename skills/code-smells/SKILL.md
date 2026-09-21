@@ -71,7 +71,7 @@ If any are missing, **STOP** and name exactly which files are absent — partial
 
 The audit logic is agent-agnostic: **five category subagents run in parallel, each returns a list of findings.** The execution surface differs per harness.
 
-**OMP (preferred).** Run the audit in the `eval` kernel via `parallel()` fanning out one `agent()` per category. The persistent kernel holds the category definitions and finding schema, accumulates results, and assembles the report in Python — no re-serializing across the boundary. A starter cell is provided below. Respect `budget.remaining()`; if budget is low, checkpoint the finished categories and mark the report `status: partial` with explicit `unscanned_categories` instead of dropping coverage. A buck-workflow-ready remediation report is complete only after all 5 categories / 23 smells have been scanned.
+**OMP (preferred).** Run the audit in the `eval` kernel by creating one `agent()` handle per category and joining the fixed batch with `wait()`. The persistent kernel holds the category definitions and finding schema, accumulates results, and assembles the report in Python — no re-serializing across the boundary. A starter cell is provided below. Set the workflow budget high enough for all five categories; a buck-workflow-ready remediation report is complete only after all 5 categories / 23 smells have been scanned.
 
 **Portable fallback (Pi, Claude Code, Codex, Goose).** Spawn one `task` per category in a single batch (`tasks[]` array, 5 items). The orchestrator reads each category's docs via the resolved `DOCS` base (step 0) and **inlines their contents into the assignment** — portable subagents are separate sessions and must not be relied on to resolve `skill://` themselves. Each assignment also embeds the detection playbook (§4), the rubric (§6), and the finding schema (§5). Collect the five outputs and assemble the report.
 
@@ -270,110 +270,133 @@ b-plan reads the report as research input and turns the prioritized findings int
 
 ### OMP starter cell
 
-Drop into the `eval` kernel (OMP workflow mode). Edit `SCOPE` and `CATEGORIES`, then run. The cell self-gates on docs resolution (step 0): if `code-smells` isn't discovered in this session it raises `SystemExit` with a remediation message instead of running a partial audit.
+Drop this into the `eval` kernel (OMP workflow mode). Edit `SCOPE` and
+`CATEGORIES`, then run it. The cell hard-stops when its reference docs cannot
+be resolved or any category agent fails, so it never emits a partial report as
+complete.
 
 ```python
-import json, datetime
-
-SCOPE = "src"                      # path/glob to audit
-TODAY  = datetime.date.today().isoformat()
-SUBJECT = f".context/{TODAY}.code-smells-scan"
-
-# ---- Step 0 (hard gate): resolve docs relative to this skill. ----
-# skill://<name>/<path> resolves inside the skill's own directory regardless of
-# cwd. If code-smells isn't discovered here the probe fails and we STOP — no
-# partial audit. Override with CODE_SMELLS_DOCS=/abs/path/to/docs if needed.
+import datetime
+import json
 import os
 
-def _docs_reachable(base):
-    # tool.read (the session read tool) resolves skill:// internal URIs.
-    # The kernel `read` helper does NOT — it rejects protocol paths.
+SCOPE = "src"                      # path/glob to audit
+TODAY = datetime.date.today().isoformat()
+SUBJECT = f".context/{TODAY}.code-smells-scan"
+
+
+def docs_reachable(base):
     try:
-        tool.read({"path": f"{base}/index.md"})
+        read(f"{base}/index.md")
         return True
     except Exception:
         return False
 
-_override = os.environ.get("CODE_SMELLS_DOCS", "").rstrip("/")
-if _override:
-    DOCS, SKILL_BASE = _override, None
-    assert _docs_reachable(DOCS), f"CODE_SMELLS_DOCS={_override!r} has no index.md"
-elif _docs_reachable("skill://code-smells/docs"):
+
+# skill:// resolves inside the discovered skill. An absolute override is useful
+# only when the skill is not registered in the active session.
+override = os.environ.get("CODE_SMELLS_DOCS", "").rstrip("/")
+if override:
+    if not docs_reachable(override):
+        raise SystemExit(f"CODE_SMELLS_DOCS={override!r} has no index.md")
+    DOCS, SKILL_BASE = override, None
+elif docs_reachable("skill://code-smells/docs"):
     DOCS, SKILL_BASE = "skill://code-smells/docs", "skill://code-smells"
 else:
     raise SystemExit(
-        "HARD STOP: code-smells docs not resolved.\n"
-        "code-smells is not discovered in this session, so skill://code-smells/docs "
-        "does not resolve. Register the skill (add buck-workflow-pi to Pi `packages` "
-        "/ OMP `extensions`, or symlink skills/code-smells/ into ~/.agents/skills/), "
-        "or set CODE_SMELLS_DOCS=/abs/path/to/docs and re-run."
+        "HARD STOP: code-smells docs not resolved. Register the skill or set "
+        "CODE_SMELLS_DOCS=/absolute/path/to/docs, then re-run."
     )
 
-# Finding schema — every agent() returns a list of dicts matching this shape.
-# additionalProperties: false is required by the eval kernel; see
-# docs/eval-kernel.md § Schemas.
 FINDING_SCHEMA = {
     "type": "object",
     "properties": {
-        "smell":       {"type": "string"},
-        "category":    {"type": "string"},
-        "location":    {"type": "string"},
-        "severity":    {"type": "string", "enum": ["critical","high","medium","low"]},
-        "impact":      {"type": "string"},
-        "effort":      {"type": "string", "enum": ["XS","S","M","L","XL"]},
-        "evidence":    {"type": "string"},
-        "treatment":   {"type": "string"},
-        "confidence":  {"type": "string", "enum": ["high","medium","low"]},
+        "smell": {"type": "string"},
+        "category": {"type": "string"},
+        "location": {"type": "string"},
+        "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"],
+        },
+        "impact": {"type": "string"},
+        "effort": {"type": "string", "enum": ["XS", "S", "M", "L", "XL"]},
+        "evidence": {"type": "string"},
+        "treatment": {"type": "string"},
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
     },
-    "required": ["smell","category","location","severity","impact","effort","evidence","treatment","confidence"],
+    "required": [
+        "smell",
+        "category",
+        "location",
+        "severity",
+        "impact",
+        "effort",
+        "evidence",
+        "treatment",
+        "confidence",
+    ],
     "additionalProperties": False,
 }
 LIST_SCHEMA = {"type": "array", "items": FINDING_SCHEMA}
 
-# One entry per category subagent. `docs` lists the smell reference files
-# the subagent MUST read before scanning; `tools` is its preferred toolset.
 CATEGORIES = [
-    {"name": "Bloaters",          "docs": ["long-method","large-class","primitive-obsession","long-parameter-list","data-clumps"],         "tools": "ast_grep, search (line/param/class-size metrics)"},
-    {"name": "OO Abusers",        "docs": ["alternative-classes-with-different-interfaces","refused-bequest","switch-statements","temporary-field"], "tools": "gitnexus hierarchy + ast_grep"},
-    {"name": "Change Preventers", "docs": ["divergent-change","parallel-inheritance-hierarchies","shotgun-surgery"],                          "tools": "git log + gitnexus_detect_changes"},
-    {"name": "Dispensables",      "docs": ["comments","duplicate-code","data-class","dead-code","lazy-class","speculative-generality"],       "tools": "gitnexus_impact + ast_grep"},
-    {"name": "Couplers",          "docs": ["feature-envy","inappropriate-intimacy","incomplete-library-class","message-chains","middle-man"], "tools": "gitnexus_context + gitnexus_impact"},
+    {"name": "Bloaters", "docs": ["long-method", "large-class", "primitive-obsession", "long-parameter-list", "data-clumps"], "tools": "ast_grep, search (line/param/class-size metrics)"},
+    {"name": "OO Abusers", "docs": ["alternative-classes-with-different-interfaces", "refused-bequest", "switch-statements", "temporary-field"], "tools": "gitnexus hierarchy + ast_grep"},
+    {"name": "Change Preventers", "docs": ["divergent-change", "parallel-inheritance-hierarchies", "shotgun-surgery"], "tools": "git log + gitnexus_detect_changes"},
+    {"name": "Dispensables", "docs": ["comments", "duplicate-code", "data-class", "dead-code", "lazy-class", "speculative-generality"], "tools": "gitnexus_impact + ast_grep"},
+    {"name": "Couplers", "docs": ["feature-envy", "inappropriate-intimacy", "incomplete-library-class", "message-chains", "middle-man"], "tools": "gitnexus_context + gitnexus_impact"},
 ]
 
-def category_prompt(cat):
-    refs = "\n".join(f"- {DOCS}/{d}.md" for d in cat["docs"])
-    rubric = (f"Apply the rubric from {SKILL_BASE}."
-              if SKILL_BASE else
-              "Apply the severity/impact/effort rubric (critical>high>medium>low; "
-              "impact = blast radius + churn; effort XS<S<M<L<XL).")
-    return f"""You are scanning {SCOPE!r} for code smells in the **{cat['name']}** category.
+
+def category_prompt(category):
+    references = "\n".join(f"- {DOCS}/{name}.md" for name in category["docs"])
+    rubric = (
+        f"Apply the rubric from {SKILL_BASE}."
+        if SKILL_BASE
+        else "Apply severity/impact/effort: impact = blast radius + churn; "
+        "effort XS<S<M<L<XL."
+    )
+    return f"""You are scanning {SCOPE!r} for code smells in the **{category['name']}** category.
 
 FIRST read these reference definitions (symptoms + treatment):
-{refs}
+{references}
 
-Detection strategy: {cat['tools']}. {rubric}
+Detection strategy: {category['tools']}. {rubric}
 Detect gitnexus availability with gitnexus_list_repos; if unavailable, fall back
 to search/ast_grep/git history. Every finding MUST cite tool output as evidence;
 a finding without evidence is a hypothesis — drop it.
 
-Return ONLY a JSON array of findings matching the schema. Rank within the
-category by severity (critical>high>medium>low), then by impact/effort."""
+Return ONLY a JSON array of findings matching the supplied schema. Rank within
+the category by severity, then by impact/effort."""
 
-# Fan out — one agent() per category, bounded by the session pool.
+
 phase(f"Scanning {len(CATEGORIES)} smell categories in {SCOPE}")
-all_findings = parallel([
-    (lambda c=c: agent(category_prompt(c), schema=LIST_SCHEMA, label=c["name"]))
-    for c in CATEGORIES
-])
+handles = [
+    agent(
+        category_prompt(category),
+        agent="task",
+        schema=LIST_SCHEMA,
+        label=category["name"],
+    )
+    for category in CATEGORIES
+]
+batches = wait(handles, raise_errors=False)
+failed_categories = [
+    CATEGORIES[index]["name"]
+    for index, batch in enumerate(batches)
+    if not isinstance(batch, list)
+]
+if failed_categories:
+    log(f"code-smells audit failed categories: {', '.join(failed_categories)}")
+    raise RuntimeError("All five category scans must succeed before report assembly")
 
-# Flatten, then the main agent dedupes + ranks + writes report.md.
-report = [f for batch in all_findings for f in batch]
+report = [finding for batch in batches for finding in batch]
 log(f"{len(report)} raw findings across {len(CATEGORIES)} categories")
 write(f"{SUBJECT}/findings.json", json.dumps(report, indent=2))
 ```
 
-After the cell returns `findings.json`, the main agent deduplicates hotspots, applies the ranking rule, and writes `report.md` per §7.
-
+After the cell returns `findings.json`, the main agent deduplicates hotspots,
+applies the ranking rule, and writes `report.md` per §7.
 ---
 
 ## Smell Reference

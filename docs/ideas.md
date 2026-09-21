@@ -33,7 +33,7 @@ Model routing for sdk agents. Does it happen already? How does it happen?
 
 **Configuration** - we should allow an easy interface for configuring the models. Use roles for a good set of defaults.
 
-> Open. Known gap: no per-skill model override and no host-config integration; routing is hard-coded difficulty tiers.
+> **Answered:** OMP reads `modelRoles` from project/global `config.yml`; legacy Pi `buckModelMapping` is only a fallback. Difficulty-to-role priority is fixed in `extensions/omp-models.ts`; the remaining gap is a per-skill model override.
 
 ## buck-loop progress 
 Why do we get progress that looks like
@@ -49,7 +49,7 @@ Why do we get progress that looks like
 ```
 ```
 
-**Answer:** The renderer (`extensions/extension-activity.ts`) shows only `▸/✓ <toolName>` per event — no dedup, no coalescing. Three compounding causes: (1) `maxLineWidth: 64` (`extensions/buck-loop/index.ts:216`) truncates the file-path target to the same clipped tail for edits in the same directory, so rows look identical; (2) a 6-line viewport shows only the trailing rows; (3) repeated identical ops are appended blindly — nothing merges `✓ edit path (×3)`. Richer display = render basename instead of truncated path, coalesce consecutive same `(tool, target, ok)` events, bump viewport for build states, and pass through error text on `✗`. All rendering-layer changes; the event stream already carries targets.
+**Answer:** This was addressed by the shared activity renderer. `createActivity()` now renders tool targets (`▸ tool → target`), tool failures, retry messages, and completion state; `/buck-loop` keeps a six-row viewport with a 64-character line cap. Consecutive identical operations are still separate events rather than a counted aggregate.
 
 ## buck-loop is it idempotent?
 
@@ -60,10 +60,10 @@ we have a built-in iterate limit. We should prompt the user to continue or not. 
 
 What state do we leave the phase/plan in when this happens?
 ```
-Warning: buck-loop: blocked: iterate limit reached on this phase (3 >=
- 3)
+Warning: buck-loop: blocked: iterate limit reached on this phase (6 >=
+ 6)
 ```
 ```
 ```
 
-**Answer:** The limit is `MAX_ITERATE_CYCLES_PER_PHASE = 3` (`extensions/buck-loop/machine.ts`), enforced by Buck-specific guards before work-emitting transitions. State at block: **phase file, plan file, and subject folder are untouched** — the only on-disk change is `.context/workflow/buck-loop.json` gaining `state: "blocked"`, `iterateCyclesOnPhase: 3`, and a `to: "blocked"` history entry; `maxLoops` stays at 12. The counter only increments on entry to `iterating` and only resets on phase change (`loop.ts` `rescan()`). Today `--resume` is a **no-op for this block**: `userConfirmed()` moves `blocked → resolving` but carries `iterateCyclesOnPhase: 3` forward, so the loop re-blocks on the next tick; `legalChoices` returns `[]` once limits are exceeded, so even the model can't re-decide. Implementing the idea needs: a new flag in `parseArgs`/`FLAGS` (`index.ts`), logic in `resumeRun` to raise the ceiling (or decrement the counter) on the projection, and a UX seam — `takeStep` currently halts synchronously with no callback to prompt the user.
+**Answer:** The limit is `MAX_ITERATE_CYCLES_PER_PHASE = 6` (`extensions/buck-loop/machine.ts`), enforced by Buck-specific guards before work-emitting transitions. The projection records `state: "blocked"`, the counters, and transition history; plan and phase artifacts remain the source of truth. `/buck-loop --resume` emits `USER_CONFIRMED`, rescans artifacts, and returns through `resolving`. It preserves the iterate counter while the same phase remains active, resets it when the active phase changes, and does not raise the six-cycle ceiling. The independent total-loop default remains 12.

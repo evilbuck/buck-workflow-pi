@@ -1,3 +1,5 @@
+- 2026-09-21 — [Documentation–implementation sync](documentation-implementation-sync-2026-09-21.md) — `completed` (five-scout living-doc audit; current eval API; harness/command/runtime catalogs; 11 focused tests and durable guardrails pass)
+
 - 2026-09-20 — [Dead b-loop extension cleanup](cleanup-dead-b-loop-2026-09-20.md) — `completed` (deleted `extensions/b-flow/` + `xstate`; coverage ratchet 79.2 → 84)
 
   - 2026-09-20 | `cleanup-dead-b-loop-2026-09-20.md` | domains: [extensions, cleanup, guardrails] | topics: [b-flow, xstate, buck-loop, deprecation] | status: completed

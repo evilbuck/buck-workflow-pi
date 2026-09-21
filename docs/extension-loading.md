@@ -114,7 +114,7 @@ Drift is now mechanically prevented: `scripts/commands-mirror.test.ts` (part of 
 ```
 buck-workflow-pi/
   package.json              # buck-workflow
-                            # `pi` and `omp` keys: extensions entry point
+                            # `pi` and `omp` manifest surfaces
   extensions/
     index.ts                # Entry — default export wires everything marked (wired)
     tps-tracker.ts          # (wired) Token-per-second tracking
@@ -127,6 +127,7 @@ buck-workflow-pi/
     b-save-improved/        # (wired) deterministic /b-save-improved command
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
     buck-loop/              # (wired) observably invoked /buck-loop runner
+    code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
     b-grill-auto/           # (unwired) b-grill-auto RPC subsystem
     grill-me-dialog.ts      # (unwired) grill-me dialog
     tmux-window-status.ts   # (unwired) tmux window status
@@ -148,14 +149,15 @@ buck-workflow-pi/
     b-save.md     -> ../prompts/b-save.md
     b-commit.md   -> ../prompts/b-commit.md
     ... (one symlink per prompts/*.md entry — 1:1, test-enforced)
+```
 
-`package.json` declares both `pi` and `omp` keys. The `pi` key lists `extensions`, `prompts`, and `skills` because Pi's filter-object schema exposes them as first-class. The `omp` key lists only `extensions` because OMP's `omp-plugins` provider auto-discovers `skills/`, `commands/`, `prompts/`, and the other sibling directories directly from the package root — duplicating them in the `omp` manifest would be redundant and brittle. (JSON disallows comments, so this rationale lives here rather than in `package.json`.)
+`package.json` declares both `pi` and `omp` keys. The `pi` key lists `extensions`, `prompts`, and `skills`; the `omp` key lists `extensions`, `commands`, and `skills`. OMP also auto-discovers supported sibling directories from the package root, but the explicit manifest arrays are the published package contract.
 
 ### Extension contents
 
 `extensions/index.ts` is the single manifest entry; its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads `buckModelMapping` from Pi settings (or OMP role mapping via `extensions/omp-models.ts`), inspects the active phase difficulty in phased plans, and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`. Switches back to the original model on `agent_end`. Includes a TUI model picker for initial setup.
+1. **Model auto-switch** — Reads OMP `modelRoles` through `extensions/omp-models.ts`, with legacy Pi `buckModelMapping` as fallback; inspects active phase difficulty and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`; then restores the original model on `agent_end`. If neither mapping exists, it shows configuration guidance rather than a picker.
 2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
 3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
 4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.
@@ -163,8 +165,9 @@ buck-workflow-pi/
 6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
 8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the domain-neutral synchronous evaluator in `extensions/state-machine.ts` for dispatch and fail-closed route validation; the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
+9. **`/code-review` local iteration** (`code-review-iteration/`) — bounded local Reviewer → optional Fixer → fresh-Reviewer passes. Reviewer work runs in disposable detached worktrees; reproduction commands cross the `review_exec` allowlist boundary; pass artifacts are immutable under the Git common directory. This runtime command is distinct from the portable release-PR review prompt/skill with the same name.
 
-`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
+`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 
 Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow (deleted), b-grill-auto extension command, session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
 
@@ -184,7 +187,7 @@ OMP's `omp-plugins` provider (`packages/coding-agent/src/discovery/omp-plugins.t
 | `tools/` | `Tool` items | `tools/<name>.{ts,js}` |
 | `.mcp.json` / `mcp.json` | MCP server config | JSON manifest of `mcpServers` |
 
-This provider is independent of the `omp` field in `package.json`. The `omp` field is read by the extension loader for `extensions`/`themes`/`skills` arrays; the `omp-plugins` provider handles the rest by directory walk.
+Auto-discovery supplements the explicit `omp` manifest arrays. This package declares `extensions`, `commands`, and `skills`, and keeps the root sibling directories aligned with those entries for directory-based installs.
 
 ## Loading in Each Environment
 

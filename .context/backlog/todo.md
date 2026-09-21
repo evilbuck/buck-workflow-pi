@@ -8,7 +8,6 @@
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
 - [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; clean review heading drift can reach an enum-only chooser that accepts `block`
-- [ ] [Heal commands/ mirror drift](items/commands-mirror-drift.md) — medium; 8 real files instead of symlinks (4 diverged twins, 4 OMP-only)
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
 - [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
@@ -17,7 +16,6 @@
 - [ ] [Test b-grill-auto extension in live Pi session](items/test-b-grill-auto-extension.md)
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
-- [ ] [docs/eval-kernel.md omits async task/hub job contract](items/eval-kernel-async-task-doc-gap.md)
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
 - [x] [Run /b-init-guardrails on this repo to record a durable check contract](items/run-b-init-guardrails-on-repo.md) — done 2026-09-10 (guardrails.json v2 durable contract verified during mattpocock Phase 1)
 - [ ] [Cover serve-presentations.ts lines 289-304 (patch gate at 89%)](items/serve-presentations-patch-coverage.md) — medium; pre-existing from 0d1dbf7, surfaced 2026-09-10

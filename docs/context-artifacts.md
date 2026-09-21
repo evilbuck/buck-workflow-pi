@@ -72,15 +72,20 @@ Enums:
 
 ### Subject index
 
-Required:
+Required lifecycle fields:
 
 - `status`
-- `date`
-- `subject`
+- `lifecycle_schema`
+- `lifecycle_revision`
+- `lifecycle_last_transition`
 
 Enums:
 
-- `status`: `active | completed | superseded | draft`
+- `status`: `draft | active | completed`
+
+The lifecycle CLI is authoritative and writes these fields. Older indexes may
+also carry `date` and `subject`; they are metadata, not lifecycle requirements.
+The legacy context-artifact validator may still warn when they are absent.
 
 ### Research
 

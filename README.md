@@ -46,7 +46,7 @@ The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workfl
 > **For installing agents:** Read
 > [`agent-install_instructions.md`](./agent-install_instructions.md) and
 > **ask the user which harness they're on** (Pi, OMP, Codex, OpenCode,
-> Claude Code, or Grok Build) before running any install commands.
+> Claude Code, Cursor, Grok Build, or ZCode) before running any install commands.
 
 ### Standalone B-Plan
 
@@ -113,10 +113,10 @@ node scripts/install.mjs
 ```
 
 **What it does:**
-- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor, Grok Build)
-- Symlinks `GLOBAL_OR_PROJECT-AGENTS.md` as bootstrap instructions for each
-- Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode
-- Symlinks `skills/<name>/` directories for Claude Code, OpenCode
+- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor, Grok Build, ZCode)
+- Symlinks `GLOBAL_OR_PROJECT-AGENTS.md` for detected harnesses with a global bootstrap surface
+- Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode, and Grok Build
+- Symlinks `skills/<name>/` directories for Claude Code, OpenCode, Grok Build, and ZCode
 - Idempotent — re-run anytime, existing correct symlinks are skipped
 
 **Check what you actually have:**
@@ -162,6 +162,7 @@ works as a guard in a script.
 | **OpenCode** | ✅ → `AGENTS.md` | ✅ `~/.config/opencode/commands/` | ✅ `~/.config/opencode/skills/` | |
 | **Cursor** | — | — | — | Project-scoped only (`.cursor/rules/`); no global install |
 | **Grok Build** | ✅ → `~/.grok/rules/buck-workflow.md` | ✅ `~/.grok/commands/` | ✅ `~/.grok/skills/` | Native Grok surfaces; do not rely on Claude-compat |
+| **ZCode** | ✅ → `~/.zcode/AGENTS.md` | ❌ (skills invoke directly) | ✅ `~/.zcode/skills/` | Invoke discovered skills as `/<skill-name>` |
 
 **Bootstrap drift fix:** The installer uses symlinks instead of copies, so `git pull` + re-run keeps every harness in sync. No more manual re-copying when the bootstrap file changes.
 
@@ -180,14 +181,14 @@ Most agents load both global and project-level files — the project-level one e
 ### Layered Architecture
 
 1. **Canonical skills** (`skills/`) — Portable workflow logic. Agent-neutral Markdown files that define *how* each workflow behaves. These are the source of truth.
-2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads `commands/*.md`; those files are symlinks back to `prompts/` (eight real-file exceptions — see [OMP Command Mirror](#omp-command-mirror)) so there is one source of truth.
-3. **Runtime automation** (`extensions/index.ts`) — Composed Pi/OMP extension surface: model auto-switch, TPS tracking, deterministic `*-improved` commands, opt-in plan-artifact bridge. Historical orchestration subsystems remain in `extensions/` but are not wired by the package manifest.
+2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads the test-enforced one-to-one `commands/*.md` symlink mirror, so every slash-command body has one source in `prompts/`.
+3. **Runtime automation** (`extensions/index.ts`) — Composed Pi/OMP extension surface: model auto-switch, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact bridge. Historical subsystems that remain under `extensions/` are not wired by the package manifest.
 
 **Runtime mapping:**
 
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
-- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic `*-improved` commands, opt-in plan-artifact bridge
+- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic commands, `/buck-loop`, local `/code-review` iteration, and the opt-in plan-artifact bridge
 - **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command; run before `/b-commit` to record durable session state
 
 ### Cross-Agent Parallels
@@ -203,11 +204,12 @@ Skills are designed to be a portable layer. Each agent would invoke them through
 | **OpenCode** | Commands + skills | `/b-plan` loads the same prompt template | `buck-workflow install` |
 | **Cursor** | Project rules (`.cursor/rules/`) | Rule file references skill content | Manual (project-scoped) |
 | **Grok Build** | Skills + commands (`~/.grok/`) | `/b-plan` loads the same prompt template | `buck-workflow install --harness grok` |
+| **ZCode** | Direct skill invocation | `/b-plan` resolves `~/.zcode/skills/b-plan/` | `buck-workflow install --harness zcode` |
 | **Goose** | Summon skills | Load `b-init-factory` (or other `b-*` skills) by name | Manual (Summon); no installer surface |
 
 Prompt templates are the source of truth for slash-command bodies. Skills, `.context/` conventions, and the global AGENTS.md are written to be agent-agnostic. The installer wires each harness's native loading mechanism to the shared source of truth.
 
-**Want to help?** Pull requests that improve support for Claude Code, Cursor, OpenCode, Codex, or other agent harnesses are very welcome. The skills are plain Markdown — the main work is testing the full workflow on each harness and fixing any behavioral quirks.
+**Want to help?** Pull requests that improve support for Claude Code, Cursor, OpenCode, Codex, ZCode, or other agent harnesses are very welcome. The skills are plain Markdown — the main work is testing the full workflow on each harness and fixing any behavioral quirks.
 
 ### Prompt Templates (`/b-*` commands)
 
@@ -240,22 +242,20 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-pr` | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, rebase, diff-generated description |
 | `/b-pr-review-2-issues` | `b-pr-review-2-issues` | PR review comments → classified, grouped plan artifact (no issues created) |
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
-| `/code-review` | `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
+| `/code-review` | `code-review` | Portable prompt: release-PR review; with the Pi/OMP extension loaded, the same command name runs the bounded local Reviewer → optional Fixer → fresh-Reviewer loop |
 | `/code-review-universal` | `code-review-universal` | Universal PR review — one atomic severity-tagged GitHub review with inline comments |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
-| `/b-recap` | `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation |
+| `/b-recap` | `b-recap` | Summarize the session plus branch delta (commits and staged/unstaged/untracked work) in one read-only page (<500 words) |
 | `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
 
 ### OMP Command Mirror
 
-Most `commands/*.md` are symlinks to `prompts/*.md`. They exist so OMP discovers the same slash commands that Pi exposes from `prompts/`.
-
-**Exceptions** (real files, not symlinks): `b-pr.md`, `b-pr-review-2-issues.md`, `b-commit-improved.md`, and `b-save-improved.md` are thin skill-loader stubs whose `prompts/` twins carry full bodies; `b-kamal-release.md`, `b-pr-improved.md`, `git-clean-orphans.md`, and `product-tour.md` have no `prompts/` twin and are **OMP-only** slash commands. See [`docs/extension-loading.md`](docs/extension-loading.md#cross-platform-slash-command-pattern) for the heal procedure.
+Every `commands/*.md` entry is a symlink to the matching `prompts/*.md` source. `scripts/commands-mirror.test.ts` enforces a one-to-one mirror with no physical-file exceptions or undeclared extras, so Pi and OMP expose the same prompt-backed slash commands.
 
 ### Extension-Backed Commands
 
-When the package extension is loaded (Pi/OMP), four commands run as deterministic code paths with live progress reporting instead of prompt-following:
+When the package extension is loaded (Pi/OMP), six commands use wired runtime implementations instead of only following prompt text:
 
 | Command | Backing | Skill fallback |
 |---------|---------|----------------|
@@ -263,6 +263,8 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `/b-save-improved` | `extensions/b-save-improved/` | `b-save-improved` skill |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | `b-pr` skill |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | — |
+| `/buck-loop` | `extensions/buck-loop/` | — |
+| `/code-review` | `extensions/code-review-iteration/` | Portable `code-review` prompt/skill (release-PR workflow) |
 
 ### Pure Prompt Commands
 
@@ -302,7 +304,7 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `b-review` | Review implementation for correctness and regressions |
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
-| `b-recap` | Summarize current session in one scan-friendly page (<500 words) — read-only orientation; does not replace `/b-save` |
+| `b-recap` | Summarize the session plus branch delta (commits and staged/unstaged/untracked work) in one read-only page (<500 words); does not replace `/b-save` |
 | `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
 | `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
 | `b-hindsight-import-projects` | Multi-project wrapper over `b-memory-import` — bulk-import many projects' `.context/memory` in one pass (skill-only) |
@@ -335,13 +337,14 @@ When the package extension is loaded (Pi/OMP), four commands run as deterministi
 | `pi-rpc` | Drive a `pi --mode rpc` subprocess via JSON RPC over stdio |
 | `product-tour` | First-run guided product tours over real UI, stack-agnostic |
 | `skill-explainer` | Explain a skill/command and produce a visual HTML walkthrough report |
+| `thought-dump-writer` | Maintain one lightly cleaned living markdown thought dump with a git checkpoint after every change |
 
 ### Extension (Runtime Hooks)
 
 One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
-- **Deterministic commands**: `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
+- **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
 Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`. Unwired: `b-grill-auto` extension command, tmux status, session-state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
