@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 1
 order: 1
 plan: plan-jev-buck-loop-chooser.md
@@ -11,19 +11,19 @@ omp_execution: orchestrate
 goal: "Establish one reusable contract and TypeSafe evaluator for model-authored workflow control outputs."
 files:
   - extensions/jev-tool/index.ts
-  - extensions/jev-tool/index.test.ts
+  - extensions/jev-tool/__tests__/jev-tool.test.ts
   - extensions/typed-output/
   - extensions/typed-output/__tests__/
 from_plan_steps: [1, 2, 3, 4]
 depends_on: []
 dependency_type: NONE
 acceptance_criteria:
-  - "[ ] Versioned contracts validate shape, enums, booleans, and cross-field invariants deterministically."
-  - "[ ] The jev tool and runtime consumers share one injectable TypeSafe evaluator."
-  - "[ ] Fixtures cover valid, missing, malformed, contradictory, disagreement, low-confidence, and unavailable-provider cases."
-  - "[ ] Focused tests perform zero live network calls."
-completed_at: null
-completed_by: null
+  - "[x] Versioned contracts validate shape, enums, booleans, and cross-field invariants deterministically."
+  - "[x] The jev tool and runtime consumers share one injectable TypeSafe evaluator."
+  - "[x] Fixtures cover valid, missing, malformed, contradictory, disagreement, low-confidence, and unavailable-provider cases."
+  - "[x] Focused tests perform zero live network calls."
+completed_at: 2026-09-22
+completed_by: b-build
 ---
 
 # Phase 1: Shared Typed-Output Contract

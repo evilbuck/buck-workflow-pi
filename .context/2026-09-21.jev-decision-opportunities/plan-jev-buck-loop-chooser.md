@@ -9,7 +9,7 @@ research:
   - ../2026-09-22.buck-loop-block-warning-diagnosis/research-buck-loop-block-warning.md
 iterations: []
 spec: null
-memory: [typed-workflow-output-hardening-plan-2026-09-22.md]
+memory: [typed-workflow-output-hardening-plan-2026-09-22.md, typed-output-contract-phase-1-build-2026-09-22.md]
 phases_overview: plan-jev-buck-loop-chooser-phases.md
 ---
 

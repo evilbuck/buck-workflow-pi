@@ -30,7 +30,7 @@ Complete or reconcile `.context/2026-09-21.jev-tool` before Phase 1. Its active 
 
 ## Phase sequence
 
-1. [Phase 1: Shared Typed-Output Contract](phase-1-shared-typed-output-contract.md) — hard — shared evaluator, schemas, fixtures, calibration policy.
+1. [x] [Phase 1: Shared Typed-Output Contract](phase-1-shared-typed-output-contract.md) — completed 2026-09-22 — shared evaluator, schemas, fixtures, calibration policy.
 2. [Phase 2: Review Contract and Typed Routing](phase-2-review-contract-and-routing.md) — hard — mandatory `buck.review/v1`, deterministic scanner, incident regressions.
 3. [Phase 3: Fix-or-Continue Recovery](phase-3-fix-or-continue-recovery.md) — hard — evidence-rich recovery, verified choice, no recoverable `block` option.
 4. [Phase 4: Core Closed-Set Migration](phase-4-core-closed-set-migration.md) — hard — inventory and migrate model-authored core workflow enums/booleans.

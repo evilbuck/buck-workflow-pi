@@ -1,10 +1,10 @@
 ---
 title: "Phase 1: Shared Typed-Output Contract"
-status: active
+status: completed
 priority: high
 created: 2026-09-22
 updated: 2026-09-22
-completed: null
+completed: 2026-09-22
 related:
   - .context/2026-09-21.jev-decision-opportunities/phase-1-shared-typed-output-contract.md
   - .context/2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md

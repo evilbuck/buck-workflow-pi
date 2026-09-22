@@ -11,7 +11,6 @@
 
 ## Typed Workflow Output Phases (2026-09-22)
 
-- [ ] [Phase 1: Shared Typed-Output Contract](items/phase-1-shared-typed-output-contract.md) — hard, `/b-build-hard` — [phase](../2026-09-21.jev-decision-opportunities/phase-1-shared-typed-output-contract.md) — **active after Jev Phase 2 reconciliation**
 
 ### Upcoming Phases
 

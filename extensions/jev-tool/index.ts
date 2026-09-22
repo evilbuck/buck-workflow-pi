@@ -13,39 +13,20 @@
  */
 import type { ExtensionAPI, ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { TypeSafeClient } from "@typesafe-ai/sdk";
-
-/** Loose question input: `type` is validated at runtime, criteria left to the SDK. */
-export interface JevQuestionInput {
-  type: string;
-  instructions?: unknown;
-  criteria?: unknown;
-}
-
-export interface JevRequest {
-  state: unknown;
-  questions: Record<string, JevQuestionInput>;
-  model?: string;
-}
-
-/** Structural subset of the SDK's SystemOneResult, generic over answers. */
-export interface JevSystemOneResult {
-  model: string;
-  answers: Record<string, unknown>;
-  usage: { input_tokens: number; output_tokens: number };
-}
-
-/** Minimal client surface; TypeSafeClient satisfies this. Injectable for tests. */
-export interface JevClient {
-  systemOne(request: JevRequest): PromiseLike<JevSystemOneResult>;
-}
+import {
+  createTypeSafeEvaluator,
+  type TypeSafeClientLike,
+  type TypeSafeEvaluationFailure,
+  type TypeSafeEvaluator,
+  type TypeSafeRequest,
+} from "../typed-output/evaluator.js";
 
 export interface JevToolDeps {
   /** Client factory override for tests. Default constructs the real TypeSafeClient. */
-  createClient?: () => JevClient;
+  createClient?: () => TypeSafeClientLike;
+  /** Whole evaluator override for adapter tests or runtime composition. */
+  evaluate?: TypeSafeEvaluator;
 }
-
-const KNOWN_QUESTION_TYPES: ReadonlySet<string> = new Set(["noul", "choice", "score"]);
 
 const QuestionSchema = Type.Union([
   Type.Object({
@@ -81,67 +62,43 @@ function errorResult(message: string): { content: Array<{ type: "text"; text: st
   return { content: [{ type: "text", text: JSON.stringify(payload) }], details: payload };
 }
 
-function describeError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
+function evaluationErrorResult(failure: TypeSafeEvaluationFailure) {
+  if (failure.code === "missing_credentials") {
+    return errorResult(
+      "jev failed closed: " + failure.message + " Set TYPESAFE_API_KEY to use the jev tool.",
+    );
+  }
+  if (failure.code === "provider_unavailable") {
+    return errorResult("jev failed closed (no fallback performed): " + failure.message);
+  }
+  return errorResult("jev failed closed: " + failure.message);
 }
 
-/** Validate tool params before contacting the SDK; returns an error message or null. */
-function validateQuestions(questions: Record<string, JevQuestionInput>): string | null {
-  const names = Object.keys(questions);
-  if (names.length === 0) {
-    return "jev requires at least one named question (noul, choice, or score).";
-  }
-  for (const name of names) {
-    const q = questions[name];
-    if (!q || typeof q !== "object" || !KNOWN_QUESTION_TYPES.has(q.type)) {
-      return `jev question "${name}" has unknown type "${String(q?.type)}"; expected one of noul, choice, score.`;
-    }
-  }
-  return null;
-}
-
-export function jevTool(createClient: () => JevClient): ToolDefinition<typeof JevParams> {
-  let client: JevClient | null = null;
+export function jevTool(evaluate: TypeSafeEvaluator): ToolDefinition<typeof JevParams> {
   return {
     name: "jev",
     label: "jev",
     description:
       "Answer named questions about a state via the TypeSafe API (Jev). " +
-      "Provide `state` (text or structured), named `questions` each of type noul (yes/no probability), " +
-      "choice (pick a labeled alternative), or score (ordered rubric), and an optional `model`. " +
+      "Provide 'state' (text or structured), named 'questions' each of type noul (yes/no probability), " +
+      "choice (pick a labeled alternative), or score (ordered rubric), and an optional 'model'. " +
       "Returns the full result: answers keyed by question name, model, and token usage. " +
       "Fails closed with a single error message on missing credentials or API failure — no fallback.",
     promptSnippet: "jev: calibrated classification via TypeSafe systemOne (state, questions, model?).",
     parameters: JevParams,
     async execute(_toolCallId, params) {
-      const validationError = validateQuestions(params.questions);
-      if (validationError) return errorResult(validationError);
+      const request: TypeSafeRequest = { state: params.state, questions: params.questions };
+      if (params.model !== undefined) request.model = params.model;
+      const evaluation = await evaluate(request);
+      if (!evaluation.ok) return evaluationErrorResult(evaluation.failure);
 
-      try {
-        client ??= createClient();
-        const request: JevRequest = { state: params.state, questions: params.questions };
-        if (params.model !== undefined) request.model = params.model;
-        const result = await client.systemOne(request);
-        const text = JSON.stringify(result);
-        return { content: [{ type: "text", text }], details: result };
-      } catch (err) {
-        const message = describeError(err);
-        if (/api key/i.test(message)) {
-          return errorResult(`jev failed closed: ${message}. Set TYPESAFE_API_KEY to use the jev tool.`);
-        }
-        return errorResult(`jev failed closed (no fallback performed): ${message}`);
-      }
+      const text = JSON.stringify(evaluation.result);
+      return { content: [{ type: "text", text }], details: evaluation.result };
     },
   };
 }
 
-/** Production client factory. Cast reason: TypeSafeClient's generic systemOne signature exceeds the loose JevClient surface; jevTool validates the tighter runtime contract. */
-function defaultCreateClient(): JevClient {
-  const client = new TypeSafeClient();
-  return client as unknown as JevClient;
-}
-
 export function wire(api: ExtensionAPI, deps: JevToolDeps = {}): void {
-  api.registerTool(jevTool(deps.createClient ?? defaultCreateClient));
+  const evaluate = deps.evaluate ?? createTypeSafeEvaluator({ createClient: deps.createClient });
+  api.registerTool(jevTool(evaluate));
 }

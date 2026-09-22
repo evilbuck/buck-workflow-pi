@@ -4,7 +4,8 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { wire, type JevClient, type JevRequest } from "../index.js";
+import { wire } from "../index.js";
+import type { TypeSafeClientLike, TypeSafeRequest } from "../../typed-output/evaluator.js";
 
 interface ToolResult {
   content: Array<{ type: string; text?: string }>;
@@ -13,7 +14,7 @@ interface ToolResult {
 
 type ExecuteFn = (
   toolCallId: string,
-  params: JevRequest,
+  params: TypeSafeRequest,
 ) => Promise<ToolResult>;
 
 interface WiredTool {
@@ -58,8 +59,8 @@ function fakeAnswer(type: string): unknown {
   return ScoreAnswer;
 }
 
-function fakeClient(overrides: Partial<JevClient> = {}): JevClient {
-  const impl = async (request: JevRequest) => {
+function fakeClient(overrides: Partial<TypeSafeClientLike> = {}): TypeSafeClientLike {
+  const impl = async (request: TypeSafeRequest) => {
     const answers: Record<string, unknown> = {};
     for (const [name, q] of Object.entries(request.questions)) {
       answers[name] = fakeAnswer(questionType(q));

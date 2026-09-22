@@ -1,4 +1,5 @@
 - [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`
+- [x] [Phase 1 — Shared typed-output contract](2026-09/phase-1-shared-typed-output-contract.md) — done 2026-09-22 — versioned review/recovery validators, shared injectable TypeSafe evaluator, semantic policy fixtures, and durable guardrails pass
 - [x] [Phase 2 — Binary phase-difficulty cutover](2026-09/phase-2-binary-difficulty-cutover.md) — done 2026-09-22 — binary `hard | not-hard` phase domain with legacy normalization; root and buck-loop routing preserved three-tier model roles
 - [x] [Phase 1 — Jev tool contract](2026-09/phase-1-jev-tool-contract.md) — done 2026-09-21 — generic fail-closed TypeSafe `systemOne` OMP tool with tested Noul/Choice/Score passthrough
 
