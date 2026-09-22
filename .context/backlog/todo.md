@@ -20,7 +20,7 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 
 - [ ] [Phase 2: Binary Difficulty Cutover](items/phase-2-binary-difficulty-cutover.md) — hard, `/b-build-hard` — [phase-2-binary-difficulty-cutover.md](../2026-09-21.jev-tool/phase-2-binary-difficulty-cutover.md)
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
-- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; clean review heading drift can reach an enum-only chooser that accepts `block`
+- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; repeated: incomplete clean-review schemas and thin fallback context can accept `block`
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
 - [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
