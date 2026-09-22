@@ -1,3 +1,5 @@
+- 2026-09-22 — [Typed workflow output hardening plan](typed-workflow-output-hardening-plan-2026-09-22.md) — `completed` (five phases: shared evaluator, typed b-review, fix-or-continue recovery, closed-set migration, live proof)
+
 - 2026-09-22 — [buck-loop accepted-block warning diagnosis](buck-loop-block-warning-diagnosis-2026-09-22.md) — `completed` (passing review omitted How-to Impact; parser marked it unparseable; thin fallback context accepted legal block)
 
 - 2026-09-21 — [Jev tool and boolean phase-difficulty phasing](jev-tool-phasing-2026-09-21.md) — `completed` (three-phase HARD chain; Phase 1 Jev tool contract queued)

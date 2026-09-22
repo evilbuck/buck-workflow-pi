@@ -7,7 +7,18 @@
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
 - [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
-- [ ] [Replace buck-loop chooser with TypeSafe Jev Choice](items/jev-buck-loop-chooser.md) — high; Path B `@typesafe-ai/sdk` in `choice.ts`; no judge()/smol fallback — see `.context/2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser.md`
+- [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
+
+## Typed Workflow Output Phases (2026-09-22)
+
+- [ ] [Phase 1: Shared Typed-Output Contract](items/phase-1-shared-typed-output-contract.md) — hard, `/b-build-hard` — [phase](../2026-09-21.jev-decision-opportunities/phase-1-shared-typed-output-contract.md) — **active after Jev Phase 2 reconciliation**
+
+### Upcoming Phases
+
+- [ ] [Phase 2: Review Contract and Typed Routing](items/phase-2-review-contract-and-routing.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-2-review-contract-and-routing.md)
+- [ ] [Phase 3: Fix-or-Continue Recovery](items/phase-3-fix-or-continue-recovery.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-3-fix-or-continue-recovery.md)
+- [ ] [Phase 4: Core Closed-Set Migration](items/phase-4-core-closed-set-migration.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-4-core-closed-set-migration.md)
+- [ ] [Phase 5: Documentation and Live Proof](items/phase-5-documentation-and-live-proof.md) — medium — [phase](../2026-09-21.jev-decision-opportunities/phase-5-documentation-and-live-proof.md)
 
 ## Jev Tool Phases (2026-09-21)
 
@@ -20,7 +31,7 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 
 - [ ] [Phase 2: Binary Difficulty Cutover](items/phase-2-binary-difficulty-cutover.md) — hard, `/b-build-hard` — [phase-2-binary-difficulty-cutover.md](../2026-09-21.jev-tool/phase-2-binary-difficulty-cutover.md)
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
-- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; repeated: incomplete clean-review schemas and thin fallback context can accept `block`
+- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; covered by typed-review and fix-or-continue Phases 1–3
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
 - [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
