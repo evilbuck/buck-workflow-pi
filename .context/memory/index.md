@@ -1,3 +1,5 @@
+- 2026-09-21 — [Jev tool and boolean phase-difficulty phasing](jev-tool-phasing-2026-09-21.md) — `completed` (three-phase HARD chain; Phase 1 Jev tool contract queued)
+
 - 2026-09-21 — [b-save thin loader and portable code-review paths](bsave-code-review-build-2026-09-21.md) — `completed` (Phase 2 review passed; canonical save skill and portable review paths verified; docs wording follow-up tracked)
 
 - 2026-09-21 — [Dead unwired extensions — Phase 1 build and review](dead-unwired-extensions-build-2026-09-21.md) — `completed` (review passed clean; dead extension code deleted; grill file/chat handoff; Codex parity and guardrails pass)

@@ -11,6 +11,7 @@ import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { wireBuckLoop } from "./buck-loop/index.js";
+import { wire as wireJevTool } from "./jev-tool/index.js";
 import { mappingFromOmpRoles } from "./omp-models.js";
 
 
@@ -332,6 +333,8 @@ export default function (pi: ExtensionAPI) {
   wireCodeReviewIteration(pi);
   // --- buck-loop: observably invoked happy-path runner ---
   wireBuckLoop(pi);
+  // --- jev-tool: generic TypeSafe systemOne classification (fail-closed) ---
+  wireJevTool(pi);
 
   // --- Session lifecycle ---
 
