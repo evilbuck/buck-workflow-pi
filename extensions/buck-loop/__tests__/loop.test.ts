@@ -133,6 +133,20 @@ describe("handleLoop commands", () => {
     });
     expect(readProjection(cwd)).toBeNull();
   });
+  it("does not ask about dirty files when there is no saved run to resume", async () => {
+    const cwd = repo();
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const confirmDirty = vi.fn(async () => true);
+    const deps = { ...workDeps(async () => ({ ok: true, text: "nope" })), confirmDirty };
+
+    await expect(handleLoop({ cwd, command: "resume", deps })).resolves.toEqual({
+      state: "idle",
+      reason: "no projection to resume",
+    });
+    expect(confirmDirty).not.toHaveBeenCalled();
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
 
   it("stop persists aborted and does not run work", async () => {
     const cwd = repo();
@@ -165,7 +179,7 @@ describe("handleLoop commands", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses to start with unrelated dirty files", async () => {
+  it("blocks a dirty start when there is nobody to approve it", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
@@ -176,7 +190,7 @@ describe("handleLoop commands", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses to resume with unrelated dirty files", async () => {
+  it("blocks a dirty resume when there is nobody to approve it", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, {
@@ -199,6 +213,57 @@ describe("handleLoop commands", () => {
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/dirty/);
     expect(deps.runStep).not.toHaveBeenCalled();
+  });
+  it("asks before starting over dirty files and starts once approved", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const confirmDirty = vi.fn(async () => true);
+    const deps = { ...workDeps(landingWork()), confirmDirty };
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(confirmDirty).toHaveBeenCalledWith({ mode: "start", paths: ["src/unrelated.ts"] });
+    expect(result.state).toBe("done");
+  });
+
+  it("resumes a run whose only dirt is its own child output, once approved", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    // The child writes its deliverable outside .context/ but cannot complete
+    // the phase, so the loop blocks before it ever reaches `committing`.
+    const stalledBuild = async (opts: { cwd: string; skill: NestedSkill }) => {
+      if (opts.skill === "b-build") writeTree(opts.cwd, { "docs/cycles/note.md": "# Note\n" });
+      return { ok: true, text: opts.skill };
+    };
+    const blockChoice = async (): Promise<ChooseResult> => ({
+      status: "accepted",
+      accepted: { choice: { kind: "block" }, reason: "outstanding criteria are human-gated" },
+    });
+    const first = await handleLoop({
+      cwd,
+      command: "start",
+      path: PLAN,
+      deps: workDeps(stalledBuild, blockChoice),
+    });
+    expect(first.state).toBe("blocked");
+
+    const confirmDirty = vi.fn(async () => true);
+    const deps = { ...workDeps(landingWork()), confirmDirty };
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(confirmDirty).toHaveBeenCalledWith({ mode: "resume", paths: ["docs/cycles/note.md"] });
+    expect(deps.runStep).toHaveBeenCalled();
+    expect(result.state).not.toBe("blocked");
+  });
+
+  it("never asks about a protected branch", async () => {
+    const cwd = repo();
+    git(cwd, ["checkout", "-q", "-b", "master"]);
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const confirmDirty = vi.fn(async () => true);
+    const deps = { ...workDeps(landingWork()), confirmDirty };
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.reason).toMatch(/protected branch master/);
+    expect(confirmDirty).not.toHaveBeenCalled();
   });
 
 

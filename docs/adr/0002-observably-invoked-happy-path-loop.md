@@ -24,3 +24,8 @@ The evaluator seam does not reverse these rejections. It is an internal synchron
 - Retries and counters are bounded. Illegal model output blocks instead of advancing.
 - `extensions/b-flow/` was removed 2026-09-20. `xstate` is no longer a dependency. `/skill:b-loop` was removed the same day.
 - The runner does not auto-plan, auto-phase, parallelize phases, or enable OMP `orchestrate` / `workflow` / `/goal set`.
+- A protected branch is a hard refusal. A dirty working tree is not: the paths
+  are shown and the operator approves or declines, because the dirt is usually
+  the loop's own output from a run that blocked before `committing`. Print/JSON
+  modes deny because they have no UI. RPC can prompt through its dialog
+  sub-protocol; the prompt has a bounded timeout and timeout/cancel deny.

@@ -1,33 +1,31 @@
 {
-  "started_at": "2026-09-20T09:42:00Z",
-  "mode": "nested",
+  "started_at": "2026-09-21T21:22:57Z",
+  "mode": "manual",
   "commands_run": [
-    "b-build",
-    "b-review",
-    "b-save"
+    "b-iterate"
   ],
   "implementation_happened": true,
-  "save_completed": true,
-  "memory_file": ".context/memory/review-loop-state-machine-build-2026-09-20.md",
-  "subject": "2026-09-20.review-loop-state-machine-alignment",
+  "save_completed": false,
+  "memory_file": ".context/memory/buck-loop-midrun-deadlock-iteration-2026-09-21.md",
+  "subject": "2026-09-21.buck-loop-midrun-deadlock",
   "files_modified": [
-    ".context/2026-09-20.review-loop-state-machine-alignment/draft-commit.md",
-    ".context/2026-09-20.review-loop-state-machine-alignment/plan-review-loop-state-machine-migration.md",
+    ".context/2026-09-21.buck-loop-midrun-deadlock/draft-commit.md",
+    ".context/2026-09-21.buck-loop-midrun-deadlock/iterate-buck-loop-midrun-deadlock.md",
+    ".context/memory/buck-loop-midrun-deadlock-iteration-2026-09-21.md",
     ".context/memory/index.md",
-    ".context/memory/review-loop-state-machine-build-2026-09-20.md",
     ".context/workflow/current-session.json",
-    ".context/2026-09-20.review-loop-state-machine-alignment/review-zz-buck-loop-2026-09-20T19-49-05-686Z.md",
     "docs/adr/0002-observably-invoked-happy-path-loop.md",
-    "extensions/code-review-iteration/__tests__/loop-machine-failure.test.ts",
-    "extensions/code-review-iteration/__tests__/machine.test.ts",
-    "extensions/code-review-iteration/loop.ts",
-    "extensions/code-review-iteration/machine.ts"
+    "extensions/buck-loop/__tests__/loop.test.ts",
+    "extensions/buck-loop/__tests__/wire.test.ts",
+    "extensions/buck-loop/index.ts",
+    "extensions/buck-loop/loop.ts",
+    "scripts/serve-presentations.test.ts"
   ],
   "guided_workflow": null,
-  "guided_stage": "build",
+  "guided_stage": "iterate",
   "plan_mode_active": false,
   "buck_workflow_mode_active": true,
-  "buck_workflow_mode_source": "nested",
-  "buck_workflow_mode_reason": "Assigned b-build for review-loop state-machine migration",
+  "buck_workflow_mode_source": "manual",
+  "buck_workflow_mode_reason": "Assigned b-iterate for buck-loop mid-run deadlock review findings",
   "restrict_cwd_active": false
 }

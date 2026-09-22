@@ -5,10 +5,10 @@
  * - `wireBuckLoop` — registers the slash command with a fake host API and
  *   checks that `handleLoop` is the only thing the handler calls.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
 import type { ActivityEvent } from "../../extension-activity.js";
 
 const handleLoop = vi.fn();
@@ -16,14 +16,23 @@ vi.mock("../loop.js", () => ({ handleLoop: (...args: unknown[]) => handleLoop(..
 
 import { parseArgs, USAGE, wireBuckLoop } from "../index.js";
 
+type TestUI = {
+  notify: (m: string, l?: string) => void;
+  setStatus?: (key: string, text: string | undefined) => void;
+  setWidget?: (key: string, content: string[] | undefined) => void;
+  confirm?: (title: string, message: string, opts?: ExtensionUIDialogOptions) => Promise<boolean>;
+};
+
+type TestCommandContext = {
+  cwd: string;
+  hasUI?: boolean;
+  ui: TestUI;
+};
+
 function createMockApi(): {
   api: ExtensionAPI;
-  commands: Map<string, { handler: (args: string, ctx: { cwd: string; ui: {
-    notify: (m: string, l?: string) => void;
-    setStatus?: (key: string, text: string | undefined) => void;
-    setWidget?: (key: string, content: string[] | undefined) => void;
-  } }) => Promise<void> }>;
-  sendMessage: ReturnType<typeof vi.fn>;
+  commands: Map<string, { handler: (args: string, ctx: TestCommandContext) => Promise<void> }>;
+  sendMessage: Mock;
 } {
   const commands = new Map();
   const sendMessage = vi.fn();
@@ -36,7 +45,10 @@ function createMockApi(): {
   return { api, commands, sendMessage };
 }
 
-afterEach(() => handleLoop.mockReset());
+afterEach(() => {
+  handleLoop.mockReset();
+  vi.useRealTimers();
+});
 
 describe("parseArgs", () => {
   it("parses a single positional path as start", () => {
@@ -89,6 +101,124 @@ describe("wireBuckLoop", () => {
     expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "stop", path: undefined }));
     expect(notes.some((n) => n.includes("idle:"))).toBe(true);
   });
+  it("forwards interactive dirty-tree approval through a bounded dialog", async () => {
+    let decision: boolean | undefined;
+    handleLoop.mockImplementation(async (opts: {
+      deps?: { confirmDirty?: (request: { mode: "start" | "resume"; paths: string[] }) => Promise<boolean> };
+    }) => {
+      decision = await opts.deps?.confirmDirty?.({ mode: "resume", paths: ["docs/cycles/note.md"] });
+      return { state: "blocked", reason: "test complete" };
+    });
+    const confirm = vi.fn(async (
+      _title: string,
+      _message: string,
+      _opts?: ExtensionUIDialogOptions,
+    ) => true);
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+
+    await commands.get("buck-loop")!.handler("--resume", {
+      cwd: "/tmp/repo",
+      hasUI: true,
+      ui: { notify: () => undefined, confirm },
+    });
+
+    expect(decision).toBe(true);
+    expect(confirm).toHaveBeenCalledOnce();
+    const [title, message, options] = confirm.mock.calls[0]!;
+    expect(title).toBe("Uncommitted changes");
+    expect(message).toContain("docs/cycles/note.md");
+    expect(message).toContain("stages everything");
+    expect(options?.timeout).toBeGreaterThan(0);
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("treats an interactive dirty-tree denial as denial", async () => {
+    let decision: boolean | undefined;
+    handleLoop.mockImplementation(async (opts: {
+      deps?: { confirmDirty?: (request: { mode: "start" | "resume"; paths: string[] }) => Promise<boolean> };
+    }) => {
+      decision = await opts.deps?.confirmDirty?.({ mode: "start", paths: ["src/unrelated.ts"] });
+      return { state: "blocked", reason: "test complete" };
+    });
+    const confirm = vi.fn(async (
+      _title: string,
+      _message: string,
+      _opts?: ExtensionUIDialogOptions,
+    ) => false);
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+
+    await commands.get("buck-loop")!.handler("plan.md", {
+      cwd: "/tmp/repo",
+      hasUI: true,
+      ui: { notify: () => undefined, confirm },
+    });
+
+    expect(decision).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it("denies dirty-tree approval without a UI", async () => {
+    let decision: boolean | undefined;
+    handleLoop.mockImplementation(async (opts: {
+      deps?: { confirmDirty?: (request: { mode: "start" | "resume"; paths: string[] }) => Promise<boolean> };
+    }) => {
+      decision = await opts.deps?.confirmDirty?.({ mode: "start", paths: ["src/unrelated.ts"] });
+      return { state: "blocked", reason: "test complete" };
+    });
+    const confirm = vi.fn(async (
+      _title: string,
+      _message: string,
+      _opts?: ExtensionUIDialogOptions,
+    ) => true);
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+
+    await commands.get("buck-loop")!.handler("plan.md", {
+      cwd: "/tmp/repo",
+      hasUI: false,
+      ui: { notify: () => undefined, confirm },
+    });
+
+    expect(decision).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when an RPC-style dirty-tree dialog times out", async () => {
+    vi.useFakeTimers();
+    let decision: boolean | undefined;
+    let settled = false;
+    handleLoop.mockImplementation(async (opts: {
+      deps?: { confirmDirty?: (request: { mode: "start" | "resume"; paths: string[] }) => Promise<boolean> };
+    }) => {
+      decision = await opts.deps?.confirmDirty?.({ mode: "resume", paths: ["docs/cycles/note.md"] });
+      return { state: "blocked", reason: "test complete" };
+    });
+    const confirm = vi.fn((
+      _title: string,
+      _message: string,
+      opts?: ExtensionUIDialogOptions,
+    ) => new Promise<boolean>((resolve) => {
+      setTimeout(() => resolve(false), opts?.timeout ?? 60_000);
+    }));
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+
+    const pending = commands.get("buck-loop")!.handler("--resume", {
+      cwd: "/tmp/repo",
+      hasUI: true,
+      ui: { notify: () => undefined, confirm },
+    });
+    void pending.then(() => { settled = true; });
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(settled).toBe(true);
+    await pending;
+    expect(decision).toBe(false);
+    expect(confirm.mock.calls[0]?.[2]?.timeout).toBeLessThanOrEqual(30_000);
+  });
+
   it("shows live activity before the supervisor settles and clears it afterward", async () => {
     let settle!: (value: { state: string; reason: string }) => void;
     handleLoop.mockImplementation((opts: { deps?: { onProgress?: (event: { label: string }) => void } }) => {

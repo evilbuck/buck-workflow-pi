@@ -120,7 +120,14 @@ export function resolveRequestPath(root: string, pathname: string): string | nul
     return null;
   }
   if (decoded.includes("\0")) return null;
-  const rootAbs = resolve(root);
+  // Both sides must be real paths: the target is realpath'd below, so a root
+  // reached through a symlink (macOS /var → /private/var) would never contain it.
+  let rootAbs = resolve(root);
+  try {
+    rootAbs = realpathSync(rootAbs);
+  } catch {
+    // Nonexistent root: keep the lexical path; every request then 404s.
+  }
   const relative = normalize(decoded).replace(/^[/\\]+/, "");
   const target = resolve(rootAbs, relative);
   let real = target;

@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -16,9 +16,16 @@ import {
 } from "./serve-presentations.js";
 
 let root: string;
+let linkedRootParent: string;
+let linkedRoot: string;
 
 beforeAll(() => {
-  root = mkdtempSync(join(tmpdir(), "serve-presentations-"));
+  // realpath: on macOS the temp dir is /var/... which canonicalizes to
+  // /private/var/..., and resolveRequestPath returns canonical paths.
+  root = realpathSync(mkdtempSync(join(tmpdir(), "serve-presentations-")));
+  linkedRootParent = mkdtempSync(join(tmpdir(), "serve-presentations-link-"));
+  linkedRoot = join(linkedRootParent, "served");
+  symlinkSync(root, linkedRoot, "dir");
   mkdirSync(join(root, "alpha", "assets"), { recursive: true });
   writeFileSync(join(root, "alpha", "index.html"), "<h1>alpha</h1>");
   writeFileSync(join(root, "alpha", "blueprint.html"), "<h1>alpha blueprint</h1>");
@@ -31,12 +38,19 @@ beforeAll(() => {
   writeFileSync(join(root, "not-a-package", "notes.md"), "no html here");
 });
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => {
+  rmSync(linkedRootParent, { recursive: true, force: true });
+  rmSync(root, { recursive: true, force: true });
+});
 
 describe("resolveRequestPath", () => {
   it("keeps paths inside the served root", () => {
     expect(resolveRequestPath(root, "/alpha/index.html")).toBe(join(resolve(root), "alpha", "index.html"));
   });
+  it("accepts an existing file when the served root is reached through a symlink", () => {
+    expect(resolveRequestPath(linkedRoot, "/alpha/index.html")).toBe(join(root, "alpha", "index.html"));
+  });
+
 
   it("clamps absolute traversal back inside the root, encoded or not", () => {
     const inside = join(resolve(root), "package.json");

@@ -94,6 +94,9 @@ export type LoopProgress = {
  * - `onProgress` — update the spinner label.
  * - `onActivity` — stream nested-session tokens/tools into the widget.
  * - `onFailure` — structured failure for the parent chat (`index.ts`).
+ * - `confirmDirty` — ask the operator whether to run over uncommitted
+ *   non-`.context/` changes. The default denies, so callers without a
+ *   responsive UI cannot silently sweep unrelated work into the loop's commit.
  */
 export type LoopDeps = {
   runStep: typeof defaultRunStep;
@@ -102,6 +105,15 @@ export type LoopDeps = {
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
   onActivity: (event: ActivityEvent) => void;
+  confirmDirty: (request: DirtyTreeRequest) => Promise<boolean>;
+};
+
+/** What the operator is being asked to approve before the loop touches the tree. */
+export type DirtyTreeRequest = {
+  /** `start` is a fresh run; `resume` continues a saved one. */
+  mode: "start" | "resume";
+  /** Repo-relative paths that are uncommitted and outside `.context/`. */
+  paths: string[];
 };
 
 type EffectResult = {
@@ -117,6 +129,7 @@ const DEFAULT_DEPS: LoopDeps = {
   onProgress: () => undefined,
   onFailure: () => undefined,
   onActivity: () => undefined,
+  confirmDirty: async () => false,
 };
 
 /**
@@ -168,7 +181,7 @@ function stopRun(cwd: string, now: () => string): LoopResult {
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
 async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
-  const refused = refuseUnsafeWorkspace(cwd, "start");
+  const refused = await refuseUnsafeWorkspace(cwd, "start", deps);
   if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
@@ -196,10 +209,10 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
  * A blocked run whose plan is still present is treated as USER_CONFIRMED.
  */
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
-  const refused = refuseUnsafeWorkspace(cwd, "resume");
-  if (refused) return refused;
   const projection = readProjection(cwd);
   if (!projection) return idleOrUnreadableProjection(cwd);
+  const refused = await refuseUnsafeWorkspace(cwd, "resume", deps);
+  if (refused) return refused;
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
@@ -525,22 +538,48 @@ function enrichFailure(
   return { state: snapshot.state, operation, trying, ...details };
 }
 
-function refuseUnsafeWorkspace(cwd: string, mode: "start" | "resume"): LoopResult | null {
+/**
+ * Gate the tree before the loop touches it.
+ *
+ * A protected branch is a hard refusal — the loop commits, and no answer the
+ * operator gives makes committing to `master` safe. A dirty tree is **not**: it
+ * is routinely the loop's own uncommitted output from a run that blocked before
+ * `committing`. So the paths are shown and the decision is the operator's.
+ * `deps.confirmDirty` denies by default, so a headless run is still deterministic.
+ */
+async function refuseUnsafeWorkspace(
+  cwd: string,
+  mode: "start" | "resume",
+  deps: LoopDeps,
+): Promise<LoopResult | null> {
   const branch = gitLine(cwd, "branch", "--show-current");
   if (PROTECTED_BRANCHES[branch]) {
     return { state: "blocked", reason: `refusing to ${mode} on protected branch ${branch}` };
   }
-  const dirty = gitOutput(cwd, "status", "--porcelain")
+  const paths = dirtyPaths(cwd);
+  if (paths.length === 0) return null;
+  if (await deps.confirmDirty({ mode, paths })) return null;
+  return {
+    state: "blocked",
+    reason:
+      `working tree is dirty and running over it was not approved: ` +
+      `${paths.length} uncommitted path(s) (${paths.slice(0, 3).join(", ")}` +
+      `${paths.length > 3 ? ", …" : ""}). Approve in a UI-capable client, or commit or stash them.`,
+  };
+}
+
+/**
+ * Uncommitted repo-relative paths the loop would sweep into its own commit.
+ * `.context/` is excluded: those artifacts are the loop's working state.
+ * `--untracked-files=all` matters — plain porcelain collapses a wholly new
+ * directory to `docs/`, and the operator is being asked to approve files.
+ */
+function dirtyPaths(cwd: string): string[] {
+  return gitOutput(cwd, "status", "--porcelain", "--untracked-files=all")
     .split("\n")
-    .filter((line) => {
-      if (line.length < 4) return false;
-      const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, "");
-      return path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/");
-    });
-  if (dirty.length > 0) {
-    return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
-  }
-  return null;
+    .filter((line) => line.length >= 4)
+    .map((line) => (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, ""))
+    .filter((path) => path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/"));
 }
 
 function gitOutput(cwd: string, ...args: string[]): string {

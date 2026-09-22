@@ -46,11 +46,11 @@
  * - {@link ./loop.ts}         — the while-loop that drives the machine
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createActivity, type ActivityUI } from "../extension-activity.js";
-import { handleLoop, statusOf, type LoopCommand } from "./loop.js";
+import { handleLoop, statusOf, type DirtyTreeRequest, type LoopCommand } from "./loop.js";
 import { formatFailureForAgent, serializeCallError, type AgentCallFailure } from "./call-failure.js";
 
 /** Printed when the operator types `/buck-loop` with no args, or mixed flags. */
@@ -117,7 +117,46 @@ export function parseArgs(raw: string): ParsedArgs {
  */
 type BuckLoopUI = ActivityUI & {
   notify: (message: string, type?: "info" | "warning" | "error") => void;
+  confirm?: (title: string, message: string, opts?: ExtensionUIDialogOptions) => Promise<boolean>;
 };
+
+/** Longest list of paths shown in the confirm dialog before it is elided. */
+const DIRTY_SAMPLE = 10;
+/** Dirty-tree dialogs fail closed if an RPC client never answers. */
+const DIRTY_CONFIRM_TIMEOUT_MS = 30_000;
+
+
+/**
+ * Ask the operator whether the loop may run over uncommitted work.
+ *
+ * The loop's own `b-commit` step stages everything (`git add -A`), so anything
+ * listed here ends up in the loop's commit — that is the consequence the
+ * operator is being asked to accept. Print/JSON modes have no UI and deny.
+ * RPC exposes a UI proxy, so its dialog must be bounded and fail closed when
+ * the client does not implement the dialog-response sub-protocol.
+ */
+function confirmDirtyTree(ctx: { hasUI?: boolean; ui: BuckLoopUI }) {
+  return async ({ mode, paths }: DirtyTreeRequest): Promise<boolean> => {
+    if (!ctx.hasUI || !ctx.ui.confirm) return false;
+    const shown = paths.slice(0, DIRTY_SAMPLE).map((path) => "  " + path).join("\n");
+    const more = paths.length > DIRTY_SAMPLE ? `\n  …and ${paths.length - DIRTY_SAMPLE} more` : "";
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), DIRTY_CONFIRM_TIMEOUT_MS);
+    try {
+      return await ctx.ui.confirm(
+        "Uncommitted changes",
+        `${paths.length} uncommitted path(s) outside .context/:\n${shown}${more}\n\n` +
+          `The loop stages everything before it commits, so these will be included ` +
+          `in its commit. ${mode === "resume" ? "Resume" : "Start"} anyway?`,
+        { signal: controller.signal, timeout: DIRTY_CONFIRM_TIMEOUT_MS },
+      );
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+}
 
 /** Short label shown in the progress widget for the current command. */
 function initialLabel(parsed: Extract<ParsedArgs, { ok: true }>): string {
@@ -203,9 +242,10 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
      *
      * @param args - Raw text after `/buck-loop` (not pre-parsed).
      * @param ctx.cwd - Project directory the operator's session is in.
-     * @param ctx.ui - Host UI: toasts, status pill, live widget.
+     * @param ctx.hasUI - True for interactive and RPC UI proxies; false in print/JSON mode.
+     * @param ctx.ui - Host UI: toasts, status pill, live widget, confirm dialog.
      */
-    handler: async (args: string, ctx: { cwd: string; ui: BuckLoopUI }) => {
+    handler: async (args: string, ctx: { cwd: string; hasUI?: boolean; ui: BuckLoopUI }) => {
       const parsed = parseArgs(args);
       if (!parsed.ok) {
         ctx.ui.notify(parsed.error, "error");
@@ -225,6 +265,7 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
           deps: {
             onProgress: (progress) => activity.phase(progress.label),
             onActivity: activity.ingest,
+            confirmDirty: confirmDirtyTree(ctx),
             onFailure: (failure) => {
               activity.ingest({
                 kind: "toolEnd",
