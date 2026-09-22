@@ -109,18 +109,29 @@ export function ompAgentDir(): string {
 
 export type DifficultyTier = "easy" | "medium" | "hard";
 
+/** Phase-file difficulty. Independent of review Hardness (`DifficultyTier`). */
+export type PhaseDifficulty = "hard" | "not-hard";
+
 export interface OmpModelMapping {
   easy: string;
   medium: string;
   hard: string;
 }
 
-/** Phase difficulty → OMP modelRoles keys, first hit wins, then `default`. */
+/** Review Hardness / nested-session modelRoles keys, first hit wins, then `default`. */
 export const DIFFICULTY_TO_ROLE: Record<DifficultyTier, readonly string[]> = {
   easy: ["smol", "tiny", "task"],
   medium: ["slow", "task", "default"],
   hard: ["default", "plan", "slow"],
 };
+
+export function parsePhaseDifficulty(raw: string | undefined | null): PhaseDifficulty {
+  return raw?.trim().toLowerCase() === "hard" ? "hard" : "not-hard";
+}
+
+export function phaseDifficultyToTier(difficulty: PhaseDifficulty): DifficultyTier {
+  return difficulty === "hard" ? "hard" : "medium";
+}
 
 export function parseModelRoles(text: string): Record<string, string> {
   const roles: Record<string, string> = {};

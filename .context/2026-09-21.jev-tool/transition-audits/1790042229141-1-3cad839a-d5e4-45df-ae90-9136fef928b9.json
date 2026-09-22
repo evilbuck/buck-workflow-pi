@@ -1,0 +1,25 @@
+{
+  "legal": [
+    {
+      "kind": "iterate"
+    },
+    {
+      "kind": "document"
+    },
+    {
+      "kind": "save"
+    },
+    {
+      "kind": "block"
+    }
+  ],
+  "raw": "{\"choice\":\"block\",\"reason\":\"Review report is unparseable (parseable=false) and no iterate artifact exists; cannot proceed with /b-iterate without actionable review findings. Need to regenerate or repair the review report for phase-2-binary-difficulty-cutover.md before iteration can resume.\"}",
+  "parsed": {
+    "choice": "block",
+    "reason": "Review report is unparseable (parseable=false) and no iterate artifact exists; cannot proceed with /b-iterate without actionable review findings. Need to regenerate or repair the review report for phase-2-binary-difficulty-cutover.md before iteration can resume."
+  },
+  "accepted": true,
+  "reason": "Review report is unparseable (parseable=false) and no iterate artifact exists; cannot proceed with /b-iterate without actionable review findings. Need to regenerate or repair the review report for phase-2-binary-difficulty-cutover.md before iteration can resume.",
+  "context": "state=reviewing phase=.context/2026-09-21.jev-tool/phase-2-binary-difficulty-cutover.md why=review report unparseable; no iterate artifact parseable=false docsImpact=false howtoImpact=false postcondition=confirmed",
+  "attempt": 1
+}

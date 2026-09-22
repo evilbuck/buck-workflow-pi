@@ -53,6 +53,11 @@ function phased(root: string, statuses: string[]): void {
   });
   writeTree(root, files);
 }
+
+function stampDifficulty(cwd: string, n: number, value: string): void {
+  const abs = join(cwd, `.context/${SUBJECT}/phase-${n}-p${n}.md`);
+  writeFileSync(abs, readFileSync(abs, "utf8").replace(/^---\n/, `---\ndifficulty: ${value}\n`));
+}
 function workDeps(
   runStep: (opts: {
     cwd: string;
@@ -235,6 +240,26 @@ describe("happy path", () => {
     expect(labels).toContain("Saving session state");
     expect(labels).toContain("Committing completed work");
     expect(execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" })).toBe("");
+  });
+
+  it("maps phase difficulty to runStep tiers with legacy and default behavior", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending", "pending", "pending"]);
+    stampDifficulty(cwd, 1, "hard");
+    stampDifficulty(cwd, 2, "not-hard");
+    stampDifficulty(cwd, 3, "easy");
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const builds = deps.runStep.mock.calls
+      .map((call) => call[0])
+      .filter((call) => call.skill === "b-build" || call.skill === "b-build-hard");
+    expect(builds.map((call) => [call.skill, call.difficulty])).toEqual([
+      ["b-build-hard", "hard"],
+      ["b-build", "medium"],
+      ["b-build", "medium"],
+      ["b-build", "medium"],
+    ]);
   });
 
   it("routes iterate when the review artifact exists, then re-reviews", async () => {

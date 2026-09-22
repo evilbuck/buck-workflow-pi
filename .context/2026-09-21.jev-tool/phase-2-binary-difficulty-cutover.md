@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-jev-tool.md
@@ -19,13 +19,13 @@ from_plan_steps: [4, 5, 6]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `PhaseDifficulty` is a separate `hard | not-hard` domain with parsing and tier-mapping helpers; review `DifficultyTier` remains `easy | medium | hard`."
-  - "[ ] New phase values parse directly, legacy `easy | medium` parse as `not-hard`, and absent/unknown values default to `not-hard`."
-  - "[ ] Model auto-switch maps phase `hard` to the hard tier and `not-hard` to the medium tier while preserving the Phase 1 Jev registration."
-  - "[ ] buck-loop reads binary phase difficulty, keeps its `DifficultyTier` run-step API, and applies the same legacy/default behavior."
-  - "[ ] Focused parser, model-routing, root-extension, and buck-loop tests pass; code-review-iteration Hardness behavior is unchanged."
-completed_at: null
-completed_by: null
+  - "[x] `PhaseDifficulty` is a separate `hard | not-hard` domain with parsing and tier-mapping helpers; review `DifficultyTier` remains `easy | medium | hard`."
+  - "[x] New phase values parse directly, legacy `easy | medium` parse as `not-hard`, and absent/unknown values default to `not-hard`."
+  - "[x] Model auto-switch maps phase `hard` to the hard tier and `not-hard` to the medium tier while preserving the Phase 1 Jev registration."
+  - "[x] buck-loop reads binary phase difficulty, keeps its `DifficultyTier` run-step API, and applies the same legacy/default behavior."
+  - "[x] Focused parser, model-routing, root-extension, and buck-loop tests pass; code-review-iteration Hardness behavior is unchanged."
+completed_at: 2026-09-21
+completed_by: b-build-hard
 ---
 
 # Phase 2: Binary Difficulty Cutover

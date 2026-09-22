@@ -1,3 +1,4 @@
+- 2026-09-22 — [Jev Phase 2 binary difficulty cutover](jev-tool-phase-2-build-2026-09-22.md) — `completed` (binary phase difficulty; legacy normalization; Jev registration preserved; fresh durable guardrails pass)
 - 2026-09-22 — [Typed workflow output hardening plan](typed-workflow-output-hardening-plan-2026-09-22.md) — `completed` (five phases: shared evaluator, typed b-review, fix-or-continue recovery, closed-set migration, live proof)
 
 - 2026-09-22 — [buck-loop accepted-block warning diagnosis](buck-loop-block-warning-diagnosis-2026-09-22.md) — `completed` (passing review omitted How-to Impact; parser marked it unparseable; thin fallback context accepted legal block)

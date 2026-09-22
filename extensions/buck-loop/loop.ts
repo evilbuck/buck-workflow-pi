@@ -34,6 +34,7 @@ import {
   writeProjection,
   type Projection,
 } from "./persist.js";
+import { parsePhaseDifficulty, phaseDifficultyToTier, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
@@ -448,7 +449,7 @@ async function runNestedSkill(
       cwd,
       skill: nested,
       planOrPhasePath,
-      difficulty: difficultyOf(cwd, snapshot),
+      difficulty: phaseDifficultyToTier(difficultyOf(cwd, snapshot)),
       onActivity: deps.onActivity,
     });
   } catch (error) {
@@ -690,17 +691,17 @@ function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedS
   return howtoOnly ? "b-howto" : "b-docs";
 }
 
-/** Phase/plan `difficulty:` frontmatter, else `medium`. Selects the child's model. */
-function difficultyOf(cwd: string, snapshot: Snapshot): "easy" | "medium" | "hard" {
+/** Phase/plan `difficulty:` frontmatter, else `not-hard`. Selects nested skill and model tier. */
+function difficultyOf(cwd: string, snapshot: Snapshot): PhaseDifficulty {
   const rel = snapshot.phasePath ?? snapshot.planPath;
-  if (!rel) return "medium";
+  if (!rel) return "not-hard";
   return readDifficulty(resolve(cwd, rel));
 }
 
-function readDifficulty(abs: string): "easy" | "medium" | "hard" {
-  if (!abs || !existsSync(abs)) return "medium";
-  const match = /^difficulty:\s*(easy|medium|hard)\s*$/m.exec(readFileSync(abs, "utf8"));
-  return (match?.[1] as "easy" | "medium" | "hard" | undefined) ?? "medium";
+function readDifficulty(abs: string): PhaseDifficulty {
+  if (!abs || !existsSync(abs)) return parsePhaseDifficulty(undefined);
+  const match = /^difficulty:\s*(.+)\s*$/m.exec(readFileSync(abs, "utf8"));
+  return parsePhaseDifficulty(match?.[1]);
 }
 
 function withTransition(snapshot: Snapshot, transition: Transition, at: string): Snapshot {

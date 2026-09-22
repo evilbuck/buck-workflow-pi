@@ -25,11 +25,8 @@
 Overview: [`plan-jev-tool-phases.md`](../2026-09-21.jev-tool/plan-jev-tool-phases.md).
 Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Phase 3 is their integration join.
 
-- [ ] [Phase 1: Jev Tool Contract](items/phase-1-jev-tool-contract.md) — hard, `/b-build-hard` — [phase-1-jev-tool-contract.md](../2026-09-21.jev-tool/phase-1-jev-tool-contract.md) — **active**
-
 ### Upcoming Phases
 
-- [ ] [Phase 2: Binary Difficulty Cutover](items/phase-2-binary-difficulty-cutover.md) — hard, `/b-build-hard` — [phase-2-binary-difficulty-cutover.md](../2026-09-21.jev-tool/phase-2-binary-difficulty-cutover.md)
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; covered by typed-review and fix-or-continue Phases 1–3
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`

@@ -6,7 +6,7 @@ topics: [jev, typesafe, omp-extension, tool, b-phase, difficulty, model-routing]
 research: []
 iterations: []
 spec:
-memory: [jev-tool-phasing-2026-09-21.md]
+memory: [jev-tool-phasing-2026-09-21.md, jev-tool-phase-2-build-2026-09-22.md]
 ---
 
 # Plan: Jev tool (OMP extension) + b-phase boolean difficulty
