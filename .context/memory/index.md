@@ -1,5 +1,7 @@
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)
 
+- 2026-09-23 — [Second design-brief theme: blueprint](design-brief-blueprint-theme-2026-09-23.md) — `active` (new `themes/blueprint/design-brief.jsonc` alongside the untouched canonical brief; required unit-test gate fails on 10 pre-existing, unrelated macOS realpath failures across 3 files — override requested, tracked in `items/macos-tmp-symlink-test-failures.md`)
+
 - 2026-09-26 — [buck-models doctor iteration](buck-models-doctor-iterate-2026-09-26.md) — `completed` (five critical review issues fixed: cross-scope inventory, active parity, severity, fail-closed IO/registry, picker complexity gate; 1040 tests + durable guardrails pass; OMP TUI smoke still pending)
 
 - 2026-09-25 — [`/buck-models --doctor` plan](buck-models-doctor-plan-2026-09-25.md) — `completed` (all profiles audited against live registry; effective active highlighted; non-phased build queued)
