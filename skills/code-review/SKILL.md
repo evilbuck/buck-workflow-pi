@@ -133,11 +133,16 @@ Then group by originating PR using the map from Step 2.
 
 ---
 
-## Step 6 — Write per-PR review files
+## Step 6 — Write review files
 
-Create one file per feature PR at `/mnt/c/Code/plans/review-PR-<NUMBER>-<slug>.md`.
+With no PR argument, write the local review to `CODE-REVIEW.md` at the repository root.
+
+In GitHub PR mode, create one file per feature PR at
+`.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`. For each new
+subject folder, invoke lifecycle `initialize` and then `activate`.
 
 Each file should contain:
+
 ```markdown
 # Code Review — PR #<N>: <title>
 **Author:** <github-username>
@@ -189,7 +194,7 @@ At the end, produce a table for quick assignment:
 | @author1 | #N (feature-name) | X CRITICAL, Y HIGH, Z MEDIUM | Yes/No |
 | @author2 | #N (feature-name) | X HIGH, Y MEDIUM | No |
 
-Files written to: `/mnt/c/Code/plans/review-PR-<N>-*.md`
+Files written to: `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`
 
 ---
 

@@ -13,7 +13,6 @@
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
-- [ ] [Test b-grill-auto extension in live Pi session](items/test-b-grill-auto-extension.md)
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
@@ -22,6 +21,20 @@
 - [ ] [Complexity gate burn-down for pre-existing hotspots](items/complexity-burn-down.md) — medium; override recorded 2026-08-27, includes lizard parseArgs@32-677 artifact
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
 - [x] [Fix 3 live defects from the mattpocock/skills audit](items/mattpocock-audit-defects.md) — high; done 2026-09-10 as **Phase 1** → [`phase-1-live-defects.md`](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md)
+
+## Skill Surface Cleanup Phases (2026-09-21)
+
+Overview: [`plan-skill-surface-cleanup-phases.md`](../2026-09-21.skill-command-extension-audit/plan-skill-surface-cleanup-phases.md).
+Umbrella: [Skill/command/extension surface cleanup](archive/2026-09/skill-surface-cleanup.md).
+Phases share no files; recommended order is Phase 1 first.
+
+- [x] Phase 1: Dead Unwired Extensions — medium — [phase-1-dead-unwired-extensions.md](../2026-09-21.skill-command-extension-audit/phase-1-dead-unwired-extensions.md) — done 2026-09-21
+
+- [x] [Phase 2: b-save Thin-Wrap and Code-Review Paths](archive/2026-09/phase-2-bsave-and-code-review.md) — done 2026-09-21
+
+### Follow-up
+
+- [ ] [Sync living docs to canonical b-save skill](items/sync-b-save-canonical-docs.md) — low; replace stale wording that says the prompt executes the procedure directly
 
 ## buck-loop Extension Phases (2026-09-18)
 
