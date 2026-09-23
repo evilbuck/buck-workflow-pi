@@ -25,10 +25,14 @@ Record the current session's work into durable `.context/` artifacts. Optionally
 When invoked, load this skill and execute all 12 responsibilities below. No
 extension coordination or state injection is required.
 
+Before running the responsibilities, resolve `SUBJECT_LIFECYCLE` to the absolute
+path `../_shared/scripts/subject-lifecycle.ts` relative to this loaded
+`SKILL.md`. Never resolve the helper from the session project's working directory.
+
 ## The 12 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context.
-2. **Subject Folder** — Inspect with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`. Consolidate loose artifacts without editing lifecycle fields.
+2. **Subject Folder** — Inspect with `bun "$SUBJECT_LIFECYCLE" inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`, then immediately inspect again and retain the refreshed state. Consolidate loose artifacts without editing lifecycle fields.
 3. **Memory Creation** — Create or update the session memory file with the required frontmatter:
 
    ```yaml
@@ -71,10 +75,11 @@ extension coordination or state injection is required.
 12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user without blocking.
 
 After responsibilities 10 and 11 and all loose-artifact consolidation, finish
-subject lifecycle last. If inspected state is `draft` and plan work exists,
-invoke `activate`; then invoke `close-verified`. Exit 2 is a semantic refusal:
-report its blockers, retain every other saved artifact, leave lifecycle open,
-and never fall back to direct `index.md` edits.
+subject lifecycle last. Use the latest inspection result, including the required
+re-inspection after `initialize`. If the current state is `draft` and plan work
+exists, invoke `activate`; then invoke `close-verified`. Exit 2 is a semantic
+refusal: report its blockers, retain every other saved artifact, leave lifecycle
+open, and never fall back to direct `index.md` edits.
 
 ## Two memory layers
 

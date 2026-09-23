@@ -66,6 +66,7 @@ type PostCtx = {
   phaseStatus: string | null;
   iterate: boolean;
   complete: boolean;
+  reviewFacts: ReviewFacts;
 };
 
 const PENDING_WORK: WorkFacts = {
@@ -89,13 +90,17 @@ export function scan(opts: ScanOptions): ScanResult {
   if (classified.kind === "missing") return missing(classified.reason);
   const resolved = loadResolved(root, classified);
   if ("reason" in resolved) return missing(resolved.reason);
+  const reviewFacts = scanReviewFacts(
+    resolved.subjectDir,
+    reviewPhaseNumber(classified, resolved, opts.state),
+  );
   return {
     subject: resolved.subject,
     planPath: toRel(root, resolved.planAbs),
     phasePath: resolved.phaseAbs ? toRel(root, resolved.phaseAbs) : null,
     planFacts: resolved.planFacts,
-    reviewFacts: scanReviewFacts(resolved.subjectDir),
-    workFacts: scanWorkFacts(root, resolved, opts),
+    reviewFacts,
+    workFacts: scanWorkFacts(root, resolved, opts, reviewFacts),
   };
 }
 
@@ -124,6 +129,21 @@ type Classified =
   | { kind: "subject"; abs: string }
   | { kind: "plan"; abs: string; subjectDir: string }
   | { kind: "phase"; abs: string; subjectDir: string };
+
+function reviewPhaseNumber(
+  classified: Exclude<Classified, { kind: "missing" }>,
+  resolved: Resolved,
+  state: LoopState | undefined,
+): number | null {
+  const frozenPhase =
+    classified.kind === "phase" && state !== undefined && state !== "resolving"
+      ? classified.abs
+      : null;
+  const phaseAbs = frozenPhase ?? resolved.phaseAbs;
+  if (!phaseAbs) return null;
+  const match = basename(phaseAbs).match(PHASE_FILE_RE);
+  return match ? Number(match[1]) : null;
+}
 
 /** Decide whether the path is a subject folder, plan file, or phase file. */
 function classify(abs: string): Classified {
@@ -294,14 +314,14 @@ function depsSatisfied(phase: PhaseMeta, byN: Map<number, PhaseMeta>): boolean {
  * Iterate file wins over the report. A report without both impact sections
  * is `parseable: false` so the machine will not trust garbage flags.
  */
-function scanReviewFacts(subjectDir: string): ReviewFacts {
+function scanReviewFacts(subjectDir: string, activePhase: number | null): ReviewFacts {
   const iterateArtifact = hasIterate(subjectDir);
   const reportAbs = findReviewReport(subjectDir);
   if (!reportAbs && !iterateArtifact) return { kind: "pending" };
   if (!reportAbs) {
     return { kind: "report", parseable: false, iterateArtifact, docsImpact: false, howtoImpact: false };
   }
-  const impact = parseReviewImpact(readFileSync(reportAbs, "utf8"));
+  const impact = parseReviewImpact(readFileSync(reportAbs, "utf8"), activePhase);
   return {
     kind: "report",
     parseable: impact.parseable,
@@ -323,10 +343,32 @@ function findReviewReport(subjectDir: string): string | null {
   return join(subjectDir, names[names.length - 1]);
 }
 
-const NO_DOCS_IMPACT = /no (?:additional )?documentation impact/i;
-const NO_HOWTO_IMPACT = /no (?:additional )?how-to impact/i;
+const NO_IMPACT_EXPLANATION = String.raw`(?:[.!]|;\s+the implementation follows existing conventions[.!]?)?`;
+const NO_CURRENT_DOCS_IMPACT = new RegExp(
+  String.raw`^no (?:(?:additional|current(?:-phase)?) )?(?:documentation|living[- ]document) impact${NO_IMPACT_EXPLANATION}$`,
+  "i",
+);
+const PHASE_DOCS_NO_IMPACT = new RegExp(
+  String.raw`^no phase (\d+) (?:documentation|living[- ]document) impact${NO_IMPACT_EXPLANATION}$`,
+  "i",
+);
+const NO_CURRENT_HOWTO_IMPACT = new RegExp(
+  String.raw`^no (?:(?:additional|current(?:-phase)?) )?how-to impact${NO_IMPACT_EXPLANATION}$`,
+  "i",
+);
+const PHASE_HOWTO_NO_IMPACT = new RegExp(
+  String.raw`^no phase (\d+) how-to impact${NO_IMPACT_EXPLANATION}$`,
+  "i",
+);
+const DOCS_PHASE_DEFERRAL =
+  /^(?:(?:documentation|living[- ]document)(?: coverage| work| impact| updates?)?\s+(?:is|are|has been|will be)\s+)?defer(?:red|s)?\s+(?:to|until)\s+phase (\d+)[.!]?$/i;
+const HOWTO_PHASE_DEFERRAL =
+  /^(?:how-to(?: coverage| work| impact| updates?)?\s+(?:is|are|has been|will be)\s+)?defer(?:red|s)?\s+(?:to|until)\s+phase (\d+)[.!]?$/i;
 
-function parseReviewImpact(text: string): { parseable: boolean; docsImpact: boolean; howtoImpact: boolean } {
+function parseReviewImpact(
+  text: string,
+  activePhase: number | null,
+): { parseable: boolean; docsImpact: boolean; howtoImpact: boolean } {
   const docs = sectionBody(text, "Documentation Impact") ?? summaryLine(text, "Documentation impact");
   const howto = sectionBody(text, "How-to Impact") ?? summaryLine(text, "How-to impact");
   if (!docs || !howto) {
@@ -334,15 +376,43 @@ function parseReviewImpact(text: string): { parseable: boolean; docsImpact: bool
   }
   return {
     parseable: true,
-    docsImpact: isFlagged(docs, NO_DOCS_IMPACT),
-    howtoImpact: isFlagged(howto, NO_HOWTO_IMPACT),
+    docsImpact: hasCurrentImpact(
+      docs,
+      NO_CURRENT_DOCS_IMPACT,
+      PHASE_DOCS_NO_IMPACT,
+      DOCS_PHASE_DEFERRAL,
+      activePhase,
+    ),
+    howtoImpact: hasCurrentImpact(
+      howto,
+      NO_CURRENT_HOWTO_IMPACT,
+      PHASE_HOWTO_NO_IMPACT,
+      HOWTO_PHASE_DEFERRAL,
+      activePhase,
+    ),
   };
 }
 
-function isFlagged(body: string, none: RegExp): boolean {
-  const first = firstContentLine(body);
+function hasCurrentImpact(
+  body: string,
+  explicitNone: RegExp,
+  phaseNone: RegExp,
+  phaseDeferral: RegExp,
+  activePhase: number | null,
+): boolean {
+  const first = firstContentLine(body).replace(/\s+/g, " ");
   if (/^none$/i.test(first)) return false;
-  return !none.test(first);
+  if (explicitNone.test(first)) return false;
+  const noImpactPhase = matchedPhase(first, phaseNone);
+  if (noImpactPhase !== null) return activePhase === null || noImpactPhase !== activePhase;
+  const deferredPhase = matchedPhase(first, phaseDeferral);
+  if (deferredPhase !== null) return activePhase === null || deferredPhase <= activePhase;
+  return true;
+}
+
+function matchedPhase(text: string, pattern: RegExp): number | null {
+  const match = text.match(pattern);
+  return match ? Number(match[1]) : null;
 }
 
 function firstContentLine(body: string): string {
@@ -383,13 +453,14 @@ type PostFn = (ctx: PostCtx) => WorkFacts["postcondition"];
 const POSTCONDITION: Partial<Record<LoopState, PostFn>> = {
   building: (ctx) => (ctx.complete || ctx.phaseStatus === "completed" ? "confirmed" : "ambiguous"),
   iterating: (ctx) => (ctx.iterate ? "ambiguous" : "confirmed"),
-  documenting: (ctx) => (ctx.changed?.some(isDocPath) ? "confirmed" : "ambiguous"),
+  documenting: (ctx) =>
+    currentReviewExpectsNoDocs(ctx.reviewFacts) || ctx.changed?.some(isDocPath) ? "confirmed" : "ambiguous",
   saving: (ctx) => (ctx.changed?.some((f) => f.startsWith(".context/memory/")) ? "confirmed" : "ambiguous"),
   committing: (ctx) => (ctx.changed !== null && ctx.changed.length === 0 ? "confirmed" : "ambiguous"),
   reviewing: () => "confirmed",
 };
 
-function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions): WorkFacts {
+function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions, reviewFacts: ReviewFacts): WorkFacts {
   const sessionOutcome = opts.sessionOutcome ?? "pending";
   const retriesUsed = opts.retriesUsed ?? 0;
   if (sessionOutcome !== "ok") {
@@ -405,8 +476,18 @@ function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions): Wor
     phaseStatus,
     iterate: hasIterate(resolved.subjectDir),
     complete: resolved.planFacts.kind === "phased-complete",
+    reviewFacts,
   });
   return { sessionOutcome, retriesUsed, postcondition };
+}
+
+function currentReviewExpectsNoDocs(reviewFacts: ReviewFacts): boolean {
+  return (
+    reviewFacts.kind === "report" &&
+    reviewFacts.parseable &&
+    !reviewFacts.docsImpact &&
+    !reviewFacts.howtoImpact
+  );
 }
 
 function isDocPath(file: string): boolean {

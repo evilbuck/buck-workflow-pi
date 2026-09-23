@@ -34,6 +34,7 @@ import {
   writeProjection,
   type Projection,
 } from "./persist.js";
+import { parsePhaseDifficulty, phaseDifficultyToTier, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
@@ -53,6 +54,15 @@ const PROTECTED_BRANCHES: Record<string, true> = {
   master: true,
   dev: true,
   develop: true,
+};
+
+const IN_CYCLE_WORK_STATES: Partial<Record<LoopState, true>> = {
+  building: true,
+  reviewing: true,
+  iterating: true,
+  documenting: true,
+  saving: true,
+  committing: true,
 };
 
 /** Hard cap on supervisor ticks in one invocation, independent of `maxLoops`. */
@@ -168,7 +178,7 @@ function stopRun(cwd: string, now: () => string): LoopResult {
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
 async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
-  const refused = refuseUnsafeWorkspace(cwd, "start");
+  const refused = refuseProtectedBranch(cwd, "start") ?? refuseDirtyWorkspace(cwd, "start");
   if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
@@ -196,10 +206,12 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
  * A blocked run whose plan is still present is treated as USER_CONFIRMED.
  */
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
-  const refused = refuseUnsafeWorkspace(cwd, "resume");
-  if (refused) return refused;
+  const protectedBranch = refuseProtectedBranch(cwd, "resume");
+  if (protectedBranch) return protectedBranch;
   const projection = readProjection(cwd);
   if (!projection) return idleOrUnreadableProjection(cwd);
+  const dirty = refuseDirtyWorkspace(cwd, "resume", projection);
+  if (dirty) return dirty;
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
@@ -244,17 +256,16 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     const step = takeStep(snapshot, lastFail, deps.now());
     snapshot = step.snapshot;
     persistIfPossible(cwd, snapshot);
-    if (step.halt) return step.halt;
+    if (step.halt) return haltInCycleBlock(cwd, snapshot, step.halt);
     const ran = await runEffect(cwd, snapshot, path, step.transition, deps);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
     persistIfPossible(cwd, snapshot);
-    if (ran.halt) return ran.halt;
+    if (ran.halt) return haltInCycleBlock(cwd, snapshot, ran.halt);
   }
   const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
   snapshot = block(snapshot, reason, deps.now());
-  persistIfPossible(cwd, snapshot);
-  return { state: "blocked", reason };
+  return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
 }
 
 function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
@@ -443,12 +454,12 @@ async function runNestedSkill(
   deps: LoopDeps,
 ): Promise<RunStepResult> {
   try {
-    if (skill === "commit") stageCommitWork(cwd);
+    if (skill === "commit") prepareCommitCheckpoint(cwd);
     return await deps.runStep({
       cwd,
       skill: nested,
       planOrPhasePath,
-      difficulty: difficultyOf(cwd, snapshot),
+      difficulty: phaseDifficultyToTier(difficultyOf(cwd, snapshot)),
       onActivity: deps.onActivity,
     });
   } catch (error) {
@@ -525,22 +536,48 @@ function enrichFailure(
   return { state: snapshot.state, operation, trying, ...details };
 }
 
-function refuseUnsafeWorkspace(cwd: string, mode: "start" | "resume"): LoopResult | null {
+function refuseProtectedBranch(cwd: string, mode: "start" | "resume"): LoopResult | null {
   const branch = gitLine(cwd, "branch", "--show-current");
-  if (PROTECTED_BRANCHES[branch]) {
-    return { state: "blocked", reason: `refusing to ${mode} on protected branch ${branch}` };
-  }
-  const dirty = gitOutput(cwd, "status", "--porcelain")
+  return PROTECTED_BRANCHES[branch]
+    ? { state: "blocked", reason: `refusing to ${mode} on protected branch ${branch}` }
+    : null;
+}
+
+function refuseDirtyWorkspace(
+  cwd: string,
+  mode: "start" | "resume",
+  projection?: Projection,
+): LoopResult | null {
+  const dirty = nonContextStatus(cwd);
+  if (dirty.length === 0) return null;
+  if (mode === "resume" && projection && permitsBlockedStagedResume(projection, dirty)) return null;
+  return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
+}
+
+function nonContextStatus(cwd: string): string[] {
+  return gitOutput(cwd, "status", "--porcelain", "--untracked-files=all")
     .split("\n")
-    .filter((line) => {
-      if (line.length < 4) return false;
-      const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^\?\? /, "");
-      return path !== ".context/workflow/buck-loop.json" && !path.startsWith(".context/");
-    });
-  if (dirty.length > 0) {
-    return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
-  }
-  return null;
+    .filter((line) => line.length >= 4 && !isContextStatus(line));
+}
+
+function isContextStatus(line: string): boolean {
+  const path = (line.slice(3).split(" -> ").pop() ?? "").replace(/^"|"$/g, "");
+  return path === ".context/workflow/buck-loop.json" || path.startsWith(".context/");
+}
+
+function permitsBlockedStagedResume(projection: Projection, dirty: readonly string[]): boolean {
+  const last = projection.history.at(-1);
+  return (
+    projection.state === "blocked" &&
+    last?.to === "blocked" &&
+    IN_CYCLE_WORK_STATES[last.from] === true &&
+    dirty.every(isStagedOnly)
+  );
+}
+
+function isStagedOnly(line: string): boolean {
+  const [index, worktree] = line;
+  return index !== " " && index !== "?" && worktree === " ";
 }
 
 function gitOutput(cwd: string, ...args: string[]): string {
@@ -573,13 +610,41 @@ function decisionContext(snapshot: Snapshot, why: string): string {
 }
 
 
-function stageCommitWork(cwd: string): void {
-  execFileSync("git", ["add", "-A"], {
+function unstagedNonContextStatus(cwd: string): string[] {
+  return nonContextStatus(cwd).filter((line) => !isStagedOnly(line));
+}
+
+function prepareCommitCheckpoint(cwd: string): void {
+  const unstaged = unstagedNonContextStatus(cwd);
+  if (unstaged.length > 0) {
+    throw new Error(
+      "/buck-loop refuses to commit unstaged non-.context changes: " + unstaged.join(", "),
+    );
+  }
+  execFileSync("git", ["add", "-A", "--", ".context"], {
     cwd,
     encoding: "utf8",
     timeout: 10_000,
     stdio: ["pipe", "pipe", "pipe"],
   });
+}
+
+function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {
+  const last = snapshot.history.at(-1);
+  if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
+    const unstaged = unstagedNonContextStatus(cwd);
+    if (unstaged.length > 0) {
+      const reason = "nested skill left unstaged non-.context changes: " + unstaged.join(", ");
+      // Amend the existing in-cycle → blocked transition instead of appending a
+      // second blocked → blocked hop: permitsBlockedStagedResume requires the
+      // latest transition to start in an in-cycle state, so an extra hop here
+      // would permanently strand the staged in-cycle work behind a dirty tree.
+      persistIfPossible(cwd, { ...snapshot, history: [...snapshot.history.slice(0, -1), { ...last, why: reason }] });
+      return { state: "blocked", reason };
+    }
+  }
+  persistIfPossible(cwd, snapshot);
+  return result;
 }
 
 function nextRetries(snapshot: Snapshot, ok: boolean): number {
@@ -690,17 +755,17 @@ function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedS
   return howtoOnly ? "b-howto" : "b-docs";
 }
 
-/** Phase/plan `difficulty:` frontmatter, else `medium`. Selects the child's model. */
-function difficultyOf(cwd: string, snapshot: Snapshot): "easy" | "medium" | "hard" {
+/** Phase/plan `difficulty:` frontmatter, else `not-hard`. Selects nested skill and model tier. */
+function difficultyOf(cwd: string, snapshot: Snapshot): PhaseDifficulty {
   const rel = snapshot.phasePath ?? snapshot.planPath;
-  if (!rel) return "medium";
+  if (!rel) return "not-hard";
   return readDifficulty(resolve(cwd, rel));
 }
 
-function readDifficulty(abs: string): "easy" | "medium" | "hard" {
-  if (!abs || !existsSync(abs)) return "medium";
-  const match = /^difficulty:\s*(easy|medium|hard)\s*$/m.exec(readFileSync(abs, "utf8"));
-  return (match?.[1] as "easy" | "medium" | "hard" | undefined) ?? "medium";
+function readDifficulty(abs: string): PhaseDifficulty {
+  if (!abs || !existsSync(abs)) return parsePhaseDifficulty(undefined);
+  const match = /^difficulty:\s*(.+)\s*$/m.exec(readFileSync(abs, "utf8"));
+  return parsePhaseDifficulty(match?.[1]);
 }
 
 function withTransition(snapshot: Snapshot, transition: Transition, at: string): Snapshot {

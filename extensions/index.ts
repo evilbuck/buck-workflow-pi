@@ -11,7 +11,8 @@ import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { wireBuckLoop } from "./buck-loop/index.js";
-import { mappingFromOmpRoles } from "./omp-models.js";
+import { wire as wireJevTool } from "./jev-tool/index.js";
+import { mappingFromOmpRoles, parsePhaseDifficulty, phaseDifficultyToTier, type PhaseDifficulty } from "./omp-models.js";
 
 
 // --- Model Auto-Switch Types ---
@@ -26,7 +27,7 @@ interface ModelSwitchState {
   originalModel: { provider: string; id: string } | null;
   switchedForPhase: boolean;
   userOverrode: boolean;
-  phaseDifficulty: "easy" | "medium" | "hard" | null;
+  phaseDifficulty: PhaseDifficulty | null;
 }
 
 /** Minimal shape of the extension context used by model-switch handlers. */
@@ -102,7 +103,7 @@ function getCurrentModelTier(
  * Detects format via `format: discrete` frontmatter in the overview file.
  * Falls back to legacy behavior when no discrete format marker is found.
  */
-function findActivePhaseDifficulty(contextDir: string): "easy" | "medium" | "hard" | null {
+function findActivePhaseDifficulty(contextDir: string): PhaseDifficulty | null {
   try {
     if (!existsSync(contextDir)) return null;
 
@@ -163,7 +164,7 @@ function findActivePhaseDifficulty(contextDir: string): "easy" | "medium" | "har
 function findActivePhaseDiscrete(
   overviewPath: string,
   overviewContent: string,
-): "easy" | "medium" | "hard" | null {
+): PhaseDifficulty | null {
   const overviewDir = overviewPath.substring(0, overviewPath.lastIndexOf("/"));
 
   // Extract phase file links from the summary table
@@ -203,14 +204,8 @@ function findActivePhaseDiscrete(
       const statusMatch = phaseContent.match(/^status:\s*(\S+)/m);
       if (statusMatch && statusMatch[1] === "completed") continue;
 
-      // Extract difficulty from frontmatter
-      const diffMatch = phaseContent.match(/^difficulty:\s*(easy|medium|hard)/m);
-      if (diffMatch) {
-        return diffMatch[1] as "easy" | "medium" | "hard";
-      }
-
-      // Phase found but no difficulty — return null
-      return null;
+      const diffMatch = phaseContent.match(/^difficulty:\s*(.+)$/m);
+      return parsePhaseDifficulty(diffMatch?.[1]);
     } catch {
       // Can't read phase file — skip it
       continue;
@@ -224,7 +219,7 @@ function findActivePhaseDiscrete(
  * Find active phase difficulty using legacy single-file format.
  * Scans `## Phase N` sections and checks inline acceptance criteria.
  */
-function findActivePhaseLegacy(content: string): "easy" | "medium" | "hard" | null {
+function findActivePhaseLegacy(content: string): PhaseDifficulty | null {
   // Split into phase sections by ## Phase N: headers
   const phaseSections = content.split(/^## Phase \d+/m).slice(1);
 
@@ -236,11 +231,11 @@ function findActivePhaseLegacy(content: string): "easy" | "medium" | "hard" | nu
     const allChecked = criteriaLines.every((l) => l.startsWith("- [x]"));
     if (!allChecked) {
       // This is the active phase — extract difficulty
-      const diffMatch = section.match(/\*\*Difficulty\*\*:\s*(easy|medium|hard)/i);
+      const diffMatch = section.match(/\*\*Difficulty\*\*:\s*(\S+)/i);
       if (diffMatch) {
-        return diffMatch[1].toLowerCase() as "easy" | "medium" | "hard";
+        return parsePhaseDifficulty(diffMatch[1]);
       }
-      return null;
+      return parsePhaseDifficulty(undefined);
     }
   }
 
@@ -332,6 +327,8 @@ export default function (pi: ExtensionAPI) {
   wireCodeReviewIteration(pi);
   // --- buck-loop: observably invoked happy-path runner ---
   wireBuckLoop(pi);
+  // --- jev-tool: generic TypeSafe systemOne classification (fail-closed) ---
+  wireJevTool(pi);
 
   // --- Session lifecycle ---
 
@@ -438,11 +435,10 @@ export default function (pi: ExtensionAPI) {
       mapping,
     );
 
-    // No mismatch or unknown tier — no switch needed
-    if (currentTier === difficulty || currentTier === "unknown") return;
+    const targetTier = phaseDifficultyToTier(difficulty);
+    if (currentTier === targetTier || currentTier === "unknown") return;
 
-    // Switch model
-    const targetModelId = mapping[difficulty];
+    const targetModelId = mapping[targetTier];
     const parsed = parseModelId(targetModelId);
     if (!parsed) return;
 

@@ -1,3 +1,19 @@
+- 2026-09-23 — [PR 48 review repairs](fix-pr-48-review-repairs-2026-09-23.md) — `completed` (all valid review feedback fixed across two commits; latest-head independent review found no new defects; CI and durable guardrails passed)
+
+- 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume build](buck-loop-deferred-docs-resume-build-2026-09-22.md) — `completed` (final review passed with no in-plan defects; 154 focused tests; durable guardrails pass; Git probe fail-open tracked separately)
+
+- 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume plan](buck-loop-deferred-docs-resume-plan-2026-09-22.md) — `completed` (bounded parser/postcondition fix plus staged ownership boundary for fail-closed blocked resume)
+
+- 2026-09-22 — [Typed-output review iteration](typed-output-iteration-2026-09-22.md) — `completed` (empty batches fail closed; TypeSafe JSON validation; review-control diagnostic coverage; 31 focused tests, durable guardrails pass, Phase 1 re-review pass)
+
+- 2026-09-22 — [Typed-output contract Phase 1 build](typed-output-contract-phase-1-build-2026-09-22.md) — `completed` (versioned review and recovery contracts; shared injectable TypeSafe evaluator; semantic fixture policy; 24 focused tests and durable guardrails pass)
+- 2026-09-22 — [Jev Phase 2 binary difficulty cutover](jev-tool-phase-2-build-2026-09-22.md) — `completed` (binary phase difficulty; legacy normalization; Jev registration preserved; fresh durable guardrails pass)
+- 2026-09-22 — [Typed workflow output hardening plan](typed-workflow-output-hardening-plan-2026-09-22.md) — `completed` (five phases: shared evaluator, typed b-review, fix-or-continue recovery, closed-set migration, live proof)
+
+- 2026-09-22 — [buck-loop accepted-block warning diagnosis](buck-loop-block-warning-diagnosis-2026-09-22.md) — `completed` (passing review omitted How-to Impact; parser marked it unparseable; thin fallback context accepted legal block)
+
+- 2026-09-21 — [Jev tool and boolean phase-difficulty phasing](jev-tool-phasing-2026-09-21.md) — `completed` (three-phase HARD chain; Phase 1 Jev tool contract queued)
+
 - 2026-09-21 — [b-save thin loader and portable code-review paths](bsave-code-review-build-2026-09-21.md) — `completed` (Phase 2 review passed; canonical save skill and portable review paths verified; docs wording follow-up tracked)
 
 - 2026-09-21 — [Dead unwired extensions — Phase 1 build and review](dead-unwired-extensions-build-2026-09-21.md) — `completed` (review passed clean; dead extension code deleted; grill file/chat handoff; Codex parity and guardrails pass)
