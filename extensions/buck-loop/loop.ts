@@ -256,16 +256,16 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     const step = takeStep(snapshot, lastFail, deps.now());
     snapshot = step.snapshot;
     persistIfPossible(cwd, snapshot);
-    if (step.halt) return haltInCycleBlock(cwd, snapshot, step.halt, deps.now());
+    if (step.halt) return haltInCycleBlock(cwd, snapshot, step.halt);
     const ran = await runEffect(cwd, snapshot, path, step.transition, deps);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
     persistIfPossible(cwd, snapshot);
-    if (ran.halt) return haltInCycleBlock(cwd, snapshot, ran.halt, deps.now());
+    if (ran.halt) return haltInCycleBlock(cwd, snapshot, ran.halt);
   }
   const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
   snapshot = block(snapshot, reason, deps.now());
-  return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason }, deps.now());
+  return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
 }
 
 function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
@@ -629,13 +629,17 @@ function prepareCommitCheckpoint(cwd: string): void {
   });
 }
 
-function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult, at: string): LoopResult {
+function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {
   const last = snapshot.history.at(-1);
   if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
     const unstaged = unstagedNonContextStatus(cwd);
     if (unstaged.length > 0) {
       const reason = "nested skill left unstaged non-.context changes: " + unstaged.join(", ");
-      persistIfPossible(cwd, block(snapshot, reason, at));
+      // Amend the existing in-cycle → blocked transition instead of appending a
+      // second blocked → blocked hop: permitsBlockedStagedResume requires the
+      // latest transition to start in an in-cycle state, so an extra hop here
+      // would permanently strand the staged in-cycle work behind a dirty tree.
+      persistIfPossible(cwd, { ...snapshot, history: [...snapshot.history.slice(0, -1), { ...last, why: reason }] });
       return { state: "blocked", reason };
     }
   }

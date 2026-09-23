@@ -685,6 +685,41 @@ describe("resume", () => {
     expect(resumed.runStep).not.toHaveBeenCalled();
   });
 
+  it("resumes staged in-cycle work after unrelated unstaged dirt is removed", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, {
+          "src/owned.ts": "export const owned = true;\n",
+          "src/unrelated.ts": "export const unrelated = true;\n",
+        });
+        git(cwd, ["add", "src/owned.ts"]);
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+
+    const blocked = await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    expect(blocked.state).toBe("blocked");
+    expect(blocked.reason).toMatch(/left unstaged.*src\/unrelated\.ts/i);
+
+    // The unstaged detail amends the existing in-cycle → blocked transition; a
+    // second blocked → blocked hop would make permitsBlockedStagedResume
+    // refuse resume forever and strand the staged in-cycle work.
+    const history = readProjection(cwd)?.history ?? [];
+    const blockedHops = history.filter((hop) => hop.to === "blocked");
+    expect(blockedHops).toHaveLength(1);
+    expect(blockedHops[0].from).toBe("building");
+    expect(blockedHops[0].why).toMatch(/left unstaged.*src\/unrelated\.ts/i);
+
+    rmSync(join(cwd, "src/unrelated.ts"));
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state, result.reason).toBe("done");
+    expect(resumed.runStep).toHaveBeenCalled();
+  });
+
   it("persists and returns a blocked result when nested work remains unstaged", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
