@@ -37,6 +37,15 @@ const DOCS_REVIEW = `# Review
 - No how-to impact
 `;
 
+const TELEPORT_REVIEW = `# Review
+
+### Documentation Impact
+- No Phase 2 living-document impact; the implementation follows existing conventions.
+
+### How-to Impact
+- How-to coverage is deferred to Phase 5.
+`;
+
 const UNPARSEABLE_REVIEW = `# Review
 
 Something went wrong.
@@ -181,7 +190,7 @@ describe("handleLoop commands", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses to resume with unrelated dirty files", async () => {
+  it("refuses to resume a non-blocked run with staged dirt", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, {
@@ -199,10 +208,45 @@ describe("handleLoop commands", () => {
       }, null, 2),
       "src/unrelated.ts": "export {}\n",
     });
+    git(cwd, ["add", "src/unrelated.ts"]);
     const deps = workDeps(async () => ({ ok: true, text: "nope" }));
     const result = await handleLoop({ cwd, command: "resume", deps });
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/dirty/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses resume on a protected branch before nested work", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1,
+        state: "blocked",
+        subject: SUBJECT,
+        planPath: PLAN,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        loopCount: 1,
+        iterateCyclesOnPhase: 0,
+        maxLoops: 12,
+        lastChoice: null,
+        history: [{ from: "building", to: "blocked", at: NOW, why: "build failed twice" }],
+      }, null, 2),
+    });
+    git(cwd, ["checkout", "-q", "-b", "master"]);
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/protected branch master/);
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unreadable resume projection before nested work", async () => {
+    const cwd = repo();
+    writeTree(cwd, { ".context/workflow/buck-loop.json": "{not-json\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result).toEqual({ state: "blocked", reason: "unreadable projection" });
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
@@ -352,6 +396,41 @@ describe("happy path", () => {
       name.startsWith("review-zz-buck-loop-"),
     );
     expect(names).toEqual([]);
+  });
+
+  it("routes the Teleport deferred-impact report directly to save", async () => {
+    const cwd = repo();
+    phased(cwd, ["completed", "pending"]);
+    const choose = vi.fn(async () => ({ status: "blocked" as const, reason: "chooser must not run" }));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") return { ok: true, text: TELEPORT_REVIEW };
+      return landingWork()(opts);
+    }, choose);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).toContain("b-save");
+    expect(skills).not.toContain("b-docs");
+    expect(skills).not.toContain("b-howto");
+    expect(choose).not.toHaveBeenCalled();
+  });
+
+  it("advances stale documenting work when corrected review facts are clean", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const choose = vi.fn(async () => ({ status: "blocked" as const, reason: "chooser must not run" }));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") return { ok: true, text: DOCS_REVIEW };
+      if (opts.skill === "b-docs") {
+        writeTree(cwd, { [`.context/${SUBJECT}/review-zzz-corrected.md`]: CLEAN_REVIEW });
+        return { ok: true, text: "No current impact after correction." };
+      }
+      return landingWork()(opts);
+    }, choose);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
+    expect(choose).not.toHaveBeenCalled();
   });
 
 
@@ -548,6 +627,113 @@ describe("resume", () => {
     const result = await handleLoop({ cwd, command: "resume", deps });
     expect(result.state).toBe("done");
     expect(deps.runStep).toHaveBeenCalled();
+  });
+
+  it("stages in-cycle work before blocking and resumes without a commit", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+    const blocked = await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    expect(blocked.state).toBe("blocked");
+    expect(execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd,
+      encoding: "utf8",
+    })).toContain("A  src/owned.ts");
+
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state, result.reason).toBe("done");
+    expect(resumed.runStep).toHaveBeenCalled();
+  });
+
+  it("persists and returns a blocked result when loop-owned work cannot be staged", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, {
+          "src/owned.ts": "export const owned = true;\n",
+          ".git/index.lock": "locked\n",
+        });
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/could not stage loop-owned work/i);
+    expect(readProjection(cwd)?.history.at(-1)?.why).toMatch(/could not stage loop-owned work/i);
+  });
+
+  it("refuses blocked resume when an unrelated untracked path appears after the block", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    writeTree(cwd, { "src/unrelated.ts": "export const unrelated = true;\n" });
+
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(resumed.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses blocked resume when an unrelated tracked path is modified after the block", async () => {
+    const cwd = repo();
+    writeTree(cwd, { "src/tracked.ts": "export const tracked = true;\n" });
+    git(cwd, ["add", "src/tracked.ts"]);
+    git(cwd, ["commit", "-qm", "tracked fixture"]);
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    writeTree(cwd, { "src/tracked.ts": "export const tracked = false;\n" });
+
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(resumed.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses blocked resume when loop-owned staged work is modified again", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    writeTree(cwd, { "src/owned.ts": "export const owned = false;\n" });
+
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(resumed.runStep).not.toHaveBeenCalled();
   });
 
   it("does not USER_CONFIRM a blocked resume when the scanned phase moved", async () => {

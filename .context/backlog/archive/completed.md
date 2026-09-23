@@ -1,3 +1,5 @@
+- [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`
+
 - [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`
 - [x] [Phase 1 — Shared typed-output contract](2026-09/phase-1-shared-typed-output-contract.md) — done 2026-09-22 — versioned review/recovery validators, shared injectable TypeSafe evaluator, semantic policy fixtures, and durable guardrails pass
 - [x] [Phase 2 — Binary phase-difficulty cutover](2026-09/phase-2-binary-difficulty-cutover.md) — done 2026-09-22 — binary `hard | not-hard` phase domain with legacy normalization; root and buck-loop routing preserved three-tier model roles

@@ -1,11 +1,12 @@
 ---
 title: Fix buck-loop deferred-docs routing and in-cycle resume
-status: active
+status: completed
 priority: high
 created: 2026-09-22
 updated: 2026-09-22
-completed: null
+completed: 2026-09-22
 related:
+  - .context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/plan-fix-buck-loop-deferred-docs-and-in-cycle-resume.md
   - .context/2026-09-19.buck-loop-stall-diagnosis/research-buck-loop-stall.md
   - .context/backlog/items/buck-loop-contextless-choice-stall.md
   - .context/backlog/items/jev-buck-loop-chooser.md
@@ -24,9 +25,9 @@ The resulting in-cycle block could not be resumed: `refuseUnsafeWorkspace` rejec
 
 ## Acceptance criteria
 
-- [ ] A review whose first line states no living-document or documentation impact does not set `docsImpact`.
-- [ ] A review that defers how-to coverage to a later phase does not set `howtoImpact`.
-- [ ] Documenting advances rather than blocks when the review's own impact flags are false and no living-document path was expected to change.
-- [ ] An in-cycle blocked run can resume when its only dirty non-`.context` paths are the active phase's own uncommitted work.
-- [ ] Starting with unrelated dirty files, and resuming a building run with unrelated dirty files, continue to fail closed.
-- [ ] Focused scan and loop tests cover the Teleport review wording and the in-cycle resume case.
+- [x] A review whose first line states no living-document or documentation impact does not set `docsImpact`.
+- [x] A review that defers how-to coverage to a later phase does not set `howtoImpact`.
+- [x] Documenting advances rather than blocks when the review's own impact flags are false and no living-document path was expected to change.
+- [x] An in-cycle blocked run can resume when its only dirty non-`.context` paths are the active phase's own uncommitted work.
+- [x] Starting with unrelated dirty files, and resuming a building run with unrelated dirty files, continue to fail closed.
+- [x] Focused scan and loop tests cover the Teleport review wording and the in-cycle resume case.
