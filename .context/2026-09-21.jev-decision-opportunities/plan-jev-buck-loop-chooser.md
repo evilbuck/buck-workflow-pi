@@ -1,7 +1,7 @@
 ---
 status: active
 date: 2026-09-21
-updated: 2026-09-22
+updated: 2026-09-23
 subject: 2026-09-21.jev-decision-opportunities
 topics: [jev, typesafe, buck-loop, b-review, typed-output, recovery]
 research:
@@ -9,7 +9,7 @@ research:
   - ../2026-09-22.buck-loop-block-warning-diagnosis/research-buck-loop-block-warning.md
 iterations: [iterate-jev-decision-opportunities.md]
 spec: null
-memory: [typed-workflow-output-hardening-plan-2026-09-22.md, typed-output-contract-phase-1-build-2026-09-22.md, typed-output-iteration-2026-09-22.md]
+memory: [typed-workflow-output-hardening-plan-2026-09-22.md, typed-output-contract-phase-1-build-2026-09-22.md, typed-output-iteration-2026-09-22.md, fix-pr-48-review-repairs-2026-09-23.md]
 phases_overview: plan-jev-buck-loop-chooser-phases.md
 ---
 
