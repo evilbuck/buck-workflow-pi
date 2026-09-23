@@ -6,14 +6,34 @@
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
+- [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean
 - [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
-- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; clean review heading drift can reach an enum-only chooser that accepts `block`
+- [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
+
+## Typed Workflow Output Phases (2026-09-22)
+
+
+### Upcoming Phases
+
+- [ ] [Phase 2: Review Contract and Typed Routing](items/phase-2-review-contract-and-routing.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-2-review-contract-and-routing.md)
+- [ ] [Phase 3: Fix-or-Continue Recovery](items/phase-3-fix-or-continue-recovery.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-3-fix-or-continue-recovery.md)
+- [ ] [Phase 4: Core Closed-Set Migration](items/phase-4-core-closed-set-migration.md) — hard — [phase](../2026-09-21.jev-decision-opportunities/phase-4-core-closed-set-migration.md)
+- [ ] [Phase 5: Documentation and Live Proof](items/phase-5-documentation-and-live-proof.md) — medium — [phase](../2026-09-21.jev-decision-opportunities/phase-5-documentation-and-live-proof.md)
+
+## Jev Tool Phases (2026-09-21)
+
+Overview: [`plan-jev-tool-phases.md`](../2026-09-21.jev-tool/plan-jev-tool-phases.md).
+Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Phase 3 is their integration join.
+
+### Upcoming Phases
+
+- [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
+- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; covered by typed-review and fix-or-continue Phases 1–3
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
 - [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
-- [ ] [Test b-grill-auto extension in live Pi session](items/test-b-grill-auto-extension.md)
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
@@ -22,6 +42,20 @@
 - [ ] [Complexity gate burn-down for pre-existing hotspots](items/complexity-burn-down.md) — medium; override recorded 2026-08-27, includes lizard parseArgs@32-677 artifact
 - [ ] [Installer cannot detect or warn about a split source root](items/installer-source-split-detection.md) — medium; add `--verify`, warn on cross-root relink, flag copied bootstraps
 - [x] [Fix 3 live defects from the mattpocock/skills audit](items/mattpocock-audit-defects.md) — high; done 2026-09-10 as **Phase 1** → [`phase-1-live-defects.md`](../2026-09-10.mattpocock-adoption/phase-1-live-defects.md)
+
+## Skill Surface Cleanup Phases (2026-09-21)
+
+Overview: [`plan-skill-surface-cleanup-phases.md`](../2026-09-21.skill-command-extension-audit/plan-skill-surface-cleanup-phases.md).
+Umbrella: [Skill/command/extension surface cleanup](archive/2026-09/skill-surface-cleanup.md).
+Phases share no files; recommended order is Phase 1 first.
+
+- [x] Phase 1: Dead Unwired Extensions — medium — [phase-1-dead-unwired-extensions.md](../2026-09-21.skill-command-extension-audit/phase-1-dead-unwired-extensions.md) — done 2026-09-21
+
+- [x] [Phase 2: b-save Thin-Wrap and Code-Review Paths](archive/2026-09/phase-2-bsave-and-code-review.md) — done 2026-09-21
+
+### Follow-up
+
+- [ ] [Sync living docs to canonical b-save skill](items/sync-b-save-canonical-docs.md) — low; replace stale wording that says the prompt executes the procedure directly
 
 ## buck-loop Extension Phases (2026-09-18)
 

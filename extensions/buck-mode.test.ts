@@ -311,6 +311,52 @@ describe("Model auto-switch", () => {
 
     expect(setModelSpy).not.toHaveBeenCalled();
   });
+
+  it("registers the Phase 1 jev tool", () => {
+    const { api } = createMockApi();
+    buckWorkflowExtension(api);
+    const names = vi.mocked(api.registerTool).mock.calls.map((call) => call[0]?.name);
+    expect(names).toContain("jev");
+  });
+
+  it.each([
+    ["hard", "hard-provider/hard-id"],
+    ["not-hard", "med-provider/med-id"],
+    ["easy", "med-provider/med-id"],
+    ["medium", "med-provider/med-id"],
+    ["mystery", "med-provider/med-id"],
+  ] as const)("auto-switches phase %s to the mapped model tier", async (value, expectedId) => {
+    mkdirSync(join(TEST_ROOT, ".omp"), { recursive: true });
+    writeFileSync(join(TEST_ROOT, ".omp", "config.yml"), [
+      "modelRoles:",
+      "  default: hard-provider/hard-id",
+      "  slow: med-provider/med-id",
+      "  smol: easy-provider/easy-id",
+      "",
+    ].join("\n"));
+    const subject = join(TEST_ROOT, ".context", "2026-09-21.demo");
+    mkdirSync(subject, { recursive: true });
+    writeFileSync(join(subject, "plan-demo-phases.md"), "---\nformat: discrete\n---\n[phase-1-p1.md](phase-1-p1.md)\n");
+    writeFileSync(join(subject, "phase-1-p1.md"), `---\nstatus: pending\ndifficulty: ${value}\n---\n`);
+
+    const { api, handlers } = createMockApi();
+    buckWorkflowExtension(api);
+    const ctx = mockCtx(TEST_ROOT);
+    const models = {
+      "hard-provider/hard-id": { provider: "hard-provider", id: "hard-id" },
+      "med-provider/med-id": { provider: "med-provider", id: "med-id" },
+      "easy-provider/easy-id": { provider: "easy-provider", id: "easy-id" },
+    };
+    ctx.model = { provider: "easy-provider", id: "easy-id" };
+    ctx.modelRegistry.find = vi.fn((provider: string, id: string) => models[`${provider}/${id}`]);
+    vi.mocked(api.setModel).mockResolvedValue(true);
+    await startSession(handlers, ctx);
+    await sendInput(handlers, "/b-build", ctx);
+    for (const handler of handlers.get("before_agent_start") ?? []) {
+      await handler({}, ctx);
+    }
+    expect(api.setModel).toHaveBeenCalledWith(models[expectedId]);
+  });
 });
 
 describe("Helper functions", () => {

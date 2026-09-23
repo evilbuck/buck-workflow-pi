@@ -245,6 +245,7 @@ describe("wire (integration)", () => {
         handlers.set(event, list);
       },
       registerCommand: () => {},
+      registerTool: vi.fn(),
       appendEntry: vi.fn(),
     } as unknown as ExtensionAPI;
     buckWorkflowExtension(pi);

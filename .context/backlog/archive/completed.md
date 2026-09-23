@@ -1,3 +1,16 @@
+- [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`
+
+- [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`
+- [x] [Phase 1 — Shared typed-output contract](2026-09/phase-1-shared-typed-output-contract.md) — done 2026-09-22 — versioned review/recovery validators, shared injectable TypeSafe evaluator, semantic policy fixtures, and durable guardrails pass
+- [x] [Phase 2 — Binary phase-difficulty cutover](2026-09/phase-2-binary-difficulty-cutover.md) — done 2026-09-22 — binary `hard | not-hard` phase domain with legacy normalization; root and buck-loop routing preserved three-tier model roles
+- [x] [Phase 1 — Jev tool contract](2026-09/phase-1-jev-tool-contract.md) — done 2026-09-21 — generic fail-closed TypeSafe `systemOne` OMP tool with tested Noul/Choice/Score passthrough
+
+- [x] [Phase 2: b-save Thin-Wrap and Code-Review Paths](2026-09/phase-2-bsave-and-code-review.md) — done 2026-09-21 — canonical save skill, 13-line loader, portable review paths, passing review and guardrails
+
+- [x] [Phase 1: Dead Unwired Extensions](2026-09/phase-1-dead-unwired-extensions.md) — done 2026-09-21 — deleted three unwired extension surfaces, replaced grill dialog calls with file/chat handoff, and preserved guardrail and Codex bundle parity
+
+- [x] [Test b-grill-auto extension in live Pi session](2026-09/test-b-grill-auto-extension.md) — done 2026-09-21 — extension deleted; skill remains
+
 - [x] [Document current eval-kernel and async job contracts](2026-09/eval-kernel-async-task-doc-gap.md) — done 2026-09-21 — current handle-based eval API, task/hub boundary, result retention, and migrated workflow examples. `.context/2026-09-18.doc-honesty/`
 
 - [x] [b-loop skill — advisory + stamp + deferred slash mirror](2026-09/b-loop-skill-and-mirror.md) — done 2026-09-20 — skill deleted; never had a slash mirror; `/buck-loop` is the runner; `b-plan`/`b-phase` own `omp_execution`

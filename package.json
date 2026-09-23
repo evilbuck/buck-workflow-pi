@@ -60,9 +60,13 @@
     ],
     "skills": [
       "./skills"
+    ],
+    "tools": [
+      "./tools/pig_latin.ts"
     ]
   },
   "dependencies": {
+    "@typesafe-ai/sdk": "^0.6.0",
     "typescript": "^6.0.3"
   },
   "peerDependencies": {

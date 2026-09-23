@@ -381,6 +381,150 @@ describe("scan: artifact facts", () => {
     });
   });
 
+  it("treats explicit current-phase no-impact and named later-phase deferral as clean", () => {
+    const root = repo();
+    phased(root, [{ n: 2, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
+        "No Phase 2 living-document impact; the implementation follows existing conventions.",
+        "How-to coverage is deferred to Phase 5.",
+      ),
+    });
+    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+      kind: "report",
+      parseable: true,
+      iterateArtifact: false,
+      docsImpact: false,
+      howtoImpact: false,
+    });
+  });
+
+  it("keeps cross-domain named deferrals flagged", () => {
+    const root = repo();
+    phased(root, [{ n: 2, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
+        "How-to coverage is deferred to Phase 5.",
+        "Documentation work is deferred to Phase 5.",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+    expect(report.howtoImpact).toBe(true);
+  });
+
+  it("compares review wording with the frozen cycle phase instead of the next pending phase", () => {
+    const root = repo();
+    phased(root, [
+      { n: 2, status: "completed" },
+      { n: 3, status: "pending" },
+    ], {
+      [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
+        "No Phase 2 documentation impact",
+        "How-to coverage is deferred to Phase 5.",
+      ),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: `.context/${SUBJECT}/phase-2-p2.md`,
+      state: "reviewing",
+    });
+    const report = asReport(result.reviewFacts);
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-3-p3.md`);
+    expect(report.docsImpact).toBe(false);
+    expect(report.howtoImpact).toBe(false);
+  });
+
+  it("keeps a mismatched phase-qualified no-impact statement flagged", () => {
+    const root = repo();
+    phased(root, [{ n: 2, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
+        "No Phase 5 documentation impact",
+        "No how-to impact",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+  });
+
+  it.each([2, 1])(
+    "keeps a deferral to Phase %i flagged while Phase 2 is active",
+    (deferredPhase) => {
+      const root = repo();
+      phased(root, [{ n: 2, status: "pending" }], {
+        [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
+          "No documentation impact",
+          `How-to coverage is deferred to Phase ${deferredPhase}.`,
+        ),
+      });
+      const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+      expect(report.howtoImpact).toBe(true);
+    },
+  );
+
+  it("fails closed on phase-qualified impact wording for an unphased plan", () => {
+    const root = repo();
+    writeTree(root, {
+      [`.context/${SUBJECT}/plan-demo.md`]: planMd(),
+      [`.context/${SUBJECT}/review-plan.md`]: reportMd(
+        "No Phase 2 documentation impact",
+        "How-to coverage is deferred to Phase 5.",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+    expect(report.howtoImpact).toBe(true);
+  });
+
+  it("keeps affirmative and vague deferred impact wording flagged", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "Phase 1 changes the living-document contract.",
+        "How-to coverage is deferred until later.",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+    expect(report.howtoImpact).toBe(true);
+  });
+
+  it("keeps current required work flagged when the same line also names a deferred phase", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "CONTEXT.md must be updated now; supporting details are deferred to Phase 5.",
+        "No how-to impact",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+  });
+
+
+  it("does not treat contradictory no-impact wording as clean", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "No documentation impact, but CONTEXT.md must be updated.",
+        "How-to coverage is deferred to Phase 5, but it is required now.",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+    expect(report.howtoImpact).toBe(true);
+  });
+
+  it("rejects an unrecognized clause after no-impact wording", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "No documentation impact. CONTEXT.md must be updated now.",
+        "No how-to impact. A guide must be added now.",
+      ),
+    });
+    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    expect(report.docsImpact).toBe(true);
+    expect(report.howtoImpact).toBe(true);
+  });
 
   it("parses H2 impact headings the same as H3", () => {
     const root = repo();
@@ -569,6 +713,24 @@ depends_on: []
     });
     expect(result.workFacts.postcondition).toBe("confirmed");
     expect(result.workFacts.sessionOutcome).toBe("ok");
+  });
+
+  it("confirms documenting when corrected review facts expect no living-doc changes", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
+        "No Phase 1 living-document impact",
+        "How-to coverage is deferred to Phase 5.",
+      ),
+    });
+    writeTree(root, { "src/app.ts": "export const x = 1;\n" });
+    const result = scan({
+      projectRoot: root,
+      path: `.context/${SUBJECT}`,
+      state: "documenting",
+      sessionOutcome: "ok",
+    });
+    expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
   it("leaves postcondition pending when the session has not finished", () => {

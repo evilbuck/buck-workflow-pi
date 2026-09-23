@@ -1,3 +1,31 @@
+- 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume build](buck-loop-deferred-docs-resume-build-2026-09-22.md) — `completed` (final review passed with no in-plan defects; 154 focused tests; durable guardrails pass; Git probe fail-open tracked separately)
+
+- 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume plan](buck-loop-deferred-docs-resume-plan-2026-09-22.md) — `completed` (bounded parser/postcondition fix plus staged ownership boundary for fail-closed blocked resume)
+
+- 2026-09-22 — [Typed-output review iteration](typed-output-iteration-2026-09-22.md) — `completed` (empty batches fail closed; TypeSafe JSON validation; review-control diagnostic coverage; 31 focused tests, durable guardrails pass, Phase 1 re-review pass)
+
+- 2026-09-22 — [Typed-output contract Phase 1 build](typed-output-contract-phase-1-build-2026-09-22.md) — `completed` (versioned review and recovery contracts; shared injectable TypeSafe evaluator; semantic fixture policy; 24 focused tests and durable guardrails pass)
+- 2026-09-22 — [Jev Phase 2 binary difficulty cutover](jev-tool-phase-2-build-2026-09-22.md) — `completed` (binary phase difficulty; legacy normalization; Jev registration preserved; fresh durable guardrails pass)
+- 2026-09-22 — [Typed workflow output hardening plan](typed-workflow-output-hardening-plan-2026-09-22.md) — `completed` (five phases: shared evaluator, typed b-review, fix-or-continue recovery, closed-set migration, live proof)
+
+- 2026-09-22 — [buck-loop accepted-block warning diagnosis](buck-loop-block-warning-diagnosis-2026-09-22.md) — `completed` (passing review omitted How-to Impact; parser marked it unparseable; thin fallback context accepted legal block)
+
+- 2026-09-21 — [Jev tool and boolean phase-difficulty phasing](jev-tool-phasing-2026-09-21.md) — `completed` (three-phase HARD chain; Phase 1 Jev tool contract queued)
+
+- 2026-09-21 — [b-save thin loader and portable code-review paths](bsave-code-review-build-2026-09-21.md) — `completed` (Phase 2 review passed; canonical save skill and portable review paths verified; docs wording follow-up tracked)
+
+- 2026-09-21 — [Dead unwired extensions — Phase 1 build and review](dead-unwired-extensions-build-2026-09-21.md) — `completed` (review passed clean; dead extension code deleted; grill file/chat handoff; Codex parity and guardrails pass)
+
+  - 2026-09-21 | `dead-unwired-extensions-build-2026-09-21.md` | domains: [extensions, skills, docs, testing] | topics: [dead-code, grill-document-mode, guardrails, codex-plugin, backlog] | status: completed — review passed with no findings
+
+- 2026-09-21 — [Skill surface cleanup phasing](skill-surface-cleanup-phasing-2026-09-21.md) — `completed` (two medium `/b-build` phases; NONE dependency; Phase 1 queued)
+
+  - 2026-09-21 | `skill-surface-cleanup-phasing-2026-09-21.md` | domains: [planning, skills, extensions] | topics: [phasing, skill-surface-cleanup, b-save, code-review] | status: completed
+
+- 2026-09-21 — [Skill/command/extension audit](skill-command-extension-audit-2026-09-21.md) — `completed` (64 skills, 43/43 prompt-command symlinks, 3 unwired extension deletes; ranked cleanup in subject folder)
+
+  - 2026-09-21 | `skill-command-extension-audit-2026-09-21.md` | domains: [audit, skills, extensions, docs] | topics: [cleanup, overlap, deprecation, prompts-commands-mirror] | status: completed
+
 - 2026-09-21 — [Documentation–implementation sync](documentation-implementation-sync-2026-09-21.md) — `completed` (five-scout living-doc audit; current eval API; harness/command/runtime catalogs; 11 focused tests and durable guardrails pass)
 
 - 2026-09-20 — [Dead b-loop extension cleanup](cleanup-dead-b-loop-2026-09-20.md) — `completed` (deleted `extensions/b-flow/` + `xstate`; coverage ratchet 79.2 → 84)

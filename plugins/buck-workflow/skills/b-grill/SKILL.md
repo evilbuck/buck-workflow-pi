@@ -289,9 +289,9 @@ When `b-phase` runs, it reads `grill-session-*.md` and `grill-auto-session-*.md`
 
 ### Agent Protocol
 
-1. **Start**: When doc mode activates, create the QA file:
+1. **Start**: When doc mode activates, create the QA file directly:
    - Path: `.context/<subject-folder>/grill-qa-<slug>-<n>.md`
-   - Call `grill-me_dialog` tool with `action: "create"` and the file path
+   - Choose the next unused positive integer for `<n>`; never overwrite an existing QA file
    - Tell the user the file location so they can open it in their editor
 
 2. **Write questions**: Write questions to the file as markdown:
@@ -308,19 +308,16 @@ When `b-phase` runs, it reads `grill-session-*.md` and `grill-auto-session-*.md`
    ```
    Each question gets a `## Question N` header, `### Answer` section, and `---` dividers.
 
-3. **Wait for answers**: Call `grill-me_dialog` tool with `action: "wait"` and the same file path — this renders an inline Done/Cancel selector in the chat. The agent pauses until the user presses Done.
+3. **Wait for answers**: Ask the user to edit the file and send a chat message when they are done. End the turn; do not poll the file or present a TUI selector.
 
-4. **Read answers**: When the tool returns, parse the structured answer data from the tool result's `details.blocks` array. Each block has `question_number`, `question_text`, and `answer_text`.
+4. **Read answers**: On the user's next message, read the full file and parse each `## Question N` / `### Answer` pair from the markdown.
 
-5. **Append more questions**: Add new question blocks to the same file using the same format. Re-read the full file each turn. Call `grill-me_dialog` with `action: "wait"` again.
+5. **Append more questions**: Add new question blocks to the same file using the same format. Tell the user the file is ready, then wait for another chat message before reading it again.
 
-6. **Completion**: When grilling is done, the file remains on disk as a permanent record. Update the grill session file with a reference to the doc.
-
-### Fallback
-If the user cancels the Done/Cancel selector (the tool returns `cancelled: true`), fall back to inline Q&A for the rest of the session. The document is preserved on disk — the user can reference it later.
+6. **Completion**: When grilling is done, leave the file on disk as a permanent record. Update the grill session file with a reference to the document.
 
 ### Non-interactive Mode
-If running in a non-interactive context (no TUI), use `action: "read"` instead of `action: "wait"` to read answers without showing the selector.
+Use the same file handoff. If the caller cannot provide a later chat turn, return the QA path and the required resume instruction; do not infer or fabricate answers.
 
 ## Helper Module (Auto Mode)
 

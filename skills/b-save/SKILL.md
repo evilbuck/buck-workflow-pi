@@ -18,24 +18,57 @@ Record the current session's work into durable `.context/` artifacts. Optionally
 
 ## How It Works
 
-`/b-save` is a pure prompt — no extension backing. The prompt body lives at `prompts/b-save.md` and is exposed as a slash command in both Pi (via `prompts/`) and OMP (via the `commands/b-save.md` symlink).
+`skills/b-save/SKILL.md` is the canonical `/b-save` procedure. The thin
+`prompts/b-save.md` loader exposes it as a slash command in Pi; OMP follows the
+`commands/b-save.md` symlink to that same loader. There is no extension backing.
 
-When invoked, the LLM receives the prompt instructions and executes them directly. No extension coordination or state injection is required.
+When invoked, load this skill and execute all 12 responsibilities below. No
+extension coordination or state injection is required.
 
 ## The 12 Responsibilities
 
-1. **Read Session State** — Read `.context/workflow/current-session.json` for context
-2. **Subject Folder** — Inspect through the lifecycle authority. When creating a folder, invoke `initialize`; consolidate loose artifacts without editing lifecycle fields.
-3. **Memory Creation** — Create/update session memory file with proper frontmatter
-4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
-5. **Backlog Update** — Mark completed items, add new/deferred items
-6. **Spec Status Updates** — Set `status: completed` on finished specs
-7. **Index Update** — Update `.context/memory/index.md` with entry at top
-8. **Native agent memory (OMP only)** — If running in OMP and `retain` is available, retain 1–N self-contained session facts (decisions, conventions, risks, paths). If only `learn` exists, learn one reusable lesson. Skip when neither tool exists or not in OMP. Do not call Hindsight HTTP; do not run full `b-memory-import` on routine saves.
-9. **Memory skill re-index (non-OMP, optional)** — Best-effort only when a memory skill is configured in the project's `AGENTS.md` and the agent is not OMP; never required; failures must not block save
-10. **Phase State Consolidation** — Verify phased plan file states match reality
-11. **Iterate Artifact Consolidation** — Verify and update iterate artifact states
-12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user. Do not block.
+1. **Read Session State** — Read `.context/workflow/current-session.json` for context.
+2. **Subject Folder** — Inspect with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`. Consolidate loose artifacts without editing lifecycle fields.
+3. **Memory Creation** — Create or update the session memory file with the required frontmatter:
+
+   ```yaml
+   ---
+   date: YYYY-MM-DD
+   domains: [tooling, refactor]
+   topics: [keyword, list]
+   subject: YYYY-MM-DD.subject-name
+   artifacts: [plan-file.md]
+   related: []
+   priority: high
+   status: active
+   ---
+   ```
+
+4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files.
+5. **Backlog Update** — Read `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`).
+   - For explicitly completed items: remove the item from `todo.md`; set its item file to `status: completed` and `completed: YYYY-MM-DD`; move it to `archive/YYYY-MM/<slug>.md`; add a summary to `archive/completed.md`.
+   - For new or deferred items: create `items/<slug>.md` and add a linked checkbox to `todo.md`.
+   - Only auto-archive explicitly completed items. If completion is inferred, surface it for user decision.
+6. **Spec Status Updates** — Set `status: completed` on finished specs; do not move them.
+7. **Index Update** — Update `.context/memory/index.md` with one entry at the top.
+8. **Native agent memory (OMP only)** — If running in OMP and `retain`/`learn` tools exist, mirror durable session outcomes into harness LTM.
+   - If `retain` is available (OMP with `memory.backend: hindsight` or `mnemopi`), retain 1–N self-contained facts covering decisions, conventions, risks, shipped outcomes, and relevant artifact paths.
+   - If only `learn` is available (OMP `local` backend), learn one concise reusable lesson.
+   - If neither tool exists or the agent is not OMP, skip this step.
+   - Do not call the Hindsight HTTP API or run `b-memory-import` during a routine save; that skill is for bulk backfill.
+9. **Memory skill re-index (non-OMP, optional)** — If running outside OMP and a memory skill is configured in the project's `AGENTS.md`, load it and follow its indexing protocol for `.context/memory`. This is best-effort; failures do not block `/b-save`. Skip when no memory skill is configured or when running in OMP.
+10. **Phase State Consolidation** — If discrete phased plan files exist in the subject folder:
+    a. Read all `phase-N-*.md` files and verify each `status` against its acceptance criteria.
+    b. Read `plan-*-phases.md` and verify its summary table matches the phase files.
+    c. If a phase says `in-progress` but all criteria are checked, set it to `completed` and add `completed_at: YYYY-MM-DD`.
+    d. If the overview is stale, update it to match the phase file.
+    e. Skip this responsibility for legacy single-file phased plans.
+11. **Iterate Artifact Consolidation** — Scan the subject folder for `iterate-*.md` files:
+    a. If the session modified files named by an active iterate artifact, verify its acceptance items are addressed.
+    b. If work against an active iterate artifact is complete, set its `status: completed`.
+    c. Include iterate filenames in the memory file's `artifacts:` array.
+    d. If an iterate artifact references its source plan, back-fill that plan with `iterations: [iterate-<subject>.md]`.
+12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user without blocking.
 
 After responsibilities 10 and 11 and all loose-artifact consolidation, finish
 subject lifecycle last. If inspected state is `draft` and plan work exists,
@@ -56,6 +89,13 @@ Bulk seed of existing markdown into Hindsight: `skills/b-memory-import` (determi
 
 Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record, then optionally mirrors into harness memory.
 
+## Write Scope
+
+- Write durable files only under `.context/`.
+- Responsibility 8 may also call harness memory tools (`retain` / `learn`) when available.
+
+Execute all 12 responsibilities now.
+
 
 ## Commit Integration
 
@@ -71,7 +111,7 @@ Run `/b-save` before `/b-commit` so that memory and draft-commit artifacts are i
 
 ## Related
 
-- `prompts/b-save.md` — the prompt body executed when `/b-save` is invoked
+- `prompts/b-save.md` — thin slash-command loader for this canonical skill
 - `skills/b-memory-import/SKILL.md` — bulk `.context/memory` → Hindsight import
 - `skills/b-build/SKILL.md` — recommends `/b-save` at session end
 - `skills/b-review/SKILL.md` — recommends `/b-save` after review

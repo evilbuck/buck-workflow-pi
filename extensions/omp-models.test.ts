@@ -11,11 +11,14 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 });
 
 import {
+  DIFFICULTY_TO_ROLE,
   EmptyModelResponseError,
   lastAssistantText,
   mappingFromOmpRoles,
   normalizeActivityEvent,
   parseModelRoles,
+  parsePhaseDifficulty,
+  phaseDifficultyToTier,
   readOmpModelRoles,
   resolveOmpRole,
   runOmpModelSession,
@@ -118,6 +121,41 @@ describe("mappingFromOmpRoles", () => {
       medium: "only/default",
       hard: "only/default",
     });
+  });
+});
+
+describe("parsePhaseDifficulty", () => {
+  it("recognizes binary values", () => {
+    expect(parsePhaseDifficulty("hard")).toBe("hard");
+    expect(parsePhaseDifficulty("not-hard")).toBe("not-hard");
+    expect(parsePhaseDifficulty(" HARD ")).toBe("hard");
+  });
+
+  it("maps legacy easy and medium to not-hard", () => {
+    expect(parsePhaseDifficulty("easy")).toBe("not-hard");
+    expect(parsePhaseDifficulty("medium")).toBe("not-hard");
+  });
+
+  it("defaults absent and unknown values to not-hard", () => {
+    expect(parsePhaseDifficulty(undefined)).toBe("not-hard");
+    expect(parsePhaseDifficulty("")).toBe("not-hard");
+    expect(parsePhaseDifficulty("unknown")).toBe("not-hard");
+  });
+});
+
+describe("phaseDifficultyToTier", () => {
+  it("maps hard to the hard model tier and not-hard to medium", () => {
+    expect(phaseDifficultyToTier("hard")).toBe("hard");
+    expect(phaseDifficultyToTier("not-hard")).toBe("medium");
+  });
+
+  it("leaves review Hardness as a three-tier DifficultyTier domain", () => {
+    expect(DIFFICULTY_TO_ROLE).toEqual({
+      easy: ["smol", "tiny", "task"],
+      medium: ["slow", "task", "default"],
+      hard: ["default", "plan", "slow"],
+    });
+    expect(Object.keys(DIFFICULTY_TO_ROLE)).toEqual(["easy", "medium", "hard"]);
   });
 });
 
