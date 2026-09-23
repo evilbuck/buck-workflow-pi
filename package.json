@@ -60,9 +60,6 @@
     ],
     "skills": [
       "./skills"
-    ],
-    "tools": [
-      "./tools/pig_latin.ts"
     ]
   },
   "dependencies": {

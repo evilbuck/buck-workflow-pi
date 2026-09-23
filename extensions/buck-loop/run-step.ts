@@ -84,7 +84,7 @@ const toolsBySkill: Record<NestedSkill, string[]> = {
   "b-review": ["read", "edit", "write", "grep", "find", "ls", "bash"],
   "b-iterate": ["read", "edit", "write", "grep", "bash"],
   "b-docs": ["read", "edit", "write", "grep", "bash"],
-  "b-howto": ["read", "edit", "write", "grep"],
+  "b-howto": ["read", "edit", "write", "grep", "bash"],
   "b-save": ["read", "edit", "write", "grep", "bash"],
   "b-commit": ["read", "bash"],
 };
@@ -118,8 +118,10 @@ function loadSkill(skill: NestedSkill): string {
 /** Skill body first, then a hard boundary: the child may not choose the next loop state. */
 function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string): string {
   const hardVariant = skill === "b-build-hard" ? "\nThis is the hard variant of b-build.\n" : "";
-  const commitAuthorization = skill === "b-commit" ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n" : "";
-  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${commitAuthorization}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
+  const checkpointInstruction = skill === "b-commit"
+    ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n"
+    : "\nBefore returning, stage only files you created or modified for this assignment. Never stage pre-existing or unrelated changes. Report a failure if your files cannot be staged.\n";
+  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
 }
 
 function errorText(error: unknown): string {

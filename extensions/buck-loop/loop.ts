@@ -454,7 +454,7 @@ async function runNestedSkill(
   deps: LoopDeps,
 ): Promise<RunStepResult> {
   try {
-    if (skill === "commit") stageCommitWork(cwd);
+    if (skill === "commit") prepareCommitCheckpoint(cwd);
     return await deps.runStep({
       cwd,
       skill: nested,
@@ -610,8 +610,18 @@ function decisionContext(snapshot: Snapshot, why: string): string {
 }
 
 
-function stageCommitWork(cwd: string): void {
-  execFileSync("git", ["add", "-A"], {
+function unstagedNonContextStatus(cwd: string): string[] {
+  return nonContextStatus(cwd).filter((line) => !isStagedOnly(line));
+}
+
+function prepareCommitCheckpoint(cwd: string): void {
+  const unstaged = unstagedNonContextStatus(cwd);
+  if (unstaged.length > 0) {
+    throw new Error(
+      "/buck-loop refuses to commit unstaged non-.context changes: " + unstaged.join(", "),
+    );
+  }
+  execFileSync("git", ["add", "-A", "--", ".context"], {
     cwd,
     encoding: "utf8",
     timeout: 10_000,
@@ -622,10 +632,9 @@ function stageCommitWork(cwd: string): void {
 function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult, at: string): LoopResult {
   const last = snapshot.history.at(-1);
   if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
-    try {
-      stageCommitWork(cwd);
-    } catch (error) {
-      const reason = `could not stage loop-owned work: ${error instanceof Error ? error.message : String(error)}`;
+    const unstaged = unstagedNonContextStatus(cwd);
+    if (unstaged.length > 0) {
+      const reason = "nested skill left unstaged non-.context changes: " + unstaged.join(", ");
       persistIfPossible(cwd, block(snapshot, reason, at));
       return { state: "blocked", reason };
     }

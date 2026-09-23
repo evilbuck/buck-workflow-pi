@@ -629,12 +629,13 @@ describe("resume", () => {
     expect(deps.runStep).toHaveBeenCalled();
   });
 
-  it("stages in-cycle work before blocking and resumes without a commit", async () => {
+  it("preserves staged in-cycle work before blocking and resumes without a commit", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const failing = workDeps(async (opts) => {
       if (opts.skill === "b-build") {
         writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        git(cwd, ["add", "src/owned.ts"]);
         return { ok: false, text: "boom" };
       }
       return landingWork()(opts);
@@ -652,15 +653,44 @@ describe("resume", () => {
     expect(resumed.runStep).toHaveBeenCalled();
   });
 
-  it("persists and returns a blocked result when loop-owned work cannot be staged", async () => {
+  it("does not adopt unrelated dirt created during failed in-cycle work", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const failing = workDeps(async (opts) => {
       if (opts.skill === "b-build") {
         writeTree(cwd, {
           "src/owned.ts": "export const owned = true;\n",
-          ".git/index.lock": "locked\n",
+          "src/unrelated.ts": "export const unrelated = true;\n",
         });
+        git(cwd, ["add", "src/owned.ts"]);
+        return { ok: false, text: "boom" };
+      }
+      return landingWork()(opts);
+    });
+
+    const blocked = await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
+    const status = execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd,
+      encoding: "utf8",
+    });
+
+    expect(blocked.state).toBe("blocked");
+    expect(status).toContain("A  src/owned.ts");
+    expect(status).toContain("?? src/unrelated.ts");
+
+    const resumed = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps: resumed });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/dirty/);
+    expect(resumed.runStep).not.toHaveBeenCalled();
+  });
+
+  it("persists and returns a blocked result when nested work remains unstaged", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const failing = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
         return { ok: false, text: "boom" };
       }
       return landingWork()(opts);
@@ -669,8 +699,10 @@ describe("resume", () => {
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: failing });
 
     expect(result.state).toBe("blocked");
-    expect(result.reason).toMatch(/could not stage loop-owned work/i);
-    expect(readProjection(cwd)?.history.at(-1)?.why).toMatch(/could not stage loop-owned work/i);
+    expect(result.reason).toMatch(/left unstaged.*src\/owned\.ts/i);
+    expect(readProjection(cwd)?.history.at(-1)?.why).toMatch(/left unstaged.*src\/owned\.ts/i);
+    expect(execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd, encoding: "utf8" }))
+      .toContain("?? src/owned.ts");
   });
 
   it("refuses blocked resume when an unrelated untracked path appears after the block", async () => {
@@ -679,6 +711,7 @@ describe("resume", () => {
     const failing = workDeps(async (opts) => {
       if (opts.skill === "b-build") {
         writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        git(cwd, ["add", "src/owned.ts"]);
         return { ok: false, text: "boom" };
       }
       return landingWork()(opts);
@@ -702,6 +735,7 @@ describe("resume", () => {
     const failing = workDeps(async (opts) => {
       if (opts.skill === "b-build") {
         writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        git(cwd, ["add", "src/owned.ts"]);
         return { ok: false, text: "boom" };
       }
       return landingWork()(opts);
@@ -722,6 +756,7 @@ describe("resume", () => {
     const failing = workDeps(async (opts) => {
       if (opts.skill === "b-build") {
         writeTree(cwd, { "src/owned.ts": "export const owned = true;\n" });
+        git(cwd, ["add", "src/owned.ts"]);
         return { ok: false, text: "boom" };
       }
       return landingWork()(opts);
