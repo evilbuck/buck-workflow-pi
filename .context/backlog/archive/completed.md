@@ -1,3 +1,5 @@
+- [x] [OMP token attribution by project and feature](2026-09/omp-token-attribution.md) — done 2026-09-23 — plugin-owned SQLite ledger, origin/worktree and branch attribution, nested delivery reconciliation, `/tokens` reporting, documentation, and passing durable guardrails. `.context/2026-09-23.omp-token-attribution/`
+
 - [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`
 
 - [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`

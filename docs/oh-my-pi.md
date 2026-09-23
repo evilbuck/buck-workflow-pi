@@ -98,6 +98,14 @@ File layout: `loop.ts`, `policy.ts`, `catalog.ts`, `prompts.ts`, `report.ts`, `r
 
 Runtime artifacts live under `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/`. Design rationale: `.context/2026-09-12.code-review-iteration-extension/brainstorm-code-review-iteration-extension.md` and `docs/adr/0001-local-only-isolated-code-review-loop.md`.
 
+### `token-attribution` (bundled with buck-workflow)
+
+`extensions/token-attribution/` records each completed assistant turn in a plugin-owned table in `~/.omp/stats.db`. The package entry in `extensions/index.ts` wires it automatically; no second install step is required. `message_end` records the current process, while `message_end` and `agent_end` also scan only the current session's nested JSONL artifact directory so subagent and advisor usage is included even when the child process did not load the plugin. `(session_file, entry_key)` is the delivery identity, so retries and live-to-JSONL reconciliation do not double-count a turn.
+
+Project identity is the Git `origin` URL when available, otherwise the absolute Git common directory. Linked worktrees therefore share a project key while retaining the branch observed at each turn. Detached work is labeled `detached/<short-sha>`; a non-Git session uses its cwd as the project key and has no branch. The ledger stores provider, model, API, token buckets, and OMP's normalized `usage.cost.total` when present. Reported dollars are estimates, not invoice or subscription-quota reconciliation.
+
+The extension uses `attribution` when that table is absent or has the expected plugin schema; otherwise it uses `buck_token_attribution`. It does not alter OMP-owned stats tables. `/tokens` reports the current project by branch and provider/model; if another extension already owns that command, Buck registers `/token-use`. See [Inspect project token use](howto/inspect-project-token-use.md).
+
 ## Settings
 
 Global: `~/.omp/agent/settings.json`  

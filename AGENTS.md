@@ -308,5 +308,6 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 - Per-session memory is git-portable `.context/memory/`. Harness-specific LTM mirrors are managed by `b-save`; the canonical source remains `.context/memory/`.
 - Nested `createAgentSession()` work in `/buck-loop` streams through `AgentSession.subscribe()` + `normalizeActivityEvent()` into `createActivity().ingest`. Unsubscribe before dispose, including prompt failure. `/buck-loop` uses a six-row activity viewport (`maxActivityLines: 6`, `maxLineWidth: 64`); other long-running commands keep the shared eight-row default.
 - Subject lifecycle in `.context/<subject>/index.md` is owned exclusively by `skills/_shared/scripts/subject-lifecycle.ts`. Callers use `initialize`, `activate`, `close-verified`, `reopen`, or `inspect`; direct lifecycle-field writes are prohibited and checked by `npm run subject-lifecycle:check`. Plan/phase/spec/iterate statuses remain separate artifact contracts.
+- User-facing how-tos live in `docs/howto/`: one action per file, numbered steps ending in **Eat** (the observable success check). Keep procedures out of ADRs and PRDs; link the how-to index instead. Follow the `b-howto` skill format.
 <!-- END b-docs:conventions -->
 

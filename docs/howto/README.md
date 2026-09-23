@@ -7,6 +7,7 @@ steps, then **Eat** — the check that it worked.
 
 1. [Run the /code-review command](run-code-review.md)
 2. [Prune retained /code-review runtime](prune-code-review-runtime.md)
+3. [Inspect project token use](inspect-project-token-use.md)
 
 ## Why
 
