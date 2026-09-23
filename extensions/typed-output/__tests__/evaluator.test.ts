@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createTypeSafeEvaluator, type TypeSafeRequest } from "../evaluator.js";
+import {
+  createTypeSafeEvaluator,
+  type TypeSafeRequest,
+  type TypeSafeResult,
+} from "../evaluator.js";
 
 describe("shared TypeSafe evaluator", () => {
   it("rejects an empty question set before constructing a client", async () => {
@@ -30,13 +34,61 @@ describe("shared TypeSafe evaluator", () => {
     });
     expect(systemOne).not.toHaveBeenCalled();
   });
+  it.each([
+    {
+      field: "state",
+      request: {
+        state: BigInt(1),
+        questions: { decision: { type: "noul" } },
+      },
+    },
+    {
+      field: "instructions",
+      request: {
+        state: "review",
+        questions: { decision: { type: "noul", instructions: BigInt(1) } },
+      },
+    },
+    {
+      field: "criteria",
+      request: {
+        state: "review",
+        questions: {
+          decision: {
+            type: "choice",
+            criteria: { fix: "repair", continue: BigInt(1) },
+          },
+        },
+      },
+    },
+  ])("rejects non-JSON $field before contacting the provider", async ({ request }) => {
+    const systemOne = vi.fn();
+    const createClient = vi.fn(() => ({ systemOne }));
+    const evaluate = createTypeSafeEvaluator({ createClient });
+
+    const result = await evaluate(request as unknown as TypeSafeRequest);
+
+    expect(result).toEqual({
+      ok: false,
+      failure: expect.objectContaining({ code: "invalid_request" }),
+    });
+    expect(createClient).not.toHaveBeenCalled();
+    expect(systemOne).not.toHaveBeenCalled();
+  });
 
   it("forwards a valid request and returns the complete provider result", async () => {
     const providerResult = {
       model: "jev-fixture",
-      answers: { route: { type: "choice", choice: "fix", confidence: 0.9 } },
+      answers: {
+        route: {
+          type: "choice",
+          choice: "fix",
+          confidence: 0.9,
+          probabilities: { fix: 0.9, continue: 0.1 },
+        },
+      },
       usage: { input_tokens: 3, output_tokens: 2 },
-    };
+    } satisfies TypeSafeResult;
     const systemOne = vi.fn(async () => providerResult);
     const evaluate = createTypeSafeEvaluator({ createClient: () => ({ systemOne }) });
     const request: TypeSafeRequest = {

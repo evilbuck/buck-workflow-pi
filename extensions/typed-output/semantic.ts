@@ -64,6 +64,14 @@ export function assessSemanticVerification(
   expectations: readonly SemanticExpectation[],
   evaluation: TypeSafeEvaluation,
 ): SemanticVerificationResult {
+  if (expectations.length === 0) {
+    return {
+      status: "unavailable",
+      comparisons: [],
+      message: "Semantic verification requires at least one expectation.",
+    };
+  }
+
   if (!evaluation.ok) {
     return {
       status: "unavailable",

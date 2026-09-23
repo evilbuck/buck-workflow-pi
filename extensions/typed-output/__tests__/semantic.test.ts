@@ -3,6 +3,16 @@ import { assessSemanticVerification } from "../semantic.js";
 import { semanticEvaluationFixtures } from "./fixtures.js";
 
 describe("semantic verification policy", () => {
+  it("fails closed when no semantic expectations are declared", () => {
+    expect(
+      assessSemanticVerification([], semanticEvaluationFixtures.verifiedBoundary),
+    ).toEqual({
+      status: "unavailable",
+      comparisons: [],
+      message: "Semantic verification requires at least one expectation.",
+    });
+  });
+
   it("reports a high-confidence closed-set disagreement", () => {
     const result = assessSemanticVerification(
       [{ question: "decision", type: "choice", declared: "fix" }],

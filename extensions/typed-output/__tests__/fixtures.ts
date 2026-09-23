@@ -1,5 +1,5 @@
 import type { BuckReviewControl, ValidationDiagnosticCode } from "../contracts.js";
-import type { TypeSafeEvaluation } from "../evaluator.js";
+import type { TypeSafeEvaluation, TypeSafeResult } from "../evaluator.js";
 
 export const validReviewControls: ReadonlyArray<{
   name: string;
@@ -84,6 +84,42 @@ export const invalidReviewControls: ReadonlyArray<{
     code: "not_object",
   },
   {
+    name: "wrong schema",
+    value: {
+      schema: "buck.review/v2",
+      verdict: "pass",
+      documentation_impact: false,
+      how_to_impact: false,
+      has_in_plan_issues: false,
+      has_out_of_plan_issues: false,
+    },
+    code: "invalid_schema",
+  },
+  {
+    name: "unknown verdict",
+    value: {
+      schema: "buck.review/v1",
+      verdict: "retry",
+      documentation_impact: false,
+      how_to_impact: false,
+      has_in_plan_issues: false,
+      has_out_of_plan_issues: false,
+    },
+    code: "invalid_enum",
+  },
+  {
+    name: "non-boolean impact flag",
+    value: {
+      schema: "buck.review/v1",
+      verdict: "pass",
+      documentation_impact: "false",
+      how_to_impact: false,
+      has_in_plan_issues: false,
+      has_out_of_plan_issues: false,
+    },
+    code: "invalid_boolean",
+  },
+  {
     name: "contradictory verdict",
     value: {
       schema: "buck.review/v1",
@@ -97,7 +133,7 @@ export const invalidReviewControls: ReadonlyArray<{
   },
 ];
 
-function evaluation(answer: unknown): TypeSafeEvaluation {
+function evaluation(answer: TypeSafeResult["answers"][string]): TypeSafeEvaluation {
   return {
     ok: true,
     result: {

@@ -1,3 +1,5 @@
+- 2026-09-22 — [Typed-output review iteration](typed-output-iteration-2026-09-22.md) — `completed` (empty batches fail closed; TypeSafe JSON validation; review-control diagnostic coverage; 31 focused tests, durable guardrails pass, Phase 1 re-review pass)
+
 - 2026-09-22 — [Typed-output contract Phase 1 build](typed-output-contract-phase-1-build-2026-09-22.md) — `completed` (versioned review and recovery contracts; shared injectable TypeSafe evaluator; semantic fixture policy; 24 focused tests and durable guardrails pass)
 - 2026-09-22 — [Jev Phase 2 binary difficulty cutover](jev-tool-phase-2-build-2026-09-22.md) — `completed` (binary phase difficulty; legacy normalization; Jev registration preserved; fresh durable guardrails pass)
 - 2026-09-22 — [Typed workflow output hardening plan](typed-workflow-output-hardening-plan-2026-09-22.md) — `completed` (five phases: shared evaluator, typed b-review, fix-or-continue recovery, closed-set migration, live proof)

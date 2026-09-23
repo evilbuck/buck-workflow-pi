@@ -12,6 +12,7 @@ related:
   - .context/backlog/items/buck-loop-contextless-choice-stall.md
   - extensions/buck-loop/choice.ts
   - skills/b-review/SKILL.md
+  - .context/2026-09-21.jev-decision-opportunities/iterate-jev-decision-opportunities.md
 ---
 
 # Harden typed Buck Workflow outputs
@@ -21,3 +22,5 @@ Five phases: shared TypeSafe evaluator and contracts; mandatory typed b-review o
 Recoverable model choices never include `block`. Deterministic hard safety guards remain unchanged.
 
 See `.context/2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md`.
+
+Phase 1 review findings were addressed on 2026-09-22; a fresh `/b-review` remains required before closing the phase.

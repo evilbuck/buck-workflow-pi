@@ -7,9 +7,9 @@ topics: [jev, typesafe, buck-loop, b-review, typed-output, recovery]
 research:
   - research-jev-decision-opportunities.md
   - ../2026-09-22.buck-loop-block-warning-diagnosis/research-buck-loop-block-warning.md
-iterations: []
+iterations: [iterate-jev-decision-opportunities.md]
 spec: null
-memory: [typed-workflow-output-hardening-plan-2026-09-22.md, typed-output-contract-phase-1-build-2026-09-22.md]
+memory: [typed-workflow-output-hardening-plan-2026-09-22.md, typed-output-contract-phase-1-build-2026-09-22.md, typed-output-iteration-2026-09-22.md]
 phases_overview: plan-jev-buck-loop-chooser-phases.md
 ---
 
