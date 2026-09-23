@@ -111,6 +111,23 @@ export const HARNESSES = [
       skills:    { src: "skills",  dest: ".zcode/skills" },
     },
   },
+  {
+    id: "hermes",
+    name: "Hermes Agent",
+    detectDir: ".hermes",
+    surfaces: {
+      // Skills only. Hermes has no file-based slash-command loader (its
+      // commands are a fixed built-in registry), so there is no commands
+      // surface. It also has no global, always-loaded project-context file
+      // — AGENTS.md/CLAUDE.md/.hermes.md are read from cwd only, and Hermes'
+      // own docs warn against faking a global one — so there is no
+      // bootstrap surface either; use a project-root ./AGENTS.md instead.
+      // Hermes nests skills one level under a category directory
+      // (~/.hermes/skills/<category>/<name>/SKILL.md), so every skill lands
+      // under one "buck-workflow" category rather than at the top level.
+      skills: { src: "skills", dest: ".hermes/skills/buck-workflow" },
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------

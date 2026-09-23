@@ -2,8 +2,9 @@
 
 > **For the installing agent:** Before running any install command, **ask the
 > user which agent they're installing for** — Pi, OMP, Codex, OpenCode,
-> Claude Code, Grok Build, or ZCode. Then jump to that section and run only those
-> commands. Do **not** blast through every section in sequence.
+> Claude Code, Grok Build, ZCode, or Hermes Agent. Then jump to that section
+> and run only those commands. Do **not** blast through every section in
+> sequence.
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
 explore, research, plan, build, review, save, present, grill, commit, plus
@@ -81,6 +82,7 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 | **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
 | **ZCode** | Durable clone + `scripts/install.mjs --harness zcode` | `~/.zcode/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
+| **Hermes Agent** | Durable clone + `scripts/install.mjs --harness hermes` | `~/.hermes/skills/buck-workflow/<name>/` | n/a — invoke `/skill:b-plan` |
 
 ---
 
@@ -584,6 +586,60 @@ including the `b-build`, `b-review`, and `b-save` sentinels. Then run
 
 ---
 
+## Hermes Agent (`hermes-agent.nousresearch.com`)
+
+Hermes has no file-based slash-command loader and no global project-context
+bootstrap surface — see [`docs/hermes.md`](docs/hermes.md) for the full
+account. This installer wires **skills only**. Hermes also nests skills one
+level under a category directory
+(`~/.hermes/skills/<category>/<name>/SKILL.md`), so the installer places
+every Buck Workflow skill under one `buck-workflow` category rather than at
+the top level.
+
+### Install — durable clone + installer (recommended)
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+~/.local/share/buck-workflow-pi/scripts/install.mjs \
+  --source ~/.local/share/buck-workflow-pi --harness hermes
+```
+
+From an existing checkout (this machine):
+
+```bash
+/path/to/buck-workflow-pi/scripts/install.mjs \
+  --source /path/to/buck-workflow-pi --harness hermes
+```
+
+### Where things go
+
+| Surface | Location |
+|---|---|
+| Skills (user) | `~/.hermes/skills/buck-workflow/<name>/SKILL.md` |
+| Skills (profile) | `~/.hermes/profiles/<name>/skills/buck-workflow/<name>/SKILL.md` — re-run the installer against that profile's home if you use one |
+| Commands | n/a — invoke `/skill:b-plan` (or let Hermes match the skill `description` automatically) |
+| Bootstrap | n/a — no global project-context surface exists to wire; add a project-root `./AGENTS.md` instead (Hermes reads it from cwd) |
+
+### Verify
+
+```bash
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs --verify --harness hermes
+```
+
+In a refreshed Hermes session:
+
+```
+/skills
+```
+
+Confirm `b-build`, `b-review`, and `b-save` list under the `buck-workflow`
+category, then run `/skill:b-plan` on a small task and confirm it creates
+`.context/<date>.<subject>/index.md` plus `plan-*.md`.
+
+Reference: <https://hermes-agent.nousresearch.com/docs/user-guide/features/skills>
+
+---
+
 ## Companion bootstrap (`.context/` conventions)
 
 Buck workflow is durable by design — the skills write session memory,
@@ -603,6 +659,9 @@ Install it once per agent:
 | Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
 | Grok Build | `~/.grok/rules/buck-workflow.md` | `./AGENTS.md` |
 | ZCode | `~/.zcode/AGENTS.md` | `./AGENTS.md` |
+
+Hermes Agent has no bootstrap surface (see above) — use a project-root
+`./AGENTS.md`, which Hermes already reads from cwd.
 
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.

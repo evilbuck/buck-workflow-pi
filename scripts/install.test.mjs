@@ -63,6 +63,7 @@ function setupFixtures() {
   mkdirSync(join(home, ".cursor"), { recursive: true });
   mkdirSync(join(home, ".grok"), { recursive: true });
   mkdirSync(join(home, ".zcode"), { recursive: true });
+  mkdirSync(join(home, ".hermes"), { recursive: true });
 
   return { repo, home };
 }
@@ -71,8 +72,8 @@ function setupFixtures() {
 // Registry
 // ---------------------------------------------------------------------------
 describe("HARNESSES registry", () => {
-  it("has 8 harness entries", () => {
-    expect(HARNESSES).toHaveLength(8);
+  it("has 9 harness entries", () => {
+    expect(HARNESSES).toHaveLength(9);
   });
 
   it("has unique ids", () => {
@@ -134,6 +135,12 @@ describe("HARNESSES registry", () => {
     expect(Object.keys(h.surfaces).sort()).toEqual(["bootstrap", "skills"]);
     expect(h.surfaces.bootstrap.dest).toBe(".zcode/AGENTS.md");
     expect(h.surfaces.skills.dest).toBe(".zcode/skills");
+  });
+
+  it("Hermes is skills-only (no bootstrap, no commands)", () => {
+    const h = HARNESSES.find((h) => h.id === "hermes");
+    expect(Object.keys(h.surfaces)).toEqual(["skills"]);
+    expect(h.surfaces.skills.dest).toBe(".hermes/skills/buck-workflow");
   });
 });
 
@@ -293,7 +300,7 @@ describe("detectHarnesses", () => {
     expect(detected).toEqual([]);
   });
 
-  it("detects all eight when all dirs present", () => {
+  it("detects all nine when all dirs present", () => {
     const home = join(TEST_ROOT, "home");
     mkdirSync(join(home, ".pi", "agent"), { recursive: true });
     mkdirSync(join(home, ".omp", "agent"), { recursive: true });
@@ -303,10 +310,11 @@ describe("detectHarnesses", () => {
     mkdirSync(join(home, ".cursor"), { recursive: true });
     mkdirSync(join(home, ".grok"), { recursive: true });
     mkdirSync(join(home, ".zcode"), { recursive: true });
+    mkdirSync(join(home, ".hermes"), { recursive: true });
 
     const detected = detectHarnesses(home);
 
-    expect(detected).toHaveLength(8);
+    expect(detected).toHaveLength(9);
   });
 });
 
@@ -417,6 +425,23 @@ describe("install", () => {
       join(repo, "skills", "b-plan"),
     );
     expect(existsSync(join(home, ".zcode", "commands"))).toBe(false);
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("Hermes gets skills nested under a buck-workflow category (no bootstrap/commands)", () => {
+    const { repo, home } = setupFixtures();
+
+    const result = install({ source: repo, home, harnessIds: ["hermes"] });
+
+    expect(
+      readlinkSync(join(home, ".hermes", "skills", "buck-workflow", "b-build")),
+    ).toBe(join(repo, "skills", "b-build"));
+    expect(
+      readlinkSync(join(home, ".hermes", "skills", "buck-workflow", "b-plan")),
+    ).toBe(join(repo, "skills", "b-plan"));
+    expect(existsSync(join(home, ".hermes", "commands"))).toBe(false);
+    expect(existsSync(join(home, ".hermes", "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(home, ".hermes", "CLAUDE.md"))).toBe(false);
     expect(result.exitCode).toBe(0);
   });
 
