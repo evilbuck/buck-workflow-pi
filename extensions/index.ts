@@ -12,6 +12,7 @@ import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { wireBuckLoop } from "./buck-loop/index.js";
 import { wire as wireJevTool } from "./jev-tool/index.js";
+import { wire as wireTokenAttribution } from "./token-attribution/index.js";
 import { mappingFromOmpRoles, parsePhaseDifficulty, phaseDifficultyToTier, type PhaseDifficulty } from "./omp-models.js";
 
 
@@ -313,6 +314,8 @@ export default function (pi: ExtensionAPI) {
 
   // --- TPS tracker ---
   wireTpsTracker(pi);
+  // --- token-attribution: project/branch token ledger and /tokens report ---
+  wireTokenAttribution(pi);
   // --- b-pr-improved: deterministic PR creation ---
   wireBprImproved(pi);
   // --- b-commit-improved: deterministic Conventional Commit ---
