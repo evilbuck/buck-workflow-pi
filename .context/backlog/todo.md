@@ -9,6 +9,7 @@
 - [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean
 - [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
 - [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
+- [ ] [Fix macOS /tmp-symlink realpath mismatches blocking the required unit-test gate](items/macos-tmp-symlink-test-failures.md) — high; 10 pre-existing failures across `serve-presentations`, `hooks`, `git-ops` on clean `cf086f4`; fix already diagnosed and verified, reverted to keep 2026-09-23's theme-addition diff isolated
 
 ## Typed Workflow Output Phases (2026-09-22)
 
