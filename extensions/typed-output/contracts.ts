@@ -91,16 +91,15 @@ export function validateRecoveryAction(input: unknown): ValidationResult<Recover
   };
 }
 
-function expectedVerdict(control: BuckReviewControl): ReviewVerdict {
-  if (control.has_in_plan_issues) return "needs_work";
-  if (
-    control.has_out_of_plan_issues ||
-    control.documentation_impact ||
-    control.how_to_impact
-  ) {
-    return "pass_with_warnings";
+function verdictMatchesFacts(control: BuckReviewControl): boolean {
+  if (control.verdict === "needs_work") return control.has_in_plan_issues;
+  if (control.verdict === "pass") {
+    return !control.has_in_plan_issues && !control.has_out_of_plan_issues;
   }
-  return "pass";
+  return (
+    !control.has_in_plan_issues &&
+    (control.has_out_of_plan_issues || control.documentation_impact || control.how_to_impact)
+  );
 }
 
 function collectSchemaDiagnostic(
@@ -169,15 +168,14 @@ export function validateBuckReviewControl(input: unknown): ValidationResult<Buck
   if (diagnostics.length > 0) return { ok: false, diagnostics };
 
   const value = record as unknown as BuckReviewControl;
-  const expected = expectedVerdict(value);
-  if (value.verdict === expected) return { ok: true, value, diagnostics: [] };
+  if (verdictMatchesFacts(value)) return { ok: true, value, diagnostics: [] };
   return {
     ok: false,
     diagnostics: [
       diagnostic(
         "invariant_violation",
         "verdict",
-        `verdict must be ${expected} for the declared issue and impact facts.`,
+        "verdict does not match the declared issue and impact facts.",
       ),
     ],
   };

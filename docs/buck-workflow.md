@@ -740,7 +740,7 @@ informs: []  # Plans/specs this research fed into
 
 **When to use**: You want grilling without choosing the variant up front; pass the mode or let the skill ask. Prefer `b-grill-with-docs` when the project has CONTEXT.md/ADRs to challenge against.
 
-**Note**: the `b-grill-auto` *extension command* is historical/unwired; the `b-grill-auto` *skill* and `b-grill` mode `auto` remain available.
+**Note**: the former `b-grill-auto` extension command was removed; the `b-grill-auto` skill and `b-grill` mode `auto` remain available.
 
 ---
 #### `/b-init-guardrails` — Quality Guardrails Init

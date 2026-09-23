@@ -17,6 +17,17 @@ export const validReviewControls: ReadonlyArray<{
     },
   },
   {
+    name: "pass with documentation impact",
+    value: {
+      schema: "buck.review/v1",
+      verdict: "pass",
+      documentation_impact: true,
+      how_to_impact: false,
+      has_in_plan_issues: false,
+      has_out_of_plan_issues: false,
+    },
+  },
+  {
     name: "out-of-plan warning",
     value: {
       schema: "buck.review/v1",
