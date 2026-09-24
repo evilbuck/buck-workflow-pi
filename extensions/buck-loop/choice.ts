@@ -18,7 +18,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { jevTool } from "../jev-tool/index.js";
+import { runJev } from "../jev-tool/index.js";
 import { runOmpModelSession, type ActivityEvent, type BuckThinking } from "../omp-models.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 import type { AcceptedChoice, Choice } from "./types.js";
@@ -149,27 +149,19 @@ async function askJev(
   }
   const criteria: Record<string, string> = {};
   for (const kind of kinds) criteria[kind] = CONTINUATION_RUBRIC[kind] ?? kind;
-  const params = {
-    state: context ?? "",
-    questions: {
-      action: {
-        type: "choice" as const,
-        instructions: "Pick exactly one next buck-loop action. The criteria labels are the only legal actions.",
-        criteria,
-      },
-    },
-  };
   try {
-    const result = await jevTool(createTypeSafeEvaluator()).execute(
-      "buck-loop-choice",
-      params,
-      undefined,
-      undefined,
-      undefined as never,
-    );
-    const raw = result.content.map((part) => ("text" in part ? part.text ?? "" : "")).join("");
-    const parsed = readJevChoice(result.details, new Set(kinds));
-    if (!parsed) return { ok: false, reason: jevFailureMessage(result.details, raw), raw };
+    const { raw, details } = await runJev(createTypeSafeEvaluator(), {
+      state: context ?? "",
+      questions: {
+        action: {
+          type: "choice",
+          instructions: "Pick exactly one next buck-loop action. The criteria labels are the only legal actions.",
+          criteria,
+        },
+      },
+    });
+    const parsed = readJevChoice(details, new Set(kinds));
+    if (!parsed) return { ok: false, reason: jevFailureMessage(details, raw), raw };
     onActivity?.({ kind: "text", delta: parsed.reason });
     return { ok: true, choice: parsed.choice, reason: parsed.reason, raw };
   } catch (error) {

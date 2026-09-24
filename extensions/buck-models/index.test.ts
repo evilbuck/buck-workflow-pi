@@ -300,6 +300,27 @@ describe("/buck-models", () => {
     expect(parsed.profiles["Edit profile: Create a new profile"]).toBeUndefined();
   });
 
+  it("refuses a new profile name that collides with picker labels", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, "buckModels:\n  profiles: {}\n");
+    const harness = commandHarness({
+      selects: [
+        "Project (.omp/config.yml)",
+        "Create or edit a profile",
+        "Create a new profile",
+      ],
+      inputs: ["Edit profile: foo"],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    expect(harness.notify).toHaveBeenCalledWith(expect.stringContaining("collides"), "error");
+    expect(parseBuckModels(readFileSync(projectPath, "utf8")).profiles).toEqual({});
+  });
+
   it("shows user-global fallthrough and performs no write when stage editing is cancelled", async () => {
     const cwd = tempDir();
     mkdirSync(join(cwd, ".omp"), { recursive: true });

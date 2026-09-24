@@ -193,6 +193,8 @@ function assistantStopReason(messages: SessionHandle["messages"]): unknown {
  * that id and picks again. Recovered assistant text is kept. Difficulty is
  * picker context only.
  */
+/** Safety ceiling for model attempts; candidate exhaustion normally stops the loop first. */
+const MAX_MODEL_ATTEMPTS = 32;
 export async function runStep(opts: {
   cwd: string;
   skill: NestedSkill;
@@ -227,7 +229,9 @@ export async function runStep(opts: {
     },
   };
 
-  for (let attempt = 0; attempt < 32; attempt += 1) {
+  // Safety ceiling only: the loop normally stops when candidates run out
+  // (select returns not-ok) or a model repeats. Caps pathological registries.
+  for (let attempt = 0; attempt < MAX_MODEL_ATTEMPTS; attempt += 1) {
     const picked = await (opts.select ?? defaultWorkSelect)({
       cwd: opts.cwd,
       stage,

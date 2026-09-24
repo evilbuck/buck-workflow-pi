@@ -20,6 +20,8 @@ const GLOBAL_SCOPE = "User-global (~/.omp/agent/config.yml)";
 const EDIT_PROFILE = "Create or edit a profile";
 const ACTIVATE_PROFILE = "Activate a profile";
 const CREATE_PROFILE = "Create a new profile";
+/** Display prefix for existing profiles; reserved so picker labels round-trip. */
+const EDIT_PROFILE_PREFIX = "Edit profile: ";
 const KEEP_STAGE = "Keep current stage";
 const EDIT_STAGE = "Edit this stage";
 const OMIT_THINKING = "off (omit)";
@@ -155,7 +157,7 @@ async function chooseProfile(
     }
     return (await ui.select?.("Profile to activate", names)) ?? null;
   }
-  const profileChoices = names.map((name) => `Edit profile: ${name}`);
+  const profileChoices = names.map((name) => `${EDIT_PROFILE_PREFIX}${name}`);
   const selected = await ui.select?.("Profile to create or edit", [CREATE_PROFILE, ...profileChoices]);
   if (!selected) return null;
   if (selected !== CREATE_PROFILE) {
@@ -163,7 +165,12 @@ async function chooseProfile(
     return selectedIndex === -1 ? null : names[selectedIndex] ?? null;
   }
   const name = (await ui.input?.("New profile name"))?.trim();
-  return name || null;
+  if (!name) return null;
+  if (name === CREATE_PROFILE || name.startsWith(EDIT_PROFILE_PREFIX)) {
+    ui.notify(`"${name}" collides with the profile picker labels; choose another name.`, "error");
+    return null;
+  }
+  return name;
 }
 
 async function editStages(

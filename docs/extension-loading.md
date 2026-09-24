@@ -119,7 +119,6 @@ buck-workflow-pi/
     index.ts                # Entry — default export wires everything marked (wired)
     tps-tracker.ts          # (wired) Token-per-second tracking
     omp-models.ts           # (wired, library) named buckModels profiles + stage resolution; legacy OMP role→model catalog
-PUT 129.>129:
     buck-models/            # (wired) /buck-models profile editor (create, edit, activate)
     interactive-model-switch.ts # (wired) stage-based model switch for mapped interactive Buck commands
     plan-artifact.ts        # (wired) opt-in plan-mode → .context/ bridge (turn_end hook)

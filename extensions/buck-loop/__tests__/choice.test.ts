@@ -97,6 +97,18 @@ function smolPrompt(call: unknown): string {
     ]);
   });
 
+  it("audits the rejected Jev attempt when fewer than two continuations are offered", async () => {
+    const cwd = repo();
+    runOmpModelSession.mockResolvedValue('{"choice":"save","reason":"only move"}');
+
+    await choose({ ...picked, cwd, subject, legal: [{ kind: "save" }] });
+
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(audits(cwd)).toContainEqual(
+      expect.objectContaining({ source: "jev", accepted: false, reason: expect.stringContaining("at least two") }),
+    );
+  });
+
   it("streams the Jev pick through the supplied sink", async () => {
     const onActivity = vi.fn();
     evaluate.mockResolvedValue(jevSave());
