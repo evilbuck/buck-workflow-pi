@@ -1,3 +1,4 @@
+- 2026-09-24 — [State-machine diagram + drawing-library research](state-machine-diagram-research-2026-09-24.md) — `completed` (Cytoscape+dagre winner; interactive diagram at docs/state-machine-diagram.html; research filed in Obsidian vault; docs-only, guardrails skipped)
 - 2026-09-24 — [Phase 3 loop runtime cutover save](buck-model-config-phase-3-save-2026-09-24.md) — `completed` (review pass; stage model cutover uncommitted; subject stays active for phases 4–6)
 - 2026-09-24 — [`/buck-loop` streaming-log drain plan](buck-loop-streaming-log-drain-plan-2026-09-24.md) — `completed` (versioned JSONL drain plan; start truncates, resume appends, status/stop untouched; live-boundary proof required)
 - 2026-09-24 — [Phase 2 TypeSafe model picker save](buck-model-config-phase-2-save-2026-09-24.md) — `completed` (review pass; picker uncommitted; subject stays active for phases 3–6)
