@@ -1,10 +1,10 @@
 ---
 title: "Phase 3: Loop Runtime Cutover"
-status: active
+status: completed
 priority: high
 created: 2026-09-23
-updated: 2026-09-23
-completed: null
+updated: 2026-09-24
+completed: 2026-09-24
 related:
   - .context/2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md
   - .context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config-phases.md
@@ -12,4 +12,4 @@ related:
 
 # Phase 3: Loop Runtime Cutover
 
-After Phase 2, move nested Buck sessions and closed-set choice to configured stage models and thinking levels. Use `/b-build-hard`.
+Nested Buck sessions and closed-set choice run the configured stage model and thinking level. Review passed 2026-09-24. Interactive commands and `/buck-models` remain later phases.

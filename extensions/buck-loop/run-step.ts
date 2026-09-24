@@ -24,23 +24,32 @@
  * - `enableMCP: false` / `enableLsp: false` — no extra plugins.
  * - `SessionManager.inMemory` — the child's transcript is not written to
  *   the operator's session history on disk.
- * - `modelPattern` from `mappingFromOmpRoles` — pick the operator's
- *   easy/medium/hard model by the phase's `difficulty:` frontmatter.
+ * - `modelPattern` and `thinkingLevel` come from the configured Buck stage
+ *   via the parent-side picker. Difficulty does not select a model.
  *
  * The child is told it has no authority to choose the next loop state.
  */
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAgentSession, SessionManager } from "@mariozechner/pi-coding-agent";
+import { AuthStorage, ModelRegistry, createAgentSession, SessionManager } from "@mariozechner/pi-coding-agent";
+import { createBuckModelPicker, type BuckModelPick, type BuckModelPickInput } from "../buck-models/picker.js";
+import { openHostModelRegistry } from "../code-review-iteration/model-registry.js";
 import {
   EmptyModelResponseError,
+  formatBuckStop,
+  globalOmpConfigPath,
   lastAssistantText,
-  mappingFromOmpRoles,
   normalizeActivityEvent,
   ompAgentDir,
+  parseBuckModels,
+  projectOmpConfigPath,
+  resolveBuckStage,
   type ActivityEvent,
-  type DifficultyTier,
+  type BuckModelsConfig,
+  type BuckStageKey,
+  type BuckThinking,
 } from "../omp-models.js";
 import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
 
@@ -54,6 +63,47 @@ export type NestedSkill =
   | "b-howto"
   | "b-save"
   | "b-commit";
+
+/** Nested skill → pinned stage group. `b-build-hard` shares `build`; it is not a model tier. */
+export const STAGE_BY_SKILL: Record<NestedSkill, BuckStageKey> = {
+  "b-build": "build",
+  "b-build-hard": "build",
+  "b-review": "review",
+  "b-iterate": "iterate",
+  "b-docs": "docs",
+  "b-howto": "docs",
+  "b-save": "save",
+  "b-commit": "commit",
+};
+
+export type BuckStageModelChoice =
+  | { ok: true; id: string; thinking: BuckThinking }
+  | { ok: false; message: string };
+
+export type BuckStageModelRequest = {
+  cwd: string;
+  stage: BuckStageKey;
+  skill: string;
+  context: unknown;
+  exclude?: readonly string[];
+};
+
+export type StageModelDeps = {
+  readConfigs?: (cwd: string) => { project: BuckModelsConfig | null; global: BuckModelsConfig | null };
+  availableIds?: () => Promise<ReadonlySet<string>>;
+  pick?: (input: BuckModelPickInput) => Promise<BuckModelPick>;
+};
+
+/** Picker input for one nested attempt. `difficulty` is context only. */
+export type WorkModelSelectInput = {
+  cwd: string;
+  stage: BuckStageKey;
+  skill: NestedSkill;
+  planOrPhasePath: string;
+  body: string;
+  difficulty?: string;
+  exclude: readonly string[];
+};
 
 /** Outcome of one nested session. `text` is the child's last assistant message. */
 export type RunStepResult = {
@@ -135,18 +185,18 @@ function assistantStopReason(messages: SessionHandle["messages"]): unknown {
 /**
  * Run one nested skill session and return whether it finished with text.
  *
- * @param opts.cwd - Project directory. The child inherits this as its workspace.
- * @param opts.skill - Which Buck skill to inject.
- * @param opts.planOrPhasePath - Exact plan or phase file the child must work on.
- * @param opts.difficulty - Selects the model via the operator's OMP role mapping.
- * @param opts.onActivity - Optional stream into the live progress widget.
+ * Model and thinking come from the stage picker. A failed host call excludes
+ * that id and picks again. Recovered assistant text is kept. Difficulty is
+ * picker context only.
  */
 export async function runStep(opts: {
   cwd: string;
   skill: NestedSkill;
   planOrPhasePath: string;
-  difficulty: DifficultyTier;
+  /** Present only when the plan or phase file has a `difficulty:` key. */
+  difficulty?: string;
   onActivity?: (event: ActivityEvent) => void;
+  select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
 }): Promise<RunStepResult> {
   let skillBody: string;
   try {
@@ -160,23 +210,144 @@ export async function runStep(opts: {
   }
 
   const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath);
-  const agent: CallAgent = {
-    kind: "work-session",
-    id: "buck-loop-work-" + randomUUID(),
-    role: opts.skill,
+  const stage = STAGE_BY_SKILL[opts.skill];
+  const body = planBody(opts.cwd, opts.planOrPhasePath);
+  const excluded: string[] = [];
+  let last: RunStepResult = {
+    ok: false,
+    text: `buckModels stage "${stage}" was not attempted`,
+    failure: {
+      prompt,
+      agent: { kind: "work-session", id: "buck-loop-work-unstarted", role: opts.skill },
+      error: serializeCallError({ name: "BuckModelStop", message: `buckModels stage "${stage}" was not attempted` }),
+    },
   };
+
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const picked = await (opts.select ?? defaultWorkSelect)({
+      cwd: opts.cwd,
+      stage,
+      skill: opts.skill,
+      planOrPhasePath: opts.planOrPhasePath,
+      body,
+      ...(opts.difficulty === undefined ? {} : { difficulty: opts.difficulty }),
+      exclude: [...excluded],
+    });
+    if (!picked.ok) return stopResult(prompt, opts.skill, stage, withLast(picked.message, last));
+    if (excluded.includes(picked.id)) {
+      return stopResult(prompt, opts.skill, stage, withLast(`buckModels stage "${stage}" repeated failed model "${picked.id}"`, last));
+    }
+    const agent: CallAgent = {
+      kind: "work-session",
+      id: "buck-loop-work-" + randomUUID(),
+      role: opts.skill,
+      model: picked.id,
+    };
+    const ran = await runOneSession(opts, prompt, agent, picked);
+    if (ran.retain) return ran.result;
+    excluded.push(picked.id);
+    last = ran.result;
+  }
+  return stopResult(prompt, opts.skill, stage, `buckModels stage "${stage}" exhausted model attempts; last: ${last.text}`);
+}
+
+function withLast(message: string, last: RunStepResult): string {
+  if (last.text.includes("was not attempted")) return message;
+  return `${message}; last session: ${last.text}`;
+}
+
+function stopResult(prompt: string, skill: NestedSkill, stage: BuckStageKey, message: string): RunStepResult {
+  const named = message.includes(`"${stage}"`) ? message : `${message} (stage "${stage}")`;
+  return {
+    ok: false,
+    text: named,
+    failure: {
+      prompt,
+      agent: { kind: "work-session", id: "buck-loop-work-stopped", role: skill },
+      error: serializeCallError({ name: "BuckModelStop", message: named }),
+    },
+  };
+}
+
+async function defaultWorkSelect(input: WorkModelSelectInput): Promise<BuckStageModelChoice> {
+  return selectBuckStageModel({
+    cwd: input.cwd,
+    stage: input.stage,
+    skill: input.skill,
+    context: {
+      planOrPhasePath: input.planOrPhasePath,
+      body: input.body,
+      ...(input.difficulty === undefined ? {} : { difficulty: input.difficulty }),
+    },
+    exclude: input.exclude,
+  });
+}
+
+export async function selectBuckStageModel(
+  request: BuckStageModelRequest,
+  deps: StageModelDeps = {},
+): Promise<BuckStageModelChoice> {
+  const configs = (deps.readConfigs ?? readBuckConfigs)(request.cwd);
+  const availableIds = await (deps.availableIds ?? currentAvailableIds)();
+  const resolution = resolveBuckStage({
+    project: configs.project,
+    global: configs.global,
+    stage: request.stage,
+    availableIds,
+  });
+  if (!resolution.ok) return { ok: false, message: nameStage(request.stage, formatBuckStop(resolution.stop)) };
+  const pick = await (deps.pick ?? ((input: BuckModelPickInput) => createBuckModelPicker().pick(input)))({
+    resolution,
+    skill: request.skill,
+    context: request.context,
+    exclude: request.exclude,
+  });
+  if (!pick.ok) return { ok: false, message: nameStage(request.stage, formatBuckStop(pick.stop)) };
+  return { ok: true, id: pick.id, thinking: pick.thinking };
+}
+
+function nameStage(stage: string, message: string): string {
+  return message.includes(`"${stage}"`) ? message : `${message} (stage "${stage}")`;
+}
+
+function readBuckConfigs(cwd: string): { project: BuckModelsConfig | null; global: BuckModelsConfig | null } {
+  const read = (path: string): BuckModelsConfig | null => {
+    if (!existsSync(path)) return null;
+    return parseBuckModels(readFileSync(path, "utf8"));
+  };
+  return { project: read(projectOmpConfigPath(cwd)), global: read(globalOmpConfigPath()) };
+}
+
+async function currentAvailableIds(): Promise<ReadonlySet<string>> {
+  const registry = await openHostModelRegistry(ModelRegistry, AuthStorage, ompAgentDir());
+  if (!registry) return new Set();
+  return new Set(registry.getAvailable().map((model) => `${model.provider}/${model.id}`));
+}
+
+function planBody(cwd: string, rel: string): string {
+  const abs = resolve(cwd, rel);
+  if (!existsSync(abs)) return "";
+  return readFileSync(abs, "utf8");
+}
+
+type SessionAttempt = { retain: boolean; result: RunStepResult };
+
+async function runOneSession(
+  opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void },
+  prompt: string,
+  agent: CallAgent,
+  picked: { id: string; thinking: BuckThinking },
+): Promise<SessionAttempt> {
   const fail = (error: unknown, text = errorText(error)): RunStepResult => ({
     ok: false,
     text,
     failure: { prompt, agent, error: serializeCallError(error) },
   });
-
   let session: SessionHandle | undefined;
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
   try {
-    const mapping = mappingFromOmpRoles(opts.cwd);
     const sessionOpts: Parameters<typeof createAgentSession>[0] & {
       agentDir?: string;
       modelPattern?: string;
@@ -189,7 +360,8 @@ export async function runStep(opts: {
     } = {
       cwd: opts.cwd,
       agentDir: ompAgentDir(),
-      thinkingLevel: "off",
+      modelPattern: picked.id,
+      thinkingLevel: picked.thinking as NonNullable<Parameters<typeof createAgentSession>[0]["thinkingLevel"]>,
       tools: toolsBySkill[opts.skill],
       toolNames: toolsBySkill[opts.skill],
       restrictToolNames: true,
@@ -199,18 +371,11 @@ export async function runStep(opts: {
       agentId: agent.id,
       sessionManager: SessionManager.inMemory(opts.cwd),
     };
-    const modelPattern = mapping?.[opts.difficulty];
-    if (modelPattern) {
-      sessionOpts.modelPattern = modelPattern;
-      agent.model = modelPattern;
-    }
-
-    // Host SDK: spawn a child coding agent in-process. Option reasons are in the file header.
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
     let timedOut = false;
     const resetIdleTimer = (): void => {
-      if (timer) clearTimeout(timer);
+      clearTimeout(timer);
       timer = setTimeout(() => {
         timedOut = true;
         void session?.abort();
@@ -222,7 +387,6 @@ export async function runStep(opts: {
       if (normalized) opts.onActivity?.(normalized);
     });
     resetIdleTimer();
-    // Blocks until the child finishes or the inactivity timer aborts it.
     await session.prompt(prompt);
     const text = lastAssistantText(session.messages);
     if (timedOut) {
@@ -241,19 +405,16 @@ export async function runStep(opts: {
     outcome = fail(error);
   } finally {
     unsubscribe?.();
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
 
   try {
     await session?.dispose?.();
   } catch (error) {
-    if (outcome.ok) return fail(error);
+    if (outcome.ok) return { retain: true, result: fail(error) };
     const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
-    prior.error.details = {
-      ...prior.error.details,
-      disposeError: serializeCallError(error),
-    };
+    prior.error.details = { ...prior.error.details, disposeError: serializeCallError(error) };
     outcome.failure = prior;
   }
-  return outcome;
+  return { retain: outcome.ok, result: outcome };
 }

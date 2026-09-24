@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>buck-loop State Machine</title>
+<script src="https://unpkg.com/cytoscape@3.34.3/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@4.0.1/dist/cytoscape-dagre.min.js"></script>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: rgba(15, 23, 42, 0.88);
+    --border: rgba(148, 163, 184, 0.25);
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, sans-serif; overflow: hidden; }
+  #cy { position: absolute; inset: 0; }
+
+  header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+    padding: 14px 20px; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(11,18,32,0.95), rgba(11,18,32,0));
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: 0.2px; }
+  header h1 code { font-family: ui-monospace, "JetBrains Mono", Menlo, monospace;
+    color: #818cf8; font-weight: 600; }
+  header .sub { font-size: 12px; color: var(--muted); }
+
+  .legend {
+    position: absolute; left: 20px; top: 56px; z-index: 10;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    font-size: 11.5px; color: var(--muted); user-select: none;
+  }
+  .legend .row { display: flex; align-items: center; gap: 8px; }
+  .chip { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid; }
+  .swatch { width: 22px; height: 0; border-top: 2px solid; }
+  .swatch.dashed { border-top-style: dashed; }
+  .swatch.thin { border-top-width: 1.5px; }
+
+  .controls {
+    position: absolute; top: 56px; right: 20px; z-index: 10;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .controls button {
+    width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--panel); color: var(--text); font-size: 17px; cursor: pointer;
+    backdrop-filter: blur(6px);
+  }
+  .controls button:hover { border-color: #818cf8; color: #a5b4fc; }
+
+  #info {
+    position: absolute; left: 20px; bottom: 20px; z-index: 10;
+    max-width: 420px; padding: 12px 16px;
+    border: 1px solid var(--border); border-radius: 12px;
+    background: var(--panel); backdrop-filter: blur(6px);
+    font-size: 13px; line-height: 1.5; display: none;
+  }
+  #info.show { display: block; }
+  #info .t { font-weight: 650; margin-bottom: 2px; }
+  #info .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; }
+  #info code { font-family: ui-monospace, Menlo, monospace; color: #a5b4fc; background: rgba(129,140,248,0.12);
+    padding: 0 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div id="cy"></div>
+
+<header>
+  <h1><code>/buck-loop</code> State Machine</h1>
+  <div class="sub">11 states · unattended buck-workflow runner · <code>extensions/buck-loop/machine.ts</code> · scroll = zoom · drag = pan · click = inspect</div>
+</header>
+
+<div class="legend" id="legend">
+  <div class="row"><span class="chip" style="border-color:#94a3b8;background:rgba(148,163,184,.15)"></span> entry / dispatch</div>
+  <div class="row"><span class="chip" style="border-color:#818cf8;background:rgba(129,140,248,.15)"></span> nested work session</div>
+  <div class="row"><span class="chip" style="border-color:#a78bfa;background:rgba(167,139,250,.15)"></span> rework (iterate)</div>
+  <div class="row"><span class="chip" style="border-color:#2dd4bf;background:rgba(45,212,191,.15)"></span> wrap-up (docs/save/commit)</div>
+  <div class="row"><span class="chip" style="border-color:#fbbf24;background:rgba(251,191,36,.15)"></span> halted — operator action</div>
+  <div class="row"><span class="chip" style="border-color:#34d399;background:rgba(52,211,153,.15)"></span> terminal</div>
+  <div class="row" style="margin-top:4px"><span class="swatch" style="border-color:#7dd3fc"></span> forward flow</div>
+  <div class="row"><span class="swatch dashed" style="border-color:#fbbf24"></span> cycle / back-edge</div>
+  <div class="row"><span class="swatch dashed" style="border-color:#34d399"></span> operator resume</div>
+  <div class="row"><span class="swatch thin" style="border-color:#64748b"></span> STOP → aborted (from any state)</div>
+</div>
+
+<div class="controls">
+  <button id="zin" title="Zoom in">+</button>
+  <button id="zout" title="Zoom out">−</button>
+  <button id="fit" title="Fit to view">⤢</button>
+</div>
+
+<div id="info"><div class="k" id="infoKind"></div><div class="t" id="infoTitle"></div><div id="infoBody"></div></div>
+
+<script>
+cytoscape.use(window.cytoscapeDagre);
+
+const C = {
+  entry: '#94a3b8', work: '#818cf8', rework: '#a78bfa', wrap: '#2dd4bf',
+  halt: '#fbbf24', done: '#34d399', stop: '#fb7185',
+  flow: '#7dd3fc', cycle: '#fbbf24', resume: '#34d399', stopLine: '#64748b',
+};
+
+// States: vocabulary from extensions/buck-loop/types.ts (LoopState)
+const nodes = [
+  { id: 'start', label: '', cat: 'start', desc: 'Run start: the operator invokes /buck-loop with a plan path.' },
+  { id: 'idle', label: 'idle', cat: 'entry', desc: 'Nothing saved; waiting for /buck-loop <path>.' },
+  { id: 'resolving', label: 'resolving', cat: 'entry', desc: 'A path is known; the scan looks up the plan/phase on disk and classifies it (missing / unphased / phased-incomplete / phased-complete).' },
+  { id: 'building', label: 'building', cat: 'work', desc: 'Nested coding session implements the current phase (b-build). One retry on failure.' },
+  { id: 'reviewing', label: 'reviewing', cat: 'work', desc: 'Nested session reviews the implementation (b-review). Priority tree: iterate artifact → docs impact → clean save; unparseable report defers to a closed model choice (iterate | document | save).' },
+  { id: 'iterating', label: 'iterating', cat: 'rework', desc: 'Nested session fixes in-plan review issues (b-iterate). Max 3 iterate cycles per phase.' },
+  { id: 'documenting', label: 'documenting', cat: 'wrap', desc: 'Nested session updates living docs (b-docs / b-howto) because review flagged documentation or how-to impact.' },
+  { id: 'saving', label: 'saving', cat: 'wrap', desc: 'Nested session writes session memory (b-save) to .context/memory.' },
+  { id: 'committing', label: 'committing', cat: 'wrap', desc: 'Nested session creates the git commit (b-commit). Then: next phase → building, or all phases complete → done.' },
+  { id: 'blocked', label: 'blocked', cat: 'halt', desc: 'Cannot continue safely (missing plan, limits exceeded, failed twice, scan defect). Waiting for the operator; USER_CONFIRMED resumes at resolving.' },
+  { id: 'done', label: 'done', cat: 'done', desc: 'Every phase completed; the run is finished. Terminal.' },
+  { id: 'aborted', label: 'aborted', cat: 'stop', desc: 'The operator typed /buck-loop --stop (from any state). Terminal.' },
+];
+
+// Edges: aggregate transition rules from extensions/buck-loop/machine.ts
+const edges = [
+  // entry
+  e('start', 'idle', '', 'flow', 'Machine initial pseudo-state.'),
+  e('idle', 'resolving', 'START', 'flow', 'start: operator supplied a path.'),
+  // resolving dispatch
+  e('resolving', 'building', 'plan found', 'flow', 'unphased or phased-incomplete plan with work allowed.'),
+  e('resolving', 'done', 'all phases complete', 'flow', 'phased-complete: nothing to do.'),
+  e('resolving', 'blocked', 'no plan / limits', 'halt', 'plan missing, or loop limit already reached.'),
+  // build → review
+  e('building', 'reviewing', 'session ok', 'flow', 'postcondition confirmed (or ambiguous + choice: advance); work landed, review it.'),
+  e('iterating', 'reviewing', 'session ok', 'flow', 'fixes landed; re-review the phase.'),
+  // rework cycle
+  e('reviewing', 'iterating', 'iterate issues', 'cycle', 'iterate-*.md artifact wins (max 3 cycles/phase), or unparseable report + choice: iterate.'),
+  e('reviewing', 'documenting', 'docs impact', 'flow', 'review flagged documentation / how-to impact, or choice: document.'),
+  e('reviewing', 'saving', 'clean review', 'flow', 'clean save; or unparseable report + choice: save.'),
+  // wrap-up chain
+  e('documenting', 'saving', 'docs done', 'flow', 'docs updated (confirmed or choice: advance); save session state.'),
+  e('saving', 'committing', 'memory saved', 'flow', 'session state written (confirmed or choice: advance); commit.'),
+  // the big loop
+  e('committing', 'building', 'next phase', 'cycle', 'commit confirmed and plan still phased-incomplete: build the next incomplete phase.'),
+  e('committing', 'done', 'all phases complete', 'flow', 'phased-complete (or unphased single cycle) after commit.'),
+  // recovery
+  e('blocked', 'resolving', 'USER_CONFIRMED', 'resume', 'operator reviewed the blocker and resumed the loop.'),
+  // retry self-loops
+  self('building', 'run / retry', 'No session yet, or failed once → run the skill again (1 retry ceiling).'),
+  self('iterating', 'run / retry', 'Same retry semantics while iterate cycles remain.'),
+  self('reviewing', 'choice', 'Ambiguous postconditions keep the state and ask the model: retry | advance (reviewing: iterate | document | save).'),
+  self('documenting', 'choice', 'Ambiguous postcondition → model choice retry | advance.'),
+  self('saving', 'choice', 'Ambiguous postcondition → model choice retry | advance.'),
+  self('committing', 'choice', 'Ambiguous postcondition → model choice retry | advance (advance target depends on plan facts).'),
+  // halts
+  e('building', 'blocked', 'fail ×2 / limits', 'halt', 'Second failure, or loop limit reached (loopCount ≥ maxLoops).'),
+  e('iterating', 'blocked', 'cycle limit', 'halt', 'iterate cycles exhausted on this phase, or loop limit.'),
+  e('reviewing', 'blocked', 'limits / no report', 'halt', 'Loop limit, unparseable report with limits exceeded, or missing report facts (scan defect).'),
+  e('documenting', 'blocked', 'limits', 'halt', 'Loop limit or missing postcondition.'),
+  e('saving', 'blocked', 'limits', 'halt', 'Loop limit or missing postcondition.'),
+  e('committing', 'blocked', 'limits / plan gone', 'halt', 'Loop limit with phases remaining, or plan vanished while committing.'),
+  // stop fan-in
+  ...['idle','resolving','building','iterating','reviewing','documenting','saving','committing','blocked']
+    .map(s => e(s, 'aborted', 'STOP', 'stop', `Operator typed /buck-loop --stop while ${s === 'idle' ? 'idle' : `in ${s}`}.`)),
+];
+
+function e(from, to, label, cls, desc) { return { from, to, label, cls, desc }; }
+function self(from, label, desc) { return { from, to: from, label, cls: 'retry', desc }; }
+
+const nodeStyle = (n) => {
+  const color = C[n.cat === 'start' ? 'done' : n.cat] || C.entry;
+  if (n.id === 'start') return { shape: 'ellipse', 'background-color': color, 'background-opacity': 1, 'border-width': 0, width: 14, height: 14, label: '' };
+  return {
+    shape: 'round-rectangle', 'corner-radius': 9,
+    'background-color': color, 'background-opacity': 0.13,
+    'border-width': 1.8, 'border-color': color,
+    width: 'label', height: 42, padding: '16px',
+    label: n.label, color: '#e2e8f0', 'font-size': 13.5, 'font-weight': 600,
+    'text-valign': 'center', 'text-halign': 'center',
+  };
+};
+
+const edgeColor = { flow: C.flow, cycle: C.cycle, halt: '#f59e0b', resume: C.resume, stop: C.stopLine, retry: '#8b9bb4', start: C.done };
+
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: [
+    ...nodes.map(n => ({ group: 'nodes', data: { ...n }, style: nodeStyle(n), selectable: n.id !== 'start' })),
+    ...edges.map(x => ({ group: 'edges', data: {
+      id: `${x.from}->${x.to}:${x.label || 'x'}`,
+      source: x.from, target: x.to, label: x.label, desc: x.desc,
+      color: edgeColor[x.cls],
+    }, classes: x.cls, selectable: true })),
+  ],
+  style: [
+    { selector: 'node', style: { 'font-family': 'ui-sans-serif, system-ui, sans-serif', 'text-wrap': 'wrap' } },
+    { selector: 'edge', style: {
+      width: 2, 'curve-style': 'bezier',
+      'line-color': 'data(color)', 'target-arrow-color': 'data(color)',
+      'target-arrow-shape': 'triangle', 'arrow-scale': 1.05,
+      label: 'data(label)', 'font-size': 10.5, 'font-family': 'ui-sans-serif, system-ui, sans-serif',
+      color: '#cbd5e1', 'text-rotation': 'autorotate',
+      'text-background-color': '#0b1220', 'text-background-opacity': 0.9,
+      'text-background-padding': '3px', 'text-background-shape': 'round-rectangle',
+      'line-style': 'solid',
+    }},
+    { selector: 'edge.cycle', style: { 'line-style': 'dashed', 'line-dash-pattern': [7, 5], width: 2.2 } },
+    { selector: 'edge.resume', style: { 'line-style': 'dashed', 'line-dash-pattern': [4, 4], width: 2.2 } },
+    { selector: 'edge.retry', style: { 'line-style': 'dotted', 'line-dash-pattern': [2, 3], width: 1.8 } },
+    { selector: 'edge.stop', style: { width: 1.5, 'target-arrow-shape': 'triangle-cross', 'arrow-scale': 0.85, color: '#64748b' } },
+    { selector: 'edge.start', style: { width: 2.5 } },
+    { selector: '.dim', style: { opacity: 0.12, 'text-opacity': 0.12 } },
+    { selector: '.hl', style: { 'border-width': 3, width: 2.8 } },
+  ],
+  layout: { name: 'dagre', rankDir: 'LR', nodeSep: 42, rankSep: 105, edgeSep: 12,
+    ranker: 'network-simplex', fit: true, padding: 70, animate: false },
+  wheelSensitivity: 0.25, minZoom: 0.2, maxZoom: 3,
+  autoungrabify: true, boxSelectionEnabled: false,
+  autounselectify: false,
+});
+
+// ---- interaction -----------------------------------------------------
+const info = document.getElementById('info');
+const infoKind = document.getElementById('infoKind');
+const infoTitle = document.getElementById('infoTitle');
+const infoBody = document.getElementById('infoBody');
+
+function showInfo(kind, title, bodyHtml) {
+  infoKind.textContent = kind; infoTitle.textContent = title; infoBody.innerHTML = bodyHtml;
+  info.classList.add('show');
+}
+function clearHighlight() {
+  cy.elements().removeClass('dim hl');
+}
+function highlight(el) {
+  clearHighlight();
+  const hood = el.closedNeighborhood();
+  cy.elements().not(hood).addClass('dim');
+  el.addClass('hl');
+}
+
+cy.on('tap', 'node', evt => {
+  const n = evt.target;
+  highlight(n);
+  const desc = n.data('desc') || '';
+  showInfo('state', n.data('label') || 'start', desc.replace(/(\/b-[\w-]+|\/buck-loop[^ ]*|USER_CONFIRMED|\.context\/[\w/]+|iterate-\*\.md)/g, '<code>$1</code>'));
+});
+cy.on('tap', 'edge', evt => {
+  const ed = evt.target;
+  highlight(ed);
+  showInfo('transition',
+    `${ed.source().data('label')} → ${ed.target().data('label')}`,
+    (ed.data('label') ? `<b>${ed.data('label')}</b> — ` : '') + (ed.data('desc') || ''));
+});
+cy.on('tap', evt => { if (evt.target === cy) { clearHighlight(); info.classList.remove('show'); } });
+cy.on('mouseover', 'node, edge', evt => { if (!cy.elements('.dim').nonempty()) document.body.style.cursor = 'pointer'; });
+cy.on('mouseout', () => { document.body.style.cursor = 'default'; });
+
+document.getElementById('zin').onclick = () => cy.zoom({ level: cy.zoom() * 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+document.getElementById('zout').onclick = () => cy.zoom({ level: cy.zoom() / 1.3, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } });
+document.getElementById('fit').onclick = () => cy.fit(undefined, 70);
+window.addEventListener('resize', () => cy.resize());
+</script>
+</body>
+</html>

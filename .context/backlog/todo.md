@@ -11,7 +11,7 @@
 ### Upcoming Phases
 
 
-- [ ] [Phase 3: Loop Runtime Cutover](items/phase-3-loop-runtime-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md)
+
 - [ ] [Phase 4: Interactive Command Cutover](items/phase-4-interactive-command-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md)
 - [ ] [Phase 5: `/buck-models` Command](items/phase-5-buck-models-command.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md)
 - [ ] [Phase 6: Model Profiles Documentation and Proof](items/phase-6-model-profiles-documentation-proof.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-6-documentation-and-end-to-end-proof.md)

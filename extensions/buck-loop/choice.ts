@@ -1,14 +1,17 @@
 /**
- * Closed-set choice: ask Jev for **one** legal continuation, then smol if Jev fails.
+ * Closed-set choice: ask Jev for **one** legal continuation, then the
+ * configured `choice` stage model if Jev fails.
  *
  * This is not a coding session. Neither caller can edit files or invent an
  * action. `block` is stripped before either call. Machine stops stay in
  * `machine.ts`; the model does not vote to halt.
  *
- * Jev is the registered `jev` tool (`extensions/jev-tool`). One tool call.
- * A tool error, throw, or answer outside the continuation set falls back to
- * `runOmpModelSession` on the `smol` role (then `default`). That session
- * still gets two attempts, then the loop blocks. Never default-advance.
+ * The choice-stage model is resolved before the continuation question.
+ * A missing profile, stage, or candidate blocks and names the stage.
+ * The tool-less fallback uses that picked id and thinking level. It does
+ * not resolve the `smol` role or the host model. A failed fallback call
+ * excludes that id before the next attempt. Illegal text is not a failed
+ * model call. Two attempts, then the loop blocks. Never default-advance.
  *
  * Every attempt writes `.context/<subject>/transition-audits/<id>.json`.
  */
@@ -16,10 +19,11 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { jevTool } from "../jev-tool/index.js";
-import { resolveOmpRole, runOmpModelSession, type ActivityEvent } from "../omp-models.js";
+import { runOmpModelSession, type ActivityEvent, type BuckThinking } from "../omp-models.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 import type { AcceptedChoice, Choice } from "./types.js";
 import { serializeCallError, type CallAgent, type CallFailureDetails } from "./call-failure.js";
+import { selectBuckStageModel, type BuckStageModelChoice } from "./run-step.js";
 
 /** Accepted legal choice, or blocked with an optional diagnostic failure. */
 export type ChooseResult =
@@ -31,7 +35,13 @@ type AttemptResult = {
   response: ParsedResponse | null;
   reason: string;
   failure?: CallFailureDetails;
+  modelFailed: boolean;
 };
+
+export type ChoiceModelSelect = (input: {
+  exclude: readonly string[];
+  context: { continuation: string | null };
+}) => Promise<BuckStageModelChoice>;
 type JevAttempt = {
   ok: boolean;
   choice?: string;
@@ -182,7 +192,7 @@ async function writeAudit(opts: {
   reason: string;
   context?: string;
   attempt: number;
-  source: "jev" | "smol";
+  source: "jev" | "profile";
 }): Promise<void> {
   const directory = join(opts.cwd, ".context", opts.subject, "transition-audits");
   await mkdir(directory, { recursive: true });
@@ -200,8 +210,9 @@ async function writeAudit(opts: {
 }
 
 /**
- * Ask Jev, then smol, to pick a continuation. `block` is never offered.
- * Two smol attempts after a Jev miss, then block. Never default-advance.
+ * Ask Jev, then the configured choice-stage model, to pick a continuation.
+ * `block` is never offered. Two profile attempts after a Jev miss, then
+ * block. Never default-advance.
  */
 export async function choose(opts: {
   cwd: string;
@@ -209,12 +220,17 @@ export async function choose(opts: {
   legal: readonly Choice[];
   context?: string;
   onActivity?: (event: ActivityEvent) => void;
+  selectModel?: ChoiceModelSelect;
 }): Promise<ChooseResult> {
   const offered = opts.legal.filter((choice) => choice.kind !== "block");
   if (offered.length === 0) {
     const reason = opts.legal.length > 0 ? "block is not a model choice." : "No legal choices were supplied.";
     return { status: "blocked", reason };
   }
+
+  const continuation = { continuation: opts.context ?? null };
+  const first = await resolveChoiceModel(opts, [], continuation);
+  if (!first.ok) return { status: "blocked", reason: first.message };
 
   const jev = await askJev(offered, opts.context, opts.onActivity);
   try {
@@ -245,11 +261,12 @@ export async function choose(opts: {
 
   const legalKinds = offered.map((choice) => choice.kind);
   const legalSet = new Set(legalKinds);
-  const model = resolveOmpRole(opts.cwd, "smol") ?? resolveOmpRole(opts.cwd, "default");
+  let current = first;
+  const excluded: string[] = [];
   let lastReason = jev.reason;
   let lastFailure: CallFailureDetails | undefined;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
-    const result = await attemptChoice({ ...opts, legal: offered }, legalSet, model, attempt, lastReason);
+    const result = await attemptChoice({ ...opts, legal: offered }, legalSet, current, attempt, lastReason);
     if (result.response) {
       return {
         status: "accepted",
@@ -258,14 +275,34 @@ export async function choose(opts: {
     }
     lastReason = result.reason;
     lastFailure = result.failure;
+    if (!result.modelFailed || attempt === 2) continue;
+    excluded.push(current.id);
+    const next = await resolveChoiceModel(opts, excluded, continuation);
+    if (!next.ok) return { status: "blocked", reason: next.message, ...(lastFailure ? { failure: lastFailure } : {}) };
+    current = next;
   }
   return { status: "blocked", reason: lastReason, ...(lastFailure ? { failure: lastFailure } : {}) };
+}
+
+async function resolveChoiceModel(
+  opts: { cwd: string; selectModel?: ChoiceModelSelect },
+  exclude: readonly string[],
+  context: { continuation: string | null },
+): Promise<BuckStageModelChoice> {
+  if (opts.selectModel) return opts.selectModel({ exclude, context });
+  return selectBuckStageModel({
+    cwd: opts.cwd,
+    stage: "choice",
+    skill: "choice",
+    context,
+    exclude,
+  });
 }
 
 async function attemptChoice(
   opts: { cwd: string; subject: string; legal: readonly Choice[]; context?: string; onActivity?: (event: ActivityEvent) => void },
   legalSet: ReadonlySet<string>,
-  model: string | undefined,
+  model: { id: string; thinking: BuckThinking },
   attempt: number,
   fallbackReason: string,
 ): Promise<AttemptResult> {
@@ -274,7 +311,7 @@ async function attemptChoice(
     kind: "choice-session",
     id: "buck-loop-choice-" + randomUUID(),
     role: "closed-set-choice",
-    ...(model ? { model } : {}),
+    model: model.id,
   };
   const called = await callChoiceModel(opts.cwd, prompt, agent, model, opts.onActivity);
   const response = parseChoice(called.raw, legalSet);
@@ -291,12 +328,12 @@ async function attemptChoice(
       accepted: response !== null,
       reason,
       attempt,
-      source: "smol",
+      source: "profile",
     });
   } catch (error) {
-    return { response: null, reason: `could not write choice audit: ${error instanceof Error ? error.message : String(error)}` };
+    return { response: null, reason: `could not write choice audit: ${error instanceof Error ? error.message : String(error)}`, modelFailed: false };
   }
-  return { response, reason, ...(failure ? { failure } : {}) };
+  return { response, reason, modelFailed: called.error !== undefined, ...(failure ? { failure } : {}) };
 }
 
 /**
@@ -308,7 +345,7 @@ async function callChoiceModel(
   cwd: string,
   prompt: string,
   agent: CallAgent,
-  model: string | undefined,
+  model: { id: string; thinking: BuckThinking },
   onActivity: ((event: ActivityEvent) => void) | undefined,
 ): Promise<{ raw: string; reason?: string; error?: unknown }> {
   try {
@@ -316,7 +353,8 @@ async function callChoiceModel(
       cwd,
       tools: [],
       prompt,
-      modelOverride: model,
+      modelOverride: model.id,
+      thinkingLevel: model.thinking,
       timeoutMs: 60_000,
       agentPrefix: "buck-loop-choice",
       agentId: agent.id,

@@ -34,7 +34,7 @@ import {
   writeProjection,
   type Projection,
 } from "./persist.js";
-import { parsePhaseDifficulty, phaseDifficultyToTier, type PhaseDifficulty } from "../omp-models.js";
+import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
@@ -458,11 +458,12 @@ async function runNestedSkill(
 ): Promise<RunStepResult> {
   try {
     if (skill === "commit") prepareCommitCheckpoint(cwd);
+    const difficulty = difficultyLabel(cwd, snapshot);
     return await deps.runStep({
       cwd,
       skill: nested,
       planOrPhasePath,
-      difficulty: phaseDifficultyToTier(difficultyOf(cwd, snapshot)),
+      ...(difficulty ? { difficulty } : {}),
       onActivity: deps.onActivity,
     });
   } catch (error) {
@@ -760,18 +761,23 @@ function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedS
   return howtoOnly ? "b-howto" : "b-docs";
 }
 
-/** Phase/plan `difficulty:` frontmatter, else `not-hard`. Selects nested skill and model tier. */
+/** Phase/plan `difficulty:` frontmatter, else `not-hard`. Selects the nested skill only. */
 function difficultyOf(cwd: string, snapshot: Snapshot): PhaseDifficulty {
-  const rel = snapshot.phasePath ?? snapshot.planPath;
-  if (!rel) return "not-hard";
-  return readDifficulty(resolve(cwd, rel));
+  return parsePhaseDifficulty(difficultyLabel(cwd, snapshot));
 }
 
-function readDifficulty(abs: string): PhaseDifficulty {
-  if (!abs || !existsSync(abs)) return parsePhaseDifficulty(undefined);
+/** Raw `difficulty:` value when the key is present. Absent keys are omitted from picker context. */
+function difficultyLabel(cwd: string, snapshot: Snapshot): string | undefined {
+  const rel = snapshot.phasePath ?? snapshot.planPath;
+  if (!rel) return undefined;
+  const abs = resolve(cwd, rel);
+  if (!existsSync(abs)) return undefined;
   const match = /^difficulty:\s*(.+)\s*$/m.exec(readFileSync(abs, "utf8"));
-  return parsePhaseDifficulty(match?.[1]);
+  const value = match?.[1]?.trim();
+  return value ? value : undefined;
 }
+
+
 
 function withTransition(snapshot: Snapshot, transition: Transition, at: string): Snapshot {
   const record: TransitionRecord = { from: snapshot.state, to: transition.to, at, why: transition.why };

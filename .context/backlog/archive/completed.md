@@ -1,3 +1,5 @@
+- [x] [Phase 3: Loop Runtime Cutover](2026-09/phase-3-loop-runtime-cutover.md) — done 2026-09-24 — nested work and closed-set choice use the stage picker; failed host calls re-pick; recovered text is kept; missing stage blocks by name. `.context/2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md`
+
 - [x] [Phase 2: TypeSafe Model Picker](2026-09/phase-2-typesafe-model-picker.md) — done 2026-09-24 — parent Jev/random picker; membership check; failed-id exclusion; named-stage exhaustion stop; review pass; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md`
 
 - [x] [Phase 1: Profile Config and Resolution](2026-09/phase-1-profile-config-and-resolution.md) — done 2026-09-23 — buckModels parse, project-then-global stage resolution, availability filter, lossless YAML write; modelRoles unchanged; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md`

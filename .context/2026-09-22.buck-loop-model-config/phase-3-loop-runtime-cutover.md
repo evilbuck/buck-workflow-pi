@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-buck-loop-model-config.md
@@ -13,14 +13,14 @@ from_plan_steps: [4]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Every nested Buck skill resolves its stage and runs the picker-selected modelPattern with that stage's thinking level."
-  - "[ ] Closed-set workflow choice uses the choice stage profile and no longer resolves the smol role or host model."
-  - "[ ] Missing profile/stage/candidates blocks the loop and names the stage."
-  - "[ ] A failed nested session is re-picked only after the host session call returns failed, and the failed id is absent from the next candidate set."
-  - "[ ] A host-recovered result is retained without re-picking; candidate exhaustion blocks."
-  - "[ ] difficulty hard still selects the b-build-hard prompt variant but never selects a model."
-completed_at: null
-completed_by: null
+  - "[x] Every nested Buck skill resolves its stage and runs the picker-selected modelPattern with that stage's thinking level."
+  - "[x] Closed-set workflow choice uses the choice stage profile and no longer resolves the smol role or host model."
+  - "[x] Missing profile/stage/candidates blocks the loop and names the stage."
+  - "[x] A failed nested session is re-picked only after the host session call returns failed, and the failed id is absent from the next candidate set."
+  - "[x] A host-recovered result is retained without re-picking; candidate exhaustion blocks."
+  - "[x] difficulty hard still selects the b-build-hard prompt variant but never selects a model."
+completed_at: 2026-09-24
+completed_by: b-build-hard
 ---
 
 # Phase 3: Loop Runtime Cutover
