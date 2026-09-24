@@ -231,7 +231,8 @@ export type BuckResolveStop =
   | { code: "missing-active"; name: string }
   | { code: "unknown-profile"; name: string }
   | { code: "missing-stage"; profile: string; stage: string }
-  | { code: "no-candidates"; profile: string; stage: string; excluded: string[] };
+  | { code: "no-candidates"; profile: string; stage: string; excluded: string[] }
+  | { code: "invalid-config"; path: string };
 
 type ActiveNameResult =
   | { ok: true; name: string }
@@ -314,6 +315,15 @@ function parseProfile(value: unknown): BuckProfile {
   }
   return { stages };
 }
+function buildBuckModelsConfig(root: unknown): BuckModelsConfig {
+  const buck = asRecord(asRecord(root)?.buckModels);
+  if (!buck) return { active: "", profiles: {} };
+  const profiles: Record<string, BuckProfile> = {};
+  for (const [name, value] of Object.entries(asRecord(buck.profiles) ?? {})) {
+    profiles[name] = parseProfile(value);
+  }
+  return { active: typeof buck.active === "string" ? buck.active : "", profiles };
+}
 
 /** Parse `buckModels` only. Invalid YAML and a missing key are an empty config. */
 export function parseBuckModels(text: string): BuckModelsConfig {
@@ -323,13 +333,21 @@ export function parseBuckModels(text: string): BuckModelsConfig {
   } catch {
     return { active: "", profiles: {} };
   }
-  const buck = asRecord(asRecord(root)?.buckModels);
-  if (!buck) return { active: "", profiles: {} };
-  const profiles: Record<string, BuckProfile> = {};
-  for (const [name, value] of Object.entries(asRecord(buck.profiles) ?? {})) {
-    profiles[name] = parseProfile(value);
+  return buildBuckModelsConfig(root);
+}
+
+/**
+ * Read one `buckModels` file. A missing file is null config; malformed YAML
+ * records its path instead of silently falling through to another profile.
+ */
+export function readBuckModelsFile(path: string): { config: BuckModelsConfig | null; invalidPath: string | null } {
+  if (!existsSync(path)) return { config: null, invalidPath: null };
+  const text = readFileSync(path, "utf8");
+  try {
+    return { config: buildBuckModelsConfig(parse(text)), invalidPath: null };
+  } catch {
+    return { config: null, invalidPath: path };
   }
-  return { active: typeof buck.active === "string" ? buck.active : "", profiles };
 }
 
 export function formatBuckStop(stop: BuckResolveStop): string {
@@ -342,6 +360,8 @@ export function formatBuckStop(stop: BuckResolveStop): string {
       return `buckModels profile "${stop.profile}" is missing stage "${stop.stage}"`;
     case "no-candidates":
       return `buckModels stage "${stop.stage}" has no available models; excluded: ${stop.excluded.join(", ")}`;
+    case "invalid-config":
+      return `buckModels config at "${stop.path}" is not valid YAML; fix it or move it aside`;
   }
 }
 
@@ -425,7 +445,10 @@ export function resolveBuckStage(opts: {
   global: BuckModelsConfig | null;
   stage: string;
   availableIds: ReadonlySet<string>;
+  invalidConfigPaths?: readonly string[];
 }): BuckStageResolution {
+  const invalid = opts.invalidConfigPaths?.find((path) => path.length > 0);
+  if (invalid) return { ok: false, stop: { code: "invalid-config", path: invalid } };
   const active = resolveActiveName(opts.project, opts.global);
   if (!active.ok) return active;
   if (!isBuckStageKey(opts.stage)) {

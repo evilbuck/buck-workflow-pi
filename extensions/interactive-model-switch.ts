@@ -11,10 +11,9 @@ import {
   contentToText,
   formatBuckStop,
   globalOmpConfigPath,
-  parseBuckModels,
+  readBuckModelsFile,
   projectOmpConfigPath,
   resolveBuckStage,
-  type BuckModelsConfig,
   type BuckStageKey,
   type BuckThinking,
 } from "./omp-models.js";
@@ -46,7 +45,7 @@ export const INTERACTIVE_STAGE_BY_SKILL: Readonly<Record<string, BuckStageKey>> 
 };
 
 const ARTIFACT_NAME = /^(index|tasks|brainstorm-.+|research-.+|plan-.+|spec-.+|phase-.+|iterate-.+)\.md$/;
-const SKILL_PREFIX = /^\/(b-[\w-]+)(\s|$)/;
+const SKILL_PREFIX = /^\/(?:skill:)?(b-[\w-]+)(\s|$)/;
 const AUTO_SWITCH_GRACE_MS = 100;
 
 export interface ConversationMessage {
@@ -113,11 +112,17 @@ export function resolveSubjectArtifacts(cwd: string): string[] {
 }
 
 export async function selectInteractiveModel(request: InteractiveSelectRequest): Promise<InteractiveSelectResult> {
+  const project = readBuckModelsFile(projectOmpConfigPath(request.cwd));
+  const global = readBuckModelsFile(globalOmpConfigPath());
+  const invalidConfigPaths = [project.invalidPath, global.invalidPath].filter(
+    (path): path is string => path !== null,
+  );
   const resolution = resolveBuckStage({
-    project: readBuckConfig(projectOmpConfigPath(request.cwd)),
-    global: readBuckConfig(globalOmpConfigPath()),
+    project: project.config,
+    global: global.config,
     stage: request.stage,
     availableIds: request.availableIds,
+    invalidConfigPaths,
   });
   if (!resolution.ok) return { ok: false, message: formatBuckStop(resolution.stop) };
   const pick = await createBuckModelPicker().pick(pickerInput(request, resolution));
@@ -154,7 +159,7 @@ export function wireInteractiveModelSwitch(pi: ExtensionAPI, deps: InteractiveSw
       select,
       now,
       markApplied: (saved) => {
-        original = saved;
+        if (!switched) original = saved;
         switched = true;
         userOverrode = false;
       },
@@ -216,11 +221,6 @@ async function handleMappedInput(input: MappedInput): Promise<{ action: "continu
     input.host.ui?.notify(refusal(error instanceof Error ? error.message : String(error)), "error");
     return { action: "handled" };
   }
-}
-
-function readBuckConfig(path: string): BuckModelsConfig | null {
-  if (!existsSync(path)) return null;
-  return parseBuckModels(readFileSync(path, "utf8"));
 }
 
 function pickerInput(request: InteractiveSelectRequest, resolution: ResolvedBuckStage): BuckModelPickInput {

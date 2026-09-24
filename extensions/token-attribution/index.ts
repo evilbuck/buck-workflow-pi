@@ -195,7 +195,7 @@ export async function scanSessionArtifacts(
       const size = (await handle.stat()).size;
       if (size < cursor.offset) cursor = { offset: 0, remainder: Buffer.alloc(0) };
       const appendedByteCount = size - cursor.offset;
-      if (appendedByteCount === 0) {
+      if (appendedByteCount === 0 && cursor.remainder.length === 0) {
         cursors.set(file, cursor);
         continue;
       }
@@ -209,13 +209,24 @@ export async function scanSessionArtifacts(
       for (let index = 0; index < content.length; index += 1) {
         if (content[index] !== 0x0a) continue;
         const line = content.toString("utf8", lineStart, index).trim();
+        const currentLineStart = lineStart;
         lineStart = index + 1;
         if (!line) continue;
+        let delivery: ExtractedUsageRecord | null;
         try {
-          const delivery = extractUsageDelivery(JSON.parse(line), file, sessionId, identity);
-          if (delivery && ledger.insertReconciled(delivery.record, delivery.fallbackEntryKey)) inserted += 1;
+          delivery = extractUsageDelivery(JSON.parse(line), file, sessionId, identity);
         } catch {
           // Unrelated malformed JSONL must not break attribution for the turn.
+          continue;
+        }
+        if (!delivery) continue;
+        try {
+          if (ledger.insertReconciled(delivery.record, delivery.fallbackEntryKey)) inserted += 1;
+        } catch (error) {
+          // Keep the failed line so the next scan retries it.
+          cursor.remainder = Buffer.from(content.subarray(currentLineStart));
+          cursors.set(file, cursor);
+          throw error;
         }
       }
       cursor.remainder = Buffer.from(content.subarray(lineStart));

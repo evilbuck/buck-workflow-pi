@@ -22,6 +22,7 @@ import {
   parseModelRoles,
   parsePhaseDifficulty,
   phaseDifficultyToTier,
+  readBuckModelsFile,
   readOmpModelRoles,
   resolveBuckStage,
   resolveOmpRole,
@@ -490,5 +491,32 @@ describe("buckModels resolution", () => {
       if (previous === undefined) delete process.env.OMP_AGENT_DIR;
       else process.env.OMP_AGENT_DIR = previous;
     }
+  });
+});
+
+describe("buckModels invalid config", () => {
+  it("refuses resolution when a config file is not valid YAML", () => {
+    const dir = tmp();
+    const path = join(dir, ".omp", "config.yml");
+    mkdirSync(join(dir, ".omp"), { recursive: true });
+    writeFileSync(path, "buckModels: [unclosed\n  active: work\n");
+    const file = readBuckModelsFile(path);
+    expect(file.invalidPath).toBe(path);
+    const resolved = resolveBuckStage({
+      project: file.config,
+      global: { active: "work", profiles: {} },
+      stage: "build",
+      availableIds: new Set(["provider/a"]),
+      invalidConfigPaths: file.invalidPath ? [file.invalidPath] : [],
+    });
+    expect(resolved).toEqual({ ok: false, stop: { code: "invalid-config", path } });
+    expect(formatBuckStop({ code: "invalid-config", path })).toContain(path);
+  });
+
+  it("reads a missing file as null without an invalid path", () => {
+    expect(readBuckModelsFile(join(tmp(), ".omp", "config.yml"))).toEqual({
+      config: null,
+      invalidPath: null,
+    });
   });
 });

@@ -33,7 +33,7 @@ function fakeApi() {
       list.push(handler);
       handlers.set(event, list);
     }),
-    setModel: vi.fn(async () => true),
+    setModel: vi.fn(async (_model: unknown) => true),
     getThinkingLevel: vi.fn(() => "low"),
     setThinkingLevel: vi.fn(),
   };
@@ -143,6 +143,40 @@ describe("interactive host adapter", () => {
     expect(setModel).toHaveBeenCalledTimes(2);
     expect(setModel).toHaveBeenLastCalledWith({ provider: "provider", id: "previous" });
     expect(setThinkingLevel).toHaveBeenLastCalledWith("low");
+  });
+
+  it("routes /skill:-prefixed commands to the same stage", async () => {
+    const seen: InteractiveSelectRequest[] = [];
+    const { api, handlers, setModel } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async (request) => {
+        seen.push(request);
+        return { ok: true, id: "provider/picked", thinking: "high" };
+      },
+    });
+    const ctx = host(tempDir());
+    await emit(handlers, "session_start", {}, ctx);
+    const input = await emit(handlers, "input", { text: "/skill:b-phase split the plan" }, ctx);
+    expect(input).toEqual({ action: "continue" });
+    expect(seen[0]).toMatchObject({ skill: "b-phase", stage: "phase" });
+    expect(setModel).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the first snapshot across two mapped commands before agent_end", async () => {
+    const { api, handlers, setModel } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async () => ({ ok: true, id: "provider/picked", thinking: "high" }),
+    });
+    const ctx = host(tempDir());
+    setModel.mockImplementation(async (model) => {
+      ctx.model = model as typeof ctx.model;
+      return true;
+    });
+    await emit(handlers, "session_start", {}, ctx);
+    await emit(handlers, "input", { text: "/b-build" }, ctx);
+    await emit(handlers, "input", { text: "/b-review" }, ctx);
+    await emit(handlers, "agent_end", {}, ctx);
+    expect(setModel).toHaveBeenLastCalledWith({ provider: "provider", id: "previous" });
   });
 
   it("refuses a missing stage before the command continues and does not switch", async () => {

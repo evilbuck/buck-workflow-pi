@@ -43,8 +43,8 @@ import {
   lastAssistantText,
   normalizeActivityEvent,
   ompAgentDir,
-  parseBuckModels,
   projectOmpConfigPath,
+  readBuckModelsFile,
   resolveBuckStage,
   type ActivityEvent,
   type BuckModelsConfig,
@@ -89,7 +89,11 @@ export type BuckStageModelRequest = {
 };
 
 export type StageModelDeps = {
-  readConfigs?: (cwd: string) => { project: BuckModelsConfig | null; global: BuckModelsConfig | null };
+  readConfigs?: (cwd: string) => {
+    project: BuckModelsConfig | null;
+    global: BuckModelsConfig | null;
+    invalidConfigPaths?: readonly string[];
+  };
   availableIds?: () => Promise<ReadonlySet<string>>;
   pick?: (input: BuckModelPickInput) => Promise<BuckModelPick>;
 };
@@ -294,6 +298,7 @@ export async function selectBuckStageModel(
     global: configs.global,
     stage: request.stage,
     availableIds,
+    invalidConfigPaths: configs.invalidConfigPaths,
   });
   if (!resolution.ok) return { ok: false, message: nameStage(request.stage, formatBuckStop(resolution.stop)) };
   const pick = await (deps.pick ?? ((input: BuckModelPickInput) => createBuckModelPicker().pick(input)))({
@@ -310,12 +315,17 @@ function nameStage(stage: string, message: string): string {
   return message.includes(`"${stage}"`) ? message : `${message} (stage "${stage}")`;
 }
 
-function readBuckConfigs(cwd: string): { project: BuckModelsConfig | null; global: BuckModelsConfig | null } {
-  const read = (path: string): BuckModelsConfig | null => {
-    if (!existsSync(path)) return null;
-    return parseBuckModels(readFileSync(path, "utf8"));
-  };
-  return { project: read(projectOmpConfigPath(cwd)), global: read(globalOmpConfigPath()) };
+function readBuckConfigs(cwd: string): {
+  project: BuckModelsConfig | null;
+  global: BuckModelsConfig | null;
+  invalidConfigPaths: string[];
+} {
+  const project = readBuckModelsFile(projectOmpConfigPath(cwd));
+  const global = readBuckModelsFile(globalOmpConfigPath());
+  const invalidConfigPaths = [project.invalidPath, global.invalidPath].filter(
+    (path): path is string => path !== null,
+  );
+  return { project: project.config, global: global.config, invalidConfigPaths };
 }
 
 async function currentAvailableIds(): Promise<ReadonlySet<string>> {

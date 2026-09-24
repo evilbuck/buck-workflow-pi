@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveGitIdentity, type GitRunner } from "../git-identity.js";
+import { redactRemoteCredentials, resolveGitIdentity, type GitRunner } from "../git-identity.js";
 
 function runner(outputs: Record<string, string | Error>): GitRunner {
   return async (args) => {
@@ -63,5 +63,23 @@ describe("resolveGitIdentity", () => {
 
     expect(identity.branch).toBe("detached/abc1234");
     expect(identity.detached).toBe(true);
+  });
+});
+
+describe("redactRemoteCredentials", () => {
+  it("strips embedded credentials from URL-form remotes", async () => {
+    const identity = await resolveGitIdentity("/repo/worktree", runner({
+      "rev-parse --show-toplevel": "/repo/worktree\n",
+      "rev-parse --git-common-dir": "/repo/main/.git\n",
+      "remote get-url origin": "https://user:ghp_secret@github.com/org/repo.git\n",
+      "rev-parse --abbrev-ref HEAD": "main\n",
+    }));
+    expect(identity.projectKey).toBe("https://github.com/org/repo.git");
+    expect(identity.projectKey).not.toContain("ghp_secret");
+  });
+
+  it("leaves credential-free URLs and scp-style remotes unchanged", () => {
+    expect(redactRemoteCredentials("https://github.com/org/repo.git")).toBe("https://github.com/org/repo.git");
+    expect(redactRemoteCredentials("git@github.com:org/repo.git")).toBe("git@github.com:org/repo.git");
   });
 });

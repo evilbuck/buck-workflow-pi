@@ -118,7 +118,10 @@ buck-workflow-pi/
   extensions/
     index.ts                # Entry — default export wires everything marked (wired)
     tps-tracker.ts          # (wired) Token-per-second tracking
-    omp-models.ts           # (wired, library) OMP role→model catalog + mappingFromOmpRoles
+    omp-models.ts           # (wired, library) named buckModels profiles + stage resolution; legacy OMP role→model catalog
+PUT 129.>129:
+    buck-models/            # (wired) /buck-models profile editor (create, edit, activate)
+    interactive-model-switch.ts # (wired) stage-based model switch for mapped interactive Buck commands
     plan-artifact.ts        # (wired) opt-in plan-mode → .context/ bridge (turn_end hook)
     extension-activity.ts   # (wired, library) shared live-activity progress helper
     subprocess.ts           # (library) shared subprocess helpers
@@ -155,7 +158,7 @@ buck-workflow-pi/
 
 `extensions/index.ts` is the single manifest entry; its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads OMP `modelRoles` through `extensions/omp-models.ts`, with legacy Pi `buckModelMapping` as fallback; inspects active phase difficulty and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`; then restores the original model on `agent_end`. If neither mapping exists, it shows configuration guidance rather than a picker.
+1. **Named Buck model routing** (`interactive-model-switch.ts`, `omp-models.ts`) — resolves the active `buckModels` profile stage for mapped interactive Buck commands and `/buck-loop` nested calls, picks an available configured id via Jev (uniform random on no answer), applies the stage thinking level, restores on `agent_end`, and refuses instead of using the host model. `/buck-models` (`buck-models/`) edits the profiles.
 2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
 3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
 4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.

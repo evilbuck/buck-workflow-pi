@@ -60,7 +60,7 @@ export async function resolveGitIdentity(
     const commonDirRaw = await value(runner, ["rev-parse", "--git-common-dir"], cwd);
     let projectKey: string;
     try {
-      projectKey = await value(runner, ["remote", "get-url", "origin"], cwd);
+      projectKey = redactRemoteCredentials(await value(runner, ["remote", "get-url", "origin"], cwd));
     } catch {
       projectKey = isAbsolute(commonDirRaw)
         ? commonDirRaw
@@ -76,4 +76,21 @@ export async function resolveGitIdentity(
   } catch {
     return { projectKey: cwd, branch: null, worktreeRoot: cwd, detached: false };
   }
+}
+
+/**
+ * Strip embedded credentials from URL-form remotes before persistence.
+ * scp-style `git@host:path` remotes are not URLs and pass through unchanged.
+ */
+export function redactRemoteCredentials(remote: string): string {
+  let url: URL;
+  try {
+    url = new URL(remote);
+  } catch {
+    return remote;
+  }
+  if (!url.username && !url.password) return remote;
+  url.username = "";
+  url.password = "";
+  return url.toString();
 }

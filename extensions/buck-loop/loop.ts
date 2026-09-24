@@ -556,7 +556,7 @@ async function refuseDirtyWorkspace(
   const dirty = nonContextStatus(cwd);
   if (dirty.length === 0) return null;
   if (mode === "resume" && projection && permitsBlockedStagedResume(projection, dirty)) return null;
-  if (await deps.confirmDirty(dirty)) return null;
+  if (dirty.every(isStagedOnly) && (await deps.confirmDirty(dirty))) return null;
   return { state: "blocked", reason: "working tree is dirty; operator did not continue" };
 }
 

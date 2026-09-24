@@ -99,4 +99,26 @@ describe("token attribution ingestion", () => {
     expect(insert).toHaveBeenCalledTimes(2);
     ledger.close();
   });
+
+  it("retries a delivery after a database failure instead of skipping it", async () => {
+    const root = mkdtempSync(join(tmpdir(), "token-ingest-retry-"));
+    roots.push(root);
+    const sessionFile = join(root, "parent.jsonl");
+    writeFileSync(sessionFile, "");
+    const artifacts = join(root, basename(sessionFile, ".jsonl"));
+    mkdirSync(artifacts);
+    const child = join(artifacts, "child.jsonl");
+    writeFileSync(child, `${JSON.stringify({ type: "message", id: "nested-retry", message: assistant() })}\n`);
+    const ledger = new AttributionDatabase(join(root, "stats.db"));
+    const insert = vi.spyOn(ledger, "insertReconciled").mockImplementationOnce(() => {
+      throw new Error("SQLITE_BUSY");
+    });
+    const cursors = new Map();
+
+    expect(await scanSessionArtifacts(ledger, sessionFile, identity, cursors)).toBe(0);
+    expect(insert).toHaveBeenCalledTimes(1);
+    expect(await scanSessionArtifacts(ledger, sessionFile, identity, cursors)).toBe(1);
+    expect(insert).toHaveBeenCalledTimes(2);
+    ledger.close();
+  });
 });
