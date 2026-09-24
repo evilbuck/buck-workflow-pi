@@ -1,0 +1,198 @@
+// A second, dark design language for single-file presentation/facilitation decks —
+// sits alongside `skills/_shared/design-brief.jsonc` (the warm-paper light brief),
+// not inside it. `design-brief.jsonc` stays the sole brief wired into
+// `scripts/render-design-tokens.ts` / `scripts/design-language.test.ts` and their
+// two consumer templates (b-blueprint, b-present); this file is NOT spliced by
+// that pipeline yet (see `ambiguities` below) and NOT a replacement for it.
+//
+// Use `design-brief.jsonc` (warm-paper) for briefing packages, blueprints, reports,
+// guides — anything printable/linkable that several people read async.
+// Use this file (blueprint) for a single-file, screen-first, slide-style deck
+// meant to drive a live facilitation conversation — the deck IS the artifact,
+// there is no accompanying package shell.
+{
+  "name": "buck-html-deliverables-blueprint",
+  "version": 1,
+
+  "source": {
+    "summary": "Extracted from presentations/ai-factory-planning-deck.html, generated 2026-09-23 in the Employ/AI-Factory repo for a 12-sheet facilitation deck driving a live planning conversation from docs/project-planning/presentation-flow.md.",
+    "reference_pages": [
+      "(external repo) Employ/AI-Factory: presentations/ai-factory-planning-deck.html — reference implementation of this language; not vendored into buck-workflow-pi"
+    ],
+    "consumers": [],
+    "character": "Architectural blueprint, not app chrome or a slide-template library. A deep navy field ruled with a two-scale drafting grid, corner crop marks, and a fixed drawing title block; one warm brass accent for direction and emphasis, a small classification palette (cyan/teal/lavender) for facilitation tags, and a rotated hand-stamp motif — redline for 'still open', brass for 'resolved' — standing in for a drafter's pencil marginalia. One slide fills the viewport at a time; the deck is read live on a single lit screen, not printed or scrolled."
+  },
+
+  "token_groups": [
+    {
+      "group": "surface",
+      "note": "observed — three navy depths plus a fixed dark-blend title-block tone",
+      "tokens": {
+        "--navy-deepest": "#061626",
+        "--navy": "#0b2340",
+        "--navy-panel": "#0f2f52",
+        "--navy-panel-2": "#123762"
+      }
+    },
+    {
+      "group": "ink",
+      "note": "observed — bright linework doubles as emphasis text; ink-soft carries labels and body copy on navy",
+      "tokens": {
+        "--white": "#f6fbff",
+        "--line": "#bcd9f5",
+        "--ink-soft": "#9db6d1",
+        "--vellum": "#f0e9d8"
+      }
+    },
+    {
+      "group": "rule",
+      "note": "observed — two grid/border opacities over the base navy, used for both the drafting-grid background and every hairline border",
+      "tokens": {
+        "--line-dim": "rgba(188,217,245,.16)",
+        "--line-dim2": "rgba(188,217,245,.08)"
+      }
+    },
+    {
+      "group": "accent",
+      "note": "observed — brass is the single carrying accent: kicker numerals, the Discuss glyph, numbered-list badges, arrows, the affirmative 'leave with' stamp",
+      "tokens": {
+        "--brass": "#d7a94e"
+      }
+    },
+    {
+      "group": "classify",
+      "note": "observed — facilitation-tag palette; each colour is a spoken classification word, never decoration (mirrors the accessibility rule in design-brief.jsonc: colour never carries meaning alone)",
+      "tokens": {
+        "--cyan": "#6fc7ff",
+        "--teal": "#72e0c6",
+        "--lavender": "#c3aef0"
+      }
+    },
+    {
+      "group": "stamp",
+      "note": "observed primary; --redline-dim is inferred (declared in the reference implementation, not yet exercised) as a muted variant for an inline redline mention outside the stamp component",
+      "tokens": {
+        "--redline": "#e0644a",
+        "--redline-dim": "rgba(224,100,74,.55)"
+      }
+    },
+    {
+      "group": "form",
+      "note": "observed — one slide padding, one title-block height, one crop-mark size, one click-zone width",
+      "tokens": {
+        "--slide-pad": "64px 88px 108px",
+        "--titleblock-h": "70px",
+        "--crop-size": "26px",
+        "--clickzone-w": "34%"
+      }
+    },
+    {
+      "group": "type",
+      "note": "observed — a characterful serif display paired with one mono family used for every label, kicker, tag and metadata string; unlike design-brief.jsonc this theme loads two webfonts (Google Fonts) rather than staying system-stack-only",
+      "tokens": {
+        "--serif": "'Fraunces', Georgia, 'Times New Roman', serif",
+        "--mono": "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+        "--sans": "'IBM Plex Sans', -apple-system, 'Segoe UI', sans-serif"
+      }
+    }
+  ],
+
+  "typography": {
+    "base": "body sets --sans; slide/cover headlines set --serif; every label, kicker, tag, source line and title-block cell sets --mono",
+    "heading_tracking": "h1.title: -.01em letter-spacing, line-height 1.08, max-width 16ch; cover h1 goes tighter (-.02em, line-height .96) at a much larger clamp",
+    "scale": {
+      "h1_title": "clamp(30px,3.6vw,50px), weight 500, max-width 16ch",
+      "cover_h1": "clamp(52px,8vw,104px), weight 500, line-height .96",
+      "cover_sub": "22px, italic serif",
+      "onslide_li": "19px/1.5, max-width 46ch",
+      "panel_body": "15.5px/1.55",
+      "kicker": "12.5px mono, .16em tracking, uppercase",
+      "tag": "11px mono, .14em tracking",
+      "source_line": "11.5px mono, 70% opacity"
+    },
+    "weights": "400 body, 500 display headlines, 600 kicker numerals — no bold (700) anywhere in the reference implementation",
+    "webfonts": "Fraunces (variable, opsz 9..144) + IBM Plex Mono + IBM Plex Sans via fonts.googleapis.com; this is a deliberate departure from design-brief.jsonc's system-stack-only rule because the deck is a single, occasionally-presented artifact rather than an offline-guaranteed package"
+  },
+
+  "layout": {
+    "shell": ".deck { position:relative; width:100vw; height:100vh } — one <section class=\"slide\"> per sheet, `display:none` except `.active` (`display:flex; flex-direction:column`)",
+    "slide_padding": "padding: var(--slide-pad) — the 108px bottom reserves room for the fixed title block plus breathing room above it",
+    "body_grid": ".body-grid { display:grid; grid-template-columns:1.15fr .85fr; gap:56px; flex:1; min-height:0 } — main content column (bullets/numbered/chips/flowchain) beside a narrower right rail (Discuss panel, stamp, source line)",
+    "rail": ".rail { display:flex; flex-direction:column; gap:22px } — source-line uses margin-top:auto to pin to the rail's bottom regardless of panel/stamp height",
+    "titleblock": "position:fixed bottom bar, height var(--titleblock-h), flex row of bordered cells (Project / Drawing=current kicker / Rev / progress dots / keyboard hint / Sheet N-of-M), background --navy-panel",
+    "crop_marks": "four 26px absolutely-positioned L-shaped ticks per slide (tl/tr/bl/br) in --line-dim, mirrored with transform:scale — an architectural-drawing convention, purely decorative, pointer-events:none",
+    "click_zones": "two fixed 34%-width invisible zones (left/right) for prev/next click navigation, inset between the viewport top and the title block",
+    "shrink_rule": "same discipline as design-brief.jsonc: any grid/flex child that can scroll internally needs min-width:0 or it pushes the slide wide instead of scrolling"
+  },
+
+  "components": {
+    "kicker_row": "Per-slide eyebrow: brass slide number, a 40px --line-dim rule, the mono uppercase kicker word (one of the flow's ten stage names), a second short rule, then the classification `.tag`.",
+    "tag": "Classification pill, no fill — 1px border in currentColor, 2px radius, 11px/.14em mono. Five colours, one per spoken classification: direction=brass, decision=cyan, gap(evidence gap)=teal, clarify(clarification)=lavender, synthesis=vellum. Colour never stands alone — the word is always in the pill.",
+    "onslide_list": "Plain statements: unordered, each li prefixed by a brass em-dash (`—`) at left:0. Numbered variant (`.onslide.numbered`) swaps the dash for a 20px brass circular counter badge via CSS `counter()` — used only for a genuine ordered process, never for emphasis.",
+    "chip_row": "Rounded-full, bordered, mono chips laid out in a wrapping flex row. Signals 'these items are enumerated but explicitly NOT prioritized or ranked' — the deliberate alternative to `.onslide` for a slide whose own content says not to rank yet.",
+    "flowchain": "Vertical stepped connector for a short linear process without a diagram library: each `.step` sits on a 1px --line-dim left border with a small circular node (navy fill, 2px cyan ring) at its top; the last step's border is transparent so the chain visibly terminates.",
+    "panel": "Quiet aside ('Discuss' prompt): 1px --line-dim border, 3px radius, a faint top-to-transparent white wash. Header is mono/uppercase/brass with an italic serif glyph icon (a literal '?' set in --serif italic) instead of an SVG icon; body copy in --ink-soft.",
+    "stamp": "Rotated, hand-marked-looking card layered over a 2px border: default reading is unresolved ('KEEP OPEN', --redline, rotate(-2.5deg)); `.stamp.leave` is the affirmative counterpart ('LEAVE WITH', --brass, rotate(-1deg), body text in --vellum). The uppercase label sits on a small tab that breaks the top border, mimicking a rubber date-stamp. Never render this un-rotated — the tilt is what reads as an annotation rather than a normal callout box.",
+    "source_line": "Mono citation strip, dashed top rule, 70% opacity, pinned to the bottom of `.rail`. Format is `Source — file.md:line-range · file2.md:line-range`, always citing the exact planning-doc lines a slide's content was drawn from.",
+    "titleblock": "Fixed footer bar styled as an architectural drawing's title block: bordered cells for Project / Drawing (auto-updated to the current slide's kicker, title-cased) / Rev / a centered row of clickable progress dots / a keyboard-hint strip (`←` `→` navigate, `Esc` overview) / Sheet `NN / total`. Every value updates on navigation; nothing here is per-slide markup.",
+    "legend": ".legend-row/.legend-item/.legend-swatch — small ringed circle + label, one row, used once (on the closing/appendix slide) to key the five tag colours plus the redline 'keep open' meaning.",
+    "cover": "The one slide with its own layout: a large --serif cover h1 (with an inline `<em>` in --cyan for a subtitle emphasis word), an italic serif subhead, a left-brass-rule pull-quote ('purpose') box, a mono metadata row, and a full chain of the deck's stage names rendered as pill `.node`s joined by brass `→` glyphs — the only place all ten stages are shown at once."
+  },
+
+  "interaction_states": {
+    "navigation": "ArrowRight/ArrowDown/PageDown/Space → next slide; ArrowLeft/ArrowUp/PageUp → previous; Home/End jump to first/last; the two 34%-width click zones advance/retreat; each title-block progress dot jumps directly to its slide (`.dot.on` scales 1.3x and fills brass).",
+    "entrance": "Every direct child of the active slide carries `.rise`, animated 0.6s `cubic-bezier(.19,1,.22,1)` translateY(16px)→0 with opacity 0→1, staggered by nth-child at 0.02s/0.09s/0.16s/0.23s. Because `.active` is toggled via `display:none`↔`flex` rather than left in the DOM, the stagger replays every time a slide becomes current — this is the deck's one deliberate motion moment, not a per-element hover/microinteraction language.",
+    "background": "Fixed, full-viewport, non-interactive `.field`: two soft radial-gradient washes over --navy, overlaid by a two-scale repeating-linear-gradient drafting grid (88px major + 8px minor, both axes, --line-dim/--line-dim2) at 50% opacity, plus a fixed SVG `feTurbulence` grain layer at 5% opacity blended with `mix-blend-mode:overlay` for paper-like texture. This never animates or reacts to input."
+  },
+
+  "modes": {
+    "dark": "The only authored mode — inverse of design-brief.jsonc's light-only decision, for the same reason: a single coherent character beats a togglable one. This theme is for a deck read live on one lit screen, not printed or archived as a scannable document.",
+    "light": "Deliberately not supported. Do not add a light variant to this file; author a distinct theme instead if a printable version of the same deck is ever needed.",
+    "print": "Not designed for — the deck is `display:none`-per-slide by construction, so a naive print stylesheet would emit only the active slide. Treat 'export a printable handout' as a different deliverable, not a media query on this one."
+  },
+
+  "responsive": {
+    "980": "Single breakpoint. Slide padding drops to 40px 28px 120px; `.body-grid` collapses to one column (28px gap); `.appendix-grid` collapses to one column; the title block shrinks to 10px type and hides the keyboard-hint strip (`.navhint{display:none}`) so the remaining cells still fit.",
+    "verification": "Sweep at minimum 1600×900 (authoring viewport) and a sub-980 width; assert no horizontal scroll on either the slide body or the fixed title block."
+  },
+
+  "mermaid": {
+    "note": "Inferred, not exercised by the reference implementation — presentations/ai-factory-planning-deck.html renders its one sequence (`.flowchain`) in plain CSS rather than Mermaid. Provided here so a future slide in this theme that genuinely needs a real diagram doesn't fall back to the light Mermaid theme against a navy background.",
+    "cdn": "https://cdn.jsdelivr.net/npm/mermaid@11.12.2/dist/mermaid.min.js",
+    "config": {
+      "startOnLoad": true,
+      "theme": "base",
+      "themeVariables": {
+        "background": "#0b2340",
+        "primaryColor": "#0f2f52",
+        "primaryBorderColor": "#d7a94e",
+        "primaryTextColor": "#f6fbff",
+        "secondaryColor": "#123762",
+        "tertiaryColor": "#061626",
+        "lineColor": "#9db6d1",
+        "textColor": "#f6fbff",
+        "fontFamily": "'IBM Plex Sans', -apple-system, \"Segoe UI\", sans-serif",
+        "fontSize": "14px"
+      },
+      "flowchart": { "curve": "basis", "useMaxWidth": true },
+      "sequence": { "useMaxWidth": true }
+    }
+  },
+
+  "accessibility": {
+    "contrast": "Inferred, not measured against WCAG in the reference implementation — --white (#f6fbff) and --line (#bcd9f5) on --navy (#0b2340)/--navy-deepest (#061626) both read comfortably at normal reading distance; --ink-soft (#9db6d1) is used only for labels/captions/metadata, matching design-brief.jsonc's convention of never using the muted tone for body copy.",
+    "meaning": "Same rule as design-brief.jsonc: colour never carries meaning alone. Every `.tag` carries its classification word; the `.stamp` always carries 'KEEP OPEN' or 'LEAVE WITH' as literal text, not just a colour change.",
+    "structure": "Each slide is a `<section>`; a screen-reader-only outline is not implemented in the reference implementation (single-viewer, presenter-driven artifact) — treat as a gap if this theme is ever reused for an unattended/self-serve deck."
+  },
+
+  "assumptions": [
+    "Single self-contained HTML file, no build step, network dependency limited to two Google Fonts requests — offline use falls back to the system stacks listed after each webfont in `--serif`/`--mono`/`--sans`.",
+    "Read live, full-screen, by one presenter driving one audience — not scrolled, not printed, not read async by an individual on their own schedule (that use case is design-brief.jsonc's, not this one).",
+    "Authored and regenerated wholesale per deck, like design-brief.jsonc's own assumption — never hand-patched slide-by-slide once shipped."
+  ],
+
+  "ambiguities": [
+    "This brief is not yet wired into `scripts/render-design-tokens.ts` (`CONSUMER_FILES` and `BRIEF_PATH` are hardcoded to the warm-paper brief and its two consumer templates). There is exactly one reference implementation and zero in-repo consumers today, so a generated-token pipeline for this theme would be premature; wire it in (new `--brief` flag or a second script) once a real second consumer exists.",
+    "`--navy-panel-2` and `--redline-dim` are declared in the reference implementation's `:root` but not read by any rule there — carried over here as reserved tokens (a secondary nested-panel tone, and a muted inline redline for text outside the `.stamp` component) rather than dropped, matching how design-brief.jsonc documents its own inferred/unobserved tokens (`--okline`, `--diff-*`)."
+  ]
+}
