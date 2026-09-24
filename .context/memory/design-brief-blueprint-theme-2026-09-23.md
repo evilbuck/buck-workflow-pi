@@ -6,7 +6,7 @@ related:
   - skills/_shared/design-brief.jsonc
   - skills/_shared/themes/blueprint/design-brief.jsonc
 priority: medium
-status: active
+status: completed
 subject: null
 artifacts:
   - skills/_shared/themes/blueprint/design-brief.jsonc
@@ -53,4 +53,4 @@ in the same session.
   - `scripts/serve-presentations.test.ts` (5 failures) — `resolveRequestPath` compares a `realpathSync`'d target against a non-realpath'd root; macOS `os.tmpdir()` sits under `/var/folders/...`, a symlink to `/private/var/folders/...`, so every legitimate nested request path fails containment and 403s. I fixed this (realpath the root too, one try/catch) and updated the two test expectations that hardcoded the non-realpath'd form — full green (26/26) in isolation — **then reverted both files** to keep this session's diff isolated to the theme addition, since fixing it did not by itself get the overall gate to pass (two more pre-existing, unrelated failing files remained) and a partial unrelated fix has no contract value on its own.
   - `scripts/hooks.test.mjs` (4 failures) — same `/tmp` → `/private/tmp` realpath-vs-lexical mismatch for `resolveHooksDir`, plus one unrelated `stat -c %a` (GNU-only flag; fails silently as an empty string on macOS BSD `stat`).
   - `extensions/code-review-iteration/__tests__/git-ops.test.ts` (1 failure) — disposable detached worktree cleanup; not investigated (out of scope for this task).
-- Net: this task's actual diff (`skills/_shared/themes/**`, `skills/_shared/SKILL.md`) is guardrails-neutral — it neither introduces nor fixes any of the 10 pre-existing failures. The `unit_test_gate`/`global_ratchet` `fail` verdict predates this session and spans an unrelated macOS path-handling class of bug across three subsystems; fixing all of it was judged disproportionate scope for a design-brief addition. **Explicit user override requested and pending** for this gate; record the user's decision here once given (fix as separate follow-up work vs. accept override).
+- Net: this task's actual diff (`skills/_shared/themes/**`, `skills/_shared/SKILL.md`) is guardrails-neutral on this branch — it neither introduces nor fixes any of the 10 pre-existing failures. **Resolved 2026-09-23**: user chose to fix all 3 files rather than override. Landed on a separate branch, `fix/macos-tmp-symlink-realpath` (commit `a0bf7b5`, based on `master`, not this theme branch) — full detail in `.context/backlog/archive/2026-09/macos-tmp-symlink-test-failures.md` and `.context/memory/index.md`. This theme branch itself still predates that fix (it branched from `master` before `a0bf7b5`), so a guardrails run on this branch alone will still show the same 10 pre-existing failures until it's rebased onto/merged with the fix.
