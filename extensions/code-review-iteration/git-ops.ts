@@ -9,7 +9,7 @@
 
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 
 const GIT_ENV = {
@@ -241,7 +241,13 @@ export function worktreeFingerprint(cwd: string): string {
 
 export function gitCommonDir(cwd: string): string {
   const raw = git(cwd, ["rev-parse", "--git-common-dir"]);
-  return isAbsolute(raw) ? raw : resolve(cwd, raw);
+  const abs = isAbsolute(raw) ? raw : resolve(cwd, raw);
+  try {
+    return realpathSync(abs);
+  } catch {
+    // Nonexistent path (shouldn't happen for a real git dir): fall back lexically.
+    return abs;
+  }
 }
 export function hasOngoingGitOperation(cwd: string): boolean {
   const common = gitCommonDir(cwd);

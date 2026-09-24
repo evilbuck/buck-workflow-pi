@@ -120,7 +120,12 @@ export function resolveRequestPath(root: string, pathname: string): string | nul
     return null;
   }
   if (decoded.includes("\0")) return null;
-  const rootAbs = resolve(root);
+  let rootAbs = resolve(root);
+  try {
+    rootAbs = realpathSync(rootAbs);
+  } catch {
+    // Nonexistent root: fall back to lexical resolution.
+  }
   const relative = normalize(decoded).replace(/^[/\\]+/, "");
   const target = resolve(rootAbs, relative);
   let real = target;

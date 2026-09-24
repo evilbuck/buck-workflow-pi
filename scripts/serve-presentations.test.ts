@@ -1,6 +1,6 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -16,9 +16,11 @@ import {
 } from "./serve-presentations.js";
 
 let root: string;
+let realRoot: string;
 
 beforeAll(() => {
   root = mkdtempSync(join(tmpdir(), "serve-presentations-"));
+  realRoot = realpathSync(root);
   mkdirSync(join(root, "alpha", "assets"), { recursive: true });
   writeFileSync(join(root, "alpha", "index.html"), "<h1>alpha</h1>");
   writeFileSync(join(root, "alpha", "blueprint.html"), "<h1>alpha blueprint</h1>");
@@ -35,11 +37,11 @@ afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe("resolveRequestPath", () => {
   it("keeps paths inside the served root", () => {
-    expect(resolveRequestPath(root, "/alpha/index.html")).toBe(join(resolve(root), "alpha", "index.html"));
+    expect(resolveRequestPath(root, "/alpha/index.html")).toBe(join(realRoot, "alpha", "index.html"));
   });
 
   it("clamps absolute traversal back inside the root, encoded or not", () => {
-    const inside = join(resolve(root), "package.json");
+    const inside = join(realRoot, "package.json");
     expect(resolveRequestPath(root, "/../package.json")).toBe(inside);
     expect(resolveRequestPath(root, "/alpha/../../package.json")).toBe(inside);
     expect(resolveRequestPath(root, "/%2e%2e%2f%2e%2e%2fpackage.json")).toBe(inside);
@@ -58,6 +60,20 @@ describe("resolveRequestPath", () => {
       expect(resolveRequestPath(root, "/leak")).toBeNull();
     } finally {
       rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps paths inside a root reached through a symlink", () => {
+    const real = mkdtempSync(join(tmpdir(), "serve-presentations-real-"));
+    mkdirSync(join(real, "pkg"), { recursive: true });
+    writeFileSync(join(real, "pkg", "file.txt"), "x");
+    const link = join(tmpdir(), `serve-presentations-link-${process.pid}-${Date.now()}`);
+    symlinkSync(real, link);
+    try {
+      expect(resolveRequestPath(link, "/pkg/file.txt")).toBe(join(realpathSync(real), "pkg", "file.txt"));
+    } finally {
+      unlinkSync(link);
+      rmSync(real, { recursive: true, force: true });
     }
   });
 
