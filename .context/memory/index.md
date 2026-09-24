@@ -1,4 +1,4 @@
-- 2026-09-23 — [Second design-brief theme: blueprint](design-brief-blueprint-theme-2026-09-23.md) — `active` (new `themes/blueprint/design-brief.jsonc` alongside the untouched canonical brief; required unit-test gate fails on 10 pre-existing, unrelated macOS realpath failures across 3 files — override requested, tracked in `items/macos-tmp-symlink-test-failures.md`)
+- 2026-09-23 — [Second design-brief theme: blueprint](design-brief-blueprint-theme-2026-09-23.md) — `completed` (new `themes/blueprint/design-brief.jsonc` alongside the untouched canonical brief; surfaced 10 pre-existing macOS realpath test failures, fixed separately on `fix/macos-tmp-symlink-realpath@a0bf7b5` — `archive/2026-09/macos-tmp-symlink-test-failures.md`)
 
 - 2026-09-23 — [PR 48 review repairs](fix-pr-48-review-repairs-2026-09-23.md) — `completed` (all valid review feedback fixed across two commits; latest-head independent review found no new defects; CI and durable guardrails passed)
 

@@ -1,3 +1,5 @@
+- [x] [Fix macOS /tmp-symlink realpath mismatches blocking the required unit-test gate](2026-09/macos-tmp-symlink-test-failures.md) — done 2026-09-23 — realpath'd `resolveRequestPath`/`gitCommonDir` and fixed two GNU-only `stat -c` invocations; added symlinked-root regression tests; `fix/macos-tmp-symlink-realpath@a0bf7b5`, 942/942, durable guardrails pass
+
 - [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`
 
 - [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`
