@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-buck-loop-model-config.md
@@ -13,13 +13,13 @@ from_plan_steps: [5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] The interactive stage table covers every pinned Buck skill mapping except loop-only choice; unlisted skills do not consult buckModels."
-  - "[ ] Before the command turn, resolver and picker receive command text, resolved subject artifacts, and only the bounded user/assistant conversation tail."
-  - "[ ] Missing profile/stage/candidates refuses before the skill runs and names the stage; no host-default model is used."
-  - "[ ] The selected parent model and thinking level are applied for the command turn and both prior values are restored on agent_end."
-  - "[ ] Refusal, throw, and user override paths cannot leave stale switch state or restore over an explicit user model change."
-completed_at: null
-completed_by: null
+  - "[x] The interactive stage table covers every pinned Buck skill mapping except loop-only choice; unlisted skills do not consult buckModels."
+  - "[x] Before the command turn, resolver and picker receive command text, resolved subject artifacts, and only the bounded user/assistant conversation tail."
+  - "[x] Missing profile/stage/candidates refuses before the skill runs and names the stage; no host-default model is used."
+  - "[x] The selected parent model and thinking level are applied for the command turn and both prior values are restored on agent_end."
+  - "[x] Refusal, throw, and user override paths cannot leave stale switch state or restore over an explicit user model change."
+completed_at: 2026-09-24
+completed_by: b-build-hard
 ---
 
 # Phase 4: Interactive Command Cutover

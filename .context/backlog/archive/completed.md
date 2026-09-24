@@ -1,3 +1,5 @@
+- [x] [Phase 4: Interactive Command Cutover](2026-09/phase-4-interactive-command-cutover.md) — done 2026-09-24 — mapped interactive Buck commands apply the stage model and thinking level, then restore both; missing configuration refuses by stage name. `.context/2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md`
+
 - [x] [Phase 3: Loop Runtime Cutover](2026-09/phase-3-loop-runtime-cutover.md) — done 2026-09-24 — nested work and closed-set choice use the stage picker; failed host calls re-pick; recovered text is kept; missing stage blocks by name. `.context/2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md`
 
 - [x] [Phase 2: TypeSafe Model Picker](2026-09/phase-2-typesafe-model-picker.md) — done 2026-09-24 — parent Jev/random picker; membership check; failed-id exclusion; named-stage exhaustion stop; review pass; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md`

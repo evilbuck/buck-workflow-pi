@@ -5,7 +5,7 @@ subject: 2026-09-22.buck-loop-model-config
 topics: [buck-loop, model-profiles, jev, buck-models]
 research: []
 iterations: [iterate-buck-loop-model-config.md, iterate-phase-1-profile-config.md, iterate-phase-1-complexity.md]
-memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md]
+memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md, buck-model-config-phase-4-save-2026-09-24.md]
 ---
 
 # Plan: Configurable model profiles for Buck workflow
