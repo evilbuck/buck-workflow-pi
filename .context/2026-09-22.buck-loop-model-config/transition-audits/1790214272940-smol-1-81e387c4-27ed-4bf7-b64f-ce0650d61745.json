@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{ \"choice\": \"retry\", \"reason\": \"Postcondition is ambiguous, not verified; advancing would skip unresolved work. Retry to re-scan postconditions and resolve docs/howto impact before claiming phase complete.\" }",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition is ambiguous, not verified; advancing would skip unresolved work. Retry to re-scan postconditions and resolve docs/howto impact before claiming phase complete."
+  },
+  "accepted": true,
+  "reason": "Postcondition is ambiguous, not verified; advancing would skip unresolved work. Retry to re-scan postconditions and resolve docs/howto impact before claiming phase complete.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

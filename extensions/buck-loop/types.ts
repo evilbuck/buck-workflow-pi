@@ -119,12 +119,13 @@ export type ReviewFacts =
 /**
  * A closed machine action a language model may propose.
  *
- * The model can only ever name one of these six words. `machine.applyChoice`
- * checks membership in the current legal set before any transition is
- * produced. Free-text answers never move the loop.
+ * The model can only name a continuation. `block` is not one of them.
+ * Machine stops (limits, a second failure, a scan defect, a missing plan)
+ * are `await-operator` edges, not model votes. `applyChoice` checks
+ * membership in the current legal set before any transition is produced.
  *
- * Review-time (`reviewing`, report unparseable): `iterate` | `document` | `save` | `block`.
- * Postcondition-time (work finished but disk looks ambiguous): `retry` | `advance` | `block`.
+ * Review-time (`reviewing`, report unparseable): `iterate` | `document` | `save`.
+ * Postcondition-time (work finished but disk looks ambiguous): `retry` | `advance`.
  */
 export type Choice =
   | { kind: "iterate" }

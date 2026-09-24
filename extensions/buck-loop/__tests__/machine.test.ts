@@ -248,12 +248,12 @@ describe("next: confirmed postconditions advance deterministically", () => {
 });
 
 describe("next: ambiguous postconditions defer to a closed choice", () => {
-  it.each(POSTCONDITION_STATES)("stays in %s and offers retry|advance|block", (state) => {
+  it.each(POSTCONDITION_STATES)("stays in %s and offers retry|advance", (state) => {
     const t = next(workSnap(state, { postcondition: "ambiguous" }));
     expect(t.to).toBe(state);
     expect(t.effect).toEqual({
       kind: "choose",
-      legal: [{ kind: "retry" }, { kind: "advance" }, { kind: "block" }],
+      legal: [{ kind: "retry" }, { kind: "advance" }],
     });
   });
 });
@@ -290,7 +290,7 @@ describe("next: reviewing", () => {
     expect(t.to).toBe("reviewing");
     expect(t.effect).toEqual({
       kind: "choose",
-      legal: [{ kind: "iterate" }, { kind: "document" }, { kind: "save" }, { kind: "block" }],
+      legal: [{ kind: "iterate" }, { kind: "document" }, { kind: "save" }],
     });
   });
 
@@ -316,7 +316,6 @@ describe("legalChoices", () => {
       { kind: "iterate" },
       { kind: "document" },
       { kind: "save" },
-      { kind: "block" },
     ]);
   });
 
@@ -324,7 +323,6 @@ describe("legalChoices", () => {
     expect(legalChoices("building", workSnap("building", { postcondition: "ambiguous" }))).toEqual([
       { kind: "retry" },
       { kind: "advance" },
-      { kind: "block" },
     ]);
   });
 
@@ -332,11 +330,10 @@ describe("legalChoices", () => {
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 }))).toEqual([]);
     expect(
       legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE })),
-    ).toEqual([{ kind: "retry" }, { kind: "advance" }, { kind: "block" }]);
+    ).toEqual([{ kind: "retry" }, { kind: "advance" }]);
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toEqual([
       { kind: "document" },
       { kind: "save" },
-      { kind: "block" },
     ]);
   });
 });
@@ -351,7 +348,7 @@ describe("applyChoice", () => {
     });
     expect(applyChoice({ kind: "iterate" }, s).to).toBe("iterating");
     expect(applyChoice({ kind: "document" }, s).to).toBe("documenting");
-    expect(applyChoice({ kind: "block" }, s).to).toBe("blocked");
+    expect(() => applyChoice({ kind: "block" }, s)).toThrow(MachineFailure);
   });
 
   it("takes the accepted postcondition choice", () => {
@@ -362,7 +359,7 @@ describe("applyChoice", () => {
       why: expect.any(String),
     });
     expect(applyChoice({ kind: "retry" }, s).to).toBe("building");
-    expect(applyChoice({ kind: "block" }, s).to).toBe("blocked");
+    expect(() => applyChoice({ kind: "block" }, s)).toThrow(MachineFailure);
   });
 
   it("advances from committing per plan facts", () => {

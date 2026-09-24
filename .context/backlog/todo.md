@@ -4,6 +4,19 @@
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
+- [ ] [Named model profiles for Buck workflow stages](items/buck-loop-model-config.md) — high; phase first — see `.context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md`
+
+## Buck Model Profile Phases (2026-09-23)
+
+### Upcoming Phases
+
+
+- [ ] [Phase 2: TypeSafe Model Picker](items/phase-2-typesafe-model-picker.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md)
+- [ ] [Phase 3: Loop Runtime Cutover](items/phase-3-loop-runtime-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md)
+- [ ] [Phase 4: Interactive Command Cutover](items/phase-4-interactive-command-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md)
+- [ ] [Phase 5: `/buck-models` Command](items/phase-5-buck-models-command.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md)
+- [ ] [Phase 6: Model Profiles Documentation and Proof](items/phase-6-model-profiles-documentation-proof.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-6-documentation-and-end-to-end-proof.md)
+
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
 - [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean

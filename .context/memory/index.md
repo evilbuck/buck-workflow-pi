@@ -1,5 +1,7 @@
 - 2026-09-23 — [PR 48 review repairs](fix-pr-48-review-repairs-2026-09-23.md) — `completed` (all valid review feedback fixed across two commits; latest-head independent review found no new defects; CI and durable guardrails passed)
 
+- 2026-09-23 — [Phase 1 profile config save](buck-model-config-phase-1-save-2026-09-23.md) — `completed` (resolver and lossless writer saved; phase 1 completed; subject stays active for phases 2–6)
+- 2026-09-23 — [Buck model configuration phasing](buck-model-config-phasing-2026-09-23.md) — `completed` (six phases; phase 1 resolver/writer saved as completed; phases 2–6 remain)
 - 2026-09-23 — [OMP token attribution build](omp-token-attribution-build-2026-09-23.md) — `completed` (runtime-safe command registration, nested delivery reconciliation, `/tokens`, living docs/how-to, independent review and durable guardrails pass)
 - 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume build](buck-loop-deferred-docs-resume-build-2026-09-22.md) — `completed` (final review passed with no in-plan defects; 154 focused tests; durable guardrails pass; Git probe fail-open tracked separately)
 

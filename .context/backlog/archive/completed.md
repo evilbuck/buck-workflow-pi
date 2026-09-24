@@ -1,3 +1,5 @@
+- [x] [Phase 1: Profile Config and Resolution](2026-09/phase-1-profile-config-and-resolution.md) — done 2026-09-23 — buckModels parse, project-then-global stage resolution, availability filter, lossless YAML write; modelRoles unchanged; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md`
+
 - [x] [OMP token attribution by project and feature](2026-09/omp-token-attribution.md) — done 2026-09-23 — plugin-owned SQLite ledger, origin/worktree and branch attribution, nested delivery reconciliation, `/tokens` reporting, documentation, and passing durable guardrails. `.context/2026-09-23.omp-token-attribution/`
 
 - [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`

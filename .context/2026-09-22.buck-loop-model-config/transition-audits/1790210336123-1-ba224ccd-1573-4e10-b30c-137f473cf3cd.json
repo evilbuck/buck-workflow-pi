@@ -1,0 +1,22 @@
+{
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    },
+    {
+      "kind": "block"
+    }
+  ],
+  "raw": "```json\n{\n  \"choice\": \"block\",\n  \"reason\": \"Postcondition scan is ambiguous, so acceptance criteria cannot be verified. docsImpact=true and howtoImpact=true further indicate outstanding sync work. Advancing on an ambiguous postcondition would risk yielding incomplete work; retrying without resolving the ambiguity won't clarify it. Block to surface the ambiguity and resolve the postcondition + doc/howto sync before re-evaluating.\"\n}\n```",
+  "parsed": {
+    "choice": "block",
+    "reason": "Postcondition scan is ambiguous, so acceptance criteria cannot be verified. docsImpact=true and howtoImpact=true further indicate outstanding sync work. Advancing on an ambiguous postcondition would risk yielding incomplete work; retrying without resolving the ambiguity won't clarify it. Block to surface the ambiguity and resolve the postcondition + doc/howto sync before re-evaluating."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan is ambiguous, so acceptance criteria cannot be verified. docsImpact=true and howtoImpact=true further indicate outstanding sync work. Advancing on an ambiguous postcondition would risk yielding incomplete work; retrying without resolving the ambiguity won't clarify it. Block to surface the ambiguity and resolve the postcondition + doc/howto sync before re-evaluating.",
+  "context": "state=iterating phase=.context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

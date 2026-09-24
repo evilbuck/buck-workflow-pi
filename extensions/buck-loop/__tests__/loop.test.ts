@@ -189,6 +189,29 @@ describe("handleLoop commands", () => {
     expect(result.reason).toMatch(/dirty/);
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+  it("starts a dirty tree when the operator continues", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "landed" }));
+    const confirmDirty = vi.fn(async () => true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    expect(confirmDirty).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining("src/unrelated.ts")]));
+    expect(deps.runStep).toHaveBeenCalled();
+    expect(result.reason).not.toMatch(/did not continue/);
+  });
+
+  it("stops a dirty tree when the operator declines", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const confirmDirty = vi.fn(async () => false);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    expect(result).toEqual({ state: "blocked", reason: "working tree is dirty; operator did not continue" });
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
 
   it("refuses to resume a non-blocked run with staged dirt", async () => {
     const cwd = repo();

@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{\n  \"choice\": \"retry\",\n  \"reason\": \"Postcondition scan returned ambiguous, not pass or fail. Advancing on ambiguous state risks yielding undocumented or unverified work given docsImpact=true and howtoImpact=true. Retry the postcondition check to resolve ambiguity to pass or fail before advancing.\"\n}\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition scan returned ambiguous, not pass or fail. Advancing on ambiguous state risks yielding undocumented or unverified work given docsImpact=true and howtoImpact=true. Retry the postcondition check to resolve ambiguity to pass or fail before advancing."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan returned ambiguous, not pass or fail. Advancing on ambiguous state risks yielding undocumented or unverified work given docsImpact=true and howtoImpact=true. Retry the postcondition check to resolve ambiguity to pass or fail before advancing.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

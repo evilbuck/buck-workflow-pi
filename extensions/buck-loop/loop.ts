@@ -112,6 +112,8 @@ export type LoopDeps = {
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
   onActivity: (event: ActivityEvent) => void;
+  /** Yes continues despite non-context dirt. Missing or no means refuse. */
+  confirmDirty: (paths: string[]) => Promise<boolean>;
 };
 
 type EffectResult = {
@@ -127,6 +129,7 @@ const DEFAULT_DEPS: LoopDeps = {
   onProgress: () => undefined,
   onFailure: () => undefined,
   onActivity: () => undefined,
+  confirmDirty: async () => false,
 };
 
 /**
@@ -178,7 +181,7 @@ function stopRun(cwd: string, now: () => string): LoopResult {
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
 async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): Promise<LoopResult> {
-  const refused = refuseProtectedBranch(cwd, "start") ?? refuseDirtyWorkspace(cwd, "start");
+  const refused = refuseProtectedBranch(cwd, "start") ?? await refuseDirtyWorkspace(cwd, "start", deps);
   if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
@@ -210,7 +213,7 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   if (protectedBranch) return protectedBranch;
   const projection = readProjection(cwd);
   if (!projection) return idleOrUnreadableProjection(cwd);
-  const dirty = refuseDirtyWorkspace(cwd, "resume", projection);
+  const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
@@ -543,15 +546,17 @@ function refuseProtectedBranch(cwd: string, mode: "start" | "resume"): LoopResul
     : null;
 }
 
-function refuseDirtyWorkspace(
+async function refuseDirtyWorkspace(
   cwd: string,
   mode: "start" | "resume",
+  deps: LoopDeps,
   projection?: Projection,
-): LoopResult | null {
+): Promise<LoopResult | null> {
   const dirty = nonContextStatus(cwd);
   if (dirty.length === 0) return null;
   if (mode === "resume" && projection && permitsBlockedStagedResume(projection, dirty)) return null;
-  return { state: "blocked", reason: "working tree is dirty; commit or stash unrelated changes before /buck-loop" };
+  if (await deps.confirmDirty(dirty)) return null;
+  return { state: "blocked", reason: "working tree is dirty; operator did not continue" };
 }
 
 function nonContextStatus(cwd: string): string[] {

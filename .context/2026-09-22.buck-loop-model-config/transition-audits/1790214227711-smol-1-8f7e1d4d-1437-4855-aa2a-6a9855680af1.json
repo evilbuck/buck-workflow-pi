@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"choice\":\"retry\",\"reason\":\"Postcondition is ambiguous on a documenting phase with docsImpact=true and howtoImpact=true; retry to resolve the postcondition check (verify phase-1 acceptance criteria and confirm docs/howto artifacts are complete) before advancing, since advancing with ambiguity risks shipping incomplete doc impact.\"}",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition is ambiguous on a documenting phase with docsImpact=true and howtoImpact=true; retry to resolve the postcondition check (verify phase-1 acceptance criteria and confirm docs/howto artifacts are complete) before advancing, since advancing with ambiguity risks shipping incomplete doc impact."
+  },
+  "accepted": true,
+  "reason": "Postcondition is ambiguous on a documenting phase with docsImpact=true and howtoImpact=true; retry to resolve the postcondition check (verify phase-1 acceptance criteria and confirm docs/howto artifacts are complete) before advancing, since advancing with ambiguity risks shipping incomplete doc impact.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

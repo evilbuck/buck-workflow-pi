@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"choice\":\"retry\",\"reason\":\"postcondition=ambiguous means completion verification is unresolved; with docsImpact=true and howtoImpact=true flagged, the postcondition scan needs to be re-run with clearer acceptance criteria before advancing, otherwise we risk closing a phase whose deliverables aren't verified.\"}",
+  "parsed": {
+    "choice": "retry",
+    "reason": "postcondition=ambiguous means completion verification is unresolved; with docsImpact=true and howtoImpact=true flagged, the postcondition scan needs to be re-run with clearer acceptance criteria before advancing, otherwise we risk closing a phase whose deliverables aren't verified."
+  },
+  "accepted": true,
+  "reason": "postcondition=ambiguous means completion verification is unresolved; with docsImpact=true and howtoImpact=true flagged, the postcondition scan needs to be re-run with clearer acceptance criteria before advancing, otherwise we risk closing a phase whose deliverables aren't verified.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

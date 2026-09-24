@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as PiCodingAgent from "@mariozechner/pi-coding-agent";
@@ -11,17 +11,23 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 });
 
 import {
+  BUCK_STAGE_KEYS,
   DIFFICULTY_TO_ROLE,
   EmptyModelResponseError,
+  formatBuckStop,
   lastAssistantText,
   mappingFromOmpRoles,
   normalizeActivityEvent,
+  parseBuckModels,
   parseModelRoles,
   parsePhaseDifficulty,
   phaseDifficultyToTier,
   readOmpModelRoles,
+  resolveBuckStage,
   resolveOmpRole,
   runOmpModelSession,
+  writeBuckModelsScope,
+  type BuckModelsConfig,
 } from "./omp-models.js";
 
 const dirs: string[] = [];
@@ -284,5 +290,205 @@ describe("normalizeActivityEvent", () => {
 
   it("ignores unknown event types", () => {
     expect(normalizeActivityEvent({ type: "session_status", sessionId: "abc" })).toBeNull();
+  });
+});
+
+function profile(stages: BuckModelsConfig["profiles"][string]["stages"]): BuckModelsConfig["profiles"][string] {
+  return { stages };
+}
+
+describe("buckModels resolution", () => {
+  it("keeps ids, notes, and thinking, and ignores unknown stage keys", () => {
+    const parsed = parseBuckModels([
+      "buckModels:",
+      "  active: work",
+      "  profiles:",
+      "    work:",
+      "      build:",
+      "        thinking: medium",
+      "        models:",
+      "          - id: provider/a",
+      "            note: planner",
+      "          - id: provider/b",
+      "      review:",
+      "        models: []",
+      "      not-a-stage:",
+      "        models:",
+      "          - id: provider/ignored",
+    ].join("\n"));
+    expect(parsed.active).toBe("work");
+    expect(parsed.profiles.work?.stages.build).toEqual({
+      thinking: "medium",
+      models: [
+        { id: "provider/a", note: "planner" },
+        { id: "provider/b" },
+      ],
+    });
+    expect(parsed.profiles.work?.stages.review).toEqual({ thinking: "off", models: [] });
+    expect(parsed.profiles.work?.stages).not.toHaveProperty("not-a-stage");
+    expect(BUCK_STAGE_KEYS).toHaveLength(12);
+  });
+
+  it("uses a project stage even when its model list is empty", () => {
+    const project: BuckModelsConfig = {
+      active: "work",
+      profiles: { work: profile({ build: { thinking: "off", models: [] } }) },
+    };
+    const globalConfig: BuckModelsConfig = {
+      active: "other",
+      profiles: { work: profile({ build: { thinking: "high", models: [{ id: "provider/global" }] } }) },
+    };
+    const resolved = resolveBuckStage({
+      project,
+      global: globalConfig,
+      stage: "build",
+      availableIds: new Set(["provider/global"]),
+    });
+    expect(resolved.ok).toBe(false);
+    if (resolved.ok) return;
+    expect(resolved.stop).toEqual({ code: "no-candidates", profile: "work", stage: "build", excluded: [] });
+    expect(formatBuckStop(resolved.stop)).toContain('stage "build"');
+    expect(formatBuckStop(resolved.stop)).toContain("excluded:");
+    expect(globalConfig.profiles.work?.stages.build?.models).toEqual([{ id: "provider/global" }]);
+  });
+
+  it("falls through when the project stage key is omitted", () => {
+    const resolved = resolveBuckStage({
+      project: { active: " ", profiles: { work: profile({}) } },
+      global: {
+        active: "work",
+        profiles: { work: profile({ review: { thinking: "low", models: [{ id: "provider/g", note: "global" }] } }) },
+      },
+      stage: "review",
+      availableIds: new Set(["provider/g"]),
+    });
+    expect(resolved).toMatchObject({
+      ok: true,
+      profile: "work",
+      source: "global",
+      thinking: "low",
+      available: [{ id: "provider/g", note: "global" }],
+    });
+  });
+
+  it("stops with the stage name when the stage is missing from both profiles", () => {
+    const resolved = resolveBuckStage({
+      project: { active: "work", profiles: { work: profile({}) } },
+      global: { active: "work", profiles: { work: profile({}) } },
+      stage: "choice",
+      availableIds: new Set(["provider/a"]),
+    });
+    expect(resolved.ok).toBe(false);
+    if (resolved.ok) return;
+    expect(formatBuckStop(resolved.stop)).toContain('stage "choice"');
+  });
+
+  it("stops with the unknown active name and falls through a blank project name", () => {
+    const unknown = resolveBuckStage({
+      project: { active: "missing", profiles: {} },
+      global: { active: "work", profiles: { work: profile({}) } },
+      stage: "build",
+      availableIds: new Set(),
+    });
+    expect(unknown.ok).toBe(false);
+    if (!unknown.ok) expect(formatBuckStop(unknown.stop)).toContain('profile "missing"');
+
+    const blank = resolveBuckStage({
+      project: { active: "", profiles: {} },
+      global: { active: "", profiles: {} },
+      stage: "build",
+      availableIds: new Set(),
+    });
+    expect(blank.ok).toBe(false);
+    if (!blank.ok) expect(formatBuckStop(blank.stop)).toContain('active name ""');
+  });
+
+  it("excludes unavailable ids without rewriting the parsed stage", () => {
+    const project: BuckModelsConfig = {
+      active: "work",
+      profiles: {
+        work: profile({
+          build: { thinking: "off", models: [{ id: "provider/gone" }, { id: "provider/here" }] },
+        }),
+      },
+    };
+    const resolved = resolveBuckStage({
+      project,
+      global: null,
+      stage: "build",
+      availableIds: new Set(["provider/here"]),
+    });
+    expect(resolved).toMatchObject({
+      ok: true,
+      available: [{ id: "provider/here" }],
+      excluded: ["provider/gone"],
+    });
+    expect(project.profiles.work?.stages.build?.models).toEqual([
+      { id: "provider/gone" },
+      { id: "provider/here" },
+    ]);
+  });
+
+  it("writes either scope without dropping modelRoles or other profiles", () => {
+    const dir = tmp();
+    const previous = process.env.OMP_AGENT_DIR;
+    process.env.OMP_AGENT_DIR = join(dir, "agent");
+    try {
+      const original = [
+        "theme: dark",
+        "modelRoles:",
+        "  default: xai-oauth/grok-4.6:xhigh",
+        "  smol: minimax-code/MiniMax-M3:minimal",
+        "buckModels:",
+        "  active: old",
+        "  profiles:",
+        "    old:",
+        "      save:",
+        "        models:",
+        "          - id: provider/old",
+        "",
+      ].join("\n");
+      for (const scope of ["project", "global"] as const) {
+        const path = writeBuckModelsScope({
+          scope,
+          cwd: dir,
+          active: "work",
+          profile: "work",
+          stages: {
+            build: { thinking: "medium", models: [{ id: "provider/a", note: "planner" }, { id: "provider/b" }] },
+            review: { models: [] },
+          },
+        });
+        if (scope === "project") writeFileSync(path, original);
+        else writeFileSync(path, original);
+        writeBuckModelsScope({
+          scope,
+          cwd: dir,
+          active: "work",
+          profile: "work",
+          stages: {
+            build: { thinking: "medium", models: [{ id: "provider/a", note: "planner" }, { id: "provider/b" }] },
+            review: { models: [] },
+          },
+        });
+        const text = readFileSync(path, "utf8");
+        expect(text).toContain("theme: dark");
+        expect(parseModelRoles(text)).toEqual({
+          default: "xai-oauth/grok-4.6:xhigh",
+          smol: "minimax-code/MiniMax-M3:minimal",
+        });
+        const parsed = parseBuckModels(text);
+        expect(parsed.active).toBe("work");
+        expect(parsed.profiles.old?.stages.save?.models).toEqual([{ id: "provider/old" }]);
+        expect(parsed.profiles.work?.stages.build).toEqual({
+          thinking: "medium",
+          models: [{ id: "provider/a", note: "planner" }, { id: "provider/b" }],
+        });
+        expect(parsed.profiles.work?.stages.review).toEqual({ thinking: "off", models: [] });
+      }
+    } finally {
+      if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+      else process.env.OMP_AGENT_DIR = previous;
+    }
   });
 });

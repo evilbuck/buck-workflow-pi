@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{ \"choice\": \"retry\", \"reason\": \"Postcondition is ambiguous, not clearly met. Re-scan/verify before advancing — with docsImpact=true, the doc-sync check needs a clean pass too, not an assumption. Retry resolves the ambiguity; advance risks shipping a phase whose acceptance gate was never satisfied.\" }\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition is ambiguous, not clearly met. Re-scan/verify before advancing — with docsImpact=true, the doc-sync check needs a clean pass too, not an assumption. Retry resolves the ambiguity; advance risks shipping a phase whose acceptance gate was never satisfied."
+  },
+  "accepted": true,
+  "reason": "Postcondition is ambiguous, not clearly met. Re-scan/verify before advancing — with docsImpact=true, the doc-sync check needs a clean pass too, not an assumption. Retry resolves the ambiguity; advance risks shipping a phase whose acceptance gate was never satisfied.",
+  "context": "state=iterating phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{ \"choice\": \"retry\", \"reason\": \"Postcondition scan returned ambiguous verdict with docsImpact=true. Retrying to resolve ambiguity before advancing, since proceeding with unclear postcondition and pending doc updates risks yielding incomplete work.\" }",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition scan returned ambiguous verdict with docsImpact=true. Retrying to resolve ambiguity before advancing, since proceeding with unclear postcondition and pending doc updates risks yielding incomplete work."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan returned ambiguous verdict with docsImpact=true. Retrying to resolve ambiguity before advancing, since proceeding with unclear postcondition and pending doc updates risks yielding incomplete work.",
+  "context": "state=iterating phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

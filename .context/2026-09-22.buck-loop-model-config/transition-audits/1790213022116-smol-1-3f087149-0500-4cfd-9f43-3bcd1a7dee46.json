@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{ \"choice\": \"advance\", \"reason\": \"Postcondition is parseable with acknowledged ambiguity; phase goals are reachable and downstream docs/howto impact is explicitly flagged for handling in the consuming phase. Retrying would not resolve the ambiguity (input-grounded, not execution-grounded) and would stall forward progress without new information.\" }\n```",
+  "parsed": {
+    "choice": "advance",
+    "reason": "Postcondition is parseable with acknowledged ambiguity; phase goals are reachable and downstream docs/howto impact is explicitly flagged for handling in the consuming phase. Retrying would not resolve the ambiguity (input-grounded, not execution-grounded) and would stall forward progress without new information."
+  },
+  "accepted": true,
+  "reason": "Postcondition is parseable with acknowledged ambiguity; phase goals are reachable and downstream docs/howto impact is explicitly flagged for handling in the consuming phase. Retrying would not resolve the ambiguity (input-grounded, not execution-grounded) and would stall forward progress without new information.",
+  "context": "state=building phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

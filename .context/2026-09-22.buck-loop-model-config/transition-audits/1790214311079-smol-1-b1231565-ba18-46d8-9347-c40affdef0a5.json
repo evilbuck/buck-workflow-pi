@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"choice\":\"advance\",\"reason\":\"Phase is parseable and in documenting state with both docsImpact and howtoImpact flagged true. Ambiguous postcondition reflects scan uncertainty rather than failure; advancing captures the documented state with both impacts recorded for downstream /b-docs and /b-howto handling.\"}",
+  "parsed": {
+    "choice": "advance",
+    "reason": "Phase is parseable and in documenting state with both docsImpact and howtoImpact flagged true. Ambiguous postcondition reflects scan uncertainty rather than failure; advancing captures the documented state with both impacts recorded for downstream /b-docs and /b-howto handling."
+  },
+  "accepted": true,
+  "reason": "Phase is parseable and in documenting state with both docsImpact and howtoImpact flagged true. Ambiguous postcondition reflects scan uncertainty rather than failure; advancing captures the documented state with both impacts recorded for downstream /b-docs and /b-howto handling.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}
