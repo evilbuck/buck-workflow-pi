@@ -1,3 +1,5 @@
+- [x] [Phase 5: `/buck-models` Command](2026-09/phase-5-buck-models-command.md) — done 2026-09-24 — project/global profile editor with activation-only switching, collision-safe selection, lossless stage preservation, availability warnings, and escaped arbitrary notes. `.context/2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md`
+
 - [x] [Phase 4: Interactive Command Cutover](2026-09/phase-4-interactive-command-cutover.md) — done 2026-09-24 — mapped interactive Buck commands apply the stage model and thinking level, then restore both; missing configuration refuses by stage name. `.context/2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md`
 
 - [x] [Phase 3: Loop Runtime Cutover](2026-09/phase-3-loop-runtime-cutover.md) — done 2026-09-24 — nested work and closed-set choice use the stage picker; failed host calls re-pick; recovered text is kept; missing stage blocks by name. `.context/2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md`

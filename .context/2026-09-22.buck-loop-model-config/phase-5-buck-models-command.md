@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-buck-loop-model-config.md
@@ -13,14 +13,14 @@ from_plan_steps: [6]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] /buck-models lets the engineer choose project or user-global scope, create/name a profile, and switch the active name without rewriting lists."
-  - "[ ] All twelve stage groups can edit model ids, optional notes, and optional thinking levels."
-  - "[ ] Every stage shows project ownership or user-global fallthrough."
-  - "[ ] Unavailable ids produce a warning but do not prevent save."
-  - "[ ] Saving either scope round-trips the edited profile and preserves unrelated YAML keys."
-  - "[ ] The command is registered from extensions/index.ts with a discoverable description."
-completed_at: null
-completed_by: null
+  - "[x] /buck-models lets the engineer choose project or user-global scope, create/name a profile, and switch the active name without rewriting lists."
+  - "[x] All twelve stage groups can edit model ids, optional notes, and optional thinking levels."
+  - "[x] Every stage shows project ownership or user-global fallthrough."
+  - "[x] Unavailable ids produce a warning but do not prevent save."
+  - "[x] Saving either scope round-trips the edited profile and preserves unrelated YAML keys."
+  - "[x] The command is registered from extensions/index.ts with a discoverable description."
+completed_at: 2026-09-24
+completed_by: b-build
 ---
 
 # Phase 5: `/buck-models` Command

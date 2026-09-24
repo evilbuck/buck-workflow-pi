@@ -6,13 +6,12 @@
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 - [ ] [Named model profiles for Buck workflow stages](items/buck-loop-model-config.md) — high; phase first — see `.context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md`
 
+- [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
+
 ## Buck Model Profile Phases (2026-09-23)
 
 ### Upcoming Phases
 
-
-
-- [ ] [Phase 5: `/buck-models` Command](items/phase-5-buck-models-command.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md)
 - [ ] [Phase 6: Model Profiles Documentation and Proof](items/phase-6-model-profiles-documentation-proof.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-6-documentation-and-end-to-end-proof.md)
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`

@@ -7,6 +7,7 @@ import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { wireBuckLoop } from "./buck-loop/index.js";
+import { wireBuckModels } from "./buck-models/index.js";
 import { wire as wireJevTool } from "./jev-tool/index.js";
 import { wire as wireTokenAttribution } from "./token-attribution/index.js";
 import { wireInteractiveModelSwitch } from "./interactive-model-switch.js";
@@ -21,6 +22,7 @@ export default function (pi: ExtensionAPI) {
   wireBSaveImproved(pi);
   wireCodeReviewIteration(pi);
   wireBuckLoop(pi);
+  wireBuckModels(pi);
   wireJevTool(pi);
   wireInteractiveModelSwitch(pi);
 }

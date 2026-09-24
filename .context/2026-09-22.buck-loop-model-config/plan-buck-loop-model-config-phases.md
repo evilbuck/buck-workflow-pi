@@ -4,7 +4,7 @@ date: 2026-09-23
 subject: 2026-09-22.buck-loop-model-config
 topics: [phasing, buck-loop, model-profiles, jev, buck-models]
 research: []
-memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md, buck-model-config-phase-4-save-2026-09-24.md]
+memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md, buck-model-config-phase-4-save-2026-09-24.md, buck-model-config-phase-5-build-2026-09-24.md]
 source_plan: plan-buck-loop-model-config.md
 phases: 6
 format: discrete
@@ -29,7 +29,7 @@ format: discrete
 | 2: TypeSafe Model Picker | completed | hard | none | [phase-2-typesafe-model-picker.md](phase-2-typesafe-model-picker.md) |
 | 3: Loop Runtime Cutover | completed | hard | none | [phase-3-loop-runtime-cutover.md](phase-3-loop-runtime-cutover.md) |
 | 4: Interactive Command Cutover | completed | hard | none | [phase-4-interactive-command-cutover.md](phase-4-interactive-command-cutover.md) |
-| 5: `/buck-models` Command | pending | medium | none | [phase-5-buck-models-command.md](phase-5-buck-models-command.md) |
+| 5: `/buck-models` Command | completed | medium | none | [phase-5-buck-models-command.md](phase-5-buck-models-command.md) |
 | 6: Documentation and End-to-End Proof | pending | medium | none | [phase-6-documentation-and-end-to-end-proof.md](phase-6-documentation-and-end-to-end-proof.md) |
 
 ## Dependency Matrix
@@ -84,7 +84,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [x] Phase 2: TypeSafe Model Picker — build-hard → review → iterate/docs if needed → save → commit
 - [x] Phase 3: Loop Runtime Cutover — build-hard → review → iterate/docs if needed → save → commit
 - [x] Phase 4: Interactive Command Cutover — build-hard → review → iterate/docs if needed → save → commit
-- [ ] Phase 5: `/buck-models` Command — build → review → iterate/docs if needed → save → commit
+- [x] Phase 5: `/buck-models` Command — build → review → iterate/docs if needed → save → commit
 - [ ] Phase 6: Documentation and End-to-End Proof — build → review → iterate/docs if needed → save → commit
 
 ## Notes

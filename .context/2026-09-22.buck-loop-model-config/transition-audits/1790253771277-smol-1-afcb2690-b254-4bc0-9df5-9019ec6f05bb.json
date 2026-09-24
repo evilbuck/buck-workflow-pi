@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{ \"choice\": \"advance\", \"reason\": \"Documenting state with docsImpact=true and howtoImpact=true already captured the flagged impacts; ambiguous postcondition is not a failure—proceeding to record the documentation/howto deltas is the correct move. Retrying would re-run the same scan without new signal.\" }\n```",
+  "parsed": {
+    "choice": "advance",
+    "reason": "Documenting state with docsImpact=true and howtoImpact=true already captured the flagged impacts; ambiguous postcondition is not a failure—proceeding to record the documentation/howto deltas is the correct move. Retrying would re-run the same scan without new signal."
+  },
+  "accepted": true,
+  "reason": "Documenting state with docsImpact=true and howtoImpact=true already captured the flagged impacts; ambiguous postcondition is not a failure—proceeding to record the documentation/howto deltas is the correct move. Retrying would re-run the same scan without new signal.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

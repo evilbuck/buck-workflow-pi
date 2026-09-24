@@ -128,6 +128,12 @@ describe("Extension slimdown", () => {
     expect(() => buckWorkflowExtension(api)).not.toThrow();
   });
 
+  it("registers the discoverable buck-models setup command", () => {
+    const { api, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(commands.get("buck-models")?.description).toContain("project or user-global Buck model profiles");
+  });
+
   it("does NOT register b-mode command", () => {
     const { api, commands } = createMockApi();
     buckWorkflowExtension(api);
