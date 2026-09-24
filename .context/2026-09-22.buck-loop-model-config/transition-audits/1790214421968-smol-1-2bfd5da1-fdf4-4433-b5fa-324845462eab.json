@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{ \"choice\": \"retry\", \"reason\": \"Ambiguous postcondition is a verification gap, not a pass. Retry the scan to resolve to a definite pass/fail before advancing; advancing without resolved postconditions would commit unverified state.\" }\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Ambiguous postcondition is a verification gap, not a pass. Retry the scan to resolve to a definite pass/fail before advancing; advancing without resolved postconditions would commit unverified state."
+  },
+  "accepted": true,
+  "reason": "Ambiguous postcondition is a verification gap, not a pass. Retry the scan to resolve to a definite pass/fail before advancing; advancing without resolved postconditions would commit unverified state.",
+  "context": "state=committing phase=.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md why=postcondition scan ambiguous parseable=true docsImpact=false howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

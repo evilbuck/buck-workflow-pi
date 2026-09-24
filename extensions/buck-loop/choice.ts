@@ -97,21 +97,25 @@ function promptFor(legalKinds: readonly string[], correction: boolean, context?:
   return `${correctionPrefix(correction)}${decisionPrefix(context)}Choose exactly one action from this legal enum: ${set}. Reply only with JSON: { "choice": "<one legal kind>", "reason": "..." }.`;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  return record;
+}
+
+function jevReason(choice: string, confidence: unknown): string {
+  if (typeof confidence !== "number") return `Jev picked ${choice}`;
+  return `Jev picked ${choice} (confidence ${confidence})`;
+}
+
 function readJevChoice(details: unknown, legalKinds: ReadonlySet<string>): ParsedResponse | null {
-  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
-  const record = details as Record<string, unknown>;
-  if (record.error === true) return null;
-  const answers = record.answers;
-  if (!answers || typeof answers !== "object" || Array.isArray(answers)) return null;
-  const action = (answers as Record<string, unknown>).action;
-  if (!action || typeof action !== "object" || Array.isArray(action)) return null;
-  const choice = (action as Record<string, unknown>).choice;
+  const record = asRecord(details);
+  if (!record || record.error === true) return null;
+  const action = asRecord(asRecord(record.answers)?.action);
+  if (!action) return null;
+  const choice = action.choice;
   if (typeof choice !== "string" || !legalKinds.has(choice)) return null;
-  const confidence = (action as Record<string, unknown>).confidence;
-  const reason = typeof confidence === "number"
-    ? `Jev picked ${choice} (confidence ${confidence})`
-    : `Jev picked ${choice}`;
-  return { choice, reason };
+  return { choice, reason: jevReason(choice, action.confidence) };
 }
 
 
