@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, appendFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, appendFileSync, symlinkSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -200,6 +200,18 @@ describe("git-ops", () => {
     execFileSync("git", ["clean", "-qfd"], { cwd: wt });
     const removed = removeWorktree(clone, wt);
     expect(removed.ok).toBe(true);
+  });
+
+  it("gitCommonDir converges whether called from the real path or a symlink to it", () => {
+    const { origin, clone } = makeOriginClone();
+    dirs.push(origin, clone);
+    const link = join(tmpdir(), `cr-clone-link-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+    symlinkSync(clone, link);
+    try {
+      expect(gitCommonDir(link)).toBe(gitCommonDir(clone));
+    } finally {
+      unlinkSync(link);
+    }
   });
 
   it("worktree fingerprint reflects head and status", () => {
