@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-buck-loop-model-config.md
@@ -13,14 +13,14 @@ from_plan_steps: [7, 8]
 depends_on: [3, 4, 5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Living docs describe /buck-models, both config scopes, all twelve group keys, project-stage fallthrough, availability filtering, and stop-not-host-default behavior."
-  - "[ ] A user-facing how-to ends with an observable successful profile selection and stage run."
-  - "[ ] Integration coverage proves loop work, loop choice, and an interactive command use picked ids and configured/default-off thinking."
-  - "[ ] Integration coverage proves missing profile, missing stage, and no available ids stop rather than use the host model."
-  - "[ ] Existing mappingFromOmpRoles tests remain green while Buck paths no longer call that mapping."
-  - "[ ] The deterministic guardrails contract passes for the complete feature."
-completed_at: null
-completed_by: null
+  - "[x] Living docs describe /buck-models, both config scopes, all twelve group keys, project-stage fallthrough, availability filtering, and stop-not-host-default behavior."
+  - "[x] A user-facing how-to ends with an observable successful profile selection and stage run."
+  - "[x] Integration coverage proves loop work, loop choice, and an interactive command use picked ids and configured/default-off thinking."
+  - "[x] Integration coverage proves missing profile, missing stage, and no available ids stop rather than use the host model."
+  - "[x] Existing mappingFromOmpRoles tests remain green while Buck paths no longer call that mapping."
+  - "[x] The deterministic guardrails contract passes for the complete feature."
+completed_at: 2026-09-24
+completed_by: b-build
 ---
 
 # Phase 6: Documentation and End-to-End Proof

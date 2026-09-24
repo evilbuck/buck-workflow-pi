@@ -4,7 +4,6 @@
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
-- [ ] [Named model profiles for Buck workflow stages](items/buck-loop-model-config.md) — high; phase first — see `.context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
 
@@ -12,7 +11,6 @@
 
 ### Upcoming Phases
 
-- [ ] [Phase 6: Model Profiles Documentation and Proof](items/phase-6-model-profiles-documentation-proof.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-6-documentation-and-end-to-end-proof.md)
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
 - [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open

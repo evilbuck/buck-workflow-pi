@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-23
 subject: 2026-09-22.buck-loop-model-config
 topics: [buck-loop, model-profiles, jev, buck-models]
 research: []
 iterations: [iterate-buck-loop-model-config.md, iterate-phase-1-profile-config.md, iterate-phase-1-complexity.md, iterate-phase-5-buck-models-command.md]
-memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md, buck-model-config-phase-4-save-2026-09-24.md, buck-model-config-phase-5-build-2026-09-24.md]
+memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md, buck-model-config-phase-3-save-2026-09-24.md, buck-model-config-phase-4-save-2026-09-24.md, buck-model-config-phase-5-build-2026-09-24.md, buck-model-config-phase-6-build-2026-09-24.md]
 ---
 
 # Plan: Configurable model profiles for Buck workflow
@@ -125,15 +125,15 @@ Unknown keys are ignored. A skill with no row does not consult `buckModels`.
 
 ## Acceptance criteria
 
-- [ ] An engineer can create a named profile, set model ids and an optional thinking level per stage group, and switch the active profile without rewriting the lists, via `/buck-models`, into either `<cwd>/.omp/config.yml` or `~/.omp/agent/config.yml`.
-- [ ] A stage set on the project profile is used even when the user-global profile has a different set. A stage omitted from the project profile uses the user-global stage. A stage missing from both stops and names the stage. No host-default model.
-- [ ] A blank project `buckModels.active` uses the user-global active name. An unknown name stops and names it.
-- [ ] Saving a profile with an id that is not installed succeeds and warns. Runtime excludes that id and does not rewrite the file.
-- [ ] Loop work sessions and closed-set choice run the Jev-picked id from the stage set, with the configured thinking level (default `off`). Interactive commands in the stage table do the same on the parent session.
-- [ ] Jev no-answer picks uniformly at random from the available ids. A low-confidence pick still runs.
-- [ ] A failed nested session re-picks only after host retry finishes, and the failed id is not a candidate.
-- [ ] `difficulty: hard` still selects the hard build prompt. It does not select the model.
-- [ ] `modelRoles` parsing behavior is unchanged.
+- [x] An engineer can create a named profile, set model ids and an optional thinking level per stage group, and switch the active profile without rewriting the lists, via `/buck-models`, into either `<cwd>/.omp/config.yml` or `~/.omp/agent/config.yml`.
+- [x] A stage set on the project profile is used even when the user-global profile has a different set. A stage omitted from the project profile uses the user-global stage. A stage missing from both stops and names the stage. No host-default model.
+- [x] A blank project `buckModels.active` uses the user-global active name. An unknown name stops and names it.
+- [x] Saving a profile with an id that is not installed succeeds and warns. Runtime excludes that id and does not rewrite the file.
+- [x] Loop work sessions and closed-set choice run the Jev-picked id from the stage set, with the configured thinking level (default `off`). Interactive commands in the stage table do the same on the parent session.
+- [x] Jev no-answer picks uniformly at random from the available ids. A low-confidence pick still runs.
+- [x] A failed nested session re-picks only after host retry finishes, and the failed id is not a candidate.
+- [x] `difficulty: hard` still selects the hard build prompt. It does not select the model.
+- [x] `modelRoles` parsing behavior is unchanged.
 
 ## Verification
 

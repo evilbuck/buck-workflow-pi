@@ -1,3 +1,4 @@
+- 2026-09-24 — [Phase 6 model-profile documentation and proof](buck-model-config-phase-6-build-2026-09-24.md) — `completed` (living docs + how-to; 86 focused tests; end-to-end smoke; durable guardrails pass)
 - 2026-09-24 — [Phase 5 `/buck-models` command build and iteration](buck-model-config-phase-5-build-2026-09-24.md) — `completed` (final review approved; all in-plan findings resolved; 984 Vitest and 70 Bun tests pass)
 - 2026-09-24 — [Phase 4 interactive command cutover save](buck-model-config-phase-4-save-2026-09-24.md) — `completed` (review pass with warnings; interactive stage switch uncommitted; subject stays active for phases 5–6)
 - 2026-09-24 — [State-machine diagram + drawing-library research](state-machine-diagram-research-2026-09-24.md) — `completed` (Cytoscape+dagre winner; interactive diagram at docs/state-machine-diagram.html; research filed in Obsidian vault; docs-only, guardrails skipped)

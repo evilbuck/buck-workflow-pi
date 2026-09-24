@@ -1,10 +1,10 @@
 ---
 title: "Named model profiles for Buck workflow stages"
-status: active
+status: completed
 priority: high
 created: 2026-09-23
 updated: 2026-09-24
-completed: null
+completed: 2026-09-24
 related:
   - .context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md
   - .context/2026-09-22.buck-loop-model-config/brainstorm-buck-loop-model-config.md
@@ -15,6 +15,4 @@ related:
 
 # Named model profiles for Buck workflow stages
 
-Pickup from [Phase 3: Loop Runtime Cutover](../../2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md). Phases 1–2 are done.
-
-Engineers switch a named profile. Each stage group maps to model ids plus a thinking level. Runtime asks Jev which available id to run. Missing config stops. `/buck-models` writes project or user-global `.omp` config. Do not fold in the settings-api `modelRoles` parser swap.
+All six phases completed. Engineers switch a named profile whose stage groups map to model ids and thinking levels. Runtime asks Jev which available id to run, falls back to uniform random only when Jev cannot answer, and stops on missing configuration instead of using the host model. `/buck-models` writes project or user-global `.omp` config without folding in the separate `modelRoles` parser migration.
