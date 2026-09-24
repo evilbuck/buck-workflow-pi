@@ -46,7 +46,7 @@
  * - {@link ./loop.ts}         — the while-loop that drives the machine
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createActivity, type ActivityUI } from "../extension-activity.js";
@@ -117,6 +117,7 @@ export function parseArgs(raw: string): ParsedArgs {
  */
 type BuckLoopUI = ActivityUI & {
   notify: (message: string, type?: "info" | "warning" | "error") => void;
+  confirm?: (title: string, message: string, opts?: ExtensionUIDialogOptions) => Promise<boolean>;
 };
 
 /** Short label shown in the progress widget for the current command. */
@@ -179,6 +180,30 @@ function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }
   };
 }
 
+const DIRTY_CONFIRM_MS = 60_000;
+
+/** Yes continues. Timeout, cancel, throw, or a missing dialog means no. */
+async function confirmDirty(ui: BuckLoopUI, paths: string[]): Promise<boolean> {
+  if (!ui.confirm) return false;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DIRTY_CONFIRM_MS);
+  const shown = paths.slice(0, 12);
+  const extra = paths.length - shown.length;
+  const list = shown.join("\n") + (extra > 0 ? `\n…and ${extra} more` : "");
+  try {
+    const answer = await ui.confirm(
+      "Working tree is dirty",
+      `${paths.length} change(s) outside .context/:\n${list}\n\nContinue? A later commit runs git add -A, so these files can be staged.`,
+      { timeout: DIRTY_CONFIRM_MS, signal: controller.signal },
+    );
+    return answer === true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /**
  * Register `/buck-loop` with the coding-agent host.
  *
@@ -234,6 +259,7 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
               });
               returnFailureToAgent(pi, ctx.ui, failure);
             },
+            confirmDirty: (paths) => confirmDirty(ctx.ui, paths),
           },
         });
         const terminal = result.state + ": " + result.reason;

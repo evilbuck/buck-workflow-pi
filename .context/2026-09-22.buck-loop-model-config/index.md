@@ -1,6 +1,6 @@
 ---
-status: draft
+status: completed
 lifecycle_schema: 1
-lifecycle_revision: 1
-lifecycle_last_transition: initialize
+lifecycle_revision: 3
+lifecycle_last_transition: close-verified
 ---

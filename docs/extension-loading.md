@@ -118,7 +118,9 @@ buck-workflow-pi/
   extensions/
     index.ts                # Entry — default export wires everything marked (wired)
     tps-tracker.ts          # (wired) Token-per-second tracking
-    omp-models.ts           # (wired, library) OMP role→model catalog + mappingFromOmpRoles
+    omp-models.ts           # (wired, library) named buckModels profiles + stage resolution; legacy OMP role→model catalog
+    buck-models/            # (wired) /buck-models profile editor (create, edit, activate)
+    interactive-model-switch.ts # (wired) stage-based model switch for mapped interactive Buck commands
     plan-artifact.ts        # (wired) opt-in plan-mode → .context/ bridge (turn_end hook)
     extension-activity.ts   # (wired, library) shared live-activity progress helper
     subprocess.ts           # (library) shared subprocess helpers
@@ -128,6 +130,7 @@ buck-workflow-pi/
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
     buck-loop/              # (wired) observably invoked /buck-loop runner
     code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
+    token-attribution/      # (wired) project/branch token ledger + /tokens report
     *.test.ts               # Tests for extension behavior
   skills/
     b-build/SKILL.md
@@ -154,7 +157,7 @@ buck-workflow-pi/
 
 `extensions/index.ts` is the single manifest entry; its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads OMP `modelRoles` through `extensions/omp-models.ts`, with legacy Pi `buckModelMapping` as fallback; inspects active phase difficulty and auto-switches the model on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`; then restores the original model on `agent_end`. If neither mapping exists, it shows configuration guidance rather than a picker.
+1. **Named Buck model routing** (`interactive-model-switch.ts`, `omp-models.ts`) — resolves the active `buckModels` profile stage for mapped interactive Buck commands and `/buck-loop` nested calls, picks an available configured id via Jev (uniform random on no answer), applies the stage thinking level, restores on `agent_end`, and refuses instead of using the host model. `/buck-models` (`buck-models/`) edits the profiles.
 2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
 3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
 4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.
@@ -163,6 +166,7 @@ buck-workflow-pi/
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
 8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the domain-neutral synchronous evaluator in `extensions/state-machine.ts` for dispatch and fail-closed route validation; the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
 9. **`/code-review` local iteration** (`code-review-iteration/`) — bounded local Reviewer → optional Fixer → fresh-Reviewer passes. Reviewer work runs in disposable detached worktrees; reproduction commands cross the `review_exec` allowlist boundary; pass artifacts are immutable under the Git common directory. This runtime command is distinct from the portable release-PR review prompt/skill with the same name.
+10. **Token attribution** (`token-attribution/`) — records assistant and current-session nested usage in a plugin-owned `~/.omp/stats.db` table, keyed by Git origin/common directory plus branch, and exposes estimated project totals through `/tokens` (or `/token-use` on command collision). It never modifies OMP-owned stats tables. See `docs/oh-my-pi.md` and `docs/howto/inspect-project-token-use.md`.
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 

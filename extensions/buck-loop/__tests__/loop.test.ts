@@ -72,7 +72,7 @@ function workDeps(
     cwd: string;
     skill: NestedSkill;
     planOrPhasePath: string;
-    difficulty: string;
+    difficulty?: string;
     onActivity?: (event: ActivityEvent) => void;
   }) => Promise<RunStepResult>,
   choose: (opts: {
@@ -189,6 +189,42 @@ describe("handleLoop commands", () => {
     expect(result.reason).toMatch(/dirty/);
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+  it("starts a staged-only dirty tree when the operator continues", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    git(cwd, ["add", "src/unrelated.ts"]);
+    const deps = workDeps(async () => ({ ok: true, text: "landed" }));
+    const confirmDirty = vi.fn(async () => true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    expect(confirmDirty).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining("src/unrelated.ts")]));
+    expect(deps.runStep).toHaveBeenCalled();
+    expect(result.reason).not.toMatch(/did not continue/);
+  });
+
+  it("blocks unstaged dirt without asking the operator", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "landed" }));
+    const confirmDirty = vi.fn(async () => true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    expect(confirmDirty).not.toHaveBeenCalled();
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(result.reason).toMatch(/dirty/);
+  });
+
+  it("stops a dirty tree when the operator declines", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
+    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
+    const confirmDirty = vi.fn(async () => false);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    expect(result).toEqual({ state: "blocked", reason: "working tree is dirty; operator did not continue" });
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
 
   it("refuses to resume a non-blocked run with staged dirt", async () => {
     const cwd = repo();
@@ -286,7 +322,7 @@ describe("happy path", () => {
     expect(execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" })).toBe("");
   });
 
-  it("maps phase difficulty to runStep tiers with legacy and default behavior", async () => {
+  it("uses difficulty only to select the hard build prompt skill", async () => {
     const cwd = repo();
     phased(cwd, ["pending", "pending", "pending", "pending"]);
     stampDifficulty(cwd, 1, "hard");
@@ -300,10 +336,27 @@ describe("happy path", () => {
       .filter((call) => call.skill === "b-build" || call.skill === "b-build-hard");
     expect(builds.map((call) => [call.skill, call.difficulty])).toEqual([
       ["b-build-hard", "hard"],
-      ["b-build", "medium"],
-      ["b-build", "medium"],
-      ["b-build", "medium"],
+      ["b-build", "not-hard"],
+      ["b-build", "easy"],
+      ["b-build", undefined],
     ]);
+    expect(builds.every((call) => !("modelPattern" in call))).toBe(true);
+  });
+
+  it("records a named-stage profile stop on the loop block", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const stop = 'buckModels profile "work" is missing stage "build"';
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+        return { ok: false, text: stop, failure: { prompt: "prompt", agent: { kind: "work-session", id: "stopped", role: opts.skill }, error: { name: "BuckModelStop", message: stop } } };
+      }
+      return landingWork()(opts);
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain('stage "build"');
+    expect(readProjection(cwd)?.history.at(-1)?.why).toContain('stage "build"');
   });
 
   it("routes iterate when the review artifact exists, then re-reviews", async () => {

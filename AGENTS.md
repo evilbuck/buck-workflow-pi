@@ -123,6 +123,22 @@ The skills, prompts, and extensions are designed to have a loose coupling. Each 
 
 buck-workflow plans and phase files are omp-aware — see [docs/buck-workflow.md § OMP Autonomous Loops](docs/buck-workflow.md#omp-autonomous-loops) for the full description. Three primitives (`/goal set`, the `orchestrate` keyword, the `workflow` keyword) are user-toggled; the workflow only *recommends* them via the `omp_execution` phase field, the `eval-<topic>.py` template for `workflow` plans, and the `b-review` 6-step completion-audit. Slash-command stubs at `prompts/omp-{orchestrate,workflow,goal}.md` document each contract. Background: `.context/2026-06-06.omp-integration-buck-workflow/`. The b-flow deprecation (`.context/2026-06-01.deprecate-b-flow/`) is the lesson: no new extension-based orchestration, prompt-level / skill-level only.
 
+## Native judgment (OMP 18.3.0+)
+
+When building or changing skills, extensions, or commands/prompts, check whether a decision is a bounded judgment. If it is, use OMP native judgment. Do not prompt a chat model to imitate it.
+
+Native judgment is the `judge` model role (TypeSafe Jev), not a built-in agent tool. Candidates include `typesafe/jev-latest` and `openrouter/~typesafe/jev-latest`. Calls are usage-accounted, including error stop reasons and messages. A failed native judge stays on native candidates; do not fall back to a prompted chat model, `smol`, or a fake verdict.
+
+Use it for closed decisions: yes/no, a choice from a fixed label set, or a score on an ordered scale. Examples already in this repo: loop continuation choice, typed-output semantic checks, unexpected-stop and staging judgments. Do not use it for open-ended writing, design, or explanation.
+
+Layer rules:
+
+- **Extensions** own the runtime call. Use the judge role / TypeSafe judgment API. Do not wrap Jev in a chat completion session. Missing judge or `TYPESAFE_API_KEY` fails closed.
+- **Skills** stay harness-neutral. Name the closed question and the legal answers. On OMP, point the decision at an eval-kernel `judge()` / `judge_batch()` or an extension that already calls native judgment. Do not embed an OMP-only API call in the skill body.
+- **Prompts / commands** stay thin wrappers. They may say when the skill's closed decision should be judged natively; they do not reimplement the judge.
+
+Spelling in code and docs is `judgment` / `judge`, matching OMP.
+
 **Memory layers:**
 1. **`.context/memory`** — required, git-portable session record (all harnesses).
 2. **Harness LTM (OMP only)** — when `memory.backend` is `hindsight` or `mnemopi`, agents use `retain` / `recall` / `reflect` (and optional `learn`). `/b-save` mirrors checkpoint facts via those tools; do not call Hindsight HTTP from skills except `b-memory-import`'s deterministic importer.
@@ -308,5 +324,6 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 - Per-session memory is git-portable `.context/memory/`. Harness-specific LTM mirrors are managed by `b-save`; the canonical source remains `.context/memory/`.
 - Nested `createAgentSession()` work in `/buck-loop` streams through `AgentSession.subscribe()` + `normalizeActivityEvent()` into `createActivity().ingest`. Unsubscribe before dispose, including prompt failure. `/buck-loop` uses a six-row activity viewport (`maxActivityLines: 6`, `maxLineWidth: 64`); other long-running commands keep the shared eight-row default.
 - Subject lifecycle in `.context/<subject>/index.md` is owned exclusively by `skills/_shared/scripts/subject-lifecycle.ts`. Callers use `initialize`, `activate`, `close-verified`, `reopen`, or `inspect`; direct lifecycle-field writes are prohibited and checked by `npm run subject-lifecycle:check`. Plan/phase/spec/iterate statuses remain separate artifact contracts.
+- User-facing how-tos live in `docs/howto/`: one action per file, numbered steps ending in **Eat** (the observable success check). Keep procedures out of ADRs and PRDs; link the how-to index instead. Follow the `b-howto` skill format.
 <!-- END b-docs:conventions -->
 

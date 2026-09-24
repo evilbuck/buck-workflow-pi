@@ -266,13 +266,6 @@ function buildingLike(state: "building" | "iterating") {
         target: "reviewing" as const,
         output: () => runSkill("review", "work landed; reviewing it"),
       },
-      {
-        id: `${state}-choice-block`,
-        choice: { kind: "block" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
-        target: "blocked" as const,
-        output: () => blocked("accepted choice: block"),
-      },
     ],
     events: [stopEvent(state)],
   };
@@ -311,13 +304,6 @@ function documentingState() {
         target: "saving" as const,
         output: () => runSkill("save", "docs updated; saving session state"),
       },
-      {
-        id: "documenting-choice-block",
-        choice: { kind: "block" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
-        target: "blocked" as const,
-        output: () => blocked("accepted choice: block"),
-      },
     ],
     events: [stopEvent("documenting")],
   };
@@ -355,13 +341,6 @@ function savingState() {
         when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
         target: "committing" as const,
         output: () => runSkill("commit", "session state saved; committing"),
-      },
-      {
-        id: "saving-choice-block",
-        choice: { kind: "block" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
-        target: "blocked" as const,
-        output: () => blocked("accepted choice: block"),
       },
     ],
     events: [stopEvent("saving")],
@@ -409,13 +388,6 @@ function committingChoices() {
         blocked(
           `plan vanished while committing: ${s.planFacts.kind === "missing" ? s.planFacts.reason : "unknown"}`,
         ),
-    },
-    {
-      id: "committing-choice-block",
-      choice: { kind: "block" as const },
-      when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
-      target: "blocked" as const,
-      output: () => blocked("accepted choice: block"),
     },
   ];
 }
@@ -520,13 +492,6 @@ function reviewingChoices() {
       when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && canRunWork(s),
       target: "saving" as const,
       output: () => runSkill("save", "accepted choice: treat the review as clean and save"),
-    },
-    {
-      id: "reviewing-choice-block",
-      choice: { kind: "block" as const },
-      when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && canRunWork(s),
-      target: "blocked" as const,
-      output: () => blocked("accepted choice: block"),
     },
   ];
 }

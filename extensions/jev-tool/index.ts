@@ -89,13 +89,27 @@ export function jevTool(evaluate: TypeSafeEvaluator): ToolDefinition<typeof JevP
     async execute(_toolCallId, params) {
       const request: TypeSafeRequest = { state: params.state, questions: params.questions };
       if (params.model !== undefined) request.model = params.model;
-      const evaluation = await evaluate(request);
-      if (!evaluation.ok) return evaluationErrorResult(evaluation.failure);
-
-      const text = JSON.stringify(evaluation.result);
-      return { content: [{ type: "text", text }], details: evaluation.result };
+      const { raw, details } = await runJev(evaluate, request);
+      return { content: [{ type: "text", text: raw }], details };
     },
   };
+}
+
+/**
+ * Typed evaluation core shared by the `jev` tool and direct callers.
+ * Library callers have no ExtensionContext; the tool wrapper ignores it too.
+ */
+export async function runJev(
+  evaluate: TypeSafeEvaluator,
+  request: TypeSafeRequest,
+): Promise<{ raw: string; details: unknown }> {
+  const evaluation = await evaluate(request);
+  if (!evaluation.ok) {
+    const failed = evaluationErrorResult(evaluation.failure);
+    return { raw: failed.content.map((part) => part.text).join(""), details: failed.details };
+  }
+  const text = JSON.stringify(evaluation.result);
+  return { raw: text, details: evaluation.result };
 }
 
 export function wire(api: ExtensionAPI, deps: JevToolDeps = {}): void {

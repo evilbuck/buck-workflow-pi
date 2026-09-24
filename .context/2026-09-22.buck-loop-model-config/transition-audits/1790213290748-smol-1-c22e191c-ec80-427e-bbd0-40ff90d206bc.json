@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{\n  \"choice\": \"retry\",\n  \"reason\": \"Postcondition scan returned ambiguous rather than clearly met; with parseable=true the verification can be re-run to resolve the ambiguity before advancing, avoiding carrying forward an unverified state.\"\n}\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition scan returned ambiguous rather than clearly met; with parseable=true the verification can be re-run to resolve the ambiguity before advancing, avoiding carrying forward an unverified state."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan returned ambiguous rather than clearly met; with parseable=true the verification can be re-run to resolve the ambiguity before advancing, avoiding carrying forward an unverified state.",
+  "context": "state=iterating phase=.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

@@ -1,3 +1,17 @@
+- [x] [Named model profiles for Buck workflow stages](2026-09/buck-loop-model-config.md) — done 2026-09-24 — six-phase cutover covering config resolution, Jev/random selection, loop and interactive routing, `/buck-models`, living docs, how-to, and end-to-end proof. `.context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config.md`
+- [x] [Phase 6: Model Profiles Documentation and Proof](2026-09/phase-6-model-profiles-documentation-proof.md) — done 2026-09-24 — named-profile living docs and how-to; existing cross-path integration coverage; save→resolve→Jev-pick→run/refuse smoke; durable guardrails pass. `.context/2026-09-22.buck-loop-model-config/phase-6-documentation-and-end-to-end-proof.md`
+- [x] [Phase 5: `/buck-models` Command](2026-09/phase-5-buck-models-command.md) — done 2026-09-24 — project/global profile editor with activation-only switching, collision-safe selection, lossless stage preservation, availability warnings, and escaped arbitrary notes. `.context/2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md`
+
+- [x] [Phase 4: Interactive Command Cutover](2026-09/phase-4-interactive-command-cutover.md) — done 2026-09-24 — mapped interactive Buck commands apply the stage model and thinking level, then restore both; missing configuration refuses by stage name. `.context/2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md`
+
+- [x] [Phase 3: Loop Runtime Cutover](2026-09/phase-3-loop-runtime-cutover.md) — done 2026-09-24 — nested work and closed-set choice use the stage picker; failed host calls re-pick; recovered text is kept; missing stage blocks by name. `.context/2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md`
+
+- [x] [Phase 2: TypeSafe Model Picker](2026-09/phase-2-typesafe-model-picker.md) — done 2026-09-24 — parent Jev/random picker; membership check; failed-id exclusion; named-stage exhaustion stop; review pass; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md`
+
+- [x] [Phase 1: Profile Config and Resolution](2026-09/phase-1-profile-config-and-resolution.md) — done 2026-09-23 — buckModels parse, project-then-global stage resolution, availability filter, lossless YAML write; modelRoles unchanged; loop callers not cut over. `.context/2026-09-22.buck-loop-model-config/phase-1-profile-config-and-resolution.md`
+
+- [x] [OMP token attribution by project and feature](2026-09/omp-token-attribution.md) — done 2026-09-23 — plugin-owned SQLite ledger, origin/worktree and branch attribution, nested delivery reconciliation, `/tokens` reporting, documentation, and passing durable guardrails. `.context/2026-09-23.omp-token-attribution/`
+
 - [x] [Fix buck-loop deferred-docs routing and in-cycle resume](2026-09/fix-buck-loop-deferred-docs-and-in-cycle-resume.md) — done 2026-09-22 — deferred Phase N documentation routes directly to save; blocked loop-owned staged work resumes while unrelated dirt fails closed. `.context/2026-09-22.fix-buck-loop-deferred-docs-and-in-cycle-resume/`
 
 - [x] [Skill/command/extension surface cleanup](2026-09/skill-surface-cleanup.md) — done 2026-09-21 — removed dead unwired extensions, made `b-save` skill-canonical, and moved release-PR review artifacts under `.context/`

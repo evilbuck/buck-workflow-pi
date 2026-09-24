@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{\n  \"choice\": \"retry\",\n  \"reason\": \"Postcondition scan is ambiguous with docsImpact=true and howtoImpact=true; retrying allows re-scanning to resolve verification clarity before advancing, since advancing with an ambiguous postcondition risks yielding incomplete documentation work.\"\n}\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition scan is ambiguous with docsImpact=true and howtoImpact=true; retrying allows re-scanning to resolve verification clarity before advancing, since advancing with an ambiguous postcondition risks yielding incomplete documentation work."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan is ambiguous with docsImpact=true and howtoImpact=true; retrying allows re-scanning to resolve verification clarity before advancing, since advancing with an ambiguous postcondition risks yielding incomplete documentation work.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

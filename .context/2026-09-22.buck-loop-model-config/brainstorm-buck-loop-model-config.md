@@ -1,12 +1,13 @@
 # Plan: Configurable models in buck-loop
 
 ## User Goal
-An engineer sets up named model profiles and switches the active one. Each profile maps buck-workflow stages to an ordered list of model ids, instead of the loop inheriting one phase-wide `modelRoles` chain.
+An engineer sets up named model profiles and switches the active one. Each profile maps buck-workflow stage groups to model-id sets and thinking levels, instead of the workflow inheriting one phase-wide `modelRoles` chain.
 
 ## What we might build
 - Named profiles the engineer switches between.
-- Each profile is a map from workflow stage to an ordered list of `provider/model` ids.
-- Shape they gave: `plan|phase`, `build-hard`, `build`, and more stages ("etc"). Example values: `plan|phase` → `xai-oauth/grok-4.7`, `openai-codex/gpt-5.6-sol`, `anthropic-claude/opus-5`; `build-hard` → `xai-oauth/grok-4.7`, `gpt-5.6`, `glm-5.3`; `build` → `zai/glm-5.3`, `openai-codex/gpt-5.6-terra`.
+- Each profile maps a workflow stage group to a set of `provider/model` ids.
+- Each stage group also configures the OMP thinking level used by its selected model.
+- Early input examples used `plan|phase`, `build-hard`, and `build`; the settled grouping is recorded under Decisions so far.
 
 ## Why it matters
 - Today every work skill in a phase shares one model, chosen by a binary `difficulty:` collapse.
@@ -20,20 +21,57 @@ An engineer sets up named model profiles and switches the active one. Each profi
   - `.context/2026-05-02.b-phase-model-hints/` is the authoring side (`difficulty`, `model_hint`, `buck_hint`). This subject is the runtime side.
 - Nested work sessions set `disableExtensionDiscovery: true` and do not include the `task` tool. Extension model paths do not run inside a loop child unless we later decide they should.
 
+## Setup UI
+Required. Profile setup is not a hand-edited YAML-only path.
+
+The engineer can:
+- Create and name a profile.
+- Select the active profile without rewriting its model lists.
+- Edit the model-id set and thinking level for each stage group: `[brainstorm, plan]`, `[phase]`, `[build, build-hard]`, `[review]`, `[iterate]`, `[save]`, `[commit]`, `[docs, howto]`, `[choice]`, `[research]`, `[grill]`, `[present]`.
+- See, per stage, whether the entry came from the project profile or fell through from user-global.
+- See warnings for model ids unavailable in the current OMP environment without being prevented from saving a portable profile.
+
+Writes:
+- Project: `<cwd>/.omp/config.yml`
+- User-global: `~/.omp/agent/config.yml`
+
+Current OMP constraint: `/settings` and `omp config set` write the global file. They do not write arbitrary project keys. The only project write today is `modelRoles` when `modelRoleStorage: project`. A project-profile UI needs its own write path. Hand-editing the YAML still works, and is not the setup path.
+
+Surface: `/buck-models`, a dedicated command rather than `/settings`. It can write either the project file or the user-global file. The engineer picks the write scope inside it.
+- Each model id has an optional note. An empty note means Jev sees the id alone. A missing note does not block save.
+
 ## Open questions
-- Which stages are keys? They named `plan|phase`, `build-hard`, and `build`, then "etc".
-- `plan|phase` is not a `/buck-loop` call. Does a profile also drive interactive workflow stages the loop does not spawn?
-- Where a profile lives, and how the active profile is selected.
-- What happens when Jev is unavailable, returns low confidence, or the chosen model call fails?
+- None currently identified.
+
+## Intake status
+Stopped by the user on 2026-09-24. The brainstorm remains a draft; `/b-plan` was not invoked.
 
 ## Decisions so far
+- A profile drives the whole buck-workflow, not only `/buck-loop` calls. Interactive commands consult the active profile too.
+- Profiles live in the project `.omp` config, then `~/.omp/agent`. Not `omp --profile`. An active-profile name selects one profile. Switching changes that name, not the lists.
+- Per-stage fallthrough: a stage present in the project profile wins. A stage the project profile omits uses the same stage from the user-global profile. A stage missing from both stops the run and names the stage. The loop blocks. An interactive command refuses. No host-default model.
+- A blank project active-profile name uses the user-global active profile. A name that exists in neither place stops the run and names it. If the global name is also blank, that is the same stop. Interactive commands use this same resolver.
+- Setup UI is `/buck-models`, not the `/settings` panel. It creates and names profiles, selects the active profile, edits each stage group's model-id set and thinking level, shows per-stage fallthrough, and warns about currently unavailable models. It writes `<cwd>/.omp/config.yml` or `~/.omp/agent/config.yml`, chosen in the UI. Hand-editing YAML is not the setup path.
+- Each model id may have an optional note so Jev can tell candidates apart. If the note is empty, Jev sees the id alone. Saving a profile does not require notes.
+- An unavailable model does not make a profile unsavable. This keeps project profiles portable across machines and provider setups.
+
 - Audience: an engineer configuring the workflow, not a per-run model flag for one loop.
 - Unit of configuration: a named profile, switched as a whole.
 - A profile maps a workflow stage to a set of model ids. Not an OMP role name (`smol` / `slow` / `default`).
-- `plan|phase` was given as one key, not two.
-- Selection is not a fallback chain and not a hand-reordered ranking. At runtime, ask Jev which id from that stage's set to run, given the context. Run the model Jev picks.
+- Stage groups, by model need: `[brainstorm, plan]`, `[phase]`, `[build, build-hard]`, `[review]`, `[iterate]`, `[save]`, `[commit]`, `[docs, howto]`, `[choice]`, `[research]`, `[grill]`, `[present]`. A group shares one model set. `build` and `build-hard` stay one set. `research`, `grill`, and `present` are separate keys.
+- Each stage group may carry one OMP thinking level: `off`, `minimal`, `low`, `medium`, `high`, or `xhigh`. If omitted, runtime uses `off`, preserving current buck-loop behavior.
+- Runtime passes that level to OMP, which clamps it to the selected model's capabilities. Temperature is not configurable in this version.
+- Selection is not a fallback chain and not a hand-reordered ranking. Runtime first resolves the stage's configured ids against the current OMP environment and excludes unavailable candidates without mutating the saved profile.
+- If no available candidate remains, the loop blocks and an interactive command refuses; the error names the stage and excluded ids.
+- Ask Jev which id from the remaining stage set to run, given the context. Run the model Jev picks.
 - Jev question type is Choice: one option from the set, plus a probability per option and a confidence on the pick. Code owns the call. Jev does not generate the prompt or run the skill.
-- Jev state is the work text: stage key, candidate model ids, skill about to run, plan/phase path, `difficulty:` if present, and the plan or phase body. Not labels only. Not an engineer-defined template.
+- Jev state always includes the stage key, available candidate ids and notes, and the skill about to run. Loop/nested stages add the plan or phase path, body, and `difficulty:` when present. Interactive stages add the current command/user request, any resolved subject artifacts, and a bounded conversation tail: the last 8 user/assistant messages, at most 12,000 characters, oldest content trimmed first. System and tool traffic are excluded. This covers stages such as `/b-brainstorm` before a plan exists. Not labels only. Not an engineer-defined template.
+- If Jev itself cannot pick (service unavailable, error, or no answer): choose uniformly at random from the available stage set. Not the first id. Not the host session model. Not a block.
+- A low-confidence pick is still a pick. Run it. No confidence threshold. Random is only when Jev returns no answer.
+- A failed model call does not immediately re-ask Jev. The host's built-in retry runs first: `retry.modelFallback` (default on), `retry.fallbackChains`, and a role's built-in priority list when its chain is unset. Context overflow is compaction, not this path.
+- If that host path recovers the turn, keep the result. Do not also ask Jev.
+- If the host does not recover, ask Jev again. Remove the failed id from the set. Then the existing rules apply: run Jev's pick; if Jev cannot pick, random from what remains.
+- "Host did not recover" means the nested session ended failed after the host retry path finished. That includes empty text the host does not classify as retryable. Do not wait for a specific `auto_retry_end` event, and do not limit reselection to retry-classified errors.
 
 ## Brainstorm notes
 

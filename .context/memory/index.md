@@ -1,5 +1,16 @@
+- 2026-09-24 — [Phase 6 model-profile documentation and proof](buck-model-config-phase-6-build-2026-09-24.md) — `completed` (living docs + how-to; 86 focused tests; end-to-end smoke; durable guardrails pass)
+- 2026-09-24 — [Phase 5 `/buck-models` command build and iteration](buck-model-config-phase-5-build-2026-09-24.md) — `completed` (final review approved; all in-plan findings resolved; 984 Vitest and 70 Bun tests pass)
+- 2026-09-24 — [Phase 4 interactive command cutover save](buck-model-config-phase-4-save-2026-09-24.md) — `completed` (review pass with warnings; interactive stage switch uncommitted; subject stays active for phases 5–6)
+- 2026-09-24 — [State-machine diagram + drawing-library research](state-machine-diagram-research-2026-09-24.md) — `completed` (Cytoscape+dagre winner; interactive diagram at docs/state-machine-diagram.html; research filed in Obsidian vault; docs-only, guardrails skipped)
+- 2026-09-24 — [Phase 3 loop runtime cutover save](buck-model-config-phase-3-save-2026-09-24.md) — `completed` (review pass; stage model cutover uncommitted; subject stays active for phases 4–6)
+- 2026-09-24 — [`/buck-loop` streaming-log drain plan](buck-loop-streaming-log-drain-plan-2026-09-24.md) — `completed` (versioned JSONL drain plan; start truncates, resume appends, status/stop untouched; live-boundary proof required)
+- 2026-09-24 — [Phase 2 TypeSafe model picker save](buck-model-config-phase-2-save-2026-09-24.md) — `completed` (review pass; picker uncommitted; subject stays active for phases 3–6)
 - 2026-09-23 — [PR 48 review repairs](fix-pr-48-review-repairs-2026-09-23.md) — `completed` (all valid review feedback fixed across two commits; latest-head independent review found no new defects; CI and durable guardrails passed)
+- 2026-09-23 — [Phase 2 TypeSafe model picker](buck-model-config-phase-2-2026-09-23.md) — `completed` (parent Jev/random picker; 5 focused tests; guardrails pass; phase 3 remains)
 
+- 2026-09-23 — [Phase 1 profile config save](buck-model-config-phase-1-save-2026-09-23.md) — `completed` (resolver and lossless writer saved; phase 1 completed; subject stays active for phases 2–6)
+- 2026-09-23 — [Buck model configuration phasing](buck-model-config-phasing-2026-09-23.md) — `completed` (six phases; phase 1 resolver/writer saved as completed; phases 2–6 remain)
+- 2026-09-23 — [OMP token attribution build](omp-token-attribution-build-2026-09-23.md) — `completed` (runtime-safe command registration, nested delivery reconciliation, `/tokens`, living docs/how-to, independent review and durable guardrails pass)
 - 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume build](buck-loop-deferred-docs-resume-build-2026-09-22.md) — `completed` (final review passed with no in-plan defects; 154 focused tests; durable guardrails pass; Git probe fail-open tracked separately)
 
 - 2026-09-22 — [Buck-loop deferred-docs and in-cycle resume plan](buck-loop-deferred-docs-resume-plan-2026-09-22.md) — `completed` (bounded parser/postcondition fix plus staged ownership boundary for fail-closed blocked resume)

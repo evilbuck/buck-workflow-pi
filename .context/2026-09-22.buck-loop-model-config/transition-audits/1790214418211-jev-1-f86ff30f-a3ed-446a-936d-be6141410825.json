@@ -1,0 +1,17 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"error\":true,\"message\":\"jev failed closed: TypeSafe API key is unavailable. Set TYPESAFE_API_KEY to use the jev tool.\"}",
+  "parsed": null,
+  "accepted": false,
+  "reason": "jev failed closed: TypeSafe API key is unavailable. Set TYPESAFE_API_KEY to use the jev tool.",
+  "context": "state=committing phase=.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md why=postcondition scan ambiguous parseable=true docsImpact=false howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

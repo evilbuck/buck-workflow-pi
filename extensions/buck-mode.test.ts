@@ -128,6 +128,12 @@ describe("Extension slimdown", () => {
     expect(() => buckWorkflowExtension(api)).not.toThrow();
   });
 
+  it("registers the discoverable buck-models setup command", () => {
+    const { api, commands } = createMockApi();
+    buckWorkflowExtension(api);
+    expect(commands.get("buck-models")?.description).toContain("project or user-global Buck model profiles");
+  });
+
   it("does NOT register b-mode command", () => {
     const { api, commands } = createMockApi();
     buckWorkflowExtension(api);
@@ -193,61 +199,23 @@ describe("Model auto-switch", () => {
     if (existsSync(TEST_ROOT)) rmSync(TEST_ROOT, { recursive: true });
   });
 
-  it("queues pending model switch for /b-build command", async () => {
+  it("registers an input handler for mapped Buck commands", () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await sendInput(handlers, "/b-build", ctx);
-
-    // before_agent_start handler should exist and be ready to fire
-    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
-    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
+    expect((handlers.get("input") ?? []).length).toBeGreaterThanOrEqual(1);
   });
 
-  it("queues pending model switch for /b-iterate command", async () => {
+  it("does not consult buckModels for an unmapped command", async () => {
     const { api, handlers } = createMockApi();
     buckWorkflowExtension(api);
     const ctx = mockCtx(TEST_ROOT);
     await startSession(handlers, ctx);
 
-    await sendInput(handlers, "/b-iterate", ctx);
+    await sendInput(handlers, "/tokens", ctx);
 
-    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
-    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("queues pending model switch for /b-review command", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await sendInput(handlers, "/b-review", ctx);
-
-    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
-    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("does NOT queue switch for non-model-switch command", async () => {
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    await startSession(handlers, ctx);
-
-    await sendInput(handlers, "/b-plan", ctx);
-
-    // The input handler should still exist but no pending switch queued
-    // Verify by checking that before_agent_start is a no-op without pending command
-    const beforeStartHandlers = handlers.get("before_agent_start") ?? [];
-    expect(beforeStartHandlers.length).toBeGreaterThanOrEqual(1);
-
-    // Fire before_agent_start — it should be a no-op (no setModel call)
     const setModelSpy = api.setModel as ReturnType<typeof vi.fn>;
     setModelSpy.mockClear();
-
-    for (const handler of beforeStartHandlers) {
+    for (const handler of handlers.get("before_agent_start") ?? []) {
       await handler({}, ctx);
     }
     expect(setModelSpy).not.toHaveBeenCalled();
@@ -319,44 +287,6 @@ describe("Model auto-switch", () => {
     expect(names).toContain("jev");
   });
 
-  it.each([
-    ["hard", "hard-provider/hard-id"],
-    ["not-hard", "med-provider/med-id"],
-    ["easy", "med-provider/med-id"],
-    ["medium", "med-provider/med-id"],
-    ["mystery", "med-provider/med-id"],
-  ] as const)("auto-switches phase %s to the mapped model tier", async (value, expectedId) => {
-    mkdirSync(join(TEST_ROOT, ".omp"), { recursive: true });
-    writeFileSync(join(TEST_ROOT, ".omp", "config.yml"), [
-      "modelRoles:",
-      "  default: hard-provider/hard-id",
-      "  slow: med-provider/med-id",
-      "  smol: easy-provider/easy-id",
-      "",
-    ].join("\n"));
-    const subject = join(TEST_ROOT, ".context", "2026-09-21.demo");
-    mkdirSync(subject, { recursive: true });
-    writeFileSync(join(subject, "plan-demo-phases.md"), "---\nformat: discrete\n---\n[phase-1-p1.md](phase-1-p1.md)\n");
-    writeFileSync(join(subject, "phase-1-p1.md"), `---\nstatus: pending\ndifficulty: ${value}\n---\n`);
-
-    const { api, handlers } = createMockApi();
-    buckWorkflowExtension(api);
-    const ctx = mockCtx(TEST_ROOT);
-    const models = {
-      "hard-provider/hard-id": { provider: "hard-provider", id: "hard-id" },
-      "med-provider/med-id": { provider: "med-provider", id: "med-id" },
-      "easy-provider/easy-id": { provider: "easy-provider", id: "easy-id" },
-    };
-    ctx.model = { provider: "easy-provider", id: "easy-id" };
-    ctx.modelRegistry.find = vi.fn((provider: string, id: string) => models[`${provider}/${id}`]);
-    vi.mocked(api.setModel).mockResolvedValue(true);
-    await startSession(handlers, ctx);
-    await sendInput(handlers, "/b-build", ctx);
-    for (const handler of handlers.get("before_agent_start") ?? []) {
-      await handler({}, ctx);
-    }
-    expect(api.setModel).toHaveBeenCalledWith(models[expectedId]);
-  });
 });
 
 describe("Helper functions", () => {

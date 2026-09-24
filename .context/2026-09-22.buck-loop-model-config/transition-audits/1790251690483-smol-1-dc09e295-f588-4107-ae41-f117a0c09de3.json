@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{\n  \"choice\": \"retry\",\n  \"reason\": \"postcondition scan is ambiguous (not clearly met/unmet) on phase-4-interactive-command-cutover with non-trivial docsImpact and howtoImpact. Advancing without resolving the ambiguity risks yielding with unverified documentation completeness; retry to clarify the postcondition before commit/handoff.\"\n}\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "postcondition scan is ambiguous (not clearly met/unmet) on phase-4-interactive-command-cutover with non-trivial docsImpact and howtoImpact. Advancing without resolving the ambiguity risks yielding with unverified documentation completeness; retry to clarify the postcondition before commit/handoff."
+  },
+  "accepted": true,
+  "reason": "postcondition scan is ambiguous (not clearly met/unmet) on phase-4-interactive-command-cutover with non-trivial docsImpact and howtoImpact. Advancing without resolving the ambiguity risks yielding with unverified documentation completeness; retry to clarify the postcondition before commit/handoff.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

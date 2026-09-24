@@ -10,7 +10,7 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires model auto-switch, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and an opt-in plan-artifact bridge
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and an opt-in plan-artifact bridge
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ### Subject lifecycle authority
@@ -62,6 +62,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
 | `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner |
+| `/buck-models` | Extension command | Slash command (extension) | `extensions/buck-models/` — create, edit, and activate named Buck model profiles |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
 | `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
@@ -78,7 +79,7 @@ Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; `b-grill-auto` remains available as a skill. See `docs/extension-loading.md` for the loading truth table.
 
@@ -417,7 +418,7 @@ flowchart TD
 | [**b-plan-update**](#b-plan-update--update-existing-plan) | Prompt template + Skill | `/b-plan-update` | `prompts/b-plan-update.md` + `skills/b-plan-update/` | Apply new context, artifacts, and scope changes to an existing plan in place |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
-| [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation + model auto-switch |
+| [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation routed through the active Buck model profile |
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
@@ -429,7 +430,7 @@ flowchart TD
 | [**b-init-tracker**](#b-init-tracker--issue-tracker-config-init) | Prompt template + Skill | `/b-init-tracker` | `prompts/b-init-tracker.md` + `skills/b-init-tracker/` | Configure this repo's issue tracker + triage labels (idempotent managed AGENTS.md block) |
 | [**b-triage**](#b-triage--inbound-issue-triage) | Prompt template + Skill | `/b-triage` | `prompts/b-triage.md` + `skills/b-triage/` | Triage inbound issues/PRs into the ready-for-agent state b-auto-fix consumes |
 | [**fix-pr**](#skillfix-pr--validate-and-act-on-pr-review-comments) | Skill | `/skill:fix-pr` | `skills/fix-pr/SKILL.md` | Fix PR review findings on the real head branch; push, poll, and repeat until settled (no slash wrapper) |
-| [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review + model auto-switch for phased plans |
+| [**b-review**](#4-review-phase) | Prompt template | `/b-review` | `prompts/b-review.md` | Review routed through the active Buck model profile |
 | [**b-docs**](#b-docs--living-documentation-sync) | Prompt template + Skill | `/b-docs` | `prompts/b-docs.md` + `skills/b-docs/SKILL.md` | Update living docs (CONTEXT.md, ADRs, conventions) when b-review flags impact |
 | [**b-howto**](#b-howto--how-to-guides) | Prompt template + Skill | `/b-howto` | `prompts/b-howto.md` + `skills/b-howto/SKILL.md` | Diátaxis how-to guides in `docs/howto/` when b-review flags how-to impact |
 | [**b-recap**](#b-recap--session-recap) | Prompt template + Skill | `/b-recap` | `prompts/b-recap.md` + `skills/b-recap/SKILL.md` | Read-only recap of the session plus commits since branch base and staged/unstaged/untracked work (<500 words) |
@@ -451,9 +452,9 @@ flowchart TD
 | [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
 | [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
-| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-loop` runs plans and `/code-review` runs local review/fix passes |
+| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
 
-**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
+**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-models`, `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -469,11 +470,11 @@ flowchart TD
 `package.json` wires exactly one extension entry: `extensions/index.ts`.
 Its default export composes every wired subsystem:
 
-1. **Model auto-switch** — Reads OMP `modelRoles` through
-   `extensions/omp-models.ts`, with legacy Pi `buckModelMapping` as fallback;
-   detects the active phased-plan difficulty, switches model tier for
-   `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`, then switches
-   back after `agent_end` unless the user manually changed models.
+1. **Named Buck model routing** — Reads `buckModels` profiles through
+   `extensions/omp-models.ts`; resolves a stage group for interactive Buck
+   commands and `/buck-loop`, asks Jev to choose an available configured id,
+   applies that stage's thinking level, and refuses rather than inheriting the
+   host model when resolution cannot produce a candidate.
 2. **TPS tracker** — Token-per-second generation metrics
    (`extensions/tps-tracker.ts`).
 3. **`/b-pr-improved`** — Deterministic, code-driven PR creation
@@ -491,8 +492,11 @@ Its default export composes every wired subsystem:
    that detects OMP plan-mode exit and persists the plan file into the
    `.context/<YYYY-MM-DD>.<slug>/plan-<slug>.md` subject convention so `/b-build` subject resolution finds it.
 8. **`/buck-loop`** — Observably invoked existing-plan runner
-   (`extensions/buck-loop/`). Nested isolated sessions; artifacts win on resume. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
-9. **`/code-review` local iteration** — Bounded Reviewer → optional Fixer →
+   (`extensions/buck-loop/`). Its nested work and closed-set choice calls use
+   the active Buck model profile. Artifacts win on resume. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+9. **`/buck-models`** — Interactive editor for project and user-global named
+   Buck model profiles (`extensions/buck-models/`).
+10. **`/code-review` local iteration** — Bounded Reviewer → optional Fixer →
    fresh-Reviewer passes (`extensions/code-review-iteration/`). Reviewer work
    runs in disposable detached worktrees and reproduction crosses the
    policy-bounded `review_exec` tool.
@@ -1036,60 +1040,96 @@ presentations/<slug>/
 
 ---
 
-#### Session-scoped model persistence
+#### Named Buck model profiles
 
-`/b-build`, `/b-iterate`, and `/b-review` can persist model selection within a session. Behavior:
+Buck model selection is stage-based, not difficulty-based. Use `/buck-models`
+to create, edit, or activate a named profile in either:
 
-- First use in a fresh session uses the default model.
-- Manual model changes made during the active Buck session become sticky for later runs.
-- Starting a new session clears overrides and restores defaults.
-- Overrides are session-scoped only.
+- project scope: `<cwd>/.omp/config.yml`
+- user-global scope: `~/.omp/agent/config.yml` (or
+  `$OMP_AGENT_DIR/config.yml`)
 
----
+The command preserves unrelated YAML. It allows unavailable model ids to be
+saved for portability, warns about them, and does not remove them from the
+profile.
 
-### Model Auto-Switch Configuration
+Each profile can define these twelve exact stage keys:
 
-Buck can automatically switch the active model based on the difficulty of the current phased plan phase. When a mismatch is detected between the active model's tier and the phase's difficulty, it switches to the mapped model and switches back after the phase completes.
+| Stage key | Commands or runtime path |
+|---|---|
+| `brainstorm-plan` | `/b-brainstorm`, `/b-plan` |
+| `phase` | `/b-phase` |
+| `build` | `/b-build`, `/b-build-hard` |
+| `review` | `/b-review` |
+| `iterate` | `/b-iterate` |
+| `save` | `/b-save` |
+| `commit` | `/b-commit` |
+| `docs` | `/b-docs`, `/b-howto` |
+| `choice` | `/buck-loop` closed-set choice only |
+| `research` | `/b-research`, `/b-explore` |
+| `grill` | `/b-grill`, `/b-grill-me`, `/b-grill-auto`, `/b-grill-with-docs` |
+| `present` | `/b-present` |
 
-**Triggers**: `/b-build`, `/b-build-hard`, `/b-iterate`, `/b-review`
+Unknown stage keys are ignored. Commands not listed above do not consult
+`buckModels`; in particular, `/buck-loop` is a supervisor, while its nested
+work and `choice` model calls are routed.
 
-**Configuration**: Add `buckModelMapping` to your Pi settings file:
-
-```json
-// Global: ~/.pi/agent/settings.json
-// Project override: .pi/settings.json (takes precedence)
-{
-  "buckModelMapping": {
-    "easy":   "zai-glm/glm-4.7-flash",
-    "medium": "anthropic/claude-sonnet-4-6",
-    "hard":   "anthropic/claude-opus-4-7"
-  }
-}
+```yaml
+# .omp/config.yml or ~/.omp/agent/config.yml
+buckModels:
+  active: work
+  profiles:
+    work:
+      build:
+        thinking: medium
+        models:
+          - id: provider/model-a
+            note: long-context implementation
+          - id: provider/model-b
+      review:
+        models:
+          - id: provider/reviewer
 ```
 
-**Model IDs**: Use the `provider/model-id` format shown in Pi's model selector (e.g., `zai-glm/glm-4.7-flash`, `anthropic/claude-opus-4-7`).
+`thinking` is optional and defaults to `off`. Supported values are `off`,
+`minimal`, `low`, `medium`, `high`, and `xhigh`; the host may clamp them to the
+selected model's capabilities.
 
-**Behavior without mapping configured**:
-- First trigger fires an **interactive model picker** built with Pi's custom TUI components — shows all available models (those with API keys configured), groups them by tier (easy/medium/hard based on current config), and prompts the user to pick one model per tier
-- Picks are written directly to `~/.pi/agent/settings.json` as `buckModelMapping`
-- Picker shows explicit controls on screen: `↑↓ navigate • Enter select • Esc cancel`
-- User is notified to run `/reload` to activate
-- If user cancels the picker, the offer is skipped for the rest of that session
-- For non-phased plans after setup: sends a soft info notification suggesting a model tier based on plan complexity
+Resolution is deterministic before selection:
 
-**Behavior with mapping configured**:
-- Reads the active phase's `**Difficulty**` label from `plan-*-phases.md`
-- Compares current model tier to required tier
-- If mismatched → auto-switches to the mapped model
-- After the agent turn ends → switches back to the original model
-- If the user manually switches models mid-phase → respects the change and cancels the switch-back
+1. A nonblank project `buckModels.active` chooses the profile name. Otherwise,
+   the user-global active name is used. A blank name or a name absent from both
+   scopes stops the stage.
+2. A stage present in the project profile wins, including an explicitly empty
+   model list. Only an omitted project stage falls through to the same stage in
+   the user-global profile.
+3. Configured ids missing from the current OMP model registry are excluded for
+   that run without rewriting either config file. Zero remaining ids stops the
+   stage and reports the stage plus excluded ids.
+4. Jev chooses among the remaining ids using stage, candidate notes, command or
+   plan context, and the skill about to run. A low-confidence legal choice is
+   accepted. If Jev is unavailable, errors, or returns no legal answer, Buck
+   chooses uniformly at random from the remaining ids.
+5. Buck runs the selected id with the stage thinking level. Interactive
+   commands restore the previous host model and thinking after `agent_end`
+   unless the user changed model manually.
 
-**Phase difficulty tiers** (from `/skill:b-phase`):
-- **easy** — bounded, mechanical work → mapped `easy` model
-- **medium** — moderate cross-file reasoning → mapped `medium` model
-- **hard** — ambiguous, architecture-touching → mapped `hard` model
+Missing profile, missing stage, and no-available-id outcomes are hard stops.
+Interactive commands are refused before execution; `/buck-loop` blocks. Buck
+never silently uses the host session model.
 
-**Non-phased plans** (no `plan-*-phases.md` found): a soft info notification suggests a tier based on complexity heuristics. No auto-switch.
+For a failed nested work or choice call, the host's own model retry/fallback
+finishes first. If that call still fails, Buck removes the failed configured id,
+asks Jev to pick again from the remainder, and retries. Host retry is therefore
+inside one selected call; the configured ids are not a fallback chain.
+
+`difficulty`, `model_hint`, and `buck_hint` do not choose a model. A hard phase
+still selects the `/b-build-hard` workflow prompt, but its model comes from the
+`build` stage. `modelRoles` remains available to unrelated extension paths and
+is not the Buck stage-routing source.
+
+See [Configure and activate a Buck model profile](howto/configure-buck-model-profiles.md)
+for the operator sequence.
 
 ### 3. Build Phase
 
@@ -1118,13 +1158,14 @@ Buck can automatically switch the active model based on the difficulty of the cu
 3. Update living memory file at each natural stop
 4. Tell user "Run /b-save to finalize" at completion (on OMP, save also `retain`s when tools exist)
 
-**Model Routing + Auto-Switch** (b-build):
-- If no `buckModelMapping` configured → soft suggestion notification (based on plan step/file count)
-- If `buckModelMapping` configured:
-  - Phased plan active phase → auto-switch to mapped model for that difficulty tier
-  - Mismatch detected → switches automatically, switches back after agent_end
-  - User manually switches mid-phase → respects the change, cancels switch-back
-- Without phased plan → uses default model
+**Model routing** (b-build):
+- Resolves the active profile's `build` stage through
+  [Named Buck model profiles](#named-buck-model-profiles).
+- Runs the Jev-picked available id with configured thinking (`off` when
+  omitted).
+- Refuses before the command runs if the profile or stage cannot resolve; it
+  does not use the host session model.
+- Phase difficulty chooses `/b-build` versus `/b-build-hard`, not the model.
 
 **Escalate To**: `b-build-hard` if task becomes ambiguous, architectural, or spreads beyond expected files — or if the active phase is rated **hard**.
 
@@ -1183,10 +1224,11 @@ Buck can automatically switch the active model based on the difficulty of the cu
 - Hand back to `b-review` when done
 - When working from an `iterate-*.md` artifact, marks it `status: completed` on finish
 
-**Model Routing** (b-iterate):
-- Fresh session → default model
-- Manual model change during active Buck session → sticky session override
-- New session → reset to default
+**Model routing** (b-iterate):
+- Resolves the active profile's `iterate` stage through
+  [Named Buck model profiles](#named-buck-model-profiles).
+- Uses the picked id and configured thinking for the command, then restores the
+  previous host selection unless the user changed it manually.
 
 **Escalation Trigger**: When fix grows beyond "small iteration" scope.
 
@@ -1260,10 +1302,11 @@ Buck can automatically switch the active model based on the difficulty of the cu
 - Correctness, edge cases, regressions
 - Security issues and risky assumptions
 
-**Model Routing + Auto-Switch** (b-review):
-- Triggers the same auto-switch logic as build agents when working with phased plans
-- If reviewing a `hard` phase → auto-switches to the mapped hard-tier model
-- Soft suggestion notification for non-phased plans when mapping is configured
+**Model routing** (b-review):
+- Resolves the active profile's `review` stage through
+  [Named Buck model profiles](#named-buck-model-profiles).
+- Uses the Jev-picked available id and configured thinking level.
+- Refuses rather than using the host session model when resolution stops.
 
 **Output Structure**:
 ```text
@@ -1706,10 +1749,11 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-Six slash commands are backed by **code, not only prompt-following**, when `extensions/index.ts` is loaded. The four `*-improved` / `b-kamal-release` commands report live progress via `extensions/extension-activity.ts` and have a prompt/skill fallback where listed. `/buck-loop` has no skill fallback; `/code-review` falls back to the distinct portable release-PR workflow.
+Seven slash commands are backed by **code, not only prompt-following**, when `extensions/index.ts` is loaded. The four `*-improved` / `b-kamal-release` commands report live progress via `extensions/extension-activity.ts` and have a prompt/skill fallback where listed. `/buck-models` and `/buck-loop` have no skill fallback; `/code-review` falls back to the distinct portable release-PR workflow.
 
 | Command | Backing | What it does | Skill fallback |
 |---|---|---|---|
+| `/buck-models` | `extensions/buck-models/` | Creates, edits, and activates named Buck model profiles in project or user-global scope | — |
 | `/buck-loop` | `extensions/buck-loop/` | Observably invoked existing-plan runner: nested isolated sessions, artifact-wins resume | — |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop | `prompts/code-review.md` + `skills/code-review/` (release-PR workflow) |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit-improved/` |
@@ -1867,15 +1911,14 @@ truth. Durable context comes from AGENTS.md plus prompt/skill commands.
 
 ### Current hooks and commands
 
-Lifecycle hooks (model auto-switch + TPS tracker):
+Lifecycle hooks (named Buck model routing + TPS tracker):
 
 | Hook | Purpose |
 |-------|---------|
-| `session_start` | Capture current working directory for model-switch lookups |
-| `input` | Detect model-switch-eligible `/b-*` commands |
-| `before_agent_start` | Run model-switch setup/check before build/review commands |
-| `model_select` | Detect user-initiated model changes and respect them |
-| `agent_end` | Switch back to the original model after phase-scoped work; TPS wrap-up |
+| `session_start` | Capture the working directory for project profile resolution |
+| `input` | Resolve and apply the active profile stage for mapped `/b-*` commands |
+| `model_select` | Detect user-initiated model changes and preserve the override |
+| `agent_end` | Restore the pre-command model and thinking level; TPS wrap-up |
 | `agent_start`, `message_start` / `message_update` / `message_end` | TPS tracker generation metrics |
 
 Registered commands (runtime code paths; fallback behavior is named where one exists):
@@ -1886,6 +1929,7 @@ Registered commands (runtime code paths; fallback behavior is named where one ex
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Deterministic Conventional Commit from `draft-commit.md` or model draft |
 | `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session checkpoint (preflight + scribe/auditor + apply) |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
+| `/buck-models` | `extensions/buck-models/` | Create, edit, and activate named Buck model profiles |
 | `/buck-loop` | `extensions/buck-loop/` | Existing-plan runner with nested isolated sessions and artifact-wins resume |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop |
 
@@ -1931,13 +1975,13 @@ fixtures, documentation examples) will fail every push until a
 working-tree matches inside `.context/` audit documentation. Run
 `bash scripts/security-audit.sh --repo .` once before enabling.
 
-### Model auto-switch
+### Named Buck model routing
 
-The extension reads OMP `modelRoles` through `extensions/omp-models.ts`, with
-legacy Pi `buckModelMapping` as fallback. It finds the active phase difficulty
-in `.context/`, switches to the mapped model for `/b-build`, `/b-build-hard`,
-`/b-iterate`, and `/b-review`, and switches back after the agent turn unless
-the user manually selected a different model.
+The extension resolves interactive Buck commands and `/buck-loop` nested calls
+through the active `buckModels` profile. Resolution uses project stage presence
+before user-global fallthrough, filters unavailable ids, then uses Jev or
+uniform random selection. Missing configuration stops rather than inheriting
+the host model. See [Named Buck model profiles](#named-buck-model-profiles).
 
 ### What is no longer extension-owned
 
@@ -2116,6 +2160,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/skill:b-memory-import` / `/skill:b-hindsight-import-projects` *(skill-only)* — Hindsight backfill (one project / many projects)
 
 **Runtime extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
+- `/buck-models` — create, edit, and activate named Buck model profiles
 - `/buck-loop` — existing-plan happy-path runner
 - `/code-review` — bounded local Reviewer → optional Fixer → fresh-Reviewer loop
 - `/b-commit-improved` — code-driven Conventional Commit
@@ -2133,4 +2178,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-09-21
+Last updated: 2026-09-24
