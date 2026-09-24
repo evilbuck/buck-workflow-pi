@@ -12,6 +12,8 @@ artifacts:
   - skills/_shared/themes/blueprint/design-brief.jsonc
   - skills/_shared/themes/README.md
   - skills/_shared/SKILL.md
+  - plugins/buck-workflow/skills/_shared/themes/blueprint/design-brief.jsonc
+  - plugins/buck-workflow/skills/_shared/SKILL.md
 ---
 
 # Second design-brief theme: blueprint
@@ -48,9 +50,8 @@ in the same session.
 
 ## Verification / Guardrails
 
-- `bunx vitest run skills/_shared/scripts/design-language.test.ts` — 16/16 pass, unaffected (this addition doesn't touch the pinned default-brief pipeline).
-- `skills/b-guardrails-check/scripts/check.mjs` on the repo root returns `status: fail` (`global_ratchet`/`unit_test_gate`), **not caused by this change**. Confirmed pre-existing by stashing all of this session's edits and re-running on clean `cf086f4`: **10 tests fail across 3 files** even with nothing changed —
-  - `scripts/serve-presentations.test.ts` (5 failures) — `resolveRequestPath` compares a `realpathSync`'d target against a non-realpath'd root; macOS `os.tmpdir()` sits under `/var/folders/...`, a symlink to `/private/var/folders/...`, so every legitimate nested request path fails containment and 403s. I fixed this (realpath the root too, one try/catch) and updated the two test expectations that hardcoded the non-realpath'd form — full green (26/26) in isolation — **then reverted both files** to keep this session's diff isolated to the theme addition, since fixing it did not by itself get the overall gate to pass (two more pre-existing, unrelated failing files remained) and a partial unrelated fix has no contract value on its own.
-  - `scripts/hooks.test.mjs` (4 failures) — same `/tmp` → `/private/tmp` realpath-vs-lexical mismatch for `resolveHooksDir`, plus one unrelated `stat -c %a` (GNU-only flag; fails silently as an empty string on macOS BSD `stat`).
-  - `extensions/code-review-iteration/__tests__/git-ops.test.ts` (1 failure) — disposable detached worktree cleanup; not investigated (out of scope for this task).
-- Net: this task's actual diff (`skills/_shared/themes/**`, `skills/_shared/SKILL.md`) is guardrails-neutral on this branch — it neither introduces nor fixes any of the 10 pre-existing failures. **Resolved 2026-09-23**: user chose to fix all 3 files rather than override. Landed on a separate branch, `fix/macos-tmp-symlink-realpath` (commit `a0bf7b5`, based on `master`, not this theme branch) — full detail in `.context/backlog/archive/2026-09/macos-tmp-symlink-test-failures.md` and `.context/memory/index.md`. This theme branch itself still predates that fix (it branched from `master` before `a0bf7b5`), so a guardrails run on this branch alone will still show the same 10 pre-existing failures until it's rebased onto/merged with the fix.
+- `bunx vitest run skills/_shared/scripts/design-language.test.ts` — 16/16 pass throughout (this addition never touches the pinned default-brief pipeline).
+- First discovered this branch surfaced 10 pre-existing, unrelated macOS `/tmp`-symlink realpath test failures (`serve-presentations.test.ts`, `hooks.test.mjs`, `git-ops.test.ts`) that predate 2026-09-23. Per explicit user decision, fixed all three on a separate branch, `fix/macos-tmp-symlink-realpath` (commit `a0bf7b5`, based on `master`) — full detail in `.context/backlog/archive/2026-09/macos-tmp-symlink-test-failures.md`.
+- Rebased this theme branch onto `a0bf7b5` so it carries the fix rather than merely coexisting with it elsewhere.
+- Rebasing surfaced a second, genuine gate: `scripts/codex-plugin.test.ts`'s curated-bundle parity contract requires `plugins/buck-workflow/skills/_shared/` to be a byte-identical, path-identical physical mirror of `skills/_shared/`. Adding `themes/` and editing `SKILL.md` broke that parity (2 failures: recursive path parity, byte-identity) until the same two changes were copied into the bundle mirror.
+- **Final verified state**, run serially (vitest, then guardrails, with no branch checkout/rebase in between): full suite 942/942; `/b-guardrails-check` `status: pass` — `unit_test_gate` pass, `global_ratchet` pass, `complexity_gate` pass, coverage 85.6%.
