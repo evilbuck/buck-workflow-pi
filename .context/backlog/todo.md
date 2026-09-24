@@ -11,7 +11,6 @@
 ### Upcoming Phases
 
 
-- [ ] [Phase 2: TypeSafe Model Picker](items/phase-2-typesafe-model-picker.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md)
 - [ ] [Phase 3: Loop Runtime Cutover](items/phase-3-loop-runtime-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-3-loop-runtime-cutover.md)
 - [ ] [Phase 4: Interactive Command Cutover](items/phase-4-interactive-command-cutover.md) — hard — [phase](../2026-09-22.buck-loop-model-config/phase-4-interactive-command-cutover.md)
 - [ ] [Phase 5: `/buck-models` Command](items/phase-5-buck-models-command.md) — medium — [phase](../2026-09-22.buck-loop-model-config/phase-5-buck-models-command.md)

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-buck-loop-model-config.md
@@ -13,13 +13,13 @@ from_plan_steps: [3]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] The picker sends a TypeSafe Choice request containing stage, candidate ids/notes, skill, and supplied execution context."
-  - "[ ] A valid Jev answer selects that exact id even when confidence is low."
-  - "[ ] Jev unavailable, error, or no answer uses an injected uniform-random source over all remaining candidates."
-  - "[ ] Re-picking after failure excludes the failed id; exhausting candidates returns the named-stage stop instead of the host model."
-  - "[ ] The selected result carries the resolved stage thinking level, defaulting to off."
-completed_at: null
-completed_by: null
+  - "[x] The picker sends a TypeSafe Choice request containing stage, candidate ids/notes, skill, and supplied execution context."
+  - "[x] A valid Jev answer selects that exact id even when confidence is low."
+  - "[x] Jev unavailable, error, or no answer uses an injected uniform-random source over all remaining candidates."
+  - "[x] Re-picking after failure excludes the failed id; exhausting candidates returns the named-stage stop instead of the host model."
+  - "[x] The selected result carries the resolved stage thinking level, defaulting to off."
+completed_at: 2026-09-23
+completed_by: b-build-hard
 ---
 
 # Phase 2: TypeSafe Model Picker

@@ -1,10 +1,10 @@
 ---
 title: "Phase 2: TypeSafe Model Picker"
-status: active
+status: completed
 priority: high
 created: 2026-09-23
-updated: 2026-09-23
-completed: null
+updated: 2026-09-24
+completed: 2026-09-24
 related:
   - .context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md
   - .context/2026-09-22.buck-loop-model-config/plan-buck-loop-model-config-phases.md
@@ -12,4 +12,4 @@ related:
 
 # Phase 2: TypeSafe Model Picker
 
-After Phase 1, implement Jev Choice selection, injected uniform random fallback, and failed-id exclusion. Use `/b-build-hard`.
+Parent Jev/random picker selects a remaining configured id. Exhaustion stops by stage name. Review passed 2026-09-24. Loop callers not cut over.

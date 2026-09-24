@@ -1,0 +1,20 @@
+{
+  "source": "smol",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "```json\n{ \"choice\": \"retry\", \"reason\": \"Postcondition scan returned ambiguous; docsImpact=true but howtoImpact=false suggests the documenting gate cannot confirm completion. Retrying re-runs the postcondition check to disambiguate before advancing, avoiding a premature cutover with unclear acceptance. If the ambiguity persists on retry, escalate with the specific ambiguous clause rather than advancing blind.\" }\n```",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Postcondition scan returned ambiguous; docsImpact=true but howtoImpact=false suggests the documenting gate cannot confirm completion. Retrying re-runs the postcondition check to disambiguate before advancing, avoiding a premature cutover with unclear acceptance. If the ambiguity persists on retry, escalate with the specific ambiguous clause rather than advancing blind."
+  },
+  "accepted": true,
+  "reason": "Postcondition scan returned ambiguous; docsImpact=true but howtoImpact=false suggests the documenting gate cannot confirm completion. Retrying re-runs the postcondition check to disambiguate before advancing, avoiding a premature cutover with unclear acceptance. If the ambiguity persists on retry, escalate with the specific ambiguous clause rather than advancing blind.",
+  "context": "state=documenting phase=.context/2026-09-22.buck-loop-model-config/phase-2-typesafe-model-picker.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}

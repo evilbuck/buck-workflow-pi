@@ -4,7 +4,7 @@ date: 2026-09-23
 subject: 2026-09-22.buck-loop-model-config
 topics: [phasing, buck-loop, model-profiles, jev, buck-models]
 research: []
-memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md]
+memory: [buck-model-config-phasing-2026-09-23.md, buck-model-config-phase-1-save-2026-09-23.md, buck-model-config-phase-2-2026-09-23.md, buck-model-config-phase-2-save-2026-09-24.md]
 source_plan: plan-buck-loop-model-config.md
 phases: 6
 format: discrete
@@ -26,7 +26,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |---|---|---|---|---|
 | 1: Profile Config and Resolution | completed | hard | none | [phase-1-profile-config-and-resolution.md](phase-1-profile-config-and-resolution.md) |
-| 2: TypeSafe Model Picker | pending | hard | none | [phase-2-typesafe-model-picker.md](phase-2-typesafe-model-picker.md) |
+| 2: TypeSafe Model Picker | completed | hard | none | [phase-2-typesafe-model-picker.md](phase-2-typesafe-model-picker.md) |
 | 3: Loop Runtime Cutover | pending | hard | none | [phase-3-loop-runtime-cutover.md](phase-3-loop-runtime-cutover.md) |
 | 4: Interactive Command Cutover | pending | hard | none | [phase-4-interactive-command-cutover.md](phase-4-interactive-command-cutover.md) |
 | 5: `/buck-models` Command | pending | medium | none | [phase-5-buck-models-command.md](phase-5-buck-models-command.md) |

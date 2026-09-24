@@ -1,4 +1,6 @@
+- 2026-09-24 — [Phase 2 TypeSafe model picker save](buck-model-config-phase-2-save-2026-09-24.md) — `completed` (review pass; picker uncommitted; subject stays active for phases 3–6)
 - 2026-09-23 — [PR 48 review repairs](fix-pr-48-review-repairs-2026-09-23.md) — `completed` (all valid review feedback fixed across two commits; latest-head independent review found no new defects; CI and durable guardrails passed)
+- 2026-09-23 — [Phase 2 TypeSafe model picker](buck-model-config-phase-2-2026-09-23.md) — `completed` (parent Jev/random picker; 5 focused tests; guardrails pass; phase 3 remains)
 
 - 2026-09-23 — [Phase 1 profile config save](buck-model-config-phase-1-save-2026-09-23.md) — `completed` (resolver and lossless writer saved; phase 1 completed; subject stays active for phases 2–6)
 - 2026-09-23 — [Buck model configuration phasing](buck-model-config-phasing-2026-09-23.md) — `completed` (six phases; phase 1 resolver/writer saved as completed; phases 2–6 remain)
