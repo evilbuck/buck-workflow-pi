@@ -10,6 +10,8 @@ steps, then **Eat** — the check that it worked.
 3. [Prune retained /code-review runtime](prune-code-review-runtime.md)
 4. [Inspect project token use](inspect-project-token-use.md)
 
+5. [Watch /buck-loop activity](watch-buck-loop-activity.md)
+
 ## Why
 
 - [Local-only isolated code-review loop](../adr/0001-local-only-isolated-code-review-loop.md)

@@ -1,3 +1,13 @@
+- 2026-09-26 — [buck-models doctor iteration](buck-models-doctor-iterate-2026-09-26.md) — `completed` (five critical review issues fixed: cross-scope inventory, active parity, severity, fail-closed IO/registry, picker complexity gate; 1040 tests + durable guardrails pass; OMP TUI smoke still pending)
+
+- 2026-09-25 — [`/buck-models --doctor` plan](buck-models-doctor-plan-2026-09-25.md) — `completed` (all profiles audited against live registry; effective active highlighted; non-phased build queued)
+
+- 2026-09-25 — [Streaming-log iteration resume](buck-loop-streaming-log-drain-iterate-resume-2026-09-25.md) — `active` (four repairs already present; fresh 20-test pass; unrelated required complexity gate still blocks closeout)
+
+- 2026-09-25 — [buck-loop streaming activity-log build](buck-loop-streaming-log-drain-build-2026-09-25.md) — `active` (versioned local JSONL drain, command fanout, operator how-to; guardrails blocked only by pre-existing buck-models complexity)
+
+- 2026-09-25 — [Blank buckModels active stop](buck-models-blank-active-2026-09-25.md) — `completed` (sole profile used; blank active names files and `/buck-models`; writer fills blank active)
+- 2026-09-24 — [fix-pr PR #50 loops 1–2, settled](fix-pr-50-2026-09-24.md) — `completed` (8 valid loop-1 findings fixed; loop-2 hunk-marker/jev-core/ceiling/picker fixes; 2 invalid, 1 nit, 1 unsure-kept; thread walk 8/9 resolved + invalid evidence; settled at 62c769a)
 - 2026-09-24 — [Phase 6 model-profile documentation and proof](buck-model-config-phase-6-build-2026-09-24.md) — `completed` (living docs + how-to; 86 focused tests; end-to-end smoke; durable guardrails pass)
 - 2026-09-24 — [Phase 5 `/buck-models` command build and iteration](buck-model-config-phase-5-build-2026-09-24.md) — `completed` (final review approved; all in-plan findings resolved; 984 Vitest and 70 Bun tests pass)
 - 2026-09-24 — [Phase 4 interactive command cutover save](buck-model-config-phase-4-save-2026-09-24.md) — `completed` (review pass with warnings; interactive stage switch uncommitted; subject stays active for phases 5–6)

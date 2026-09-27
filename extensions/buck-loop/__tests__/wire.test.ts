@@ -6,7 +6,8 @@
  *   checks that `handleLoop` is the only thing the handler calls.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { ActivityEvent } from "../../extension-activity.js";
@@ -36,6 +37,22 @@ function createMockApi(): {
   return { api, commands, sendMessage };
 }
 
+
+async function readJsonlWhenFlushed(path: string): Promise<Array<{ type: string; tool?: string }>> {
+  // Real filesystem visibility requires platform time; fake timers cannot drive disk I/O.
+  const deadline = performance.now() + 3_000;
+  while (performance.now() < deadline) {
+    if (existsSync(path)) {
+      const source = readFileSync(path, "utf8");
+      if (source.endsWith("\n")) {
+        const records = source.trim().split("\n").map((line) => JSON.parse(line) as { type: string; tool?: string });
+        if (records.some((record) => record.type === "activity")) return records;
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error(`JSONL record was not flushed: ${path}`);
+}
 afterEach(() => handleLoop.mockReset());
 
 describe("parseArgs", () => {
@@ -116,6 +133,50 @@ describe("wireBuckLoop", () => {
     await pending;
     expect(statuses.at(-1)).toBeUndefined();
     expect(widgets.at(-1)).toBeUndefined();
+  });
+
+  it("drains nested activity to JSONL before the supervisor settles", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "buck-loop-wire-"));
+    let settle!: (result: { state: "done"; reason: string }) => void;
+    const gate = new Promise<{ state: "done"; reason: string }>((resolve) => { settle = resolve; });
+    handleLoop.mockImplementation((opts: { deps?: { onActivity?: (event: ActivityEvent) => void } }) => {
+      opts.deps?.onActivity?.({ kind: "toolStart", tool: "read", target: "plan.md" });
+      return gate;
+    });
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const pending = commands.get("buck-loop")!.handler("plan.md", { cwd, ui: { notify: () => undefined } });
+    try {
+      const log = await readJsonlWhenFlushed(join(cwd, ".context/workflow/buck-loop.log.jsonl"));
+      expect(log).toEqual(expect.arrayContaining([
+        expect.objectContaining({ type: "activity", tool: "read" }),
+      ]));
+
+      settle({ state: "done", reason: "all phases completed" });
+      await pending;
+      expect(readFileSync(join(cwd, ".context/workflow/buck-loop.log.jsonl"), "utf8")).toContain('"type":"terminal"');
+    } finally {
+      settle({ state: "done", reason: "test cleanup" });
+      await pending;
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
+  it("records a blocked terminal when the supervisor throws before saving a projection", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "buck-loop-throw-"));
+    handleLoop.mockRejectedValue(new Error("supervisor failed before projection"));
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    try {
+      await commands.get("buck-loop")!.handler("plan.md", { cwd, ui: { notify: () => undefined } });
+      const records = readFileSync(join(cwd, ".context/workflow/buck-loop.log.jsonl"), "utf8")
+        .trim().split("\n").map((line) => JSON.parse(line));
+      expect(records.at(-1)).toMatchObject({
+        type: "terminal", state: "blocked", ok: false, reason: "supervisor failed before projection",
+      });
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("renders the newest six nested activity rows", async () => {

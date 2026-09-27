@@ -47,12 +47,10 @@
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
 import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
-import { existsSync } from "node:fs";
-import { join } from "node:path";
-import { createActivity, type ActivityUI } from "../extension-activity.js";
+import { createActivity, type ActivityEvent, type ActivityUI } from "../extension-activity.js";
+import { createBuckLoopActivityLog } from "./activity-log.js";
 import { handleLoop, statusOf, type LoopCommand } from "./loop.js";
 import { formatFailureForAgent, serializeCallError, type AgentCallFailure } from "./call-failure.js";
-
 /** Printed when the operator types `/buck-loop` with no args, or mixed flags. */
 export const USAGE =
   "Usage: /buck-loop <path-to-plan|phase|subject> | --resume | --status | --stop";
@@ -161,14 +159,14 @@ function returnFailureToAgent(pi: ExtensionAPI, ui: BuckLoopUI, failure: AgentCa
 /**
  * Build a failure record when `handleLoop` itself throws (not a nested
  * work/choice session). Best-effort: if even reading saved status fails,
- * keep `idle` and still report the original error.
+ * report blocked and preserve the original error.
  */
 function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }>, error: unknown): AgentCallFailure {
-  let state: AgentCallFailure["state"] = "idle";
+  let state: AgentCallFailure["state"] = "blocked";
   try {
-    state = statusOf(cwd).state;
+    if (statusOf(cwd).state === "aborted") state = "aborted";
   } catch {
-    if (existsSync(join(cwd, ".context/workflow/buck-loop.json"))) state = "blocked";
+    // A missing or unreadable projection cannot make an exception successful.
   }
   return {
     state,
@@ -183,19 +181,12 @@ function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }
 const DIRTY_CONFIRM_MS = 60_000;
 
 /** Yes continues. Timeout, cancel, throw, or a missing dialog means no. */
-async function confirmDirty(ui: BuckLoopUI, paths: string[]): Promise<boolean> {
+async function confirmChoice(ui: BuckLoopUI, title: string, body: string): Promise<boolean> {
   if (!ui.confirm) return false;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DIRTY_CONFIRM_MS);
-  const shown = paths.slice(0, 12);
-  const extra = paths.length - shown.length;
-  const list = shown.join("\n") + (extra > 0 ? `\n…and ${extra} more` : "");
   try {
-    const answer = await ui.confirm(
-      "Working tree is dirty",
-      `${paths.length} change(s) outside .context/:\n${list}\n\nContinue? A later commit runs git add -A, so these files can be staged.`,
-      { timeout: DIRTY_CONFIRM_MS, signal: controller.signal },
-    );
+    const answer = await ui.confirm(title, body, { timeout: DIRTY_CONFIRM_MS, signal: controller.signal });
     return answer === true;
   } catch {
     return false;
@@ -203,6 +194,19 @@ async function confirmDirty(ui: BuckLoopUI, paths: string[]): Promise<boolean> {
     clearTimeout(timer);
   }
 }
+
+async function confirmDirty(ui: BuckLoopUI, paths: string[]): Promise<boolean> {
+  const shown = paths.slice(0, 12);
+  const extra = paths.length - shown.length;
+  const list = shown.join("\n") + (extra > 0 ? `\n…and ${extra} more` : "");
+  return confirmChoice(
+    ui,
+    "Working tree is dirty",
+    `${paths.length} change(s) outside .context/:\n${list}\n\nContinue? A later commit runs git add -A, so these files can be staged.`,
+  );
+}
+
+
 
 /**
  * Register `/buck-loop` with the coding-agent host.
@@ -230,7 +234,7 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
      * @param ctx.cwd - Project directory the operator's session is in.
      * @param ctx.ui - Host UI: toasts, status pill, live widget.
      */
-    handler: async (args: string, ctx: { cwd: string; ui: BuckLoopUI }) => {
+    handler: async (args: string, ctx: { cwd: string; ui: BuckLoopUI; modelRegistry?: { getAvailable(): Array<{ provider: string; id: string }> } }) => {
       const parsed = parseArgs(args);
       if (!parsed.ok) {
         ctx.ui.notify(parsed.error, "error");
@@ -242,16 +246,29 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
       // `fail` freeze the widget; `dispose` always runs so the spinner cannot leak.
       const activity = createActivity({ ui: ctx.ui, command: "buck-loop", maxActivityLines: 6, maxLineWidth: 64 });
       activity.phase(initialLabel(parsed));
+      const log = createBuckLoopActivityLog({
+        cwd: ctx.cwd,
+        command: parsed.command,
+        path: parsed.command === "start" ? parsed.path : undefined,
+        onWarning: (message) => ctx.ui.notify(message, "warning"),
+      });
+      const ingestActivity = (event: ActivityEvent): void => {
+        activity.ingest(event);
+        log.activity(event);
+      };
       try {
         const result = await handleLoop({
           cwd: ctx.cwd,
           command: parsed.command,
           path: parsed.command === "start" ? parsed.path : undefined,
           deps: {
-            onProgress: (progress) => activity.phase(progress.label),
-            onActivity: activity.ingest,
+            onProgress: (progress) => {
+              activity.phase(progress.label);
+              log.progress(progress);
+            },
+            onActivity: ingestActivity,
             onFailure: (failure) => {
-              activity.ingest({
+              ingestActivity({
                 kind: "toolEnd",
                 tool: failure.agent?.role ?? failure.operation,
                 ok: false,
@@ -259,17 +276,27 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
               });
               returnFailureToAgent(pi, ctx.ui, failure);
             },
+            onWarning: (message) => ctx.ui.notify(message, "warning"),
             confirmDirty: (paths) => confirmDirty(ctx.ui, paths),
+            confirmContinue: (reason) =>
+              confirmChoice(ctx.ui, "Buck loop would stop", `${reason}\n\nContinue anyway?`),
+            availableIds: async () => new Set((ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`)),
           },
         });
         const terminal = result.state + ": " + result.reason;
-        if (result.state === "blocked" || result.state === "aborted") activity.fail(terminal);
-        else activity.succeed(terminal);
+        const ok = result.state !== "blocked" && result.state !== "aborted";
+        log.terminal({ state: result.state, reason: result.reason, ok });
+        await log.flush();
+        if (ok) activity.succeed(terminal);
+        else activity.fail(terminal);
       } catch (error) {
         const failure = supervisorFailure(ctx.cwd, parsed, error);
+        log.terminal({ state: failure.state, reason: failure.error.message, ok: false });
+        await log.flush();
         returnFailureToAgent(pi, ctx.ui, failure);
         activity.fail(failure.state + ": " + failure.error.message);
       } finally {
+        await log.close();
         activity.dispose();
       }
     },

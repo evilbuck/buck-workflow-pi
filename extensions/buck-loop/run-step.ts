@@ -202,6 +202,8 @@ export async function runStep(opts: {
   /** Present only when the plan or phase file has a `difficulty:` key. */
   difficulty?: string;
   onActivity?: (event: ActivityEvent) => void;
+  /** Live host registry ids. Same source `/buck-models` uses. */
+  availableIds?: () => Promise<ReadonlySet<string>>;
   select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
 }): Promise<RunStepResult> {
   let skillBody: string;
@@ -232,7 +234,7 @@ export async function runStep(opts: {
   // Safety ceiling only: the loop normally stops when candidates run out
   // (select returns not-ok) or a model repeats. Caps pathological registries.
   for (let attempt = 0; attempt < MAX_MODEL_ATTEMPTS; attempt += 1) {
-    const picked = await (opts.select ?? defaultWorkSelect)({
+    const picked = await (opts.select ?? ((input: WorkModelSelectInput) => defaultWorkSelect(input, opts.availableIds)))({
       cwd: opts.cwd,
       stage,
       skill: opts.skill,
@@ -277,7 +279,10 @@ function stopResult(prompt: string, skill: NestedSkill, stage: BuckStageKey, mes
   };
 }
 
-async function defaultWorkSelect(input: WorkModelSelectInput): Promise<BuckStageModelChoice> {
+async function defaultWorkSelect(
+  input: WorkModelSelectInput,
+  availableIds?: () => Promise<ReadonlySet<string>>,
+): Promise<BuckStageModelChoice> {
   return selectBuckStageModel({
     cwd: input.cwd,
     stage: input.stage,
@@ -288,7 +293,7 @@ async function defaultWorkSelect(input: WorkModelSelectInput): Promise<BuckStage
       ...(input.difficulty === undefined ? {} : { difficulty: input.difficulty }),
     },
     exclude: input.exclude,
-  });
+  }, availableIds ? { availableIds } : {});
 }
 
 export async function selectBuckStageModel(
@@ -296,7 +301,8 @@ export async function selectBuckStageModel(
   deps: StageModelDeps = {},
 ): Promise<BuckStageModelChoice> {
   const configs = (deps.readConfigs ?? readBuckConfigs)(request.cwd);
-  const availableIds = await (deps.availableIds ?? currentAvailableIds)();
+  const probed = await (deps.availableIds ?? currentAvailableIds)();
+  const availableIds = availableForStage(probed, stageModelIds(configs, request.stage));
   const resolution = resolveBuckStage({
     project: configs.project,
     global: configs.global,
@@ -336,6 +342,28 @@ async function currentAvailableIds(): Promise<ReadonlySet<string>> {
   const registry = await openHostModelRegistry(ModelRegistry, AuthStorage, ompAgentDir());
   if (!registry) return new Set();
   return new Set(registry.getAvailable().map((model) => `${model.provider}/${model.id}`));
+}
+
+function stageModelIds(
+  configs: { project: BuckModelsConfig | null; global: BuckModelsConfig | null },
+  stage: string,
+): string[] {
+  const ids: string[] = [];
+  for (const config of [configs.project, configs.global]) {
+    if (!config) continue;
+    for (const profile of Object.values(config.profiles)) {
+      const stages = profile.stages as Partial<Record<string, { models: Array<{ id: string }> }>>;
+      for (const model of stages[stage]?.models ?? []) ids.push(model.id);
+    }
+  }
+  return ids;
+}
+
+function availableForStage(probed: ReadonlySet<string>, stageIds: readonly string[]): ReadonlySet<string> {
+  if (stageIds.length === 0 || stageIds.some((id) => probed.has(id))) return probed;
+  const kept = new Set(probed);
+  for (const id of stageIds) kept.add(id);
+  return kept;
 }
 
 function planBody(cwd: string, rel: string): string {

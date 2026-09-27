@@ -1,5 +1,13 @@
 import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
+import { parse } from "yaml";
+import {
+  candidatesFromSelection,
+  pickStageModels,
+  stageModelChoices,
+  type ModelPickerHost,
+  type StageModelChoice,
+} from "./model-picker.js";
 import {
   BUCK_STAGE_KEYS,
   globalOmpConfigPath,
@@ -14,6 +22,7 @@ import {
   type BuckStageKey,
   type BuckThinking,
 } from "../omp-models.js";
+import { buildDoctorReport, type DoctorLoad } from "./doctor.js";
 
 const PROJECT_SCOPE = "Project (.omp/config.yml)";
 const GLOBAL_SCOPE = "User-global (~/.omp/agent/config.yml)";
@@ -29,7 +38,7 @@ const THINKING_CHOICES = [OMIT_THINKING, "minimal", "low", "medium", "high", "xh
 
 type NoticeLevel = "info" | "warning" | "error";
 
-interface BuckModelsUI {
+interface BuckModelsUI extends ModelPickerHost {
   select?: (prompt: string, items: string[]) => Promise<string | null | undefined>;
   input?: (prompt: string, placeholder?: string) => Promise<string | null | undefined>;
   confirm?: (title: string, message: string, opts?: ExtensionUIDialogOptions) => Promise<boolean>;
@@ -52,6 +61,17 @@ interface BuckModelsContext {
 export interface BuckModelsDeps {
   readText?: (path: string) => string;
   writeScope?: typeof writeBuckModelsScope;
+  pickStageModels?: (
+    ui: BuckModelsUI,
+    title: string,
+    choices: readonly StageModelChoice[],
+    selected: readonly string[],
+  ) => Promise<string[] | null>;
+  readDoctorLoad?: (cwd: string) => {
+    project: BuckModelsConfig | null;
+    globalConfig: BuckModelsConfig | null;
+    invalidPath: string | null;
+  };
 }
 
 function readText(path: string): string {
@@ -109,36 +129,6 @@ function formatRows(models: BuckModelCandidate[]): string {
     .join(", ");
 }
 
-function splitRows(value: string): string[] {
-  const rows: string[] = [];
-  let row = "";
-  let escaped = false;
-  for (const character of value) {
-    if (escaped) {
-      row += character;
-      escaped = false;
-    } else if (character === "\\") {
-      escaped = true;
-    } else if (character === ",") {
-      rows.push(row);
-      row = "";
-    } else {
-      row += character;
-    }
-  }
-  rows.push(escaped ? `${row}\\` : row);
-  return rows;
-}
-
-function parseRows(value: string): BuckModelCandidate[] {
-  return splitRows(value).flatMap((row) => {
-    const [rawId, ...noteParts] = row.split("|");
-    const id = rawId?.trim() ?? "";
-    if (!id) return [];
-    const note = noteParts.join("|").trim();
-    return note ? [{ id, note }] : [{ id }];
-  });
-}
 
 function stageSummary(stage: BuckStageConfig | undefined): string {
   const models = formatRows(stage?.models ?? []) || "(no models)";
@@ -179,6 +169,8 @@ async function editStages(
   profile: string,
   project: BuckModelsConfig,
   globalConfig: BuckModelsConfig,
+  available: readonly string[],
+  pick: NonNullable<BuckModelsDeps["pickStageModels"]>,
 ): Promise<BuckProfileWrite["stages"] | null> {
   const stages: BuckProfileWrite["stages"] = {};
   for (const key of BUCK_STAGE_KEYS) {
@@ -190,11 +182,14 @@ async function editStages(
     );
     if (!action) return null;
     if (action === KEEP_STAGE) continue;
-    const rows = await ui.input?.(
-      `Replacement models for ${label} (comma-separated id | optional note; escape note commas as \\,)`,
-      formatRows(effective.stage?.models ?? []),
+    const current = effective.stage?.models ?? [];
+    const selected = await pick(
+      ui,
+      `Models for ${label}`,
+      stageModelChoices(available, current),
+      current.map((model) => model.id),
     );
-    if (rows === undefined || rows === null) return null;
+    if (selected === null) return null;
     const currentThinking = effective.stage?.thinking ?? "off";
     const keepThinking = `Keep current (${currentThinking})`;
     const selectedThinking = await ui.select?.(
@@ -203,7 +198,7 @@ async function editStages(
     );
     if (!selectedThinking) return null;
     stages[key] = {
-      models: parseRows(rows),
+      models: candidatesFromSelection(selected, current),
       thinking: selectedThinking === keepThinking
         ? effective.stage?.thinking
         : selectedThinking === OMIT_THINKING ? undefined : selectedThinking as BuckThinking,
@@ -251,6 +246,86 @@ function readConfigs(cwd: string, load: (path: string) => string): {
   };
 }
 
+/**
+ * Parse text captured from a single read. Invalid YAML is invalid config —
+ * never an empty scope — so the doctor fails closed on the content it saw.
+ */
+function parseBuckModelsOnce(text: string, path: string): { config: BuckModelsConfig; invalidPath: string | null } {
+  try {
+    parse(text);
+  } catch {
+    return { config: { active: "", profiles: {} }, invalidPath: path };
+  }
+  return { config: parseBuckModels(text), invalidPath: null };
+}
+
+function readDoctorLoad(cwd: string, load: (path: string) => string): {
+  project: BuckModelsConfig | null;
+  globalConfig: BuckModelsConfig | null;
+  invalidPath: string | null;
+} {
+  const projectPath = projectOmpConfigPath(cwd);
+  const globalPath = globalOmpConfigPath();
+  let project: BuckModelsConfig | null = null;
+  let globalConfig: BuckModelsConfig | null = null;
+  let invalidPath: string | null = null;
+  // IO failures (unreadable/unopenable file) fail closed as invalid config.
+  // Each path is read exactly once; classification uses that captured text.
+  try {
+    const projectRaw = load(projectPath);
+    if (projectRaw.length > 0) {
+      const parsed = parseBuckModelsOnce(projectRaw, projectPath);
+      if (parsed.invalidPath) invalidPath = parsed.invalidPath;
+      project = parsed.config;
+    }
+  } catch {
+    invalidPath = projectPath;
+  }
+  try {
+    const globalRaw = load(globalPath);
+    if (globalRaw.length > 0) {
+      const parsed = parseBuckModelsOnce(globalRaw, globalPath);
+      if (parsed.invalidPath && invalidPath === null) invalidPath = parsed.invalidPath;
+      globalConfig = parsed.config;
+    }
+  } catch {
+    invalidPath ??= globalPath;
+  }
+  return { project, globalConfig, invalidPath };
+}
+
+function availableIds(ctx: BuckModelsContext): ReadonlySet<string> | null {
+  if (!ctx.modelRegistry || typeof ctx.modelRegistry.getAvailable !== "function") return null;
+  const ids = new Set<string>();
+  let models: Iterable<{ provider: string; id: string }>;
+  try {
+    models = ctx.modelRegistry.getAvailable();
+  } catch {
+    return null;
+  }
+  for (const model of models) {
+    ids.add(`${model.provider}/${model.id}`);
+  }
+  return ids;
+}
+
+async function runDoctor(ctx: BuckModelsContext, deps: BuckModelsDeps): Promise<void> {
+  try {
+    const load = deps.readDoctorLoad ?? ((cwd: string) => readDoctorLoad(cwd, deps.readText ?? readText));
+    const { project, globalConfig, invalidPath } = load(ctx.cwd);
+    const doctorLoad: DoctorLoad = {
+      project,
+      global: globalConfig,
+      invalidPath,
+      availableIds: availableIds(ctx),
+    };
+    const report = buildDoctorReport(doctorLoad);
+    ctx.ui.notify(report.text, report.severity);
+  } catch (error) {
+    ctx.ui.notify(`/buck-models --doctor failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+  }
+}
+
 async function buildProfileUpdate(
   ui: InteractiveBuckModelsUI,
   ctx: BuckModelsContext,
@@ -259,44 +334,111 @@ async function buildProfileUpdate(
   action: string,
   project: BuckModelsConfig,
   globalConfig: BuckModelsConfig,
+  pick: NonNullable<BuckModelsDeps["pickStageModels"]>,
 ): Promise<BuckProfileWrite | null> {
+  const available = (ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`);
   const stages = action === EDIT_PROFILE
-    ? await editStages(ui, scope, profile, project, globalConfig)
+    ? await editStages(ui, scope, profile, project, globalConfig, available, pick)
     : {};
   if (stages === null) return null;
   const activate = action === ACTIVATE_PROFILE
     ? true
     : await ui.confirm("Activate profile", `Make "${profile}" active in ${scope} scope?`);
-  const available = new Set((ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`));
-  const unavailable = unavailableIds(scope, profile, stages, project, globalConfig, available);
+  const unavailable = unavailableIds(scope, profile, stages, project, globalConfig, new Set(available));
   if (unavailable.length > 0) {
     ui.notify(`Unavailable model ids will still be saved: ${unavailable.join(", ")}`, "warning");
   }
   return { active: activate ? profile : undefined, profile, stages };
 }
 
-async function runCommand(ctx: BuckModelsContext, deps: BuckModelsDeps): Promise<void> {
+async function runCommand(ctx: BuckModelsContext, deps: BuckModelsDeps, args: string): Promise<void> {
+  const routed = await dispatchArgs(ctx, args, deps);
+  if (routed !== "interactive") return;
+  await runInteractive(ctx, deps);
+}
+
+async function runInteractive(ctx: BuckModelsContext, deps: BuckModelsDeps): Promise<void> {
+  const ic = await collectInteractiveContext(ctx, deps);
+  if (!ic) return;
+  const action = await ic.ui.select("Buck model profile action", [EDIT_PROFILE, ACTIVATE_PROFILE]);
+  if (!action) return;
+  const profile = await chooseProfile(ic.ui, action, profileNames(ic.scope, ic.project, ic.globalConfig));
+  if (!profile) return;
+  const update = await buildProfileUpdate(
+    ic.ui,
+    ctx,
+    ic.scope,
+    profile,
+    action,
+    ic.project,
+    ic.globalConfig,
+    ic.pick,
+  );
+  if (!update) return;
+  await persistProfileUpdate(ic.ui, ic.scope, update, ctx.cwd, deps.writeScope ?? writeBuckModelsScope);
+}
+
+interface InteractiveContext {
+  ui: InteractiveBuckModelsUI;
+  scope: BuckConfigSource;
+  project: BuckModelsConfig;
+  globalConfig: BuckModelsConfig;
+  pick: NonNullable<BuckModelsDeps["pickStageModels"]>;
+}
+
+async function collectInteractiveContext(
+  ctx: BuckModelsContext,
+  deps: BuckModelsDeps,
+): Promise<InteractiveContext | null> {
   const ui = interactiveUi(ctx);
-  if (!ui) return;
+  if (!ui) return null;
   const chosenScope = await ui.select("Write Buck model profile to", [PROJECT_SCOPE, GLOBAL_SCOPE]);
-  if (!chosenScope) return;
+  if (!chosenScope) return null;
   const scope = scopeFrom(chosenScope);
   const { project, globalConfig } = readConfigs(ctx.cwd, deps.readText ?? readText);
-  const action = await ui.select("Buck model profile action", [EDIT_PROFILE, ACTIVATE_PROFILE]);
-  if (!action) return;
-  const profile = await chooseProfile(ui, action, profileNames(scope, project, globalConfig));
-  if (!profile) return;
-  const update = await buildProfileUpdate(ui, ctx, scope, profile, action, project, globalConfig);
-  if (!update) return;
-  const save = await ui.confirm("Save Buck model profile", `Write profile "${profile}" to ${scope} scope?`);
+  return {
+    ui,
+    scope,
+    project,
+    globalConfig,
+    pick: deps.pickStageModels ?? pickStageModels,
+  };
+}
+
+async function persistProfileUpdate(
+  ui: InteractiveBuckModelsUI,
+  scope: BuckConfigSource,
+  update: BuckProfileWrite,
+  cwd: string,
+  writeScope: NonNullable<BuckModelsDeps["writeScope"]>,
+): Promise<void> {
+  const save = await ui.confirm("Save Buck model profile", `Write profile "${update.profile}" to ${scope} scope?`);
   if (!save) return;
-  const path = (deps.writeScope ?? writeBuckModelsScope)({ scope, cwd: ctx.cwd, ...update });
-  ui.notify(`Saved ${scope} profile "${profile}" to ${path}.`, "info");
+  const path = writeScope({ scope, cwd, ...update });
+  ui.notify(`Saved ${scope} profile "${update.profile}" to ${path}.`, "info");
+}
+
+type CommandRoute = "interactive" | "handled";
+
+async function dispatchArgs(ctx: BuckModelsContext, args: string, deps: BuckModelsDeps): Promise<CommandRoute> {
+  const trimmed = args.trim();
+  if (trimmed === "--doctor") {
+    await runDoctor(ctx, deps);
+    return "handled";
+  }
+  if (trimmed !== "") {
+    ctx.ui.notify(
+      'Usage: /buck-models [--doctor]\n  --doctor  read-only audit of every saved Buck model profile against the live registry.',
+      "error",
+    );
+    return "handled";
+  }
+  return "interactive";
 }
 
 export function wireBuckModels(pi: ExtensionAPI, deps: BuckModelsDeps = {}): void {
   pi.registerCommand("buck-models", {
-    description: "Create, edit, and activate project or user-global Buck model profiles",
-    handler: async (_args: string, ctx: unknown) => runCommand(ctx as BuckModelsContext, deps),
+    description: "Create, edit, and activate project or user-global Buck model profiles. Pass --doctor for a read-only availability audit.",
+    handler: async (args: string, ctx: unknown) => runCommand(ctx as BuckModelsContext, deps, args),
   });
 }

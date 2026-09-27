@@ -112,8 +112,14 @@ export type LoopDeps = {
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
   onActivity: (event: ActivityEvent) => void;
-  /** Yes continues despite non-context dirt. Missing or no means refuse. */
+  /** Warning the operator can read without stopping the run. */
+  onWarning: (message: string) => void;
+  /** Yes continues despite non-context dirt. No stops this invocation; it does not persist `blocked`. */
   confirmDirty: (paths: string[]) => Promise<boolean>;
+  /** Yes keeps a run going instead of landing in `blocked`. No keeps the machine stop. */
+  confirmContinue: (reason: string) => Promise<boolean>;
+  /** Ids from the live host registry, the same list `/buck-models` offers. */
+  availableIds?: () => Promise<ReadonlySet<string>>;
 };
 
 type EffectResult = {
@@ -129,7 +135,9 @@ const DEFAULT_DEPS: LoopDeps = {
   onProgress: () => undefined,
   onFailure: () => undefined,
   onActivity: () => undefined,
+  onWarning: () => undefined,
   confirmDirty: async () => false,
+  confirmContinue: async () => false,
 };
 
 /**
@@ -259,12 +267,22 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     const step = takeStep(snapshot, lastFail, deps.now());
     snapshot = step.snapshot;
     persistIfPossible(cwd, snapshot);
-    if (step.halt) return haltInCycleBlock(cwd, snapshot, step.halt);
+    if (step.halt) {
+      const recovered = await recoverBlocked(cwd, snapshot, step.halt, deps);
+      if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
+      snapshot = recovered.snapshot;
+      continue;
+    }
     const ran = await runEffect(cwd, snapshot, path, step.transition, deps);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
     persistIfPossible(cwd, snapshot);
-    if (ran.halt) return haltInCycleBlock(cwd, snapshot, ran.halt);
+    if (ran.halt) {
+      const recovered = await recoverBlocked(cwd, snapshot, ran.halt, deps);
+      if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
+      snapshot = recovered.snapshot;
+      continue;
+    }
   }
   const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
   snapshot = block(snapshot, reason, deps.now());
@@ -362,6 +380,7 @@ async function chooseSafely(
       legal,
       context: decisionContext(snapshot, why),
       onActivity: deps.onActivity,
+      ...(deps.availableIds ? { availableIds: deps.availableIds } : {}),
     });
   } catch (error) {
     return {
@@ -465,6 +484,7 @@ async function runNestedSkill(
       planOrPhasePath,
       ...(difficulty ? { difficulty } : {}),
       onActivity: deps.onActivity,
+      ...(deps.availableIds ? { availableIds: deps.availableIds } : {}),
     });
   } catch (error) {
     return {
@@ -556,8 +576,26 @@ async function refuseDirtyWorkspace(
   const dirty = nonContextStatus(cwd);
   if (dirty.length === 0) return null;
   if (mode === "resume" && projection && permitsBlockedStagedResume(projection, dirty)) return null;
-  if (dirty.every(isStagedOnly) && (await deps.confirmDirty(dirty))) return null;
-  return { state: "blocked", reason: "working tree is dirty; operator did not continue" };
+  deps.onWarning(
+    `Working tree has ${dirty.length} change(s) outside .context/. A later commit can stage them.`,
+  );
+  if (await deps.confirmDirty(dirty)) return null;
+  return { state: "aborted", reason: "working tree is dirty; operator did not continue" };
+}
+
+async function recoverBlocked(
+  cwd: string,
+  snapshot: Snapshot,
+  halt: LoopResult,
+  deps: LoopDeps,
+): Promise<{ snapshot: Snapshot; halt: LoopResult | null }> {
+  if (halt.state !== "blocked") return { snapshot, halt };
+  deps.onWarning(halt.reason);
+  if (!(await deps.confirmContinue(halt.reason))) return { snapshot, halt };
+  const parked = snapshot.state === "blocked" ? snapshot : block(snapshot, halt.reason, deps.now());
+  const continued = withTransition(parked, userConfirmed(), deps.now());
+  persistIfPossible(cwd, continued);
+  return { snapshot: continued, halt: null };
 }
 
 function nonContextStatus(cwd: string): string[] {

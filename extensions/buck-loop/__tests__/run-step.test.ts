@@ -196,4 +196,61 @@ describe("runStep", () => {
     if (!choice.ok) expect(choice.message).toContain('stage "build"');
     expect(createAgentSessionMock).not.toHaveBeenCalled();
   });
+  it("keeps picker-saved ids when the availability probe is empty", async () => {
+    const choice = await selectBuckStageModel({
+      cwd: tmp(),
+      stage: "build",
+      skill: "b-build",
+      context: { planOrPhasePath: "plan.md", body: "" },
+    }, {
+      readConfigs: () => ({
+        project: null,
+        global: {
+          active: "Default",
+          profiles: {
+            Default: {
+              stages: {
+                build: {
+                  thinking: "medium",
+                  models: [{ id: "minimax-code/MiniMax-M3" }, { id: "xai-oauth/grok-4.7" }],
+                },
+              },
+            },
+          },
+        },
+      }),
+      availableIds: async () => new Set(),
+      pick: async (input) => ({ ok: true, id: input.resolution.available[0]?.id ?? "", thinking: input.resolution.thinking }),
+    });
+    expect(choice).toEqual({ ok: true, id: "minimax-code/MiniMax-M3", thinking: "medium" });
+  });
+  it("keeps picker-saved ids when the probe lists other models only", async () => {
+    const choice = await selectBuckStageModel({
+      cwd: tmp(),
+      stage: "build",
+      skill: "b-build",
+      context: { planOrPhasePath: "plan.md", body: "" },
+    }, {
+      readConfigs: () => ({
+        project: null,
+        global: {
+          active: "Default",
+          profiles: {
+            Default: {
+              stages: {
+                build: {
+                  thinking: "medium",
+                  models: [{ id: "zai/glm-5.3-flash" }, { id: "openai-codex/gpt-5.6-terra" }],
+                },
+              },
+            },
+          },
+        },
+      }),
+      availableIds: async () => new Set(["other/model"]),
+      pick: async (input) => ({ ok: true, id: input.resolution.available[0]?.id ?? "", thinking: input.resolution.thinking }),
+    });
+    expect(choice.ok).toBe(true);
+    if (choice.ok) expect(["zai/glm-5.3-flash", "openai-codex/gpt-5.6-terra"]).toContain(choice.id);
+  });
 });

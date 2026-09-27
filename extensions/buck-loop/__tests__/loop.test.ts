@@ -179,54 +179,46 @@ describe("handleLoop commands", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses to start with unrelated dirty files", async () => {
+  it("warns and asks before starting over unrelated dirty files", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
-    const deps = workDeps(async () => ({ ok: true, text: "nope" }));
-    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("blocked");
-    expect(result.reason).toMatch(/dirty/);
-    expect(deps.runStep).not.toHaveBeenCalled();
-  });
-  it("starts a staged-only dirty tree when the operator continues", async () => {
-    const cwd = repo();
-    phased(cwd, ["pending"]);
-    writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
-    git(cwd, ["add", "src/unrelated.ts"]);
     const deps = workDeps(async () => ({ ok: true, text: "landed" }));
     const confirmDirty = vi.fn(async () => true);
-    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
+    const onWarning = vi.fn();
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty, onWarning } });
     expect(confirmDirty).toHaveBeenCalledWith(expect.arrayContaining([expect.stringContaining("src/unrelated.ts")]));
+    expect(onWarning).toHaveBeenCalled();
     expect(deps.runStep).toHaveBeenCalled();
-    expect(result.reason).not.toMatch(/did not continue/);
+    expect(result.reason).not.toMatch(/dirty/);
   });
 
-  it("blocks unstaged dirt without asking the operator", async () => {
+  it("asks about unstaged dirt and continues when the operator does", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
     const deps = workDeps(async () => ({ ok: true, text: "landed" }));
     const confirmDirty = vi.fn(async () => true);
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
-    expect(confirmDirty).not.toHaveBeenCalled();
-    expect(deps.runStep).not.toHaveBeenCalled();
-    expect(result.reason).toMatch(/dirty/);
+    expect(confirmDirty).toHaveBeenCalled();
+    expect(deps.runStep).toHaveBeenCalled();
+    expect(result.reason).not.toMatch(/dirty/);
   });
 
-  it("stops a dirty tree when the operator declines", async () => {
+  it("stops a dirty tree when the operator declines without persisting blocked", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, { "src/unrelated.ts": "export {}\n" });
     const deps = workDeps(async () => ({ ok: true, text: "nope" }));
     const confirmDirty = vi.fn(async () => false);
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty } });
-    expect(result).toEqual({ state: "blocked", reason: "working tree is dirty; operator did not continue" });
+    expect(result).toEqual({ state: "aborted", reason: "working tree is dirty; operator did not continue" });
     expect(deps.runStep).not.toHaveBeenCalled();
+    expect(readProjection(cwd)?.state).not.toBe("blocked");
   });
 
 
-  it("refuses to resume a non-blocked run with staged dirt", async () => {
+  it("asks before resuming a non-blocked run with staged dirt", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeTree(cwd, {
@@ -246,8 +238,10 @@ describe("handleLoop commands", () => {
     });
     git(cwd, ["add", "src/unrelated.ts"]);
     const deps = workDeps(async () => ({ ok: true, text: "nope" }));
-    const result = await handleLoop({ cwd, command: "resume", deps });
-    expect(result.state).toBe("blocked");
+    const confirmDirty = vi.fn(async () => false);
+    const result = await handleLoop({ cwd, command: "resume", deps: { ...deps, confirmDirty } });
+    expect(confirmDirty).toHaveBeenCalled();
+    expect(result.state).toBe("aborted");
     expect(result.reason).toMatch(/dirty/);
     expect(deps.runStep).not.toHaveBeenCalled();
   });
@@ -733,7 +727,7 @@ describe("resume", () => {
 
     const resumed = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "resume", deps: resumed });
-    expect(result.state).toBe("blocked");
+    expect(result.state).toBe("aborted");
     expect(result.reason).toMatch(/dirty/);
     expect(resumed.runStep).not.toHaveBeenCalled();
   });
@@ -757,9 +751,6 @@ describe("resume", () => {
     expect(blocked.state).toBe("blocked");
     expect(blocked.reason).toMatch(/left unstaged.*src\/unrelated\.ts/i);
 
-    // The unstaged detail amends the existing in-cycle → blocked transition; a
-    // second blocked → blocked hop would make permitsBlockedStagedResume
-    // refuse resume forever and strand the staged in-cycle work.
     const history = readProjection(cwd)?.history ?? [];
     const blockedHops = history.filter((hop) => hop.to === "blocked");
     expect(blockedHops).toHaveLength(1);
@@ -793,7 +784,7 @@ describe("resume", () => {
       .toContain("?? src/owned.ts");
   });
 
-  it("refuses blocked resume when an unrelated untracked path appears after the block", async () => {
+  it("asks instead of blocking resume when an unrelated untracked path appears after the block", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const failing = workDeps(async (opts) => {
@@ -809,12 +800,12 @@ describe("resume", () => {
 
     const resumed = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "resume", deps: resumed });
-    expect(result.state).toBe("blocked");
+    expect(result.state).toBe("aborted");
     expect(result.reason).toMatch(/dirty/);
     expect(resumed.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses blocked resume when an unrelated tracked path is modified after the block", async () => {
+  it("asks instead of blocking resume when an unrelated tracked path is modified after the block", async () => {
     const cwd = repo();
     writeTree(cwd, { "src/tracked.ts": "export const tracked = true;\n" });
     git(cwd, ["add", "src/tracked.ts"]);
@@ -833,12 +824,12 @@ describe("resume", () => {
 
     const resumed = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "resume", deps: resumed });
-    expect(result.state).toBe("blocked");
+    expect(result.state).toBe("aborted");
     expect(result.reason).toMatch(/dirty/);
     expect(resumed.runStep).not.toHaveBeenCalled();
   });
 
-  it("refuses blocked resume when loop-owned staged work is modified again", async () => {
+  it("asks instead of blocking resume when loop-owned staged work is modified again", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const failing = workDeps(async (opts) => {
@@ -854,14 +845,14 @@ describe("resume", () => {
 
     const resumed = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "resume", deps: resumed });
-    expect(result.state).toBe("blocked");
+    expect(result.state).toBe("aborted");
     expect(result.reason).toMatch(/dirty/);
     expect(resumed.runStep).not.toHaveBeenCalled();
   });
 
   it("does not USER_CONFIRM a blocked resume when the scanned phase moved", async () => {
     const cwd = repo();
-    phased(cwd, ["pending", "pending"]);
+    phased(cwd, ["pending"]);
     writeTree(cwd, {
       ".context/workflow/buck-loop.json": JSON.stringify({
         version: 1,
@@ -882,5 +873,6 @@ describe("resume", () => {
     expect(result.state).toBe("blocked");
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+
 
 });

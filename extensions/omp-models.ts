@@ -228,7 +228,7 @@ export interface BuckModelsConfig {
 export type BuckConfigSource = "project" | "global";
 
 export type BuckResolveStop =
-  | { code: "missing-active"; name: string }
+  | { code: "missing-active"; profiles: string[]; stage: string }
   | { code: "unknown-profile"; name: string }
   | { code: "missing-stage"; profile: string; stage: string }
   | { code: "no-candidates"; profile: string; stage: string; excluded: string[] }
@@ -353,9 +353,9 @@ export function readBuckModelsFile(path: string): { config: BuckModelsConfig | n
 export function formatBuckStop(stop: BuckResolveStop): string {
   switch (stop.code) {
     case "missing-active":
-      return `buckModels active name "${stop.name}" is missing`;
+      return formatMissingActive(stop);
     case "unknown-profile":
-      return `unknown buckModels profile "${stop.name}"`;
+      return `unknown buckModels profile "${stop.name}". It is not in project .omp/config.yml or user-global ~/.omp/agent/config.yml. Run /buck-models and activate an existing profile.`;
     case "missing-stage":
       return `buckModels profile "${stop.profile}" is missing stage "${stop.stage}"`;
     case "no-candidates":
@@ -363,6 +363,15 @@ export function formatBuckStop(stop: BuckResolveStop): string {
     case "invalid-config":
       return `buckModels config at "${stop.path}" is not valid YAML; fix it or move it aside`;
   }
+}
+
+function formatMissingActive(stop: { profiles: readonly string[]; stage: string }): string {
+  const where = "project .omp/config.yml and user-global ~/.omp/agent/config.yml";
+  const action = "Run /buck-models and activate a profile.";
+  if (stop.profiles.length === 0) {
+    return `Cannot run stage "${stop.stage}": no Buck model profile is configured in ${where}. ${action}`;
+  }
+  return `Cannot run stage "${stop.stage}": buckModels.active is blank in ${where}. Profiles found: ${stop.profiles.join(", ")}. ${action}`;
 }
 
 
@@ -401,8 +410,8 @@ function nameKnown(
   return profileKnown(globalConfig, name);
 }
 
-function missingActive(name: string): ActiveNameResult {
-  return { ok: false, stop: { code: "missing-active", name } };
+function missingActive(profiles: readonly string[], stage: string): ActiveNameResult {
+  return { ok: false, stop: { code: "missing-active", profiles: [...profiles], stage } };
 }
 
 function unknownProfile(name: string): ActiveNameResult {
@@ -413,12 +422,32 @@ function knownActive(name: string): ActiveNameResult {
   return { ok: true, name };
 }
 
+function configuredProfileNames(
+  project: BuckModelsConfig | null,
+  globalConfig: BuckModelsConfig | null,
+): string[] {
+  const seen: Record<string, true> = {};
+  const names: string[] = [];
+  for (const name of [...Object.keys(project?.profiles ?? {}), ...Object.keys(globalConfig?.profiles ?? {})]) {
+    if (seen[name]) continue;
+    seen[name] = true;
+    names.push(name);
+  }
+  return names;
+}
+
 function resolveActiveName(
   project: BuckModelsConfig | null,
   globalConfig: BuckModelsConfig | null,
+  stage: string,
 ): ActiveNameResult {
   const name = firstNonBlank(trimmedActive(project), trimmedActive(globalConfig));
-  if (name === "") return missingActive(name);
+  const profiles = configuredProfileNames(project, globalConfig);
+  if (name === "") {
+    const only = profiles[0];
+    if (profiles.length === 1 && only) return knownActive(only);
+    return missingActive(profiles, stage);
+  }
   if (!nameKnown(project, globalConfig, name)) return unknownProfile(name);
   return knownActive(name);
 }
@@ -449,7 +478,7 @@ export function resolveBuckStage(opts: {
 }): BuckStageResolution {
   const invalid = opts.invalidConfigPaths?.find((path) => path.length > 0);
   if (invalid) return { ok: false, stop: { code: "invalid-config", path: invalid } };
-  const active = resolveActiveName(opts.project, opts.global);
+  const active = resolveActiveName(opts.project, opts.global, opts.stage);
   if (!active.ok) return active;
   if (!isBuckStageKey(opts.stage)) {
     return { ok: false, stop: { code: "missing-stage", profile: active.name, stage: opts.stage } };
@@ -515,6 +544,7 @@ function applyProfileWrite(current: BuckModelsConfig, update: BuckProfileWrite):
     };
   }
   current.profiles[update.profile] = profile;
+  if (current.active.trim() === "" && update.profile.trim() !== "") current.active = update.profile;
 }
 
 /** Read-modify-write one profile. Refuses to overwrite a document YAML cannot parse. */

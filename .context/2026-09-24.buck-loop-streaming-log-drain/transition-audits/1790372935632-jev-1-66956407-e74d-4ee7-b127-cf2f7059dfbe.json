@@ -1,0 +1,20 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"action\":{\"type\":\"choice\",\"choice\":\"retry\",\"confidence\":0.79,\"probabilities\":{\"advance\":0.11,\"retry\":0.89}}},\"usage\":{\"input_tokens\":395,\"output_tokens\":31}}",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Jev picked retry (confidence 0.79)"
+  },
+  "accepted": true,
+  "reason": "Jev picked retry (confidence 0.79)",
+  "context": "state=iterating phase=.context/2026-09-24.buck-loop-streaming-log-drain/plan-buck-loop-streaming-log-drain.md why=postcondition scan ambiguous parseable=false docsImpact=false howtoImpact=false postcondition=ambiguous",
+  "attempt": 1
+}
