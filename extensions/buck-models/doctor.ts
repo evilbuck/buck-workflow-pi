@@ -73,8 +73,10 @@ export interface DoctorLoad {
   project: BuckModelsConfig | null;
   /** Parsed user-global config, or `null` when the file is absent. */
   global: BuckModelsConfig | null;
-  /** Path of any config file that could not be parsed. Drives the error severity. */
+  /** Path of a config file that is unreadable or not valid YAML. */
   invalidPath: string | null;
+  /** Why `invalidPath` failed. Absent means invalid YAML, matching older callers. */
+  invalidReason?: "yaml" | "unreadable";
   /** Live registry ids, normalized to `provider/id`. Absent registry means `null`. */
   availableIds: ReadonlySet<string> | null;
 }
@@ -229,7 +231,10 @@ function globalHasStage(config: BuckModelsConfig | null, profile: string, stage:
  */
 export function buildDoctorReport(load: DoctorLoad): DoctorReport {
   if (load.invalidPath) {
-    return errorReport(`buckModels config at "${load.invalidPath}" is not valid YAML; fix it or move it aside.`);
+    const detail = load.invalidReason === "unreadable"
+      ? "could not be read"
+      : "is not valid YAML";
+    return errorReport(`buckModels config at "${load.invalidPath}" ${detail}; fix it or move it aside.`);
   }
   if (load.availableIds === null) {
     return errorReport("Model registry unavailable; cannot verify saved model ids.");

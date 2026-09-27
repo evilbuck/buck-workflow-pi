@@ -225,6 +225,21 @@ describe("buildDoctorReport", () => {
     expect(report.text).toContain('buckModels config at "/tmp/bad.yml" is not valid YAML');
   });
 
+  it("says an unreadable config could not be read instead of calling it invalid YAML", () => {
+    const load: DoctorLoad = {
+      project: null,
+      global: null,
+      invalidPath: "/tmp/locked.yml",
+      invalidReason: "unreadable",
+      availableIds: available,
+    };
+    const report = buildDoctorReport(load);
+    expect(report.severity).toBe("error");
+    expect(report.text).toContain('buckModels config at "/tmp/locked.yml" could not be read');
+    expect(report.text).not.toContain("not valid YAML");
+  });
+
+
   it("marks user-global ownership for stages defined only in the global scope", () => {
     const load: DoctorLoad = {
       project: config("", {}),

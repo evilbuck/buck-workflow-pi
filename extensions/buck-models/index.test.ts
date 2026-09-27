@@ -589,7 +589,7 @@ describe("/buck-models", () => {
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
         expect(level).toBe("error");
-        expect(message).toMatch(/not valid YAML/);
+        expect(message).toMatch(/could not be read/);
       } finally {
         if (previous === undefined) delete process.env.OMP_AGENT_DIR;
         else process.env.OMP_AGENT_DIR = previous;
@@ -660,6 +660,31 @@ describe("/buck-models", () => {
         else process.env.OMP_AGENT_DIR = previous;
       }
     });
+
+    it("does not write a profile when the live registry throws", async () => {
+      const cwd = tempDir();
+      mkdirSync(join(cwd, ".omp"), { recursive: true });
+      const projectPath = join(cwd, ".omp", "config.yml");
+      const before = "buckModels:\n  profiles:\n    work:\n      build:\n        models: [{ id: provider/here }]\n";
+      writeFileSync(projectPath, before);
+      const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+      const notify = vi.fn();
+      const confirm = vi.fn(async () => true);
+      const selects = ["Project (.omp/config.yml)", "Activate a profile", "work"];
+      wireBuckModels(api);
+      const ctx = {
+        cwd,
+        hasUI: true,
+        ui: { select: vi.fn(async () => selects.shift()), input: vi.fn(), confirm, notify },
+        modelRegistry: { getAvailable: () => { throw new Error("registry exploded"); } },
+      };
+      await api.registerCommand.mock.calls[0]![1].handler("", ctx);
+
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining("Model registry unavailable"), "error");
+      expect(confirm).not.toHaveBeenCalled();
+      expect(readFileSync(projectPath, "utf8")).toBe(before);
+    });
+
 
     it("keeps the interactive editor untouched when no arguments are passed", async () => {
       const cwd = tempDir();

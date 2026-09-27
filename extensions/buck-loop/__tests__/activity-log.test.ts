@@ -79,6 +79,21 @@ describe("buck-loop activity log", () => {
     expect(() => execFileSync("git", ["check-ignore", "-q", ACTIVITY_LOG_RELPATH], { cwd: directory })).not.toThrow();
   });
 
+  it("warns when a previously tracked activity log is removed from the index", async () => {
+    const directory = root(true);
+    mkdirSync(join(directory, ".context", "workflow"), { recursive: true });
+    writeFileSync(join(directory, ACTIVITY_LOG_RELPATH), "{\"type\":\"old\"}\n");
+    execFileSync("git", ["add", "--", ACTIVITY_LOG_RELPATH], { cwd: directory });
+    execFileSync("git", ["-c", "user.email=test@example.com", "-c", "user.name=test", "commit", "-qm", "track log"], { cwd: directory });
+    const warnings: string[] = [];
+    const log = createBuckLoopActivityLog({ cwd: directory, command: "start", onWarning: (message) => warnings.push(message) });
+    await log.close();
+    expect(execFileSync("git", ["ls-files", "--", ACTIVITY_LOG_RELPATH], { cwd: directory, encoding: "utf8" }).trim()).toBe("");
+    expect(existsSync(join(directory, ACTIVITY_LOG_RELPATH))).toBe(true);
+    expect(warnings).toEqual([expect.stringContaining("removed")]);
+  });
+
+
   it("warns once and leaves the loop-facing handle usable when opening fails", async () => {
     const directory = root();
     writeFileSync(join(directory, ".context"), "not a directory");

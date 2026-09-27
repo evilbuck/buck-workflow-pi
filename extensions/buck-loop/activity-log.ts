@@ -66,12 +66,21 @@ function prepareLogPath(root: string, warn: (message: string) => void): void {
     if (!existing.split(/\r?\n/).includes(ACTIVITY_LOG_RELPATH)) {
       appendFileSync(excludePath, (existing && !existing.endsWith("\n") ? "\n" : "") + ACTIVITY_LOG_RELPATH + "\n");
     }
-    execFileSync("git", ["rm", "--cached", "-f", "--quiet", "--ignore-unmatch", "--", ACTIVITY_LOG_RELPATH], {
+    const tracked = execFileSync("git", ["ls-files", "--", ACTIVITY_LOG_RELPATH], {
       cwd: root,
       encoding: "utf8",
       timeout: 10_000,
       stdio: ["pipe", "pipe", "pipe"],
-    });
+    }).trim();
+    if (tracked !== "") {
+      execFileSync("git", ["rm", "--cached", "-f", "--quiet", "--ignore-unmatch", "--", ACTIVITY_LOG_RELPATH], {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 10_000,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      warn(`buck-loop: removed ${ACTIVITY_LOG_RELPATH} from the Git index; it stays on disk as local runtime state`);
+    }
   } catch {
     warn(`buck-loop: activity log hygiene skipped for ${root}; ${ACTIVITY_LOG_RELPATH} may be committed if staged`);
   }
@@ -92,7 +101,10 @@ export function createBuckLoopActivityLog(options: CreateBuckLoopActivityLogOpti
     options.onWarning(message);
   };
   let hygieneWarning: string | null = null;
-  prepareLogPath(root, (message) => { hygieneWarning = message; });
+  prepareLogPath(root, (message) => {
+    if (message.includes("removed")) warnOnce(message);
+    else hygieneWarning = message;
+  });
 
   const path = join(root, ACTIVITY_LOG_RELPATH);
   let stream: WriteStream;

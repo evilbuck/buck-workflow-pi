@@ -71,6 +71,7 @@ export interface BuckModelsDeps {
     project: BuckModelsConfig | null;
     globalConfig: BuckModelsConfig | null;
     invalidPath: string | null;
+    invalidReason?: "yaml" | "unreadable" | null;
   };
 }
 
@@ -263,35 +264,41 @@ function readDoctorLoad(cwd: string, load: (path: string) => string): {
   project: BuckModelsConfig | null;
   globalConfig: BuckModelsConfig | null;
   invalidPath: string | null;
+  invalidReason: "yaml" | "unreadable" | null;
 } {
   const projectPath = projectOmpConfigPath(cwd);
   const globalPath = globalOmpConfigPath();
   let project: BuckModelsConfig | null = null;
   let globalConfig: BuckModelsConfig | null = null;
   let invalidPath: string | null = null;
-  // IO failures (unreadable/unopenable file) fail closed as invalid config.
-  // Each path is read exactly once; classification uses that captured text.
+  let invalidReason: "yaml" | "unreadable" | null = null;
+  const remember = (path: string, reason: "yaml" | "unreadable"): void => {
+    if (invalidPath !== null) return;
+    invalidPath = path;
+    invalidReason = reason;
+  };
+  // IO failures are unreadable, not invalid YAML. Each path is read once.
   try {
     const projectRaw = load(projectPath);
     if (projectRaw.length > 0) {
       const parsed = parseBuckModelsOnce(projectRaw, projectPath);
-      if (parsed.invalidPath) invalidPath = parsed.invalidPath;
+      if (parsed.invalidPath) remember(parsed.invalidPath, "yaml");
       project = parsed.config;
     }
   } catch {
-    invalidPath = projectPath;
+    remember(projectPath, "unreadable");
   }
   try {
     const globalRaw = load(globalPath);
     if (globalRaw.length > 0) {
       const parsed = parseBuckModelsOnce(globalRaw, globalPath);
-      if (parsed.invalidPath && invalidPath === null) invalidPath = parsed.invalidPath;
+      if (parsed.invalidPath) remember(parsed.invalidPath, "yaml");
       globalConfig = parsed.config;
     }
   } catch {
-    invalidPath ??= globalPath;
+    remember(globalPath, "unreadable");
   }
-  return { project, globalConfig, invalidPath };
+  return { project, globalConfig, invalidPath, invalidReason };
 }
 
 function availableIds(ctx: BuckModelsContext): ReadonlySet<string> | null {
@@ -312,17 +319,27 @@ function availableIds(ctx: BuckModelsContext): ReadonlySet<string> | null {
 async function runDoctor(ctx: BuckModelsContext, deps: BuckModelsDeps): Promise<void> {
   try {
     const load = deps.readDoctorLoad ?? ((cwd: string) => readDoctorLoad(cwd, deps.readText ?? readText));
-    const { project, globalConfig, invalidPath } = load(ctx.cwd);
+    const { project, globalConfig, invalidPath, invalidReason } = load(ctx.cwd);
     const doctorLoad: DoctorLoad = {
       project,
       global: globalConfig,
       invalidPath,
+      ...(invalidReason ? { invalidReason } : {}),
       availableIds: availableIds(ctx),
     };
     const report = buildDoctorReport(doctorLoad);
     ctx.ui.notify(report.text, report.severity);
   } catch (error) {
     ctx.ui.notify(`/buck-models --doctor failed: ${error instanceof Error ? error.message : String(error)}`, "error");
+  }
+}
+
+function liveModelIds(ctx: BuckModelsContext): string[] | null {
+  if (!ctx.modelRegistry || typeof ctx.modelRegistry.getAvailable !== "function") return [];
+  try {
+    return ctx.modelRegistry.getAvailable().map((model) => `${model.provider}/${model.id}`);
+  } catch {
+    return null;
   }
 }
 
@@ -336,7 +353,11 @@ async function buildProfileUpdate(
   globalConfig: BuckModelsConfig,
   pick: NonNullable<BuckModelsDeps["pickStageModels"]>,
 ): Promise<BuckProfileWrite | null> {
-  const available = (ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`);
+  const available = liveModelIds(ctx);
+  if (available === null) {
+    ui.notify("Model registry unavailable; cannot edit Buck model profiles.", "error");
+    return null;
+  }
   const stages = action === EDIT_PROFILE
     ? await editStages(ui, scope, profile, project, globalConfig, available, pick)
     : {};
