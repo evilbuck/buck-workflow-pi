@@ -6,6 +6,10 @@ import {
   readFileSync,
   existsSync,
   chmodSync,
+  realpathSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -58,7 +62,18 @@ describe("resolveHooksDir", () => {
   it("defaults to <git-dir>/hooks", () => {
     const repo = makeRepo("plain");
     const dir = resolveHooksDir(repo);
-    expect(dir).toBe(join(repo, ".git", "hooks"));
+    expect(dir).toBe(join(realpathSync(repo), ".git", "hooks"));
+  });
+
+  it("resolves the hooks dir when the repo path is reached through a symlink", () => {
+    const repo = makeRepo("linked-target");
+    const link = join(ROOT, "linked");
+    symlinkSync(repo, link);
+    try {
+      expect(resolveHooksDir(link)).toBe(join(realpathSync(repo), ".git", "hooks"));
+    } finally {
+      unlinkSync(link);
+    }
   });
 
   it("honours core.hooksPath when set", () => {
@@ -92,9 +107,8 @@ describe("hooks lifecycle", () => {
     const content = readFileSync(hook, "utf8");
     expect(content).toContain(HOOK_MARKER);
     expect(content).toContain(SOURCE);
-    // Executable bit set.
-    const mode = spawnSync("stat", ["-c", "%a", hook], { encoding: "utf8" });
-    expect(mode.stdout.trim()).toBe("755");
+    // Executable bit set (cross-platform: fs.statSync, not GNU-only `stat -c`).
+    expect(statSync(hook).mode & 0o777).toBe(0o755);
   });
 
   it("reports installed status with source and profile", () => {
@@ -104,7 +118,7 @@ describe("hooks lifecycle", () => {
     expect(status.installed).toBe(true);
     expect(status.source).toBe(SOURCE);
     expect(status.profile).toBe("fast");
-    expect(status.hooksDir).toBe(join(repo, ".git", "hooks"));
+    expect(status.hooksDir).toBe(join(realpathSync(repo), ".git", "hooks"));
   });
   it("shell-quotes the source path and reports it unchanged", () => {
     const repo = makeRepo("quoted-source");
@@ -120,11 +134,11 @@ describe("hooks lifecycle", () => {
     hooksInstall({ repo, source: SOURCE, profile: "full" });
     const hook = join(repo, ".git", "hooks", "pre-push");
     const before = readFileSync(hook, "utf8");
-    const mtimeBefore = spawnSync("stat", ["-c", "%Y", hook], { encoding: "utf8" }).stdout;
+    const mtimeBefore = statSync(hook).mtimeMs;
     const result = hooksInstall({ repo, source: SOURCE, profile: "full" });
     expect(result.ok).toBe(true);
     expect(readFileSync(hook, "utf8")).toBe(before);
-    const mtimeAfter = spawnSync("stat", ["-c", "%Y", hook], { encoding: "utf8" }).stdout;
+    const mtimeAfter = statSync(hook).mtimeMs;
     expect(mtimeAfter).toBe(mtimeBefore);
   });
 
@@ -176,9 +190,10 @@ exec other-audit "$@"
     const repo = makeRepo("removal");
     hooksInstall({ repo, source: SOURCE, profile: "full" });
     const hook = join(repo, ".git", "hooks", "pre-push");
+    const realHook = join(realpathSync(repo), ".git", "hooks", "pre-push");
 
     const dryRun = hooksRemove({ repo, dryRun: true });
-    expect(dryRun).toMatchObject({ dryRun: true, removed: null, wouldRemove: hook });
+    expect(dryRun).toMatchObject({ dryRun: true, removed: null, wouldRemove: realHook });
     expect(existsSync(hook)).toBe(true);
 
     const result = hooksRemove({ repo });
