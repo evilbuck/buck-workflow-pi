@@ -1049,9 +1049,10 @@ to create, edit, or activate a named profile in either:
 - user-global scope: `~/.omp/agent/config.yml` (or
   `$OMP_AGENT_DIR/config.yml`)
 
-The command preserves unrelated YAML. It allows unavailable model ids to be
-saved for portability, warns about them, and does not remove them from the
-profile.
+The command preserves unrelated YAML. Editing a stage opens a searchable
+checklist of models installed in the current session, plus any saved ids that
+are not installed here. It allows those unavailable ids to be saved for
+portability, warns about them, and does not remove them from the profile.
 
 Each profile can define these twelve exact stage keys:
 
@@ -1098,8 +1099,11 @@ selected model's capabilities.
 Resolution is deterministic before selection:
 
 1. A nonblank project `buckModels.active` chooses the profile name. Otherwise,
-   the user-global active name is used. A blank name or a name absent from both
-   scopes stops the stage.
+   the user-global active name is used. If both are blank and exactly one
+   profile exists, that profile is used. If both are blank and there are zero
+   or several profiles, the stage stops, names the checked config files and
+   any profile names, and tells the operator to run `/buck-models`. A name
+   absent from both scopes also stops and names that name.
 2. A stage present in the project profile wins, including an explicitly empty
    model list. Only an omitted project stage falls through to the same stage in
    the user-global profile.

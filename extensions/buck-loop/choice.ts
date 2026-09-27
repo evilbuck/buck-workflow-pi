@@ -212,6 +212,7 @@ export async function choose(opts: {
   legal: readonly Choice[];
   context?: string;
   onActivity?: (event: ActivityEvent) => void;
+  availableIds?: () => Promise<ReadonlySet<string>>;
   selectModel?: ChoiceModelSelect;
 }): Promise<ChooseResult> {
   const offered = opts.legal.filter((choice) => choice.kind !== "block");
@@ -277,7 +278,7 @@ export async function choose(opts: {
 }
 
 async function resolveChoiceModel(
-  opts: { cwd: string; selectModel?: ChoiceModelSelect },
+  opts: { cwd: string; selectModel?: ChoiceModelSelect; availableIds?: () => Promise<ReadonlySet<string>> },
   exclude: readonly string[],
   context: { continuation: string | null },
 ): Promise<BuckStageModelChoice> {
@@ -288,7 +289,7 @@ async function resolveChoiceModel(
     skill: "choice",
     context,
     exclude,
-  });
+  }, opts.availableIds ? { availableIds: opts.availableIds } : {});
 }
 
 async function attemptChoice(

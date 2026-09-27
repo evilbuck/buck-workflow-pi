@@ -401,7 +401,41 @@ describe("buckModels resolution", () => {
       availableIds: new Set(),
     });
     expect(blank.ok).toBe(false);
-    if (!blank.ok) expect(formatBuckStop(blank.stop)).toContain('active name ""');
+    if (!blank.ok) {
+      expect(formatBuckStop(blank.stop)).toContain('Cannot run stage "build"');
+      expect(formatBuckStop(blank.stop)).toContain("no Buck model profile is configured");
+      expect(formatBuckStop(blank.stop)).toContain("/buck-models");
+      expect(formatBuckStop(blank.stop)).not.toContain('active name ""');
+    }
+  });
+
+  it("uses the only configured profile when active is blank", () => {
+    const resolved = resolveBuckStage({
+      project: null,
+      global: {
+        active: " ",
+        profiles: { Default: profile({ build: { thinking: "off", models: [{ id: "provider/a" }] } }) },
+      },
+      stage: "build",
+      availableIds: new Set(["provider/a"]),
+    });
+    expect(resolved).toMatchObject({ ok: true, profile: "Default", source: "global" });
+  });
+
+  it("names every profile when active is blank and more than one exists", () => {
+    const resolved = resolveBuckStage({
+      project: { active: "", profiles: { work: profile({}) } },
+      global: { active: "", profiles: { personal: profile({}) } },
+      stage: "build",
+      availableIds: new Set(),
+    });
+    expect(resolved.ok).toBe(false);
+    if (resolved.ok) return;
+    const message = formatBuckStop(resolved.stop);
+    expect(message).toContain("buckModels.active is blank");
+    expect(message).toContain("work");
+    expect(message).toContain("personal");
+    expect(message).toContain("/buck-models");
   });
 
   it("excludes unavailable ids without rewriting the parsed stage", () => {
@@ -487,6 +521,24 @@ describe("buckModels resolution", () => {
         });
         expect(parsed.profiles.work?.stages.review).toEqual({ thinking: "off", models: [] });
       }
+    } finally {
+      if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+      else process.env.OMP_AGENT_DIR = previous;
+    }
+  });
+
+  it("writes the profile name when active is blank", () => {
+    const dir = tmp();
+    const previous = process.env.OMP_AGENT_DIR;
+    process.env.OMP_AGENT_DIR = join(dir, "agent");
+    try {
+      const path = writeBuckModelsScope({
+        scope: "global",
+        cwd: dir,
+        profile: "Default",
+        stages: { build: { thinking: "off", models: [{ id: "provider/a" }] } },
+      });
+      expect(parseBuckModels(readFileSync(path, "utf8")).active).toBe("Default");
     } finally {
       if (previous === undefined) delete process.env.OMP_AGENT_DIR;
       else process.env.OMP_AGENT_DIR = previous;

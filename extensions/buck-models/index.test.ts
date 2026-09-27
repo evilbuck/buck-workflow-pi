@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,18 +23,20 @@ function commandHarness(opts: {
   inputs?: string[];
   confirms?: boolean[];
   available?: string[];
+  picks?: Array<string[] | null>;
 }) {
   const commands = new Map<string, { description: string; handler: (args: string, ctx: unknown) => Promise<void> }>();
   const select = vi.fn(async (_prompt: string, _items: string[]) => opts.selects.shift());
   const input = vi.fn(async (_prompt: string, _placeholder?: string) => opts.inputs?.shift());
   const confirm = vi.fn(async (_title: string, _message: string) => opts.confirms?.shift() ?? false);
   const notify = vi.fn();
+  const pickStageModels = vi.fn(async () => opts.picks?.shift() ?? null);
   const api = {
     registerCommand: vi.fn((name: string, spec: { description: string; handler: (args: string, ctx: unknown) => Promise<void> }) => {
       commands.set(name, spec);
     }),
   } as unknown as ExtensionAPI;
-  wireBuckModels(api);
+  wireBuckModels(api, { pickStageModels });
   const ctx = {
     cwd: "",
     hasUI: true,
@@ -46,11 +48,11 @@ function commandHarness(opts: {
       }),
     },
   };
-  return { command: commands.get("buck-models")!, ctx, select, input, confirm, notify };
+  return { command: commands.get("buck-models")!, ctx, select, input, confirm, notify, pickStageModels };
 }
 
-function stageRows(scope: "project" | "global"): string[] {
-  return BUCK_STAGE_KEYS.map((stage, index) => `${scope}/${stage} | note ${index}`);
+function stageIds(scope: "project" | "global"): string[][] {
+  return BUCK_STAGE_KEYS.map((stage) => [`${scope}/${stage}`]);
 }
 
 
@@ -67,7 +69,8 @@ describe("/buck-models", () => {
         "Create a new profile",
         ...thinking.flatMap((level) => ["Edit this stage", level]),
       ],
-      inputs: ["work", ...stageRows("project")],
+      inputs: ["work"],
+      picks: stageIds("project"),
       confirms: [true, true],
       available: ["project/build"],
     });
@@ -81,14 +84,16 @@ describe("/buck-models", () => {
     expect(Object.keys(parsed.profiles.work?.stages ?? {})).toEqual(BUCK_STAGE_KEYS);
     expect(parsed.profiles.work?.stages.build).toEqual({
       thinking: "medium",
-      models: [{ id: "project/build", note: "note 2" }],
+      models: [{ id: "project/build" }],
     });
     expect(saved).toContain("theme: dark");
     expect(saved).toContain("keep: yes");
-    expect(harness.select.mock.calls.map(([prompt]) => prompt)).toEqual(expect.arrayContaining([
-      expect.stringContaining("build — unset"),
-      expect.stringContaining("choice — unset"),
-    ]));
+    expect(harness.pickStageModels).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.stringContaining("Models for build"),
+      [{ id: "project/build", unavailable: false }],
+      [],
+    );
     expect(harness.notify).toHaveBeenCalledWith(expect.stringMatching(/unavailable/i), "warning");
     expect(harness.notify).toHaveBeenLastCalledWith(expect.stringContaining("Saved project profile"), "info");
   });
@@ -111,9 +116,10 @@ describe("/buck-models", () => {
             ...BUCK_STAGE_KEYS.slice(1).map(() => "high"),
           ].flatMap((level) => ["Edit this stage", level]),
         ],
-        inputs: ["portable", ...stageRows("global")],
+        inputs: ["portable"],
+        picks: stageIds("global"),
         confirms: [true, true],
-        available: stageRows("global").map((row) => row.split(" | ")[0]!),
+        available: stageIds("global").flat(),
       });
       harness.ctx.cwd = cwd;
 
@@ -124,7 +130,7 @@ describe("/buck-models", () => {
       expect(parsed.active).toBe("portable");
       expect(parsed.profiles.portable?.stages["brainstorm-plan"]).toEqual({
         thinking: "off",
-        models: [{ id: "global/brainstorm-plan", note: "note 0" }],
+        models: [{ id: "global/brainstorm-plan" }],
       });
       expect(parsed.profiles.portable?.stages.present?.thinking).toBe("high");
       expect(saved).toContain("theme: light");
@@ -197,7 +203,7 @@ describe("/buck-models", () => {
       : ["Keep current stage"]);
     const harness = commandHarness({
       selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work", ...stageChoices],
-      inputs: ["provider/replacement | changed"],
+      picks: [["provider/replacement"]],
       confirms: [false, true],
       available: ["provider/replacement"],
     });
@@ -208,7 +214,7 @@ describe("/buck-models", () => {
     const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
     expect(parsed.profiles.work?.stages.build).toEqual({
       thinking: "high",
-      models: [{ id: "provider/replacement", note: "changed" }],
+      models: [{ id: "provider/replacement" }],
     });
     expect(parsed.profiles.work?.stages.review).toEqual({
       thinking: "low",
@@ -218,9 +224,14 @@ describe("/buck-models", () => {
       "Unavailable model ids will still be saved: provider/reviewer",
       "warning",
     );
-    expect(harness.input).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("Replacement models for build — project-owned"),
-      "provider/original | original note",
+    expect(harness.pickStageModels).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.stringContaining("Models for build — project-owned"),
+      [
+        { id: "provider/original", unavailable: true },
+        { id: "provider/replacement", unavailable: false },
+      ],
+      ["provider/original"],
     );
     expect(harness.select).toHaveBeenCalledWith(
       expect.stringContaining("Current models: provider/original | original note; thinking: high"),
@@ -228,7 +239,7 @@ describe("/buck-models", () => {
     );
   });
 
-  it("round-trips comma-containing notes through the escaped row editor", async () => {
+  it("keeps an existing note when the checklist leaves that id checked", async () => {
     const cwd = tempDir();
     mkdirSync(join(cwd, ".omp"), { recursive: true });
     const projectPath = join(cwd, ".omp", "config.yml");
@@ -245,7 +256,7 @@ describe("/buck-models", () => {
       : ["Keep current stage"]);
     const harness = commandHarness({
       selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work", ...stageChoices],
-      inputs: ["provider/original | fast\\, cheap"],
+      picks: [["provider/original"]],
       confirms: [false, true],
       available: ["provider/original"],
     });
@@ -257,10 +268,7 @@ describe("/buck-models", () => {
     expect(parsed.profiles.work?.stages.build?.models).toEqual([
       { id: "provider/original", note: "fast, cheap" },
     ]);
-    expect(harness.input).toHaveBeenCalledExactlyOnceWith(
-      expect.stringContaining("escape note commas as \\,"),
-      "provider/original | fast\\, cheap",
-    );
+    expect(harness.input).not.toHaveBeenCalled();
   });
 
   it("edits a profile whose name matches the create action label", async () => {
@@ -285,7 +293,7 @@ describe("/buck-models", () => {
         "Edit profile: Create a new profile",
         ...stageChoices,
       ],
-      inputs: ["provider/replacement"],
+      picks: [["provider/replacement"]],
       confirms: [false, true],
       available: ["provider/replacement"],
     });
@@ -364,5 +372,334 @@ describe("/buck-models", () => {
       if (previous === undefined) delete process.env.OMP_AGENT_DIR;
       else process.env.OMP_AGENT_DIR = previous;
     }
+  });
+
+  describe("--doctor", () => {
+    it("reads both project and user-global configs against the live registry, marks the active, and never prompts or writes", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        mkdirSync(join(cwd, ".omp"), { recursive: true });
+        const projectPath = join(cwd, ".omp", "config.yml");
+        const projectText = [
+          "buckModels:",
+          "  active: work",
+          "  profiles:",
+          "    work:",
+          "      build:",
+          "        models: [{ id: provider/here }]",
+          "",
+        ].join("\n");
+        writeFileSync(projectPath, projectText);
+        const projectBefore = readFileSync(projectPath, "utf8");
+        const agentDir = join(tempDir(), "agent");
+        mkdirSync(agentDir, { recursive: true });
+        const globalPath = join(agentDir, "config.yml");
+        const globalText = [
+          "buckModels:",
+          "  profiles:",
+          "    shared:",
+          "      review:",
+          "        models: [{ id: provider/here }, { id: provider/here }]",
+          "",
+        ].join("\n");
+        writeFileSync(globalPath, globalText);
+        const globalBefore = readFileSync(globalPath, "utf8");
+        process.env.OMP_AGENT_DIR = agentDir;
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        const select = vi.fn();
+        const input = vi.fn();
+        const confirm = vi.fn();
+        wireBuckModels(api);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select, input, confirm, notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(level).toBe("info");
+        expect(message).toMatch(/INFO: 3 configured occurrence\(s\), 1 unique id\(s\), 0 unavailable\./);
+        expect(message).toContain("Active: work (project)");
+        expect(message).toContain("[project] work *active*");
+        expect(message).toContain("provider/here [ok]");
+        expect(select).not.toHaveBeenCalled();
+        expect(input).not.toHaveBeenCalled();
+        expect(confirm).not.toHaveBeenCalled();
+        expect(readFileSync(projectPath, "utf8")).toBe(projectBefore);
+        expect(readFileSync(globalPath, "utf8")).toBe(globalBefore);
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("treats missing config files as an empty inventory with info severity", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        const agentDir = join(tempDir(), "agent-empty");
+        process.env.OMP_AGENT_DIR = agentDir;
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        wireBuckModels(api);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(level).toBe("info");
+        expect(message).toContain("No configured Buck model profiles.");
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("reports an error severity when the registry is absent", async () => {
+      const cwd = tempDir();
+      mkdirSync(join(cwd, ".omp"), { recursive: true });
+      writeFileSync(join(cwd, ".omp", "config.yml"), [
+        "buckModels:",
+        "  active: work",
+        "  profiles:",
+        "    work:",
+        "      build:",
+        "        models: [{ id: provider/here }]",
+        "",
+      ].join("\n"));
+      const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+      const notify = vi.fn();
+      wireBuckModels(api);
+      const ctx = {
+        cwd,
+        hasUI: true,
+        ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+        modelRegistry: undefined,
+      };
+      await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+      expect(notify).toHaveBeenCalledTimes(1);
+      const [message, level] = notify.mock.calls[0]!;
+      expect(level).toBe("error");
+      expect(message).toContain("Model registry unavailable");
+    });
+
+    it("reports an error severity when a config file is invalid YAML", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        mkdirSync(join(cwd, ".omp"), { recursive: true });
+        writeFileSync(join(cwd, ".omp", "config.yml"), "buckModels:\n  profiles: { unterminated: [\n");
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        wireBuckModels(api);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(level).toBe("error");
+        expect(message).toMatch(/not valid YAML/);
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("classifies from the single captured read even when the file vanishes afterwards", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        const agentDir = join(tempDir(), "agent-vanish");
+        process.env.OMP_AGENT_DIR = agentDir;
+        const projectPath = join(cwd, ".omp", "config.yml");
+        const projectText = [
+          "buckModels:",
+          "  profiles:",
+          "    work:",
+          "      build:",
+          "        models: [{ id: provider/gone }]",
+          "",
+        ].join("\n");
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        let reads = 0;
+        wireBuckModels(api, {
+          readText: (path: string) => {
+            reads += 1;
+            if (!existsSync(path)) return "";
+            const text = readFileSync(path, "utf8");
+            rmSync(path); // simulate the file disappearing between reads
+            return text;
+          },
+        });
+        mkdirSync(join(cwd, ".omp"), { recursive: true });
+        writeFileSync(projectPath, projectText);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+        expect(reads).toBe(2); // one read per scope, never a reopen
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(message).toMatch(/1 configured occurrence\(s\)/);
+        expect(message).toContain("provider/gone [MISSING]");
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("reports an error severity when a config file cannot be read", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        // A directory at the config path makes readFileSync throw.
+        mkdirSync(join(cwd, ".omp", "config.yml"), { recursive: true });
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        wireBuckModels(api);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(level).toBe("error");
+        expect(message).toMatch(/could not be read/);
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("reports an error severity when the registry throws instead of a false healthy report", async () => {
+      const cwd = tempDir();
+      mkdirSync(join(cwd, ".omp"), { recursive: true });
+      writeFileSync(join(cwd, ".omp", "config.yml"), [
+        "buckModels:",
+        "  active: work",
+        "  profiles:",
+        "    work:",
+        "      build:",
+        "        models: [{ id: provider/here }]",
+        "",
+      ].join("\n"));
+      const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+      const notify = vi.fn();
+      wireBuckModels(api);
+      const ctx = {
+        cwd,
+        hasUI: true,
+        ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
+        modelRegistry: {
+          getAvailable: () => {
+            throw new Error("registry exploded");
+          },
+        },
+      };
+      await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+
+      expect(notify).toHaveBeenCalledTimes(1);
+      const [message, level] = notify.mock.calls[0]!;
+      expect(level).toBe("error");
+      expect(message).toContain("Model registry unavailable");
+    });
+
+    it("rejects unsupported arguments with a usage error and no side effects", async () => {
+      const previous = process.env.OMP_AGENT_DIR;
+      try {
+        const cwd = tempDir();
+        mkdirSync(join(cwd, ".omp"), { recursive: true });
+        const projectPath = join(cwd, ".omp", "config.yml");
+        writeFileSync(projectPath, "buckModels:\n  active: work\n  profiles:\n    work: {}\n");
+        const projectBefore = readFileSync(projectPath, "utf8");
+        const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+        const notify = vi.fn();
+        const select = vi.fn();
+        wireBuckModels(api);
+        const ctx = {
+          cwd,
+          hasUI: true,
+          ui: { select, input: vi.fn(), confirm: vi.fn(), notify },
+          modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
+        };
+        await api.registerCommand.mock.calls[0]![1].handler("--audit", ctx);
+
+        expect(notify).toHaveBeenCalledTimes(1);
+        const [message, level] = notify.mock.calls[0]!;
+        expect(level).toBe("error");
+        expect(message).toContain("Usage:");
+        expect(select).not.toHaveBeenCalled();
+        expect(readFileSync(projectPath, "utf8")).toBe(projectBefore);
+      } finally {
+        if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+        else process.env.OMP_AGENT_DIR = previous;
+      }
+    });
+
+    it("does not write a profile when the live registry throws", async () => {
+      const cwd = tempDir();
+      mkdirSync(join(cwd, ".omp"), { recursive: true });
+      const projectPath = join(cwd, ".omp", "config.yml");
+      const before = "buckModels:\n  profiles:\n    work:\n      build:\n        models: [{ id: provider/here }]\n";
+      writeFileSync(projectPath, before);
+      const api = { registerCommand: vi.fn() } as unknown as ExtensionAPI;
+      const notify = vi.fn();
+      const confirm = vi.fn(async () => true);
+      const selects = ["Project (.omp/config.yml)", "Activate a profile", "work"];
+      wireBuckModels(api);
+      const ctx = {
+        cwd,
+        hasUI: true,
+        ui: { select: vi.fn(async () => selects.shift()), input: vi.fn(), confirm, notify },
+        modelRegistry: { getAvailable: () => { throw new Error("registry exploded"); } },
+      };
+      await api.registerCommand.mock.calls[0]![1].handler("", ctx);
+
+      expect(notify).toHaveBeenCalledWith(expect.stringContaining("Model registry unavailable"), "error");
+      expect(confirm).not.toHaveBeenCalled();
+      expect(readFileSync(projectPath, "utf8")).toBe(before);
+    });
+
+
+    it("keeps the interactive editor untouched when no arguments are passed", async () => {
+      const cwd = tempDir();
+      mkdirSync(join(cwd, ".omp"), { recursive: true });
+      writeFileSync(join(cwd, ".omp", "config.yml"), "buckModels:\n  profiles: {}\n");
+      const harness = commandHarness({
+        selects: ["Project (.omp/config.yml)", "Create or edit a profile"],
+      });
+      harness.ctx.cwd = cwd;
+      await harness.command.handler("", harness.ctx);
+
+      expect(harness.select).toHaveBeenCalledWith(
+        "Write Buck model profile to",
+        expect.arrayContaining(["Project (.omp/config.yml)", "User-global (~/.omp/agent/config.yml)"]),
+      );
+    });
   });
 });
