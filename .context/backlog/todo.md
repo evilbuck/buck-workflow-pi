@@ -18,6 +18,19 @@
 - [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean
 - [ ] [Add a tail-able `/buck-loop` streaming log drain](items/buck-loop-streaming-log-drain.md) — medium; normalized JSONL activity available during execution — see `.context/2026-09-24.buck-loop-streaming-log-drain/plan-buck-loop-streaming-log-drain.md`
 - [ ] [Jev-ranked `/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` ranks runnable subjects with Jev, shows up to 10 in the TUI, and starts the operator's selection — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
+
+## Subject Picker Phases (2026-09-27)
+
+Overview: [`plan-buck-loop-subject-picker-phases.md`](../2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker-phases.md).
+Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
+
+- [ ] [Phase 1: Subject-Choice Module](items/phase-1-subject-choice.md) — hard, `/b-build-hard` — [phase-1-subject-choice.md](../2026-09-19.buck-loop-subject-picker/phase-1-subject-choice.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Command Boundary and Kickoff — hard, `/b-build-hard` — [phase-2-command-kickoff.md](../2026-09-19.buck-loop-subject-picker/phase-2-command-kickoff.md)
+- [ ] Phase 3: Documentation — easy, `/b-build` — [phase-3-docs.md](../2026-09-19.buck-loop-subject-picker/phase-3-docs.md)
+
 - [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
 
 ## Typed Workflow Output Phases (2026-09-22)
