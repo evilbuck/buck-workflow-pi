@@ -183,7 +183,6 @@
 
 - 2026-09-28 — [fix-pr native PR/tool integration plan](fix-pr-native-tool-plan-2026-09-28.md) — `completed` (plan: native PR view for orientation; exhaustive TypeScript ingest through a thin agent tool with CLI fallback; implementation queued)
 - 2026-09-27 — [Deterministic fix-pr ingest](fix-pr-deterministic-ingest-2026-09-27.md) — `completed` (TypeScript sibling script replaces TSV fetch; CI signals included; stderr progress; fixture tests and PR 51 smoke passed)
-
 - 2026-09-27 — [Jev-ranked `/buck-loop` subject picker plan](buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md) — `completed` (bare command ranks runnable subjects with Jev, presents up to ten probability-ordered TUI rows, and starts only the operator's selection)
 
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)

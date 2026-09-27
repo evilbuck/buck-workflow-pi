@@ -52,7 +52,6 @@ Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
 
 - [ ] Phase 2: Command Boundary and Kickoff — hard, `/b-build-hard` — [phase-2-command-kickoff.md](../2026-09-19.buck-loop-subject-picker/phase-2-command-kickoff.md)
 - [ ] Phase 3: Documentation — easy, `/b-build` — [phase-3-docs.md](../2026-09-19.buck-loop-subject-picker/phase-3-docs.md)
-
 - [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
 
 ## Typed Workflow Output Phases (2026-09-22)
