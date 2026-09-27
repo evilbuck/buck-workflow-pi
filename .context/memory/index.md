@@ -1,3 +1,5 @@
+- 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (no review comments; deleted absolute-path repro; doctor vanish test imported existsSync)
+
 - 2026-09-26 — [buck-models doctor iteration](buck-models-doctor-iterate-2026-09-26.md) — `completed` (five critical review issues fixed: cross-scope inventory, active parity, severity, fail-closed IO/registry, picker complexity gate; 1040 tests + durable guardrails pass; OMP TUI smoke still pending)
 
 - 2026-09-25 — [`/buck-models --doctor` plan](buck-models-doctor-plan-2026-09-25.md) — `completed` (all profiles audited against live registry; effective active highlighted; non-phased build queued)

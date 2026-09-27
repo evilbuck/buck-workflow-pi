@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -561,9 +561,8 @@ describe("/buck-models", () => {
         expect(reads).toBe(2); // one read per scope, never a reopen
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
-        console.log("DBG:", JSON.stringify(message));
         expect(message).toMatch(/1 configured occurrence\(s\)/);
-        expect(message).toContain("provider/gone [missing]");
+        expect(message).toContain("provider/gone [MISSING]");
       } finally {
         if (previous === undefined) delete process.env.OMP_AGENT_DIR;
         else process.env.OMP_AGENT_DIR = previous;
