@@ -1,9 +1,9 @@
 ---
-title: "/buck-loop subject picker for missing path"
+title: "Jev-ranked /buck-loop subject picker for missing path"
 status: active
 priority: medium
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-09-27
 completed: null
 related:
   - .context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md
@@ -11,8 +11,8 @@ related:
   - extensions/buck-loop/scan.ts
 ---
 
-# `/buck-loop` subject picker for missing path
+# Jev-ranked `/buck-loop` subject picker for missing path
 
-Bare `/buck-loop` currently prints usage. Pickup: present up to five latest runnable subject folders via `ctx.ui.select`, then pass the chosen folder name as the start path so scan never guesses and the run stays on that subject.
+Bare `/buck-loop` currently prints usage. Pickup: use TypeSafe Jev to rank runnable active subjects from bounded conversation and subject metadata, present up to ten probability-ordered rows via `ctx.ui.select`, then pass the operator's chosen folder as the start path. The loop never auto-starts a guess; `scan()` remains explicit-path only.
 
 Pickup: `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`

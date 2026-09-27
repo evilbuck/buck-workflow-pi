@@ -1,3 +1,5 @@
+- 2026-09-27 — [Jev-ranked `/buck-loop` subject picker plan](buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md) — `completed` (bare command ranks runnable subjects with Jev, presents up to ten probability-ordered TUI rows, and starts only the operator's selection)
+
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)
 
 - 2026-09-23 — [Second design-brief theme: blueprint](design-brief-blueprint-theme-2026-09-23.md) — `completed` (new `themes/blueprint/design-brief.jsonc` alongside the untouched canonical brief; surfaced 10 pre-existing macOS realpath test failures, fixed separately on `fix/macos-tmp-symlink-realpath@a0bf7b5` — `archive/2026-09/macos-tmp-symlink-test-failures.md`)
