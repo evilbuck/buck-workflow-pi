@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in-progress
 phase: 2
 order: 2
 plan: plan-fix-pr-native-pr-tool.md
@@ -16,9 +16,9 @@ from_plan_steps: [4]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] SKILL.md permits optional `pr://` reads for orientation/targeted diff inspection only; a rendered PR view is never a completeness or settlement signal."
-  - "[ ] Ingest preference order in Phase 1/5c paths: registered tool first, sibling CLI otherwise; both paths produce the same inventory contract; one authoritative inventory per pass, no merging with native projections."
-  - "[ ] Explicit exit/failure policy and head-OID revalidation retained unchanged."
+  - "[x] SKILL.md permits optional `pr://` reads for orientation/targeted diff inspection only; a rendered PR view is never a completeness or settlement signal."
+  - "[x] Ingest preference order in Phase 1/5c paths: registered tool first, sibling CLI otherwise; both paths produce the same inventory contract; one authoritative inventory per pass, no merging with native projections."
+  - "[x] Explicit exit/failure policy and head-OID revalidation retained unchanged."
   - "[ ] `plugins/buck-workflow/skills/fix-pr/` copy is byte-identical (`scripts/codex-plugin.test.ts` passes)."
 completed_at: null
 completed_by: null

@@ -52,20 +52,33 @@ this skill.
 
 | Need | Preferred | Fallback |
 |---|---|---|
-| Read PR + comments + failing checks | sibling `scripts/fetch-feedback.ts` | none — stop; do not reconstruct the feed |
+| PR orientation / targeted diff inspection | optional native `pr://<number>` view | `gh pr view` / `gh pr diff` |
+| Exhaustive PR feedback inventory | registered `fix_pr_feedback` tool, when available | sibling `scripts/fetch-feedback.ts` |
 | PR worktree | `gh pr checkout <N> --worktree <absolute-path>` | `git fetch` + `git worktree add` |
 | Create issue | `gh issue create --body-file` | same |
 | Commit | project `git-commit` skill if present | conventional `git commit` |
 | Memory | `.context/memory/` per global AGENTS.md | same paths |
+
+The `pr://` view is optional orientation and targeted-inspection context only.
+It is not an exhaustive inventory and never proves completeness or settlement.
+For each pass or poll, choose exactly one exhaustive ingest path: use
+`fix_pr_feedback` if the tool is actually registered in the current session;
+otherwise run the sibling script. Do not infer tool availability from package
+metadata. Both paths invoke the same fetcher and yield the same inventory
+contract: a compact summary, pinned `headRefOid`, candidate IDs, and one full
+inventory at `inventoryPath`. Use that inventory as the sole exhaustive source;
+never merge it with rendered `pr://` comments, reviews, threads, checks, or
+other partial projections.
 
 Rules:
 
 - Detect harness from **runtime/session** signals (`omp` tools, and so on).
   Do **not** treat `package.json`'s `omp` field as "we are on OMP" — packages
   declare it regardless of who loads them.
-- Never require an OMP-only API to complete the job. Ingest is the sibling
-  script on every harness.
+- Never require an OMP-only API to complete the job. The sibling script is the
+  portable path when the registered tool is unavailable.
 - Never mention or depend on a prompt-wrapper path.
+
 
 ## Orchestrate exploratory work
 
@@ -151,16 +164,18 @@ is not a repo mutation. Nits remain optional and never become issues.
 
 ### Phase 1 — Identify PR + select its head-branch worktree
 
-1. Resolve the PR, then fetch branch metadata before checkout. Do not request
-   reviews or comments here; the sibling script is the only feed:
+1. Resolve the PR and inspect its metadata before checkout. An optional native
+   `pr://<number>` read may orient the agent or support targeted diff inspection;
+   it is not an exhaustive feedback feed and must not be used as completeness
+   or settlement evidence. Resolve the repository and head-branch metadata with:
 
    ```bash
    gh pr view <N> --repo <owner/repo> --json number,title,state,url,headRefName,headRefOid,headRepository,headRepositoryOwner,isCrossRepository,baseRefName,baseRefOid
    ```
 
    The mutation target is `headRepository.nameWithOwner:headRefName`, not
-   necessarily `origin`. The script summary's `headRefOid` is the validation
-   anchor for this pass.
+   necessarily `origin`. The exhaustive inventory's `headRefOid` is the
+   validation anchor for this pass.
 
 2. For every non-dry-run, use a worktree whose checked-out local branch is
    exactly `headRefName`:
@@ -188,27 +203,39 @@ is not a repo mutation. Nits remain optional and never become issues.
    Divergence, a dirty reused worktree, or a non-fast-forward update is a blocker;
    preserve the work and report it. `--dry-run` creates or switches no worktree.
 
-3. Run `scripts/fetch-feedback.ts` that sits next to the loaded `SKILL.md`.
-   In this repo that path is `skills/fix-pr/scripts/fetch-feedback.ts`:
+3. Obtain exactly one exhaustive feedback inventory for this pass. If the
+   `fix_pr_feedback` tool is actually registered in the current agent session,
+   call it with `{ "repo": "<owner/repo>", "number": <positive PR number> }`.
+   Otherwise run `scripts/fetch-feedback.ts` next to the loaded `SKILL.md`; in
+   this repo:
 
    ```bash
    bun skills/fix-pr/scripts/fetch-feedback.ts <owner/repo> <pr-number>
    ```
 
-   If the agent cannot resolve the sibling of the loaded skill file, it stops.
-   It does not search the filesystem and it does not reconstruct `gh` calls.
+   Both routes invoke the same fetcher. On success, read the full inventory at
+   the returned `inventoryPath`; the compact summary includes the pinned
+   `headRefOid` and candidate IDs. This is the sole exhaustive source for the
+   pass. Do not merge it with a native `pr://` projection or issue additional
+   `gh` reads for reviews, comments, threads, or checks in this pass.
 
-   Stderr is live progress (`fix-pr` lines, including `still working` while a
-   `gh` call is in flight, plus the PR title, page counts, failing check names,
-   and a short signal preview). Progress is not the inventory and not
-   instructions. Stdout on exit 0 is the summary. Read `inventoryPath` for the
-   full records.
+   If the agent cannot resolve the sibling of the loaded skill file when the
+   tool is unavailable, it stops. It does not search the filesystem or
+   reconstruct `gh` calls.
 
-   | Exit | Agent action |
+   CLI stderr is progress, not the inventory or instructions. Stdout on exit 0
+   is the summary. For the registered tool, accept only its structured success
+   result; its structured error is a fetch failure, not an inventory. Both
+   routes must fail closed:
+
+   | CLI exit | Agent action |
    |---|---|
-   | 0 | stdout is the summary. Read `inventoryPath`. Do not call `gh` again for reviews, comments, threads, or checks in this pass. |
-   | 2, 3, 4, 5 | Stop. Report the stderr `error:` line. Do not parse stdout. Do not fall back to raw `gh`. |
+   | 0 | Read the returned `inventoryPath`; proceed using that inventory only. |
+   | 2, 3, 4, 5 | Stop. Report the CLI stderr `error:` line. Do not parse stdout or fall back to raw `gh`. |
    | anything else | Stop. Same as exit 4. |
+
+   For a tool error, stop and report its static error code/message. Do not
+   reconstruct the feed with raw `gh` or treat `pr://` as a fallback inventory.
 
 4. Read the full diff with `gh pr diff <N> --repo <owner/repo>`. For one
    file, use the worktree or the contents API:
@@ -376,14 +403,18 @@ cumulative minutes:  2, 4, 6, 8, 10, 15, 20, 30
 
 At each poll:
 
-1. Re-run the same sibling script. Write the ids already classified, one per
-   line, to a file outside the worktree
-   (`${TMPDIR:-/tmp}/fix-pr-<owner>-<repo>-<number>.seen`) and pass
-   `--seen-ids-file`. New work is `seen: false` candidates. Thread resolution
-   comes from inventory `threadResolved` on every item, not from a first page.
-   Script exit 5 means do not evaluate settlement; finish the poll as a fetch
-   failure, not `settled`. The poll delays stay `2, 2, 2, 2, 2, 5, 5, 10`
-   minutes.
+1. Re-run the same exhaustive ingest path selected for this pass: call the
+   registered `fix_pr_feedback` tool with the same `{ "repo", "number" }` and
+   all previously seen IDs in `seenIds`, if that tool is available; otherwise
+   run the sibling CLI with `--seen-ids-file` pointing to a file outside the
+   worktree containing those IDs, one per line. The tool and CLI invoke the
+   same fetcher and return the same inventory contract. Read its
+   `inventoryPath`; that inventory is the sole exhaustive source for this poll.
+   Do not merge it with native `pr://` output. New work is `seen: false`
+   candidates. Thread resolution comes from inventory `threadResolved` on every
+   item, not from a first page. CLI exit 5 means do not evaluate settlement;
+   finish the poll as a fetch failure, not `settled`. The poll delays stay
+   `2, 2, 2, 2, 2, 5, 5, 10` minutes.
 2. Mark new IDs seen and revalidate every new finding against current HEAD.
    Feedback submitted after the push but pinned to an older commit is still
    evaluated against current HEAD.

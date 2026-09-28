@@ -21,12 +21,12 @@ Closed question: does this turn answer the open grill question, add a side const
 
 Legal answers: `direct_answer`, `addendum`, `arbitrary`.
 
-On OMP, call eval `judge()` with this shape. Do not call TypeSafe HTTP. Do not embed an OMP-only client in this skill. If `judge()` is unavailable, fail closed.
+When a session `jev` tool is available, call that. Follow `typesafe-ai` and `jev-typesafe-choice-schema`. Do not use eval `judge()`. `judge()` can fall back to a chat model and is the slow path. Do not call TypeSafe HTTP from this skill. Do not embed an OMP-only client. If `jev` is unavailable, fail closed.
 
 ```js
-await judge(
-  { open_question: "...", user_turn: "..." },
-  {
+await tool.jev({
+  state: { open_question: "...", user_turn: "..." },
+  questions: {
     turn_class: {
       type: "choice",
       instructions: "Classify the user turn against the open grill question. A short confirm or deny of that question is a direct answer. A new requirement that does not choose an option is an addendum.",
@@ -37,17 +37,18 @@ await judge(
       }
     }
   }
-)
+})
 ```
 
-`criteria` is a labelled object. Never an array.
+`criteria` is a labelled object. Never an array. Read the answer at `answers.turn_class.choice`.
+
 
 Act on the label:
 - `direct_answer`: record the resolution, then ask the next question.
 - `addendum`: append it under `## Addenda` in the grill session file. Do not resolve the open question. Acknowledge the addition, then repeat the open question.
 - `arbitrary`: park one line under `## Parked`. Repeat the open question.
 
-If `judge()` is missing, errors, or returns a label outside those three, treat the turn as `addendum`. Never guess `direct_answer`.
+If `jev` is missing, errors, or returns a label outside those three, treat the turn as `addendum`. Never guess `direct_answer`. Never fall back to eval `judge()`.
 
 ## Subject Folder (Required)
 

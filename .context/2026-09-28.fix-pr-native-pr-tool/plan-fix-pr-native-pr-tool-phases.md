@@ -24,7 +24,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Tool Contract + Adapter Extension | completed | hard | none | [phase-1-tool-contract-adapter.md](phase-1-tool-contract-adapter.md) |
-| 2: Skill + Codex Copy Sync | pending | medium | none | [phase-2-skill-and-codex-copy.md](phase-2-skill-and-codex-copy.md) |
+| 2: Skill + Codex Copy Sync | in-progress | medium | none | [phase-2-skill-and-codex-copy.md](phase-2-skill-and-codex-copy.md) |
 | 3: Docs + Walkthrough Sync | pending | easy | none | [phase-3-docs-and-walkthrough.md](phase-3-docs-and-walkthrough.md) |
 | 4: End-to-End Verification | pending | medium | none | [phase-4-verification.md](phase-4-verification.md) |
 
