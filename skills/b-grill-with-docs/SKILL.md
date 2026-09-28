@@ -13,6 +13,8 @@ Ask questions one at a time. Walk down each branch of the decision tree, resolvi
 
 If a question can be answered by exploring the codebase, explore the codebase instead.
 
+Before recording a resolution, follow `b-grill-me` turn classification (`direct_answer`, `addendum`, `arbitrary`).
+
 ## Domain Awareness
 
 ### File Structure

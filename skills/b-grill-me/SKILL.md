@@ -13,6 +13,42 @@ Ask questions one at a time, walking down each branch of the decision tree. For 
 
 If a question can be answered by exploring the codebase, explore the codebase instead of asking.
 
+## Turn classification
+
+Before recording a user turn as the resolution of the open question, classify it. Do this even when the turn looks like an answer.
+
+Closed question: does this turn answer the open grill question, add a side constraint, or wander off?
+
+Legal answers: `direct_answer`, `addendum`, `arbitrary`.
+
+On OMP, call eval `judge()` with this shape. Do not call TypeSafe HTTP. Do not embed an OMP-only client in this skill. If `judge()` is unavailable, fail closed.
+
+```js
+await judge(
+  { open_question: "...", user_turn: "..." },
+  {
+    turn_class: {
+      type: "choice",
+      instructions: "Classify the user turn against the open grill question. A short confirm or deny of that question is a direct answer. A new requirement that does not choose an option is an addendum.",
+      criteria: {
+        direct_answer: "Answers the open question, including a short confirm or deny.",
+        addendum: "Adds a requirement, constraint, or side note and does not resolve the open question.",
+        arbitrary: "Unrelated to the open question."
+      }
+    }
+  }
+)
+```
+
+`criteria` is a labelled object. Never an array.
+
+Act on the label:
+- `direct_answer`: record the resolution, then ask the next question.
+- `addendum`: append it under `## Addenda` in the grill session file. Do not resolve the open question. Acknowledge the addition, then repeat the open question.
+- `arbitrary`: park one line under `## Parked`. Repeat the open question.
+
+If `judge()` is missing, errors, or returns a label outside those three, treat the turn as `addendum`. Never guess `direct_answer`.
+
 ## Subject Folder (Required)
 
 Every session creates or joins a subject folder:
@@ -123,6 +159,12 @@ Run `/skill:b-phase` to create the formal phased plan.
 
 ## Deferred Questions
 - Q3: <question> — blocked on <reason>
+
+## Addenda
+- <turn> — filed, open question left unresolved
+
+## Parked
+- <turn> — not the open question
 ```
 
 ## During the Session
