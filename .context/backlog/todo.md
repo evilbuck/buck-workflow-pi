@@ -7,6 +7,7 @@
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
 - [ ] [Add `/buck-models --doctor`](items/buck-models-doctor.md) — medium; audit all saved model selections against the live registry and highlight the effective active profile
+- [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
 
 ## Buck Model Profile Phases (2026-09-23)
 

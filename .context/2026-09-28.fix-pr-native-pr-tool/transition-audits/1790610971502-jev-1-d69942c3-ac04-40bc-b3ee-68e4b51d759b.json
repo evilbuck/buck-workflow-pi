@@ -1,0 +1,20 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "document"
+    },
+    {
+      "kind": "save"
+    }
+  ],
+  "raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"action\":{\"type\":\"choice\",\"choice\":\"save\",\"confidence\":0.89,\"probabilities\":{\"save\":0.95,\"document\":0.05}}},\"usage\":{\"input_tokens\":394,\"output_tokens\":31}}",
+  "parsed": {
+    "choice": "save",
+    "reason": "Jev picked save (confidence 0.89)"
+  },
+  "accepted": true,
+  "reason": "Jev picked save (confidence 0.89)",
+  "context": "state=reviewing phase=.context/2026-09-28.fix-pr-native-pr-tool/phase-1-tool-contract-adapter.md why=review report unparseable; no iterate artifact parseable=false docsImpact=false howtoImpact=false postcondition=confirmed",
+  "attempt": 1
+}

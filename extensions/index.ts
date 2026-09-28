@@ -9,6 +9,7 @@ import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.j
 import { wireBuckLoop } from "./buck-loop/index.js";
 import { wireBuckModels } from "./buck-models/index.js";
 import { wire as wireJevTool } from "./jev-tool/index.js";
+import { wire as wireFixPrFeedback } from "./fix-pr-feedback/index.js";
 import { wire as wireTokenAttribution } from "./token-attribution/index.js";
 import { wireInteractiveModelSwitch } from "./interactive-model-switch.js";
 
@@ -24,5 +25,6 @@ export default function (pi: ExtensionAPI) {
   wireBuckLoop(pi);
   wireBuckModels(pi);
   wireJevTool(pi);
+  wireFixPrFeedback(pi);
   wireInteractiveModelSwitch(pi);
 }
