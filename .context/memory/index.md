@@ -1,3 +1,4 @@
+- 2026-09-28 — [Buck-loop stopped-run notice and recovery](buck-loop-stop-recovery-2026-09-28.md) — completed (actual blocker retained, STOP/status informational, explicit unblock paths; 241 loop tests and durable guardrails pass)
 - 2026-09-28 — [Buck-loop fix-pr commit checkpoint diagnosis](buck-loop-fix-pr-checkpoint-2026-09-28.md) — completed (Phase 1 commit created; supported STOP closed stale blocked run; Phase 2 pending)
 - 2026-09-28 — [fix-pr feedback adapter phase 1](fix-pr-feedback-adapter-phase-1-2026-09-28.md) — completed (review pass; 44 focused/parity tests and durable guardrails pass; committed, Phase 2 pending)
 

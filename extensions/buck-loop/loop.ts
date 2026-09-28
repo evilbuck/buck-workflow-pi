@@ -162,20 +162,44 @@ export async function handleLoop(opts: {
   return resumeRun(cwd, deps);
 }
 
-/** Read the saved run file. Missing → `idle`; unreadable → `blocked`. */
+/** Read the saved run file. Missing → idle; unreadable → blocked. */
 export function statusOf(cwd: string): LoopResult {
   const projectionFile = join(cwd, ".context/workflow/buck-loop.json");
   const projection = readProjection(cwd);
   if (!projection) return existsSync(projectionFile)
-    ? { state: "blocked", reason: "unreadable projection" }
+    ? { state: "blocked", reason: "unreadable projection; repair it or start with an explicit plan path" }
     : { state: "idle", reason: "no projection" };
+  const last = projection.history.at(-1);
+  if (projection.state === "blocked") {
+    const cause = lastWhy(projection) ?? "reason unavailable";
+    return { state: "blocked", reason: `${cause}. ${recoveryFor(projection, last?.from)}` };
+  }
+  if (projection.state === "aborted") return stoppedStatus(projection, last);
   return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
 }
 
-/** Mark the saved run `aborted`. No saved file → no-op `idle`. */
+function stoppedStatus(projection: Projection, last: TransitionRecord | undefined): LoopResult {
+  const stoppedBlock = last?.from === "blocked" ? projection.history.at(-2) : undefined;
+  const historical = stoppedBlock?.to === "blocked" ? ` Previous blocker (historical): ${stoppedBlock.why}.` : "";
+  return { state: "aborted", reason: `Run stopped.${historical} ${recoveryFor(projection, stoppedBlock?.from)}` };
+}
+
+function recoveryFor(projection: Projection, from: LoopState | undefined): string {
+  const target = projection.phasePath ?? projection.planPath;
+  if (from === "committing") {
+    return `Commit checkpoint interrupted. Check the last commit and staged changes; if the previous phase is not committed, stage only intended changes and run /b-commit. Then run /buck-loop ${target}.`;
+  }
+  if (projection.state === "blocked") {
+    return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
+  }
+  return `To continue, run /buck-loop ${target}.`;
+}
+
+/** Mark the saved run aborted. No saved file → no-op idle. */
 function stopRun(cwd: string, now: () => string): LoopResult {
   const projection = readProjection(cwd);
   if (!projection) return { state: "idle", reason: "no run to stop" };
+  if (projection.state === "aborted") return statusOf(cwd);
   const t = stopFrom(projection.state);
   const snapshot = resume({ projectRoot: cwd });
   persist(cwd, withTransition({
@@ -184,7 +208,7 @@ function stopRun(cwd: string, now: () => string): LoopResult {
     planPath: snapshot.planPath ?? projection.planPath,
     phasePath: snapshot.phasePath ?? projection.phasePath,
   }, t, now()));
-  return { state: "aborted", reason: t.why };
+  return statusOf(cwd);
 }
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
@@ -221,6 +245,7 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   if (protectedBranch) return protectedBranch;
   const projection = readProjection(cwd);
   if (!projection) return idleOrUnreadableProjection(cwd);
+  if (projection.state === "aborted") return statusOf(cwd);
   const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
   let snapshot = resume({ projectRoot: cwd });

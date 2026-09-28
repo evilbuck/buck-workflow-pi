@@ -9,8 +9,8 @@ steps, then **Eat** — the check that it worked.
 2. [Configure and activate a Buck model profile](configure-buck-model-profiles.md)
 3. [Prune retained /code-review runtime](prune-code-review-runtime.md)
 4. [Inspect project token use](inspect-project-token-use.md)
-
 5. [Watch /buck-loop activity](watch-buck-loop-activity.md)
+6. [Recover a blocked /buck-loop run](recover-buck-loop.md)
 
 ## Why
 
