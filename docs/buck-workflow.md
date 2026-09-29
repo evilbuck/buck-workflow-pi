@@ -10,7 +10,7 @@ The Buck workflow is built on one principle: **don't lose work**. It separates *
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and an opt-in plan-artifact bridge
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and an env-gated `sql_memory` tool
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ### Subject lifecycle authority
@@ -74,12 +74,13 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
 | `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
+| `sql_memory` (env-gated tool) | Extension tool | Extension tool | `extensions/sql-memory/`; registered only when `SQL_MEMORY_URL` is set |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and the env-gated `sql_memory` tool.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; `b-grill-auto` remains available as a skill. See `docs/extension-loading.md` for the loading truth table.
 
@@ -500,6 +501,9 @@ Its default export composes every wired subsystem:
    fresh-Reviewer passes (`extensions/code-review-iteration/`). Reviewer work
    runs in disposable detached worktrees and reproduction crosses the
    policy-bounded `review_exec` tool.
+11. **`sql_memory`** — Shared PostgreSQL memory tool
+   (`extensions/sql-memory/`). Registered only when `SQL_MEMORY_URL` is set;
+   the client loads on first use, not at startup.
 
 The four `*-improved` / `b-kamal-release` commands report progress through
 the shared `extensions/extension-activity.ts` helper and fall back to their
@@ -2182,4 +2186,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-09-24
+Last updated: 2026-09-28

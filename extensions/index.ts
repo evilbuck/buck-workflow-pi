@@ -11,6 +11,7 @@ import { wireBuckModels } from "./buck-models/index.js";
 import { wire as wireJevTool } from "./jev-tool/index.js";
 import { wire as wireFixPrFeedback } from "./fix-pr-feedback/index.js";
 import { wire as wireTokenAttribution } from "./token-attribution/index.js";
+import { wire as wireSqlMemory } from "./sql-memory/index.js";
 import { wireInteractiveModelSwitch } from "./interactive-model-switch.js";
 
 export default function (pi: ExtensionAPI) {
@@ -27,4 +28,5 @@ export default function (pi: ExtensionAPI) {
   wireJevTool(pi);
   wireFixPrFeedback(pi);
   wireInteractiveModelSwitch(pi);
+  wireSqlMemory(pi);
 }

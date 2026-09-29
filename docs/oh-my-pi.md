@@ -106,6 +106,10 @@ Project identity is the Git `origin` URL when available, otherwise the absolute 
 
 The extension uses `attribution` when that table is absent or has the expected plugin schema; otherwise it uses `buck_token_attribution`. It does not alter OMP-owned stats tables. `/tokens` reports the current project by branch and provider/model; if another extension already owns that command, Buck registers `/token-use`. See [Inspect project token use](howto/inspect-project-token-use.md).
 
+### `sql-memory` (bundled with buck-workflow, env-gated)
+
+`extensions/sql-memory/` registers the `sql_memory` tool only when `SQL_MEMORY_URL` is set. `extensions/index.ts` calls `wire()`; an unset variable registers nothing and does not load `pg`. The pool is created on the first tool call, so an unreachable database does not stop extension load.
+
 ## Settings
 
 Global: `~/.omp/agent/settings.json`  

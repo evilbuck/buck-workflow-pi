@@ -1,0 +1,20 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"action\":{\"type\":\"choice\",\"choice\":\"retry\",\"confidence\":0.57,\"probabilities\":{\"advance\":0.22,\"retry\":0.78}}},\"usage\":{\"input_tokens\":388,\"output_tokens\":31}}",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Jev picked retry (confidence 0.57)"
+  },
+  "accepted": true,
+  "reason": "Jev picked retry (confidence 0.57)",
+  "context": "state=documenting phase=.context/2026-09-28.postgres-agent-memory/phase-2-extension-sql-tool.md why=postcondition scan ambiguous parseable=true docsImpact=true howtoImpact=true postcondition=ambiguous",
+  "attempt": 1
+}

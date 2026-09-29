@@ -11,6 +11,7 @@ steps, then **Eat** — the check that it worked.
 4. [Inspect project token use](inspect-project-token-use.md)
 5. [Watch /buck-loop activity](watch-buck-loop-activity.md)
 6. [Recover a blocked /buck-loop run](recover-buck-loop.md)
+7. [Recall project memories from the SQL store](recall-project-memories.md)
 
 ## Why
 

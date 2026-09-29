@@ -1,0 +1,20 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "retry"
+    },
+    {
+      "kind": "advance"
+    }
+  ],
+  "raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"action\":{\"type\":\"choice\",\"choice\":\"retry\",\"confidence\":0.87,\"probabilities\":{\"advance\":0.07,\"retry\":0.93}}},\"usage\":{\"input_tokens\":379,\"output_tokens\":31}}",
+  "parsed": {
+    "choice": "retry",
+    "reason": "Jev picked retry (confidence 0.87)"
+  },
+  "accepted": true,
+  "reason": "Jev picked retry (confidence 0.87)",
+  "context": "state=building phase=.context/2026-09-28.postgres-agent-memory/phase-1-schema-migrations.md why=postcondition scan ambiguous review=pending postcondition=ambiguous",
+  "attempt": 1
+}

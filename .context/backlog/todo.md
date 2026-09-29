@@ -9,6 +9,15 @@
 - [ ] [Add `/buck-models --doctor`](items/buck-models-doctor.md) — medium; audit all saved model selections against the live registry and highlight the effective active profile
 - [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
 
+## Postgres Agent Memory Phases (2026-09-28)
+
+Overview: [`plan-postgres-agent-memory-phases.md`](../2026-09-28.postgres-agent-memory/plan-postgres-agent-memory-phases.md).
+Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
+
+- [ ] [Phase 1: Schema and Migrations](items/phase-1-schema-migrations-pg.md) — medium, `/b-build` — [phase-1-schema-migrations.md](../2026-09-28.postgres-agent-memory/phase-1-schema-migrations.md)
+- [x] [Phase 2: Extension and SQL Tool](archive/2026-09/phase-2-extension-sql-tool.md) — hard, `/b-build-hard` — done 2026-09-28
+- [x] [Phase 3: Recall Patterns and Docs](archive/2026-09/phase-3-recall-patterns-docs.md) — easy, `/b-build` — done 2026-09-28
+
 ## Buck Model Profile Phases (2026-09-23)
 
 ### Upcoming Phases

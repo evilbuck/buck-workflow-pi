@@ -1,0 +1,23 @@
+{
+  "source": "jev",
+  "legal": [
+    {
+      "kind": "iterate"
+    },
+    {
+      "kind": "document"
+    },
+    {
+      "kind": "save"
+    }
+  ],
+  "raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"action\":{\"type\":\"choice\",\"choice\":\"save\",\"confidence\":0.65,\"probabilities\":{\"save\":0.77,\"iterate\":0.2,\"document\":0.03}}},\"usage\":{\"input_tokens\":411,\"output_tokens\":38}}",
+  "parsed": {
+    "choice": "save",
+    "reason": "Jev picked save (confidence 0.65)"
+  },
+  "accepted": true,
+  "reason": "Jev picked save (confidence 0.65)",
+  "context": "state=reviewing phase=.context/2026-09-28.postgres-agent-memory/phase-3-recall-patterns-docs.md why=review report unparseable; no iterate artifact parseable=false docsImpact=false howtoImpact=false postcondition=confirmed",
+  "attempt": 1
+}
