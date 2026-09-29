@@ -76,11 +76,11 @@ Replace the opaque `ambiguous` retry with a fix-or-stop decision. The scan still
 
 ## Verification
 
-- `npx vitest run extensions/buck-loop/__tests__/loop.test.ts extensions/buck-loop/__tests__/machine.test.ts`
+- `npx vitest run extensions/buck-loop/__tests__/ambiguity.test.ts extensions/buck-loop/__tests__/loop.test.ts extensions/buck-loop/__tests__/machine.test.ts` — 118 passed.
 - `lizard -C 10 -w extensions/buck-loop/ambiguity.ts extensions/buck-loop/loop.ts`
 - `npm run guardrails:check`
 - After commit and an OMP restart, a new `/buck-loop` on the SQL-memory subject must stop with the operator reason while the disposable URL is unset, not spin.
-- Verification boundary: temp-repo public-entrypoint smoke proved operator and restart stops. The post-commit, freshly restarted OMP run on the SQL-memory subject is not yet exercised; the current process still has the old extension loaded.
+- Verified after commit `49536f0` in a fresh `omp --print --no-session` process on the SQL-memory Phase 1 file with no disposable test target: `.context/workflow/buck-loop.json` recorded `blocked`, one loop, and `cannot fix without the operator` (Jev 0.41), including `in-progress`, unchecked criteria, and the execution-checkpoint sentence; no review/commit transition or SQL source edit occurred.
 
 ## Execution Instructions
 

@@ -23,7 +23,7 @@ review_verdict: approve
 | Restart after loop-extension repair | Complete | `loop.test.ts` checks warning, no review, preserved reason, and same-process start/resume refusal; standalone temp-repo smoke reported identical restart reasons on the retry and next command. |
 | Cross-state retry | Complete | `loop.test.ts` confirmed build → failed review → one review retry. |
 | Guardrails | Complete | Durable v2 `npm run guardrails:check`: status pass; required unit, global ratchet, and complexity gates pass; lint/functional skipped, patch pass. |
-| Scoped commit | Pending | Execute after save; exclude staged SQL-memory notes. |
+| Scoped commit | Complete | `49536f0` contains only repair implementation, tests, docs, and durable artifacts; staged SQL-memory notes remained outside the commit. |
 
 ## Review axes
 
@@ -36,4 +36,4 @@ Handled in `docs/buck-workflow.md` and `docs/howto/resume-buck-loop-after-repair
 
 ## Verdict
 
-Pass with one verification boundary: a live `/buck-loop` on the SQL-memory subject after committing and restarting OMP is not exercisable from the currently loaded process. Temp-repo public-entrypoint smoke covered both operator and restart stops; the post-restart live check remains for the operator.
+Pass. After `49536f0`, a fresh OMP process ran `/buck-loop` on SQL-memory Phase 1 without a disposable test target. The persisted run blocked after one build with the operator reason, status, unchecked boxes, and checkpoint sentence. No review or commit transition occurred.
