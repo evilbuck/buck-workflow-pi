@@ -699,6 +699,65 @@ depends_on: []
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
+  it("confirms building when every acceptance criterion is checked and status is still in-progress", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "in-progress" }]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
+      ),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: phase,
+      state: "building",
+      sessionOutcome: "ok",
+    });
+    expect(result.planFacts).toEqual({ kind: "phased-complete" });
+    expect(result.workFacts.postcondition).toBe("confirmed");
+  });
+
+  it("does not treat status completed as done while an acceptance criterion is open", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "completed" }]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n- \"[ ] still open\"\n",
+      ),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(result.phasePath).toBe(phase);
+  });
+
+  it("skips a criteria-done phase and keeps a later pending phase", () => {
+    const root = repo();
+    phased(root, [
+      { n: 1, status: "in-progress" },
+      { n: 2, status: "pending", dependsOn: [1] },
+    ]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
+      ),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: phase,
+      state: "building",
+      sessionOutcome: "ok",
+    });
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(result.workFacts.postcondition).toBe("confirmed");
+  });
+
   it("confirms a reviewing session postcondition regardless of git dirtiness", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {

@@ -18,6 +18,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
+import { phaseFileDone } from "./phase-completion.js";
 import type { LoopState, PlanFacts, ReviewFacts, WorkFacts } from "./types.js";
 
 /** Subject folders look like `2026-09-18.todo` (date prefix, then a slug). */
@@ -59,11 +60,14 @@ type PhaseMeta = {
   abs: string;
   status: string;
   dependsOn: DependsOn;
+  /** Criteria list when present; otherwise `status: completed`. */
+  done: boolean;
 };
 
 type PostCtx = {
   changed: string[] | null;
   phaseStatus: string | null;
+  phaseDone: boolean;
   iterate: boolean;
   complete: boolean;
   reviewFacts: ReviewFacts;
@@ -263,6 +267,7 @@ function listPhases(subjectDir: string, planAbs: string): PhaseMeta[] {
       abs,
       status: fm.status ?? "pending",
       dependsOn: parseDependsOn(fm.depends_on ?? "[]"),
+      done: phaseFileDone(abs),
     });
   }
   out.sort((a, b) => a.n - b.n);
@@ -283,7 +288,7 @@ function pickPhase(
   | { kind: "ready"; abs: string } {
   if (phases.length === 0) return { kind: "none" };
   const byN = new Map(phases.map((p) => [p.n, p]));
-  const incomplete = phases.filter((p) => p.status !== "completed");
+  const incomplete = phases.filter((p) => !p.done);
   if (incomplete.length === 0) return { kind: "complete" };
   const malformed = incomplete.find(
     (p): p is PhaseMeta & { dependsOn: { kind: "malformed"; raw: string } } =>
@@ -307,7 +312,7 @@ function pickPhase(
 
 function depsSatisfied(phase: PhaseMeta, byN: Map<number, PhaseMeta>): boolean {
   if (phase.dependsOn.kind === "malformed") return false;
-  return phase.dependsOn.deps.every((n) => byN.get(n)?.status === "completed");
+  return phase.dependsOn.deps.every((n) => byN.get(n)?.done === true);
 }
 
 /**
@@ -443,7 +448,8 @@ type PostFn = (ctx: PostCtx) => WorkFacts["postcondition"];
 
 /**
  * Per-state "did the nested session actually land?" checks.
- * `building` confirmed if the phase/plan is `status: completed`.
+ * `building` confirmed if the assessed phase is done: a non-empty
+ * `acceptance_criteria` list is all `[x]`, or, with no list, `status: completed`.
  * `iterating` confirmed when the iterate file is gone (work absorbed).
  * `documenting` confirmed if a living-doc path changed.
  * `saving` confirmed if `.context/memory/` changed.
@@ -451,7 +457,7 @@ type PostFn = (ctx: PostCtx) => WorkFacts["postcondition"];
  * `reviewing` is always confirmed — routing uses ReviewFacts instead.
  */
 const POSTCONDITION: Partial<Record<LoopState, PostFn>> = {
-  building: (ctx) => (ctx.complete || ctx.phaseStatus === "completed" ? "confirmed" : "ambiguous"),
+  building: (ctx) => (ctx.complete || ctx.phaseDone ? "confirmed" : "ambiguous"),
   iterating: (ctx) => (ctx.iterate ? "ambiguous" : "confirmed"),
   documenting: (ctx) =>
     currentReviewExpectsNoDocs(ctx.reviewFacts) || ctx.changed?.some(isDocPath) ? "confirmed" : "ambiguous",
@@ -474,11 +480,27 @@ function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions, revi
   const postcondition = assess({
     changed,
     phaseStatus,
+    phaseDone: assessedPhaseDone(root, resolved, opts),
     iterate: hasIterate(resolved.subjectDir),
     complete: resolved.planFacts.kind === "phased-complete",
     reviewFacts,
   });
   return { sessionOutcome, retriesUsed, postcondition };
+}
+
+/** During a phase mini-cycle, judge that phase file, not the next incomplete one. */
+function assessedPhaseDone(root: string, resolved: Resolved, opts: ScanOptions): boolean {
+  const frozen = frozenPhaseAbs(root, opts);
+  if (frozen) return phaseFileDone(frozen);
+  if (resolved.planFacts.kind === "phased-complete") return true;
+  return resolved.phaseAbs ? phaseFileDone(resolved.phaseAbs) : false;
+}
+
+function frozenPhaseAbs(root: string, opts: ScanOptions): string | null {
+  if (!opts.state || opts.state === "resolving" || !opts.path?.trim()) return null;
+  const located = locate(root, opts.path.trim());
+  if (!("abs" in located) || !PHASE_FILE_RE.test(basename(located.abs))) return null;
+  return located.abs;
 }
 
 function currentReviewExpectsNoDocs(reviewFacts: ReviewFacts): boolean {

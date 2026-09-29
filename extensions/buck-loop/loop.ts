@@ -38,6 +38,7 @@ import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
+import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { applyChoice, next, start, stopFrom, userConfirmed } from "./machine.js";
 import type {
   AcceptedChoice,
@@ -217,6 +218,7 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
   if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
+  syncCheckedPhasesAt(cwd, target, deps.now().slice(0, 10));
   const scanned = scan({ projectRoot: cwd, path: target, state: "resolving" });
   const snapshot: Snapshot = {
     state: "resolving",
@@ -248,6 +250,8 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   if (projection.state === "aborted") return statusOf(cwd);
   const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
+  const resumeTarget = projection.phasePath ?? projection.planPath ?? join(".context", projection.subject);
+  syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
@@ -485,6 +489,7 @@ async function executeSkill(
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
+  syncCheckedPhasesAt(cwd, planOrPhasePath, deps.now().slice(0, 10));
   const scanned = rescan(cwd, snapshot, path, {
     sessionOutcome: result.ok ? "ok" : "failed",
     retriesUsed,

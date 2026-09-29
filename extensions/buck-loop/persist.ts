@@ -13,6 +13,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
+import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
 import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } from "./types.js";
 
@@ -197,12 +198,7 @@ function keepCompletedProjectedPhase(
 
 function projectedPhaseCompleted(root: string, phasePath: string): boolean {
   const abs = resolve(root, phasePath);
-  if (!existsSync(abs)) return false;
-  try {
-    return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
-  } catch {
-    return false;
-  }
+  return existsSync(abs) && phaseFileDone(abs);
 }
 
 function staleBuildingComplete(projection: Projection, scanned: ScanResult): boolean {

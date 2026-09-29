@@ -8,6 +8,7 @@ security-audit-report.json
 # Fallback: .context/draft-commit.md
 .context/draft-commit.md
 .context/*/draft-commit.md
+.context/*/transition-audits/
 # Local Hindsight import skip-state (per-machine); document_id upsert remains idempotent
 .context/memory/.omp-hindsight-import-manifest.json
 
@@ -27,3 +28,4 @@ CURRENT-TASK.md
 CODE-REVIEW.md
 *.tgz
 bun.lock
+

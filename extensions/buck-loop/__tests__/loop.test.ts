@@ -316,6 +316,31 @@ describe("happy path", () => {
     expect(execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" })).toBe("");
   });
 
+  it("writes status from checked criteria and reviews instead of retrying the build", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = join(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
+    writeFileSync(phase, readFileSync(phase, "utf8").replace(
+      "dependency_type: NONE\n",
+      "dependency_type: NONE\nacceptance_criteria:\n- \"[ ] landed\"\ncompleted_at: null\n",
+    ));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        const abs = join(opts.cwd, opts.planOrPhasePath);
+        writeFileSync(abs, readFileSync(abs, "utf8").replace("[ ] landed", "[x] landed"));
+        return { ok: true, text: "built" };
+      }
+      return landingWork()(opts);
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const text = readFileSync(phase, "utf8");
+    expect(text).toMatch(/^status: completed$/m);
+    expect(text).toMatch(/^completed_at: 2026-09-18$/m);
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-review");
+    expect(deps.choose).not.toHaveBeenCalled();
+  });
+
   it("uses difficulty only to select the hard build prompt skill", async () => {
     const cwd = repo();
     phased(cwd, ["pending", "pending", "pending", "pending"]);

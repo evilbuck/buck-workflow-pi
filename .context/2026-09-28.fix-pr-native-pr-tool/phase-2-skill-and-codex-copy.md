@@ -41,4 +41,10 @@ Depends on Phase 1's tool surface (name `fix_pr_feedback`, availability-by-probe
 - Parity drift between skill and Codex copy — run the parity test immediately after edits.
 
 ## Verification
+
 `bunx vitest run scripts/codex-plugin.test.ts`
+
+Latest result:
+- `cmp skills/fix-pr/SKILL.md plugins/buck-workflow/skills/fix-pr/SKILL.md` passes; the two assigned files are byte-identical.
+- The parity suite failed 1 of 7 tests, reporting unrelated mismatches in `b-build/SKILL.md`, `b-grill-me/SKILL.md`, and `b-grill-with-docs/SKILL.md`. Neither fix-pr copy is reported.
+- No unrelated bundle copies changed. Acceptance criterion 4 remains unchecked until the named parity suite passes.

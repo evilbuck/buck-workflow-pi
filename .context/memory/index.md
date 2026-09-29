@@ -1,4 +1,4 @@
-- 2026-09-28 — [fix-pr skill and Codex copy — Phase 2](fix-pr-skill-codex-phase-2-2026-09-28.md) — active (three-layer `pr://` / tool-or-CLI contract synced; targeted skill parity passes, full Codex test blocked by two unrelated bundle-copy mismatches)
+- 2026-09-28 — [fix-pr skill and Codex copy — Phase 2](fix-pr-skill-codex-phase-2-2026-09-28.md) — active (skill copies are byte-identical; Codex parity suite remains blocked by three unrelated skill-copy mismatches)
 
 - 2026-09-28 — [Buck-loop stopped-run notice and recovery](buck-loop-stop-recovery-2026-09-28.md) — completed (actual blocker retained, STOP/status informational, explicit unblock paths; 241 loop tests and durable guardrails pass)
 - 2026-09-28 — [Buck-loop fix-pr commit checkpoint diagnosis](buck-loop-fix-pr-checkpoint-2026-09-28.md) — completed (Phase 1 commit created; supported STOP closed stale blocked run; Phase 2 pending)
