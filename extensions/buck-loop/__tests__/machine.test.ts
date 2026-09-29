@@ -256,6 +256,16 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
       legal: [{ kind: "retry" }, { kind: "advance" }],
     });
   });
+
+  it.each(POSTCONDITION_STATES)("blocks a second ambiguous %s retry without asking", (state) => {
+    const t = next(workSnap(state, { postcondition: "ambiguous", retriesUsed: 1 }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "postcondition still ambiguous after one retry; refusing another spin",
+    });
+    expect(legalChoices(state, workSnap(state, { postcondition: "ambiguous", retriesUsed: 1 }))).toEqual([]);
+  });
 });
 
 describe("next: reviewing", () => {

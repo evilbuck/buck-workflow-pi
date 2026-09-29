@@ -26,6 +26,15 @@ import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
+import {
+  askCanFixWithoutOperator,
+  changedLoopExtensionFiles,
+  explainAmbiguity,
+  loopExtensionFiles,
+  phaseAbs,
+  repairCheckedPhase,
+  type Fixability,
+} from "./ambiguity.js";
 import type { ActivityEvent } from "../extension-activity.js";
 import {
   PROJECTION_VERSION,
@@ -68,6 +77,8 @@ const IN_CYCLE_WORK_STATES: Partial<Record<LoopState, true>> = {
 
 /** Hard cap on supervisor ticks in one invocation, independent of `maxLoops`. */
 const SAFETY_TICK_CEILING = 64;
+/** Process-local: only a fresh OMP module can clear a restart stop. */
+const restartRequired = new Map<string, string>();
 
 /**
  * While we are inside a phase's mini-cycle, keep the same `phasePath` even
@@ -119,6 +130,8 @@ export type LoopDeps = {
   confirmDirty: (paths: string[]) => Promise<boolean>;
   /** Yes keeps a run going instead of landing in `blocked`. No keeps the machine stop. */
   confirmContinue: (reason: string) => Promise<boolean>;
+  /** Closed question: can this ambiguous postcondition be repaired without the operator? */
+  canFixWithoutOperator: (input: { cwd: string; snapshot: Snapshot; why: string }) => Promise<Fixability>;
   /** Ids from the live host registry, the same list `/buck-models` offers. */
   availableIds?: () => Promise<ReadonlySet<string>>;
 };
@@ -127,6 +140,8 @@ type EffectResult = {
   snapshot: Snapshot;
   lastFail: string | null;
   halt: LoopResult | null;
+  /** Mandatory stops cannot be overridden by the generic continue prompt. */
+  mandatoryStop?: true;
 };
 
 const DEFAULT_DEPS: LoopDeps = {
@@ -139,6 +154,10 @@ const DEFAULT_DEPS: LoopDeps = {
   onWarning: () => undefined,
   confirmDirty: async () => false,
   confirmContinue: async () => false,
+  canFixWithoutOperator: async ({ cwd, snapshot }) => {
+    const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
+    return askCanFixWithoutOperator(`${decisionContext(snapshot, "ambiguous postcondition")}\n${abs ? explainAmbiguity(abs) : ""}`);
+  },
 };
 
 /**
@@ -159,6 +178,8 @@ export async function handleLoop(opts: {
   const deps: LoopDeps = { ...DEFAULT_DEPS, ...opts.deps };
   if (opts.command === "status") return statusOf(cwd);
   if (opts.command === "stop") return stopRun(cwd, deps.now);
+  const restartReason = restartRequired.get(cwd);
+  if (restartReason) return { state: "blocked", reason: restartReason };
   if (opts.command === "start") return startRun(cwd, opts.path, deps);
   return resumeRun(cwd, deps);
 }
@@ -307,6 +328,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     lastFail = ran.lastFail ?? lastFail;
     persistIfPossible(cwd, snapshot);
     if (ran.halt) {
+      if (ran.mandatoryStop) return ran.halt;
       const recovered = await recoverBlocked(cwd, snapshot, ran.halt, deps);
       if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
       snapshot = recovered.snapshot;
@@ -364,11 +386,74 @@ async function runEffect(
   deps: LoopDeps,
 ): Promise<EffectResult> {
   if (transition.effect.kind === "choose") {
+    if (ambiguousWorkChoice(snapshot, transition.effect.legal)) {
+      return resolveAmbiguity(cwd, snapshot, path, transition, deps);
+    }
     return runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps);
   }
   if (transition.effect.kind !== "run-skill") return { snapshot, lastFail: null, halt: null };
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
+}
+
+function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): boolean {
+  return snapshot.workFacts.postcondition === "ambiguous"
+    && legal.some((choice) => choice.kind === "retry")
+    && legal.some((choice) => choice.kind === "advance");
+}
+
+async function resolveAmbiguity(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  transition: Transition,
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
+  if (abs && repairCheckedPhase(abs, deps.now())) {
+    return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
+  }
+  const verdict = await deps.canFixWithoutOperator({ cwd, snapshot, why: transition.why });
+  if (!verdict.yes) return stopForOperator(cwd, snapshot, verdict, abs, deps);
+  const beforeRetry = loopExtensionFiles(cwd);
+  const retry = applyChoice({ kind: "retry" }, snapshot);
+  const ran = await continueChoice(cwd, snapshot, path, retry, deps);
+  const changed = changedLoopExtensionFiles(cwd, beforeRetry);
+  if (changed.length === 0) return ran;
+  return stopForExtensionRestart(cwd, ran.snapshot, changed, deps);
+}
+
+function stopForOperator(
+  cwd: string,
+  snapshot: Snapshot,
+  verdict: Fixability,
+  abs: string | null,
+  deps: LoopDeps,
+): EffectResult {
+  const reason = `cannot fix without the operator: ${verdict.reason}. ${abs ? explainAmbiguity(abs) : transitionWhy(snapshot)}`;
+  const blocked = block(snapshot, reason, deps.now());
+  persistIfPossible(cwd, blocked);
+  return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
+}
+
+const LOOP_EXTENSION_RESTART = "Restart OMP before continuing:";
+
+function stopForExtensionRestart(
+  cwd: string,
+  snapshot: Snapshot,
+  changed: readonly string[],
+  deps: LoopDeps,
+): EffectResult {
+  const reason = `${LOOP_EXTENSION_RESTART} repaired the buck-loop extension, and this session is still running the previous code. Changed: ${changed.join(", ")}`;
+  restartRequired.set(cwd, reason);
+  deps.onWarning(reason);
+  const blocked = block(snapshot, reason, deps.now());
+  persistIfPossible(cwd, blocked);
+  return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
+}
+
+function transitionWhy(snapshot: Snapshot): string {
+  return snapshot.history.at(-1)?.why ?? "postcondition is ambiguous";
 }
 
 async function runChoice(
@@ -722,6 +807,8 @@ function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): 
 }
 
 function nextRetries(snapshot: Snapshot, ok: boolean): number {
+  // Same-state retry keeps the ambiguous facts. A cross-state advance resets them first.
+  if (snapshot.workFacts.postcondition === "ambiguous") return snapshot.workFacts.retriesUsed + 1;
   if (ok) return snapshot.workFacts.retriesUsed;
   return snapshot.workFacts.sessionOutcome === "failed" ? snapshot.workFacts.retriesUsed + 1 : 0;
 }
@@ -849,13 +936,23 @@ function difficultyLabel(cwd: string, snapshot: Snapshot): string | undefined {
 
 function withTransition(snapshot: Snapshot, transition: Transition, at: string): Snapshot {
   const record: TransitionRecord = { from: snapshot.state, to: transition.to, at, why: transition.why };
+  const crossed = transition.to !== snapshot.state;
   const loopCount =
-    transition.to === "building" && snapshot.state !== "building" ? snapshot.loopCount + 1 : snapshot.loopCount;
+    transition.to === "building" && crossed ? snapshot.loopCount + 1 : snapshot.loopCount;
   const iterateCyclesOnPhase =
-    transition.to === "iterating" && snapshot.state !== "iterating"
+    transition.to === "iterating" && crossed
       ? snapshot.iterateCyclesOnPhase + 1
       : snapshot.iterateCyclesOnPhase;
-  return { ...snapshot, state: transition.to, loopCount, iterateCyclesOnPhase, history: [...snapshot.history, record] };
+  return {
+    ...snapshot,
+    state: transition.to,
+    workFacts: crossed
+      ? { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" }
+      : snapshot.workFacts,
+    loopCount,
+    iterateCyclesOnPhase,
+    history: [...snapshot.history, record],
+  };
 }
 
 function block(snapshot: Snapshot, reason: string, at: string): Snapshot {

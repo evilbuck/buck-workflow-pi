@@ -82,10 +82,15 @@ function workDeps(
     context?: string;
     onActivity?: (event: ActivityEvent) => void;
   }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
+  canFixWithoutOperator: (_input: { cwd: string }) => Promise<{ yes: boolean; reason: string }> = async () => ({
+    yes: false,
+    reason: "test default: needs the operator",
+  }),
 ) {
   return {
     runStep: vi.fn(runStep),
     choose: vi.fn(choose),
+    canFixWithoutOperator: vi.fn(canFixWithoutOperator),
     now: () => NOW,
   };
 }
@@ -565,6 +570,167 @@ describe("failure and choice", () => {
       agent: expect.objectContaining({ id: "buck-loop-work-2", model: "provider/model" }),
       error: { name: "ProviderError", message: "fail-2" },
     }));
+  });
+
+  it("retries once when the supervisor can fix an ambiguous build", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    let builds = 0;
+    const deps = workDeps(
+      async (opts) => {
+        if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+          builds += 1;
+          return { ok: true, text: "held" };
+        }
+        return landingWork()(opts);
+      },
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      async () => ({ yes: true, reason: "agent can finish" }),
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(builds).toBe(2);
+    expect(deps.choose).not.toHaveBeenCalled();
+    expect(result.reason).toMatch(/still ambiguous after one retry/i);
+  });
+
+  it("does not treat pre-existing loop-extension dirt as a repair from the retry", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "extensions/buck-loop/prior.ts": "before\n" });
+    git(cwd, ["add", "extensions/buck-loop/prior.ts"]);
+    const deps = workDeps(
+      async () => ({ ok: true, text: "held" }),
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      async () => ({ yes: true, reason: "can retry" }),
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
+    expect(deps.runStep).toHaveBeenCalledTimes(2);
+    expect(result.reason).toMatch(/still ambiguous after one retry/i);
+    expect(result.reason).not.toMatch(/Restart OMP/);
+  });
+
+  it("detects a repair to a loop-extension file that was already dirty", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeTree(cwd, { "extensions/buck-loop/prior.ts": "before\n" });
+    git(cwd, ["add", "extensions/buck-loop/prior.ts"]);
+    let builds = 0;
+    const deps = workDeps(
+      async () => {
+        builds += 1;
+        if (builds === 2) writeTree(cwd, { "extensions/buck-loop/prior.ts": "after\n" });
+        return { ok: true, text: "held" };
+      },
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      async () => ({ yes: true, reason: "can retry" }),
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
+    expect(result.reason).toMatch(/Restart OMP before continuing/);
+    expect(result.reason).toContain("extensions/buck-loop/prior.ts");
+  });
+
+  it("stops after repairing the running buck-loop extension", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    let builds = 0;
+    const deps = workDeps(
+      async (opts) => {
+        if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+          builds += 1;
+          if (builds === 2) writeTree(cwd, { "extensions/buck-loop/touched.ts": "export const touched = true;\n" });
+          return { ok: true, text: "repaired extension" };
+        }
+        return landingWork()(opts);
+      },
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      async () => ({ yes: true, reason: "agent can finish" }),
+    );
+    const warnings: string[] = [];
+    const result = await handleLoop({
+      cwd,
+      command: "start",
+      path: PLAN,
+      deps: { ...deps, onWarning: (message) => warnings.push(message), confirmContinue: vi.fn(async () => true) },
+    });
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-review");
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/Restart OMP before continuing/);
+    expect(result.reason).toContain("extensions/buck-loop/touched.ts");
+    expect(warnings.join("\n")).toMatch(/Restart OMP before continuing/);
+    expect(deps.runStep).toHaveBeenCalledTimes(2);
+    for (const command of ["resume", "start"] as const) {
+      const again = await handleLoop({ cwd, command, path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
+      expect(again).toEqual({ state: "blocked", reason: result.reason });
+    }
+    expect(deps.runStep).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops an ambiguous build that needs the operator", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = join(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
+    writeFileSync(phase, readFileSync(phase, "utf8").replace(
+      "dependency_type: NONE\n",
+      "dependency_type: NONE\nacceptance_criteria:\n  - \"[ ] Live SELECT against disposable DB\"\n",
+    ) + "\n## Execution checkpoint\nDisposable target has not been supplied. Child proof has not run.\n");
+    let builds = 0;
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+        builds += 1;
+        return { ok: true, text: "held" };
+      }
+      return landingWork()(opts);
+    });
+    const confirmContinue = vi.fn(async () => true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmContinue } });
+    expect(builds).toBe(1);
+    expect(deps.choose).not.toHaveBeenCalled();
+    expect(confirmContinue).not.toHaveBeenCalled();
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/cannot fix without the operator/i);
+    expect(result.reason).toContain("phase status is pending, not completed");
+    expect(result.reason).toContain("[ ] Live SELECT against disposable DB");
+    expect(result.reason).toContain("Disposable target has not been supplied.");
+  });
+
+  it("marks a phase completed when every acceptance box is already checked", async () => {
+    const cwd = repo();
+    phased(cwd, ["in-progress"]);
+    const phase = join(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
+    writeFileSync(phase, readFileSync(phase, "utf8").replace(
+      "dependency_type: NONE\n",
+      "dependency_type: NONE\nacceptance_criteria:\n  - \"[x] landed\"\n",
+    ));
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return landingWork()(opts);
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(readFileSync(phase, "utf8")).toMatch(/^status: completed$/m);
+    expect(deps.canFixWithoutOperator).not.toHaveBeenCalled();
+    expect(result.state).toBe("done");
+  });
+
+  it("retries a first review failure after a confirmed build", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    let reviews = 0;
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+        mutatePhase(cwd, opts.planOrPhasePath, "completed");
+        return { ok: true, text: "landed" };
+      }
+      if (opts.skill === "b-review") {
+        reviews += 1;
+        return { ok: false, text: `review-fail-${reviews}` };
+      }
+      return landingWork()(opts);
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(reviews).toBe(2);
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/failed again after one retry/i);
   });
 
   it("blocks when closed-set choice is rejected", async () => {

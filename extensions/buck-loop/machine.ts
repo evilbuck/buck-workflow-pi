@@ -67,6 +67,10 @@ function retryExhausted(s: Snapshot): boolean {
   return s.workFacts.retriesUsed >= 1;
 }
 
+function ambiguousChoiceOpen(s: Snapshot): boolean {
+  return postconditionAmbiguous(s) && canRunWork(s) && !retryExhausted(s);
+}
+
 function postconditionAmbiguous(s: Snapshot): boolean {
   return sessionOk(s) && s.workFacts.postcondition === "ambiguous";
 }
@@ -167,6 +171,12 @@ function postconditionAutomatic(state: Exclude<WorkState, "reviewing">) {
   return [
     ...sessionAutomatic(state, skill),
     {
+      id: `${state}-postcondition-ambiguous-retry-exhausted`,
+      when: (s: Snapshot) => postconditionAmbiguous(s) && retryExhausted(s),
+      target: "blocked" as const,
+      output: () => blocked("postcondition still ambiguous after one retry; refusing another spin"),
+    },
+    {
       id: `${state}-postcondition-ambiguous-loop-limit`,
       when: (s: Snapshot) => postconditionAmbiguous(s) && limitsExceeded(s),
       target: "blocked" as const,
@@ -255,14 +265,14 @@ function buildingLike(state: "building" | "iterating") {
       {
         id: `${state}-choice-retry`,
         choice: { kind: "retry" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: state,
         output: () => runSkill(WORK_SKILL[state], "accepted choice: retry the session"),
       },
       {
         id: `${state}-choice-advance`,
         choice: { kind: "advance" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: "reviewing" as const,
         output: () => runSkill("review", "work landed; reviewing it"),
       },
@@ -293,14 +303,14 @@ function documentingState() {
       {
         id: "documenting-choice-retry",
         choice: { kind: "retry" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: "documenting" as const,
         output: () => runSkill("docs", "accepted choice: retry the session"),
       },
       {
         id: "documenting-choice-advance",
         choice: { kind: "advance" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: "saving" as const,
         output: () => runSkill("save", "docs updated; saving session state"),
       },
@@ -331,14 +341,14 @@ function savingState() {
       {
         id: "saving-choice-retry",
         choice: { kind: "retry" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: "saving" as const,
         output: () => runSkill("save", "accepted choice: retry the session"),
       },
       {
         id: "saving-choice-advance",
         choice: { kind: "advance" as const },
-        when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s),
         target: "committing" as const,
         output: () => runSkill("commit", "session state saved; committing"),
       },
@@ -352,7 +362,7 @@ function committingChoices() {
     {
       id: "committing-choice-retry",
       choice: { kind: "retry" as const },
-      when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s),
+      when: (s: Snapshot) => ambiguousChoiceOpen(s),
       target: "committing" as const,
       output: () => runSkill("commit", "accepted choice: retry the session"),
     },
@@ -360,7 +370,7 @@ function committingChoices() {
       id: "committing-choice-advance-next-phase",
       choice: { kind: "advance" as const },
       when: (s: Snapshot) =>
-        postconditionAmbiguous(s) && canRunWork(s) && s.planFacts.kind === "phased-incomplete",
+        ambiguousChoiceOpen(s) && s.planFacts.kind === "phased-incomplete",
       target: "building" as const,
       output: () => runSkill("build", "next incomplete phase"),
     },
@@ -368,21 +378,21 @@ function committingChoices() {
       id: "committing-choice-advance-complete",
       choice: { kind: "advance" as const },
       when: (s: Snapshot) =>
-        postconditionAmbiguous(s) && canRunWork(s) && s.planFacts.kind === "phased-complete",
+        ambiguousChoiceOpen(s) && s.planFacts.kind === "phased-complete",
       target: "done" as const,
       output: () => none("no phases remain"),
     },
     {
       id: "committing-choice-advance-unphased",
       choice: { kind: "advance" as const },
-      when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s) && s.planFacts.kind === "unphased",
+      when: (s: Snapshot) => ambiguousChoiceOpen(s) && s.planFacts.kind === "unphased",
       target: "done" as const,
       output: () => none("unphased plan completed its single cycle"),
     },
     {
       id: "committing-choice-advance-missing",
       choice: { kind: "advance" as const },
-      when: (s: Snapshot) => postconditionAmbiguous(s) && canRunWork(s) && s.planFacts.kind === "missing",
+      when: (s: Snapshot) => ambiguousChoiceOpen(s) && s.planFacts.kind === "missing",
       target: "blocked" as const,
       output: (s: Snapshot) =>
         blocked(

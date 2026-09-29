@@ -149,6 +149,13 @@ for the decision log.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
 - **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Ambiguous postconditions are fix-or-stop.** A phase whose acceptance boxes are all
+  checked but whose status is not completed is marked complete by the supervisor.
+  Otherwise a native Jev fixability answer permits one retry only when work can
+  finish without the operator; missing credentials or a disposable database
+  block with the phase status, unchecked criteria, and execution checkpoint.
+  A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
+  until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The

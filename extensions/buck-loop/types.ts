@@ -83,7 +83,7 @@ export type PlanFacts =
 export interface WorkFacts {
   /** Has the nested session for this state run yet, succeeded, or failed? */
   sessionOutcome: "pending" | "ok" | "failed";
-  /** Failures already retried in this state. One retry is the ceiling. */
+  /** Failures and ambiguous postcondition retries already used in this state. One is the ceiling. */
   retriesUsed: number;
   /**
    * After a successful session, did a rescan confirm the expected disk change?
