@@ -24,9 +24,9 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Tool contract and child seam | completed | hard | none | [phase-1-tool-contract-child-seam.md](phase-1-tool-contract-child-seam.md) |
-| 2: Recall and bounded judgment | pending | medium | none | [phase-2-recall-bounded-judgment.md](phase-2-recall-bounded-judgment.md) |
-| 3: SQL save and truthful completion | pending | hard | none | [phase-3-sql-save-truthful-completion.md](phase-3-sql-save-truthful-completion.md) |
-| 4: Policy/docs and live proof | pending | medium | none | [phase-4-policy-docs-live-proof.md](phase-4-policy-docs-live-proof.md) |
+| 2: Recall and bounded judgment | completed | medium | none | [phase-2-recall-bounded-judgment.md](phase-2-recall-bounded-judgment.md) |
+| 3: SQL save and truthful completion | completed | hard | none | [phase-3-sql-save-truthful-completion.md](phase-3-sql-save-truthful-completion.md) |
+| 4: Policy/docs and live proof | completed | medium | none | [phase-4-policy-docs-live-proof.md](phase-4-policy-docs-live-proof.md) |
 
 ## Dependency Matrix
 

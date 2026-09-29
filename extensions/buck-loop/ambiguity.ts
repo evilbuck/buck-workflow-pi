@@ -1,7 +1,8 @@
 /**
  * Ambiguous postcondition gate. The scan only knows the expected artifact
- * did not land. Before retrying, the supervisor asks whether it can repair
- * that without the operator, then either repairs or stops with the reason.
+ * did not land. The supervisor diagnoses that gap, then asks Jev how large a
+ * continuation it is. Light and medium lifts continue automatically with the
+ * diagnosis. A heavy lift is handed to the operator.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
@@ -9,10 +10,17 @@ import { join, resolve } from "node:path";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 
-/** Calibrated yes boundary used by typed-output semantic checks. */
-const FIX_WITHOUT_OPERATOR_MIN = 0.8;
+const LIFTS = ["light", "medium", "heavy"] as const;
 
-export type Fixability = { yes: boolean; reason: string };
+export type RepairLift = (typeof LIFTS)[number];
+
+export type RepairPlan = { lift: RepairLift; reason: string; diagnosis: string };
+
+export type AmbiguityEvidence = {
+  abs: string | null;
+  sessionText: string;
+  why: string;
+};
 
 export function acceptanceCriteria(abs: string): string[] {
   const front = frontmatter(abs);
@@ -50,24 +58,42 @@ export function explainAmbiguity(abs: string | null): string {
   return `phase status is ${status}, not completed.${unchecked}${why}`;
 }
 
-export async function askCanFixWithoutOperator(state: string): Promise<Fixability> {
+export function diagnoseAmbiguity(evidence: AmbiguityEvidence): string {
+  const report = evidence.sessionText.trim();
+  const child = report.length > 0 ? clip(report) : "the session returned no report";
+  const disk = evidence.abs ? explainAmbiguity(evidence.abs) : "no phase file to inspect";
+  return [
+    "Diagnosis: the assigned session finished without landing the expected artifact.",
+    `Supervisor saw: ${evidence.why}`,
+    `Child report: ${child}`,
+    `Disk: ${disk}`,
+    "Judge the remaining work from the child report and disk evidence. Unchecked boxes name the gap; they are not a separate cause.",
+  ].join("\n");
+}
+
+/** Closed lift judgment. A missing or illegal answer is a heavy handoff, not an automatic retry. */
+export async function askRepairLift(diagnosis: string): Promise<RepairPlan> {
   try {
     const { details } = await runJev(createTypeSafeEvaluator(), {
-      state,
+      state: diagnosis,
       questions: {
-        can_fix: {
-          type: "noul",
-          instructions:
-            "Can the supervisor resolve this ambiguous buck-loop postcondition without operator intervention? Yes only if another skill run or a status write the supervisor can make would confirm it. No if credentials, a disposable database, or any other operator input is required.",
+        lift: {
+          type: "choice",
+          instructions: "Classify the diagnosed remaining work. The criteria labels are the only legal lifts.",
+          criteria: {
+            light: "A small unfinished slice of the same assignment. Another run of the same skill can finish it. No credential, disposable database, or operator decision is missing.",
+            medium: "Unfinished work that is still this phase and can be continued by another skill run. No operator-only input is required.",
+            heavy: "Missing operator input, a disposable database, a product decision, or work too large for one automatic continuation.",
+          },
         },
       },
     });
-    const noul = readNoul(details);
-    if (noul === null) return { yes: false, reason: "Jev did not return a fixability probability" };
-    if (noul < FIX_WITHOUT_OPERATOR_MIN) return { yes: false, reason: `Jev says this needs the operator (${noul})` };
-    return { yes: true, reason: `Jev says the supervisor can fix this (${noul})` };
+    const lift = readLift(details);
+    if (!lift) return { lift: "heavy", reason: "Jev did not return a legal lift", diagnosis };
+    return { lift, reason: `Jev classified the repair as ${lift}`, diagnosis };
   } catch (error) {
-    return { yes: false, reason: error instanceof Error ? error.message : "Jev fixability call failed" };
+    const reason = error instanceof Error ? error.message : "Jev lift call failed";
+    return { lift: "heavy", reason, diagnosis };
   }
 }
 
@@ -89,19 +115,19 @@ function section(text: string, heading: string): string | null {
   return body ? body : null;
 }
 
-function readNoul(details: unknown): number | null {
-  return probability(field(field(details, "answers"), "can_fix"));
-}
-
 function field(value: unknown, key: string): unknown {
-  if (!value || typeof value !== "object" || !(key in value)) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   return (value as Record<string, unknown>)[key];
 }
 
-function probability(answer: unknown): number | null {
-  if (!answer || typeof answer !== "object" || !("noul" in answer)) return null;
-  const noul = answer.noul;
-  return typeof noul === "number" && noul >= 0 && noul <= 1 ? noul : null;
+function readLift(details: unknown): RepairLift | null {
+  const answer = field(field(field(details, "answers"), "lift"), "choice");
+  return LIFTS.find((lift) => lift === answer) ?? null;
+}
+
+function clip(text: string): string {
+  const compact = text.replace(/\s+/g, " ").trim();
+  return compact.length <= 1200 ? compact : compact.slice(0, 1200);
 }
 
 export function phaseAbs(cwd: string, phasePath: string | null): string | null {

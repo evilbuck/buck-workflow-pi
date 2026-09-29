@@ -22,7 +22,7 @@ const SAFE_FUNCTIONS: Record<string, true> = {
   COALESCE: true, NULLIF: true, LOWER: true, UPPER: true,
   NOW: true, CURRENT_TIMESTAMP: true, GEN_RANDOM_UUID: true,
   LENGTH: true, ARRAY_AGG: true, JSONB_AGG: true, TO_TSVECTOR: true,
-  TO_TSQUERY: true, PLAINTEXT_TO_TSQUERY: true, TS_RANK: true,
+  TO_TSQUERY: true, PLAINTO_TSQUERY: true, TS_RANK: true,
 };
 const RELATION_INTRODUCERS: Record<string, true> = { FROM: true, JOIN: true, INTO: true, UPDATE: true };
 const CLAUSE_ENDS: Record<string, true> = {
@@ -44,11 +44,37 @@ export function checkSqlForRole(sql: string, role: SqlMemoryRole): SqlGateResult
   const tokens = tokenize(sql);
   if (!tokens) return { allowed: false, reason: "SQL statement is empty or unparseable" };
   const operation = tokens.find((token) => token.kind === "word")?.value.toUpperCase();
-  if (operation !== "INSERT" && operation !== "UPDATE") {
-    return { allowed: false, reason: "Save stage permits only INSERT or UPDATE" };
+  if (operation !== "INSERT" && operation !== "UPDATE" && operation !== "SELECT") {
+    return { allowed: false, reason: "Save stage permits only INSERT, UPDATE, or SELECT" };
   }
+  if (operation === "SELECT") return saveSelectResult(tokens);
   const error = saveTargetError(tokens, operation);
   return error ? { allowed: false, reason: error } : { allowed: true };
+}
+
+function saveSelectResult(tokens: Token[]): SqlGateResult {
+  const error = saveSelectError(tokens);
+  return error ? { allowed: false, reason: error } : { allowed: true };
+}
+
+function saveSelectError(tokens: Token[]): string | null {
+  const indexes = relationIndexes(tokens);
+  if (indexes.length === 0) return "Save stage SELECT must name an allowlisted table";
+  for (const index of indexes) {
+    const relation = parsedRelation(tokens, index);
+    if (relation.error) return relation.error;
+    if (!relation.table || !SAVE_TABLES[relation.table]) return "Save stage target is not allowlisted";
+  }
+  return null;
+}
+
+function relationIndexes(tokens: Token[]): number[] {
+  const indexes: number[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]!;
+    if (token.kind === "word" && (token.value.toUpperCase() === "FROM" || token.value.toUpperCase() === "JOIN")) indexes.push(index);
+  }
+  return indexes;
 }
 
 function saveTargetError(tokens: Token[], operation: string): string | null {
@@ -58,7 +84,18 @@ function saveTargetError(tokens: Token[], operation: string): string | null {
   if (relation.table === "users" && tokens.some((token) => token.kind === "word" && token.value.toUpperCase() === "SKILL_WEIGHT")) {
     return "Save stage cannot modify user skill_weight";
   }
+  if (operation === "UPDATE" && relation.table === "memories" && !correctionAssignmentsOnly(tokens)) {
+    return "Save stage cannot update immutable memory fields";
+  }
   return null;
+}
+
+function correctionAssignmentsOnly(tokens: Token[]): boolean {
+  const set = tokens.findIndex((token) => token.value === "SET");
+  const where = tokens.findIndex((token, index) => index > set && token.value === "WHERE");
+  if (set < 0 || where <= set + 1) return false;
+  const assignments = tokens.slice(set + 1, where).map((token) => token.value).join(" ");
+  return /^(?:INVALID_AT = NOW \( \)|SUPERSEDED_BY = \$ [1-9]\d*)(?: , (?:INVALID_AT = NOW \( \)|SUPERSEDED_BY = \$ [1-9]\d*))*$/.test(assignments);
 }
 
 function skipLineComment(sql: string, start: number): number {
@@ -163,10 +200,19 @@ function statementBoundaryError(tokens: Token[]): string | null {
 }
 
 function deniedStatementError(tokens: Token[]): string | null {
-  for (const token of tokens) {
-    if (token.kind === "word" && DENIED[token.value]) return `${token.value} statements are not allowed through sql_memory`;
+  let conflictSeen = false;
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index]!;
+    if (token.value === "CONFLICT") conflictSeen = true;
+    if (token.kind !== "word" || !DENIED[token.value]) continue;
+    if (token.value === "DO" && isConflictNoop(tokens, index, conflictSeen)) continue;
+    return `${token.value} statements are not allowed through sql_memory`;
   }
   return null;
+}
+
+function isConflictNoop(tokens: Token[], index: number, conflictSeen: boolean): boolean {
+  return conflictSeen && tokens[0]?.value === "INSERT" && tokens[index + 1]?.value === "NOTHING";
 }
 
 function supportedStatementError(tokens: Token[]): string | null {
@@ -181,6 +227,7 @@ function statementError(tokens: Token[]): string | null {
 
 function isSqlConstruct(tokens: Token[], index: number): boolean {
   const value = tokens[index]!.value;
+  if (value === "CONFLICT" && tokens[index - 1]?.value === "ON") return true;
   if (["INTO", "VALUES", "IN", "AS", "OVER", "FILTER", "EXISTS", "SELECT", "WHERE", "SET"].includes(value)) return true;
   return tokens[index - 1]?.value === "INTO"
     || (tokens[index - 1]?.value === "." && tokens[index - 3]?.value === "INTO");

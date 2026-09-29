@@ -124,6 +124,7 @@ or patch how-to index links to the new ADR. Do not re-enter
 `b-howto`.
 
 ## Behavior
+Before documenting established project behavior, use `sql_memory` for project-scoped recall only when callable, following `skills/_shared/recall-project-memories.md`. If unavailable, say shared SQL memory is unavailable and continue with the repository's file context.
 
 1. Resolve subject / surface. If the user named one action, do that
    one. If they asked for a cookbook, inventory the typical actions

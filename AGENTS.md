@@ -95,9 +95,11 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 
 **Vault-Native LLM Wiki** (`skills/llm-wiki-vault/`): Enables any agent to ingest sources, build interlinked research notes, and maintain the Obsidian knowledge base at `~/Documents/second brain` using the same vault-native LLM Wiki protocol Hermes uses. Agents load it automatically from this project's `skills/` directory. See the skill's Quick Agent Lookup block for invocation keys (`LLM-WIKI`, `INGEST`, `QUERY`, `LINT`, `WIKI-SCHEMA`, etc.).
 
-**Session memory** (`skills/b-save/`, `skills/b-memory-import/`):
-- `/b-save` always writes git-portable `.context/memory` (+ backlog/index). On OMP, when `retain`/`learn` tools exist, it also mirrors durable session facts into harness LTM. Non-OMP agents optionally re-index via the configured Memory Search Tool.
-- `b-memory-import` is a **one-shot/backfill** Bun script that pushes existing `.context/memory/**/*.md` into Hindsight via retain HTTP (stable `document_id`, local manifest). Not part of the every-session loop.
+## Session memory and SQL mode
+
+- `/b-save` normally writes git-portable `.context/memory` plus backlog/index. In a configured OMP `/buck-loop`, SQL is the source of new reusable memory bodies: save writes a subject-scoped metadata receipt only, not a new Markdown body or index entry. Historical Markdown memories remain readable and are not migrated.
+- Outside that configured loop, SQL-backed portable saving requires a callable `sql_memory` tool; an environment variable alone is not proof of availability. Without the tool, preserve file-based behavior and report shared-store unavailability.
+- `b-memory-import` defaults to scanning only the legacy `.context/memory/` directory. It must not ingest subject-scoped SQL receipts; historical Markdown records are read-only in SQL mode.
 
 # Buck Workflow Steps
 
@@ -140,14 +142,15 @@ Layer rules:
 Spelling in code and docs is `judgment` / `judge`, matching OMP.
 
 **Memory layers:**
-1. **`.context/memory`** — required, git-portable session record (all harnesses).
-2. **Harness LTM (OMP only)** — when `memory.backend` is `hindsight` or `mnemopi`, agents use `retain` / `recall` / `reflect` (and optional `learn`). `/b-save` mirrors checkpoint facts via those tools; do not call Hindsight HTTP from skills except `b-memory-import`'s deterministic importer.
-3. **Memory skill (non-OMP)** — optional local search/index tool for non-OMP agents. Configure the skill path in the project's `AGENTS.md` under "Memory Search Tool".
+1. **`.context/memory`** — git-portable historical/session record in file mode. Configured OMP `/buck-loop` SQL saves create no new memory body or index entry; existing Markdown remains readable and unmigrated.
+2. **SQL memory** — configured OMP `/buck-loop` is authoritative for new reusable memory bodies; subject receipts contain metadata only. Outside the loop, require a callable `sql_memory` tool before choosing SQL; an environment variable alone is insufficient. Without the tool, preserve file mode.
+3. **Harness LTM (OMP only)** — when `memory.backend` is `hindsight` or `mnemopi`, use `retain` / `recall` / `reflect` (and optional `learn`) when available; do not call Hindsight HTTP from skills except `b-memory-import`.
+4. **Memory skill (non-OMP)** — optional local search/index tool for non-OMP agents.
 
-Prior-work search is **conditional** (defined in installable bootstrap `GLOBAL_OR_PROJECT-AGENTS.md`):
-- **If OMP**: use native memory tools (`recall`/`reflect`)
-- **Else**: use configured memory skill (see "Memory Search Tool" section below)
-- **Fallback**: read `.context/memory/index.md`
+Prior-work search is conditional:
+- **If OMP**: use native memory tools (`recall`/`reflect`) when available.
+- **Else**: use the configured memory skill.
+- **Fallback**: read `.context/memory/index.md`; never treat absent SQL tooling as proof that the store has zero matches.
 
 ## Memory Search Tool
 

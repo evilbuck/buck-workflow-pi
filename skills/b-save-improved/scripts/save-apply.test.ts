@@ -1,9 +1,11 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runApply } from "./save-apply.js";
+import { prepareSaveAttempt, saveSqlFacts } from "../../../extensions/buck-loop/sql-save.js";
+import { createLazyPool } from "../../../extensions/sql-memory/db.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
 const LEGACY = "- 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, orchestration] | topics: [grill-auto, rpc, pi-extension] | status: completed\n";
@@ -52,6 +54,13 @@ function backlog(root: string, related = "related:\n  - extensions/x.ts"): void 
 }
 
 describe("save-apply", () => {
+  const previousUrl = process.env.SQL_MEMORY_URL;
+  beforeEach(() => { delete process.env.SQL_MEMORY_URL; });
+  afterEach(() => {
+    if (previousUrl === undefined) delete process.env.SQL_MEMORY_URL;
+    else process.env.SQL_MEMORY_URL = previousUrl;
+  });
+
   it("prepends the exact normalized two-line index entry once and preserves the legacy line", () => {
     const root = fixture();
     try {
@@ -63,6 +72,23 @@ describe("save-apply", () => {
       expect(once.split("\n").filter(Boolean).at(-1) + "\n").toBe(LEGACY);
       run(root, payload);
       expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(once);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+
+  it("refuses to apply SQL-mode metadata without a saved receipt", () => {
+    const root = fixture();
+    try {
+      const payload = basePayload();
+      const result = spawnSync("bun", [SCRIPT], {
+        cwd: root,
+        input: JSON.stringify(payload),
+        encoding: "utf-8",
+        env: { ...process.env, SQL_MEMORY_URL: "postgres://example.invalid/save" },
+      });
+      expect(result.status).toBe(2);
+      expect(JSON.parse(result.stdout).error).toContain("verified SQL receipt is required");
+      expect(existsSync(join(root, String(payload.memory.path)))).toBe(false);
+      expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(LEGACY);
     } finally { rmSync(root, { recursive: true, force: true }); }
   });
 
@@ -307,6 +333,12 @@ describe("save-apply", () => {
 });
 
 describe("runApply in-process", () => {
+  const previousUrl = process.env.SQL_MEMORY_URL;
+  beforeEach(() => { delete process.env.SQL_MEMORY_URL; });
+  afterEach(() => {
+    if (previousUrl === undefined) delete process.env.SQL_MEMORY_URL;
+    else process.env.SQL_MEMORY_URL = previousUrl;
+  });
   it("returns 2 on a schema mismatch", () => {
     expect(runApply({})).toBe(2);
   });
@@ -522,6 +554,55 @@ Prior body.
     } finally {
       process.chdir(prev);
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("disposable SQL-mode apply", () => {
+  it("persists a fact and metadata without a phantom Markdown memory or cross-reference", async () => {
+    const root = fixture();
+    const url = process.env.SQL_MEMORY_TEST_URL!;
+    const oldUrl = process.env.SQL_MEMORY_URL;
+    const pool = createLazyPool(url)();
+    const project = `https://example.test/improved-save-${crypto.randomUUID()}.git`;
+    process.env.SQL_MEMORY_URL = url;
+    execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["remote", "add", "origin", project], { cwd: root });
+    execFileSync("git", ["config", "user.email", "improved-save@example.test"], { cwd: root });
+    const query = async (sql: string, values: unknown[]) => (await pool.query(sql, values)).rows;
+    try {
+      const planPath = ".context/2026-08-26.save/plan-x.md";
+      const specPath = ".context/2026-08-26.save/spec-x.md";
+      const legacy = "---\nstatus: active\n---\n# Plan\n\n**memory:** [../memory/old.md](../memory/old.md)\n";
+      write(root, planPath, legacy);
+      write(root, specPath, legacy);
+      const prepared = prepareSaveAttempt(root, "2026-08-26.save");
+      if ("error" in prepared) throw new Error(prepared.error);
+      const ids = await saveSqlFacts(root, prepared, ["It's stored in SQL."], query);
+      const payload = basePayload({
+        sql_receipt: { path: prepared.receiptRel, ids },
+        crossrefs: [planPath, specPath].map((path) => ({ path, key: "sql_memory_ids", value: ids[0] })),
+      });
+      const result = run(root, payload);
+      expect(result.errors).toEqual([]);
+      for (const path of [planPath, specPath]) {
+        const once = readFileSync(join(root, path), "utf8");
+        expect(once).toContain(`sql_memory_ids: [${ids[0]}]`);
+        expect(once).toContain("**memory:** [../memory/old.md](../memory/old.md)");
+        expect(once).not.toContain(`[${ids[0]}](${ids[0]})`);
+        expect(run(root, payload).errors).toEqual([]);
+        expect(readFileSync(join(root, path), "utf8")).toBe(once);
+      }
+      expect(existsSync(join(root, payload.memory.path))).toBe(false);
+      expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(LEGACY);
+      expect(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8")).not.toContain("It's stored in SQL.");
+    } finally {
+      await query("DELETE FROM memories WHERE id IN (SELECT m.id FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1)", [project]);
+      await query("DELETE FROM projects WHERE origin_url = $1", [project]);
+      await pool.end();
+      rmSync(root, { recursive: true, force: true });
+      if (oldUrl === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = oldUrl;
     }
   });
 });

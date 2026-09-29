@@ -353,7 +353,7 @@ function savingState() {
       {
         id: "saving-choice-advance",
         choice: { kind: "advance" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
+        when: (s: Snapshot) => ambiguousChoiceOpen(s) && !process.env.SQL_MEMORY_URL,
         target: "committing" as const,
         output: () => runSkill("commit", "session state saved; committing"),
       },

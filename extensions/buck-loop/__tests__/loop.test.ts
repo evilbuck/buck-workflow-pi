@@ -3,13 +3,14 @@
  * live model. Real `scan` + `machine` + `persist` still run against a temp
  * git repo. The child's last sentence is never parsed for the next state.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
 import { readProjection } from "../persist.js";
+import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
 import type { ChooseResult } from "../choice.js";
 import type { NestedSkill, RunStepResult } from "../run-step.js";
 import type { ActivityEvent } from "../../extension-activity.js";
@@ -82,15 +83,16 @@ function workDeps(
     context?: string;
     onActivity?: (event: ActivityEvent) => void;
   }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
-  canFixWithoutOperator: (_input: { cwd: string }) => Promise<{ yes: boolean; reason: string }> = async () => ({
-    yes: false,
-    reason: "test default: needs the operator",
+  classifyRepair: (_input: { cwd: string; sessionText: string }) => Promise<{ lift: "light" | "medium" | "heavy"; reason: string; diagnosis: string }> = async () => ({
+    lift: "heavy",
+    reason: "test default: heavy lift",
+    diagnosis: "test diagnosis",
   }),
 ) {
   return {
     runStep: vi.fn(runStep),
     choose: vi.fn(choose),
-    canFixWithoutOperator: vi.fn(canFixWithoutOperator),
+    classifyRepair: vi.fn(classifyRepair),
     now: () => NOW,
   };
 }
@@ -131,7 +133,13 @@ function landingWork() {
   };
 }
 
-afterEach(cleanupRepos);
+const originalSqlUrl = process.env.SQL_MEMORY_URL;
+beforeEach(() => { delete process.env.SQL_MEMORY_URL; });
+afterEach(() => {
+  cleanupRepos();
+  if (originalSqlUrl === undefined) delete process.env.SQL_MEMORY_URL;
+  else process.env.SQL_MEMORY_URL = originalSqlUrl;
+});
 
 describe("handleLoop commands", () => {
   it("status with no projection is idle and launches no work", async () => {
@@ -585,7 +593,7 @@ describe("failure and choice", () => {
         return landingWork()(opts);
       },
       async () => ({ status: "blocked", reason: "choose not expected" }),
-      async () => ({ yes: true, reason: "agent can finish" }),
+      async () => ({ lift: "light" as const, reason: "agent can finish", diagnosis: "finish the unchecked retrieval" }),
     );
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(result.state).toBe("blocked");
@@ -602,7 +610,7 @@ describe("failure and choice", () => {
     const deps = workDeps(
       async () => ({ ok: true, text: "held" }),
       async () => ({ status: "blocked", reason: "choose not expected" }),
-      async () => ({ yes: true, reason: "can retry" }),
+      async () => ({ lift: "light" as const, reason: "can retry", diagnosis: "finish the same slice" }),
     );
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
     expect(deps.runStep).toHaveBeenCalledTimes(2);
@@ -623,7 +631,7 @@ describe("failure and choice", () => {
         return { ok: true, text: "held" };
       },
       async () => ({ status: "blocked", reason: "choose not expected" }),
-      async () => ({ yes: true, reason: "can retry" }),
+      async () => ({ lift: "medium" as const, reason: "can retry", diagnosis: "finish the same slice" }),
     );
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
     expect(result.reason).toMatch(/Restart OMP before continuing/);
@@ -644,7 +652,7 @@ describe("failure and choice", () => {
         return landingWork()(opts);
       },
       async () => ({ status: "blocked", reason: "choose not expected" }),
-      async () => ({ yes: true, reason: "agent can finish" }),
+      async () => ({ lift: "light" as const, reason: "agent can finish", diagnosis: "finish the unchecked retrieval" }),
     );
     const warnings: string[] = [];
     const result = await handleLoop({
@@ -688,11 +696,32 @@ describe("failure and choice", () => {
     expect(deps.choose).not.toHaveBeenCalled();
     expect(confirmContinue).not.toHaveBeenCalled();
     expect(result.state).toBe("blocked");
-    expect(result.reason).toMatch(/cannot fix without the operator/i);
+    expect(result.reason).toMatch(/heavy lift/i);
     expect(result.reason).toContain("phase status is pending, not completed");
     expect(result.reason).toContain("[ ] Live SELECT against disposable DB");
     expect(result.reason).toContain("Disposable target has not been supplied.");
   });
+
+  it("hands the child report to the lift call and the diagnosis to the automatic retry", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(
+      async () => ({ ok: true, text: "Runtime SQL retrieval is not implemented." }),
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      async ({ sessionText }) => ({
+        lift: "light",
+        reason: "same assignment",
+        diagnosis: `finish retrieval after: ${sessionText}`,
+      }),
+    );
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(deps.classifyRepair).toHaveBeenCalledWith(expect.objectContaining({
+      sessionText: "Runtime SQL retrieval is not implemented.",
+    }));
+    const retryHandoff = deps.runStep.mock.calls[1]?.[0].handoff;
+    expect(retryHandoff).toContain("finish retrieval after: Runtime SQL retrieval is not implemented.");
+  });
+
 
   it("marks a phase completed when every acceptance box is already checked", async () => {
     const cwd = repo();
@@ -708,7 +737,7 @@ describe("failure and choice", () => {
     });
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(readFileSync(phase, "utf8")).toMatch(/^status: completed$/m);
-    expect(deps.canFixWithoutOperator).not.toHaveBeenCalled();
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
     expect(result.state).toBe("done");
   });
 
@@ -851,6 +880,82 @@ describe("resume", () => {
     expect(result.state).toBe("done");
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+  it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("commits a verified interrupted SQL save without running save again", async () => {
+    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
+    const cwd = repo();
+    phased(cwd, ["completed"]);
+    git(cwd, ["add", "-f", PLAN, `.context/${SUBJECT}/phase-1-p1.md`]);
+    const prepared = prepareSaveAttempt(cwd, SUBJECT);
+    if ("error" in prepared) throw new Error(prepared.error);
+    writeReceipt(cwd, prepared, { kind: "no-fact", ids: [] });
+    completeSaveAttempt(cwd, prepared);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1, state: "saving", subject: SUBJECT, planPath: PLAN, saveAttemptId: prepared.attemptId,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`, loopCount: 4,
+        iterateCyclesOnPhase: 0, maxLoops: 12, lastChoice: null, history: [],
+      }),
+    });
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-save") throw new Error("verified save must not rerun");
+      if (opts.skill === "b-commit") git(cwd, ["commit", "-qm", "saved"]);
+      return { ok: true, text: opts.skill };
+    });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(deps.runStep.mock.calls.map(([opts]) => opts.skill)).toEqual(["b-commit"]);
+  });
+  it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("rejects a later receipt for an interrupted projected save", async () => {
+    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
+    const cwd = repo();
+    phased(cwd, ["completed"]);
+    git(cwd, ["add", "-f", PLAN, `.context/${SUBJECT}/phase-1-p1.md`]);
+    const first = prepareSaveAttempt(cwd, SUBJECT);
+    if ("error" in first) throw new Error(first.error);
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1, state: "committing", subject: SUBJECT, planPath: PLAN,
+        saveAttemptId: first.attemptId, phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        loopCount: 4, iterateCyclesOnPhase: 0, maxLoops: 12, lastChoice: null, history: [],
+      }),
+    });
+    const later = prepareSaveAttempt(cwd, SUBJECT);
+    if ("error" in later) throw new Error(later.error);
+    writeReceipt(cwd, later, { kind: "no-fact", ids: [] });
+    completeSaveAttempt(cwd, later);
+    const deps = workDeps(async () => { throw new Error("wrong attempt cannot authorize commit"); });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("does not match");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+
+  it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("does not commit an interrupted save whose metadata never completed", async () => {
+    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
+    const cwd = repo();
+    phased(cwd, ["completed"]);
+    git(cwd, ["add", "-f", PLAN, `.context/${SUBJECT}/phase-1-p1.md`]);
+    const prepared = prepareSaveAttempt(cwd, SUBJECT);
+    if ("error" in prepared) throw new Error(prepared.error);
+    writeReceipt(cwd, prepared, { kind: "no-fact", ids: [] });
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1, state: "saving", subject: SUBJECT, planPath: PLAN, saveAttemptId: prepared.attemptId,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`, loopCount: 4,
+        iterateCyclesOnPhase: 0, maxLoops: 12, lastChoice: null, history: [],
+      }),
+    });
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-commit") throw new Error("metadata-incomplete save cannot commit");
+      return { ok: false, text: "apply failed" };
+    });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(deps.runStep.mock.calls.some(([opts]) => opts.skill === "b-save")).toBe(true);
+    expect(deps.runStep.mock.calls.some(([opts]) => opts.skill === "b-commit")).toBe(false);
+  });
+
 
   it("resumes a previously blocked run through USER_CONFIRMED", async () => {
     const cwd = repo();
@@ -1091,6 +1196,74 @@ describe("resume", () => {
     expect(result.state).toBe("blocked");
     expect(deps.runStep).not.toHaveBeenCalled();
   });
+});
 
+const recallResult = vi.hoisted(() => ({ current: undefined as RecallOutcome | undefined }));
+vi.mock("../project-memory.js", async () => {
+  const actual = await vi.importActual<typeof import("../project-memory.js")>("../project-memory.js");
+  const passThrough = actual.recallProjectMemories;
+  return {
+    ...actual,
+    recallProjectMemories: async (cwd: string, stagePath: string) => {
+      if (recallResult.current !== undefined) return recallResult.current;
+      return passThrough(cwd, stagePath);
+    },
+  };
+});
+import type { RecallOutcome } from "../project-memory.js";
 
+describe("configured SQL memory recall contract", () => {
+  beforeEach(() => {
+    recallResult.current = undefined;
+    delete process.env.SQL_MEMORY_URL;
+  });
+  afterEach(() => {
+    recallResult.current = undefined;
+    delete process.env.SQL_MEMORY_URL;
+  });
+
+  it("refuses to spawn the child when recall returns failure", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://unused";
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    recallResult.current = { kind: "failure", reason: "Shared SQL memory query failed (not an empty result): database unavailable." };
+
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("Shared SQL memory query failed");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("refuses to spawn the child when project identity cannot be established", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://unused";
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    recallResult.current = { kind: "identity-missing", reason: "Shared SQL memory is configured, but project identity could not be established; no memory query was made." };
+
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("project identity could not be established");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("still runs the child when recall succeeds with zero rows", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://unused";
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    recallResult.current = {
+      kind: "success-empty",
+      identity: { project: "https://example.test/acme/project.git", branch: "main", sha: "a".repeat(40) },
+    };
+
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/SQL save|SQL memory/i);
+    expect(deps.runStep).toHaveBeenCalled();
+  });
 });

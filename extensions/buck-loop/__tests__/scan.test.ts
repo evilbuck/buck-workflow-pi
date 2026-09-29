@@ -808,6 +808,34 @@ depends_on: []
     });
   });
 
+  it("requires verified SQL save evidence instead of a changed file-memory path", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }]);
+    writeTree(root, { ".context/memory/session.md": "memory\n" });
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://configured";
+    try {
+      const unverified = scan({
+        projectRoot: root,
+        path: `.context/${SUBJECT}`,
+        state: "saving",
+        sessionOutcome: "ok",
+      });
+      expect(unverified.workFacts.postcondition).toBe("ambiguous");
+      const verified = scan({
+        projectRoot: root,
+        path: `.context/${SUBJECT}`,
+        state: "saving",
+        sessionOutcome: "ok",
+        sqlSaveVerified: true,
+      });
+      expect(verified.workFacts.postcondition).toBe("confirmed");
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+
   it("confirms a committing session when the working tree is clean", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);

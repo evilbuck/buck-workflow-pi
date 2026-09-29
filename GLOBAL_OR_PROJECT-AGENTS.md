@@ -26,21 +26,17 @@ Instead of "The reason this happens is that JavaScript's event loop adds promise
 ## Before/After Workflow
 
 **Before starting ANY task:**
-1. Search prior work:
-   - **If OMP** (when `recall` / `reflect` tools exist): use `recall` (or `reflect` for synthesis) for decisions, conventions, and past outcomes. Treat results as background; verify against the repo.
-   - **Else** (non-OMP agents): use the configured memory skill. The skill path is specified in the project's `AGENTS.md` under "Memory Search Tool" (see configuration below). Load that skill and follow its search protocol.
-   - **Fallback** (if no memory skill is configured or available): read `.context/memory/index.md` (most recent 3–5 entries) and open relevant memory files.
+1. Read `.context/memory/index.md` (most recent 3–5 entries) and relevant memory files. When `SQL_MEMORY_URL` is configured in an OMP `/buck-loop` session, SQL recall is the shared-store source for project facts; historical Markdown memories remain readable but are not required to authorize a save.
 2. Read `.context/backlog/todo.md` for active priorities (legacy fallback: `.context/backlog.md`)
-3. If `.context/` missing: `mkdir -p .context/memory`
+3. If `.context/` missing, create the required worktree context directories; do not create a full `.context/memory` entry in SQL-backed `/buck-loop` saves.
 
-**After completing ANY significant work:**
-1. Write persistent artifact to `.context/` (plan, spec, research, memory, or backlog update)
-2. Write session memory to `.context/memory/<topic>-YYYY-MM-DD.md` with required frontmatter
-3. Update `.context/memory/index.md` with entry for the session file
-4. Update backlog: mark completed items, add new items
-5. Update spec/plan status to `completed` if finished
-6. Prefer `/b-save` (writes the above and, on OMP, `retain`s session facts when tools exist)
-7. Run `/b-commit` to commit durable state
+**After completing significant work:**
+1. Record durable intent and workflow metadata in `.context/` as required.
+2. In a configured OMP `/buck-loop`, `/b-save` stores reusable memory bodies in SQL and writes only a metadata receipt under `.context/<subject>/sql-memory-receipts/`; do not create a new `.context/memory/` file or index entry for that save.
+3. Outside a configured loop, use SQL for portable `/b-save` only when `sql_memory` is callable. If unavailable (including non-OMP harnesses), retain the existing file-based save and report shared-store unavailability. Never infer availability from `SQL_MEMORY_URL` alone.
+4. Keep historical `.context/memory/` files read-only in SQL mode; do not migrate them automatically. `b-memory-import` defaults to the legacy `.context/memory/` directory and must not scan subject receipts.
+5. Update backlog and plan/phase status only when verified; do not treat a receipt as proof that metadata application completed.
+6. Prefer `/b-save` and `/b-commit` as prescribed by the active workflow.
 
 
 ### Memory Search Tool Configuration (non-OMP agents)
@@ -61,7 +57,7 @@ Or for agent-specific tooling:
 For non-OMP agents, use: `.claude/skills/memory-search/SKILL.md`
 ```
 
-If no memory search tool is configured, agents fall back to reading `.context/memory/index.md`.
+If no memory search tool is configured, read `.context/memory/index.md` and relevant files. In SQL-configured OMP `/buck-loop`, use the admitted `sql_memory` tool for project recall; a successful zero-row query is distinct from missing or failed tooling.
 
 ---
 

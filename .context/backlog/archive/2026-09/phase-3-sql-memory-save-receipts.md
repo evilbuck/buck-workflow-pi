@@ -1,10 +1,10 @@
 ---
 title: "Phase 3: SQL save and truthful completion"
-status: active
+status: completed
 priority: high
 created: 2026-09-28
-updated: 2026-09-28
-completed: null
+updated: 2026-09-29
+completed: 2026-09-29
 related:
   - .context/2026-09-28.sql-memory-buck-loop/phase-3-sql-save-truthful-completion.md
   - .context/2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop.md
@@ -12,4 +12,4 @@ related:
 
 # Phase 3: SQL save and truthful completion
 
-Hard, `/b-build-hard`. HARD-depends on Phase 2. SQL-backed saves in b-save/b-save-improved with metadata-only subject receipts, supervisor postcondition verification before commit, and no competing `.context/memory` body in SQL mode.
+Done 2026-09-29. Saves leave a subject receipt, read back same-project rows, and block commit when the receipt or database check fails. Replay reuses the source key.

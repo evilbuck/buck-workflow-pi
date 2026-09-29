@@ -1,12 +1,32 @@
 - 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (both additive indexes preserved and staged; manual rebase continuation pending)
 
+- 2026-09-29 — [SQL memory Buck-loop closeout](sql-memory-buck-loop-closeout-2026-09-29.md) — completed (phases 2–4 closed with disposable cross-branch proof; commit follows on feat/sql-memory-tool)
+- 2026-09-29 — [Buck-loop TUI monitor](buck-loop-tui-monitor-2026-09-29.md) — completed (TUI loop done at 15/20 after an isolated disposable proof; this checkout was not committed)
+- 2026-09-29 — [SQL memory Buck-loop Phase 4 checkpoint](sql-memory-buck-loop-phase-4-checkpoint-2026-09-29.md) — active (bootstrap/docs/importer aligned; disposable SQL tests and guardrails pass; deployed OMP nested-loop proof remains)
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 immutable save and phase provenance](sql-memory-buck-loop-phase-3-immutable-provenance-2026-09-29.md) — completed (save-role immutable updates denied; phase context stored by both save paths; disposable PostgreSQL and guardrails pass)
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 cross-reference repair](sql-memory-buck-loop-phase-3-crossrefs-2026-09-29.md) — completed (legacy bold-line plans/specs retain links and receive SQL IDs in frontmatter; disposable PostgreSQL integration passed)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 portable save integrity](sql-memory-buck-loop-phase-3-portable-integrity-2026-09-29.md) — completed (atomic portable correction, pre-receipt active-row read-back; disposable PG and guardrails pass)
+
+- 2026-09-29 — [SQL save correction and attempt binding](sql-memory-buck-loop-phase-3-correction-2026-09-29.md) — completed (atomic correction rollback; projected attempt ID rejects later receipts; disposable PG and guardrails pass)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 review iteration](sql-memory-buck-loop-phase-3-iteration-2026-09-29.md) — completed (SQL-mode alternate save, receipt-backed resume, redacted origins; disposable PG and guardrails pass)
+
+- 2026-09-29 — [TUI buck-loop monitor](buck-loop-tui-monitor-2026-09-29.md) — active (no infinite loop; Phase 2 completed and saved but not committed; Phase 3 blocked at loop 11/12 after two heavy lifts)
+
+- 2026-09-29 — [SQL save checkpoint](sql-memory-buck-loop-phase-3-save-checkpoint-2026-09-29.md) — active (SQL-mode file-change false positive removed; actual receipt verification and remaining Phase 3 work incomplete)
+
+- 2026-09-29 — [Ambiguous postconditions are diagnosed, then lifted](buck-loop-ambiguity-lift-2026-09-29.md) — completed (child report is diagnosed before Jev classifies light/medium/heavy; light and medium retry with that diagnosis; heavy is told to the operator)
+- 2026-09-29 — [SQL memory Buck-loop Phase 2 zero-match contract](sql-memory-buck-loop-phase-2-zero-match-2026-09-29.md) — completed (empty vs missing vs error distinguished; live rows proof: seeded store, production recallProjectMemories returned both rows across branches; iterate artifact closed; durable guardrails v2 pass)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 2 recall checkpoint](sql-memory-buck-loop-phase-2-recall-2026-09-29.md) — active (shared portable recall guidance added; runtime identity, bounded query, parent Jev, and child context injection remain incomplete)
 - 2026-09-29 — [SQL memory Buck-loop Phase 1 save checkpoint](sql-memory-buck-loop-phase-1-save-2026-09-29.md) — completed (review Pass with verification warning, no in-plan defects; all four iterate files completed; subject stays active for Phases 2–4)
 - 2026-09-29 — [SQL memory Buck-loop Phase 1 cleanup retry iteration](sql-memory-buck-loop-phase-1-cleanup-retry-2026-09-29.md) — completed (cleanup failures after completed work block model fallback; 31 child runner tests and durable guardrails pass)
 - 2026-09-29 — [SQL memory Buck-loop Phase 1 pool-type iteration](sql-memory-buck-loop-phase-1-pool-type-2026-09-29.md) — completed (missing pool type imported; 29 child runner tests and durable guardrails pass; other targeted compiler errors remain)
 - 2026-09-29 — [SQL memory Buck-loop Phase 1 SQL-failure iteration](sql-memory-buck-loop-phase-1-sql-failure-2026-09-29.md) — completed (SQL tool and pool failures block model fallback; 29 run-step tests and durable guardrails pass)
 - 2026-09-29 — [SQL memory Buck-loop Phase 1 review iteration](sql-memory-buck-loop-phase-1-iteration-2026-09-29.md) — completed (save skill-weight guard, public-qualified targets, independent child/pool cleanup; 73 focused tests, guardrails pass)
-- 2026-09-29 — [Buck-loop Phase 1 monitoring and blocked-resume repair](buck-loop-phase1-monitor-resume-2026-09-29.md) — active (3/12 blocked, Phase 1 verified; completed-phase resume now targets review; review/commit await staged-file decision)
-- 2026-09-29 — [SQL memory Buck-loop Phase 1 implementation](sql-memory-buck-loop-phase-1-implementation-2026-09-29.md) — completed (stage-scoped adapter, live `runStep` and role-policy proofs, guardrails pass; workflow review/commit pending)
+- 2026-09-29 — [Buck-loop Phase 1 monitoring and blocked-resume repair](buck-loop-phase1-monitor-resume-2026-09-29.md) — completed (Phase 1 committed at 7705adf; Phase 2 advanced to 4/12, staged only portable guidance, and stopped safely with unchecked runtime criteria)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 implementation](sql-memory-buck-loop-phase-1-implementation-2026-09-29.md) — completed (stage-scoped adapter, live `runStep` and role-policy proofs, guardrails pass; later reviewed and committed at 7705adf)
 - 2026-09-29 — [Deployed OMP restricted-child SQL proof](sql-memory-buck-loop-deployed-child-proof-2026-09-29.md) — completed (restricted and `runStep` children returned proof=7 from disposable PostgreSQL; Phase 1 verified)
 - 2026-09-29 — [SQL-memory Phase 1 operator-block diagnosis](sql-memory-buck-loop-phase-1-diagnosis-2026-09-29.md) — completed (absent disposable test target caused plan-gated hold; later OMP proof resolved it)
 - 2026-09-29 — [SQL-memory Phase 1 deployed-child proof blocker](sql-memory-buck-loop-phase-1-live-child-blocker-2026-09-29.md) — superseded (standalone Pi SDK omitted the tool; deployed OMP fork later admitted it)

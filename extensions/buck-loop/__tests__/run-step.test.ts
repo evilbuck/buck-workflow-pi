@@ -3,7 +3,7 @@
  * host options (no extension discovery, tool allowlist, in-memory history)
  * and the `{ ok, text }` result. No live child agent is spawned.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,6 +54,9 @@ function selectOnce(id = "provider/picked", thinking: "off" | "low" | "medium" |
     return { ok: true as const, id, thinking };
   });
 }
+beforeEach(() => {
+  delete process.env.SQL_MEMORY_URL;
+});
 afterEach(() => {
   createAgentSessionMock.mockReset();
   createLazyPoolMock.mockClear();

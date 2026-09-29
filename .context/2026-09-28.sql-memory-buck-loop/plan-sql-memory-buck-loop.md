@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-09-28
 subject: 2026-09-28.sql-memory-buck-loop
 topics: [sql-memory, buck-loop, jev, memory-cutover]
@@ -53,17 +53,18 @@ Make the existing PostgreSQL memory tool usable inside isolated Buck work sessio
 
 ## Acceptance criteria
 
-- [ ] With SQL configured, an isolated `/buck-loop` child executes a real `sql_memory` SELECT, then an explicit save INSERT/read-back; the tool is unavailable to `b-commit` and has no migration permission in any child.
-- [ ] Default recall is project-scoped and includes active memories from other branches with provenance and relevance ordering; invalidated memories are excluded. Cross-project reads remain an intentional capability of this shared, no-RLS store (Q14), not a new security guarantee. Quotes in user inputs and body text remain data via bound parameters.
-- [ ] Optional parent Jev relevance uses only legal shortlist IDs; a bad verdict cannot add an ID. No Jev call is required for an ordinary store/recall, no `turn_end` writer runs, and Jev outages cannot advance a failed save.
-- [ ] SQL-backed saves leave a subject-scoped, metadata-only receipt, **no new `.context/memory/` file or index entry**. Resume and commit require the matching attempt and same-project SQL rows, or an explicit no-fact receipt after SQL connectivity succeeds; DB error or missing row blocks visibly. Replaying a save in one run does not duplicate it.
-- [ ] With no `SQL_MEMORY_URL`, Buck's current portable file save/recall remains functional and reports no shared store. Non-OMP harnesses without a callable `sql_memory` tool retain the file path even if an environment variable exists, with a visible availability note; a configured OMP loop never silently downgrades after SQL failure. Historical memory files remain readable.
-- [ ] `b-save-improved`, `b-build`/`b-iterate`, `b-review`, subject resolution, and bootstrap cannot silently create or require a competing full `.context/memory` body in SQL mode. Historical memory files remain readable without migration; non-OMP/file mode retains its existing behavior.
+- [x] With SQL configured, an isolated `/buck-loop` child executes a real `sql_memory` SELECT, then an explicit save INSERT/read-back; the tool is unavailable to `b-commit` and has no migration permission in any child.
+- [x] Default recall is project-scoped and includes active memories from other branches with provenance and relevance ordering; invalidated memories are excluded. Cross-project reads remain an intentional capability of this shared, no-RLS store (Q14), not a new security guarantee. Quotes in user inputs and body text remain data via bound parameters.
+- [x] Optional parent Jev relevance uses only legal shortlist IDs; a bad verdict cannot add an ID. No Jev call is required for an ordinary store/recall, no `turn_end` writer runs, and Jev outages cannot advance a failed save.
+- [x] SQL-backed saves leave a subject-scoped, metadata-only receipt, **no new `.context/memory/` file or index entry**. Resume and commit require the matching attempt and same-project SQL rows, or an explicit no-fact receipt after SQL connectivity succeeds; DB error or missing row blocks visibly. Replaying a save in one run does not duplicate it.
+- [x] With no `SQL_MEMORY_URL`, Buck's current portable file save/recall remains functional and reports no shared store. Non-OMP harnesses without a callable `sql_memory` tool retain the file path even if an environment variable exists, with a visible availability note; a configured OMP loop never silently downgrades after SQL failure. Historical memory files remain readable.
+- [x] `b-save-improved`, `b-build`/`b-iterate`, `b-review`, subject resolution, and bootstrap cannot silently create or require a competing full `.context/memory` body in SQL mode. Historical memory files remain readable without migration; non-OMP/file mode retains its existing behavior.
 
 ## Verification and execution
 
 - Contract tests: bound values and SQL-gate denial matrix (including read-only transaction protection), stage allowlists and restricted SDK custom tool admission, fixed Jev legal-set/invalid-output/failure cases, SQL receipt/no-fact/resume/failure-before-commit, and legacy file fallback. Avoid text-matching tests for prose instructions.
 - Live throwaway test against a disposable `pgvector/pg18` database: migration 001; first user/project provision; save with apostrophes in body/origin; current and second branch recall; supersede; crash/resume and connection failure; verify rows, subject receipt, no new memory file, and blocked/committed loop state. Exercise an actual restricted OMP child and `/buck-loop` command, not only a mocked `createAgentSession`. Never use the real shared DB for destructive test data.
+- Closeout evidence 2026-09-29: isolated `omp -p '/buck-loop'` on disposable PG `127.0.0.1:32775` called `sql_memory`, wrote receipt `01a0ef01-bdc0-729b-8e3a-871ae001c483`, blocked, then committed (`bc47e3b`). A second disposable run recalled a `feat/a` row from `feat/b`, excluded the superseded id, and returned `failure` (not empty) when the database port was closed. `b-commit` tool denial is `run-step.test.ts`. 102 focused tests passed with `SQL_MEMORY_TEST_URL` set.
 - Run the durable `npm run guardrails:check` after each coherent implementation slice and at final closeout; review changed-file LSP diagnostics. Docs-only planning in this session does not trigger the code gate. Keep the pre-existing staged deletions and user edits out of any commit.
 - This crosses DB tool, runtime, skills, and bootstrap layers; run `/skill:b-phase` to turn slices A–D into separate executable phase files before `/b-build-hard`. A–C are hard dependencies; D follows C. After each phase: `/b-review` → `/b-iterate` if in-plan defects → `/b-docs` if applicable → `/b-save` → `/b-commit`. No automatic `/goal` or `orchestrate` opt-in is assumed.
 

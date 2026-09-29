@@ -24,13 +24,12 @@ Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
 Overview: [`plan-sql-memory-buck-loop-phases.md`](../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop-phases.md).
 Phases form a HARD chain (1 → 2 → 3 → 4).
 
-- [ ] [Phase 1: Tool contract and child seam](items/phase-1-sql-memory-child-seam.md) — hard, `/b-build-hard` — [phase-1-tool-contract-child-seam.md](../2026-09-28.sql-memory-buck-loop/phase-1-tool-contract-child-seam.md)
 
-### Upcoming Phases
+### Active and Upcoming Phases
 
-- [ ] Phase 2: Recall and bounded judgment — medium, `/b-build` — [phase-2-recall-bounded-judgment.md](../2026-09-28.sql-memory-buck-loop/phase-2-recall-bounded-judgment.md)
-- [ ] Phase 3: SQL save and truthful completion — hard, `/b-build-hard` — [phase-3-sql-save-truthful-completion.md](../2026-09-28.sql-memory-buck-loop/phase-3-sql-save-truthful-completion.md)
-- [ ] Phase 4: Policy/docs and live proof — medium, `/b-build` — [phase-4-policy-docs-live-proof.md](../2026-09-28.sql-memory-buck-loop/phase-4-policy-docs-live-proof.md)
+- [x] [Phase 2: Recall and bounded judgment](archive/2026-09/phase-2-sql-memory-recall-judgment.md) — done 2026-09-29
+- [x] [Phase 3: SQL save and truthful completion](archive/2026-09/phase-3-sql-memory-save-receipts.md) — done 2026-09-29
+- [x] [Phase 4: Policy/docs and live proof](archive/2026-09/phase-4-sql-memory-docs-live-proof.md) — done 2026-09-29
 
 ## Buck Model Profile Phases (2026-09-23)
 

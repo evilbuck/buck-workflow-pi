@@ -164,6 +164,8 @@ export interface Snapshot {
   /** Active discrete phase file, or null for unphased plans / before resolution. */
   phasePath: string | null;
   planFacts: PlanFacts;
+  /** Attempt bound to the projected saving/committing transition, not the mutable global pointer. */
+  saveAttemptId?: string | null;
   workFacts: WorkFacts;
   reviewFacts: ReviewFacts;
   /** Completed supervisor iterations. */

@@ -183,12 +183,16 @@ function loadSkill(skill: NestedSkill): string {
 }
 
 /** Skill body first, then a hard boundary: the child may not choose the next loop state. */
-function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string): string {
+function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string, handoff?: string, directive?: string): string {
   const hardVariant = skill === "b-build-hard" ? "\nThis is the hard variant of b-build.\n" : "";
   const checkpointInstruction = skill === "b-commit"
     ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n"
     : "\nBefore returning, stage only files you created or modified for this assignment. Never stage pre-existing or unrelated changes. Report a failure if your files cannot be staged.\n";
-  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
+  const repair = handoff
+    ? `\nThe previous attempt left this assignment incomplete. Diagnosis:\n${handoff}\nFinish that diagnosed gap in this run. Do not stop after a partial checkpoint unless a required operator input is actually missing.\n`
+    : "";
+  const assigned = directive ? `\nSupervisor directive:\n${directive}\n` : "";
+  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}${repair}${assigned}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
 }
 
 function errorText(error: unknown): string {
@@ -214,6 +218,10 @@ export async function runStep(opts: {
   planOrPhasePath: string;
   /** Present only when the plan or phase file has a `difficulty:` key. */
   difficulty?: string;
+  /** Diagnosis from an automatic light or medium repair. */
+  handoff?: string;
+  /** Supervisor contract for this run, such as a SQL save attempt. Not a repair diagnosis. */
+  directive?: string;
   onActivity?: (event: ActivityEvent) => void;
   /** Live host registry ids. Same source `/buck-models` uses. */
   availableIds?: () => Promise<ReadonlySet<string>>;
@@ -230,7 +238,7 @@ export async function runStep(opts: {
     };
   }
 
-  const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath);
+  const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath, opts.handoff, opts.directive);
   const stage = STAGE_BY_SKILL[opts.skill];
   const body = planBody(opts.cwd, opts.planOrPhasePath);
   const excluded: string[] = [];

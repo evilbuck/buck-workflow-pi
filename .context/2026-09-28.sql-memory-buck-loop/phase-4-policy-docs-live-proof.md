@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-sql-memory-buck-loop.md
@@ -20,13 +20,13 @@ from_plan_steps: [4]
 depends_on: [3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `GLOBAL_OR_PROJECT-AGENTS.md` and repo `AGENTS.md` match installed bootstrap behavior for configured/unconfigured SQL paths"
-  - "[ ] `docs/sql-memory.md`, recall how-to (`docs/howto/recall-project-memories.md`), and `docs/buck-workflow.md` document SQL mode, receipts, and file fallback"
-  - "[ ] `b-memory-import` scans only the old `.context/memory/` directory and never ingests subject receipts; historical Markdown memories stay read-only in SQL mode"
-  - "[ ] Live OMP nested loop + disposable PG18+pgvector scenario passes end-to-end: admission, recall, save, receipt, blocked/committed states"
-  - "[ ] Full `npm run guardrails:check` green at closeout"
-completed_at: null
-completed_by: null
+  - "[x] `GLOBAL_OR_PROJECT-AGENTS.md` and repo `AGENTS.md` match installed bootstrap behavior for configured/unconfigured SQL paths"
+  - "[x] `docs/sql-memory.md`, recall how-to (`docs/howto/recall-project-memories.md`), and `docs/buck-workflow.md` document SQL mode, receipts, and file fallback"
+  - "[x] `b-memory-import` defaults to the old `.context/memory/` directory and excludes subject receipts; historical Markdown memories stay read-only in SQL mode"
+  - "[x] Live OMP nested loop + disposable PG18+pgvector scenario passes end-to-end: admission, recall, save, receipt, blocked/committed states"
+  - "[x] Full `npm run guardrails:check` green at closeout"
+completed_at: 2026-09-29
+completed_by: isolated-loop-proof
 ---
 
 # Phase 4: Policy/docs and live proof
@@ -52,3 +52,4 @@ HARD-depends on Phase 3 (save cutover must exist before docs describe it).
 ## Verification
 
 - Live `/buck-loop` nested scenario against disposable `pgvector/pg18` (migration 001, provision, save, recall across branches, supersede, resume, failure), then full `npm run guardrails:check`.
+- Evidence 2026-09-29: isolated `omp -p '/buck-loop'` in `/tmp/buck-loop-proof-IS3y` loaded this repo's extension and used disposable PG at 127.0.0.1:32775. Nested build called `sql_memory` (tool end ok). Save wrote receipt `01a0ef01-bdc0-729b-8e3a-871ae001c483` (completed rows receipt); the row is active in disposable PG. The same run blocked on a docs postcondition, then resumed through saving and committing to `done` (`bc47e3b`). Not the shared store. Cross-branch recall and supersede were not part of this run.

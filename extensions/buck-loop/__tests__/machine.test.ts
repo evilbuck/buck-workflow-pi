@@ -3,7 +3,7 @@
  * Covers deterministic edges, closed choice sets, illegal choices, and
  * operator-owned START / USER_CONFIRMED / STOP.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { MachineFailure } from "../../state-machine.js";
 import {
   MAX_ITERATE_CYCLES_PER_PHASE,
@@ -248,13 +248,32 @@ describe("next: confirmed postconditions advance deterministically", () => {
 });
 
 describe("next: ambiguous postconditions defer to a closed choice", () => {
-  it.each(POSTCONDITION_STATES)("stays in %s and offers retry|advance", (state) => {
-    const t = next(workSnap(state, { postcondition: "ambiguous" }));
-    expect(t.to).toBe(state);
-    expect(t.effect).toEqual({
-      kind: "choose",
-      legal: [{ kind: "retry" }, { kind: "advance" }],
-    });
+  it.each(POSTCONDITION_STATES)("stays in %s and offers retry|advance in file mode", (state) => {
+    const sqlUrl = process.env.SQL_MEMORY_URL;
+    delete process.env.SQL_MEMORY_URL;
+    try {
+      const t = next(workSnap(state, { postcondition: "ambiguous" }));
+      expect(t.to).toBe(state);
+      expect(t.effect).toEqual({
+        kind: "choose",
+        legal: [{ kind: "retry" }, { kind: "advance" }],
+      });
+    } finally {
+      if (sqlUrl !== undefined) process.env.SQL_MEMORY_URL = sqlUrl;
+    }
+  });
+
+  it("never offers advance on an unverified SQL save", () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://unused";
+    try {
+      expect(next(workSnap("saving", { postcondition: "ambiguous" })).effect).toEqual({
+        kind: "choose", legal: [{ kind: "retry" }],
+      });
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
   });
 
   it.each(POSTCONDITION_STATES)("blocks a second ambiguous %s retry without asking", (state) => {
@@ -420,6 +439,33 @@ describe("operator-owned edges", () => {
   it("STOP aborts from any loop state", () => {
     expect(stopFrom("building").to).toBe("aborted");
     expect(stopFrom("idle").to).toBe("aborted");
+  });
+});
+
+describe("SQL save cannot vote past persistence", () => {
+  const previous = process.env.SQL_MEMORY_URL;
+
+  afterEach(() => {
+    if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+    else process.env.SQL_MEMORY_URL = previous;
+  });
+
+  it("removes the saving advance choice when SQL memory is configured", () => {
+    process.env.SQL_MEMORY_URL = "postgres://example.invalid/sql-save";
+    const choices = legalChoices("saving", snap({
+      state: "saving",
+      workFacts: wf({ sessionOutcome: "ok", postcondition: "ambiguous", retriesUsed: 0 }),
+    }));
+    expect(choices.map((choice) => choice.kind)).toEqual(["retry"]);
+  });
+
+  it("keeps the saving advance choice in file mode", () => {
+    delete process.env.SQL_MEMORY_URL;
+    const choices = legalChoices("saving", snap({
+      state: "saving",
+      workFacts: wf({ sessionOutcome: "ok", postcondition: "ambiguous", retriesUsed: 0 }),
+    }));
+    expect(choices.map((choice) => choice.kind)).toEqual(["retry", "advance"]);
   });
 });
 

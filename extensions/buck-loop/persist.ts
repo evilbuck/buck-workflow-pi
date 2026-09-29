@@ -51,6 +51,7 @@ export type Projection = {
   subject: string;
   planPath: string;
   phasePath: string | null;
+  saveAttemptId?: string | null;
   loopCount: number;
   iterateCyclesOnPhase: number;
   maxLoops: number;
@@ -212,7 +213,7 @@ function resumePath(root: string, projection: Projection): string {
 
 function counters(projection: Projection): Pick<
   Snapshot,
-  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history"
+  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId"
 > {
   return {
     loopCount: projection.loopCount,
@@ -220,6 +221,7 @@ function counters(projection: Projection): Pick<
     iterateCyclesOnPhase: projection.iterateCyclesOnPhase,
     lastChoice: projection.lastChoice,
     history: projection.history,
+    saveAttemptId: projection.saveAttemptId ?? null,
   };
 }
 
@@ -252,6 +254,7 @@ function blankSnapshot(state: LoopState): Snapshot {
     phasePath: null,
     planFacts: { kind: "missing", reason: "uninitialized" },
     workFacts: { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" },
+    saveAttemptId: null,
     reviewFacts: { kind: "pending" },
     loopCount: 0,
     maxLoops: DEFAULT_MAX_LOOPS,
@@ -269,7 +272,8 @@ function normalizeProjection(raw: unknown): Projection | null {
   const lastChoice = asLastChoice(o.lastChoice);
   const history = asHistory(o.history);
   if (!identity || !counts || lastChoice === undefined || history === null) return null;
-  return { version: PROJECTION_VERSION, ...identity, ...counts, lastChoice, history };
+  if (o.saveAttemptId !== undefined && o.saveAttemptId !== null && typeof o.saveAttemptId !== "string") return null;
+  return { version: PROJECTION_VERSION, ...identity, ...counts, lastChoice, history, saveAttemptId: o.saveAttemptId as string | null | undefined };
 }
 
 function identityFields(o: Record<string, unknown>): {

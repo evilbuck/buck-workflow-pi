@@ -1,12 +1,12 @@
 # SQL memory store (`sql_memory`)
 
-Agent-shared PostgreSQL memory store. Replaces `.context/memory/` for new memories; existing `.context/` memories are not migrated (Q1/Q2). Plans, specs, research, and backlog still write to `.context/` files (Q3).
+SQL is the source of new reusable memory bodies in configured OMP `/buck-loop` saves. Only metadata receipts belong under `.context/<subject>/sql-memory-receipts/`; they are not offline memory copies and do not create `.context/memory/` entries. Existing Markdown memories remain readable and are not automatically migrated. Without a configured OMP loop, portable file behavior remains unless `sql_memory` is callable and the invoking workflow explicitly supports SQL saving.
 
 ## Operating rules
 
 - **Usage-driven, no gates.** SQL over the schema is the whole tool. No required Jev gate, no `turn_end` auto-writer. These docs are worked examples, not workflow prescriptions (Q4).
 - **Connection:** `SQL_MEMORY_URL` environment variable, read at tool registration. Set = tool registered; unset = nothing registered (Q18/Q19).
-- **Tool modes:** `{ op: "sql", statement, values? }` — one `SELECT`/`INSERT`/`UPDATE` against public memory tables, function-allowlisted, DDL denied. `values` is an optional array of bound parameters for `$1`, `$2`, … placeholders in `statement`; put dynamic text (including quotes) in `values`, not in interpolated SQL. `{ op: "migrate", destructive? }` — applies ordered files from `migrations/`; see `migrations/README.md`.
+- **Tool modes:** `{ op: "sql", statement, values? }` — one `SELECT`/`INSERT`/`UPDATE` against public memory tables, function-allowlisted, DDL denied. `values` is an optional array of bound parameters for `$1`, `$2`, … placeholders in `statement`; put dynamic text (including quotes) in `values`, not in interpolated SQL. Save-stage children also have `{ op: "correct", project, previousId, author, branchName, commitSha, body, context, category, seq }` for atomic correction (returns `{ id }`); direct and recall roles cannot call it. `{ op: "migrate", destructive? }` — applies ordered files from `migrations/`; see `migrations/README.md`.
 - **Schema changes:** never via `sql` mode. Author a numbered migration file and apply it with `migrate`. The agent authors and applies migrations autonomously (Q8/Q9), but only additive ones it can parse (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `CREATE EXTENSION IF NOT EXISTS vector`, `ALTER … ADD COLUMN` with basic types). Anything unparsed — destructive statements (`DROP`, `TRUNCATE`, deletes) or additive-but-unparseable forms (typed vector columns, `REFERENCES`, `USING hnsw`, `INSERT … SELECT` backfills) — requires the user to explicitly name the exact file via `destructive` (Q10).
 - **Immutability is enforced, not conventional (Q6/Q7).** The trigger rejects updates to `body`, `context`, `author`, `project`, `branch_name`, `commit_sha`, `created_at`, `valid_at`. The trigger's immutable set is exactly those 8 columns. The transition columns you write are `invalid_at` and `superseded_by` (plus `value_score` for scoring). `id`, `category`, and `seq` are technically writable — not in the trigger's rejected set — but treat them as immutable by convention. `memory_embeddings` rows are immutable; insert a replacement.
 - **Writable beyond memory transitions (Q11/Q6/Q7).** In the direct tool, `UPDATE users SET skill_weight` (Q11) and `memory_ranks` rows for per-rater scores (Q6/Q7) are allowed through `sql` mode; the direct tool may change a user's skill weight. Buck-loop children have a narrower policy below.
@@ -18,6 +18,12 @@ Agent-shared PostgreSQL memory store. Replaces `.context/memory/` for new memori
 When `SQL_MEMORY_URL` is set, `/buck-loop` injects a stage-scoped `sql_memory` tool into its restricted child sessions. Build, review, iterate, docs, and how-to children use the recall role: queries run inside read-only transactions, so writes fail even if the general SQL gate accepts their syntax. The save child can only `INSERT` or `UPDATE` `users`, `projects`, and `memories`; it cannot modify `users.skill_weight`. Child roles cannot run migrations. The commit child has no `sql_memory` tool. The direct extension tool keeps its broader SQL and migration permissions.
 
 Each eligible child attempt owns a bounded pool, closed when the session ends. A tool denial, database failure, or pool shutdown failure makes the configured stage fail and blocks model retry; the loop does not count that stage as successful.
+
+SQL saves use a stage-scoped executor with the same SQL policy and transaction setup as `sql_memory`. The supervisor binds a fresh attempt ID to the persisted `saving` projection; retries reuse the run's source keys. A receipt records same-project row IDs (or a connectivity-probed no-fact result), but cannot authorize commit until metadata apply finishes and the receipt has `completed: true`. Resume compares the projected attempt ID with the receipt; an unrelated later save cannot authorize the earlier transition. Interrupted saves lacking completion rerun the save stage; mismatched attempts block.
+
+Buck-loop corrections use the save-stage `correct` operation (or the alternate save executor) to atomically claim an active same-project predecessor, insert the successor, and set `superseded_by` in one gated transaction. An invalid target or update failure rolls back the successor; same-attempt retries reuse the already linked successor. Only `invalid_at` and `superseded_by` change on the predecessor. Separate `sql_memory` SQL calls remain individually transactional and must not be used to implement a correction. Save children read back every ID as active in the directive's project before writing a rows receipt.
+
+Outside a configured OMP loop, a portable `b-save` without a callable `sql_memory` tool uses the file-based memory path even when `SQL_MEMORY_URL` is present, with an availability note. Configured loop saves fail closed instead.
 
 ## Identity keys
 
@@ -62,7 +68,7 @@ Live output:
 Notes:
 - `branch_name IS NULL` = global memory; `branch_name`/`commit_sha` always travel together.
 - `ORDER BY m.seq` preserves capture order; re-rank in a second pass or order by `author_value_rank DESC` when priority matters more than chronology.
-- The SQL gate function allowlist covers `ts_rank`, `to_tsquery`, `plaintext_to_tsquery`, `coalesce`, aggregates — no `websearch_to_tsquery`. For arbitrary user input prefer `plaintext_to_tsquery`, which quotes its input safely.
+- The SQL gate function allowlist covers `ts_rank`, `to_tsquery`, `plainto_tsquery`, `coalesce`, aggregates — no `websearch_to_tsquery` and no `plaintext_to_tsquery` (PostgreSQL does not implement that name). For arbitrary user input prefer `plainto_tsquery('english', $1)`, which quotes its input safely.
 
 ### Pure skill × value ranking
 

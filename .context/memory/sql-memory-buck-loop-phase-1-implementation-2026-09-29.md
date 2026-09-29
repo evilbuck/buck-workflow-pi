@@ -13,7 +13,7 @@ artifacts: [../extensions/sql-memory/index.ts, ../extensions/sql-memory/index.te
 
 Implemented optional bound SQL `values`, stage-aware tool policy, and restricted tool injection for configured Buck-loop child sessions. Recall roles run transactions read-only; save roles allow only `INSERT`/`UPDATE` on users/projects/memories; child migrations are denied. `b-commit` receives no SQL tool. Each child session owns a bounded lazy PostgreSQL pool (max 2 connections) and ends it on session teardown. Tool-policy or DB errors are recorded and make the nested stage fail, preventing a configured loop from treating a failed SQL operation as successful.
 
-The deployed OMP restricted-child SELECT proof preceded implementation. Subsequently, an actual `runStep` child invoked the stage-scoped `sql_memory` tool against a second disposable PostgreSQL instance, returning proof=7; a third disposable instance verified role-policy and read-only-transaction behavior. No shared SQL endpoint was queried. The phase criteria and status are complete; workflow review/commit remain pending.
+The deployed OMP restricted-child SELECT proof preceded implementation. Subsequently, an actual `runStep` child invoked the stage-scoped `sql_memory` tool against a second disposable PostgreSQL instance, returning proof=7; a third disposable instance verified role-policy and read-only-transaction behavior. No shared SQL endpoint was queried. The phase criteria and status were completed; later review and four iterations passed, with the Phase 1 checkpoint committed at `7705adf`.
 
 ## Verification
 

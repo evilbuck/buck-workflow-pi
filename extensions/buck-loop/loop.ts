@@ -27,13 +27,14 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { basename, join, resolve } from "node:path";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
-  askCanFixWithoutOperator,
+  askRepairLift,
   changedLoopExtensionFiles,
+  diagnoseAmbiguity,
   explainAmbiguity,
   loopExtensionFiles,
   phaseAbs,
   repairCheckedPhase,
-  type Fixability,
+  type RepairPlan,
 } from "./ambiguity.js";
 import type { ActivityEvent } from "../extension-activity.js";
 import {
@@ -48,6 +49,8 @@ import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from 
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
 import { syncCheckedPhasesAt } from "./phase-completion.js";
+import { recallProjectMemories, formatRecall } from "./project-memory.js";
+import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
 import { applyChoice, next, start, stopFrom, userConfirmed } from "./machine.js";
 import type {
   AcceptedChoice,
@@ -130,8 +133,8 @@ export type LoopDeps = {
   confirmDirty: (paths: string[]) => Promise<boolean>;
   /** Yes keeps a run going instead of landing in `blocked`. No keeps the machine stop. */
   confirmContinue: (reason: string) => Promise<boolean>;
-  /** Closed question: can this ambiguous postcondition be repaired without the operator? */
-  canFixWithoutOperator: (input: { cwd: string; snapshot: Snapshot; why: string }) => Promise<Fixability>;
+  /** Diagnosed lift of an ambiguous postcondition. Light and medium continue; heavy is handed to the operator. */
+  classifyRepair: (input: { cwd: string; snapshot: Snapshot; why: string; sessionText: string }) => Promise<RepairPlan>;
   /** Ids from the live host registry, the same list `/buck-models` offers. */
   availableIds?: () => Promise<ReadonlySet<string>>;
 };
@@ -142,6 +145,7 @@ type EffectResult = {
   halt: LoopResult | null;
   /** Mandatory stops cannot be overridden by the generic continue prompt. */
   mandatoryStop?: true;
+  sessionText?: string;
 };
 
 const DEFAULT_DEPS: LoopDeps = {
@@ -154,9 +158,9 @@ const DEFAULT_DEPS: LoopDeps = {
   onWarning: () => undefined,
   confirmDirty: async () => false,
   confirmContinue: async () => false,
-  canFixWithoutOperator: async ({ cwd, snapshot }) => {
+  classifyRepair: async ({ cwd, snapshot, why, sessionText }) => {
     const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-    return askCanFixWithoutOperator(`${decisionContext(snapshot, "ambiguous postcondition")}\n${abs ? explainAmbiguity(abs) : ""}`);
+    return askRepairLift(diagnoseAmbiguity({ abs, sessionText, why }));
   },
 };
 
@@ -275,8 +279,18 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
+  const checked = await checkedResume(cwd, snapshot, deps.now());
+  if ("result" in checked) return checked.result;
+  snapshot = checked.snapshot;
   const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
   return drive(cwd, snapshot, path, deps);
+}
+
+async function checkedResume(cwd: string, snapshot: Snapshot, at: string): Promise<{ snapshot: Snapshot } | { result: LoopResult }> {
+  const reconciled = await reconcileSqlSave(cwd, snapshot, at);
+  if (reconciled.state !== "blocked" || snapshot.state === "blocked") return { snapshot: reconciled };
+  persistIfPossible(cwd, reconciled);
+  return { result: { state: "blocked", reason: reconciled.history.at(-1)?.why ?? "SQL save was not verified" } };
 }
 
 function idleOrUnreadableProjection(cwd: string): LoopResult {
@@ -311,33 +325,50 @@ function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Sna
 async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDeps): Promise<LoopResult> {
   let snapshot = initial;
   let lastFail: string | null = null;
+  let lastReport = "";
   for (let tick = 0; tick < SAFETY_TICK_CEILING; tick += 1) {
     const stopped = haltIfTerminal(cwd, snapshot);
     if (stopped) return stopped;
+    const wasSaving = snapshot.state === "saving";
     const step = takeStep(snapshot, lastFail, deps.now());
     snapshot = step.snapshot;
-    persistIfPossible(cwd, snapshot);
+    const preparationFailure = persistSaveTransition(cwd, snapshot, step.transition, wasSaving);
+    if (preparationFailure) return preparationFailure;
     if (step.halt) {
       const recovered = await recoverBlocked(cwd, snapshot, step.halt, deps);
       if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
       snapshot = recovered.snapshot;
       continue;
     }
-    const ran = await runEffect(cwd, snapshot, path, step.transition, deps);
+    const ran = await runEffect(cwd, snapshot, path, step.transition, deps, lastReport);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
+    lastReport = ran.sessionText;
     persistIfPossible(cwd, snapshot);
     if (ran.halt) {
-      if (ran.mandatoryStop) return ran.halt;
-      const recovered = await recoverBlocked(cwd, snapshot, ran.halt, deps);
-      if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
-      snapshot = recovered.snapshot;
+      const handled = await handleEffectHalt(cwd, snapshot, ran, deps);
+      if (handled.result) return handled.result;
+      snapshot = handled.snapshot;
       continue;
     }
   }
   const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
   snapshot = block(snapshot, reason, deps.now());
   return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
+}
+
+async function handleEffectHalt(cwd: string, snapshot: Snapshot, ran: EffectResult, deps: LoopDeps): Promise<{ snapshot: Snapshot; result: LoopResult | null }> {
+  if (ran.mandatoryStop) return { snapshot, result: ran.halt };
+  const recovered = await recoverBlocked(cwd, snapshot, ran.halt!, deps);
+  if (recovered.halt) return { snapshot, result: haltInCycleBlock(cwd, snapshot, recovered.halt) };
+  return { snapshot: recovered.snapshot, result: null };
+}
+
+function persistSaveTransition(cwd: string, snapshot: Snapshot, transition: Transition, retry: boolean): LoopResult | null {
+  const reason = prepareProjectedSave(cwd, transition, snapshot, retry);
+  if (reason) return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
+  persistIfPossible(cwd, snapshot);
+  return null;
 }
 
 function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
@@ -384,16 +415,21 @@ async function runEffect(
   path: string,
   transition: Transition,
   deps: LoopDeps,
-): Promise<EffectResult> {
+  sessionText: string,
+): Promise<EffectResult & { sessionText: string }> {
   if (transition.effect.kind === "choose") {
     if (ambiguousWorkChoice(snapshot, transition.effect.legal)) {
-      return resolveAmbiguity(cwd, snapshot, path, transition, deps);
+      return carryReport(await resolveAmbiguity(cwd, snapshot, path, transition, deps, sessionText), sessionText);
     }
-    return runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps);
+    return carryReport(await runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps), sessionText);
   }
-  if (transition.effect.kind !== "run-skill") return { snapshot, lastFail: null, halt: null };
+  if (transition.effect.kind !== "run-skill") return carryReport({ snapshot, lastFail: null, halt: null }, sessionText);
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
-  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
+  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null, sessionText: ran.sessionText };
+}
+
+function carryReport(result: EffectResult, sessionText: string): EffectResult & { sessionText: string } {
+  return result.sessionText === undefined ? { ...result, sessionText } : { ...result, sessionText: result.sessionText };
 }
 
 function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): boolean {
@@ -408,16 +444,27 @@ async function resolveAmbiguity(
   path: string,
   transition: Transition,
   deps: LoopDeps,
+  sessionText: string,
 ): Promise<EffectResult> {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
   if (abs && repairCheckedPhase(abs, deps.now())) {
     return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
   }
-  const verdict = await deps.canFixWithoutOperator({ cwd, snapshot, why: transition.why });
-  if (!verdict.yes) return stopForOperator(cwd, snapshot, verdict, abs, deps);
+  const plan = await deps.classifyRepair({ cwd, snapshot, why: transition.why, sessionText });
+  if (plan.lift === "heavy") return stopForOperator(cwd, snapshot, plan, abs, deps);
+  return retryRepair(cwd, snapshot, path, plan.diagnosis, deps);
+}
+
+async function retryRepair(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  diagnosis: string,
+  deps: LoopDeps,
+): Promise<EffectResult> {
   const beforeRetry = loopExtensionFiles(cwd);
   const retry = applyChoice({ kind: "retry" }, snapshot);
-  const ran = await continueChoice(cwd, snapshot, path, retry, deps);
+  const ran = await continueChoice(cwd, snapshot, path, retry, deps, diagnosis);
   const changed = changedLoopExtensionFiles(cwd, beforeRetry);
   if (changed.length === 0) return ran;
   return stopForExtensionRestart(cwd, ran.snapshot, changed, deps);
@@ -426,11 +473,13 @@ async function resolveAmbiguity(
 function stopForOperator(
   cwd: string,
   snapshot: Snapshot,
-  verdict: Fixability,
+  plan: RepairPlan,
   abs: string | null,
   deps: LoopDeps,
 ): EffectResult {
-  const reason = `cannot fix without the operator: ${verdict.reason}. ${abs ? explainAmbiguity(abs) : transitionWhy(snapshot)}`;
+  const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
+  const reason = `heavy lift: ${plan.reason}. ${plan.diagnosis} ${disk}`;
+  deps.onWarning(reason);
   const blocked = block(snapshot, reason, deps.now());
   persistIfPossible(cwd, blocked);
   return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
@@ -516,12 +565,19 @@ async function continueChoice(
   path: string,
   transition: Transition,
   deps: LoopDeps,
+  handoff?: string,
 ): Promise<EffectResult> {
   const nextSnapshot = withTransition(snapshot, transition, deps.now());
+  const savePreparation = prepareProjectedSave(cwd, transition, nextSnapshot, snapshot.state === "saving");
+  if (savePreparation) {
+    const blocked = block(nextSnapshot, savePreparation, deps.now());
+    persistIfPossible(cwd, blocked);
+    return { snapshot: blocked, lastFail: savePreparation, halt: { state: "blocked", reason: savePreparation } };
+  }
   persistIfPossible(cwd, nextSnapshot);
   if (transition.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
-  const ran = await executeSkill(cwd, nextSnapshot, path, transition.effect.skill, deps);
-  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null };
+  const ran = await executeSkill(cwd, nextSnapshot, path, transition.effect.skill, deps, handoff);
+  return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null, sessionText: ran.sessionText };
 }
 
 function applyChosen(
@@ -550,8 +606,8 @@ function applyChosen(
 }
 
 /**
- * Spawn the nested skill, then rescan. The child's last sentence is ignored;
- * disk facts in the rescan decide whether the session landed.
+ * Spawn the nested skill, then rescan. Disk facts decide whether the session
+ * landed. The child report is kept so an ambiguous stop can be diagnosed.
  */
 async function executeSkill(
   cwd: string,
@@ -559,7 +615,8 @@ async function executeSkill(
   path: string,
   skill: WorkSkill,
   deps: LoopDeps,
-): Promise<{ snapshot: Snapshot; failedText: string | null }> {
+  handoff?: string,
+): Promise<{ snapshot: Snapshot; failedText: string | null; sessionText: string }> {
   const planOrPhasePath = snapshot.phasePath ?? snapshot.planPath ?? path;
   const nested = nestedSkill(cwd, skill, snapshot);
   const reviewArtifactsBefore = skill === "review" ? snapshotReviewArtifacts(cwd, snapshot) : null;
@@ -570,16 +627,78 @@ async function executeSkill(
     target: planOrPhasePath,
   });
 
-  const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps);
+  const opened = await openSqlSave(cwd, snapshot, skill);
+  if (opened.block) {
+    return { snapshot: block(snapshot, opened.block, deps.now()), failedText: opened.block, sessionText: opened.block };
+  }
+  const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps, handoff, opened.directive);
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
+  const saveCheck = await finishSqlSave(cwd, snapshot, skill);
+  if (saveCheck.status === "block") {
+    return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
+  }
   syncCheckedPhasesAt(cwd, planOrPhasePath, deps.now().slice(0, 10));
   const scanned = rescan(cwd, snapshot, path, {
     sessionOutcome: result.ok ? "ok" : "failed",
     retriesUsed,
+    sqlSaveVerified: saveCheck.status === "verified",
   });
   return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+}
+
+async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill): Promise<{ directive?: string; block?: string }> {
+  if (skill !== "save" || !sqlMode()) return {};
+  const probe = await probeSql();
+  if (probe.status === "block") return { block: probe.reason };
+  if (!snapshot.subject) return { block: "SQL save has no subject; refusing to save." };
+  const prepared = prepareSaveAttempt(cwd, snapshot.subject, true, snapshot.phasePath);
+  if ("error" in prepared) return { block: prepared.error };
+  if (prepared.attemptId !== snapshot.saveAttemptId) return { block: "SQL save attempt differs from the projected transition." };
+  return { directive: saveDirective(prepared) };
+}
+
+/** Attempt creation precedes the durable saving transition; retries keep the run source key. */
+function prepareProjectedSave(cwd: string, transition: Transition, snapshot: Snapshot, retry: boolean): string | null {
+  if (!sqlMode() || transition.to !== "saving" || transition.effect.kind !== "run-skill"
+    || transition.effect.skill !== "save") return null;
+  if (!snapshot.subject) return "SQL save has no subject; refusing to save.";
+  const attempt = prepareSaveAttempt(cwd, snapshot.subject, retry, snapshot.phasePath);
+  if ("error" in attempt) return attempt.error;
+  snapshot.saveAttemptId = attempt.attemptId;
+  return null;
+}
+
+async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill) {
+  if (skill !== "save" || !sqlMode()) return { status: "skip" as const };
+  return verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId);
+}
+
+async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string): Promise<Snapshot> {
+  if (!sqlMode() || (snapshot.state !== "saving" && snapshot.state !== "committing")) return snapshot;
+  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId);
+  if (resumeSaveDecision(snapshot.state, check) === "block") {
+    const reason = check.status === "block"
+      ? check.reason
+      : "SQL save receipt does not match the current attempt; refusing to commit.";
+    return block(snapshot, reason, at);
+  }
+  if (check.status !== "verified") return {
+    ...snapshot,
+    workFacts: { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" },
+  };
+  return confirmedResume(cwd, snapshot);
+}
+
+function confirmedResume(cwd: string, snapshot: Snapshot): Snapshot {
+  if (snapshot.state === "saving") {
+    return { ...snapshot, workFacts: { sessionOutcome: "ok", retriesUsed: 0, postcondition: "confirmed" } };
+  }
+  const path = snapshot.phasePath ?? snapshot.planPath;
+  if (!path) return snapshot;
+  const scanned = rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
+  return scanned.workFacts.postcondition === "confirmed" ? scanned : snapshot;
 }
 
 async function runNestedSkill(
@@ -589,16 +708,30 @@ async function runNestedSkill(
   nested: NestedSkill,
   planOrPhasePath: string,
   deps: LoopDeps,
+  handoff?: string,
+  directive?: string,
 ): Promise<RunStepResult> {
   try {
     if (skill === "commit") prepareCommitCheckpoint(cwd);
     const difficulty = difficultyLabel(cwd, snapshot);
+    const memoryContext = skill === "commit" ? null : await recallProjectMemories(cwd, planOrPhasePath);
+    if (memoryContext?.kind === "failure") {
+      throw new Error(memoryContext.reason);
+    }
+    if (memoryContext?.kind === "identity-missing") {
+      throw new Error(memoryContext.reason);
+    }
+    const recallHandoff = memoryContext && memoryContext.kind !== "unavailable"
+      ? [handoff, formatRecall(memoryContext)].filter(Boolean).join("\n\n")
+      : handoff;
     return await deps.runStep({
       cwd,
       skill: nested,
       planOrPhasePath,
       ...(difficulty ? { difficulty } : {}),
-      onActivity: deps.onActivity,
+      ...(recallHandoff ? { handoff: recallHandoff } : {}),
+      ...(directive ? { directive } : {}),
+      ...(deps.onActivity ? { onActivity: deps.onActivity } : {}),
       ...(deps.availableIds ? { availableIds: deps.availableIds } : {}),
     });
   } catch (error) {
@@ -821,14 +954,15 @@ function finishSkill(
   ok: boolean,
   text: string,
   retriesUsed: number,
-): { snapshot: Snapshot; failedText: string | null } {
+): { snapshot: Snapshot; failedText: string | null; sessionText: string } {
   if (ok && skill === "build" && builtPhaseLanded(cwd, planOrPhasePath, scanned.planFacts.kind)) {
     return {
       snapshot: { ...scanned, workFacts: { sessionOutcome: "ok", retriesUsed, postcondition: "confirmed" } },
       failedText: null,
+      sessionText: text,
     };
   }
-  return { snapshot: scanned, failedText: ok ? null : text };
+  return { snapshot: scanned, failedText: ok ? null : text, sessionText: text };
 }
 
 type ReviewArtifactSnapshot = Map<string, { text: string; mtimeMs: number }>;
@@ -881,7 +1015,7 @@ function rescan(
   cwd: string,
   snapshot: Snapshot,
   path: string,
-  work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number },
+  work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number; sqlSaveVerified?: boolean },
 ): Snapshot {
   const scanPath = snapshot.phasePath ?? snapshot.planPath ?? path;
   const scanned = scan({
@@ -890,6 +1024,7 @@ function rescan(
     state: snapshot.state,
     sessionOutcome: work.sessionOutcome,
     retriesUsed: work.retriesUsed,
+    ...(work.sqlSaveVerified ? { sqlSaveVerified: true } : {}),
   });
   const phasePath = FROZEN_PHASE.has(snapshot.state) ? snapshot.phasePath ?? scanned.phasePath : scanned.phasePath;
   return {
@@ -971,6 +1106,7 @@ function persist(cwd: string, snapshot: Snapshot): void {
     subject: snapshot.subject,
     planPath: snapshot.planPath,
     phasePath: snapshot.phasePath,
+    saveAttemptId: snapshot.saveAttemptId ?? null,
     loopCount: snapshot.loopCount,
     iterateCyclesOnPhase: snapshot.iterateCyclesOnPhase,
     maxLoops: snapshot.maxLoops,

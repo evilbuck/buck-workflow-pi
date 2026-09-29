@@ -275,6 +275,7 @@ describe("assembleApplyPayload / buildRetainInstruction", () => {
         { path: "phase-2.md", verdict: "complete", evidence: "b:1" },
         { path: "iterate-x.md", verdict: "incomplete", evidence: "c:1" },
       ],
+      false,
     );
     expect(payload.specs_complete).toEqual(["spec-x.md"]);
     expect(payload.phases_complete).toEqual(["phase-1.md", "phase-2.md"]);
@@ -299,6 +300,7 @@ describe("assembleApplyPayload / buildRetainInstruction", () => {
         { path: "plan-x.md", verdict: "complete", evidence: "" },
         { path: "plan-y.md", verdict: "incomplete", evidence: "src/b.ts:1" },
       ],
+      false,
     );
     expect(payload.verification_evidence).toEqual([{ path: "spec-x.md", evidence: "src/a.ts:42" }]);
     expect(payload.spec_plans).toEqual([{ spec: "spec-x.md", plan: "plan-x.md" }]);
@@ -386,10 +388,11 @@ describe("golden parity: preflight + payload + apply", () => {
       }))!;
       const payload = assembleApplyPayload(pre, scribe, [
         { path: "spec-feature.md", verdict: "complete", evidence: "extensions/a.ts:42" },
-      ]);
+      ], false);
       expect(payload).not.toHaveProperty("subject_index_status");
       const apply = (p: unknown) => JSON.parse(execFileSync("bun", [APPLY], {
         cwd: root, input: JSON.stringify(p), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"],
+        env: { ...process.env, SQL_MEMORY_URL: "" },
       }));
 
       expect(apply(payload).errors).toEqual([]);

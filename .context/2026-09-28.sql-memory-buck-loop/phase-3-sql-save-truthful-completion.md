@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-sql-memory-buck-loop.md
@@ -26,16 +26,16 @@ from_plan_steps: [4, 5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Save path: bound `sql_memory` statements with git email, project ID, branch+SHA pair (or both NULL), active category, explicit per-session seq, subject/phase/source context; `INSERT ... RETURNING id`; source-key lookup in memories.context prevents single-run retry duplication"
-  - "[ ] Correction inserts successor then updates only invalid_at/superseded_by; immutable content never updated"
-  - "[ ] Metadata-only receipt written to `.context/<subject>/sql-memory-receipts/<run-id>-<attempt>.json` after same-project read-back; NO new `.context/memory/` file or index entry in SQL mode"
-  - "[ ] Supervisor generates save-attempt ID before launching b-save; saving → committing requires matching receipt + same-project SQL rows; stale receipt cannot satisfy a new attempt"
-  - "[ ] `{error:true}`, missing row, or DB outage blocks with operator-visible reason; ambiguous `saving` Jev advance route removed for unverified SQL mode"
-  - "[ ] Explicit no-fact receipt only after successful SQL connectivity probe; verified no-fact saves advance"
-  - "[ ] `--resume` reconciles receipt and rows before commit; DB URL never persisted"
-  - "[ ] Without SQL_MEMORY_URL, existing portable file contract fully preserved (except unconfirmed save not treated as proof); b-save-improved/subject resolution cannot silently require competing memory files in SQL mode"
-completed_at: null
-completed_by: null
+  - "[x] Save path: bound `sql_memory` statements with git email, project ID, branch+SHA pair (or both NULL), active category, explicit per-session seq, subject/phase/source context; `INSERT ... RETURNING id`; source-key lookup in memories.context prevents single-run retry duplication"
+  - "[x] Correction inserts successor then updates only invalid_at/superseded_by; immutable content never updated"
+  - "[x] Metadata-only receipt written to `.context/<subject>/sql-memory-receipts/<run-id>-<attempt>.json` after same-project read-back; NO new `.context/memory/` file or index entry in SQL mode"
+  - "[x] Supervisor generates save-attempt ID before launching b-save; saving → committing requires matching receipt + same-project SQL rows; stale receipt cannot satisfy a new attempt"
+  - "[x] `{error:true}`, missing row, or DB outage blocks with operator-visible reason; ambiguous `saving` Jev advance route removed for unverified SQL mode"
+  - "[x] Explicit no-fact receipt only after successful SQL connectivity probe; verified no-fact saves advance"
+  - "[x] `--resume` reconciles receipt and rows before commit; DB URL never persisted"
+  - "[x] Without SQL_MEMORY_URL, existing portable file contract fully preserved (except unconfirmed save not treated as proof); b-save-improved/subject resolution cannot silently require competing memory files in SQL mode"
+completed_at: 2026-09-29
+completed_by: supervisor-receipt
 ---
 
 # Phase 3: SQL save and truthful completion

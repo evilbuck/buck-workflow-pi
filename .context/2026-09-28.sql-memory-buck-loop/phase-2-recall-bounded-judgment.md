@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-sql-memory-buck-loop.md
@@ -21,13 +21,13 @@ from_plan_steps: [2, 3]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Project key derived from git origin (credentials redacted) or absolute common git dir; branch + full SHA recorded as provenance, NOT recall filters"
-  - "[ ] Recall fetches bounded active (`invalid_at IS NULL`) shortlist across all project branches with ID/body/category/origin/branch/SHA and SQL-side ranking"
-  - "[ ] Missing DB/config visibly distinct from zero matching memories; retrieved text never treated as instructions; conflicts defer to current plan/phase files"
-  - "[ ] `b-build`, `b-iterate`, `b-review`, `b-docs`, `b-howto` invoke SQL recall only when the tool is callable; other harnesses keep file path with visible availability note"
-  - "[ ] Optional parent Jev `noul` relevance uses only legal shortlist IDs; invalid IDs rejected; Jev failure retains deterministic shortlist; no Jev call for obvious/no-candidate cases"
-completed_at: null
-completed_by: null
+  - "[x] Project key derived from git origin (credentials redacted) or absolute common git dir; branch + full SHA recorded as provenance, NOT recall filters"
+  - "[x] Recall fetches bounded active (`invalid_at IS NULL`) shortlist across all project branches with ID/body/category/origin/branch/SHA and SQL-side ranking"
+  - "[x] Missing DB/config visibly distinct from zero matching memories; retrieved text never treated as instructions; conflicts defer to current plan/phase files"
+  - "[x] `b-build`, `b-iterate`, `b-review`, `b-docs`, `b-howto` invoke SQL recall only when the tool is callable; other harnesses keep file path with visible availability note"
+  - "[x] Optional parent Jev `noul` relevance uses only legal shortlist IDs; invalid IDs rejected; Jev failure retains deterministic shortlist; no Jev call for obvious/no-candidate cases"
+completed_at: 2026-09-29
+completed_by: b-build
 ---
 
 # Phase 2: Recall and bounded judgment
@@ -42,7 +42,7 @@ Builds on Phase 1's admitted `sql_memory` tool (HARD dependency).
 
 - Shared portable recall instructions in `skills/_shared/` (harness-neutral; never opens a DB connection itself — uses the callable tool).
 - Project key from git origin with URL credentials redacted, or absolute common git dir on broad git failure — report failure rather than assigning memories to an accidental project (do NOT reuse the loose `resolveGitIdentity` cwd fallback).
-- Bound queries: `plaintext_to_tsquery` for free text; bound rows/content; SQL-side text/author-value ranking with deterministic tie order.
+- Bound free-text queries use PostgreSQL `plainto_tsquery('english', $1)` with a literal configuration and one bound value; `plaintext_to_tsquery` is not a PostgreSQL function. Bound rows/content; rank text and author value in SQL with deterministic tie order.
 - Parent loop may fetch a small active-project shortlist before a nested stage and run fixed-shape native `runJev` (`noul`) relevance over candidate IDs; pass only validated IDs/provenance to the child. Children never gain ambient Jev or model-generated SQL.
 - Existing loop continuation Jev stays as-is except it cannot override an unverified SQL save (finished in Phase 3).
 
@@ -50,6 +50,7 @@ Builds on Phase 1's admitted `sql_memory` tool (HARD dependency).
 
 - Skills must stay harness-neutral (locked convention): name the closed question; Jev only via OMP eval-kernel/extension path.
 - Jev must never invent IDs; failure path = deterministic shortlist.
+- A denied or failed `sql_memory` call fails the whole Buck-loop stage. Use `plainto_tsquery('english', $1)` (literal config, one bound value). Do not call `plaintext_to_tsquery`, `left`, or `websearch_to_tsquery`. Trim body length in application code.
 
 ## Verification
 

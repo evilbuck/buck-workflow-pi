@@ -34,9 +34,9 @@ export type ScanOptions = {
   state?: LoopState;
   sessionOutcome?: WorkFacts["sessionOutcome"];
   retriesUsed?: number;
+  sqlSaveVerified?: boolean;
 };
 
-/** Disk facts the supervisor copies onto a {@link Snapshot}. Paths are repo-relative. */
 export type ScanResult = {
   subject: string | null;
   planPath: string | null;
@@ -71,6 +71,7 @@ type PostCtx = {
   iterate: boolean;
   complete: boolean;
   reviewFacts: ReviewFacts;
+  sqlSaveVerified: boolean;
 };
 
 const PENDING_WORK: WorkFacts = {
@@ -452,7 +453,7 @@ type PostFn = (ctx: PostCtx) => WorkFacts["postcondition"];
  * `acceptance_criteria` list is all `[x]`, or, with no list, `status: completed`.
  * `iterating` confirmed when the iterate file is gone (work absorbed).
  * `documenting` confirmed if a living-doc path changed.
- * `saving` confirmed if `.context/memory/` changed.
+ * `saving` confirmed by a verified receipt in SQL mode, or changed `.context/memory/` in file mode.
  * `committing` confirmed if git is clean.
  * `reviewing` is always confirmed — routing uses ReviewFacts instead.
  */
@@ -461,31 +462,44 @@ const POSTCONDITION: Partial<Record<LoopState, PostFn>> = {
   iterating: (ctx) => (ctx.iterate ? "ambiguous" : "confirmed"),
   documenting: (ctx) =>
     currentReviewExpectsNoDocs(ctx.reviewFacts) || ctx.changed?.some(isDocPath) ? "confirmed" : "ambiguous",
-  saving: (ctx) => (ctx.changed?.some((f) => f.startsWith(".context/memory/")) ? "confirmed" : "ambiguous"),
+  saving: savePostcondition,
   committing: (ctx) => (ctx.changed !== null && ctx.changed.length === 0 ? "confirmed" : "ambiguous"),
   reviewing: () => "confirmed",
 };
 
+function savePostcondition(ctx: PostCtx): WorkFacts["postcondition"] {
+  const fileMemoryChanged = Boolean(ctx.changed?.some((file) => file.startsWith(".context/memory/")));
+  return ctx.sqlSaveVerified || (!process.env.SQL_MEMORY_URL && fileMemoryChanged)
+    ? "confirmed"
+    : "ambiguous";
+}
+
 function scanWorkFacts(root: string, resolved: Resolved, opts: ScanOptions, reviewFacts: ReviewFacts): WorkFacts {
   const sessionOutcome = opts.sessionOutcome ?? "pending";
   const retriesUsed = opts.retriesUsed ?? 0;
-  if (sessionOutcome !== "ok") {
-    return { sessionOutcome, retriesUsed, postcondition: "pending" };
-  }
+  if (sessionOutcome !== "ok") return { sessionOutcome, retriesUsed, postcondition: "pending" };
+  return {
+    sessionOutcome,
+    retriesUsed,
+    postcondition: scanCompletedWork(root, resolved, opts, reviewFacts),
+  };
+}
+
+function scanCompletedWork(root: string, resolved: Resolved, opts: ScanOptions, reviewFacts: ReviewFacts): WorkFacts["postcondition"] {
   const state = opts.state ?? "resolving";
   const assess = POSTCONDITION[state];
-  if (!assess) return { sessionOutcome, retriesUsed, postcondition: "pending" };
+  if (!assess) return "pending";
   const changed = gitChangedFiles(root);
   const phaseStatus = resolved.phaseAbs ? readStatus(resolved.phaseAbs) : readStatus(resolved.planAbs);
-  const postcondition = assess({
+  return assess({
     changed,
     phaseStatus,
     phaseDone: assessedPhaseDone(root, resolved, opts),
     iterate: hasIterate(resolved.subjectDir),
     complete: resolved.planFacts.kind === "phased-complete",
     reviewFacts,
+    sqlSaveVerified: opts.sqlSaveVerified ?? false,
   });
-  return { sessionOutcome, retriesUsed, postcondition };
 }
 
 /** During a phase mini-cycle, judge that phase file, not the next incomplete one. */
