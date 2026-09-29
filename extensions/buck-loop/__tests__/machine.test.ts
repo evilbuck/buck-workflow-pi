@@ -414,7 +414,7 @@ describe("operator-owned edges", () => {
   });
 
   it("USER_CONFIRMED moves blocked → resolving", () => {
-    expect(userConfirmed().to).toBe("resolving");
+    expect(userConfirmed(snap({ state: "blocked" })).to).toBe("resolving");
   });
 
   it("STOP aborts from any loop state", () => {

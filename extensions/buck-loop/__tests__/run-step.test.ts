@@ -9,7 +9,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as PiCodingAgent from "@mariozechner/pi-coding-agent";
 
-const { createAgentSessionMock, failSkillRead } = vi.hoisted(() => ({ createAgentSessionMock: vi.fn(), failSkillRead: { value: false } }));
+const { createAgentSessionMock, createLazyPoolMock, failSkillRead } = vi.hoisted(() => ({
+  createAgentSessionMock: vi.fn(),
+  createLazyPoolMock: vi.fn(() => () => ({ end: async () => {} })),
+  failSkillRead: { value: false },
+}));
 vi.mock("node:fs", async () => {
   const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
   return { ...actual, readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
@@ -21,6 +25,7 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
   const actual = await vi.importActual<typeof PiCodingAgent>("@mariozechner/pi-coding-agent");
   return { ...actual, createAgentSession: createAgentSessionMock };
 });
+vi.mock("../../sql-memory/db.js", () => ({ createLazyPool: createLazyPoolMock }));
 import { WORK_SESSION_IDLE_TIMEOUT_MS, runStep, selectBuckStageModel, type WorkModelSelectInput } from "../run-step.js";
 
 const dirs: string[] = [];
@@ -49,11 +54,155 @@ function selectOnce(id = "provider/picked", thinking: "off" | "low" | "medium" |
     return { ok: true as const, id, thinking };
   });
 }
-afterEach(() => { createAgentSessionMock.mockReset(); failSkillRead.value = false; for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => {
+  createAgentSessionMock.mockReset();
+  createLazyPoolMock.mockClear();
+  failSkillRead.value = false;
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+});
 describe("runStep", () => {
   it("leads with the canonical skill contract and names the exact phase path", async () => { const fake = arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: ".context/example/phase-2.md" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt.startsWith("---")).toBe(true); expect(prompt).toContain("# b-build: Implementation Agent with TDD"); expect(prompt).toContain(".context/example/phase-2.md"); expect(prompt).toContain("stage only files you created or modified"); expect(prompt).toContain("no authority to choose the next loop state"); });
   it("creates isolated sessions with the build tool allowlist", async () => { arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ disableExtensionDiscovery: true, restrictToolNames: true, enableMCP: false, enableLsp: false, modelPattern: "provider/picked", thinkingLevel: "medium", tools: ["read", "edit", "write", "grep", "bash"], toolNames: ["read", "edit", "write", "grep", "bash"] })); });
   it.each([["b-review", ["read", "edit", "write", "grep", "find", "ls", "bash"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-howto", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill, planOrPhasePath: "plan.md" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools, modelPattern: "provider/picked" })); });
+  it("admits sql_memory only to configured non-commit stages as a restricted custom tool", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    try {
+      arrange();
+      await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+        allowRestrictedCustomTools: true,
+        restrictToolNames: true,
+        toolNames: ["read", "edit", "write", "grep", "bash", "sql_memory"],
+        customTools: [expect.objectContaining({ name: "sql_memory" })],
+      }));
+      createAgentSessionMock.mockClear();
+      arrange();
+      await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md" });
+      expect(createAgentSessionMock.mock.calls[0]![0]).not.toHaveProperty("customTools");
+      expect(createAgentSessionMock.mock.calls[0]![0].toolNames).toEqual(["read", "bash"]);
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+  it("blocks a configured stage when its sql_memory call is denied", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    try {
+      arrange();
+      createAgentSessionMock.mockImplementation(async (options) => {
+        const sqlTool = options.customTools?.[0] as { execute: (...args: unknown[]) => Promise<{ details: unknown }> };
+        const result = await sqlTool.execute("call", { op: "sql", statement: "DELETE FROM memories" }, undefined, undefined, {} as never);
+        expect(result.details).toMatchObject({ error: true });
+        return { session: {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          messages: [{ role: "assistant", content: "I finished." }],
+          subscribe: vi.fn(() => vi.fn()),
+          abort: vi.fn().mockResolvedValue(undefined),
+          dispose: vi.fn().mockResolvedValue(undefined),
+        } };
+      });
+      await expect(runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" })).resolves.toMatchObject({
+        ok: false,
+        text: expect.stringContaining("SQL memory"),
+      });
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+  it("does not retry another model after a configured SQL failure", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    try {
+      const first = arrange("I finished.");
+      createAgentSessionMock.mockReset();
+      createAgentSessionMock.mockImplementationOnce(async (options) => {
+        const sqlTool = options.customTools[0] as { execute: (id: string, params: unknown) => Promise<{ details: unknown }> };
+        first.prompt.mockImplementation(async () => {
+          const result = await sqlTool.execute("call", { op: "sql", statement: "DELETE FROM memories" });
+          expect(result.details).toMatchObject({ error: true });
+        });
+        return { session: first };
+      });
+      const select = vi.fn(async (input: WorkModelSelectInput) => ({
+        ok: true as const,
+        id: input.exclude.length ? "provider/second" : "provider/first",
+        thinking: "medium" as const,
+      }));
+      const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      expect(result).toMatchObject({
+        ok: false,
+        text: expect.stringContaining("Configured SQL memory operation failed"),
+        failure: { error: { name: "SqlMemoryError" } },
+      });
+      expect(select).toHaveBeenCalledTimes(1);
+      expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+  it("disposes the child and returns a failed stage when SQL pool shutdown fails", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const end = vi.fn().mockRejectedValue(new Error("pool shutdown failed"));
+    createLazyPoolMock.mockReturnValueOnce(() => ({ end }));
+    try {
+      const session = arrange("finished");
+      const select = vi.fn(async (input: WorkModelSelectInput) => ({
+        ok: true as const,
+        id: input.exclude.length ? "provider/second" : "provider/first",
+        thinking: "medium" as const,
+      }));
+      const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      expect(session.dispose).toHaveBeenCalledOnce();
+      expect(end).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ ok: false, text: expect.stringContaining("pool shutdown failed") });
+      expect(select).toHaveBeenCalledTimes(1);
+      expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+
+  it.each(["unsubscribe", "dispose"] as const)("does not retry completed work when %s fails", async (cleanup) => {
+    const first = arrange("work completed");
+    first[cleanup].mockImplementation(() => { throw new Error(`${cleanup} failed`); });
+    const select = vi.fn(async (input: WorkModelSelectInput) => ({
+      ok: true as const,
+      id: input.exclude.length ? "provider/second" : "provider/first",
+      thinking: "medium" as const,
+    }));
+
+    const result = await runStep({ select, cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md" });
+
+    expect(result).toMatchObject({ ok: false, text: `${cleanup} failed` });
+    expect(first.dispose).toHaveBeenCalledOnce();
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the stage failure when both disposal and pool shutdown fail", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const end = vi.fn().mockRejectedValue(new Error("pool shutdown failed"));
+    createLazyPoolMock.mockReturnValueOnce(() => ({ end }));
+    try {
+      const session = arrange();
+      session.prompt.mockRejectedValue(new Error("provider disconnected"));
+      session.dispose.mockRejectedValue(new Error("dispose failed"));
+      const result = await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      expect(session.dispose).toHaveBeenCalledOnce();
+      expect(end).toHaveBeenCalledOnce();
+      expect(result).toMatchObject({ ok: false, text: expect.stringContaining("provider disconnected") });
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
   it("does not waive protected-branch force for nested loop commits", async () => { const fake = arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt).not.toContain("Treat this assignment as /b-commit force"); expect(prompt).toContain("Do not use force"); });
   it("runs the picker id and thinking level, not a difficulty role", async () => { arrange(); const cwd = tmp(); writeRoles(cwd); const select = selectOnce("provider/picked", "high"); await runStep({ select, cwd, skill: "b-build", planOrPhasePath: "plan.md", difficulty: "hard" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ modelPattern: "provider/picked", thinkingLevel: "high" })); expect(createAgentSessionMock.mock.calls[0][0]).not.toHaveProperty("difficulty"); expect(select.mock.calls[0][0].difficulty).toBe("hard"); });
   it("exports a fifteen-minute work-session idle timeout", () => { expect(WORK_SESSION_IDLE_TIMEOUT_MS).toBe(15 * 60_000); });

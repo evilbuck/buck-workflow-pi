@@ -33,6 +33,33 @@ const CLAUSE_ENDS: Record<string, true> = {
 interface Token { value: string; kind: "word" | "symbol" | "literal" | "dollar"; }
 interface ScannedToken { token: Token; next: number; }
 export type SqlGateResult = { allowed: true } | { allowed: false; reason: string };
+export type SqlMemoryRole = "recall" | "save";
+
+const SAVE_TABLES: Record<string, true> = { users: true, projects: true, memories: true };
+
+/** Apply the narrower stage policy after the general memory-schema SQL gate. */
+export function checkSqlForRole(sql: string, role: SqlMemoryRole): SqlGateResult {
+  const general = checkSqlStatement(sql);
+  if (!general.allowed || role === "recall") return general;
+  const tokens = tokenize(sql);
+  if (!tokens) return { allowed: false, reason: "SQL statement is empty or unparseable" };
+  const operation = tokens.find((token) => token.kind === "word")?.value.toUpperCase();
+  if (operation !== "INSERT" && operation !== "UPDATE") {
+    return { allowed: false, reason: "Save stage permits only INSERT or UPDATE" };
+  }
+  const error = saveTargetError(tokens, operation);
+  return error ? { allowed: false, reason: error } : { allowed: true };
+}
+
+function saveTargetError(tokens: Token[], operation: string): string | null {
+  const relationIndex = tokens.findIndex((token) => token.value.toUpperCase() === (operation === "INSERT" ? "INTO" : "UPDATE"));
+  const relation = relationIndex < 0 ? undefined : parsedRelation(tokens, relationIndex);
+  if (!relation?.table || !SAVE_TABLES[relation.table]) return "Save stage target is not allowlisted";
+  if (relation.table === "users" && tokens.some((token) => token.kind === "word" && token.value.toUpperCase() === "SKILL_WEIGHT")) {
+    return "Save stage cannot modify user skill_weight";
+  }
+  return null;
+}
 
 function skipLineComment(sql: string, start: number): number {
   let cursor = start + 2;

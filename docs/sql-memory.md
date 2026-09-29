@@ -6,12 +6,18 @@ Agent-shared PostgreSQL memory store. Replaces `.context/memory/` for new memori
 
 - **Usage-driven, no gates.** SQL over the schema is the whole tool. No required Jev gate, no `turn_end` auto-writer. These docs are worked examples, not workflow prescriptions (Q4).
 - **Connection:** `SQL_MEMORY_URL` environment variable, read at tool registration. Set = tool registered; unset = nothing registered (Q18/Q19).
-- **Tool modes:** `{ op: "sql", statement }` — one `SELECT`/`INSERT`/`UPDATE` against public memory tables, function-allowlisted, DDL denied. `{ op: "migrate", destructive? }` — applies ordered files from `migrations/`; see `migrations/README.md`.
+- **Tool modes:** `{ op: "sql", statement, values? }` — one `SELECT`/`INSERT`/`UPDATE` against public memory tables, function-allowlisted, DDL denied. `values` is an optional array of bound parameters for `$1`, `$2`, … placeholders in `statement`; put dynamic text (including quotes) in `values`, not in interpolated SQL. `{ op: "migrate", destructive? }` — applies ordered files from `migrations/`; see `migrations/README.md`.
 - **Schema changes:** never via `sql` mode. Author a numbered migration file and apply it with `migrate`. The agent authors and applies migrations autonomously (Q8/Q9), but only additive ones it can parse (`CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, `CREATE EXTENSION IF NOT EXISTS vector`, `ALTER … ADD COLUMN` with basic types). Anything unparsed — destructive statements (`DROP`, `TRUNCATE`, deletes) or additive-but-unparseable forms (typed vector columns, `REFERENCES`, `USING hnsw`, `INSERT … SELECT` backfills) — requires the user to explicitly name the exact file via `destructive` (Q10).
 - **Immutability is enforced, not conventional (Q6/Q7).** The trigger rejects updates to `body`, `context`, `author`, `project`, `branch_name`, `commit_sha`, `created_at`, `valid_at`. The trigger's immutable set is exactly those 8 columns. The transition columns you write are `invalid_at` and `superseded_by` (plus `value_score` for scoring). `id`, `category`, and `seq` are technically writable — not in the trigger's rejected set — but treat them as immutable by convention. `memory_embeddings` rows are immutable; insert a replacement.
-- **Writable beyond memory transitions (Q11/Q6/Q7).** `UPDATE users SET skill_weight` (Q11) and `memory_ranks` rows for per-rater scores (Q6/Q7) are allowed through `sql` mode; the tool may change a user's skill weight.
+- **Writable beyond memory transitions (Q11/Q6/Q7).** In the direct tool, `UPDATE users SET skill_weight` (Q11) and `memory_ranks` rows for per-rater scores (Q6/Q7) are allowed through `sql` mode; the direct tool may change a user's skill weight. Buck-loop children have a narrower policy below.
 - **Identity:** author = `git config user.email` (Q15). Single-user for now; alias normalization out of scope. Project = git origin URL, absolute git common dir as fallback (Q16). Provenance = branch name + commit SHA together, or both NULL for global (Q20).
 - **Visibility and branch semantics:** memories are visible to all users immediately (Q14). Branch is provenance, not a validity window — merges close nothing, promote nothing (Q12). Recall spans all branches with the branch shown as context (Q13).
+
+### Buck-loop child policy
+
+When `SQL_MEMORY_URL` is set, `/buck-loop` injects a stage-scoped `sql_memory` tool into its restricted child sessions. Build, review, iterate, docs, and how-to children use the recall role: queries run inside read-only transactions, so writes fail even if the general SQL gate accepts their syntax. The save child can only `INSERT` or `UPDATE` `users`, `projects`, and `memories`; it cannot modify `users.skill_weight`. Child roles cannot run migrations. The commit child has no `sql_memory` tool. The direct extension tool keeps its broader SQL and migration permissions.
+
+Each eligible child attempt owns a bounded pool, closed when the session ends. A tool denial, database failure, or pool shutdown failure makes the configured stage fail and blocks model retry; the loop does not count that stage as successful.
 
 ## Identity keys
 

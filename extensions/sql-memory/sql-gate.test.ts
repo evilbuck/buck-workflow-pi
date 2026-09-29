@@ -1,6 +1,28 @@
 import { describe, expect, it } from "vitest";
 import { checkSqlStatement } from "./sql-gate.js";
 
+import { checkSqlForRole } from "./sql-gate.js";
+
+describe("stage SQL policy", () => {
+  it.each([
+    ["SELECT id FROM memories WHERE id = $1", "recall", true],
+    ["UPDATE memories SET invalid_at = now() WHERE id = $1", "recall", true],
+    ["INSERT INTO memories (body) VALUES ($1)", "save", true],
+    ["UPDATE memories SET invalid_at = now() WHERE id = $1", "save", true],
+    ["INSERT INTO public.memories (body) VALUES ($1)", "save", true],
+    ["UPDATE public.users SET email = $1 WHERE id = $2", "save", true],
+    ["UPDATE users SET skill_weight = 100 WHERE email = $1", "save", false],
+    ["UPDATE public.users SET users.skill_weight = 100 WHERE id = $1", "save", false],
+    ["INSERT INTO users (email, skill_weight) VALUES ($1, 100)", "save", false],
+    ['UPDATE users SET "skill_weight" = 100 WHERE email = $1', "save", false],
+    ["INSERT INTO private.memories (body) VALUES ($1)", "save", false],
+    ["SELECT id FROM memories", "save", false],
+    ["INSERT INTO memory_ranks (memory_id) VALUES ($1)", "save", false],
+    ["DELETE FROM memories", "save", false],
+  ] as const)("applies %s policy for %s", (sql, role, allowed) => {
+    expect(checkSqlForRole(sql, role).allowed).toBe(allowed);
+  });
+});
 describe("checkSqlStatement", () => {
   it.each([
     "SELECT id, body FROM memories WHERE project = $1",

@@ -156,6 +156,10 @@ for the decision log.
   block with the phase status, unchecked criteria, and execution checkpoint.
   A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
   until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
+- **Blocked resume preserves a completed phase's review.** If a build or iterate
+  was blocked and its projected phase is completed before the operator resumes,
+  the confirmed run enters review for that phase without incrementing the build
+  count. A still-incomplete phase follows the normal resolving/build path.
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The

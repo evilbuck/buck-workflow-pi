@@ -14,6 +14,25 @@ const pool: MigrationPool = {
 
 afterEach(() => { delete process.env.SQL_MEMORY_URL; });
 
+  it("binds SQL values as data and enforces recall and save roles", async () => {
+    const commands: Array<[string, unknown[] | undefined]> = [];
+    const tool = sqlMemoryTool({
+      async query() { return { rows: [] }; },
+      async connect() {
+        return {
+          async query(text, values) { commands.push([text, values]); return { rows: text.startsWith("SELECT") ? [{ body: "quoted ' text" }] : [] }; },
+          release() {},
+        };
+      },
+    }, "recall");
+    const result = await tool.execute("call", { op: "sql", statement: "SELECT body FROM memories WHERE body = $1", values: ["x' OR true --"] }, undefined, undefined, {} as never);
+    expect(commands).toContainEqual(["SELECT body FROM memories WHERE body = $1", ["x' OR true --"]]);
+    expect(commands).toContainEqual(["SET TRANSACTION READ ONLY", undefined]);
+    expect(result.details).toMatchObject({ rows: [{ body: "quoted ' text" }] });
+    const migration = await tool.execute("call", { op: "migrate" }, undefined, undefined, {} as never);
+    expect(migration.details).toMatchObject({ error: true, message: expect.stringContaining("unavailable") });
+  });
+
 describe("sql_memory tool", () => {
   it("does not register without SQL_MEMORY_URL", () => {
     delete process.env.SQL_MEMORY_URL;
@@ -78,5 +97,25 @@ describe("sql_memory tool", () => {
       op: "sql", statement: "UPDATE memories SET invalid_at = now() WHERE id = '00000000-0000-0000-0000-000000000001'",
     }, undefined, undefined, {} as never);
     expect(result.details).toEqual({ rows: [], rowCount: 1 });
+  });
+
+  it("allows save-stage user identity writes but rejects skill-weight changes before connecting", async () => {
+    const commands: string[] = [];
+    const connect = vi.fn(async () => ({
+      async query(text: string) { commands.push(text); return { rows: [], rowCount: 1 }; },
+      release() {},
+    }));
+    const tool = sqlMemoryTool({ async query() { return { rows: [] }; }, connect }, "save");
+    const identity = await tool.execute("call", {
+      op: "sql", statement: "INSERT INTO public.users (email) VALUES ($1)", values: ["a@example.test"],
+    }, undefined, undefined, {} as never);
+    expect(identity.details).toEqual({ rows: [], rowCount: 1 });
+    expect(commands).toContain("INSERT INTO public.users (email) VALUES ($1)");
+
+    const denied = await tool.execute("call", {
+      op: "sql", statement: "UPDATE users SET skill_weight = 100 WHERE email = $1", values: ["a@example.test"],
+    }, undefined, undefined, {} as never);
+    expect(denied.details).toMatchObject({ error: true, message: expect.stringContaining("skill_weight") });
+    expect(connect).toHaveBeenCalledOnce();
   });
 });

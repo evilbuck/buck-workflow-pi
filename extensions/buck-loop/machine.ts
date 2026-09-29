@@ -79,6 +79,11 @@ function postconditionConfirmed(s: Snapshot): boolean {
   return sessionOk(s) && s.workFacts.postcondition === "confirmed";
 }
 
+function completedBlockedWork(s: Snapshot): boolean {
+  const previous = s.history.at(-1)?.from;
+  return (previous === "building" || previous === "iterating") && postconditionConfirmed(s);
+}
+
 function postconditionMissing(s: Snapshot): boolean {
   return sessionOk(s) && s.workFacts.postcondition !== "ambiguous" && s.workFacts.postcondition !== "confirmed";
 }
@@ -582,9 +587,16 @@ export const buckMachine = defineMachine<LoopState, Snapshot, Choice, BuckEvent,
     blocked: {
       events: [
         {
+          id: "user-confirmed-completed-work",
+          event: { type: "USER_CONFIRMED" },
+          when: completedBlockedWork,
+          target: "reviewing",
+          output: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
+        },
+        {
           id: "user-confirmed",
           event: { type: "USER_CONFIRMED" },
-          when: () => true,
+          when: (s: Snapshot) => !completedBlockedWork(s),
           target: "resolving",
           output: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
         },
@@ -656,8 +668,8 @@ export function start(): Transition {
   return asTransition(decision.to, decision.output);
 }
 
-export function userConfirmed(): Transition {
-  const decision = buckMachine.send(stubFacts("blocked"), { type: "USER_CONFIRMED" });
+export function userConfirmed(snapshot: Snapshot): Transition {
+  const decision = buckMachine.send(snapshot, { type: "USER_CONFIRMED" });
   return asTransition(decision.to, decision.output);
 }
 

@@ -867,6 +867,33 @@ describe("resume", () => {
     expect(deps.runStep).toHaveBeenCalled();
   });
 
+  it("reviews a completed projected phase after a blocked build instead of rebuilding it", async () => {
+    const cwd = repo();
+    phased(cwd, ["completed", "pending"]);
+    const firstPhase = ".context/" + SUBJECT + "/phase-1-p1.md";
+    writeTree(cwd, {
+      ".context/workflow/buck-loop.json": JSON.stringify({
+        version: 1,
+        state: "blocked",
+        subject: SUBJECT,
+        planPath: PLAN,
+        phasePath: firstPhase,
+        loopCount: 1,
+        iterateCyclesOnPhase: 0,
+        maxLoops: 12,
+        lastChoice: null,
+        history: [{ from: "building", to: "blocked", at: NOW, why: "incomplete checklist" }],
+      }),
+    });
+    const deps = workDeps(async () => ({ ok: false, text: "stop after observing the review" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+
+    expect(deps.runStep.mock.calls[0]?.[0]).toMatchObject({ skill: "b-review", planOrPhasePath: firstPhase });
+    expect(deps.runStep.mock.calls.some(([opts]) => opts.skill === "b-build" || opts.skill === "b-build-hard")).toBe(false);
+    expect(readProjection(cwd)?.loopCount).toBe(1);
+    expect(result.state).toBe("blocked");
+  });
+
   it("preserves staged in-cycle work before blocking and resumes without a commit", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);

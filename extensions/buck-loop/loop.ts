@@ -298,7 +298,7 @@ function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Sna
     persistIfPossible(cwd, snapshot);
     return snapshot;
   }
-  const confirmed = withTransition(snapshot, userConfirmed(), at);
+  const confirmed = withTransition(snapshot, userConfirmed(snapshot), at);
   persistIfPossible(cwd, confirmed);
   return confirmed;
 }
@@ -708,7 +708,7 @@ async function recoverBlocked(
   deps.onWarning(halt.reason);
   if (!(await deps.confirmContinue(halt.reason))) return { snapshot, halt };
   const parked = snapshot.state === "blocked" ? snapshot : block(snapshot, halt.reason, deps.now());
-  const continued = withTransition(parked, userConfirmed(), deps.now());
+  const continued = withTransition(parked, userConfirmed(parked), deps.now());
   persistIfPossible(cwd, continued);
   return { snapshot: continued, halt: null };
 }

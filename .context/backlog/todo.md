@@ -3,6 +3,7 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
@@ -18,9 +19,18 @@ Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
 - [x] [Phase 2: Extension and SQL Tool](archive/2026-09/phase-2-extension-sql-tool.md) — hard, `/b-build-hard` — done 2026-09-28
 - [x] [Phase 3: Recall Patterns and Docs](archive/2026-09/phase-3-recall-patterns-docs.md) — easy, `/b-build` — done 2026-09-28
 
-## SQL memory in Buck-loop (2026-09-28)
+## SQL memory in Buck-loop Phases (2026-09-28)
 
-- [ ] [Enable restricted SQL memory in Buck-loop children](items/sql-memory-buck-loop-child-seam.md) — medium; first unit of [the SQL-memory Buck-loop plan](../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop.md)
+Overview: [`plan-sql-memory-buck-loop-phases.md`](../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop-phases.md).
+Phases form a HARD chain (1 → 2 → 3 → 4).
+
+- [ ] [Phase 1: Tool contract and child seam](items/phase-1-sql-memory-child-seam.md) — hard, `/b-build-hard` — [phase-1-tool-contract-child-seam.md](../2026-09-28.sql-memory-buck-loop/phase-1-tool-contract-child-seam.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Recall and bounded judgment — medium, `/b-build` — [phase-2-recall-bounded-judgment.md](../2026-09-28.sql-memory-buck-loop/phase-2-recall-bounded-judgment.md)
+- [ ] Phase 3: SQL save and truthful completion — hard, `/b-build-hard` — [phase-3-sql-save-truthful-completion.md](../2026-09-28.sql-memory-buck-loop/phase-3-sql-save-truthful-completion.md)
+- [ ] Phase 4: Policy/docs and live proof — medium, `/b-build` — [phase-4-policy-docs-live-proof.md](../2026-09-28.sql-memory-buck-loop/phase-4-policy-docs-live-proof.md)
 
 ## Buck Model Profile Phases (2026-09-23)
 

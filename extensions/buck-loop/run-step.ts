@@ -30,6 +30,9 @@
  * The child is told it has no authority to choose the next loop state.
  */
 import { randomUUID } from "node:crypto";
+import { createLazyPool } from "../sql-memory/db.js";
+import { sqlMemoryTool } from "../sql-memory/index.js";
+import type { MigrationPool } from "../sql-memory/migrations.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -141,6 +144,16 @@ const toolsBySkill: Record<NestedSkill, string[]> = {
   "b-howto": ["read", "edit", "write", "grep", "bash"],
   "b-save": ["read", "edit", "write", "grep", "bash"],
   "b-commit": ["read", "bash"],
+};
+
+const sqlRoleBySkill: Partial<Record<NestedSkill, "recall" | "save">> = {
+  "b-build": "recall",
+  "b-build-hard": "recall",
+  "b-review": "recall",
+  "b-iterate": "recall",
+  "b-docs": "recall",
+  "b-howto": "recall",
+  "b-save": "save",
 };
 
 /**
@@ -255,6 +268,7 @@ export async function runStep(opts: {
     };
     const ran = await runOneSession(opts, prompt, agent, picked);
     if (ran.retain) return ran.result;
+    if (ran.blockRetry) return ran.result;
     excluded.push(picked.id);
     last = ran.result;
   }
@@ -372,7 +386,7 @@ function planBody(cwd: string, rel: string): string {
   return readFileSync(abs, "utf8");
 }
 
-type SessionAttempt = { retain: boolean; result: RunStepResult };
+type SessionAttempt = { retain: boolean; blockRetry: boolean; result: RunStepResult };
 
 async function runOneSession(
   opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void },
@@ -389,6 +403,10 @@ async function runOneSession(
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
+  let sqlFailed = false;
+  const sqlUrl = process.env.SQL_MEMORY_URL;
+  const role = sqlRoleBySkill[opts.skill];
+  const pool = sqlUrl && role ? createLazyPool(sqlUrl)() : undefined;
   try {
     const sessionOpts: Parameters<typeof createAgentSession>[0] & {
       agentDir?: string;
@@ -399,19 +417,25 @@ async function runOneSession(
       enableMCP?: boolean;
       enableLsp?: boolean;
       agentId?: string;
+      allowRestrictedCustomTools?: boolean;
+      customTools?: unknown[];
     } = {
       cwd: opts.cwd,
       agentDir: ompAgentDir(),
       modelPattern: picked.id,
       thinkingLevel: picked.thinking as NonNullable<Parameters<typeof createAgentSession>[0]["thinkingLevel"]>,
       tools: toolsBySkill[opts.skill],
-      toolNames: toolsBySkill[opts.skill],
+      toolNames: [...toolsBySkill[opts.skill], ...(pool ? ["sql_memory"] : [])],
       restrictToolNames: true,
       disableExtensionDiscovery: true,
       enableMCP: false,
       enableLsp: false,
       agentId: agent.id,
       sessionManager: SessionManager.inMemory(opts.cwd),
+      ...(pool && role ? {
+        allowRestrictedCustomTools: true,
+        customTools: [sqlMemoryTool(pool, role, () => { sqlFailed = true; })],
+      } : {}),
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
@@ -431,7 +455,9 @@ async function runOneSession(
     resetIdleTimer();
     await session.prompt(prompt);
     const text = lastAssistantText(session.messages);
-    if (timedOut) {
+    if (sqlFailed) {
+      outcome = fail({ name: "SqlMemoryError", message: "Configured SQL memory operation failed; Buck-loop stage cannot succeed." }, "Configured SQL memory operation failed; " + (text || "no child output"));
+    } else if (timedOut) {
       outcome = fail(
         { name: "TimeoutError", message: "Nested " + opts.skill + " session was inactive for " + WORK_SESSION_IDLE_TIMEOUT_MS + "ms." },
         text || "timed out",
@@ -446,17 +472,27 @@ async function runOneSession(
   } catch (error) {
     outcome = fail(error);
   } finally {
-    unsubscribe?.();
     clearTimeout(timer);
   }
+  const completedWork = outcome.ok;
+  let cleanupFailed = false;
 
-  try {
-    await session?.dispose?.();
-  } catch (error) {
-    if (outcome.ok) return { retain: true, result: fail(error) };
-    const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
-    prior.error.details = { ...prior.error.details, disposeError: serializeCallError(error) };
-    outcome.failure = prior;
+  const recordCleanupError = (error: unknown, key: "unsubscribeError" | "disposeError" | "poolEndError"): void => {
+    cleanupFailed = true;
+    if (outcome.ok) {
+      outcome = fail(error);
+    } else {
+      const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
+      prior.error.details = { ...prior.error.details, [key]: serializeCallError(error) };
+      outcome.failure = prior;
+    }
+  };
+  try { unsubscribe?.(); } catch (error) { recordCleanupError(error, "unsubscribeError"); }
+  try { await session?.dispose?.(); } catch (error) { recordCleanupError(error, "disposeError"); }
+  try { await (pool as MigrationPool & { end?: () => Promise<void> } | undefined)?.end?.(); }
+  catch (error) {
+    sqlFailed = true;
+    recordCleanupError(error, "poolEndError");
   }
-  return { retain: outcome.ok, result: outcome };
+  return { retain: outcome.ok, blockRetry: sqlFailed || (completedWork && cleanupFailed), result: outcome };
 }

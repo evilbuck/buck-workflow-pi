@@ -4,8 +4,8 @@ date: 2026-09-28
 subject: 2026-09-28.sql-memory-buck-loop
 topics: [sql-memory, buck-loop, jev, memory-cutover]
 research: [research-sql-memory-buck-loop.md]
-iterations: []
-memory: [sql-memory-buck-loop-plan-2026-09-28.md]
+iterations: [iterate-phase-1-tool-contract-child-seam.md, iterate-phase-1-missing-pool-type.md, iterate-phase-1-sql-failure-retry.md, iterate-phase-1-cleanup-retry.md]
+memory: [sql-memory-buck-loop-plan-2026-09-28.md, sql-memory-buck-loop-phase-1-diagnosis-2026-09-29.md, sql-memory-buck-loop-deployed-child-proof-2026-09-29.md, sql-memory-buck-loop-phase-1-implementation-2026-09-29.md, sql-memory-buck-loop-phase-1-iteration-2026-09-29.md, sql-memory-buck-loop-phase-1-sql-failure-2026-09-29.md, sql-memory-buck-loop-phase-1-pool-type-2026-09-29.md, sql-memory-buck-loop-phase-1-cleanup-retry-2026-09-29.md, sql-memory-buck-loop-phase-1-save-2026-09-29.md]
 ---
 
 # Plan: SQL memory in buck-loop

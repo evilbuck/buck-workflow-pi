@@ -1,3 +1,5 @@
+> **Superseded 2026-09-28** by the phased plan — see [phase-1-sql-memory-child-seam.md](phase-1-sql-memory-child-seam.md) and the [phases overview](../../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop-phases.md).
+
 ---
 title: Enable restricted SQL memory in Buck-loop children
 status: active

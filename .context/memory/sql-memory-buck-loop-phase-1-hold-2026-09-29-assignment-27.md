@@ -1,0 +1,26 @@
+---
+date: 2026-09-29
+domains: [extensions, database, testing]
+topics: [sql-memory, buck-loop, restricted-custom-tools, prerequisite]
+related: [../2026-09-28.sql-memory-buck-loop/phase-1-tool-contract-child-seam.md]
+priority: high
+status: active
+subject: 2026-09-28.sql-memory-buck-loop
+artifacts: [../2026-09-28.sql-memory-buck-loop/phase-1-tool-contract-child-seam.md]
+---
+
+# SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 27)
+
+The assigned phase requires an operator-established disposable SQL target and a successful live restricted-child SELECT before implementation. `SQL_MEMORY_TEST_URL` is unset and `SQL_MEMORY_TEST_DISPOSABLE` is unset; OMP reports 18.4.2. No connection, database query, or restricted child was attempted. The phase remains in progress, with acceptance criteria unchanged.
+
+Next prerequisite: provide a dedicated disposable `SQL_MEMORY_TEST_URL`, explicitly set `SQL_MEMORY_TEST_DISPOSABLE=yes`, then run and observe the live restricted-child SELECT proof. Do not use the configured shared SQL endpoint as a substitute.
+
+## Verification
+
+- Read assigned phase, parent plan, phase overview, OMP child-tool source ledger, and latest prerequisite memory.
+- Checked both disposable-target environment indicators and `omp --version`; the indicators are absent, and OMP is 18.4.2. No database operation was run.
+
+## Files modified
+
+- `.context/memory/sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-27.md`
+- `.context/memory/index.md`
