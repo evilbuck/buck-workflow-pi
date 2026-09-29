@@ -280,7 +280,7 @@ When working on a phased plan with discrete phase files:
 3. **Implement**: Execute only the current phase's scope.
 4. **On completion**:
    a. Update acceptance criteria checkboxes in the phase file: `[ ]` → `[x]`
-   b. Set `status: completed` and `completed_at: YYYY-MM-DD` in phase file frontmatter
+   b. The loop writes `status: completed` and `completed_at` when every `acceptance_criteria` item is `[x]`. That list is the completion signal. An unchecked item is not done, even if `status` already says `completed`. A phase with no list still uses `status`.
    c. Update the phases overview file (`plan-*-phases.md`): change the phase's status from `pending`/`in-progress` to `completed` in the summary table
    d. Note the next phase to execute
 5. Tell the user which phase was completed and what's next.

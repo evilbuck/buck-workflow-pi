@@ -1,20 +1,38 @@
 ---
 date: 2026-09-29
-domains: [git, docs]
-topics: [rebase, deterministic-pr-fix, additive-conflicts]
+domains: [git, docs, workflow, testing]
+topics: [rebase, deterministic-pr-fix, additive-conflicts, sql-memory, phase-completion]
 related:
   - .context/memory/index.md
   - docs/howto/README.md
+  - extensions/buck-loop/loop.ts
+  - plugins/buck-workflow/skills/b-build/SKILL.md
 priority: low
 status: completed
 ---
 
-# Rebase conflict resolution: deterministic-pr-fix
+# Rebase completion: deterministic-pr-fix
 
-Resolved the two additive index conflicts while replaying `782bafd` onto `origin/feat/deterministic-pr-fix`. Upstream contributed fix-pr Phase 2 and buck-loop recovery memory entries; the replayed commit contributed four PostgreSQL memory entries. All entries from both sides were retained, with a blank separator between the groups. The how-to index retains both recovery and SQL recall guides, numbered 6 and 7 respectively.
+Rebased `feat/sql-memory-tool` onto `origin/feat/deterministic-pr-fix`. The user initially continued each replay at the skill's manual gate, then explicitly authorized finishing the entire rebase. The final replay completed as `52c45ae`; Git reported successful update of `refs/heads/feat/sql-memory-tool`. No abort, skip, force update, or push was performed by the assistant.
 
-Verification: an inline Node assertion script compared the resolved indexes against Git index stages 2 and 3 and verified every indexed entry from both sides survived. No conflict markers remained. How-to numbering was exactly 1–7; all how-to targets and newly merged memory targets existed. Both files were staged; scoped `git diff --cached --check` passed; `git diff --name-only --diff-filter=U` was empty.
+## Conflict resolutions
 
-This session changed only Markdown indexes and this resolution record. Code and other already-staged replay changes were left untouched; project code gates were not run. No backlog item was added or completed: this was an immediate Git-operation repair, not a feature/phase completion.
+- Memory index: preserved both branches' additive entries across the SQL-memory and fix-pr/recovery replays. Earlier assertion scripts compared both Git index stages and proved no indexed entry was dropped.
+- How-to index: retained recovery, SQL recall, and supervisor-repair guides with sequential numbering 1–8. All eight guide targets existed.
+- Supervisor imports: retained both phase-completion synchronization and SQL recall/save integration.
+- Supervisor postcondition: verify the SQL save receipt first; a blocked save returns before phase completion is synchronized. Successful verification then synchronizes checked phases and rescans with `sqlSaveVerified`.
 
-Manual gate: rebase remains paused. No continue, commit, abort, or push was performed. Review the staged resolution and run `git rebase --continue`; later replayed commits may produce further conflicts.
+## Post-rebase integration fixes
+
+The initial deterministic check failed on the merged `resumeRun` complexity (14) and Codex `b-build` copy drift. Extracted the duplicated phase/plan/subject fallback into an allocation-free `resumePath` helper without changing precedence. Synced the one differing phase-completion instruction in the Codex copy to the canonical skill. No guardrail thresholds, baselines, ignores, or tests were weakened.
+
+## Verification
+
+- `npm run guardrails:check`: durable v2 `pass`; required unit, coverage ratchet, and complexity gates passed. Coverage was 87 against baseline 84; lint/functional gates skipped and patch gate advisory.
+- Language-server diagnostics for `extensions/buck-loop/loop.ts`: OK.
+- Disposable real-supervisor smoke: `handleLoop(start)` synchronized an all-checked phase to `status: completed` and returned `done`; `handleLoop(resume)` also returned `done`. No agent/judge calls or database operations occurred; the temporary fixture was removed.
+- `origin/feat/deterministic-pr-fix` is an ancestor of the rebased HEAD; the branch is attached as `feat/sql-memory-tool`; unmerged paths were empty.
+
+Review: both loop integrations remain present; SQL failure cannot fall through to the merged completion call; the helper preserves phase → plan → subject precedence. Existing supervisor and SQL-save tests passed in the required unit gate. No new public API, domain language, or user action was introduced; canonical phase-completion guidance already documented the behavior and its Codex copy was synchronized.
+
+Backlog unchanged: this was rebase repair and integration validation, not an additional workflow phase or feature. The final integration fix and updated session record are committed separately from the replayed history. No push was requested or performed.

@@ -1,4 +1,4 @@
-- 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (both additive indexes preserved and staged; manual rebase continuation pending)
+- 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (fully rebased; both branch histories preserved; required guardrails and real supervisor start/resume smoke pass)
 
 - 2026-09-29 — [SQL memory Buck-loop closeout](sql-memory-buck-loop-closeout-2026-09-29.md) — completed (phases 2–4 closed with disposable cross-branch proof; commit follows on feat/sql-memory-tool)
 - 2026-09-29 — [Buck-loop TUI monitor](buck-loop-tui-monitor-2026-09-29.md) — completed (TUI loop done at 15/20 after an isolated disposable proof; this checkout was not committed)

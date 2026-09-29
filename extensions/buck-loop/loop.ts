@@ -275,15 +275,19 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   if (projection.state === "aborted") return statusOf(cwd);
   const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
-  const resumeTarget = projection.phasePath ?? projection.planPath ?? join(".context", projection.subject);
+  const resumeTarget = resumePath(projection, projection.subject);
   syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const checked = await checkedResume(cwd, snapshot, deps.now());
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
-  const path = snapshot.phasePath ?? snapshot.planPath ?? join(".context", projection.subject);
+  const path = resumePath(snapshot, projection.subject);
   return drive(cwd, snapshot, path, deps);
+}
+
+function resumePath(snapshot: Pick<Snapshot, "phasePath" | "planPath">, subject: string): string {
+  return snapshot.phasePath ?? snapshot.planPath ?? join(".context", subject);
 }
 
 async function checkedResume(cwd: string, snapshot: Snapshot, at: string): Promise<{ snapshot: Snapshot } | { result: LoopResult }> {
