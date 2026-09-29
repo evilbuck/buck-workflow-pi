@@ -11,6 +11,8 @@ security-audit-report.json
 .context/*/transition-audits/
 # Local Hindsight import skip-state (per-machine); document_id upsert remains idempotent
 .context/memory/.omp-hindsight-import-manifest.json
+# Per-attempt choice traces (raw model output). Local diagnosis only; not source of truth.
+.context/*/transition-audits/
 
 
 __pycache__

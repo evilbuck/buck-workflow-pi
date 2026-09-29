@@ -18,6 +18,10 @@ Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
 - [x] [Phase 2: Extension and SQL Tool](archive/2026-09/phase-2-extension-sql-tool.md) — hard, `/b-build-hard` — done 2026-09-28
 - [x] [Phase 3: Recall Patterns and Docs](archive/2026-09/phase-3-recall-patterns-docs.md) — easy, `/b-build` — done 2026-09-28
 
+## SQL memory in Buck-loop (2026-09-28)
+
+- [ ] [Enable restricted SQL memory in Buck-loop children](items/sql-memory-buck-loop-child-seam.md) — medium; first unit of [the SQL-memory Buck-loop plan](../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop.md)
+
 ## Buck Model Profile Phases (2026-09-23)
 
 ### Upcoming Phases

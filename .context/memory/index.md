@@ -4,6 +4,7 @@
 
 - 2026-09-28 — [Buck-loop stopped-run notice and recovery](buck-loop-stop-recovery-2026-09-28.md) — completed (actual blocker retained, STOP/status informational, explicit unblock paths; 241 loop tests and durable guardrails pass)
 
+- 2026-09-28 — [SQL memory in Buck-loop — exploration and plan](sql-memory-buck-loop-plan-2026-09-28.md) — completed (restricted child tool, project recall, bounded Jev, SQL save receipt; implementation queued)
 - 2026-09-28 — [PostgreSQL agent memory docs — Phase 3 save](postgres-agent-memory-phase3-save-2026-09-28.md) — completed (phase 3 + all three iterate rounds closed; phases overview all-completed; User Goal present)
 - 2026-09-28 — [PostgreSQL agent memory docs — Phase 3 iteration](postgres-agent-memory-phase3-docs-iterate-2026-09-28.md) — completed (`b-iterate` on phase-3 docs: ledger-check output pasted, supersede example keyed by origin_url, doc-exact recall query re-executed live against fresh pgvector/pg18 with matching output)
 - 2026-09-28 — [PostgreSQL agent memory SQL tool — Phase 2](postgres-agent-memory-sql-tool-phase-2-2026-09-28.md) — completed (`sql_memory` tool: SQL_MEMORY_URL-gated registration, lazy `pg` load, allowlisted DML with `SET LOCAL search_path = public`, additive-only migration runner with checksum pinning and exact-filename acknowledgment; 45 focused tests, three disposable pgvector/pgvector:pg18 smokes, two review iterations, durable guardrails v2 pass)
