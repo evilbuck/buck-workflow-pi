@@ -1,8 +1,8 @@
 {
-  "attemptId": "5b6c9ed1-6968-4e2f-b10f-9af03cc9fb39",
-  "runId": "a9056053-3a1b-491c-8010-7fb6a1f542d5",
+  "attemptId": "e27614d2-b4a6-47e0-ba37-a5cd4cb0b8d7",
+  "runId": "6d98e779-54cb-46c4-92f1-61ef4f67026f",
   "subject": "2026-09-16.decision-closure",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-09-16.decision-closure/phase-1-chooser-stall.md",
-  "receiptRel": ".context/2026-09-16.decision-closure/sql-memory-receipts/a9056053-3a1b-491c-8010-7fb6a1f542d5-5b6c9ed1-6968-4e2f-b10f-9af03cc9fb39.json"
+  "phase": ".context/2026-09-16.decision-closure/phase-3-grill-variants.md",
+  "receiptRel": ".context/2026-09-16.decision-closure/sql-memory-receipts/6d98e779-54cb-46c4-92f1-61ef4f67026f-e27614d2-b4a6-47e0-ba37-a5cd4cb0b8d7.json"
 }

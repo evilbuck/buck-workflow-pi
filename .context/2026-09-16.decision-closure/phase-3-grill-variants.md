@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-decision-closure-protocol.md
@@ -20,16 +20,16 @@ from_plan_steps: [3]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `b-grill`, `b-grill-me`, `b-grill-auto`, and `b-grill-with-docs` each instruct the agent to load `skills/_shared/decision-closure.md` (or `skill://_shared/decision-closure.md`)."
-  - "[ ] None of the four skills restate the full trigger/status/risk schema; they point at the shared headings and add only skill-specific application notes."
-  - "[ ] All four preserve existing question/domain/phasing metadata behavior, including Light Grill remaining discretionary in `b-grill` / `b-plan`."
-  - "[ ] Closeout is one consistent section shape: selected course, evidence, assumptions, blocking/validation, material risk, excluded scope, next bounded action — omitted entirely when no material trigger applies and evidence already suffices."
-  - "[ ] Confirmed problem reframing and pressure calibration are applied in all four variants."
-  - "[ ] `extensions/b-grill-auto/` is untouched. No new machine-readable field that would force a runtime serializer change."
-  - "[ ] Canonical `b-grill`, `b-grill-me`, and `b-grill-with-docs` directories match their Codex bundle copies. `b-grill-auto` is not added to the bundle."
-  - "[ ] Changed canonical grill skills and their Codex mirrors contain no forbidden-term match and no donor sentence/table/template/label."
-completed_at: null
-completed_by: null
+  - "[x] `b-grill`, `b-grill-me`, `b-grill-auto`, and `b-grill-with-docs` each instruct the agent to load `skills/_shared/decision-closure.md` (or `skill://_shared/decision-closure.md`)."
+  - "[x] None of the four skills restate the full trigger/status/risk schema; they point at the shared headings and add only skill-specific application notes."
+  - "[x] All four preserve existing question/domain/phasing metadata behavior, including Light Grill remaining discretionary in `b-grill` / `b-plan`."
+  - "[x] Closeout is one consistent section shape: selected course, evidence, assumptions, blocking/validation, material risk, excluded scope, next bounded action — omitted entirely when no material trigger applies and evidence already suffices."
+  - "[x] Confirmed problem reframing and pressure calibration are applied in all four variants."
+  - "[x] `extensions/b-grill-auto/` is untouched. No new machine-readable field that would force a runtime serializer change."
+  - "[x] Canonical `b-grill`, `b-grill-me`, and `b-grill-with-docs` directories match their Codex bundle copies. `b-grill-auto` is not added to the bundle."
+  - "[x] Changed canonical grill skills and their Codex mirrors contain no forbidden-term match and no donor sentence/table/template/label."
+completed_at: 2026-09-29
+completed_by: b-build
 ---
 
 # Phase 3: Grill Variants

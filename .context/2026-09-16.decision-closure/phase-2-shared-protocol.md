@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-decision-closure-protocol.md
@@ -16,14 +16,14 @@ from_plan_steps: [2]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `skills/_shared/decision-closure.md` exists and is loadable as `skill://_shared/decision-closure.md`."
-  - "[ ] `skills/_shared/SKILL.md` lists `decision-closure.md` in the Available Resources table with a one-line purpose."
-  - "[ ] The protocol names material triggers, a low-risk skip path, closure-ready criteria, assumption ID/status/blocking/validation-path rules, material-risk fields, confirmed problem reframing, pressure calibration, and the hard-mode minimal-change sequence."
-  - "[ ] Allowed assumption statuses are exactly `validated`, `deferred`, and `invalidated`; closure is not ready while a blocking assumption is unresolved or a material rollback/fallback claim has no validation path."
-  - "[ ] Integrating skills are instructed to load this file rather than copy its schema."
-  - "[ ] Canonical `_shared` and `plugins/buck-workflow/skills/_shared/` are byte-identical after a full-directory sync."
-  - "[ ] Changed canonical and bundled `_shared` files contain no case-insensitive whole-word match for the term forbidden by the parent plan."
-  - "[ ] No complete donor sentence, table, template, or branded label is present; headings and field names are authored for Buck."
+- "[x] `skills/_shared/decision-closure.md` exists and is loadable as `skill://_shared/decision-closure.md`."
+- "[x] `skills/_shared/SKILL.md` lists `decision-closure.md` in the Available Resources table with a one-line purpose."
+- "[x] The protocol names material triggers, a low-risk skip path, closure-ready criteria, assumption ID/status/blocking/validation-path rules, material-risk fields, confirmed problem reframing, pressure calibration, and the hard-mode minimal-change sequence."
+- "[x] Allowed assumption statuses are exactly `validated`, `deferred`, and `invalidated`; closure is not ready while a blocking assumption is unresolved or a material rollback/fallback claim has no validation path."
+- "[x] Integrating skills are instructed to load this file rather than copy its schema."
+- "[x] Canonical `_shared` and `plugins/buck-workflow/skills/_shared/` are byte-identical after a full-directory sync."
+- "[x] Changed canonical and bundled `_shared` files contain no case-insensitive whole-word match for the term forbidden by the parent plan."
+- "[x] No complete donor sentence, table, template, or branded label is present; headings and field names are authored for Buck."
 completed_at: null
 completed_by: null
 ---

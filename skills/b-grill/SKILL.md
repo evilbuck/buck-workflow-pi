@@ -30,6 +30,15 @@ Interview relentlessly about every aspect of a plan or design. Track question co
 Ask questions one at a time, walking down each branch of the decision tree. For each question, provide your recommended answer.
 
 If a question can be answered by exploring the codebase, explore the codebase instead of asking.
+## Material Decision Closeout
+
+Load `skills/_shared/decision-closure.md` before grilling. Apply its "When closure applies", "Low-risk path", "Confirming a changed problem framing", and "Calibrating pressure" headings. Preserve the question, decision-domain, boundary, break-point, and deferred/blocked-question metadata below.
+
+Light Grill remains discretionary. If used, check for a material trigger; ask only when evidence and prior decisions cannot resolve the closure.
+
+When a material trigger applies, include one `## Decision Closure` section in the session body using the shared protocol's "Closure-ready record", "Assumption ledger fields", and "Material-risk fields". Include selected course, evidence, assumptions, blocking/validation, material risks, excluded scope, and one bounded next action. Omit the section entirely on the low-risk path when evidence already suffices.
+
+If evidence contradicts the stated problem, surface both framings and obtain explicit user confirmation before redirecting; record the prior framing, confirmed replacement, and confirming evidence. In auto mode, do not present model output as user confirmation; if the replacement lacks confirmation or any required closeout detail, state the gap and leave synthesis to `b-plan`.
 
 ## Subject Folder (Required)
 

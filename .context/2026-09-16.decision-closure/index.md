@@ -15,7 +15,7 @@ Verify and close the recorded chooser stall first, then add conditional decision
 - [Phases overview](plan-decision-closure-protocol-phases.md)
 - [Phase 1: Chooser Stall Verification and Repair](phase-1-chooser-stall.md) — pending, hard, `/b-build-hard`
 - [Phase 2: Shared Protocol](phase-2-shared-protocol.md) — pending, hard, `/b-build-hard`
-- [Phase 3: Grill Variants](phase-3-grill-variants.md) — pending, not-hard
+- [Phase 3: Grill Variants](phase-3-grill-variants.md) — completed, not-hard
 - [Phase 4: Plan and Phase](phase-4-plan-and-phase.md) — pending, not-hard
 - [Phase 5: Build and Review](phase-5-build-and-review.md) — pending, not-hard
 - [Phase 6: Narrative and Proof](phase-6-narrative-and-proof.md) — pending, not-hard

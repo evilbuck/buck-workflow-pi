@@ -1,3 +1,6 @@
+- 2026-09-29 — [Decision-closure Phase 3 grill variants](decision-closure-phase-3-grills-2026-09-29.md) — completed (four grill variants use shared closure contract; bundled skill parity, forbidden-term scan, and untouched-extension checks pass)
+- 2026-09-29 — [Decision-closure Phase 2 shared protocol](decision-closure-phase-2-shared-protocol-2026-09-29.md) — completed (canonical conditional schema authored, registered and bundled; parity and forbidden-term checks pass)
+
 - 2026-09-29 — [Decision-closure chooser checkpoint](decision-closure-chooser-checkpoint-2026-09-29.md) — active (H2/H4 scanner and public-loop H2 save route pass; context retry/audit regression added; remaining Phase 1 context/safety proof listed in subject review)
 
 - 2026-09-29 — [Coordinated decision plans — bugs first](decision-plans-rephase-2026-09-29.md) — completed (joint six-phase execution map; chooser incident proof first; original acceptance preserved; actual scanner selects Phase 1)

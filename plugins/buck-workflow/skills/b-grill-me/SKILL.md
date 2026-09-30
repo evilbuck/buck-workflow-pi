@@ -13,6 +13,14 @@ Ask questions one at a time, walking down each branch of the decision tree. For 
 
 If a question can be answered by exploring the codebase, explore the codebase instead of asking.
 
+## Material Decision Closeout
+
+Load `skills/_shared/decision-closure.md` before grilling. Apply its "When closure applies", "Low-risk path", "Confirming a changed problem framing", and "Calibrating pressure" headings. Preserve the question, decision-domain, boundary, break-point, and deferred/blocked-question metadata below.
+
+When a material trigger applies, include one `## Decision Closure` section in the session body using the shared protocol's "Closure-ready record", "Assumption ledger fields", and "Material-risk fields". Include selected course, evidence, assumptions, blocking/validation, material risks, excluded scope, and one bounded next action. Omit the section entirely on the low-risk path when evidence already suffices.
+
+If evidence contradicts the stated problem, surface both framings and obtain explicit user confirmation before redirecting; record the prior framing, confirmed replacement, and confirming evidence. Calibrate questions to materiality; do not revisit decisions already closed by evidence.
+
 ## Turn classification
 
 Before recording a user turn as the resolution of the open question, classify it. Do this even when the turn looks like an answer.
