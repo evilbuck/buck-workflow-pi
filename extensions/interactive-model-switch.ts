@@ -1,5 +1,12 @@
 /**
- * Parent-session model switch for interactive Buck commands.
+ * DEPRECATED for manual prompting (2026-09-30).
+ * Manual /b-* commands stay on the operator's current model; this switch
+ * fired on every interactive prompt (e.g. /b-build -> minimax-m3) with no
+ * loop context, which was never the intent. Origin is unclear (possibly a
+ * model-proposed cutover), so the machinery is kept for audit but short-
+ * circuited below. Autonomous loops are unaffected: nested work still picks
+ * stage models via createBuckModelPicker in extensions/buck-loop/run-step.ts.
+ * Parent-session model switch for interactive Buck commands (deprecated).
  * `/buck-loop` is not in this table; `choice` stays loop-only.
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -22,7 +29,13 @@ import { listSubjectFolders, readSubjectStatus } from "../skills/_shared/scripts
 export const CONVERSATION_TAIL_MESSAGES = 8;
 export const CONVERSATION_TAIL_CHARS = 12_000;
 
-/** Pinned skill → stage map. `choice` is absent on purpose. */
+/**
+ * DEPRECATED: manual prompts short-circuit before consulting this map.
+ * Kept so stage coverage stays auditable; do not add new entries.
+ * Pinned skill → stage map. `choice` is absent on purpose.
+ */
+/** Kill-switch for the deprecated manual-prompt switch. `false` = stay on the operator's model. */
+export const INTERACTIVE_MODEL_SWITCH_ENABLED = false;
 export const INTERACTIVE_STAGE_BY_SKILL: Readonly<Record<string, BuckStageKey>> = {
   "b-brainstorm": "brainstorm-plan",
   "b-plan": "brainstorm-plan",
@@ -111,6 +124,8 @@ export function resolveSubjectArtifacts(cwd: string): string[] {
     .map((file) => `.context/${name}/${file}`);
 }
 
+// DEPRECATED (2026-09-30) for manual prompting: unreachable while the kill-switch is false.
+// Loops pick stage models via createBuckModelPicker in extensions/buck-loop/run-step.ts.
 export async function selectInteractiveModel(request: InteractiveSelectRequest): Promise<InteractiveSelectResult> {
   const project = readBuckModelsFile(projectOmpConfigPath(request.cwd));
   const global = readBuckModelsFile(globalOmpConfigPath());
@@ -147,6 +162,9 @@ export function wireInteractiveModelSwitch(pi: ExtensionAPI, deps: InteractiveSw
   pi.on("input", async (event, ctx) => {
     const text = event.text?.trim() ?? "";
     const skill = text.match(SKILL_PREFIX)?.[1];
+    // DEPRECATED (2026-09-30): manual prompts stay on the operator's model.
+    // Short-circuit before select/apply so /b-build etc. never switch outside a loop.
+    if (skill && INTERACTIVE_STAGE_BY_SKILL[skill] && !INTERACTIVE_MODEL_SWITCH_ENABLED) return { action: "continue" as const };
     const stage = skill ? INTERACTIVE_STAGE_BY_SKILL[skill] : undefined;
     if (!skill || !stage) return { action: "continue" as const };
     return handleMappedInput({

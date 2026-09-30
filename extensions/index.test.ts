@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,11 +7,10 @@ import { BUCK_STAGE_KEYS } from "./omp-models.js";
 import {
   CONVERSATION_TAIL_CHARS,
   CONVERSATION_TAIL_MESSAGES,
+  INTERACTIVE_MODEL_SWITCH_ENABLED,
   INTERACTIVE_STAGE_BY_SKILL,
   conversationTail,
   wireInteractiveModelSwitch,
-  type InteractiveSelectRequest,
-  type InteractiveSelectResult,
 } from "./interactive-model-switch.js";
 
 const dirs: string[] = [];
@@ -102,131 +101,48 @@ describe("conversation tail", () => {
   });
 });
 
-describe("interactive host adapter", () => {
-  it("switches one mapped command and restores model and thinking on agent_end", async () => {
+describe("interactive host adapter (deprecated short-circuit)", () => {
+  it("leaves the kill-switch off so manual prompts stay on the operator model", () => {
+    expect(INTERACTIVE_MODEL_SWITCH_ENABLED).toBe(false);
+  });
+
+  it("does not switch a mapped manual command and lets it continue", async () => {
     const cwd = tempDir();
-    mkdirSync(join(cwd, ".context", "2026-09-22.demo"), { recursive: true });
-    writeFileSync(join(cwd, ".context", "2026-09-22.demo", "index.md"), "---\nstatus: active\n---\n");
-    writeFileSync(join(cwd, ".context", "2026-09-22.demo", "plan-demo.md"), "# plan\n");
-    mkdirSync(join(cwd, ".context", "workflow"), { recursive: true });
-    const seen: InteractiveSelectRequest[] = [];
+    const select = vi.fn(async () => ({ ok: true as const, id: "provider/picked", thinking: "high" as const }));
     const { api, handlers, setModel, setThinkingLevel } = fakeApi();
-    wireInteractiveModelSwitch(api, {
-      select: async (request) => {
-        seen.push(request);
-        return { ok: true, id: "provider/picked", thinking: "high" };
-      },
-    });
-    const ctx = host(cwd, [
-      { role: "system", content: "do-not-send" },
-      { role: "user", content: "plan the cutover" },
-    ]);
+    wireInteractiveModelSwitch(api, { select });
+    const ctx = host(cwd, [{ role: "user", content: "plan the cutover" }]);
     await emit(handlers, "session_start", {}, ctx);
     const input = await emit(handlers, "input", { text: "/b-build phase-4" }, ctx);
     expect(input).toEqual({ action: "continue" });
-    expect(seen[0]).toMatchObject({
-      skill: "b-build",
-      stage: "build",
-      commandText: "/b-build phase-4",
-      subjectArtifacts: [".context/2026-09-22.demo/index.md", ".context/2026-09-22.demo/plan-demo.md"],
-      conversationTail: "plan the cutover",
-    });
-    expect(seen[0]?.conversationTail).not.toContain("do-not-send");
-    expect(setModel).toHaveBeenCalledTimes(1);
-    expect(setThinkingLevel).toHaveBeenCalledWith("high");
-
-    await emit(handlers, "input", { text: "/tokens" }, ctx);
-    expect(seen).toHaveLength(1);
-    expect(setModel).toHaveBeenCalledTimes(1);
-
-    await emit(handlers, "agent_end", {}, ctx);
-    expect(setModel).toHaveBeenCalledTimes(2);
-    expect(setModel).toHaveBeenLastCalledWith({ provider: "provider", id: "previous" });
-    expect(setThinkingLevel).toHaveBeenLastCalledWith("low");
-  });
-
-  it("routes /skill:-prefixed commands to the same stage", async () => {
-    const seen: InteractiveSelectRequest[] = [];
-    const { api, handlers, setModel } = fakeApi();
-    wireInteractiveModelSwitch(api, {
-      select: async (request) => {
-        seen.push(request);
-        return { ok: true, id: "provider/picked", thinking: "high" };
-      },
-    });
-    const ctx = host(tempDir());
-    await emit(handlers, "session_start", {}, ctx);
-    const input = await emit(handlers, "input", { text: "/skill:b-phase split the plan" }, ctx);
-    expect(input).toEqual({ action: "continue" });
-    expect(seen[0]).toMatchObject({ skill: "b-phase", stage: "phase" });
-    expect(setModel).toHaveBeenCalledTimes(1);
-  });
-
-  it("keeps the first snapshot across two mapped commands before agent_end", async () => {
-    const { api, handlers, setModel } = fakeApi();
-    wireInteractiveModelSwitch(api, {
-      select: async () => ({ ok: true, id: "provider/picked", thinking: "high" }),
-    });
-    const ctx = host(tempDir());
-    setModel.mockImplementation(async (model) => {
-      ctx.model = model as typeof ctx.model;
-      return true;
-    });
-    await emit(handlers, "session_start", {}, ctx);
-    await emit(handlers, "input", { text: "/b-build" }, ctx);
-    await emit(handlers, "input", { text: "/b-review" }, ctx);
-    await emit(handlers, "agent_end", {}, ctx);
-    expect(setModel).toHaveBeenLastCalledWith({ provider: "provider", id: "previous" });
-  });
-
-  it("refuses a missing stage before the command continues and does not switch", async () => {
-    const { api, handlers, setModel, setThinkingLevel } = fakeApi();
-    wireInteractiveModelSwitch(api, {
-      select: async (): Promise<InteractiveSelectResult> => ({
-        ok: false,
-        message: 'buckModels profile "work" is missing stage "build"',
-      }),
-    });
-    const ctx = host(tempDir());
-    await emit(handlers, "session_start", {}, ctx);
-    const input = await emit(handlers, "input", { text: "/b-build" }, ctx);
-    expect(input).toEqual({ action: "handled" });
-    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining('stage "build"'), "error");
-    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("No host-default model"), "error");
+    expect(select).not.toHaveBeenCalled();
     expect(setModel).not.toHaveBeenCalled();
     expect(setThinkingLevel).not.toHaveBeenCalled();
     await emit(handlers, "agent_end", {}, ctx);
     expect(setModel).not.toHaveBeenCalled();
   });
 
-  it("restores and refuses when applying the picked model throws", async () => {
+  it("does not switch /skill:-prefixed manual commands either", async () => {
+    const select = vi.fn(async () => ({ ok: true as const, id: "provider/picked", thinking: "high" as const }));
     const { api, handlers, setModel } = fakeApi();
-    setModel.mockRejectedValueOnce(new Error("registry exploded"));
-    wireInteractiveModelSwitch(api, {
-      select: async () => ({ ok: true, id: "provider/picked", thinking: "medium" }),
-    });
+    wireInteractiveModelSwitch(api, { select });
     const ctx = host(tempDir());
     await emit(handlers, "session_start", {}, ctx);
-    const input = await emit(handlers, "input", { text: "/b-review" }, ctx);
-    expect(input).toEqual({ action: "handled" });
-    expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("registry exploded"), "error");
-    await emit(handlers, "agent_end", {}, ctx);
-    expect(setModel).toHaveBeenCalledTimes(2);
+    const input = await emit(handlers, "input", { text: "/skill:b-phase split the plan" }, ctx);
+    expect(input).toEqual({ action: "continue" });
+    expect(select).not.toHaveBeenCalled();
+    expect(setModel).not.toHaveBeenCalled();
   });
 
-  it("does not restore over an explicit user model change", async () => {
+  it("lets unmapped commands through untouched", async () => {
+    const select = vi.fn(async () => ({ ok: true as const, id: "provider/picked", thinking: "high" as const }));
     const { api, handlers, setModel } = fakeApi();
-    let clock = 1_000;
-    wireInteractiveModelSwitch(api, {
-      now: () => clock,
-      select: async () => ({ ok: true, id: "provider/picked", thinking: "off" }),
-    });
+    wireInteractiveModelSwitch(api, { select });
     const ctx = host(tempDir());
     await emit(handlers, "session_start", {}, ctx);
-    await emit(handlers, "input", { text: "/b-plan" }, ctx);
-    clock += 500;
-    await emit(handlers, "model_select", {}, ctx);
-    await emit(handlers, "agent_end", {}, ctx);
-    expect(setModel).toHaveBeenCalledTimes(1);
+    const input = await emit(handlers, "input", { text: "/tokens" }, ctx);
+    expect(input).toEqual({ action: "continue" });
+    expect(select).not.toHaveBeenCalled();
+    expect(setModel).not.toHaveBeenCalled();
   });
 });
