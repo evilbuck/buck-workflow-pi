@@ -1,23 +1,26 @@
 ---
 status: active
 date: 2026-09-16
+updated: 2026-09-29
 subject: 2026-09-16.decision-closure
+execution_overview: plan-decision-closure-protocol-phases.md
+source_plans: [../2026-09-19.chooser-block-determinism/plan-chooser-block-determinism.md]
 topics: [decision-closure, assumptions, risk, rollback, workflow]
 research: []
 iterations: []
 spec: null
-memory: [decision-closure-plan-2026-09-16.md]
+memory: [decision-closure-plan-2026-09-16.md, decision-plans-rephase-2026-09-29.md]
 ---
 
-# Plan: Decision Closure Across Buck Workflow
+# Plan: Reliable Buck-loop Decisions and Decision Closure
 
 ## User Goal
 
-Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work.
+Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work. First verify and close the recorded Buck-loop chooser/review stall before introducing the broader protocol.
 
 ## Goal
 
-Add one Buck-native, conditional decision-closure protocol and integrate it into grilling, planning, phasing, hard-mode building, and review. Preserve Buck’s existing execution model: routine work stays fast; material or hard-to-reverse decisions become explicit and reviewable.
+First verify the recorded chooser/review stall and fix only proven remaining gaps, then add one Buck-native, conditional decision-closure protocol and integrate it into grilling, planning, phasing, hard-mode building, and review. Preserve Buck’s existing execution model: routine work stays fast; material or hard-to-reverse decisions become explicit and reviewable.
 
 ## Context used / assumptions
 
@@ -27,13 +30,17 @@ Add one Buck-native, conditional decision-closure protocol and integrate it into
 - **Current Buck contracts inspected:** `skills/b-grill*/SKILL.md`, `skills/b-plan/SKILL.md`, `skills/b-phase/SKILL.md`, `skills/b-build/SKILL.md`, `skills/b-review/SKILL.md`, `skills/_shared/SKILL.md`, `docs/buck-workflow.md`, the Codex bundle inventory, and the bundle synchronization rule.
 - **Existing behavior to preserve:** Light Grill remains discretionary; grill decision-domain metadata continues feeding `b-phase`; `b-build-hard` remains a mode of `b-build`; `b-review` remains an implementation review rather than a plan-quality review.
 - **Distribution assumption:** `skills/` remains canonical. Changed shipped skill directories must be synchronized into `plugins/buck-workflow/skills/`; `b-grill-auto` is not in the curated Codex bundle.
-- **Runtime assumption:** this is a portable skill-contract change. No extension state machine or automatic grill serializer changes are required unless implementation discovers that a runtime component parses a new field. Keep new records additive and body-based so existing readers remain compatible.
+- **Runtime assumption:** closure phases are portable skill-contract changes. No extension state machine or automatic grill serializer changes are required by closure unless a newly introduced field is parsed by runtime code. Records stay additive and body-based. Phase 1 separately owns the original chooser incident contract and any proven gap repairs.
+- **Execution ownership (2026-09-29):** this plan and its six-phase overview own the combined sequence; the chooser plan remains the source incident/requirements record, not a second implementation queue. Bugs first is an explicit user priority gate, not a technical dependency.
+- **Current chooser evidence:** `scan.ts` now matches impact headings at levels 1–6; `loop.ts` passes `decisionContext`; `choice.ts` uses/audits context and calls native Jev. These source observations do not close the original acceptance criteria; Phase 1 verifies them and fixes only remaining gaps.
+- **Related scope:** the larger typed-review/fix-or-continue plan remains separate; do not pull its five phases into this rephasing.
 - **Open questions:** none blocking. Exact prose and heading names are implementation details, provided they satisfy the behavioral contract and content constraints below.
 
 ## Scope
 
 ### In scope
 
+- Verify and close the chooser incident acceptance contract in [the source plan](../2026-09-19.chooser-block-determinism/plan-chooser-block-determinism.md), with minimal repairs only where fresh proof fails.
 - Create a shared decision-closure protocol under `skills/_shared/` and register it in the shared resource index.
 - Define conditional triggers for material decisions: hard-to-reverse changes, trust-boundary changes, data-loss or migration risk, accessibility impact, unresolved scope, new dependencies, new abstractions, and broad refactors.
 - Define a Buck-native closeout record covering the selected decision, evidence, trade-offs, assumptions, unresolved risks, excluded scope, rollback or fallback, and next bounded action.
@@ -80,10 +87,15 @@ If answers or repository evidence show that the stated problem is wrong, the gri
 
 Hard-mode build evaluates options in this order and stops when one safely satisfies the plan: confirm a change is needed, reuse a local pattern, use a platform-native capability, use an already-present package, minimize the patch, then introduce a new abstraction only when earlier options are insufficient.
 
+## Bug-first acceptance contract
+
+Phase 1 preserves all five chooser-plan acceptance criteria: equivalent heading-level review facts; bounded state, plan/phase paths, ambiguity and facts on review and postcondition choices with audited context; public-loop clean-review routing to save; the real incident scan or disposable fixture equivalent; and unchanged legal-set/block/illegal-choice safety. Genuine unparseable reports must retain their safe fallback. Current native judgment is preserved; the old smol-selection note is historical, not a migration instruction.
+
 ## Affected files
 
 | Path | Planned change |
 |---|---|
+| `extensions/buck-loop/{scan,choice,loop}.ts` and existing co-located tests | Phase 1 verification and only incident-contract gap repairs; preserve current native judgment and safety boundaries. |
 | `skills/_shared/decision-closure.md` | New canonical conditional protocol, schemas, triggers, and cross-skill rules. |
 | `skills/_shared/SKILL.md` | Register the new shared resource. |
 | `skills/b-grill/SKILL.md` | Apply pressure calibration, confirmed reframing, and the closeout record to both modes. |
@@ -101,15 +113,16 @@ No change is planned for `plugins/buck-workflow/skills/b-grill-auto/` because th
 
 ## Implementation steps
 
-1. **Author the shared protocol in Buck vocabulary.** Define material triggers, closure-ready criteria, assumption IDs/statuses, material-risk fields, confirmed problem reframing, pressure calibration, and the minimal-change sequence. Update `_shared/SKILL.md` so other skills can load the protocol by filename.
-2. **Wire the base and standalone grill skills.** Update `b-grill`, `b-grill-me`, `b-grill-auto`, and `b-grill-with-docs` to load the shared protocol, preserve existing question/domain/phasing metadata, and add one consistent closeout section rather than duplicating protocol prose.
-3. **Integrate closure into planning.** In `b-plan`, place the closure check after draft/Light Grill evaluation and before final write. Add optional `Decision Closure`, `Assumptions Ledger`, and structured material-risk shapes to the recommended plan structure. Keep low-risk plans unchanged.
-4. **Carry unresolved assumptions into phases.** In `b-phase`, map each deferred or blocking assumption ID to the earliest phase able to validate it. Add the validation to that phase’s context and acceptance criteria; create a HARD dependency when later work cannot proceed safely without resolution.
-5. **Constrain hard-mode implementation choices.** In `b-build`, add a hard-mode-only decision step for new dependencies, abstractions, and broad refactors. Require current contradictory evidence before reopening a settled plan decision, and route genuine reframing back to planning instead of silently changing scope.
-6. **Verify closure during review.** In `b-review`, extend the plan completion matrix to check blocking assumption resolution and evidence for material rollback/fallback claims. Treat unresolved in-plan blockers as implementation defects; report non-blocking deferred assumptions as warnings; route genuinely new scope through the existing out-of-plan path.
-7. **Update the workflow narrative.** Add the visible-decisions principle and the accepted-decision-envelope flow to `docs/buck-workflow.md`. Keep the existing durable intent/record explanation and autonomous execution modes intact.
-8. **Synchronize the Codex bundle.** Copy each changed canonical shipped skill directory in full to `plugins/buck-workflow/skills/`, preserving byte parity between canonical and bundled copies. Do not create a bundled `b-grill-auto` skill.
-9. **Exercise the behavior and distribution contract.** Run disposable low-risk, migration-risk, reframing, phased-assumption, hard-build, and review scenarios; verify canonical/bundle parity, the forbidden-term constraint, the focused Codex plugin test, and the project’s deterministic check contract.
+1. **Verify and close the recorded chooser stall first.** Read the source chooser plan and current scanner/context/audit path; run the incident-equivalent scenario through the real scanner and public loop. Exercise both chooser contexts and safety cases. Reuse shipped fixes; repair only criteria that fail. Record exercised evidence, run the required check contract if runtime/test code changes, and close Phase 1 before any closure feature work.
+2. **Author the shared protocol in Buck vocabulary.** Define material triggers, closure-ready criteria, assumption IDs/statuses, material-risk fields, confirmed problem reframing, pressure calibration, and the minimal-change sequence. Update _shared/SKILL.md so other skills can load the protocol by filename.
+3. **Wire the base and standalone grill skills.** Update `b-grill`, `b-grill-me`, `b-grill-auto`, and `b-grill-with-docs` to load the shared protocol, preserve existing question/domain/phasing metadata, and add one consistent closeout section rather than duplicating protocol prose.
+4. **Integrate closure into planning.** In `b-plan`, place the closure check after draft/Light Grill evaluation and before final write. Add optional `Decision Closure`, `Assumptions Ledger`, and structured material-risk shapes to the recommended plan structure. Keep low-risk plans unchanged.
+5. **Carry unresolved assumptions into phases.** In `b-phase`, map each deferred or blocking assumption ID to the earliest phase able to validate it. Add the validation to that phase’s context and acceptance criteria; create a HARD dependency when later work cannot proceed safely without resolution.
+6. **Constrain hard-mode implementation choices.** In `b-build`, add a hard-mode-only decision step for new dependencies, abstractions, and broad refactors. Require current contradictory evidence before reopening a settled plan decision, and route genuine reframing back to planning instead of silently changing scope.
+7. **Verify closure during review.** In `b-review`, extend the plan completion matrix to check blocking assumption resolution and evidence for material rollback/fallback claims. Treat unresolved in-plan blockers as implementation defects; report non-blocking deferred assumptions as warnings; route genuinely new scope through the existing out-of-plan path.
+8. **Update the workflow narrative.** Add the visible-decisions principle and the accepted-decision-envelope flow to `docs/buck-workflow.md`. Keep the existing durable intent/record explanation and autonomous execution modes intact.
+9. **Synchronize the Codex bundle.** Copy each changed canonical shipped skill directory in full to `plugins/buck-workflow/skills/`, preserving byte parity between canonical and bundled copies. Do not create a bundled `b-grill-auto` skill.
+10. **Exercise the behavior and distribution contract.** Run disposable low-risk, migration-risk, reframing, phased-assumption, hard-build, and review scenarios; verify canonical/bundle parity, the forbidden-term constraint, the focused Codex plugin test, and the project’s deterministic check contract.
 
 ## Acceptance criteria
 
@@ -126,7 +139,7 @@ No change is planned for `plugins/buck-workflow/skills/b-grill-auto/` because th
 - [ ] Ported canonical skill files and their Codex mirrors contain no case-insensitive occurrence of the word prohibited by the user.
 - [ ] No complete donor sentence, table, template, or branded label is copied into the ported skills; all language is authored for Buck’s concepts and workflow boundaries.
 - [ ] Canonical changed shipped skill directories and their Codex bundle copies are identical after synchronization.
-- [ ] No standalone risk skill, global approval layer, or runtime extension change is introduced.
+- [ ] No standalone risk skill or global approval layer is introduced. Closure phases introduce no runtime extension change; the only combined runtime scope is the original chooser bug contract.
 - [ ] `docs/buck-workflow.md` states both methodology principles and explains that autonomous execution stays inside an accepted decision envelope.
 
 ## Verification
@@ -158,4 +171,15 @@ No change is planned for `plugins/buck-workflow/skills/b-grill-auto/` because th
 
 ## Recommended next step
 
-This plan looks large enough to benefit from phasing. Run `/skill:b-phase` against this plan to create sequential, independently verifiable phases with dependency analysis, per-phase model hints, and resume-safe execution instructions.
+Start [Phase 1: Chooser Stall Verification and Repair](phase-1-chooser-stall.md). The shared protocol is Phase 2; it is gated on bug verification/closeout. See [the coordinated overview](plan-decision-closure-protocol-phases.md).
+
+## Revision Log
+
+### 2026-09-29 — Rephase together, bugs first
+
+- Inputs: user requested joint phasing of decision-closure and chooser-block-determinism, with bugs first.
+- Added: chooser acceptance verification/remaining-gap repair as Phase 1; shared execution ownership and a priority gate before protocol work.
+- Preserved: original closure behavioral contract, nine implementation steps (now 2–10), all 15 criteria and six behavior scenarios; all original chooser outcomes.
+- Modified: closure phases 1–5 become 2–6; current binary difficulty labels; backlog and artifact links. Native Jev remains the bounded judgment path.
+- Removed: no feature scope. Obsolete five-phase execution map is replaced by one six-phase map.
+- Verification: phase ownership, dependencies, relative links and live scanner selection are checked during this rephasing; no implementation criterion is marked complete.

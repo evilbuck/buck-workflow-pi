@@ -1,3 +1,9 @@
+- 2026-09-29 — [Decision-closure chooser checkpoint](decision-closure-chooser-checkpoint-2026-09-29.md) — active (H2/H4 scanner and public-loop H2 save route pass; context retry/audit regression added; remaining Phase 1 context/safety proof listed in subject review)
+
+- 2026-09-29 — [Coordinated decision plans — bugs first](decision-plans-rephase-2026-09-29.md) — completed (joint six-phase execution map; chooser incident proof first; original acceptance preserved; actual scanner selects Phase 1)
+
+- 2026-09-29 — [Phase 1 closeout — chooser stall verification](decision-closure-phase-1-chooser-stall-2026-09-29.md) — completed (five source-plan criteria + safety/native-Jev exercised; 128/3 vitest pass; guardrails pass; live Jev picked save 0.89 / save 0.81; no source/test edits)
+
 - 2026-09-29 — [OMP bootstrap installation](omp-bootstrap-install-2026-09-29.md) — completed (latest repo bootstrap installed through targeted chezmoi apply; OMP/Pi symlink sharing preserved; byte parity and zero deployment drift verified)
 
 - 2026-09-29 — [SQL memory discovery](sql-memory-discovery-2026-09-29.md) — completed (always-loaded bootstrap policy, tool metadata, shared/Codex protocol and docs aligned; registration/protocol smoke and durable guardrails pass)

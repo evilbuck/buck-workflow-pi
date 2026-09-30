@@ -1,10 +1,10 @@
 ---
 status: pending
-phase: 5
-order: 5
+phase: 6
+order: 6
 plan: plan-decision-closure-protocol.md
 phases_overview: plan-decision-closure-protocol-phases.md
-difficulty: medium
+difficulty: not-hard
 model_hint: capable general model — methodology narrative plus originality, parity, and behavior proof
 buck_hint: /b-build
 goal: "Document the second methodology principle and prove the conditional envelope is original, identically bundled, and exercised."
@@ -18,8 +18,8 @@ files:
   - plugins/buck-workflow/skills/b-phase/
   - plugins/buck-workflow/skills/b-build/
   - plugins/buck-workflow/skills/b-review/
-from_plan_steps: [7, 8, 9]
-depends_on: [2, 3, 4]
+from_plan_steps: [8, 9, 10]
+depends_on: [3, 4, 5]
 dependency_type: HARD
 acceptance_criteria:
   - "[ ] `docs/buck-workflow.md` states two methodology principles: durable work and visible material decisions."
@@ -30,19 +30,19 @@ acceptance_criteria:
   - "[ ] Every integrating skill resolves `skills/_shared/decision-closure.md` and does not embed a second copy of the protocol."
   - "[ ] `npx vitest run scripts/codex-plugin.test.ts` passes."
   - "[ ] Behavior scenarios listed in Verification have been exercised (or explicitly recorded as tabletop traces with file:heading evidence when a fresh loaded session is unavailable)."
-  - "[ ] No standalone risk skill, global approval layer, or runtime extension change was introduced."
+  - "[ ] No standalone risk skill or global approval layer was introduced; closure phases add no runtime change, while Phase 1 owns the existing chooser bug scope."
   - "[ ] Deterministic check contract: docs-only skip recorded, or `/b-guardrails-check` pass if any non-docs path changed."
 completed_at: null
 completed_by: null
 ---
 
-# Phase 5: Narrative and Proof
+# Phase 6: Narrative and Proof
 
 ## Context
 
 Parent user goal: Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work.
 
-Join point after Phases 2–4. Do not start until those consumers exist; the narrative must describe the envelope that actually shipped, and the scenarios need all four grill variants plus plan, phase, build, and review.
+Join point after Phases 3–5. Do not start until those consumers exist; the narrative must describe the envelope that actually shipped, and the scenarios need all four grill variants plus plan, phase, build, and review.
 
 ## Implementation Details
 
@@ -75,7 +75,7 @@ Join point after Phases 2–4. Do not start until those consumers exist; the nar
 
 - Narrative oversells ceremony and undoes the user goal. Keep "conditional" and "skip" in the same paragraph as the new principle.
 - Scenario pass-by-reading. Prefer a reloaded session; if unavailable, cite headings that would fire, and say so.
-- Re-authoring docs that Phase 3/4 already patched. Re-read `docs/buck-workflow.md` tails and byte-compare unrelated sections against `HEAD` after edits.
+- Re-authoring docs that Phase 4/5 already patched. Re-read `docs/buck-workflow.md` tails and byte-compare unrelated sections against `HEAD` after edits.
 
 ## Verification
 

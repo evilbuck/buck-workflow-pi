@@ -4,7 +4,8 @@
  * continuation it is. Light and medium lifts continue automatically with the
  * diagnosis. A heavy lift is handed to the operator.
  */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { runJev } from "../jev-tool/index.js";
@@ -72,9 +73,12 @@ export function diagnoseAmbiguity(evidence: AmbiguityEvidence): string {
 }
 
 /** Closed lift judgment. A missing or illegal answer is a heavy handoff, not an automatic retry. */
-export async function askRepairLift(diagnosis: string): Promise<RepairPlan> {
+export async function askRepairLift(diagnosis: string, audit?: { cwd: string; subject: string }): Promise<RepairPlan> {
+  let lift: RepairLift | null = null;
+  let raw = "";
+  let reason = "";
   try {
-    const { details } = await runJev(createTypeSafeEvaluator(), {
+    const result = await runJev(createTypeSafeEvaluator(), {
       state: diagnosis,
       questions: {
         lift: {
@@ -88,13 +92,22 @@ export async function askRepairLift(diagnosis: string): Promise<RepairPlan> {
         },
       },
     });
-    const lift = readLift(details);
-    if (!lift) return { lift: "heavy", reason: "Jev did not return a legal lift", diagnosis };
-    return { lift, reason: `Jev classified the repair as ${lift}`, diagnosis };
+    raw = result.raw;
+    lift = readLift(result.details);
+    reason = lift ? `Jev classified the repair as ${lift}` : "Jev did not return a legal lift";
   } catch (error) {
-    const reason = error instanceof Error ? error.message : "Jev lift call failed";
-    return { lift: "heavy", reason, diagnosis };
+    reason = error instanceof Error ? error.message : "Jev lift call failed";
   }
+  const plan: RepairPlan = { lift: lift ?? "heavy", reason, diagnosis };
+  if (audit) {
+    const directory = join(audit.cwd, ".context", audit.subject, "transition-audits");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, `${Date.now()}-repair-lift-${randomUUID()}.json`), `${JSON.stringify({
+      source: "repair-lift", context: diagnosis, raw, lift: plan.lift,
+      accepted: lift !== null, reason,
+    }, null, 2)}\n`);
+  }
+  return plan;
 }
 
 function firstSentence(text: string): string {

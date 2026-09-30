@@ -160,7 +160,10 @@ const DEFAULT_DEPS: LoopDeps = {
   confirmContinue: async () => false,
   classifyRepair: async ({ cwd, snapshot, why, sessionText }) => {
     const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-    return askRepairLift(diagnoseAmbiguity({ abs, sessionText, why }));
+    const diagnosis = diagnoseAmbiguity({ abs, sessionText, why });
+    return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
+      cwd, subject: snapshot.subject ?? "unknown",
+    });
   },
 };
 
@@ -454,21 +457,29 @@ async function resolveAmbiguity(
   if (abs && repairCheckedPhase(abs, deps.now())) {
     return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
   }
-  const plan = await deps.classifyRepair({ cwd, snapshot, why: transition.why, sessionText });
+  let plan: RepairPlan;
+  try {
+    plan = await deps.classifyRepair({ cwd, snapshot, why: transition.why, sessionText });
+  } catch (error) {
+    const reason = `could not audit ambiguity lift: ${error instanceof Error ? error.message : String(error)}`;
+    const blocked = block(snapshot, reason, deps.now());
+    persistIfPossible(cwd, blocked);
+    return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
+  }
   if (plan.lift === "heavy") return stopForOperator(cwd, snapshot, plan, abs, deps);
-  return retryRepair(cwd, snapshot, path, plan.diagnosis, deps);
+  return retryRepair(cwd, snapshot, path, plan, deps);
 }
 
 async function retryRepair(
   cwd: string,
   snapshot: Snapshot,
   path: string,
-  diagnosis: string,
+  plan: RepairPlan,
   deps: LoopDeps,
 ): Promise<EffectResult> {
   const beforeRetry = loopExtensionFiles(cwd);
-  const retry = applyChoice({ kind: "retry" }, snapshot);
-  const ran = await continueChoice(cwd, snapshot, path, retry, deps, diagnosis);
+  const retry = { ...applyChoice({ kind: "retry" }, snapshot), why: `retry ${plan.lift} lift: ${plan.reason}` };
+  const ran = await continueChoice(cwd, snapshot, path, retry, deps, plan.diagnosis);
   const changed = changedLoopExtensionFiles(cwd, beforeRetry);
   if (changed.length === 0) return ran;
   return stopForExtensionRestart(cwd, ran.snapshot, changed, deps);

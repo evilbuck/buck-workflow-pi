@@ -1,10 +1,10 @@
 ---
 status: pending
-phase: 4
-order: 4
+phase: 5
+order: 5
 plan: plan-decision-closure-protocol.md
 phases_overview: plan-decision-closure-protocol-phases.md
-difficulty: medium
+difficulty: not-hard
 model_hint: capable general model — execution-side consumers; watch for b-review overreach into plan-quality review
 buck_hint: /b-build
 goal: "Constrain hard-mode implementation choices with the minimal-change sequence, and extend review to check blocking assumptions and rollback evidence without reopening accepted decisions."
@@ -13,8 +13,8 @@ files:
   - skills/b-review/SKILL.md
   - plugins/buck-workflow/skills/b-build/
   - plugins/buck-workflow/skills/b-review/
-from_plan_steps: [5, 6]
-depends_on: [1]
+from_plan_steps: [6, 7]
+depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
   - "[ ] `b-build` hard mode loads the shared protocol and evaluates the minimal-change sequence before adding a dependency, abstraction, or broad refactor, stopping at the first option that safely satisfies the plan."
@@ -29,13 +29,13 @@ completed_at: null
 completed_by: null
 ---
 
-# Phase 4: Build and Review
+# Phase 5: Build and Review
 
 ## Context
 
 Parent user goal: Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work.
 
-Phase 1 owns the minimal-change sequence and closure-ready rules. This phase applies them at execution time. Soft-depends on Phase 3: review and hard-mode read plan/phase ledgers whose *shape* is in the protocol. You may implement against Phase 1 headings if Phase 3 has not landed; do not invent a second field vocabulary.
+Phase 2 owns the minimal-change sequence and closure-ready rules. This phase applies them at execution time. Soft-depends on Phase 4: review and hard-mode read plan/phase ledgers whose *shape* is in the protocol. You may implement against Phase 2 headings if Phase 4 has not landed; do not invent a second field vocabulary.
 
 `b-build-hard` remains a mode of `b-build`. Do not change `skills/b-build-hard/SKILL.md` unless that wrapper currently bypasses hard-mode steps (if it only points at `b-build`, leave it).
 
@@ -72,7 +72,7 @@ Synchronize full canonical `skills/b-build/` and `skills/b-review/` into `plugin
 
 - Review starts re-litigating accepted decisions. Limit new matrix rows to the plan's own blocking assumptions and declared rollback/fallback claims.
 - Hard mode applies the sequence on every edit. Gate it on dependency / abstraction / broad-refactor introduction.
-- Parallel with Phase 3: if ledger heading names are still in flux, cite Phase 1 headings and leave a one-line "plan/phase artifacts instantiate these fields" note rather than forking names.
+- Parallel with Phase 4: if ledger heading names are still in flux, cite Phase 2 headings and leave a one-line "plan/phase artifacts instantiate these fields" note rather than forking names.
 
 ## Verification
 

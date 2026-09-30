@@ -74,9 +74,9 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 ### Upcoming Phases
 
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
-- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; covered by typed-review and fix-or-continue Phases 1–3
+- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; original incident first in [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md); broader typed-review/recovery scope remains separate
 - [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
-- [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
+- [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
@@ -117,20 +117,21 @@ After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 - [x] [Phase 6: Command Surface](archive/2026-09/phase-6-command-surface.md) — medium, `/b-build` — done 2026-09-18
 - [x] [Phase 7: Documentation and Proof](archive/2026-09/phase-7-documentation-and-proof.md) — medium, `/b-build` — done 2026-09-18
 
-## Decision Closure Phases (2026-09-16)
+## Coordinated Decision Phases (rephased 2026-09-29)
 
 Overview: [`plan-decision-closure-protocol-phases.md`](../2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md).
 Umbrella: [Add decision closure across Buck Workflow](items/decision-closure-protocol.md).
-After Phase 1, Phases 2–4 may run in parallel.
+Phase 1 verifies/closes the chooser bug first; Phase 2 freezes the closure protocol; only then may Phases 3–5 run in parallel.
 
-- [ ] Phase 1: Shared Protocol — hard — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md) — **active**
+- [x] Phase 1: Chooser Stall Verification and Repair — hard — [phase-1-chooser-stall.md](../2026-09-16.decision-closure/phase-1-chooser-stall.md) — done 2026-09-29
 
 ### Upcoming Phases
 
-- [ ] Phase 2: Grill Variants — medium — [phase-2-grill-variants.md](../2026-09-16.decision-closure/phase-2-grill-variants.md)
-- [ ] Phase 3: Plan and Phase — medium — [phase-3-plan-and-phase.md](../2026-09-16.decision-closure/phase-3-plan-and-phase.md)
-- [ ] Phase 4: Build and Review — medium — [phase-4-build-and-review.md](../2026-09-16.decision-closure/phase-4-build-and-review.md)
-- [ ] Phase 5: Narrative and Proof — medium — [phase-5-narrative-and-proof.md](../2026-09-16.decision-closure/phase-5-narrative-and-proof.md)
+- [ ] Phase 2: Shared Protocol — hard — [phase-2-shared-protocol.md](../2026-09-16.decision-closure/phase-2-shared-protocol.md)
+- [ ] Phase 3: Grill Variants — not-hard — [phase-3-grill-variants.md](../2026-09-16.decision-closure/phase-3-grill-variants.md)
+- [ ] Phase 4: Plan and Phase — not-hard — [phase-4-plan-and-phase.md](../2026-09-16.decision-closure/phase-4-plan-and-phase.md)
+- [ ] Phase 5: Build and Review — not-hard — [phase-5-build-and-review.md](../2026-09-16.decision-closure/phase-5-build-and-review.md)
+- [ ] Phase 6: Narrative and Proof — not-hard — [phase-6-narrative-and-proof.md](../2026-09-16.decision-closure/phase-6-narrative-and-proof.md)
 
 ## mattpocock Remediation Phases (2026-09-10)
 

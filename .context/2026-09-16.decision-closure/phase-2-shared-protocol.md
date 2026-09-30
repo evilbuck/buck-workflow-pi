@@ -1,7 +1,7 @@
 ---
 status: pending
-phase: 1
-order: 1
+phase: 2
+order: 2
 plan: plan-decision-closure-protocol.md
 phases_overview: plan-decision-closure-protocol-phases.md
 difficulty: hard
@@ -12,9 +12,9 @@ files:
   - skills/_shared/decision-closure.md
   - skills/_shared/SKILL.md
   - plugins/buck-workflow/skills/_shared/
-from_plan_steps: [1]
-depends_on: []
-dependency_type: NONE
+from_plan_steps: [2]
+depends_on: [1]
+dependency_type: HARD
 acceptance_criteria:
   - "[ ] `skills/_shared/decision-closure.md` exists and is loadable as `skill://_shared/decision-closure.md`."
   - "[ ] `skills/_shared/SKILL.md` lists `decision-closure.md` in the Available Resources table with a one-line purpose."
@@ -28,7 +28,7 @@ completed_at: null
 completed_by: null
 ---
 
-# Phase 1: Shared Protocol
+# Phase 2: Shared Protocol
 
 ## Context
 
@@ -62,7 +62,7 @@ This phase is the schema gate. Later phases only reference this file. If the pro
 ## Risks
 
 - Ceremony leak: if skip rules are weak, later skills will interview on every plan. Keep triggers explicit and the skip path first.
-- Schema drift: if this file is a narrative essay without field names, Phase 3–4 will invent incompatible ledgers. Prefer named fields and allowed values.
+- Schema drift: if this file is a narrative essay without field names, Phase 4–5 will invent incompatible ledgers. Prefer named fields and allowed values.
 - Donor language: originality is an acceptance criterion, not a polish pass. Rewrite from the parent plan's behavioral contract.
 - Bundle drift: sync the whole `_shared` directory, including existing files such as `subject-resolution.md` and `scripts/`.
 

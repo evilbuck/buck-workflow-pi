@@ -1,10 +1,10 @@
 ---
 status: pending
-phase: 2
-order: 2
+phase: 3
+order: 3
 plan: plan-decision-closure-protocol.md
 phases_overview: plan-decision-closure-protocol-phases.md
-difficulty: medium
+difficulty: not-hard
 model_hint: capable general model — four skill bodies, one shared closeout contract, no runtime changes
 buck_hint: /b-build
 goal: "Wire all four portable grill skills to load the shared protocol and emit one consistent closeout section without duplicating its schema."
@@ -16,8 +16,8 @@ files:
   - plugins/buck-workflow/skills/b-grill/
   - plugins/buck-workflow/skills/b-grill-me/
   - plugins/buck-workflow/skills/b-grill-with-docs/
-from_plan_steps: [2]
-depends_on: [1]
+from_plan_steps: [3]
+depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
   - "[ ] `b-grill`, `b-grill-me`, `b-grill-auto`, and `b-grill-with-docs` each instruct the agent to load `skills/_shared/decision-closure.md` (or `skill://_shared/decision-closure.md`)."
@@ -32,17 +32,17 @@ completed_at: null
 completed_by: null
 ---
 
-# Phase 2: Grill Variants
+# Phase 3: Grill Variants
 
 ## Context
 
 Parent user goal: Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work.
 
-Phase 1 froze the schema. This phase is the intake surface: grilling must produce a native closeout when material, and stay quiet when not. `b-plan` (Phase 3) is required to tolerate missing upstream closeout, so this phase is not a blocker for plan/phase/build/review authoring.
+Phase 2 froze the schema. This phase is the intake surface: grilling must produce a native closeout when material, and stay quiet when not. `b-plan` (Phase 4) is required to tolerate missing upstream closeout, so this phase is not a blocker for plan/phase/build/review authoring.
 
 ## Implementation Details
 
-1. Load Phase 1's protocol. Cite its headings; do not paste its field list into each skill.
+1. Load Phase 2's protocol. Cite its headings; do not paste its field list into each skill.
 
 2. Update all four portable grill skills:
 

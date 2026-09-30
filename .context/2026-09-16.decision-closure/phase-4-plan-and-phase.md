@@ -1,10 +1,10 @@
 ---
 status: pending
-phase: 3
-order: 3
+phase: 4
+order: 4
 plan: plan-decision-closure-protocol.md
 phases_overview: plan-decision-closure-protocol-phases.md
-difficulty: medium
+difficulty: not-hard
 model_hint: capable general model — two core workflow skills, shared assumption IDs, no new frontmatter keys
 buck_hint: /b-build
 goal: "Make plans emit a status-bearing assumptions ledger only when triggered, and make phasing assign every deferred or blocking assumption to exactly one earliest-capable phase."
@@ -13,8 +13,8 @@ files:
   - skills/b-phase/SKILL.md
   - plugins/buck-workflow/skills/b-plan/
   - plugins/buck-workflow/skills/b-phase/
-from_plan_steps: [3, 4]
-depends_on: [1]
+from_plan_steps: [4, 5]
+depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
   - "[ ] `b-plan` loads the shared protocol and runs the closure check after draft/Light Grill evaluation and before the final plan write."
@@ -29,13 +29,13 @@ completed_at: null
 completed_by: null
 ---
 
-# Phase 3: Plan and Phase
+# Phase 4: Plan and Phase
 
 ## Context
 
 Parent user goal: Buck Workflow users can see and validate material decisions, assumptions, and rollback posture before autonomous execution, without slowing routine work.
 
-Phase 1 owns field names and statuses. This phase is the planning envelope: `b-plan` writes the ledger; `b-phase` schedules validation. Independent of grill skill edits (Phase 2). Soft-related to Phase 4, which consumes the same IDs at build/review time — do not invent extra ledger fields here.
+Phase 2 owns field names and statuses. This phase is the planning envelope: `b-plan` writes the ledger; `b-phase` schedules validation. Independent of grill skill edits (Phase 3). Soft-related to Phase 5, which consumes the same IDs at build/review time — do not invent extra ledger fields here.
 
 ## Implementation Details
 
@@ -48,7 +48,7 @@ Phase 1 owns field names and statuses. This phase is the planning envelope: `b-p
 3. When a trigger applies, add optional recommended-structure sections (names may match the protocol headings):
 
    - Decision Closure
-   - Assumptions Ledger (`A-<n>` or the ID format frozen in Phase 1; status; blocking; evidence or validation path)
+   - Assumptions Ledger (`A-<n>` or the ID format frozen in Phase 2; status; blocking; evidence or validation path)
    - Structured material-risk entries (failure mode, impact, mitigation, rollback/fallback)
 
 4. If a grill closeout exists, reuse its IDs and statuses. If it is missing or thin, synthesize the ledger from current evidence. Ask the user only for unresolved material questions.
@@ -76,9 +76,9 @@ Synchronize full canonical `skills/b-plan/` and `skills/b-phase/` into `plugins/
 ## Risks
 
 - Forcing ledgers onto every plan. The skip path is part of the user goal; include a mental smoke: a typo-fix plan has no new sections.
-- ID mismatch between plan and phase. Use the Phase 1 ID format only.
+- ID mismatch between plan and phase. Use the Phase 2 ID format only.
 - `b-phase` treating every assumption as HARD. Only block when later work is unsafe without resolution.
-- Running in parallel with Phase 4: Phase 4 may assume these section names. If you rename headings, update the protocol (Phase 1) first — do not fork names in `b-plan` alone.
+- Running in parallel with Phase 5: Phase 5 may assume these section names. If you rename headings, update the protocol (Phase 2) first — do not fork names in `b-plan` alone.
 
 ## Verification
 

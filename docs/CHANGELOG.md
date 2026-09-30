@@ -12,4 +12,5 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **Buck-loop ambiguous postconditions retain decision evidence.** The native repair-lift judgment now receives bounded plan, phase, state, work/review facts and the child/disk diagnosis. Its accepted or rejected lift is audited before any retry or operator handoff; audit-write failure blocks the run.
 - **Buck-loop stop and status retain the actual blocker and explain recovery.** Operator stops are informational rather than misleading failure warnings. Status distinguishes historical blockers from current failures and provides the appropriate resume or fresh-start instructions, including recovery from interrupted commit checkpoints.

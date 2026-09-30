@@ -9,6 +9,8 @@ import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "no
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
+import { runJev } from "../../jev-tool/index.js";
+vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 import { readProjection } from "../persist.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
 import type { ChooseResult } from "../choice.js";
@@ -607,6 +609,68 @@ describe("failure and choice", () => {
     expect(builds).toBe(2);
     expect(deps.choose).not.toHaveBeenCalled();
     expect(result.reason).toMatch(/still ambiguous after one retry/i);
+  });
+
+  it("passes bounded ambiguity evidence to Jev and audits a light retry before work", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    vi.mocked(runJev).mockResolvedValueOnce({
+      raw: "light", details: { answers: { lift: { choice: "light" } } },
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "Runtime SQL retrieval is not implemented." }));
+    const result = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: { runStep: deps.runStep, choose: deps.choose, now: deps.now },
+    });
+    expect(result.state).toBe("blocked");
+    const state = vi.mocked(runJev).mock.calls[0]?.[1].state;
+    expect(state).toContain(`plan=${PLAN} phase=.context/${SUBJECT}/phase-1-p1.md`);
+    expect(state).toContain("postcondition=ambiguous");
+    expect(state).toContain("Child report: Runtime SQL retrieval is not implemented.");
+    const audits = readdirSync(join(cwd, `.context/${SUBJECT}/transition-audits`));
+    const audit = JSON.parse(readFileSync(join(cwd, `.context/${SUBJECT}/transition-audits`, audits[0]!), "utf8"));
+    expect(audit).toMatchObject({ source: "repair-lift", accepted: true, lift: "light", context: state });
+    expect(readProjection(cwd)?.history.some((entry) => entry.why.includes("Jev classified the repair as light"))).toBe(true);
+    vi.mocked(runJev).mockReset();
+  });
+
+  it("audits an illegal ambiguity lift and hands it to the operator without retry", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    vi.mocked(runJev).mockResolvedValueOnce({
+      raw: "invented", details: { answers: { lift: { choice: "invented" } } },
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "Missing disposable database." }));
+    const result = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: { runStep: deps.runStep, choose: deps.choose, now: deps.now },
+    });
+    expect(result.state).toBe("blocked");
+    expect(deps.runStep).toHaveBeenCalledTimes(1);
+    const audits = readdirSync(join(cwd, `.context/${SUBJECT}/transition-audits`));
+    const audit = JSON.parse(readFileSync(join(cwd, `.context/${SUBJECT}/transition-audits`, audits[0]!), "utf8"));
+    expect(audit).toMatchObject({ source: "repair-lift", accepted: false, lift: "heavy" });
+    expect(audit.context).toContain("Missing disposable database.");
+    vi.mocked(runJev).mockReset();
+  });
+
+  it("blocks without retry when the ambiguity audit cannot be written", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeFileSync(join(cwd, `.context/${SUBJECT}/transition-audits`), "not a directory");
+    vi.mocked(runJev).mockResolvedValueOnce({
+      raw: "medium", details: { answers: { lift: { choice: "medium" } } },
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "Same phase remains unfinished." }));
+    const result = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: { runStep: deps.runStep, choose: deps.choose, now: deps.now },
+    });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("could not audit ambiguity lift");
+    expect(deps.runStep).toHaveBeenCalledTimes(1);
+    expect(readProjection(cwd)?.history.at(-1)?.why).toContain("could not audit ambiguity lift");
+    vi.mocked(runJev).mockReset();
   });
 
   it("does not treat pre-existing loop-extension dirt as a repair from the retry", async () => {

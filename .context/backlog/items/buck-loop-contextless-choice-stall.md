@@ -3,7 +3,7 @@ title: Fix buck-loop context-free choice stalls
 status: active
 priority: high
 created: 2026-09-19
-updated: 2026-09-22
+updated: 2026-09-29
 completed: null
 related:
   - .context/2026-09-19.buck-loop-stall-diagnosis/research-buck-loop-stall.md
@@ -13,11 +13,14 @@ related:
   - extensions/buck-loop/choice.ts
   - extensions/buck-loop/scan.ts
   - extensions/buck-loop/loop.ts
+  - .context/2026-09-16.decision-closure/phase-1-chooser-stall.md
 ---
 
 # Fix buck-loop context-free choice stalls
 
 Two incidents proved that prose-only review routing is insufficient: a clean review can omit a required section, become unparseable, and let an evidence-poor chooser select `block`.
+
+Original 2026-09-19 incident verification now runs first in the [combined decision sequence](../../2026-09-16.decision-closure/phase-1-chooser-stall.md). Its original five acceptance criteria remain in the chooser source plan. The broader acceptance below is still owned by the separate typed-review/fix-or-continue plan; closing combined Phase 1 does not close this broader backlog item.
 
 ## Acceptance
 
