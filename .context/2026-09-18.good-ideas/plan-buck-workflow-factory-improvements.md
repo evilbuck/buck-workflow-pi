@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.good-ideas
 topics: [software-factory, workflow-integrity, guardrails, skill-catalog, installer, codex, hooks]
 research: []
 iterations: []
 spec:
-memory: [good-ideas-plan-2026-09-18.md]
+memory: [good-ideas-plan-2026-09-18.md, good-ideas-factory-improvements-2026-09-30.md]
 ---
 
 # Plan: Harden Buck Workflow integrity and enforcement
@@ -27,7 +27,7 @@ Turn the five Buck Workflow recommendations in the software-factory comparison i
 - **Canonical surfaces:** root `skills/` is the canonical general skill tree; `plugins/buck-workflow/skills/` is a deliberately curated, self-contained Codex release bundle; `prompts/` is the intended command source of truth once the existing mirror-drift item is completed.
 - **Guardrail baseline:** the v2 contract exposes six verdict gates, not five. Brownfield staging already exists implicitly through skipped/advisory results and ratchets; explicit enforcement states and a machine runner do not.
 - **Hook posture:** hook installation is opt-in and repository-local. It must preserve or safely refuse around existing hooks; package installation must never silently replace `core.hooksPath`.
-- **Existing work:** `.context/backlog/items/commands-mirror-drift.md` owns command content/symlink remediation. `.context/2026-09-09.installer-source-integrity/plan-installer-source-integrity.md` already owns installer source-root diagnostics. `.context/2026-09-16.decision-closure/phase-5-narrative-and-proof.md` owns syncing the specific Codex skills changed by that work, not a general bundle-parity invariant.
+- **Existing work:** `.context/backlog/items/commands-mirror-drift.md` owns command content/symlink remediation. `.context/2026-09-09.installer-source-integrity/plan-installer-source-integrity.md` already owns installer source-root diagnostics. `.context/2026-09-16.decision-closure/phase-6-narrative-and-proof.md` owns syncing the specific Codex skills changed by that work, not a general bundle-parity invariant.
 - **Repository state:** `.context/backlog/todo.md` is already unmerged (`UU`). This plan creates the backing backlog item but does not edit or resolve that unrelated conflict.
 
 ## Validated recommendation matrix

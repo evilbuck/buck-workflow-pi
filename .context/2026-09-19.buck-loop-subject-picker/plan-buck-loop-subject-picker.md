@@ -1,114 +1,115 @@
 ---
 status: active
-date: 2026-09-19
+date: 2026-09-27
 subject: 2026-09-19.buck-loop-subject-picker
-topics: [buck-loop, subject-picker, tui, command-surface]
+topics: [buck-loop, subject-ranking, jev, tui, command-surface]
 research: []
 iterations: []
 spec:
-memory: []
+memory: [buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md]
 ---
 
-# Plan: `/buck-loop` subject picker
+# Plan: Jev-ranked `/buck-loop` subject picker
 
 ## User Goal
 
-When I run `/buck-loop` without naming a subject, I pick from my latest subjects in the TUI instead of getting a usage error, and that choice stays fixed until the run finishes.
+When I run `/buck-loop` without a path, show me about ten likely subject folders ranked by probability; when I select one, start the loop on that subject.
 
 ## Goal
 
-Bare `/buck-loop` presents up to five recent runnable subject folders via `ctx.ui.select`. The chosen folder name is the only path the supervisor sees for that invocation. Explicit paths, `--resume`, `--status`, and `--stop` are unchanged. `scan()` still never guesses among subjects.
+Replace bare `/buck-loop`'s usage error with a Jev-ranked TUI picker. Discover runnable active subjects, ask TypeSafe Jev for a probability distribution using the current conversation and bounded subject metadata, show up to ten rows in descending probability, then pass the selected folder to the existing supervisor exactly once. Explicit paths and `--resume` / `--status` / `--stop` remain unchanged.
 
 ## Context used / assumptions
 
-- User-provided context: picker when no subject is provided; latest subjects, cap 5, TUI; lock the choice for the rest of the loop.
-- Session context: Phase 6 AC currently requires a missing path to print usage and perform **no subject discovery**. This plan replaces that AC with an operator TUI pick, not a scan guess. ADR 0002 still forbids auto-planning and hidden orchestration.
-- Relocated from `2026-09-18.buck-loop-extension` so `/buck-loop` does not treat sibling completed phases as this plan. Status-contract / skill-hook work is out of this plan.
-- Code: `parseArgs("")` → usage error (`index.ts`); `startRun` already requires a path and `drive`/`rescan` reuse it; `FROZEN_PHASE` already freezes `phasePath`; `Projection.subject` already bookmarks the run; `scan()` returns `missing("path is required")` on empty input and refuses `.context` with multiple subjects (`scan.test.ts`). TUI pattern already exists: `ctx.ui.select("Which subject?", names)` in `extensions/b-save-improved/index.ts`.
-- Related (not in this subject folder): `.context/2026-05-31.subject-selection-prompting/` is skill-level numbered menus, not this command.
-- Assumptions:
-  - **Latest** = subject folder basename descending (`YYYY-MM-DD.slug` is ISO, so lexicographic = newest first). Not mtime.
-  - Cap 5; show fewer when fewer exist. No padding, no "Other".
-  - Eligible: `.context/YYYY-MM-DD.*` directories that are not `status: completed` (missing `index.md` / missing `status:` = eligible, matching subject-resolution legacy) **and** contain at least one `plan-*.md` (loop is existing-plans only).
-  - Cancel (`select` → `null`/`undefined`) = toast, no persist, no `handleLoop`.
-  - Headless / no `ui.select` = keep today's USAGE toast. Do not invent a subject.
-  - `--resume` uses `projection.subject` (or `phasePath`/`planPath`); never re-prompts.
-  - No phase picker. After the subject is chosen, existing `pickSolePlan` / `pickPhase` apply.
-  - Do not share a module with `b-save-improved`. Copy the select call shape only.
+- **Current behavior:** `parseArgs("")` returns `{ ok: false, error: USAGE }`; the handler emits an error toast and returns before creating activity, a log, or calling `handleLoop`. `scan()` requires an explicit path and still refuses `.context` because it never guesses among subjects.
+- **User direction:** the command should not auto-start a guessed subject. Jev ranks candidates; the operator makes the final TUI selection; that selection kicks off buck-loop.
+- **Existing primitives:** `runJev(createTypeSafeEvaluator(), request)` is the direct TypeSafe judgment path; `choice.ts` proves how to read Jev choice results. `listSubjectFolders()` and `inspectSubjectLifecycle()` are the lifecycle authority. `scan({ projectRoot, path })` is the existing runnable-plan classifier. `ctx.sessionManager.getBranch()` / `getEntries()` exposes bounded user/assistant conversation context.
+- **Capability probe:** `full`, from the system available-skills catalog (`b-build`, `b-review`, and `b-save` are all loaded).
+- **Selection semantics:**
+  - “About ten” means at most 10 visible rows; fewer are shown when fewer eligible subjects exist.
+  - Active subjects are preferred. Draft subjects are considered only when there are no active candidates, matching the shared subject-resolution protocol.
+  - A candidate must resolve through `scan(subjectName)` to `unphased` or `phased-incomplete`. Completed, malformed, ambiguous multi-plan, dependency-blocked, and no-plan subjects are excluded.
+  - When more than 50 eligible subjects exist, judge the 50 newest folder basenames to bound request size. Stable recency order breaks equal-probability ties.
+  - A sole eligible candidate gets probability 1 without calling Jev, but is still presented for operator confirmation.
+  - Jev failure, missing credentials, malformed/partial probabilities, missing TUI support, timeout, or cancel stops this invocation without persisting or starting a run. No recency fallback and no chat-model fallback.
 
 ## Scope
 
-1. Export a pure `listRecentSubjects(projectRoot, limit = 5): string[]` next to `SUBJECT_DIR_RE` in `scan.ts` (or a tiny sibling `subjects.ts` if `scan.ts` would otherwise grow a second job). Does not change `scan()` empty-path behavior.
-2. Allow empty `/buck-loop` as `command: "start"` with no path. Handler calls `listRecentSubjects`, then `ctx.ui.select("Which subject?", names)`, then `handleLoop({ command: "start", path: picked })` once.
-3. Lock: `select` runs at most once per invocation, and only when start has no path. Nested workers and the transition table never see the picker. `startRun` still refuses an empty path.
-4. Docs: USAGE, ADR 0002 invocation sentence, `docs/extension-loading.md` `/buck-loop` bullet, any `/buck-loop <path>` wording in `docs/buck-workflow.md` / `docs/oh-my-pi.md`.
+1. Discover and summarize eligible subject folders using the existing lifecycle and scan authorities.
+2. Build one TypeSafe `choice` judgment whose labels are opaque candidate IDs and whose criteria contain bounded subject metadata; include a bounded tail of user/assistant conversation as state.
+3. Validate Jev's full candidate probability map, rank descending, and render up to ten TUI rows with probability, subject basename, and a short title/next-work hint.
+4. Convert empty command input into a start-without-path request; after the operator selects a row, call the existing `handleLoop` path with the raw subject basename.
+5. Keep logging, activity, resume, safety confirmations, scan behavior, and explicit command forms intact.
+6. Update user-facing command documentation and add the missing run how-to if review confirms how-to impact.
 
 ## Out of scope
 
-- Auto-selecting the single newest subject.
-- Showing completed subjects, brainstorm-only folders, or a custom-path/"Other" row.
-- Phase menus, plan menus when a subject has multiple `plan-*.md` (existing scan `missing` stays).
-- Re-prompt on `--resume`, mid-loop, or after `blocked`.
-- Changing `scan()` to search `.context/` when `path` is empty.
-- Sharing listing code with `b-save-improved` or the skill-level subject-resolution protocol.
-- New howto in this build; `/b-review` should flag howto impact (`docs/howto/` has no `run-buck-loop.md` today).
-- Subject closeout contract, LLM-written `status:` trust, skill lifecycle hooks.
+- Automatically starting the highest-probability subject.
+- Letting Jev create subjects, plans, paths, or free-form output outside the candidate set.
+- Ranking plans or phases inside a subject; subjects with multiple plans remain ineligible until the operator passes an explicit plan path.
+- Changing `scan()`'s explicit-path contract or phase-selection logic.
+- Falling back to the configured `choice` stage, `smol`, host model, heuristics, or recency when TypeSafe judgment fails.
+- Provider connectivity probes, model-profile changes, or a new model setting for subject ranking.
+- Re-prompting during a run or on `--resume`.
 
 ## Affected files
 
 | File | Change |
 |---|---|
-| `extensions/buck-loop/scan.ts` | Add `listRecentSubjects` (sort, cap, status + plan-file filters). `scan()` empty path unchanged. |
-| `extensions/buck-loop/index.ts` | Empty args → start-without-path; `BuckLoopUI.select?`; pick then delegate; USAGE optional path. |
-| `extensions/buck-loop/__tests__/scan.test.ts` | Listing cases on fixture trees. Existing "does not guess" cases stay. |
-| `extensions/buck-loop/__tests__/wire.test.ts` | Empty+select, cancel, zero subjects, headless, explicit path skips select, `--resume` skips select. |
-| `docs/adr/0002-observably-invoked-happy-path-loop.md` | Operator may pick from latest subjects when no path is given. |
-| `docs/extension-loading.md` | Bare `/buck-loop` TUI pick. |
-| `docs/buck-workflow.md` / `docs/oh-my-pi.md` | Only if they still require a positional path. |
+| `extensions/buck-loop/subject-choice.ts` | New candidate discovery, bounded metadata/conversation state, Jev probability validation/ranking, and display-row mapping. |
+| `extensions/buck-loop/index.ts` | Parse empty input as start-without-path; run ranking + bounded `ui.select`; create the start log and call `handleLoop` only after selection. |
+| `extensions/buck-loop/__tests__/subject-choice.test.ts` | Candidate filtering, lifecycle fallback, request shape, probability validation, stable ranking, cap, and sole-candidate behavior. |
+| `extensions/buck-loop/__tests__/wire.test.ts` | Bare-command picker flow, selected-path kickoff, cancel/timeout/headless/Jev failure, and explicit-command bypass. |
+| `docs/adr/0002-observably-invoked-happy-path-loop.md` | Record that no-path invocation uses Jev only to rank and still requires an operator selection. |
+| `docs/extension-loading.md` | Document optional path and ranked picker behavior. |
+| `docs/buck-workflow.md` / `docs/oh-my-pi.md` | Update only remaining text that says a positional path is always required. |
+| `docs/howto/run-buck-loop.md` | Add through `/b-howto` if review confirms no existing procedure covers no-path selection and successful kickoff. |
 
-`loop.ts` / `table.ts` / `persist.ts` / `choice.ts` should not need behavior changes. Lock is already `drive(cwd, snapshot, target)` plus `Projection.subject`.
+`scan.ts`, `loop.ts`, `machine.ts`, `persist.ts`, and `choice.ts` should not require behavior changes. `subject-choice.ts` reuses their exported contracts rather than teaching the state machine to guess.
 
 ## Implementation steps
 
-1. **`listRecentSubjects`** — Read `.context/` dirents matching `SUBJECT_DIR_RE`. Drop non-directories, `status: completed`, and folders with no `plan-*.md`. Sort basename descending. Slice to `limit` (default 5). Return folder names only (scan-locatable via `locate()`).
-2. **`parseArgs`** — `tokens.length === 0` → `{ ok: true, command: "start" }` (no `path`). Keep rejecting extra positionals, mixed flags, unknown flags. Update `USAGE` to `/buck-loop [path-to-plan|phase|subject] | --resume | --status | --stop`.
-3. **Handler pick** — If `command === "start"` and `!path`: if `!ctx.ui.select`, toast USAGE and return (preserves the current headless test). If the list is empty, toast that there are no runnable subjects and return. Otherwise `select` once; on cancel return; on pick call `handleLoop` with that folder name. Explicit path and flags never call `select`.
-4. **Activity label** — Before pick, `phase("Choosing subject")` (or skip the widget until a path exists). After pick, existing `Starting <path>` label.
-5. **Tests** — See Verification. Rewrite `prints usage and does not start work on missing path` to the headless (no `select`) case; add the TUI cases.
-6. **Docs** — ADR 0002 + extension-loading (and any remaining required-path sentences). Do not claim the runner auto-selects a subject.
+1. **Candidate model and discovery** — Add `SubjectCandidate` with opaque id, folder basename, title/summary, and resolved plan/phase hint. Start from `listSubjectFolders(projectRoot)`, select active statuses (or drafts only when no active subjects), and retain only `scan()` results with `unphased` or `phased-incomplete` facts. Sort newest first and cap the judgment pool at 50.
+2. **Bounded evidence** — Read only each candidate's `index.md` heading/first prose summary and the resolved plan/phase filenames, with per-field and aggregate character caps. Extract at most the latest eight user/assistant messages, capped at 12,000 characters; exclude system, tool, and custom entries.
+3. **Native judgment** — For 2+ candidates, call `runJev(createTypeSafeEvaluator(), ...)` with one `choice` question. Criteria labels are `candidate_0`, `candidate_1`, etc.; values contain the candidate metadata. Instructions ask which subject best matches the operator's current conversation and require calibrated probabilities. Do not use `choose()` because its profile/chat fallback violates this feature's Jev-only contract.
+4. **Validate and rank** — Require a legal chosen label plus a finite, non-negative probability for every offered label and no unknown labels. Sort descending; preserve newest-first order for ties. Return the first 10. One candidate returns a synthetic 1.0 result; zero returns an actionable no-candidates result.
+5. **Argument and UI boundary** — Change the start variant to allow an absent path and make `parseArgs("")` return it. Extend command context with optional `sessionManager` and `ui.select`. For no-path start, create the activity widget with `Choosing a subject`, rank candidates, and invoke `select` with full bounded dialog options (timeout plus `AbortSignal`). Rows include percentage + subject name + hint and map back to the untouched basename.
+6. **Kickoff and cleanup** — After selection, switch activity to `Starting <subject>`, create the JSONL drain with the selected path, and call `handleLoop({ command: "start", path: subject })` exactly once. On rank failure, no UI, timeout, or cancel: notify, dispose activity, and do not create a run log/projection. Keep the existing `try`/`catch`/`finally` behavior after kickoff.
+7. **Tests** — Add pure tests with injected evaluator/session data and wire tests with a fake select. Assert consumer-visible candidate order and exact kickoff path, not implementation text. Preserve existing explicit path/flag, scan-no-guess, activity-log, and safety-confirmation tests.
+8. **Docs** — Update the ADR and command references. During `/b-review`, classify how-to impact; if positive, run `/b-howto` for the no-path selection procedure and observable success check.
 
 ## Acceptance criteria
 
-- [ ] `/buck-loop` with no args and a working `ui.select` shows at most five newest eligible subject folder names and starts the loop on the chosen one.
-- [ ] `select` is called at most once per invocation; `handleLoop` receives that folder name as `path` and is not called on cancel / empty list / headless.
-- [ ] Explicit path, `--resume`, `--status`, and `--stop` never open the picker.
-- [ ] `scan("")` still returns `planFacts.kind === "missing"` with `path is required`. `scan(".context")` with multiple subjects still refuses to guess.
-- [ ] Completed subjects and folders without a `plan-*.md` do not appear. Newest date-prefix wins; sixth-newest is omitted.
-- [ ] `--resume` continues the bookmarked `Projection.subject` without a second pick.
-- [ ] USAGE, ADR 0002, and extension-loading describe the optional path + TUI pick.
+- [ ] `/buck-loop` with no args and 2+ eligible subjects calls TypeSafe Jev once, presents at most 10 subjects in descending returned probability, and does not start before operator selection.
+- [ ] Selecting a displayed row calls `handleLoop` exactly once with `{ command: "start", path: <raw-subject-basename> }`; the start JSONL invocation records the same path.
+- [ ] Rows show the subject basename and probability; equal probabilities retain newest-first deterministic order.
+- [ ] Candidate labels are closed and opaque. Unknown labels, missing candidate probabilities, non-finite/negative values, TypeSafe errors, or missing credentials fail closed with no model or heuristic fallback.
+- [ ] Completed/malformed subjects and subjects that `scan()` classifies as missing or phased-complete are absent. Drafts appear only when no active runnable candidates exist.
+- [ ] A sole candidate is shown at 100% without a Jev request. Zero candidates produces an actionable notification and no picker or loop start.
+- [ ] Headless/missing `ui.select`, dialog timeout, and cancel create no loop projection/log and call neither `handleLoop` nor a fallback model.
+- [ ] Explicit path, `--resume`, `--status`, and `--stop` never discover, rank, or display subjects.
+- [ ] `scan("")` still returns `path is required`, and `scan(".context")` still refuses to guess.
+- [ ] The chosen subject remains fixed for the invocation and `--resume` uses the persisted projection without re-ranking.
 
 ## Verification
 
-- `vitest run extensions/buck-loop/__tests__/scan.test.ts extensions/buck-loop/__tests__/wire.test.ts`
-- Listing fixtures: 7 eligible → 5 newest names; a `completed` folder excluded; a brainstorm-only folder excluded; a `2026-09-19.newer` sorts above `2026-09-18.older`.
-- Wire: mock `select` resolves to `2026-09-18.demo` → `handleLoop` called with `{ command: "start", path: "2026-09-18.demo" }` and `select` call count 1. `select` → `undefined` → `handleLoop` not called. No `select` on the UI → USAGE, `handleLoop` not called. `handler("plan.md")` and `handler("--resume")` never call `select`.
-- Full `vitest run extensions/buck-loop/__tests__` plus `/b-guardrails-check` at a coherent point.
-- Manual (after build): in this repo, `/buck-loop` with no args should list recent subjects including `2026-09-19.buck-loop-subject-picker`; picking it must not re-prompt during the run; `--resume` must not re-prompt.
+- `npx vitest run extensions/buck-loop/__tests__/subject-choice.test.ts extensions/buck-loop/__tests__/wire.test.ts`
+- Candidate fixtures: active + draft + completed + malformed + no-plan + multi-plan + phased-complete; verify active-first/fallback and runnable filtering.
+- Jev fixtures: known distribution orders rows; equal values retain recency; 12 candidates display 10; unknown/missing/negative/`NaN` probability fails closed; sole candidate bypasses evaluator.
+- Wire smoke: invoke the registered handler with empty args, a fake conversation tail, and fake selector; observe ranked rows, select one, then verify `handleLoop` and the JSONL invocation receive that exact basename. Exercise cancel and timeout to verify no run artifacts.
+- Regression: `npx vitest run extensions/buck-loop/__tests__`.
+- Deterministic contract: `npm run guardrails:check` at the coherent post-edit checkpoint.
+- Live OMP smoke after build: discuss a known active subject, run bare `/buck-loop`, verify that subject ranks plausibly near the top, select it, observe `Starting <subject>`, then stop/resume and confirm no second ranking dialog.
 
 ## Execution Instructions
 
-This is a non-phased execution-ready plan. Treat the whole plan as one unit:
-1. Run `/b-build` against this plan.
-2. Run `/b-review` against this plan.
-3. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this plan), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this plan. If `/b-review` flags documentation or how-to impact, run `/b-docs` (and `/b-howto` if flagged) before `/b-save`.
-4. Run `/b-save` to consolidate memory, draft commits, and review/iteration artifacts.
-5. Run `/b-commit` to checkpoint durable state.
-6. If interrupted before completion, leave a clear note in memory and resume from the active plan or iterate artifact next turn.
+This plan looks large enough to benefit from phasing because it changes the command boundary, introduces a Jev ranking module, adds two test surfaces, and updates user-facing documentation. Run `/b-phase` to break it into sequential OMP-ready execution phases with dependency analysis, per-phase model hints, and resume-safe execution instructions.
 
 ## Risks
 
-- **Phase 6 regression misread.** The old "no subject discovery" AC forbids *scan guessing*. A TUI pick that then passes an explicit path is the intended replacement. Tests must keep the scan-guess cases red if anyone wires listing into `scan()` itself.
-- **Headless / eval sessions.** `ui.select` may be absent. Fail closed to USAGE, same as today.
-- **Stale `status:`.** A completed subject left `active` can appear. Accept; operator still confirms. Do not invent a second status parser.
-- **Multiple plans in one subject.** Picker locks the *subject*, not the plan. Existing `pickSolePlan` missing-reason still applies. Do not add a second menu in this plan.
-- **Widget vs modal.** `select` is modal; starting `createActivity` before it can look like a hung spinner. Prefer picking first, then opening the activity widget — or a single "Choosing subject" phase that does not imply nested work.
+- **Conversation signal can be weak.** The TUI keeps the operator as the final authority; ranking never auto-starts.
+- **Stale lifecycle metadata can hide/show the wrong work.** Candidate discovery uses the existing lifecycle authority and `scan()` instead of inventing another status parser.
+- **Large active sets can inflate judgment input.** Bounded summaries and the 50-candidate judgment cap constrain cost; the UI remains capped at 10.
+- **Jev probability shape can drift.** Validate the complete distribution and fail closed rather than presenting a false ranking.
+- **Modal UI can hang RPC/headless callers.** Use bounded dialog options and treat timeout/cancel as denial.
+- **Logging before selection would record an empty path.** Delay start-log creation until the operator has selected the subject.

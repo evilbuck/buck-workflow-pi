@@ -1,0 +1,8 @@
+{
+  "attemptId": "92d46c7c-de0b-40bf-821e-8a6e556b4ad3",
+  "runId": "0b7adb08-d391-4467-8dbd-13be07b3ae00",
+  "subject": "2026-09-16.decision-closure",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "phase": ".context/2026-09-16.decision-closure/phase-5-build-and-review.md",
+  "receiptRel": ".context/2026-09-16.decision-closure/sql-memory-receipts/0b7adb08-d391-4467-8dbd-13be07b3ae00-92d46c7c-de0b-40bf-821e-8a6e556b4ad3.json"
+}

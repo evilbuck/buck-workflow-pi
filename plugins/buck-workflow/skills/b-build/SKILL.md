@@ -55,6 +55,14 @@ This makes browser verification **repeatable and cheap** — no manual testing r
 - Run stronger verification than standard (browser tests + manual verification).
 - Output includes: implementation summary, changed files, verification results, risks/trade-offs, recommended next step.
 
+### Hard-mode decision closure
+
+In hard mode, load `skills/_shared/decision-closure.md`. Preserve settled plan decisions across implementation choices, including local changes that introduce no new dependency, abstraction, or broad refactor. Reopen a settled decision only when current evidence contradicts it; explain that evidence and its consequence. If it changes the problem framing, stop implementation and return to planning for explicit confirmation rather than silently changing scope.
+
+When a hard-mode implementation would introduce a dependency, abstraction, or broad refactor, apply the protocol's **Hard-mode minimal-change sequence**. Evaluate options in order; stop at the first option that safely satisfies the plan. Record the selected option and why earlier options were insufficient in the work notes or closeout.
+
+Standard builds remain unchanged. Neither mode gains per-edit approvals, file caps, or a stub-first requirement.
+
 ## TDD Workflow
 
 ### 1. Plan (Before Writing Code)
@@ -280,7 +288,7 @@ When working on a phased plan with discrete phase files:
 3. **Implement**: Execute only the current phase's scope.
 4. **On completion**:
    a. Update acceptance criteria checkboxes in the phase file: `[ ]` → `[x]`
-   b. Set `status: completed` and `completed_at: YYYY-MM-DD` in phase file frontmatter
+   b. The loop writes `status: completed` and `completed_at` when every `acceptance_criteria` item is `[x]`. That list is the completion signal. An unchecked item is not done, even if `status` already says `completed`. A phase with no list still uses `status`.
    c. Update the phases overview file (`plan-*-phases.md`): change the phase's status from `pending`/`in-progress` to `completed` in the summary table
    d. Note the next phase to execute
 5. Tell the user which phase was completed and what's next.
@@ -297,6 +305,7 @@ At SESSION START:
 1. Read `.context/workflow/current-session.json` if it exists
 2. Read the memory file listed in session state (if any) for prior context
 3. Optional: if OMP `recall` is available, recall the active subject / user goal for durable decisions (background only; prefer plan + repo)
+4. If `sql_memory` is callable, follow `skills/_shared/recall-project-memories.md` before relevant work. SQL recall is optional; without the tool, report shared-memory unavailability and use the existing file context.
 
 At EACH NATURAL STOP (you finished a coherent unit of work):
 4. Read the current session memory file

@@ -7,11 +7,9 @@ triggers:
   - seed hindsight from .context
 ---
 
-Push **this project's** `.context/{memory,backlog/items}/**/*.md` into the
-configured **Hindsight** bank via HTTP retain. Deterministic Bun script — no
-LLM, no qmd required.
-2. Env `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, `HINDSIGHT_SCOPING`
-3. `~/.omp/agent/config.yml` → `hindsight.*`
+Import historical project `.context/memory/*.md` into OMP Hindsight via HTTP retain. The default scan is limited to the legacy `.context/memory/` directory; subject-scoped SQL receipts are control-plane metadata and are never an import source. SQL mode does not migrate historical Markdown memories.
+
+The deterministic Bun script uses no LLM or qmd. Configure `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, and `HINDSIGHT_SCOPING`, or `~/.omp/agent/config.yml` → `hindsight.*`.
 
 Default scoping matches OMP: `per-project-tagged` with tag `project:<git-root-basename>`.
 

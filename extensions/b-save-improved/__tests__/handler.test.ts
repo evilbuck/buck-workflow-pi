@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as OmpModels from "../../omp-models.js";
 
 const execFileCaptured = vi.fn();
@@ -81,8 +81,15 @@ const preflightOk = {
   memory_backend: { backend: "hindsight", expect_retain: true },
 };
 
+const originalSqlUrl = process.env.SQL_MEMORY_URL;
+afterEach(() => {
+  if (originalSqlUrl === undefined) delete process.env.SQL_MEMORY_URL;
+  else process.env.SQL_MEMORY_URL = originalSqlUrl;
+});
+
 describe("b-save-improved handler", () => {
   beforeEach(() => {
+    delete process.env.SQL_MEMORY_URL;
     execFileCaptured.mockReset();
     execFileCapturedWithStdin.mockReset();
     createAgentSession.mockReset();

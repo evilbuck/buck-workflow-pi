@@ -23,6 +23,7 @@ When an `iterate-*.md` artifact is found, follow its issues in priority order (C
 - Prefer tiny, focused changes.
 - Escalate to `b-build` if the work spreads.
 - Re-run the light subset of the deterministic check contract for code-touching work: lint and unit-test gates only. Skip coverage, patch, and complexity gates — those need a coherent full-build point. This keeps `b-iterate` genuinely quick.
+- Before making a relevant project change, follow `skills/_shared/recall-project-memories.md` when `sql_memory` is callable. Otherwise preserve the file-based context path and make shared-store unavailability visible.
 - Hand back to `b-review` when done.
 
 ## Session Awareness Protocol

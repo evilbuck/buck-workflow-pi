@@ -123,6 +123,18 @@ Group plan steps into phases using the dependency map:
 8. **Flag parallel opportunities**: If two phases have NO dependency between them, note it — they could be executed in parallel by separate agents
 9. **Assign a model hint to every phase**: label each phase `easy`, `medium`, or `hard`
 
+### Step 4b: Assign Deferred Assumptions
+
+Load `skills/_shared/decision-closure.md`. If the parent plan has an Assumptions Ledger or equivalent closeout, inspect every `deferred` or blocking assumption before writing phase files:
+
+1. Identify the earliest phase whose work and verification can actually resolve each assumption. Assign each assumption ID to exactly one such phase; IDs remain stable and must match the parent artifact.
+2. In that phase's `## Context`, name the ID, explain why this phase can validate it, and state the concrete validation path. Add a phase acceptance criterion that names the ID and observable validation outcome.
+3. Add a HARD dependency for later phases only when they cannot safely proceed until the assumption is resolved. Record the reason in the phase file and dependency matrix. A non-blocking deferred assumption still has one validation owner; later consumers do not become additional owners.
+4. Do not drop blocking assumptions or assign validation to a phase that cannot perform it. If no phase in scope can validate one, call it out as an unresolved plan risk and name the required follow-up rather than implying that phasing resolves it.
+
+If no assumption is deferred or blocking, do not add assumption-specific phase content or dependencies.
+
+
 ### Phase Difficulty / Model Hint Rubric
 
 Use this simple rubric for each phase:

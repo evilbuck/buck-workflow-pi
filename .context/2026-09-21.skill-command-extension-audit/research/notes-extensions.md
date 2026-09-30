@@ -94,7 +94,7 @@ is unwired.
 - The plan that built it (`.context/2026-05-08.b-grill-auto/plan-b-grill-auto-extension.md`) planned to "Modify `extensions/index.ts` — Import + wire new module"; that step was never executed.
 - `.context/2026-06-05.extension-slimdown/plan-extension-slimdown.md` row 27 explicitly says: "`b-grill-auto` | **Delete** | `wireGrillAuto(pi)` removed. `extensions/b-grill-auto/` stays on disk."
 - `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md` line 29: "`extensions/b-flow/` and `extensions/b-grill-auto/` are unwired/deprecated source, not current runtime surfaces. They are not retrofit targets."
-- `.context/2026-09-16.decision-closure/phase-5-narrative-and-proof.md` line 70: "`extensions/b-grill-auto/` untouched." — explicitly out-of-scope.
+- `.context/2026-09-16.decision-closure/phase-6-narrative-and-proof.md` line 70: "`extensions/b-grill-auto/` untouched." — explicitly out-of-scope.
 - Skill `skills/b-grill-auto/SKILL.md` still exists, but it documents the **Python** prototype (`skills/b-grill-auto/grill.py`), not the TypeScript extension.
 **Action:** DELETE `extensions/b-grill-auto/` (all 5 files). Move the backlog item `test-b-grill-auto-extension.md` to completed (or remove it); the extension has been intentionally unwired and the runtime entry is the Python skill, which is out of scope for this directory.
 

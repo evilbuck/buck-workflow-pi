@@ -18,6 +18,14 @@ Instead of asking the user questions, this skill:
 4. Uses the model's answers as input to traverse the decision tree
 5. Makes resolution decisions based on the model's responses
 
+## Material Decision Closeout
+
+Load `skills/_shared/decision-closure.md` before grilling. Apply its "When closure applies", "Low-risk path", "Confirming a changed problem framing", and "Calibrating pressure" headings. Preserve the question, decision-domain, boundary, break-point, model-divergence, and deferred/blocked-question metadata below.
+
+When a material trigger applies, include one `## Decision Closure` section in the session body using the shared protocol's "Closure-ready record", "Assumption ledger fields", and "Material-risk fields". Include selected course, evidence, assumptions, blocking/validation, material risks, excluded scope, and one bounded next action. Omit the section entirely on the low-risk path when evidence already suffices.
+
+If evidence contradicts the stated problem, surface both framings and obtain explicit user confirmation before redirecting; record the prior framing, confirmed replacement, and confirming evidence. Model output is not user confirmation. If auto output cannot substantiate every required element, identify the missing evidence/confirmation and leave synthesis to `b-plan`. Do not change `extensions/b-grill-auto/`.
+
 ## Key Difference from b-grill-me
 
 | b-grill-me | b-grill-auto |

@@ -1,8 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-04
 subject: 2026-09-04.b-recap
 topics: [b-recap, session-recap, workflow-skills]
+lifecycle_schema: 1
+lifecycle_revision: 1
+lifecycle_last_transition: close-verified
 ---
 
 # b-recap

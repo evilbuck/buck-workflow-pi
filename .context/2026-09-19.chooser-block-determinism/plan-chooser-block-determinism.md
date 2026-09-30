@@ -1,12 +1,16 @@
 ---
 status: active
 date: 2026-09-19
+updated: 2026-09-29
 subject: 2026-09-19.chooser-block-determinism
+execution_plan: ../2026-09-16.decision-closure/plan-decision-closure-protocol.md
+execution_overview: ../2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md
+execution_phase: ../2026-09-16.decision-closure/phase-1-chooser-stall.md
 topics: [buck-loop, closed-set-choice, review-parser, context-injection, regression-test]
 research: []
 iterations: []
 spec:
-memory: []
+memory: [decision-plans-rephase-2026-09-29.md]
 ---
 
 # Plan: context-informed buck-loop chooser + tolerant review parsing
@@ -19,6 +23,10 @@ Operators running `/buck-loop` never lose a healthy run to a legal-but-wrong `bl
 
 Close the 2026-09-19 stall incident (`../todo-test` phase-3 run): a semantically clean `b-review` report using `##` impact headings missed the scanner's exact `###` contract, entered fallback choice, and the enum-only chooser prompt gave the model no evidence, so it chose `block` — three times across resumes. Fix both root causes and lock them with an incident-reproducing regression test.
 
+## Coordinated execution
+
+This plan retains the original incident and acceptance contract. Execute it through [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md), not a separate implementation queue. The user requested joint rephasing and bugs first on 2026-09-29. Current source already has level-tolerant parsing and context injection/audit; completion still requires fresh proof against all criteria. Reuse shipped fixes and repair only verified remaining gaps. The combined overview owns phase state.
+
 ## Context used / assumptions
 
 - User-provided context: fix the deterministically bad chooser ("re-produces the same block on every resume"); confirmed scope: both chooser call paths; parser tolerates any heading level; user goal confirmed verbatim above.
@@ -26,6 +34,7 @@ Close the 2026-09-19 stall incident (`../todo-test` phase-3 run): a semantically
 - Artifacts used:
   - `.context/2026-09-19.buck-loop-stall-diagnosis/research-buck-loop-stall.md` (different, verified-closed subject — referenced by path) — cause chain + 4-step repair path + red-loop scan command.
   - `.context/backlog/items/buck-loop-contextless-choice-stall.md` (active, high) — acceptance criteria already track this work; do not create a duplicate backlog item.
+- The following code facts describe the 2026-09-19 incident, not the current checkout:
 - Code facts:
   - `extensions/buck-loop/choice.ts:74-77` — `promptFor` sends only the legal enum + JSON schema; no state, paths, or facts.
   - `extensions/buck-loop/choice.ts:148` — prompt built per attempt; correction retry adds only a prefix.
@@ -53,7 +62,7 @@ Close the 2026-09-19 stall incident (`../todo-test` phase-3 run): a semantically
 - Atomic projection writes / pre-edit retry checkpoints (separate idempotency gaps).
 - Removing `block` from any legal set or changing state-machine transitions.
 - Changing `skills/b-review/SKILL.md` templates or the writer side.
-- Chooser model/role selection (`smol` mapping stays).
+- Changing chooser model/role selection; preserve current native Jev judgment rather than restoring the historical smol mapping.
 
 ## Affected files
 
@@ -88,6 +97,15 @@ Close the 2026-09-19 stall incident (`../todo-test` phase-3 run): a semantically
 ## Risks
 
 - **False-positive heading match** — prose lines like `## Documentation Impact` inside code fences could now parse. Mitigation: line-anchored regex + exact name; the first-content-line flag rules stay strict. Fixture should include a fence case if cheap.
-- **Context bloat in the smol-model prompt** — keep the context to short structured lines (state, paths, why, ≤4 fact lines).
+- Context bloat — bound the runtime judgment context to state, separate plan/phase paths, ambiguity reason and concise fact lines; preserve current native judgment.
 - **`../todo-test` may not exist on this machine** — acceptance falls back to the in-repo fixture equivalent.
 - **Behavioral inversion risk** (unparseable reviews now bypassing the chooser) — covered by the "genuinely unparseable still reaches the chooser" test.
+
+## Revision Log
+
+### 2026-09-29 — Joint bug-first execution
+
+- Preserved all original bug acceptance criteria and safety boundaries.
+- Routed execution to combined Phase 1 in the decision-closure subject.
+- Historical smol-only selection and code locations are not current implementation guidance; current source contains prior fixes and native judgment.
+- No bug acceptance criterion was marked complete by this planning-only revision.

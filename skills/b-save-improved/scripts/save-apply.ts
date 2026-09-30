@@ -20,6 +20,9 @@ type AnyRecord = Record<string, any>;
 const dryRun = process.argv.includes("--dry-run");
 const archiveInferred = process.argv.includes("--archive-inferred");
 const report: Report = { applied: [], staged_inferred: [], errors: [] };
+function sqlMemoryMode(): boolean {
+  return Boolean(process.env.SQL_MEMORY_URL);
+}
 const cwd = () => process.cwd();
 const BACKLOG_SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
@@ -92,7 +95,29 @@ function missingIndex(payload: AnyRecord): string | null {
 function required(payload: AnyRecord): string | null {
   if (!payload || typeof payload !== "object") return "payload must be an object";
   if (typeof payload.today !== "string") return "today is required";
+  return sqlMemoryMode() ? requiredSql(payload) : requiredFile(payload);
+}
+
+function requiredSql(payload: AnyRecord): string | null {
+  const subject = missingSubject(payload);
+  if (subject) return subject;
+  return dryRun ? null : missingSqlReceipt(payload);
+}
+
+function requiredFile(payload: AnyRecord): string | null {
   return missingSubject(payload) ?? missingMemory(payload) ?? missingIndex(payload);
+}
+
+function missingSqlReceipt(payload: AnyRecord): string | null {
+  const receipt = payload.sql_receipt;
+  if (!receipt || typeof receipt.path !== "string" || !Array.isArray(receipt.ids)) return "verified SQL receipt is required";
+  const full = containedUnder(payload.subject.path, receipt.path);
+  if (!existsSync(full)) return "SQL receipt is missing";
+  const stored = JSON.parse(readFileSync(full, "utf8")) as AnyRecord;
+  if (stored.subject !== payload.subject.name || stored.probed !== true
+    || stored.kind !== (receipt.ids.length ? "rows" : "no-fact")
+    || JSON.stringify(stored.ids) !== JSON.stringify(receipt.ids)) return "SQL receipt does not match payload";
+  return null;
 }
 
 function record(path: string, action: Applied["action"], reason: string): void {
@@ -162,8 +187,9 @@ function memoryDocument(frontmatter: AnyRecord, title: string, body: string): st
 }
 
 function applyMemory(payload: AnyRecord): AnyRecord {
-  const fm = { ...payload.memory.frontmatter };
+  const fm = { ...(payload.memory?.frontmatter ?? {}) };
   fm.artifacts = union(fm.artifacts, payload.iterates_complete.map((x: AnyRecord) => basename(x.path)));
+  if (sqlMemoryMode()) return fm;
   payload.memory.body = appendVerificationEvidence(String(payload.memory.body ?? ""), evidenceLines(payload.verification_evidence));
   const full = containedContextPath(payload.memory.path);
   if (!existsSync(full)) {
@@ -184,6 +210,7 @@ function applyMemory(payload: AnyRecord): AnyRecord {
 }
 
 function applyIndex(payload: AnyRecord, fm: AnyRecord): void {
+  if (sqlMemoryMode()) return;
   const indexPath = ".context/memory/index.md";
   const full = containedContextPath(indexPath);
   const old = existsSync(full) ? readFileSync(full, "utf8") : "";
@@ -199,10 +226,11 @@ function applyCrossrefs(payload: AnyRecord): void {
     const old = readFileSync(full, "utf8");
     const style = planMemoryRefStyle(old);
     let next = old;
-    if (style === "yaml") next = appendFrontmatterListItem(old, ref.key, ref.value);
-    else if (style === "bold-line") {
-      if (!old.includes(ref.value)) next = old.replace(/^(\*\*memory:\*\*[^\r\n]*)/m, `$1, [${ref.value}](${ref.value})`);
-    } else next = appendFrontmatterListItem(old, ref.key, ref.value);
+    if (ref.key !== "memory" || style !== "bold-line") {
+      next = appendFrontmatterListItem(old, ref.key, ref.value);
+    } else if (!old.includes(ref.value)) {
+      next = old.replace(/^(\*\*memory:\*\*[^\r\n]*)/m, `$1, [${ref.value}](${ref.value})`);
+    }
     if (next !== old) mutate(ref.path, next, "add memory cross-reference");
   }
 }
@@ -366,7 +394,25 @@ function createSubjectIndexText(fields: AnyRecord, payload: AnyRecord, memoryFil
   return text.endsWith("\n") ? text : `${text}\n`;
 }
 
+function applySubjectMetadata(payload: AnyRecord, fm: AnyRecord): void {
+  const path = join(payload.subject.path, "index.md");
+  const full = containedContextPath(path);
+  if (!existsSync(full)) return;
+  const old = readFileSync(full, "utf8");
+  const parsed = readFrontmatter(old);
+  const merged = setFrontmatterFields(old, {
+    date: payload.today,
+    subject: payload.subject.name,
+    topics: union(parsed.data.topics, fm.topics),
+  });
+  if (merged !== old) mutate(path, merged, "update subject index without a SQL memory body");
+}
+
 function applySubjectIndex(payload: AnyRecord, fm: AnyRecord): void {
+  if (sqlMemoryMode()) {
+    applySubjectMetadata(payload, fm);
+    return;
+  }
   const path = join(payload.subject.path, "index.md");
   const memoryFile = basename(payload.memory.path);
   const fields = {
@@ -486,7 +532,7 @@ function validateLoose(payload: AnyRecord): void {
 
 function validatePayload(payload: AnyRecord): void {
   validateBacklog(payload);
-  containedContextPath(payload.memory.path);
+  if (!sqlMemoryMode()) containedContextPath(payload.memory.path);
   containedContextPath(payload.subject.path);
   validateCrossrefs(payload);
   validateSpecPlans(payload);
@@ -540,7 +586,9 @@ export function runApply(payload: AnyRecord): number {
   report.errors = [];
   delete report.error;
   delete report.lifecycle;
-  const invalid = required(payload);
+  let invalid: string | null;
+  try { invalid = required(payload); }
+  catch (error) { invalid = error instanceof Error ? error.message : String(error); }
   if (invalid) return failSchema(invalid);
   defaults(payload);
   try {

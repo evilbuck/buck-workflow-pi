@@ -149,6 +149,32 @@ function smolPrompt(call: unknown): string {
     });
     expect(runOmpModelSession).toHaveBeenCalledTimes(1);
   });
+  it("preserves bounded decision context in fallback prompts, retries, and audits", async () => {
+    const cwd = repo();
+    const context = "state=reviewing plan=plan.md phase=phase-2.md why=review facts parseable=false";
+    runOmpModelSession
+      .mockResolvedValueOnce('{"choice":"advance","reason":"wrong"}')
+      .mockResolvedValueOnce('{"choice":"save","reason":"ready"}');
+
+    await expect(choose({ ...picked, cwd, subject, legal, context })).resolves.toEqual({
+      status: "accepted",
+      accepted: { choice: { kind: "save" }, reason: "ready" },
+    });
+
+    const prompts = runOmpModelSession.mock.calls.map((call) => smolPrompt(call[0]));
+    expect(prompts).toHaveLength(2);
+    for (const prompt of prompts) {
+      expect(prompt).toContain(context);
+      expect(prompt).toContain('"iterate", "document", "save"');
+    }
+    expect(prompts[1]).toContain("previous response was illegal or malformed");
+    expect(audits(cwd)).toEqual([
+      expect.objectContaining({ source: "jev", context, accepted: false, attempt: 1 }),
+      expect.objectContaining({ source: "profile", context, accepted: false, attempt: 1 }),
+      expect.objectContaining({ source: "profile", context, accepted: true, attempt: 2 }),
+    ]);
+  });
+
 
   it("does not accept a Jev answer of block", async () => {
     const cwd = repo();

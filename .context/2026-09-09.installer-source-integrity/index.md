@@ -1,8 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-09
 subject: 2026-09-09.installer-source-integrity
 topics: [installer, symlink, source-root, verify, bootstrap-drift]
+lifecycle_schema: 1
+lifecycle_revision: 1
+lifecycle_last_transition: close-verified
 ---
 
 # Installer source integrity

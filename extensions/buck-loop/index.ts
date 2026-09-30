@@ -283,11 +283,11 @@ export function wireBuckLoop(pi: ExtensionAPI): void {
             availableIds: async () => new Set((ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`)),
           },
         });
-        const terminal = result.state + ": " + result.reason;
+        const terminal = result.state === "aborted" ? result.reason : result.state + ": " + result.reason;
         const ok = result.state !== "blocked" && result.state !== "aborted";
         log.terminal({ state: result.state, reason: result.reason, ok });
         await log.flush();
-        if (ok) activity.succeed(terminal);
+        if (ok || parsed.command === "status" || result.state === "aborted") activity.succeed(terminal);
         else activity.fail(terminal);
       } catch (error) {
         const failure = supervisorFailure(ctx.cwd, parsed, error);

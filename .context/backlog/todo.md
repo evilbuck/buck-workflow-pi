@@ -3,10 +3,32 @@
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
+
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
-- [ ] [Add `/buck-models --doctor`](items/buck-models-doctor.md) — medium; audit all saved model selections against the live registry and highlight the effective active profile
+- [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
+
+## Postgres Agent Memory Phases (2026-09-28)
+
+Overview: [`plan-postgres-agent-memory-phases.md`](../2026-09-28.postgres-agent-memory/plan-postgres-agent-memory-phases.md).
+Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
+
+- [ ] [Phase 1: Schema and Migrations](items/phase-1-schema-migrations-pg.md) — medium, `/b-build` — [phase-1-schema-migrations.md](../2026-09-28.postgres-agent-memory/phase-1-schema-migrations.md)
+- [x] [Phase 2: Extension and SQL Tool](archive/2026-09/phase-2-extension-sql-tool.md) — hard, `/b-build-hard` — done 2026-09-28
+- [x] [Phase 3: Recall Patterns and Docs](archive/2026-09/phase-3-recall-patterns-docs.md) — easy, `/b-build` — done 2026-09-28
+
+## SQL memory in Buck-loop Phases (2026-09-28)
+
+Overview: [`plan-sql-memory-buck-loop-phases.md`](../2026-09-28.sql-memory-buck-loop/plan-sql-memory-buck-loop-phases.md).
+Phases form a HARD chain (1 → 2 → 3 → 4).
+
+
+### Active and Upcoming Phases
+
+- [x] [Phase 2: Recall and bounded judgment](archive/2026-09/phase-2-sql-memory-recall-judgment.md) — done 2026-09-29
+- [x] [Phase 3: SQL save and truthful completion](archive/2026-09/phase-3-sql-memory-save-receipts.md) — done 2026-09-29
+- [x] [Phase 4: Policy/docs and live proof](archive/2026-09/phase-4-sql-memory-docs-live-proof.md) — done 2026-09-29
 
 ## Buck Model Profile Phases (2026-09-23)
 
@@ -14,10 +36,23 @@
 
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
-- [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
+- [x] [Add a tail-able `/buck-loop` streaming log drain](archive/2026-09/buck-loop-streaming-log-drain.md) — done 2026-09-30
 - [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean
-- [ ] [Add a tail-able `/buck-loop` streaming log drain](items/buck-loop-streaming-log-drain.md) — medium; normalized JSONL activity available during execution — see `.context/2026-09-24.buck-loop-streaming-log-drain/plan-buck-loop-streaming-log-drain.md`
-- [ ] [`/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` TUI-picks up to 5 latest subjects and locks the choice — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
+
+- [ ] [Jev-ranked `/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` ranks runnable subjects with Jev, shows up to 10 in the TUI, and starts the operator's selection — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
+
+## Subject Picker Phases (2026-09-27)
+
+Overview: [`plan-buck-loop-subject-picker-phases.md`](../2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker-phases.md).
+Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
+
+- [ ] [Phase 1: Subject-Choice Module](items/phase-1-subject-choice.md) — hard, `/b-build-hard` — [phase-1-subject-choice.md](../2026-09-19.buck-loop-subject-picker/phase-1-subject-choice.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Command Boundary and Kickoff — hard, `/b-build-hard` — [phase-2-command-kickoff.md](../2026-09-19.buck-loop-subject-picker/phase-2-command-kickoff.md)
+- [ ] Phase 3: Documentation — easy, `/b-build` — [phase-3-docs.md](../2026-09-19.buck-loop-subject-picker/phase-3-docs.md)
+
 - [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
 
 ## Typed Workflow Output Phases (2026-09-22)
@@ -38,9 +73,10 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 ### Upcoming Phases
 
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
-- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; covered by typed-review and fix-or-continue Phases 1–3
-- [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
-- [ ] [Phase 1: Shared Protocol](items/phase-1-shared-protocol.md) — hard, `/b-build-hard` — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md)
+- [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; original incident first in [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md); broader typed-review/recovery scope remains separate
+- [ ] [Fix buck-loop save/commit checkpoint handoff](items/buck-loop-save-commit-handoff.md) — high; verified save receipts reported as SqlMemoryError + commit guard blocking phase deliverables — see `.context/2026-09-30.buck-loop-save-commit-handoff/plan-save-commit-handoff.md`
+- [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
+- [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
@@ -81,20 +117,21 @@ After Phase 1, Phases 2–4 may run in parallel. Phase 5 is their join.
 - [x] [Phase 6: Command Surface](archive/2026-09/phase-6-command-surface.md) — medium, `/b-build` — done 2026-09-18
 - [x] [Phase 7: Documentation and Proof](archive/2026-09/phase-7-documentation-and-proof.md) — medium, `/b-build` — done 2026-09-18
 
-## Decision Closure Phases (2026-09-16)
+## Coordinated Decision Phases (rephased 2026-09-29)
 
 Overview: [`plan-decision-closure-protocol-phases.md`](../2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md).
 Umbrella: [Add decision closure across Buck Workflow](items/decision-closure-protocol.md).
-After Phase 1, Phases 2–4 may run in parallel.
+Phase 1 verifies/closes the chooser bug first; Phase 2 freezes the closure protocol; only then may Phases 3–5 run in parallel.
 
-- [ ] Phase 1: Shared Protocol — hard — [phase-1-shared-protocol.md](../2026-09-16.decision-closure/phase-1-shared-protocol.md) — **active**
+- [x] Phase 1: Chooser Stall Verification and Repair — hard — [phase-1-chooser-stall.md](../2026-09-16.decision-closure/phase-1-chooser-stall.md) — done 2026-09-29
 
 ### Upcoming Phases
 
-- [ ] Phase 2: Grill Variants — medium — [phase-2-grill-variants.md](../2026-09-16.decision-closure/phase-2-grill-variants.md)
-- [ ] Phase 3: Plan and Phase — medium — [phase-3-plan-and-phase.md](../2026-09-16.decision-closure/phase-3-plan-and-phase.md)
-- [ ] Phase 4: Build and Review — medium — [phase-4-build-and-review.md](../2026-09-16.decision-closure/phase-4-build-and-review.md)
-- [ ] Phase 5: Narrative and Proof — medium — [phase-5-narrative-and-proof.md](../2026-09-16.decision-closure/phase-5-narrative-and-proof.md)
+- [x] Phase 2: Shared Protocol — hard — [phase-2-shared-protocol.md](../2026-09-16.decision-closure/phase-2-shared-protocol.md) — done 2026-09-29
+- [x] Phase 3: Grill Variants — not-hard — [phase-3-grill-variants.md](../2026-09-16.decision-closure/phase-3-grill-variants.md) — done 2026-09-29
+- [x] Phase 4: Plan and Phase — not-hard — [phase-4-plan-and-phase.md](../2026-09-16.decision-closure/phase-4-plan-and-phase.md) — done 2026-09-29
+- [x] Phase 5: Build and Review — not-hard — [phase-5-build-and-review.md](../2026-09-16.decision-closure/phase-5-build-and-review.md) — done 2026-09-29
+- [x] Phase 6: Narrative and Proof — not-hard — [phase-6-narrative-and-proof.md](../2026-09-16.decision-closure/phase-6-narrative-and-proof.md) — done 2026-09-30
 
 ## mattpocock Remediation Phases (2026-09-10)
 

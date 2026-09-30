@@ -67,3 +67,20 @@ dependency_type: ${dtype}
 # Phase ${n}
 `;
 }
+
+export function phaseMdWithFiles(n: number, files: string[], status: string = "pending", dependsOn: number[] = []): string {
+  const dep = `[${dependsOn.join(", ")}]`;
+  const dtype = dependsOn.length > 0 ? "HARD" : "NONE";
+  const listed = files.map((file) => `  - ${file}`).join("\n");
+  return `---
+status: ${status}
+phase: ${n}
+order: ${n}
+depends_on: ${dep}
+dependency_type: ${dtype}
+files:
+${listed}
+---
+# Phase ${n} (declared files)
+`;
+}

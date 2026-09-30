@@ -13,6 +13,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
+import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
 import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } from "./types.js";
 
@@ -50,6 +51,7 @@ export type Projection = {
   subject: string;
   planPath: string;
   phasePath: string | null;
+  saveAttemptId?: string | null;
   loopCount: number;
   iterateCyclesOnPhase: number;
   maxLoops: number;
@@ -197,12 +199,7 @@ function keepCompletedProjectedPhase(
 
 function projectedPhaseCompleted(root: string, phasePath: string): boolean {
   const abs = resolve(root, phasePath);
-  if (!existsSync(abs)) return false;
-  try {
-    return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
-  } catch {
-    return false;
-  }
+  return existsSync(abs) && phaseFileDone(abs);
 }
 
 function staleBuildingComplete(projection: Projection, scanned: ScanResult): boolean {
@@ -216,7 +213,7 @@ function resumePath(root: string, projection: Projection): string {
 
 function counters(projection: Projection): Pick<
   Snapshot,
-  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history"
+  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId"
 > {
   return {
     loopCount: projection.loopCount,
@@ -224,6 +221,7 @@ function counters(projection: Projection): Pick<
     iterateCyclesOnPhase: projection.iterateCyclesOnPhase,
     lastChoice: projection.lastChoice,
     history: projection.history,
+    saveAttemptId: projection.saveAttemptId ?? null,
   };
 }
 
@@ -256,6 +254,7 @@ function blankSnapshot(state: LoopState): Snapshot {
     phasePath: null,
     planFacts: { kind: "missing", reason: "uninitialized" },
     workFacts: { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" },
+    saveAttemptId: null,
     reviewFacts: { kind: "pending" },
     loopCount: 0,
     maxLoops: DEFAULT_MAX_LOOPS,
@@ -273,7 +272,8 @@ function normalizeProjection(raw: unknown): Projection | null {
   const lastChoice = asLastChoice(o.lastChoice);
   const history = asHistory(o.history);
   if (!identity || !counts || lastChoice === undefined || history === null) return null;
-  return { version: PROJECTION_VERSION, ...identity, ...counts, lastChoice, history };
+  if (o.saveAttemptId !== undefined && o.saveAttemptId !== null && typeof o.saveAttemptId !== "string") return null;
+  return { version: PROJECTION_VERSION, ...identity, ...counts, lastChoice, history, saveAttemptId: o.saveAttemptId as string | null | undefined };
 }
 
 function identityFields(o: Record<string, unknown>): {

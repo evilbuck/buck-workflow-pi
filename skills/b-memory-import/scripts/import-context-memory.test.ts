@@ -237,6 +237,10 @@ describe("list integration light", () => {
       join(mem, "one.md"),
       `---\ndate: 2026-01-01\n---\n# One\n`,
     );
+    const receiptDir = join(root, ".context", "2026-09-28.subject", "sql-memory-receipts");
+    mkdirSync(receiptDir, { recursive: true });
+    writeFileSync(join(receiptDir, "run-attempt.json"), `{"kind":"rows","ids":["not-a-memory"]}`);
+    writeFileSync(join(receiptDir, "run-attempt.md"), "# SQL receipt metadata\n");
     writeFileSync(join(mem, "index.md"), "# index\n");
     const files = listMemoryMarkdown(
       [{ rel: ".context/memory", abs: mem, kind: "memory" }],

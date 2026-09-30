@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-24
 subject: 2026-09-24.buck-loop-streaming-log-drain
 topics: [buck-loop, streaming, jsonl, observability]
 research: []
 iterations: []
-memory: [buck-loop-streaming-log-drain-plan-2026-09-24.md]
+memory: [buck-loop-streaming-log-drain-plan-2026-09-24.md, buck-loop-log-drain-2026-09-30.md]
 ---
 
 # Plan: Tail-able `/buck-loop` activity log

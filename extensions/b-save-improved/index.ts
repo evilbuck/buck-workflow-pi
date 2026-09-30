@@ -8,11 +8,14 @@
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { dirname, join } from "node:path";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../subprocess.js";
 import { createActivity, type ActivityEvent } from "../extension-activity.js";
 import { lastAssistantText, resolveOmpRole, runOmpModelSession } from "../omp-models.js";
 import type { SubjectLifecycleResult } from "../../skills/_shared/scripts/subject-lifecycle.js";
+import { completeSaveAttempt, prepareSaveAttempt, saveSqlFacts, sqlMode, type SaveAttempt } from "../buck-loop/sql-save.js";
+import { readProjection } from "../buck-loop/persist.js";
 
 export { lastAssistantText };
 
@@ -22,6 +25,32 @@ const APPLY = join(HERE, "..", "..", "skills", "b-save-improved", "scripts", "sa
 export const DIGEST_CAP = 12_000;
 
 const FLAGS = ["--dry-run", "--archive-inferred", "--subject", "--no-retain", "--model"];
+
+/** Projected saves keep their phase. Standalone saves use the first incomplete phase file. */
+export function savePhase(cwd: string, subjectPath: string, projectedPhase: string | null, projected: boolean): string | null {
+  if (projected) return projectedPhase;
+  return incompletePhase(cwd, subjectPath);
+}
+
+function incompletePhase(cwd: string, subjectPath: string): string | null {
+  let names: string[];
+  try { names = readdirSync(join(cwd, subjectPath)); } catch { return null; }
+  for (const name of names.filter((entry) => /^phase-(\d+)-/.test(entry)).sort(byPhaseNumber)) {
+    const status = /^status:\s*(\S+)/m.exec(readFileSync(join(cwd, subjectPath, name), "utf8"))?.[1];
+    if (status !== "completed") return join(subjectPath, name);
+  }
+  return null;
+}
+
+function byPhaseNumber(left: string, right: string): number {
+  return phaseNumber(left) - phaseNumber(right) || left.localeCompare(right);
+}
+
+function phaseNumber(name: string): number {
+  return Number(/^phase-(\d+)-/.exec(name)?.[1] ?? 0);
+}
+
+
 
 export interface SaveArgs {
   dryRun: boolean;
@@ -236,6 +265,7 @@ export interface ScribeOutput {
     new_items: Array<{ slug: string; title: string; priority: string; related?: string[]; body?: string }>;
   };
   retain_facts: string[];
+  supersedes_id?: string;
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -273,7 +303,7 @@ function listOrEmpty<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
-function parseScribeMemory(mem: Record<string, unknown>, idx: Record<string, unknown>, back: Record<string, unknown>, facts: unknown): ScribeOutput | null {
+function parseScribeMemory(mem: Record<string, unknown>, idx: Record<string, unknown>, back: Record<string, unknown>, facts: unknown, supersedes: unknown): ScribeOutput | null {
   if (typeof mem.title !== "string" || typeof mem.body !== "string") return null;
   if (typeof idx.summary !== "string" || !idx.summary.trim()) return null;
   return {
@@ -298,6 +328,7 @@ function parseScribeMemory(mem: Record<string, unknown>, idx: Record<string, unk
       }),
     },
     retain_facts: isStringArray(facts) ? facts : [],
+    ...(typeof supersedes === "string" && /^[0-9a-f-]{36}$/i.test(supersedes) ? { supersedes_id: supersedes } : {}),
   };
 }
 
@@ -307,7 +338,7 @@ export function parseScribeResponse(raw: string): ScribeOutput | null {
   const idx = asRecord(rec?.index_entry);
   const back = asRecord(rec?.backlog);
   if (!rec || !mem || !idx || !back) return null;
-  return parseScribeMemory(mem, idx, back, rec.retain_facts);
+  return parseScribeMemory(mem, idx, back, rec.retain_facts, rec.supersedes_id);
 }
 
 export interface AuditorVerdict {
@@ -405,7 +436,11 @@ function buildScribePrompt(digest: string, preflight: Record<string, unknown>): 
     "- backlog.complete_inferred: [{ slug, outcome, evidence }] for likely-done items without an explicit session statement",
     "- backlog.new_items: [{ slug, title, priority, related, body }]",
     "- retain_facts: string[] of self-contained facts including artifact paths",
+    "- supersedes_id: optional prior memory UUID only for an explicit correction to a known same-project row; never guess an ID",
     "- memory.body headings (omit a section only when empty): ## User Goal, ## What happened, ## Decision, ## What shipped, ## Verification, ## Leftover, ## Related",
+    process.env.SQL_MEMORY_URL
+      ? "- SQL_MEMORY_URL is set: still return memory JSON for the auditor, but the apply step will not write .context/memory files or copy the body into the subject index. Do not invent a second body store."
+      : "- file mode: the apply step writes the memory file and index entry",
     "- artifacts: subject-folder filenames and .context/memory paths only — not implementation source",
     "- related: other memory filenames, not source paths",
     "- backlog slugs: kebab-case [a-z0-9]+(-[a-z0-9]+)* (max 80); never paths or ..",
@@ -442,6 +477,7 @@ export function assembleApplyPayload(
   preflight: Record<string, unknown>,
   scribe: ScribeOutput,
   verdicts: AuditorVerdict[],
+  sqlBodyStore = sqlMode(),
 ): Record<string, unknown> {
   const subject = preflight.subject as { name: string; path: string; created?: boolean };
   const today = String(preflight.today ?? "");
@@ -466,7 +502,7 @@ export function assembleApplyPayload(
   const plans = Array.isArray(preflight.plans)
     ? preflight.plans as Array<{ path: string; spec?: string | null }>
     : [];
-  const crossrefs = plans.map((plan) => ({
+  const crossrefs = sqlBodyStore ? [] : plans.map((plan) => ({
     path: `${subject?.path}/${plan.path}`,
     key: "memory",
     value: `../memory/${memoryFile}`,
@@ -475,7 +511,7 @@ export function assembleApplyPayload(
   for (const plan of plans) {
     const spec = typeof plan.spec === "string" ? plan.spec.trim() : "";
     if (!spec) continue;
-    crossrefs.push({
+    if (!sqlBodyStore) crossrefs.push({
       path: `${subject?.path}/${spec}`,
       key: "memory",
       value: `../memory/${memoryFile}`,
@@ -682,6 +718,33 @@ async function runBSaveImproved(
     }
 
     const payload = assembleApplyPayload(preflight, scribe, verdicts);
+    let sqlAttempt: SaveAttempt | null = null;
+    if (sqlMode() && !opts.dryRun) {
+      const subject = preflight.subject;
+      if (!subject || typeof subject !== "object" || !("name" in subject) || typeof subject.name !== "string"
+        || !("path" in subject) || typeof subject.path !== "string") throw new Error("SQL save requires a resolved subject");
+      const projection = readProjection(ctx.cwd);
+      const projected = projection?.state === "saving" && projection.subject === subject.name;
+      const attempt = prepareSaveAttempt(ctx.cwd, subject.name, projected, savePhase(ctx.cwd, subject.path, projection?.phasePath ?? null, projected));
+      if ("error" in attempt) throw new Error(attempt.error);
+      sqlAttempt = attempt;
+      const reusable = scribe.retain_facts.filter((fact) => fact.trim().length > 0);
+      const facts = reusable.length > 0
+        ? [{ body: `# ${scribe.memory.title}\n\n${scribe.memory.body}\n\n## Reusable facts\n\n${reusable.map((fact) => `- ${fact}`).join("\n")}`, supersedes: scribe.supersedes_id }]
+        : [];
+      const ids = await saveSqlFacts(ctx.cwd, attempt, facts);
+      payload.sql_receipt = { path: attempt.receiptRel, ids };
+      const plans = preflight.plans;
+      const refs = Array.isArray(plans) ? plans : [];
+      payload.crossrefs = refs.flatMap((plan: unknown) => {
+        if (!plan || typeof plan !== "object" || !("path" in plan) || typeof plan.path !== "string") return [];
+        const spec = "spec" in plan && typeof plan.spec === "string" ? plan.spec : null;
+        return [plan.path, spec].filter((path): path is string => Boolean(path))
+          .flatMap((path) => ids.map((id) => ({
+            path: `${subject.path}/${path}`, key: "sql_memory_ids", value: id,
+          })));
+      });
+    }
     activity.phase("Writing .context…");
     const applyArgs = ["bun", APPLY];
     if (opts.dryRun) applyArgs.push("--dry-run");
@@ -701,6 +764,7 @@ async function runBSaveImproved(
       recordCommandError(pi, "b-save-improved", "apply", first, applied.code);
       return;
     }
+    if (sqlAttempt) completeSaveAttempt(ctx.cwd, sqlAttempt);
     for (const row of report.applied ?? []) {
       notify(ctx, `${row.action} ${row.path}${row.reason ? ` — ${row.reason}` : ""}`);
     }
@@ -726,7 +790,7 @@ async function runBSaveImproved(
       notify(ctx, `Phase table drift remains: ${JSON.stringify(tableDrift)}`, "warning");
     }
     const backend = (preflight.memory_backend ?? {}) as { backend?: string | null; expect_retain?: boolean };
-    if (!backend.expect_retain && (backend.backend == null || backend.backend === undefined)) {
+    if (!sqlMode() && !backend.expect_retain && (backend.backend == null || backend.backend === undefined)) {
       const which = await execFileCaptured("which", ["qmd"], ctx.cwd);
       if (which.code === 0) {
         const indexed = await execFileCaptured("qmd", ["index", ".context/memory"], ctx.cwd);
@@ -736,7 +800,7 @@ async function runBSaveImproved(
       }
     }
 
-    if (!opts.noRetain && !opts.dryRun) {
+    if (!sqlMode() && !opts.noRetain && !opts.dryRun) {
       const memoryPath = String((payload.memory as { path?: string }).path ?? "");
       const instruction = buildRetainInstruction(
         backend,

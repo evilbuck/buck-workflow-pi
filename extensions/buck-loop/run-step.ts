@@ -30,6 +30,9 @@
  * The child is told it has no authority to choose the next loop state.
  */
 import { randomUUID } from "node:crypto";
+import { createLazyPool } from "../sql-memory/db.js";
+import { sqlMemoryTool } from "../sql-memory/index.js";
+import type { MigrationPool } from "../sql-memory/migrations.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -143,6 +146,16 @@ const toolsBySkill: Record<NestedSkill, string[]> = {
   "b-commit": ["read", "bash"],
 };
 
+const sqlRoleBySkill: Partial<Record<NestedSkill, "recall" | "save">> = {
+  "b-build": "recall",
+  "b-build-hard": "recall",
+  "b-review": "recall",
+  "b-iterate": "recall",
+  "b-docs": "recall",
+  "b-howto": "recall",
+  "b-save": "save",
+};
+
 /**
  * The subset of the host session object we touch.
  *
@@ -170,12 +183,16 @@ function loadSkill(skill: NestedSkill): string {
 }
 
 /** Skill body first, then a hard boundary: the child may not choose the next loop state. */
-function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string): string {
+function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string, handoff?: string, directive?: string): string {
   const hardVariant = skill === "b-build-hard" ? "\nThis is the hard variant of b-build.\n" : "";
   const checkpointInstruction = skill === "b-commit"
     ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n"
     : "\nBefore returning, stage only files you created or modified for this assignment. Never stage pre-existing or unrelated changes. Report a failure if your files cannot be staged.\n";
-  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
+  const repair = handoff
+    ? `\nThe previous attempt left this assignment incomplete. Diagnosis:\n${handoff}\nFinish that diagnosed gap in this run. Do not stop after a partial checkpoint unless a required operator input is actually missing.\n`
+    : "";
+  const assigned = directive ? `\nSupervisor directive:\n${directive}\n` : "";
+  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}${repair}${assigned}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
 }
 
 function errorText(error: unknown): string {
@@ -201,6 +218,10 @@ export async function runStep(opts: {
   planOrPhasePath: string;
   /** Present only when the plan or phase file has a `difficulty:` key. */
   difficulty?: string;
+  /** Diagnosis from an automatic light or medium repair. */
+  handoff?: string;
+  /** Supervisor contract for this run, such as a SQL save attempt. Not a repair diagnosis. */
+  directive?: string;
   onActivity?: (event: ActivityEvent) => void;
   /** Live host registry ids. Same source `/buck-models` uses. */
   availableIds?: () => Promise<ReadonlySet<string>>;
@@ -217,7 +238,7 @@ export async function runStep(opts: {
     };
   }
 
-  const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath);
+  const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath, opts.handoff, opts.directive);
   const stage = STAGE_BY_SKILL[opts.skill];
   const body = planBody(opts.cwd, opts.planOrPhasePath);
   const excluded: string[] = [];
@@ -255,6 +276,7 @@ export async function runStep(opts: {
     };
     const ran = await runOneSession(opts, prompt, agent, picked);
     if (ran.retain) return ran.result;
+    if (ran.blockRetry) return ran.result;
     excluded.push(picked.id);
     last = ran.result;
   }
@@ -372,7 +394,7 @@ function planBody(cwd: string, rel: string): string {
   return readFileSync(abs, "utf8");
 }
 
-type SessionAttempt = { retain: boolean; result: RunStepResult };
+type SessionAttempt = { retain: boolean; blockRetry: boolean; result: RunStepResult };
 
 async function runOneSession(
   opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void },
@@ -389,6 +411,13 @@ async function runOneSession(
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
+  // Only an unresolved save-stage SQL work error suppresses a model retry. Gate
+  // denials are correctable and a subsequent successful SQL call clears the error.
+  let unresolvedSqlFailure = false;
+  let teardownSqlFailed = false;
+  const sqlUrl = process.env.SQL_MEMORY_URL;
+  const role = sqlRoleBySkill[opts.skill];
+  const pool = sqlUrl && role ? createLazyPool(sqlUrl)() : undefined;
   try {
     const sessionOpts: Parameters<typeof createAgentSession>[0] & {
       agentDir?: string;
@@ -399,19 +428,29 @@ async function runOneSession(
       enableMCP?: boolean;
       enableLsp?: boolean;
       agentId?: string;
+      allowRestrictedCustomTools?: boolean;
+      customTools?: unknown[];
     } = {
       cwd: opts.cwd,
       agentDir: ompAgentDir(),
       modelPattern: picked.id,
       thinkingLevel: picked.thinking as NonNullable<Parameters<typeof createAgentSession>[0]["thinkingLevel"]>,
       tools: toolsBySkill[opts.skill],
-      toolNames: toolsBySkill[opts.skill],
+      toolNames: [...toolsBySkill[opts.skill], ...(pool ? ["sql_memory"] : [])],
       restrictToolNames: true,
       disableExtensionDiscovery: true,
       enableMCP: false,
       enableLsp: false,
       agentId: agent.id,
       sessionManager: SessionManager.inMemory(opts.cwd),
+      ...(pool && role ? {
+        allowRestrictedCustomTools: true,
+        customTools: [sqlMemoryTool(pool, role, (result) => {
+          if (role !== "save") return;
+          if (result.kind === "work") unresolvedSqlFailure = true;
+          else if (result.kind === "success") unresolvedSqlFailure = false;
+        })],
+      } : {}),
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
@@ -431,6 +470,10 @@ async function runOneSession(
     resetIdleTimer();
     await session.prompt(prompt);
     const text = lastAssistantText(session.messages);
+    // Work-failures observed mid-session do NOT downgrade a successful outcome; the
+    // supervisor's `finishSqlSave` (loop.ts) is the authority for save-stage receipt
+    // verification. A non-save stage treats `outcome.ok` as the agent's word — recall
+    // gate denials are agent-correctable.
     if (timedOut) {
       outcome = fail(
         { name: "TimeoutError", message: "Nested " + opts.skill + " session was inactive for " + WORK_SESSION_IDLE_TIMEOUT_MS + "ms." },
@@ -446,17 +489,31 @@ async function runOneSession(
   } catch (error) {
     outcome = fail(error);
   } finally {
-    unsubscribe?.();
     clearTimeout(timer);
   }
 
-  try {
-    await session?.dispose?.();
-  } catch (error) {
-    if (outcome.ok) return { retain: true, result: fail(error) };
-    const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
-    prior.error.details = { ...prior.error.details, disposeError: serializeCallError(error) };
-    outcome.failure = prior;
+  const recordCleanupError = (error: unknown, key: "unsubscribeError" | "disposeError" | "poolEndError"): void => {
+    if (!outcome.ok) {
+      // Failure path: annotate the existing failure's details without overwriting it.
+      const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
+      prior.error.details = { ...prior.error.details, [key]: serializeCallError(error) };
+      outcome.failure = prior;
+    }
+    // A completed agent session remains successful; only failed outcomes carry cleanup details.
+  };
+  try { unsubscribe?.(); } catch (error) { recordCleanupError(error, "unsubscribeError"); }
+  try { await session?.dispose?.(); } catch (error) { recordCleanupError(error, "disposeError"); }
+  try { await (pool as MigrationPool & { end?: () => Promise<void> } | undefined)?.end?.(); }
+  catch (error) {
+    teardownSqlFailed = true;
+    recordCleanupError(error, "poolEndError");
+    // Surface teardown noise to the supervisor's activity stream for visibility, but do
+    // not promote it to a stage failure — the agent's durable work already landed.
+    opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: false, message: errorText(error) });
   }
-  return { retain: outcome.ok, result: outcome };
+  return {
+    retain: outcome.ok,
+    blockRetry: unresolvedSqlFailure || teardownSqlFailed,
+    result: outcome,
+  };
 }

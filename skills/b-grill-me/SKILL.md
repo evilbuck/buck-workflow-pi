@@ -13,6 +13,51 @@ Ask questions one at a time, walking down each branch of the decision tree. For 
 
 If a question can be answered by exploring the codebase, explore the codebase instead of asking.
 
+## Material Decision Closeout
+
+Load `skills/_shared/decision-closure.md` before grilling. Apply its "When closure applies", "Low-risk path", "Confirming a changed problem framing", and "Calibrating pressure" headings. Preserve the question, decision-domain, boundary, break-point, and deferred/blocked-question metadata below.
+
+When a material trigger applies, include one `## Decision Closure` section in the session body using the shared protocol's "Closure-ready record", "Assumption ledger fields", and "Material-risk fields". Include selected course, evidence, assumptions, blocking/validation, material risks, excluded scope, and one bounded next action. Omit the section entirely on the low-risk path when evidence already suffices.
+
+If evidence contradicts the stated problem, surface both framings and obtain explicit user confirmation before redirecting; record the prior framing, confirmed replacement, and confirming evidence. Calibrate questions to materiality; do not revisit decisions already closed by evidence.
+
+## Turn classification
+
+Before recording a user turn as the resolution of the open question, classify it. Do this even when the turn looks like an answer.
+
+Closed question: does this turn answer the open grill question, add a side constraint, or wander off?
+
+Legal answers: `direct_answer`, `addendum`, `arbitrary`.
+
+When a session `jev` tool is available, call that. Follow `typesafe-ai` and `jev-typesafe-choice-schema`. Do not use eval `judge()`. `judge()` can fall back to a chat model and is the slow path. Do not call TypeSafe HTTP from this skill. Do not embed an OMP-only client. If `jev` is unavailable, fail closed.
+
+```js
+await tool.jev({
+  state: { open_question: "...", user_turn: "..." },
+  questions: {
+    turn_class: {
+      type: "choice",
+      instructions: "Classify the user turn against the open grill question. A short confirm or deny of that question is a direct answer. A new requirement that does not choose an option is an addendum.",
+      criteria: {
+        direct_answer: "Answers the open question, including a short confirm or deny.",
+        addendum: "Adds a requirement, constraint, or side note and does not resolve the open question.",
+        arbitrary: "Unrelated to the open question."
+      }
+    }
+  }
+})
+```
+
+`criteria` is a labelled object. Never an array. Read the answer at `answers.turn_class.choice`.
+
+
+Act on the label:
+- `direct_answer`: record the resolution, then ask the next question.
+- `addendum`: append it under `## Addenda` in the grill session file. Do not resolve the open question. Acknowledge the addition, then repeat the open question.
+- `arbitrary`: park one line under `## Parked`. Repeat the open question.
+
+If `jev` is missing, errors, or returns a label outside those three, treat the turn as `addendum`. Never guess `direct_answer`. Never fall back to eval `judge()`.
+
 ## Subject Folder (Required)
 
 Every session creates or joins a subject folder:
@@ -123,6 +168,12 @@ Run `/skill:b-phase` to create the formal phased plan.
 
 ## Deferred Questions
 - Q3: <question> — blocked on <reason>
+
+## Addenda
+- <turn> — filed, open question left unresolved
+
+## Parked
+- <turn> — not the open question
 ```
 
 ## During the Session

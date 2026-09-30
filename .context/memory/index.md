@@ -1,3 +1,191 @@
+- 2026-09-30 — [Decision-closure lifecycle closeout](decision-closure-final-save-2026-09-30.md) — completed (all six phases saved with verified receipts; buck-loop save/commit handoff recorded in `2026-09-30.buck-loop-save-commit-handoff`; subject lifecycle transitions active → completed)
+
+- 2026-09-30 — [Good-ideas factory hardening closeout](good-ideas-factory-improvements-2026-09-30.md) — completed (all 11 integrity/enforcement criteria verified shipped: frontmatter/codex/mirror/install tests, guardrails CI, hooks; iterate findings left open as out-of-plan)
+- 2026-09-30 — [Installer source integrity closeout](installer-source-integrity-2026-09-30.md) — completed (`--verify` mode, cross-root warnings, tests 76/76; live smoke detects the real 2-root split correctly)
+- 2026-09-30 — [PR20 b-save salvage superseded](pr20-bsave-salvage-2026-09-30.md) — completed (b-save-improved engine is the live wired path; b-kickoff fully removed)
+- 2026-09-30 — [b-recap session-recap skill](b-recap-skill-2026-09-30.md) — completed (landed via PR #14; review issues fixed in 6d4fe05)
+- 2026-09-30 — [`/buck-models --doctor` availability audit](buck-models-doctor-2026-09-30.md) — completed (shipped in PR #51 `76e722e`; read-once loader fix confirmed)
+- 2026-09-30 — [`/buck-loop` activity-log JSONL drain](buck-loop-log-drain-2026-09-30.md) — completed (tail-able streaming log shipped in PR #51 `0a82064`; iterate fixes in `a490963`)
+
+- 2026-09-30 — [Decision-closure Phase 6 closeout](decision-closure-phase-6-closeout-2026-09-30.md) — completed (all six phases done; docs principle landed; bundle parity + packaging test pass; loop save/commit handoff defect recorded for follow-up plan)
+
+- 2026-09-29 — [Decision-closure Phase 3 grill variants](decision-closure-phase-3-grills-2026-09-29.md) — completed (four grill variants use shared closure contract; bundled skill parity, forbidden-term scan, and untouched-extension checks pass)
+- 2026-09-29 — [Decision-closure Phase 2 shared protocol](decision-closure-phase-2-shared-protocol-2026-09-29.md) — completed (canonical conditional schema authored, registered and bundled; parity and forbidden-term checks pass)
+
+- 2026-09-29 — [Decision-closure chooser checkpoint](decision-closure-chooser-checkpoint-2026-09-29.md) — active (H2/H4 scanner and public-loop H2 save route pass; context retry/audit regression added; remaining Phase 1 context/safety proof listed in subject review)
+
+- 2026-09-29 — [Coordinated decision plans — bugs first](decision-plans-rephase-2026-09-29.md) — completed (joint six-phase execution map; chooser incident proof first; original acceptance preserved; actual scanner selects Phase 1)
+
+- 2026-09-29 — [Phase 1 closeout — chooser stall verification](decision-closure-phase-1-chooser-stall-2026-09-29.md) — completed (five source-plan criteria + safety/native-Jev exercised; 128/3 vitest pass; guardrails pass; live Jev picked save 0.89 / save 0.81; no source/test edits)
+
+- 2026-09-29 — [OMP bootstrap installation](omp-bootstrap-install-2026-09-29.md) — completed (latest repo bootstrap installed through targeted chezmoi apply; OMP/Pi symlink sharing preserved; byte parity and zero deployment drift verified)
+
+- 2026-09-29 — [SQL memory discovery](sql-memory-discovery-2026-09-29.md) — completed (always-loaded bootstrap policy, tool metadata, shared/Codex protocol and docs aligned; registration/protocol smoke and durable guardrails pass)
+
+- 2026-09-29 — [Changelog creation](changelog-creation-2026-09-29.md) — completed (Unreleased rebase changes documented and linked from README; documentation-only verification)
+
+- 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (fully rebased; both branch histories preserved; required guardrails and real supervisor start/resume smoke pass)
+
+- 2026-09-29 — [SQL memory Buck-loop closeout](sql-memory-buck-loop-closeout-2026-09-29.md) — completed (phases 2–4 closed with disposable cross-branch proof; commit follows on feat/sql-memory-tool)
+- 2026-09-29 — [Buck-loop TUI monitor](buck-loop-tui-monitor-2026-09-29.md) — completed (TUI loop done at 15/20 after an isolated disposable proof; this checkout was not committed)
+- 2026-09-29 — [SQL memory Buck-loop Phase 4 checkpoint](sql-memory-buck-loop-phase-4-checkpoint-2026-09-29.md) — active (bootstrap/docs/importer aligned; disposable SQL tests and guardrails pass; deployed OMP nested-loop proof remains)
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 immutable save and phase provenance](sql-memory-buck-loop-phase-3-immutable-provenance-2026-09-29.md) — completed (save-role immutable updates denied; phase context stored by both save paths; disposable PostgreSQL and guardrails pass)
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 cross-reference repair](sql-memory-buck-loop-phase-3-crossrefs-2026-09-29.md) — completed (legacy bold-line plans/specs retain links and receive SQL IDs in frontmatter; disposable PostgreSQL integration passed)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 portable save integrity](sql-memory-buck-loop-phase-3-portable-integrity-2026-09-29.md) — completed (atomic portable correction, pre-receipt active-row read-back; disposable PG and guardrails pass)
+
+- 2026-09-29 — [SQL save correction and attempt binding](sql-memory-buck-loop-phase-3-correction-2026-09-29.md) — completed (atomic correction rollback; projected attempt ID rejects later receipts; disposable PG and guardrails pass)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 3 review iteration](sql-memory-buck-loop-phase-3-iteration-2026-09-29.md) — completed (SQL-mode alternate save, receipt-backed resume, redacted origins; disposable PG and guardrails pass)
+
+- 2026-09-29 — [TUI buck-loop monitor](buck-loop-tui-monitor-2026-09-29.md) — active (no infinite loop; Phase 2 completed and saved but not committed; Phase 3 blocked at loop 11/12 after two heavy lifts)
+
+- 2026-09-29 — [SQL save checkpoint](sql-memory-buck-loop-phase-3-save-checkpoint-2026-09-29.md) — active (SQL-mode file-change false positive removed; actual receipt verification and remaining Phase 3 work incomplete)
+
+- 2026-09-29 — [Ambiguous postconditions are diagnosed, then lifted](buck-loop-ambiguity-lift-2026-09-29.md) — completed (child report is diagnosed before Jev classifies light/medium/heavy; light and medium retry with that diagnosis; heavy is told to the operator)
+- 2026-09-29 — [SQL memory Buck-loop Phase 2 zero-match contract](sql-memory-buck-loop-phase-2-zero-match-2026-09-29.md) — completed (empty vs missing vs error distinguished; live rows proof: seeded store, production recallProjectMemories returned both rows across branches; iterate artifact closed; durable guardrails v2 pass)
+
+- 2026-09-29 — [SQL memory Buck-loop Phase 2 recall checkpoint](sql-memory-buck-loop-phase-2-recall-2026-09-29.md) — active (shared portable recall guidance added; runtime identity, bounded query, parent Jev, and child context injection remain incomplete)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 save checkpoint](sql-memory-buck-loop-phase-1-save-2026-09-29.md) — completed (review Pass with verification warning, no in-plan defects; all four iterate files completed; subject stays active for Phases 2–4)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 cleanup retry iteration](sql-memory-buck-loop-phase-1-cleanup-retry-2026-09-29.md) — completed (cleanup failures after completed work block model fallback; 31 child runner tests and durable guardrails pass)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 pool-type iteration](sql-memory-buck-loop-phase-1-pool-type-2026-09-29.md) — completed (missing pool type imported; 29 child runner tests and durable guardrails pass; other targeted compiler errors remain)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 SQL-failure iteration](sql-memory-buck-loop-phase-1-sql-failure-2026-09-29.md) — completed (SQL tool and pool failures block model fallback; 29 run-step tests and durable guardrails pass)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 review iteration](sql-memory-buck-loop-phase-1-iteration-2026-09-29.md) — completed (save skill-weight guard, public-qualified targets, independent child/pool cleanup; 73 focused tests, guardrails pass)
+- 2026-09-29 — [Buck-loop Phase 1 monitoring and blocked-resume repair](buck-loop-phase1-monitor-resume-2026-09-29.md) — completed (Phase 1 committed at 7705adf; Phase 2 advanced to 4/12, staged only portable guidance, and stopped safely with unchecked runtime criteria)
+- 2026-09-29 — [SQL memory Buck-loop Phase 1 implementation](sql-memory-buck-loop-phase-1-implementation-2026-09-29.md) — completed (stage-scoped adapter, live `runStep` and role-policy proofs, guardrails pass; later reviewed and committed at 7705adf)
+- 2026-09-29 — [Deployed OMP restricted-child SQL proof](sql-memory-buck-loop-deployed-child-proof-2026-09-29.md) — completed (restricted and `runStep` children returned proof=7 from disposable PostgreSQL; Phase 1 verified)
+- 2026-09-29 — [SQL-memory Phase 1 operator-block diagnosis](sql-memory-buck-loop-phase-1-diagnosis-2026-09-29.md) — completed (absent disposable test target caused plan-gated hold; later OMP proof resolved it)
+- 2026-09-29 — [SQL-memory Phase 1 deployed-child proof blocker](sql-memory-buck-loop-phase-1-live-child-blocker-2026-09-29.md) — superseded (standalone Pi SDK omitted the tool; deployed OMP fork later admitted it)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 39)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-39.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 38)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-38.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [Ambiguous Buck-loop repair](buck-loop-ambiguous-repair-2026-09-29.md) — completed (operator stop with phase evidence, one fixable retry, restart gate for self-edits; 118 focused tests, guardrails pass, fresh OMP SQL-memory Phase 1 operator stop verified)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 37)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-37.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; configured SQL URL does not establish disposability; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 36)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-36.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 35)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-35.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (live recheck)](sql-memory-buck-loop-phase-1-hold-2026-09-29-live-recheck.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 34)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-34.md) — active (`SQL_MEMORY_TEST_URL` absent and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 33)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-33.md) — active (`SQL_MEMORY_TEST_URL` absent and disposable confirmation not `yes`; shared SQL URL is not a disposable-target guarantee; no database operation or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 32)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-32.md) — active (`SQL_MEMORY_TEST_URL` absent and disposable confirmation not `yes`; no database operation or restricted child attempted; implementation held)
+
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 29)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-29.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database connection/query or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 28)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-28.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database connection/query or restricted child attempted; implementation held)
+
+- 2026-09-29 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 27)](sql-memory-buck-loop-phase-1-hold-2026-09-29-assignment-27.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 26)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-26.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 25)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-25.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 24)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-24.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database query or restricted child attempted; implementation held)
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 23)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-23.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database query or restricted child attempted; implementation held)
+
+
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 21)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-21.md) — active (OMP 18.4.2; disposable test URL/confirmation unset; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 20)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-20.md) — active (OMP 18.4.2; configured SQL URL present, but disposable test URL/confirmation absent; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 19)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-19.md) — active (OMP 18.4.2; configured SQL URL present, but disposable test URL/confirmation absent; no query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 18)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-18.md) — active (OMP 18.4.2; configured SQL URL present, but disposable test URL/confirmation absent; no query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 17)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-17.md) — active (OMP 18.4.2; configured SQL URL present, but disposable test URL/confirmation absent; no query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 16)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-16.md) — active (OMP 18.4.2; disposable test URL/confirmation unset; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 15)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-15.md) — active (`SQL_MEMORY_TEST_URL` unset and disposable confirmation not `yes`; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 14)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-14.md) — active (`SQL_MEMORY_TEST_URL` and disposable confirmation unset; no database query or restricted child attempted; implementation held)
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 13)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-13.md) — active (disposable test URL and confirmation unset; no database query or restricted child attempted; implementation held)
+
+
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 12)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-12.md) — active (test URL and disposable confirmation unset; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 11)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-11.md) — active (OMP 18.4.2; disposable test URL/confirmation absent; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 10)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-10.md) — active (OMP 18.4.2; disposable test URL/confirmation absent; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 9)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-9.md) — active (OMP 18.4.2; disposable test URL/confirmation absent; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 8)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-8.md) — active (configured SQL URL only; disposable test URL/confirmation absent; no database query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 7)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-7.md) — active (OMP 18.4.2; SQL_MEMORY_URL set, disposable test URL/confirmation absent; no database query or restricted child attempted)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 6)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-6.md) — active (OMP 18.4.2; configured SQL URL present, disposable test URL/confirmation absent; no DB query or restricted child attempted)
+
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 4)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-4.md) — active (OMP 18.4.2; configured SQL URL present, disposable test indicators absent; no DB query or restricted child attempted)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 3)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-3.md) — active (OMP 18.4.2; disposable test URL/confirmation unset; no DB query or restricted child attempted)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (child assignment)](sql-memory-buck-loop-phase-1-hold-2026-09-28-child-assignment.md) — active (OMP 18.4.2; configured SQL URL only; no disposable target or restricted-child SELECT proof; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment 2)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment-2.md) — active (OMP 18.4.2; only configured SQL URL set; disposable test target/confirmation missing; no DB query or restricted child attempted; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (current assignment)](sql-memory-buck-loop-phase-1-hold-2026-09-28-current.md) — active (SQL URL set; disposable test URL/confirmation absent; no database connection/query or restricted child attempted; implementation held)
+
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (resumption)](sql-memory-buck-loop-phase-1-hold-2026-09-28-resume-4.md) — active (OMP 18.4.2; disposable test URL/confirmation unset; no database query or restricted child attempted)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (live check)](sql-memory-buck-loop-phase-1-hold-2026-09-28-live-check.md) — active (OMP 18.4.2; configured SQL URL only; no confirmed disposable test URL; no query or restricted child attempted)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (resumption)](sql-memory-buck-loop-phase-1-hold-2026-09-28-resume-3.md) — active (`SQL_MEMORY_URL` set; disposable test URL/confirmation absent; no query or restricted child attempted)
+
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (current assignment)](sql-memory-buck-loop-phase-1-hold-2026-09-28-current.md) — active (OMP 18.4.2; SQL URL set but disposable test target and restricted-child SELECT remain unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (assignment)](sql-memory-buck-loop-phase-1-hold-2026-09-28-assignment.md) — active (SQL_MEMORY_URL is set, but no disposable test URL/confirmation; no child SELECT proof; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (execution)](sql-memory-buck-loop-phase-1-hold-2026-09-28-execution.md) — active (OMP 18.4.2; SQL test URL absent and disposable confirmation unset; no connection, query, or restricted child; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (final recheck)](sql-memory-buck-loop-phase-1-prerequisite-hold-2026-09-28-final-recheck.md) — active (OMP 18.4.2; configured SQL URL not confirmed disposable; no restricted-child SELECT; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold (resumption)](sql-memory-buck-loop-phase-1-prerequisite-hold-2026-09-28-resume.md) — active (disposable database and live restricted-child SQL SELECT prerequisites remain unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite hold](sql-memory-buck-loop-phase-1-prerequisite-hold-2026-09-28.md) — active (disposable database and live restricted-child SQL SELECT prerequisites remain unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 live prerequisite hold](sql-memory-buck-loop-phase-1-live-prerequisite-hold-2026-09-28.md) — active (OMP 18.4.2 and SQL URL present; disposable target and live restricted-child SELECT not established; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 blocked](sql-memory-buck-loop-phase-1-blocked-2026-09-28.md) — active (disposable target and deployed-fork restricted-child SELECT prerequisite remain unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite recheck](sql-memory-buck-loop-phase-1-prerequisite-recheck-2026-09-28.md) — active (disposable target and live restricted-child SQL SELECT remain unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite recheck](sql-memory-buck-loop-phase-1-prerequisite-2026-09-28.md) — active (configured PostgreSQL endpoint is not verified disposable; no query or restricted child proof run)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 resumption checkpoint](sql-memory-buck-loop-phase-1-resume-2026-09-28.md) — active (SQL URL is configured but target is not confirmed disposable; fork-specific restricted child SELECT remains unproven; implementation held)
+
+- 2026-09-28 — [SQL memory in Buck-loop — Phase 1 prerequisite check](sql-memory-buck-loop-phase-1-2026-09-28.md) — active (OMP 18.4.2 and SDK 0.73.1 confirmed; `SQL_MEMORY_URL` unset; deployed-fork restricted-child SQL SELECT prerequisite not exercised; implementation held)
+
+- 2026-09-28 — [fix-pr skill and Codex copy — Phase 2](fix-pr-skill-codex-phase-2-2026-09-28.md) — active (skill copies are byte-identical; Codex parity suite remains blocked by three unrelated skill-copy mismatches)
+
+- 2026-09-28 — [Buck-loop stopped-run notice and recovery](buck-loop-stop-recovery-2026-09-28.md) — completed (actual blocker retained, STOP/status informational, explicit unblock paths; 241 loop tests and durable guardrails pass)
+
+- 2026-09-28 — [SQL memory in Buck-loop — exploration and plan](sql-memory-buck-loop-plan-2026-09-28.md) — completed (restricted child tool, project recall, bounded Jev, SQL save receipt; implementation queued)
+- 2026-09-28 — [PostgreSQL agent memory docs — Phase 3 save](postgres-agent-memory-phase3-save-2026-09-28.md) — completed (phase 3 + all three iterate rounds closed; phases overview all-completed; User Goal present)
+- 2026-09-28 — [PostgreSQL agent memory docs — Phase 3 iteration](postgres-agent-memory-phase3-docs-iterate-2026-09-28.md) — completed (`b-iterate` on phase-3 docs: ledger-check output pasted, supersede example keyed by origin_url, doc-exact recall query re-executed live against fresh pgvector/pg18 with matching output)
+- 2026-09-28 — [PostgreSQL agent memory SQL tool — Phase 2](postgres-agent-memory-sql-tool-phase-2-2026-09-28.md) — completed (`sql_memory` tool: SQL_MEMORY_URL-gated registration, lazy `pg` load, allowlisted DML with `SET LOCAL search_path = public`, additive-only migration runner with checksum pinning and exact-filename acknowledgment; 45 focused tests, three disposable pgvector/pgvector:pg18 smokes, two review iterations, durable guardrails v2 pass)
+- 2026-09-28 — [PostgreSQL agent memory schema — Phase 1](postgres-agent-memory-schema-phase-1-2026-09-28.md) — active (migration 001 implemented and scratch-verified; repository guardrails blocked by pre-existing Codex bundle parity failure)
+- 2026-09-28 — [Buck-loop fix-pr commit checkpoint diagnosis](buck-loop-fix-pr-checkpoint-2026-09-28.md) — completed (Phase 1 commit created; supported STOP closed stale blocked run; Phase 2 pending)
+- 2026-09-28 — [fix-pr feedback adapter phase 1](fix-pr-feedback-adapter-phase-1-2026-09-28.md) — completed (review pass; 44 focused/parity tests and durable guardrails pass; committed, Phase 2 pending)
+
+- 2026-09-28 — [fix-pr native PR/tool integration plan](fix-pr-native-tool-plan-2026-09-28.md) — `completed` (plan: native PR view for orientation; exhaustive TypeScript ingest through a thin agent tool with CLI fallback; implementation queued)
+- 2026-09-27 — [Deterministic fix-pr ingest](fix-pr-deterministic-ingest-2026-09-27.md) — `completed` (TypeScript sibling script replaces TSV fetch; CI signals included; stderr progress; fixture tests and PR 51 smoke passed)
+
+- 2026-09-27 — [Jev-ranked `/buck-loop` subject picker plan](buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md) — `completed` (bare command ranks runnable subjects with Jev, presents up to ten probability-ordered TUI rows, and starts only the operator's selection)
+
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)
 
 - 2026-09-23 — [Second design-brief theme: blueprint](design-brief-blueprint-theme-2026-09-23.md) — `completed` (new `themes/blueprint/design-brief.jsonc` alongside the untouched canonical brief; surfaced 10 pre-existing macOS realpath test failures, fixed separately on `fix/macos-tmp-symlink-realpath@a0bf7b5` — `archive/2026-09/macos-tmp-symlink-test-failures.md`)

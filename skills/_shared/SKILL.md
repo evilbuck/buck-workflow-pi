@@ -14,6 +14,7 @@ the sibling `.md` files in this directory; load them by filename.
 | File | Purpose |
 |---|---|
 | `subject-resolution.md` | Shared protocol all `b-*` skills use to find the active subject when invoked without an explicit path. **Read this when a skill says "apply the shared subject-resolution protocol."** |
+| `decision-closure.md` | Canonical conditional contract for material decisions, assumptions, risk and rollback; other skills load it by filename when they need to produce a material-decision closeout. |
 | `design-brief.jsonc` | Canonical design language for every HTML deliverable the workflow generates — blueprints, briefing packages, reports, guides. Tokens, type scale, layout shell, component set, responsive breakpoints, Mermaid theme. **Read this before authoring or restyling any generated HTML.** |
 | `scripts/render-design-tokens.ts` | Renders the `:root` token block and the Mermaid init from `design-brief.jsonc` into consumer templates. `bun skills/_shared/scripts/render-design-tokens.ts --write`. |
 | `themes/` | Additional named design languages beyond the default warm-paper brief (e.g. `themes/blueprint/design-brief.jsonc`, a dark facilitation-deck theme) — same schema as `design-brief.jsonc`, one directory per theme, not wired into the generated-token pipeline. **Read `themes/README.md` before picking or adding a theme.** |

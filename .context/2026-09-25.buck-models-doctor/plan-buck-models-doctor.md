@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-25
 subject: 2026-09-25.buck-models-doctor
 topics: [buck-models, diagnostics, model-registry, extension-command]
 research: []
 iterations: []
-memory: []
+memory: [buck-models-doctor-2026-09-30.md]
 ---
 
 # Plan: Add `/buck-models --doctor`

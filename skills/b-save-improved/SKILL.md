@@ -13,6 +13,8 @@ the extension is the deterministic implementation.
 `/b-save` remains the portable fallback for harnesses without this extension;
 this skill does not replace it.
 
+When `SQL_MEMORY_URL` is set, the extension inserts the scribe's reusable session record into PostgreSQL using bound statements and source-key deduplication, verifies the subject receipt against same-project rows, then applies metadata. A session with no reusable fact writes a verified no-fact receipt. Apply refuses SQL mode without the receipt and does not write `.context/memory/` files, the memory index, or a copy of the memory body into the subject index. Plan/spec cross-references use `sql_memory_ids`, not nonexistent Markdown paths. File mode is unchanged when the variable is unset.
+
 ## Inputs
 
 - A `.context/` directory containing the subject folder, plan/spec/phase/iterate

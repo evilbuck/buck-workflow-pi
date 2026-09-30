@@ -64,6 +64,7 @@
   },
   "dependencies": {
     "@typesafe-ai/sdk": "^0.6.0",
+    "pg": "^8.23.0",
     "typescript": "^6.0.3",
     "yaml": "^2.9.1"
   },
@@ -108,5 +109,11 @@
     "@vitest/coverage-v8": "^4.1.11",
     "tsx": "^4.21.0",
     "vitest": "^4.1.5"
+  },
+  "allowScripts": {
+    "@google/genai@1.52.0": true,
+    "esbuild@0.27.7": true,
+    "koffi@2.16.3": true,
+    "protobufjs@7.6.5": true
   }
 }

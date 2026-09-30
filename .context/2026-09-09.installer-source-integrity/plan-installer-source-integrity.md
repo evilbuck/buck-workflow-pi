@@ -1,11 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-09
 subject: 2026-09-09.installer-source-integrity
 topics: [installer, symlink, source-root, verify, bootstrap-drift, cli]
 research: []
 iterations: []
-memory: []
+memory:
+  - installer-source-integrity-2026-09-30.md
 ---
 
 # Plan: installer source integrity (`--verify` + cross-root warnings)

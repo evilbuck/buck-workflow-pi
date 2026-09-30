@@ -699,6 +699,65 @@ depends_on: []
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
+  it("confirms building when every acceptance criterion is checked and status is still in-progress", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "in-progress" }]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
+      ),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: phase,
+      state: "building",
+      sessionOutcome: "ok",
+    });
+    expect(result.planFacts).toEqual({ kind: "phased-complete" });
+    expect(result.workFacts.postcondition).toBe("confirmed");
+  });
+
+  it("does not treat status completed as done while an acceptance criterion is open", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "completed" }]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n- \"[ ] still open\"\n",
+      ),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(result.phasePath).toBe(phase);
+  });
+
+  it("skips a criteria-done phase and keeps a later pending phase", () => {
+    const root = repo();
+    phased(root, [
+      { n: 1, status: "in-progress" },
+      { n: 2, status: "pending", dependsOn: [1] },
+    ]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    writeTree(root, {
+      [phase]: readFileSync(join(root, phase), "utf8").replace(
+        "dependency_type: NONE\n",
+        "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
+      ),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: phase,
+      state: "building",
+      sessionOutcome: "ok",
+    });
+    expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
+    expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
+    expect(result.workFacts.postcondition).toBe("confirmed");
+  });
+
   it("confirms a reviewing session postcondition regardless of git dirtiness", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
@@ -747,6 +806,34 @@ depends_on: []
       retriesUsed: 0,
       postcondition: "pending",
     });
+  });
+
+  it("requires verified SQL save evidence instead of a changed file-memory path", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }]);
+    writeTree(root, { ".context/memory/session.md": "memory\n" });
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://configured";
+    try {
+      const unverified = scan({
+        projectRoot: root,
+        path: `.context/${SUBJECT}`,
+        state: "saving",
+        sessionOutcome: "ok",
+      });
+      expect(unverified.workFacts.postcondition).toBe("ambiguous");
+      const verified = scan({
+        projectRoot: root,
+        path: `.context/${SUBJECT}`,
+        state: "saving",
+        sessionOutcome: "ok",
+        sqlSaveVerified: true,
+      });
+      expect(verified.workFacts.postcondition).toBe("confirmed");
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
   });
 
   it("confirms a committing session when the working tree is clean", () => {

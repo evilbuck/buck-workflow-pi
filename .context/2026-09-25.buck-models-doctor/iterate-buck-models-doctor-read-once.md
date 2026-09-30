@@ -1,13 +1,14 @@
 ---
-status: active
+status: completed
 date: 2026-09-26
-updated: 2026-09-26
+updated: 2026-09-30
 subject: 2026-09-25.buck-models-doctor
 topics: [review, iteration, doctor, config-io]
 informs: []
 addresses: plan-buck-models-doctor.md
-completed: null
+completed: 2026-09-30
 from_review: b-review
+memory: [buck-models-doctor-2026-09-30.md]
 ---
 
 # Iteration: buck-models doctor — single-snapshot config loading

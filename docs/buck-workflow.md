@@ -5,12 +5,14 @@ A structured, discoverable workflow for AI-assisted software development with du
 ## Philosophy
 
 The Buck workflow is built on one principle: **don't lose work**. It separates **intent** (plans in subject folders) from **record** (history in memory), creating a durable paper trail that survives chat context limits.
+The second principle is **make material decisions visible**. Routine, reversible work with clear evidence stays lightweight; when a material trigger applies, the workflow records the selected course, evidence, unresolved assumptions, risks and recovery path in an accepted decision envelope. The closure check may finish from existing evidence without an interview. Autonomous execution stays inside that accepted envelope; it does not add a separate approval or governance layer.
+
 
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and an opt-in plan-artifact bridge
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and an env-gated `sql_memory` tool
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ### Subject lifecycle authority
@@ -74,12 +76,13 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
 | `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
+| `sql_memory` (env-gated tool) | Extension tool | Extension tool | `extensions/sql-memory/`; registered only when `SQL_MEMORY_URL` is set |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and the env-gated `sql_memory` tool.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; `b-grill-auto` remains available as a skill. See `docs/extension-loading.md` for the loading truth table.
 
@@ -148,6 +151,21 @@ for the decision log.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
 - **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Ambiguous postconditions are diagnosed, then lifted.** A phase whose acceptance boxes are all
+  checked but whose status is not completed is marked complete by the supervisor.
+  Otherwise the supervisor diagnoses the child report and disk gap, then asks Jev
+  to classify that diagnosis as a light, medium, or heavy lift. Light and medium
+  lifts continue automatically once, with the diagnosis handed to the next skill
+  run. A heavy lift, or a lift call that does not return a legal class, is told
+  to the operator with the diagnosis, phase status, unchecked criteria, and
+  execution checkpoint. Missing credentials or a disposable database are heavy.
+  A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
+  until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
+- **Blocked resume preserves a completed phase's review.** If a build or iterate
+  was blocked and its projected phase is completed before the operator resumes,
+  the confirmed run enters review for that phase without incrementing the build
+  count. A still-incomplete phase follows the normal resolving/build path.
+- **Save and commit checkpoints trust durable artifacts.** A configured SQL save succeeds when the receipt verifies; pool teardown is an activity warning, not `SqlMemoryError`. Only an unresolved save-stage SQL work failure suppresses model retry. The commit checkpoint stages `.context/` and the active phase's `files:` list (exact paths, or a directory prefix ending in `/`), then refuses every other unstaged non-`.context` path. A missing `files:` field grants no extra scope. See [ADR 0003](adr/0003-checkpoint-trusts-durable-artifacts.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
@@ -500,6 +518,9 @@ Its default export composes every wired subsystem:
    fresh-Reviewer passes (`extensions/code-review-iteration/`). Reviewer work
    runs in disposable detached worktrees and reproduction crosses the
    policy-bounded `review_exec` tool.
+11. **`sql_memory`** — Shared PostgreSQL memory tool
+   (`extensions/sql-memory/`). Registered only when `SQL_MEMORY_URL` is set;
+   the client loads on first use, not at startup.
 
 The four `*-improved` / `b-kamal-release` commands report progress through
 the shared `extensions/extension-activity.ts` helper and fall back to their
@@ -950,7 +971,7 @@ memory: []                    # Filled by b-save after execution
    - Execution order notes
 
 2. **Discrete phase files** (`phase-N-<slug>.md`): one per phase with:
-   - Frontmatter: `status`, `phase`, `difficulty`, `depends_on`, `acceptance_criteria`, `completed_at`
+   - Frontmatter: `status`, `phase`, `difficulty`, `depends_on`, `acceptance_criteria`, `completed_at`, `files`
    - Body: implementation details, context, risks, verification steps
    - Status flow: `pending` → `in-progress` → `completed`
 
@@ -1612,7 +1633,10 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
-`/b-save` is a **pure prompt/skill command**. There is no extension handler.
+In configured OMP `/buck-loop`, the save child stores reusable memory bodies in SQL and writes a metadata-only receipt under `.context/<subject>/sql-memory-receipts/`. The receipt is written only after same-project row read-back; commit additionally requires metadata completion and the matching projected attempt. Pool teardown after that receipt does not fail the save stage. This path creates no new `.context/memory/` body or index entry. Historical Markdown memories remain readable and are not migrated.
+
+Outside a configured loop, portable `/b-save` uses SQL only when `sql_memory` is callable. An environment variable alone does not establish tool availability; without the callable tool, retain file-based behavior and report shared-store unavailability.
+
 The thin prompt loads canonical `skills/b-save/SKILL.md`; the model follows that
 procedure, reads `.context/workflow/current-session.json` when it exists, and
 writes durable files under `.context/`. Step 8 may call harness memory tools
@@ -1623,29 +1647,29 @@ writes durable files under `.context/`. Step 8 may call harness memory tools
 /b-save
 ```
 
-**12 Core Responsibilities**:
+**Core Responsibilities**:
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context
 2. **Subject Folder** — Create if missing; consolidate loose artifacts
-3. **Memory Creation** — Create/update session memory file with proper frontmatter
-4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files
-5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items (create item file + `todo.md` entry). Legacy fallback: `.context/backlog.md`
-6. **Spec Status Updates** — Set `status: completed` (no file moves)
-7. **Index Update** — Update `.context/memory/index.md`
-8. **Native agent memory (OMP only)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM; skip otherwise. Not a Hindsight HTTP client; bulk seed uses `b-memory-import`
-9. **Memory skill re-index (non-OMP, optional)** — Best-effort when a memory skill is configured in non-OMP agents; never required
-10. **Phase State Consolidation** — Verify discrete phase file states match reality; update overview table if stale
-11. **Iterate Artifact Consolidation** — Scan for `iterate-*.md` files; verify completion, update status if work was done, include in memory `artifacts:` list, back-fill plan with `iterations:` reference
-12. **User Goal Check** — Warn when active plan/brainstorm artifacts lack `## User Goal` and have no `Technical chore — <reason>` waiver
+3. **Memory Creation** — File mode creates/updates a session memory file; configured OMP `/buck-loop` SQL mode stores reusable bodies in SQL and creates only a subject-scoped metadata receipt
+4. **Cross-Reference Stitching** — Back-fill plan/spec references with memory filenames in file mode or SQL IDs in SQL mode
+5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items. Legacy fallback: `.context/backlog.md`
+6. **Spec Status Updates** — Set `status: completed` only when verified
+7. **Index Update** — File mode updates `.context/memory/index.md`; SQL loop saves do not add a Markdown memory entry
+8. **Native agent memory (OMP only)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM when appropriate; not a Hindsight HTTP client
+9. **Memory skill re-index (non-OMP, optional)** — Best-effort when configured; never required
+10. **Phase State Consolidation** — Verify phase states match reality
+11. **Iterate Artifact Consolidation** — Verify iteration completion and cross-reference it
+12. **User Goal Check** — Warn when active plans lack a User Goal or technical-chore waiver
 
 **Memory layers**:
 
 | Layer | Required | Role |
 |-------|----------|------|
-| `.context/memory/*.md` | Yes | Git-portable, multi-harness session record |
-| OMP `retain` / `learn` | No | Harness LTM mirror for next-session recall |
-| Memory skill (non-OMP) | No | Optional configured local search/index |
-| `b-memory-import` | No | One-shot/backfill of existing markdown into Hindsight |
+| `.context/memory/*.md` | File mode; not new SQL loop bodies | Git-portable legacy/session record |
+| Subject SQL receipt | Configured OMP `/buck-loop` save | Metadata proof; no memory body |
+| OMP `retain` / `learn` | No | Harness LTM mirror when supported |
+| `b-memory-import` | No | Backfill of historical Markdown only |
 
 **Memory Frontmatter**:
 ```yaml
@@ -2182,4 +2206,4 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
-Last updated: 2026-09-24
+Last updated: 2026-09-28
