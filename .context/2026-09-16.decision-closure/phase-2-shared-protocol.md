@@ -7,6 +7,8 @@ phases_overview: plan-decision-closure-protocol-phases.md
 difficulty: hard
 model_hint: strongest reasoning model available — schema and vocabulary must be original Buck prose, not a restatement of the donor
 buck_hint: /b-build-hard
+completed_at: 2026-09-29
+completed_by: b-build
 goal: "Author the canonical conditional decision-closure protocol and register it so later skills load one schema instead of inventing parallel contracts."
 files:
   - skills/_shared/decision-closure.md

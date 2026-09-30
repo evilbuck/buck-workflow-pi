@@ -9,7 +9,7 @@ topics: [decision-closure, assumptions, risk, rollback, workflow]
 research: []
 iterations: []
 spec: null
-memory: [decision-closure-plan-2026-09-16.md, decision-plans-rephase-2026-09-29.md]
+memory: [decision-closure-plan-2026-09-16.md, decision-plans-rephase-2026-09-29.md, decision-closure-phase-6-closeout-2026-09-30.md, decision-closure-final-save-2026-09-30.md]
 ---
 
 # Plan: Reliable Buck-loop Decisions and Decision Closure

@@ -1,8 +1,11 @@
 ---
-status: active
+status: completed
 created: 2026-09-16
 updated: 2026-09-16
 subject: decision-closure
+lifecycle_schema: 1
+lifecycle_revision: 1
+lifecycle_last_transition: close-verified
 ---
 
 # Reliable Buck-loop Decisions and Decision Closure

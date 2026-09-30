@@ -1,7 +1,7 @@
 ---
-status: active
+status: completed
 date: 2026-09-16
-updated: 2026-09-29
+updated: 2026-09-30
 subject: 2026-09-16.decision-closure
 topics: [phasing, buck-loop, decision-closure, assumptions, risk, rollback, workflow]
 source_plan: plan-decision-closure-protocol.md
@@ -86,8 +86,8 @@ Keep interrupted phases resumable; only check acceptance and mark `completed` wi
 
 ## Execution Checklist
 
-- [ ] Phase 1: Chooser stall proof/remaining repairs → review → save → commit
-- [ ] Phase 2: Shared protocol → review → save → commit
+- [x] Phase 1: Chooser stall proof/remaining repairs → review → save → commit
+- [x] Phase 2: Shared protocol → review → save → commit
 - [x] Phase 3: Grill variants → review → save → commit
 - [x] Phase 4: Plan and phase → review → save → commit
 - [x] Phase 5: Build and review → review → save → commit

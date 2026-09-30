@@ -1,3 +1,12 @@
+- 2026-09-30 — [Decision-closure lifecycle closeout](decision-closure-final-save-2026-09-30.md) — completed (all six phases saved with verified receipts; buck-loop save/commit handoff recorded in `2026-09-30.buck-loop-save-commit-handoff`; subject lifecycle transitions active → completed)
+
+- 2026-09-30 — [Good-ideas factory hardening closeout](good-ideas-factory-improvements-2026-09-30.md) — completed (all 11 integrity/enforcement criteria verified shipped: frontmatter/codex/mirror/install tests, guardrails CI, hooks; iterate findings left open as out-of-plan)
+- 2026-09-30 — [Installer source integrity closeout](installer-source-integrity-2026-09-30.md) — completed (`--verify` mode, cross-root warnings, tests 76/76; live smoke detects the real 2-root split correctly)
+- 2026-09-30 — [PR20 b-save salvage superseded](pr20-bsave-salvage-2026-09-30.md) — completed (b-save-improved engine is the live wired path; b-kickoff fully removed)
+- 2026-09-30 — [b-recap session-recap skill](b-recap-skill-2026-09-30.md) — completed (landed via PR #14; review issues fixed in 6d4fe05)
+- 2026-09-30 — [`/buck-models --doctor` availability audit](buck-models-doctor-2026-09-30.md) — completed (shipped in PR #51 `76e722e`; read-once loader fix confirmed)
+- 2026-09-30 — [`/buck-loop` activity-log JSONL drain](buck-loop-log-drain-2026-09-30.md) — completed (tail-able streaming log shipped in PR #51 `0a82064`; iterate fixes in `a490963`)
+
 - 2026-09-30 — [Decision-closure Phase 6 closeout](decision-closure-phase-6-closeout-2026-09-30.md) — completed (all six phases done; docs principle landed; bundle parity + packaging test pass; loop save/commit handoff defect recorded for follow-up plan)
 
 - 2026-09-29 — [Decision-closure Phase 3 grill variants](decision-closure-phase-3-grills-2026-09-29.md) — completed (four grill variants use shared closure contract; bundled skill parity, forbidden-term scan, and untouched-extension checks pass)
