@@ -584,6 +584,13 @@ describe("failure and choice", () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     let builds = 0;
+    const classifyRepair = vi.fn(async (opts: { snapshot: { planPath: string | null; phasePath: string | null; workFacts: { postcondition: string; sessionOutcome: string; retriesUsed: number } }; why: string }) => {
+      expect(opts.snapshot.planPath).toBe(PLAN);
+      expect(opts.snapshot.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
+      expect(opts.snapshot.workFacts).toMatchObject({ postcondition: "ambiguous", sessionOutcome: "ok", retriesUsed: 0 });
+      expect(opts.why).toMatch(/ambiguous/i);
+      return { lift: "light" as const, reason: "agent can finish", diagnosis: "finish the unchecked retrieval" };
+    });
     const deps = workDeps(
       async (opts) => {
         if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
@@ -593,7 +600,7 @@ describe("failure and choice", () => {
         return landingWork()(opts);
       },
       async () => ({ status: "blocked", reason: "choose not expected" }),
-      async () => ({ lift: "light" as const, reason: "agent can finish", diagnosis: "finish the unchecked retrieval" }),
+      classifyRepair,
     );
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(result.state).toBe("blocked");
@@ -765,7 +772,16 @@ describe("failure and choice", () => {
   it("blocks when closed-set choice is rejected", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
-    const choose = vi.fn(async () => ({ status: "blocked" as const, reason: "illegal twice" }));
+    const choose = vi.fn(async (opts: { context?: string }) => {
+      expect(opts.context).toContain(`plan=${PLAN}`);
+      expect(opts.context).toContain(`phase=.context/${SUBJECT}/phase-1-p1.md`);
+      expect(opts.context).toContain("state=reviewing");
+      expect(opts.context).toContain("why=");
+      expect(opts.context).toContain("parseable=false");
+      expect(opts.context).toContain("sessionOutcome=ok");
+      expect(opts.context).toContain("postcondition=confirmed");
+      return { status: "blocked" as const, reason: "illegal twice" };
+    });
     const deps = workDeps(async (opts) => {
       if (opts.skill === "b-review") return { ok: true, text: UNPARSEABLE_REVIEW };
       return landingWork()(opts);

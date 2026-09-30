@@ -898,9 +898,12 @@ function decisionContext(snapshot: Snapshot, why: string): string {
     : `review=${snapshot.reviewFacts.kind}`;
   return [
     `state=${snapshot.state}`,
-    `phase=${snapshot.phasePath ?? snapshot.planPath ?? ""}`,
+    `plan=${snapshot.planPath ?? ""}`,
+    `phase=${snapshot.phasePath ?? ""}`,
     `why=${why}`,
     review,
+    `sessionOutcome=${snapshot.workFacts.sessionOutcome}`,
+    `retriesUsed=${snapshot.workFacts.retriesUsed}`,
     `postcondition=${snapshot.workFacts.postcondition}`,
   ].join(" ");
 }
