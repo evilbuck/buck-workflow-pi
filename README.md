@@ -2,6 +2,8 @@
 
 A structured, discoverable workflow for AI-assisted software development with durable context management.
 
+[Changelog](docs/CHANGELOG.md)
+
 ## Philosophy
 
 The Buck workflow is built on one principle: **don't lose work**. It separates **intent** (plans in subject folders) from **record** (history in memory), creating a durable paper trail that survives chat context limits.

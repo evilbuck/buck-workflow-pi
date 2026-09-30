@@ -1,3 +1,5 @@
+- 2026-09-29 — [Changelog creation](changelog-creation-2026-09-29.md) — completed (Unreleased rebase changes documented and linked from README; documentation-only verification)
+
 - 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (fully rebased; both branch histories preserved; required guardrails and real supervisor start/resume smoke pass)
 
 - 2026-09-29 — [SQL memory Buck-loop closeout](sql-memory-buck-loop-closeout-2026-09-29.md) — completed (phases 2–4 closed with disposable cross-branch proof; commit follows on feat/sql-memory-tool)
