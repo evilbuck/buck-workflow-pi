@@ -1,0 +1,10 @@
+{
+  "attemptId": "b43002eb-08b0-42b6-8466-01143f7cd95e",
+  "runId": "2f2876ce-a70d-467b-ad09-80a1c0a2907d",
+  "subject": "2026-09-16.decision-closure",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "kind": "rows",
+  "ids": ["01a0f06d-ddf4-7b56-becc-f4a332b4738a"],
+  "probed": true,
+  "completed": true
+}

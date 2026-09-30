@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-decision-closure-protocol.md
@@ -17,16 +17,16 @@ from_plan_steps: [4, 5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `b-plan` loads the shared protocol and runs the closure check after draft/Light Grill evaluation and before the final plan write."
-  - "[ ] Low-risk plans omit Decision Closure, Assumptions Ledger, and structured material-risk sections; Light Grill stays discretionary."
-  - "[ ] When a trigger applies, the plan includes assumption IDs with allowed statuses, blocking flags, validation paths, and material-risk rows (failure mode, impact, mitigation, rollback/fallback)."
-  - "[ ] `b-plan` constructs its own ledger when upstream grill closeout is absent or incomplete; it does not fail closed on missing grill records."
-  - "[ ] Confirmed problem reframing is recorded in the plan when it occurred; silent problem substitution is forbidden."
-  - "[ ] `b-phase` maps each deferred or blocking assumption ID to exactly one earliest phase that can validate it, states that validation in the phase Context and acceptance criteria, and adds a HARD dependency when later work cannot proceed safely without resolution."
-  - "[ ] Canonical `b-plan` and `b-phase` directories match their Codex bundle copies."
-  - "[ ] Changed files contain no forbidden-term match and no donor sentence/table/template/label."
-completed_at: null
-completed_by: null
+- "[x] `b-plan` loads the shared protocol and runs the closure check after draft/Light Grill evaluation and before the final plan write."
+- "[x] Low-risk plans omit Decision Closure, Assumptions Ledger, and structured material-risk sections; Light Grill stays discretionary."
+- "[x] When a trigger applies, the plan includes assumption IDs with allowed statuses, blocking flags, validation paths, and material-risk rows (failure mode, impact, mitigation, rollback/fallback)."
+- "[x] `b-plan` constructs its own ledger when upstream grill closeout is absent or incomplete; it does not fail closed on missing grill records."
+- "[x] Confirmed problem reframing is recorded in the plan when it occurred; silent problem substitution is forbidden."
+- "[x] `b-phase` maps each deferred or blocking assumption ID to exactly one earliest phase that can validate it, states that validation in the phase Context and acceptance criteria, and adds a HARD dependency when later work cannot proceed safely without resolution."
+- "[x] Canonical `b-plan` and `b-phase` directories match their Codex bundle copies."
+- "[x] Changed files contain no forbidden-term match and no donor sentence/table/template/label."
+completed_at: 2026-09-29
+completed_by: b-build
 ---
 
 # Phase 4: Plan and Phase

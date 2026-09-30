@@ -239,6 +239,22 @@ When the Light Grill runs, add a `## Light Grill` section to the plan body with 
 
 The Q&A lives in the plan itself — no separate session file. The distinction from `b-grill-me` is intentional: `b-grill-me` writes a separate `grill-session-*.md` because it is a multi-session, threshold-tracking artifact; the Light Grill is a one-shot planning step whose audit trail belongs inside the plan. If a more exhaustive interview is later needed, run `b-grill-me` separately and stitch its session file to the plan via the "Context used / assumptions" section.
 
+## Decision Closure (Full and Mini Workflows)
+
+Load `skills/_shared/decision-closure.md` and apply its headings **after** the plan draft and any discretionary Light Grill evaluation, but **before** the final plan write. Check the shared protocol's material triggers against the draft and available evidence:
+
+- If no trigger applies, finalize without closure sections or extra questions.
+- If a trigger applies, record the decision closure even when existing evidence and confirmed decisions already settle it. Ask only about unresolved questions that materially change the selected course, safety, scope, validation, or recovery; synthesize facts already supported by evidence.
+- Reuse upstream closeout assumption IDs and statuses when present. If that record is absent or incomplete, construct the plan's own ledger from current evidence; missing grill records never block closure.
+- If evidence contradicts the stated problem, surface both framings and get explicit confirmation before adopting the replacement; record the prior framing, confirmed framing, and evidence.
+- A closure record is not ready while a blocking assumption is unresolved or a material rollback/fallback claim lacks a concrete validation path.
+
+When triggered, include a `## Decision Closure` section recording the selected course, evidence, excluded scope, and bounded next action. Include `## Assumptions Ledger` for applicable assumptions and `## Material Risks` for material risks; omit empty sections rather than manufacturing entries. These sections are body content, not frontmatter. Instantiate only the shared protocol's fields; do not duplicate its schema here. Use distinct, stable assumption IDs in the artifact. Every unresolved assumption needs its validation path, and every material risk needs a concrete recovery validation path.
+
+Light Grill remains discretionary under the rules above. Its absence does not suppress a required decision-closure check, and a decision-closure check does not make Light Grill mandatory.
+
+If the plan is later phased, `b-phase` owns validation assignment and dependencies for its deferred or blocking assumption IDs; the plan retains the ledger and validation paths.
+
 ## Cross-Reference Stitching (Full Mode Only)
 
 Run this section only when the active capability state is `full`. When creating
@@ -560,6 +576,8 @@ rather than translating the obsolete historical cells.
 
 ## Recommended Plan Structure
 
+The closure sections below are optional and appear **only when the Decision Closure check is triggered**. Routine plans keep their existing shape. Follow the [Decision Closure](#decision-closure-full-and-mini-workflows) instructions and shared protocol; do not treat this outline as a second schema.
+
 ```markdown
 # Plan: <title>
 
@@ -574,6 +592,15 @@ rather than translating the obsolete historical cells.
 - Session context: ...
 - Artifacts used: ...
 - Assumptions / open questions: ...
+
+## Decision Closure
+<!-- Conditional: selected course, evidence, excluded scope, next bounded action. -->
+
+## Assumptions Ledger
+<!-- Conditional: shared-protocol fields; only when closure is triggered. -->
+
+## Material Risks
+<!-- Conditional: shared-protocol fields; only when closure is triggered. -->
 
 ## Scope
 ...
