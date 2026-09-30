@@ -75,6 +75,7 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; original incident first in [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md); broader typed-review/recovery scope remains separate
+- [ ] [Fix buck-loop save/commit checkpoint handoff](items/buck-loop-save-commit-handoff.md) — high; verified save receipts reported as SqlMemoryError + commit guard blocking phase deliverables — see `.context/2026-09-30.buck-loop-save-commit-handoff/plan-save-commit-handoff.md`
 - [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
 - [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
