@@ -86,6 +86,22 @@ describe("subject lifecycle intents", () => {
     expect(readFileSync(join(dir, "index.md"), "utf8")).toBe(before);
   });
 
+  it("closes a subject whose only plan is unphased but marked completed, and refuses an unphased open plan", () => {
+    const dir = subject();
+    applySubjectLifecycleIntent({ kind: "initialize", subjectDir: dir });
+    applySubjectLifecycleIntent({ kind: "activate", subjectDir: dir });
+    write(dir, "plan-demo.md", "---\nstatus: active\n---\n# Plan\n");
+
+    expect(applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: dir })).toMatchObject({
+      ok: false, code: "not-verified", changed: false,
+    });
+
+    write(dir, "plan-demo.md", "---\nstatus: completed\n---\n# Plan\n");
+    expect(applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: dir })).toMatchObject({
+      ok: true, changed: true, resultingState: "completed",
+    });
+  });
+
   it("detects legacy verified-closed subjects and canonicalizes only through close", () => {
     const dir = subject();
     write(dir, "index.md", "---\nstatus: active\ntitle: Legacy\n---\n\n# Body\n");

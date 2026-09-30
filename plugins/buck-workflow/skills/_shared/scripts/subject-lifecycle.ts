@@ -168,6 +168,7 @@ function collectPlanBlockers(
   for (const plan of plans) {
     const owned = phasesByPlan.get(plan) ?? [];
     if (owned.length === 0) {
+      if (frontmatter(join(subjectDir, plan)).status === "completed") continue;
       blockers.push(`${plan}: unphased plan remains open`);
       continue;
     }

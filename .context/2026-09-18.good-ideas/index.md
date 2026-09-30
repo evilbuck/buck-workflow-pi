@@ -1,8 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.good-ideas
 topics: [software-factory, workflow-integrity, guardrails, distribution, hooks]
+lifecycle_schema: 1
+lifecycle_revision: 1
+lifecycle_last_transition: close-verified
 ---
 
 # Buck Workflow factory improvements

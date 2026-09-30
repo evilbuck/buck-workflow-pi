@@ -25,6 +25,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { parse as parseYaml } from "yaml";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
   askRepairLift,
@@ -727,7 +728,7 @@ async function runNestedSkill(
   directive?: string,
 ): Promise<RunStepResult> {
   try {
-    if (skill === "commit") prepareCommitCheckpoint(cwd);
+    if (skill === "commit") prepareCommitCheckpoint(cwd, planOrPhasePath);
     const difficulty = difficultyLabel(cwd, snapshot);
     const memoryContext = skill === "commit" ? null : await recallProjectMemories(cwd, planOrPhasePath);
     if (memoryContext?.kind === "failure") {
@@ -924,12 +925,36 @@ function unstagedNonContextStatus(cwd: string): string[] {
   return nonContextStatus(cwd).filter((line) => !isStagedOnly(line));
 }
 
-function prepareCommitCheckpoint(cwd: string): void {
+/**
+ * Stages `.context/` plus any paths the active phase declares in its `files:`
+ * frontmatter. Paths outside that scope still throw the legacy refusal so unrelated
+ * dirt can never silently land in a phase commit. When no `files:` is declared the
+ * guard falls back to refusing any unstaged non-`.context` change.
+ */
+export function prepareCommitCheckpoint(cwd: string, planOrPhasePath: string | null): void {
+  const declared = declaredPhaseFiles(cwd, planOrPhasePath);
   const unstaged = unstagedNonContextStatus(cwd);
-  if (unstaged.length > 0) {
+  const outOfScope: string[] = [];
+  const autoStage: string[] = [];
+  const matches = (path: string): boolean => declared.some((entry) => entry.endsWith("/") ? path.startsWith(entry) : path === entry);
+  for (const line of unstaged) {
+    const paths = porcelainPaths(line).filter((path) => !path.startsWith(".context/"));
+    if (paths.length > 0 && paths.every(matches)) autoStage.push(...paths);
+    else outOfScope.push(...(paths.length > 0 ? paths.filter((path) => !matches(path)) : [line.slice(3)]));
+  }
+  if (outOfScope.length > 0) {
     throw new Error(
-      "/buck-loop refuses to commit unstaged non-.context changes: " + unstaged.join(", "),
+      "/buck-loop refuses to commit unstaged non-.context changes: " + outOfScope.join(", "),
     );
+  }
+  // Stage declared paths first; the .context sweep runs after so phase metadata wins.
+  if (autoStage.length > 0) {
+    execFileSync("git", ["add", "--", ...autoStage], {
+      cwd,
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
   }
   execFileSync("git", ["add", "-A", "--", ".context"], {
     cwd,
@@ -937,6 +962,38 @@ function prepareCommitCheckpoint(cwd: string): void {
     timeout: 10_000,
     stdio: ["pipe", "pipe", "pipe"],
   });
+}
+
+/** Read only the phase files: field; malformed or absent frontmatter grants no staging scope. */
+function declaredPhaseFiles(cwd: string, planOrPhasePath: string | null): string[] {
+  if (!planOrPhasePath) return [];
+  let text: string;
+  try { text = readFileSync(resolve(cwd, planOrPhasePath), "utf8"); } catch { return []; }
+  const files = parsePhaseFiles(text);
+  const values = typeof files === "string" ? [files] : Array.isArray(files) ? files : [];
+  return values.filter(isRelativePhasePath).map((path) => path.replace(/\\/g, "/"));
+}
+
+function parsePhaseFiles(text: string): unknown {
+  if (!text.startsWith("---")) return undefined;
+  const end = text.indexOf(String.fromCharCode(10) + "---", 3);
+  if (end < 0) return undefined;
+  try {
+    const metadata: unknown = parseYaml(text.slice(4, end));
+    return metadata && typeof metadata === "object" && "files" in metadata ? metadata.files : undefined;
+  } catch { return undefined; }
+}
+
+function isRelativePhasePath(path: unknown): path is string {
+  if (typeof path !== "string") return false;
+  const normalized = path.replace(/\\/g, "/");
+  return normalized.length > 0 && !normalized.startsWith("/")
+    && !normalized.startsWith("../") && normalized !== ".." && !normalized.startsWith("./");
+}
+
+function porcelainPaths(line: string): string[] {
+  if (line.length < 4) return [];
+  return line.slice(3).split(" -> ").map((p) => p.replace(/^"|"$/g, "")).filter(Boolean);
 }
 
 function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {

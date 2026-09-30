@@ -27,6 +27,8 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 });
 vi.mock("../../sql-memory/db.js", () => ({ createLazyPool: createLazyPoolMock }));
 import { WORK_SESSION_IDLE_TIMEOUT_MS, runStep, selectBuckStageModel, type WorkModelSelectInput } from "../run-step.js";
+import { cleanupRepos, repo } from "./fixtures.js";
+import { completeSaveAttempt, prepareSaveAttempt, verifySqlSave, writeReceipt } from "../sql-save.js";
 
 const dirs: string[] = [];
 function tmp(): string { const dir = mkdtempSync(join(tmpdir(), "buck-loop-run-step-")); dirs.push(dir); return dir; }
@@ -62,6 +64,8 @@ afterEach(() => {
   createLazyPoolMock.mockClear();
   failSkillRead.value = false;
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  cleanupRepos();
+  delete process.env.SQL_MEMORY_URL;
 });
 describe("runStep", () => {
   it("leads with the canonical skill contract and names the exact phase path", async () => { const fake = arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: ".context/example/phase-2.md" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt.startsWith("---")).toBe(true); expect(prompt).toContain("# b-build: Implementation Agent with TDD"); expect(prompt).toContain(".context/example/phase-2.md"); expect(prompt).toContain("stage only files you created or modified"); expect(prompt).toContain("no authority to choose the next loop state"); });
@@ -89,33 +93,33 @@ describe("runStep", () => {
       else process.env.SQL_MEMORY_URL = previous;
     }
   });
-  it("blocks a configured stage when its sql_memory call is denied", async () => {
+  it("trusts the agent's success when its sql_memory call was denied at the gate", async () => {
+    // Gate denials during agent work are recoverable — the agent sees the error and may
+    // correct with a different op. run-step must not downgrade `outcome.ok` based on the
+    // gate denial alone; the supervisor's `finishSqlSave` is the receipt authority.
     const previous = process.env.SQL_MEMORY_URL;
     process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
     try {
-      arrange();
-      createAgentSessionMock.mockImplementation(async (options) => {
+      const session = arrange("I finished.");
+      createAgentSessionMock.mockImplementationOnce(async (options) => {
         const sqlTool = options.customTools?.[0] as { execute: (...args: unknown[]) => Promise<{ details: unknown }> };
         const result = await sqlTool.execute("call", { op: "sql", statement: "DELETE FROM memories" }, undefined, undefined, {} as never);
         expect(result.details).toMatchObject({ error: true });
-        return { session: {
-          prompt: vi.fn().mockResolvedValue(undefined),
-          messages: [{ role: "assistant", content: "I finished." }],
-          subscribe: vi.fn(() => vi.fn()),
-          abort: vi.fn().mockResolvedValue(undefined),
-          dispose: vi.fn().mockResolvedValue(undefined),
-        } };
+        return { session };
       });
-      await expect(runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" })).resolves.toMatchObject({
-        ok: false,
-        text: expect.stringContaining("SQL memory"),
-      });
+      const select = selectOnce();
+      const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      expect(result).toEqual({ ok: true, text: "I finished." });
+      expect(select).toHaveBeenCalledTimes(1);
+      expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
     } finally {
       if (previous === undefined) delete process.env.SQL_MEMORY_URL;
       else process.env.SQL_MEMORY_URL = previous;
     }
   });
-  it("does not retry another model after a configured SQL failure", async () => {
+  it("does not retry another model after a gate denial, even when the agent returns text", async () => {
+    // A gate denial during agent work is not a model problem — switching models would not
+    // change the gate verdict. The supervisor must see exactly one picker call.
     const previous = process.env.SQL_MEMORY_URL;
     process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
     try {
@@ -135,11 +139,7 @@ describe("runStep", () => {
         thinking: "medium" as const,
       }));
       const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
-      expect(result).toMatchObject({
-        ok: false,
-        text: expect.stringContaining("Configured SQL memory operation failed"),
-        failure: { error: { name: "SqlMemoryError" } },
-      });
+      expect(result).toEqual({ ok: true, text: "I finished." });
       expect(select).toHaveBeenCalledTimes(1);
       expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
     } finally {
@@ -147,31 +147,124 @@ describe("runStep", () => {
       else process.env.SQL_MEMORY_URL = previous;
     }
   });
-  it("disposes the child and returns a failed stage when SQL pool shutdown fails", async () => {
-    const previous = process.env.SQL_MEMORY_URL;
+  it("keeps a receipt-verified save successful when pool shutdown fails", async () => {
     process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const cwd = repo();
+    const prepared = prepareSaveAttempt(cwd, "2026-09-30.save-test");
+    if ("error" in prepared) throw new Error(prepared.error);
     const end = vi.fn().mockRejectedValue(new Error("pool shutdown failed"));
     createLazyPoolMock.mockReturnValueOnce(() => ({ end }));
-    try {
-      const session = arrange("finished");
-      const select = vi.fn(async (input: WorkModelSelectInput) => ({
-        ok: true as const,
-        id: input.exclude.length ? "provider/second" : "provider/first",
-        thinking: "medium" as const,
-      }));
-      const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
-      expect(session.dispose).toHaveBeenCalledOnce();
-      expect(end).toHaveBeenCalledOnce();
-      expect(result).toMatchObject({ ok: false, text: expect.stringContaining("pool shutdown failed") });
-      expect(select).toHaveBeenCalledTimes(1);
-      expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
-    } finally {
-      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
-      else process.env.SQL_MEMORY_URL = previous;
-    }
+    const session = arrange("finished");
+    session.prompt.mockImplementation(async () => {
+      writeReceipt(cwd, prepared, { kind: "no-fact", ids: [] });
+      completeSaveAttempt(cwd, prepared);
+    });
+    const onActivity = vi.fn();
+    const select = selectOnce();
+    const result = await runStep({ select, cwd, skill: "b-save", planOrPhasePath: "plan.md", onActivity });
+    expect(result).toEqual({ ok: true, text: "finished" });
+    expect(await verifySqlSave(cwd, prepared.subject, async () => [{ id: "probe" }], true, prepared.attemptId))
+      .toEqual({ status: "verified" });
+    expect(session.dispose).toHaveBeenCalledOnce();
+    expect(end).toHaveBeenCalledOnce();
+    expect(onActivity).toHaveBeenCalledWith(expect.objectContaining({
+      kind: "toolEnd", tool: "sql_memory", ok: false, message: "pool shutdown failed",
+    }));
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+  it("accepts a corrected final insert and receipt-backed read-back", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const cwd = repo();
+    const prepared = prepareSaveAttempt(cwd, "2026-09-30.save-test");
+    if ("error" in prepared) throw new Error(prepared.error);
+    let attempts = 0;
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      connect: async () => ({ query: async (sql: string) => {
+        if (sql.startsWith("INSERT") && attempts++ === 0) throw new Error("transient insert failure");
+        return { rows: [{ id: "saved-id" }] };
+      }, release: () => {} }),
+      end: async () => {},
+    }));
+    const session = arrange("completed");
+    session.prompt.mockImplementation(async () => {
+      const tool = createAgentSessionMock.mock.calls.at(-1)![0].customTools[0];
+      const insert = { op: "sql", statement: "INSERT INTO public.memories (body) VALUES ($1) RETURNING id", values: ["fact"] };
+      expect((await tool.execute("failed", insert)).details).toMatchObject({ error: true });
+      expect((await tool.execute("corrected", insert)).details).toMatchObject({ rows: [{ id: "saved-id" }] });
+      expect((await tool.execute("read-back", { op: "sql", statement: "SELECT id FROM public.memories WHERE id = $1", values: ["saved-id"] })).details)
+        .toMatchObject({ rows: [{ id: "saved-id" }] });
+      writeReceipt(cwd, prepared, { kind: "rows", ids: ["saved-id"] });
+      completeSaveAttempt(cwd, prepared);
+    });
+    const select = selectOnce();
+    expect(await runStep({ select, cwd, skill: "b-save", planOrPhasePath: "plan.md" }))
+      .toEqual({ ok: true, text: "completed" });
+    expect(await verifySqlSave(cwd, prepared.subject, async () => [{ id: "saved-id" }], true, prepared.attemptId))
+      .toEqual({ status: "verified" });
+    expect(select).toHaveBeenCalledTimes(1);
   });
 
-  it.each(["unsubscribe", "dispose"] as const)("does not retry completed work when %s fails", async (cleanup) => {
+  it("allows another model when a failed save INSERT was corrected before an unrelated host failure", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    let attempts = 0;
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      connect: async () => ({ query: async (sql: string) => {
+        if (sql.startsWith("INSERT") && attempts++ === 0) throw new Error("transient insert failure");
+        return { rows: [] };
+      }, release: () => {} }),
+      end: async () => {},
+    }));
+    const first = arrange("partial");
+    const second = arrange("recovered by second model");
+    createAgentSessionMock.mockReset();
+    createAgentSessionMock.mockResolvedValueOnce({ session: first }).mockResolvedValueOnce({ session: second });
+    first.prompt.mockImplementation(async () => {
+      const tool = createAgentSessionMock.mock.calls[0]![0].customTools[0];
+      const params = { op: "sql", statement: "INSERT INTO public.memories (body) VALUES ($1)", values: ["fact"] };
+      expect((await tool.execute("failed", params)).details).toMatchObject({ error: true });
+      expect((await tool.execute("corrected", params)).details).toMatchObject({ rows: [] });
+      throw new Error("provider disconnected after SQL recovery");
+    });
+    const select = vi.fn(async (input: WorkModelSelectInput) => ({
+      ok: true as const, id: input.exclude.length ? "provider/second" : "provider/first", thinking: "low" as const,
+    }));
+    expect(await runStep({ select, cwd: tmp(), skill: "b-save", planOrPhasePath: "plan.md" }))
+      .toEqual({ ok: true, text: "recovered by second model" });
+    expect(select.mock.calls.map(([input]) => input.exclude)).toEqual([[], ["provider/first"]]);
+  });
+
+  it("does not retry another model after an unresolved final save INSERT failure", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const cwd = repo();
+    const prepared = prepareSaveAttempt(cwd, "2026-09-30.save-test");
+    if ("error" in prepared) throw new Error(prepared.error);
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      connect: async () => ({ query: async (sql: string) => {
+        if (sql.startsWith("INSERT")) throw new Error("final insert failure");
+        return { rows: [] };
+      }, release: () => {} }),
+      end: async () => {},
+    }));
+    const session = arrange("partial");
+    session.prompt.mockImplementation(async () => {
+      const tool = createAgentSessionMock.mock.calls[0]![0].customTools[0];
+      expect((await tool.execute("failed", { op: "sql", statement: "INSERT INTO public.memories (body) VALUES ($1)", values: ["fact"] })).details)
+        .toMatchObject({ error: true });
+      throw new Error("provider disconnected after final SQL failure");
+    });
+    const select = vi.fn(async (input: WorkModelSelectInput) => ({
+      ok: true as const, id: input.exclude.length ? "provider/second" : "provider/first", thinking: "low" as const,
+    }));
+    expect(await runStep({ select, cwd, skill: "b-save", planOrPhasePath: "plan.md" }))
+      .toMatchObject({ ok: false, text: "provider disconnected after final SQL failure" });
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(await verifySqlSave(cwd, prepared.subject, async () => [{ id: "probe" }], true, prepared.attemptId))
+      .toEqual({ status: "unverified" });
+  });
+  it.each(["unsubscribe", "dispose"] as const)("keeps the stage ok when %s throws after a successful session", async (cleanup) => {
+    // Cleanup failures must not flip a successful session into a failure; the agent's
+    // durable work already landed and the supervisor's receipt verification is the
+    // authority for save stages.
     const first = arrange("work completed");
     first[cleanup].mockImplementation(() => { throw new Error(`${cleanup} failed`); });
     const select = vi.fn(async (input: WorkModelSelectInput) => ({
@@ -182,7 +275,7 @@ describe("runStep", () => {
 
     const result = await runStep({ select, cwd: tmp(), skill: "b-commit", planOrPhasePath: "plan.md" });
 
-    expect(result).toMatchObject({ ok: false, text: `${cleanup} failed` });
+    expect(result).toEqual({ ok: true, text: "work completed" });
     expect(first.dispose).toHaveBeenCalledOnce();
     expect(select).toHaveBeenCalledTimes(1);
     expect(createAgentSessionMock).toHaveBeenCalledTimes(1);

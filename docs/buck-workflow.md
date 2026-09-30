@@ -165,6 +165,7 @@ for the decision log.
   was blocked and its projected phase is completed before the operator resumes,
   the confirmed run enters review for that phase without incrementing the build
   count. A still-incomplete phase follows the normal resolving/build path.
+- **Save and commit checkpoints trust durable artifacts.** A configured SQL save succeeds when the receipt verifies; pool teardown is an activity warning, not `SqlMemoryError`. Only an unresolved save-stage SQL work failure suppresses model retry. The commit checkpoint stages `.context/` and the active phase's `files:` list (exact paths, or a directory prefix ending in `/`), then refuses every other unstaged non-`.context` path. A missing `files:` field grants no extra scope. See [ADR 0003](adr/0003-checkpoint-trusts-durable-artifacts.md).
 - **Does not break on non-OMP harnesses.** Each OMP slash-command stub
   (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
   declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
@@ -970,7 +971,7 @@ memory: []                    # Filled by b-save after execution
    - Execution order notes
 
 2. **Discrete phase files** (`phase-N-<slug>.md`): one per phase with:
-   - Frontmatter: `status`, `phase`, `difficulty`, `depends_on`, `acceptance_criteria`, `completed_at`
+   - Frontmatter: `status`, `phase`, `difficulty`, `depends_on`, `acceptance_criteria`, `completed_at`, `files`
    - Body: implementation details, context, risks, verification steps
    - Status flow: `pending` → `in-progress` → `completed`
 
@@ -1632,7 +1633,7 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
-In configured OMP `/buck-loop`, the save child stores reusable memory bodies in SQL and writes a metadata-only receipt under `.context/<subject>/sql-memory-receipts/`. The receipt is written only after same-project row read-back; commit additionally requires metadata completion and the matching projected attempt. This path creates no new `.context/memory/` body or index entry. Historical Markdown memories remain readable and are not migrated.
+In configured OMP `/buck-loop`, the save child stores reusable memory bodies in SQL and writes a metadata-only receipt under `.context/<subject>/sql-memory-receipts/`. The receipt is written only after same-project row read-back; commit additionally requires metadata completion and the matching projected attempt. Pool teardown after that receipt does not fail the save stage. This path creates no new `.context/memory/` body or index entry. Historical Markdown memories remain readable and are not migrated.
 
 Outside a configured loop, portable `/b-save` uses SQL only when `sql_memory` is callable. An environment variable alone does not establish tool availability; without the callable tool, retain file-based behavior and report shared-store unavailability.
 

@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-04
 updated: 2026-09-04
 subject: 2026-09-04.b-recap
 topics: [review, iteration]
 informs: []
 addresses: plan-b-recap.md
-completed: null
+completed: 2026-09-30
 from_review: b-review
 ---
 

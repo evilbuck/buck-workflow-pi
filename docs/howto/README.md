@@ -17,3 +17,5 @@ steps, then **Eat** — the check that it worked.
 ## Why
 
 - [Local-only isolated code-review loop](../adr/0001-local-only-isolated-code-review-loop.md)
+- [Observably invoked happy-path loop](../adr/0002-observably-invoked-happy-path-loop.md)
+- [Checkpoint trusts durable artifacts](../adr/0003-checkpoint-trusts-durable-artifacts.md)

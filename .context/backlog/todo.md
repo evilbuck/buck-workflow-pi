@@ -7,7 +7,6 @@
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
-- [ ] [Add `/buck-models --doctor`](items/buck-models-doctor.md) — medium; audit all saved model selections against the live registry and highlight the effective active profile
 - [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
 
 ## Postgres Agent Memory Phases (2026-09-28)
@@ -37,9 +36,9 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 
 
 - [ ] [Unified live activity for extensions](items/deterministic-extension-progress.md) — high priority; animated footer spinner + bounded live activity window across every long-running command — see `.context/2026-09-11.extension-activity-progress/plan-extension-activity-progress.md`
-- [ ] [Define verified closeout evidence for unphased plans](items/unphased-plan-closeout-evidence.md) — medium; `close-verified` correctly refuses unphased plans, leaving completed non-phased work open
+- [x] [Add a tail-able `/buck-loop` streaming log drain](archive/2026-09/buck-loop-streaming-log-drain.md) — done 2026-09-30
 - [ ] [Fail closed when buck-loop Git safety probes fail](items/fail-closed-buck-loop-git-safety-probes.md) — high; branch/status command failures must block rather than appear unprotected and clean
-- [ ] [Add a tail-able `/buck-loop` streaming log drain](items/buck-loop-streaming-log-drain.md) — medium; normalized JSONL activity available during execution — see `.context/2026-09-24.buck-loop-streaming-log-drain/plan-buck-loop-streaming-log-drain.md`
+
 - [ ] [Jev-ranked `/buck-loop` subject picker](items/buck-loop-subject-picker.md) — medium; bare `/buck-loop` ranks runnable subjects with Jev, shows up to 10 in the TUI, and starts the operator's selection — see `.context/2026-09-19.buck-loop-subject-picker/plan-buck-loop-subject-picker.md`
 
 ## Subject Picker Phases (2026-09-27)

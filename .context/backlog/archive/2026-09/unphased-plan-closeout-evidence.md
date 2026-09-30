@@ -1,10 +1,10 @@
 ---
 title: Define verified closeout evidence for unphased plans
-status: active
+status: completed
 priority: medium
 created: 2026-09-19
-updated: 2026-09-19
-completed: null
+updated: 2026-09-30
+completed: 2026-09-30
 related:
   - .context/2026-09-19.subject-work-state/plan-subject-work-state.md
   - skills/_shared/scripts/subject-lifecycle.ts

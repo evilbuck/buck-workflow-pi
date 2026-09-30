@@ -411,7 +411,10 @@ async function runOneSession(
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
-  let sqlFailed = false;
+  // Only an unresolved save-stage SQL work error suppresses a model retry. Gate
+  // denials are correctable and a subsequent successful SQL call clears the error.
+  let unresolvedSqlFailure = false;
+  let teardownSqlFailed = false;
   const sqlUrl = process.env.SQL_MEMORY_URL;
   const role = sqlRoleBySkill[opts.skill];
   const pool = sqlUrl && role ? createLazyPool(sqlUrl)() : undefined;
@@ -442,7 +445,11 @@ async function runOneSession(
       sessionManager: SessionManager.inMemory(opts.cwd),
       ...(pool && role ? {
         allowRestrictedCustomTools: true,
-        customTools: [sqlMemoryTool(pool, role, () => { sqlFailed = true; })],
+        customTools: [sqlMemoryTool(pool, role, (result) => {
+          if (role !== "save") return;
+          if (result.kind === "work") unresolvedSqlFailure = true;
+          else if (result.kind === "success") unresolvedSqlFailure = false;
+        })],
       } : {}),
     };
     const created = await createAgentSession(sessionOpts);
@@ -463,9 +470,11 @@ async function runOneSession(
     resetIdleTimer();
     await session.prompt(prompt);
     const text = lastAssistantText(session.messages);
-    if (sqlFailed) {
-      outcome = fail({ name: "SqlMemoryError", message: "Configured SQL memory operation failed; Buck-loop stage cannot succeed." }, "Configured SQL memory operation failed; " + (text || "no child output"));
-    } else if (timedOut) {
+    // Work-failures observed mid-session do NOT downgrade a successful outcome; the
+    // supervisor's `finishSqlSave` (loop.ts) is the authority for save-stage receipt
+    // verification. A non-save stage treats `outcome.ok` as the agent's word — recall
+    // gate denials are agent-correctable.
+    if (timedOut) {
       outcome = fail(
         { name: "TimeoutError", message: "Nested " + opts.skill + " session was inactive for " + WORK_SESSION_IDLE_TIMEOUT_MS + "ms." },
         text || "timed out",
@@ -482,25 +491,29 @@ async function runOneSession(
   } finally {
     clearTimeout(timer);
   }
-  const completedWork = outcome.ok;
-  let cleanupFailed = false;
 
   const recordCleanupError = (error: unknown, key: "unsubscribeError" | "disposeError" | "poolEndError"): void => {
-    cleanupFailed = true;
-    if (outcome.ok) {
-      outcome = fail(error);
-    } else {
+    if (!outcome.ok) {
+      // Failure path: annotate the existing failure's details without overwriting it.
       const prior = outcome.failure ?? { prompt, agent, error: serializeCallError({ name: "NestedCallError", message: outcome.text }) };
       prior.error.details = { ...prior.error.details, [key]: serializeCallError(error) };
       outcome.failure = prior;
     }
+    // A completed agent session remains successful; only failed outcomes carry cleanup details.
   };
   try { unsubscribe?.(); } catch (error) { recordCleanupError(error, "unsubscribeError"); }
   try { await session?.dispose?.(); } catch (error) { recordCleanupError(error, "disposeError"); }
   try { await (pool as MigrationPool & { end?: () => Promise<void> } | undefined)?.end?.(); }
   catch (error) {
-    sqlFailed = true;
+    teardownSqlFailed = true;
     recordCleanupError(error, "poolEndError");
+    // Surface teardown noise to the supervisor's activity stream for visibility, but do
+    // not promote it to a stage failure — the agent's durable work already landed.
+    opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: false, message: errorText(error) });
   }
-  return { retain: outcome.ok, blockRetry: sqlFailed || (completedWork && cleanupFailed), result: outcome };
+  return {
+    retain: outcome.ok,
+    blockRetry: unresolvedSqlFailure || teardownSqlFailed,
+    result: outcome,
+  };
 }

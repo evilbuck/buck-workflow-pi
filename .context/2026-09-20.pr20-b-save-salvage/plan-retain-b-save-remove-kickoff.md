@@ -1,11 +1,11 @@
 ---
-status: active
+status: completed
 date: 2026-09-20
 subject: 2026-09-20.pr20-b-save-salvage
 topics: [pr-20, b-save, buck-loop, cleanup]
 research: []
 iterations: []
-memory: []
+memory: [pr20-bsave-salvage-2026-09-30.md]
 ---
 
 # Plan: Retain PR #20’s B-Save Engine and Remove B-Kickoff

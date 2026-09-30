@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-25
 updated: 2026-09-25
 subject: 2026-09-24.buck-loop-streaming-log-drain
 topics: [review, iteration]
 informs: []
 addresses: plan-buck-loop-streaming-log-drain.md
-completed: null
+completed: 2026-09-30
 from_review: b-review
 ---
 

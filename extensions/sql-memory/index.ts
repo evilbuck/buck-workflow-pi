@@ -25,6 +25,15 @@ type SqlMemoryParamsType = { op: "sql"; statement: string; values?: unknown[] } 
 interface SqlMemoryDeps { pool?: MigrationPool; role?: "recall" | "save"; }
  
 
+/** Completion of one SQL tool call. A later successful call can settle an earlier error;
+ *  teardown failures never flow through this callback. */
+export interface SqlMemoryCallResult {
+  kind: "success" | "work" | "gate";
+  op: SqlMemoryParamsType["op"];
+  error?: unknown;
+}
+export type SqlMemoryCallCallback = (info: SqlMemoryCallResult) => void;
+
 function response(value: unknown): SqlMemoryResponse {
   const text = JSON.stringify(value, (_key, item) => typeof item === "bigint" ? item.toString() : item);
   return { content: [{ type: "text", text }], details: value };
@@ -34,11 +43,11 @@ async function executeSql(
   pool: MigrationPool,
   params: Extract<SqlMemoryParamsType, { op: "sql" }>,
   role: "recall" | "save" | undefined,
-  onFailure?: () => void,
+  onResult?: SqlMemoryCallCallback,
 ): Promise<SqlMemoryResponse> {
   const gate = role ? checkSqlForRole(params.statement, role) : checkSqlStatement(params.statement);
   if (!gate.allowed) {
-    onFailure?.();
+    onResult?.({ kind: "gate", op: "sql" });
     return response({ error: true, message: gate.reason });
   }
   const client = await pool.connect();
@@ -49,6 +58,7 @@ async function executeSql(
     if (role === "recall") await client.query("SET TRANSACTION READ ONLY");
     const result = await client.query(params.statement, params.values);
     await client.query("COMMIT");
+    onResult?.({ kind: "success", op: "sql" });
     return response({ rows: result.rows, rowCount: result.rowCount ?? result.rows.length });
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* Preserve the query error. */ }
@@ -154,7 +164,7 @@ export async function correctSqlMemory(pool: MigrationPool, params: Correction):
 export function sqlMemoryTool(
   pool: MigrationPool,
   role?: "recall" | "save",
-  onFailure?: () => void,
+  onResult?: SqlMemoryCallCallback,
 ): ToolDefinition<typeof SqlMemoryParams> {
   return {
     name: "sql_memory",
@@ -167,22 +177,25 @@ export function sqlMemoryTool(
       try {
         if (params.op === "migrate") {
           if (role) {
-            onFailure?.();
+            onResult?.({ kind: "gate", op: "migrate" });
             return response({ error: true, message: "Migrations are unavailable in Buck-loop children" });
           }
-          return response(await applyMigrations(pool, { destructive: params.destructive }));
+          const migrated = await applyMigrations(pool, { destructive: params.destructive });
+          onResult?.({ kind: "success", op: "migrate" });
+          return response(migrated);
         }
         if (params.op === "correct") {
           if (role !== "save") {
-            onFailure?.();
+            onResult?.({ kind: "gate", op: "correct" });
             return response({ error: true, message: "Corrections require the Buck-loop save stage" });
           }
           const id = await correctSqlMemory(pool, params);
+          onResult?.({ kind: "success", op: "correct" });
           return response({ id });
         }
-        return await executeSql(pool, params, role, onFailure);
+        return await executeSql(pool, params, role, onResult);
       } catch (error) {
-        onFailure?.();
+        onResult?.({ kind: "work", op: params.op, error });
         return response({ error: true, message: error instanceof Error ? error.message : String(error) });
       }
     },

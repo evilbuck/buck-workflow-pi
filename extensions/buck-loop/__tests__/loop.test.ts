@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop } from "../loop.js";
+import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
+import { handleLoop, prepareCommitCheckpoint } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 import { readProjection } from "../persist.js";
@@ -1345,5 +1345,99 @@ describe("configured SQL memory recall contract", () => {
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/SQL save|SQL memory/i);
     expect(deps.runStep).toHaveBeenCalled();
+  });
+});
+
+describe("prepareCommitCheckpoint phase-scope staging", () => {
+  beforeEach(cleanupRepos);
+  afterEach(cleanupRepos);
+
+  function setupPhaseRepo(extra: { phaseStatus?: string; files?: string[]; unstaged?: Record<string, string>; staged?: Record<string, string> } = {}): string {
+    const cwd = repo();
+    const files = extra.files ?? ["skills/b-build/SKILL.md", "plugins/buck-workflow/skills/b-save/SKILL.md"];
+    writeTree(cwd, {
+      [PLAN]: planMd(),
+      [`.context/${SUBJECT}/plan-demo-phases.md`]: "---\nstatus: active\n---\n# Phases\n",
+      [`.context/${SUBJECT}/phase-1-p1.md`]: phaseMdWithFiles(1, files, extra.phaseStatus ?? "pending"),
+    });
+    if (extra.staged) {
+      for (const [rel, content] of Object.entries(extra.staged)) writeTree(cwd, { [rel]: content });
+      for (const rel of Object.keys(extra.staged)) git(cwd, ["add", rel]);
+    }
+    if (extra.unstaged) {
+      writeTree(cwd, extra.unstaged);
+    }
+    return cwd;
+  }
+
+  it("auto-stages paths declared in the phase files: list before the commit guard runs", async () => {
+    const cwd = setupPhaseRepo({
+      unstaged: { "skills/b-build/SKILL.md": "phase 1 content\n" },
+    });
+    const phasePath = `.context/${SUBJECT}/phase-1-p1.md`;
+    prepareCommitCheckpoint(cwd, phasePath);
+    const status = execFileSync("git", ["-C", cwd, "status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
+    expect(status).toContain("A  skills/b-build/SKILL.md");
+    expect(status).not.toContain("?? skills/b-build/SKILL.md");
+  });
+
+  it("still refuses unstaged paths outside the phase files: list with the existing error shape", async () => {
+    const cwd = setupPhaseRepo({
+      unstaged: { "extensions/sql-memory/unrelated.ts": "not a declared deliverable\n" },
+    });
+    const phasePath = `.context/${SUBJECT}/phase-1-p1.md`;
+    expect(() => prepareCommitCheckpoint(cwd, phasePath)).toThrow(
+      /refuses to commit unstaged non-\.context changes.*extensions\/sql-memory\/unrelated\.ts/,
+    );
+  });
+
+  it("accepts a single-string files: frontmatter as one declared path", async () => {
+    const cwd = repo();
+    writeTree(cwd, {
+      [PLAN]: planMd(),
+      [`.context/${SUBJECT}/plan-demo-phases.md`]: "---\nstatus: active\n---\n# Phases\n",
+      [`.context/${SUBJECT}/phase-1-p1.md`]: ["---", "status: pending", "files: skills/b-build/SKILL.md", "---", "# Phase 1"].join(String.fromCharCode(10)),
+      "skills/b-build/SKILL.md": "single-string file\n",
+    });
+    const phasePath = `.context/${SUBJECT}/phase-1-p1.md`;
+    prepareCommitCheckpoint(cwd, phasePath);
+    const status = execFileSync("git", ["-C", cwd, "status", "--porcelain", "--untracked-files=all"], { encoding: "utf8" });
+    expect(status).toContain("A  skills/b-build/SKILL.md");
+  });
+
+  it("falls back to the legacy throw-on-any-unstaged guard when the phase has no files: frontmatter", async () => {
+    const cwd = repo();
+    writeTree(cwd, {
+      [PLAN]: planMd(),
+      [`.context/${SUBJECT}/plan-demo-phases.md`]: "---\nstatus: active\n---\n# Phases\n",
+      [`.context/${SUBJECT}/phase-1-p1.md`]: phaseMd(1, "pending"),
+      "skills/b-build/SKILL.md": "phase without files: key\n",
+    });
+    const phasePath = `.context/${SUBJECT}/phase-1-p1.md`;
+    expect(() => prepareCommitCheckpoint(cwd, phasePath)).toThrow(
+      /refuses to commit unstaged non-\.context changes.*skills\/b-build\/SKILL\.md/,
+    );
+  });
+  it("stages files beneath a declared mirror directory but not adjacent prefixes", () => {
+    const cwd = setupPhaseRepo({ files: ["plugins/buck-workflow/skills/b-build/"], unstaged: {
+      "plugins/buck-workflow/skills/b-build/SKILL.md": "mirror",
+    } });
+    prepareCommitCheckpoint(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
+    expect(execFileSync("git", ["-C", cwd, "diff", "--cached", "--name-only"], { encoding: "utf8" }))
+      .toContain("plugins/buck-workflow/skills/b-build/SKILL.md");
+    writeTree(cwd, { "plugins/buck-workflow/skills/b-build-extra/SKILL.md": "unrelated" });
+    expect(() => prepareCommitCheckpoint(cwd, `.context/${SUBJECT}/phase-1-p1.md`))
+      .toThrow(/refuses to commit unstaged non-\.context changes.*b-build-extra/);
+  });
+
+  it("refuses a rename from an undeclared source even when its destination is declared", () => {
+    const cwd = setupPhaseRepo({ files: ["skills/b-build/SKILL.md"], staged: { "outside.txt": "source" } });
+    git(cwd, ["commit", "-qm", "initial"]);
+    rmSync(join(cwd, "outside.txt"));
+    writeTree(cwd, { "skills/b-build/SKILL.md": "source" });
+    git(cwd, ["add", "-N", "skills/b-build/SKILL.md"]);
+    expect(() => prepareCommitCheckpoint(cwd, `.context/${SUBJECT}/phase-1-p1.md`))
+      .toThrow(/refuses to commit unstaged non-\.context changes.*outside\.txt/);
+    expect(execFileSync("git", ["-C", cwd, "diff", "--cached", "--name-only"], { encoding: "utf8" })).toBe("");
   });
 });

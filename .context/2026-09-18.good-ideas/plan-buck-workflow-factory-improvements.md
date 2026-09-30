@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-18
 subject: 2026-09-18.good-ideas
 topics: [software-factory, workflow-integrity, guardrails, skill-catalog, installer, codex, hooks]
 research: []
 iterations: []
 spec:
-memory: [good-ideas-plan-2026-09-18.md]
+memory: [good-ideas-plan-2026-09-18.md, good-ideas-factory-improvements-2026-09-30.md]
 ---
 
 # Plan: Harden Buck Workflow integrity and enforcement

@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-09-04
 subject: 2026-09-04.b-recap
 topics: [b-recap, session-recap, workflow-skills]
 research: []
 iterations: []
 spec: null
-memory: []
+memory: [b-recap-skill-2026-09-30.md]
 ---
 
 # Plan: Add `b-recap`

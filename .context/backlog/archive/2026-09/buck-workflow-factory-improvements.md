@@ -1,10 +1,10 @@
 ---
 title: Harden Buck Workflow integrity and enforcement
-status: active
+status: completed
 priority: high
 created: 2026-09-18
-updated: 2026-09-18
-completed: null
+updated: 2026-09-30
+completed: 2026-09-30
 related:
   - .context/2026-09-18.good-ideas/plan-buck-workflow-factory-improvements.md
   - skills/b-guardrails-check/
