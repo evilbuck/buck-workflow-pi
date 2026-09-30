@@ -110,6 +110,16 @@ When reviewing against a plan (`plan-*.md`), parse these fields and produce a **
 | `verification` | Does the work satisfy verification criteria? |
 | `risks` | Any unmitigated risks visible in the code? |
 
+For a plan or phase review with decision-closure assumptions or material risks, load `skills/_shared/decision-closure.md` and add these checks to the same completion matrix. For a phase, inspect its own acceptance criteria and the parent plan's ledger and material-risk entries relevant to that phase (following its `plan:` link); check only the assumptions and recovery claims this phase must validate, not other phases' unfinished work.
+
+| Plan or Phase Field | What to Verify |
+|---|---|
+| Blocking assumptions | Every blocking assumption assigned to this scope is resolved with current evidence; an unresolved in-plan blocker is an implementation defect. |
+| Deferred assumptions | Non-blocking deferred assumptions in this scope remain warnings, not defects; retain their recorded validation paths. |
+| Material rollback/fallback | Each material rollback or fallback declared for this scope has current-state evidence that its validation path works or remains available; unsupported claims are in-plan defects. |
+
+New discoveries outside the accepted scope follow the existing out-of-plan route (`/b-plan` → `/b-build`), not `/b-iterate`. These checks assess implementation against the accepted plan or phase and its own safety claims; do not reassess architectural choices or reopen settled decisions.
+
 For each step, mark status:
 - ✅ **complete** — appears done, **direct current-state evidence found** (file:line, passing test, CLI output, screenshot — not just a status field or commit hash)
 - 🔄 **partial** — some evidence, **with the missing piece named** ("Step 1 done; Step 2 missing the type-import of `Foo`")

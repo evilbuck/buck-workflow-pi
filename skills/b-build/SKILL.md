@@ -55,6 +55,14 @@ This makes browser verification **repeatable and cheap** — no manual testing r
 - Run stronger verification than standard (browser tests + manual verification).
 - Output includes: implementation summary, changed files, verification results, risks/trade-offs, recommended next step.
 
+### Hard-mode decision closure
+
+In hard mode, load `skills/_shared/decision-closure.md`. Preserve settled plan decisions across implementation choices, including local changes that introduce no new dependency, abstraction, or broad refactor. Reopen a settled decision only when current evidence contradicts it; explain that evidence and its consequence. If it changes the problem framing, stop implementation and return to planning for explicit confirmation rather than silently changing scope.
+
+When a hard-mode implementation would introduce a dependency, abstraction, or broad refactor, apply the protocol's **Hard-mode minimal-change sequence**. Evaluate options in order; stop at the first option that safely satisfies the plan. Record the selected option and why earlier options were insufficient in the work notes or closeout.
+
+Standard builds remain unchanged. Neither mode gains per-edit approvals, file caps, or a stub-first requirement.
+
 ## TDD Workflow
 
 ### 1. Plan (Before Writing Code)
