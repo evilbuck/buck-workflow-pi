@@ -5,6 +5,8 @@ A structured, discoverable workflow for AI-assisted software development with du
 ## Philosophy
 
 The Buck workflow is built on one principle: **don't lose work**. It separates **intent** (plans in subject folders) from **record** (history in memory), creating a durable paper trail that survives chat context limits.
+The second principle is **make material decisions visible**. Routine, reversible work with clear evidence stays lightweight; when a material trigger applies, the workflow records the selected course, evidence, unresolved assumptions, risks and recovery path in an accepted decision envelope. The closure check may finish from existing evidence without an interview. Autonomous execution stays inside that accepted envelope; it does not add a separate approval or governance layer.
+
 
 **Key Concepts:**
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date

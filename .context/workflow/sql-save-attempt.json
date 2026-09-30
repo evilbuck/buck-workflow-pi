@@ -1,8 +1,8 @@
 {
-  "attemptId": "b43002eb-08b0-42b6-8466-01143f7cd95e",
-  "runId": "2f2876ce-a70d-467b-ad09-80a1c0a2907d",
+  "attemptId": "92d46c7c-de0b-40bf-821e-8a6e556b4ad3",
+  "runId": "0b7adb08-d391-4467-8dbd-13be07b3ae00",
   "subject": "2026-09-16.decision-closure",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-09-16.decision-closure/phase-4-plan-and-phase.md",
-  "receiptRel": ".context/2026-09-16.decision-closure/sql-memory-receipts/2f2876ce-a70d-467b-ad09-80a1c0a2907d-b43002eb-08b0-42b6-8466-01143f7cd95e.json"
+  "phase": ".context/2026-09-16.decision-closure/phase-5-build-and-review.md",
+  "receiptRel": ".context/2026-09-16.decision-closure/sql-memory-receipts/0b7adb08-d391-4467-8dbd-13be07b3ae00-92d46c7c-de0b-40bf-821e-8a6e556b4ad3.json"
 }

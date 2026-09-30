@@ -30,8 +30,8 @@ Bugs first is an explicit user priority gate. Current source already contains to
 | 2: Shared Protocol | completed | hard | none | [phase-2-shared-protocol.md](phase-2-shared-protocol.md) |
 | 3: Grill Variants | completed | not-hard | none | [phase-3-grill-variants.md](phase-3-grill-variants.md) |
 | 4: Plan and Phase | completed | not-hard | none | [phase-4-plan-and-phase.md](phase-4-plan-and-phase.md) |
-| 5: Build and Review | pending | not-hard | none | [phase-5-build-and-review.md](phase-5-build-and-review.md) |
-| 6: Narrative and Proof | pending | not-hard | none | [phase-6-narrative-and-proof.md](phase-6-narrative-and-proof.md) |
+| 5: Build and Review | completed | not-hard | none | [phase-5-build-and-review.md](phase-5-build-and-review.md) |
+| 6: Narrative and Proof | completed | not-hard | none | [phase-6-narrative-and-proof.md](phase-6-narrative-and-proof.md) |
 
 ## Dependency Matrix
 
@@ -90,8 +90,8 @@ Keep interrupted phases resumable; only check acceptance and mark `completed` wi
 - [ ] Phase 2: Shared protocol → review → save → commit
 - [x] Phase 3: Grill variants → review → save → commit
 - [x] Phase 4: Plan and phase → review → save → commit
-- [ ] Phase 5: Build and review → review → save → commit
-- [ ] Phase 6: Narrative and proof → review → save → commit
+- [x] Phase 5: Build and review → review → save → commit
+- [x] Phase 6: Narrative and proof → review → save → commit
 
 ## Revision Record
 

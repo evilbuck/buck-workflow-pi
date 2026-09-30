@@ -75,7 +75,7 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; original incident first in [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md); broader typed-review/recovery scope remains separate
-- [ ] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — see `.context/2026-09-16.decision-closure/plan-decision-closure-protocol-phases.md`
+- [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
 - [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
@@ -127,11 +127,11 @@ Phase 1 verifies/closes the chooser bug first; Phase 2 freezes the closure proto
 
 ### Upcoming Phases
 
-- [ ] Phase 2: Shared Protocol — hard — [phase-2-shared-protocol.md](../2026-09-16.decision-closure/phase-2-shared-protocol.md)
-- [ ] Phase 3: Grill Variants — not-hard — [phase-3-grill-variants.md](../2026-09-16.decision-closure/phase-3-grill-variants.md)
-- [ ] Phase 4: Plan and Phase — not-hard — [phase-4-plan-and-phase.md](../2026-09-16.decision-closure/phase-4-plan-and-phase.md)
-- [ ] Phase 5: Build and Review — not-hard — [phase-5-build-and-review.md](../2026-09-16.decision-closure/phase-5-build-and-review.md)
-- [ ] Phase 6: Narrative and Proof — not-hard — [phase-6-narrative-and-proof.md](../2026-09-16.decision-closure/phase-6-narrative-and-proof.md)
+- [x] Phase 2: Shared Protocol — hard — [phase-2-shared-protocol.md](../2026-09-16.decision-closure/phase-2-shared-protocol.md) — done 2026-09-29
+- [x] Phase 3: Grill Variants — not-hard — [phase-3-grill-variants.md](../2026-09-16.decision-closure/phase-3-grill-variants.md) — done 2026-09-29
+- [x] Phase 4: Plan and Phase — not-hard — [phase-4-plan-and-phase.md](../2026-09-16.decision-closure/phase-4-plan-and-phase.md) — done 2026-09-29
+- [x] Phase 5: Build and Review — not-hard — [phase-5-build-and-review.md](../2026-09-16.decision-closure/phase-5-build-and-review.md) — done 2026-09-29
+- [x] Phase 6: Narrative and Proof — not-hard — [phase-6-narrative-and-proof.md](../2026-09-16.decision-closure/phase-6-narrative-and-proof.md) — done 2026-09-30
 
 ## mattpocock Remediation Phases (2026-09-10)
 

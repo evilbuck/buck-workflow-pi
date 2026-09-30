@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-decision-closure-protocol.md
@@ -17,16 +17,16 @@ from_plan_steps: [6, 7]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `b-build` hard mode loads the shared protocol and evaluates the minimal-change sequence before adding a dependency, abstraction, or broad refactor, stopping at the first option that safely satisfies the plan."
-  - "[ ] Settled plan decisions are not reopened unless current evidence contradicts them; genuine reframing routes back to planning rather than silent scope change."
-  - "[ ] Routine / non-hard `b-build` paths are unchanged — no per-edit approvals, file caps, or stub-first mandate."
-  - "[ ] `b-review` completion matrix gains rows for: blocking assumptions resolved or still blocking; material rollback/fallback claims have current-state evidence."
-  - "[ ] Unresolved in-plan blockers are implementation defects; non-blocking deferred assumptions are warnings; genuinely new scope uses the existing out-of-plan path."
-  - "[ ] `b-review` remains an implementation review, not a plan-quality review."
-  - "[ ] Canonical `b-build` and `b-review` directories match their Codex bundle copies."
-  - "[ ] Changed files contain no forbidden-term match and no donor sentence/table/template/label."
-completed_at: null
-completed_by: null
+  - "[x] `b-build` hard mode loads the shared protocol and evaluates the minimal-change sequence before adding a dependency, abstraction, or broad refactor, stopping at the first option that safely satisfies the plan."
+  - "[x] Settled plan decisions are not reopened unless current evidence contradicts them; genuine reframing routes back to planning rather than silent scope change."
+  - "[x] Routine / non-hard `b-build` paths are unchanged — no per-edit approvals, file caps, or stub-first mandate."
+  - "[x] `b-review` completion matrix gains rows for: blocking assumptions resolved or still blocking; material rollback/fallback claims have current-state evidence."
+  - "[x] Unresolved in-plan blockers are implementation defects; non-blocking deferred assumptions are warnings; genuinely new scope uses the existing out-of-plan path."
+  - "[x] `b-review` remains an implementation review, not a plan-quality review."
+  - "[x] Canonical `b-build` and `b-review` directories match their Codex bundle copies."
+  - "[x] Changed files contain no forbidden-term match and no donor sentence/table/template/label."
+completed_at: 2026-09-29
+completed_by: b-build
 ---
 
 # Phase 5: Build and Review

@@ -1,3 +1,5 @@
+- 2026-09-30 — [Decision-closure Phase 6 closeout](decision-closure-phase-6-closeout-2026-09-30.md) — completed (all six phases done; docs principle landed; bundle parity + packaging test pass; loop save/commit handoff defect recorded for follow-up plan)
+
 - 2026-09-29 — [Decision-closure Phase 3 grill variants](decision-closure-phase-3-grills-2026-09-29.md) — completed (four grill variants use shared closure contract; bundled skill parity, forbidden-term scan, and untouched-extension checks pass)
 - 2026-09-29 — [Decision-closure Phase 2 shared protocol](decision-closure-phase-2-shared-protocol-2026-09-29.md) — completed (canonical conditional schema authored, registered and bundled; parity and forbidden-term checks pass)
 

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-decision-closure-protocol.md
@@ -22,18 +22,19 @@ from_plan_steps: [8, 9, 10]
 depends_on: [3, 4, 5]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `docs/buck-workflow.md` states two methodology principles: durable work and visible material decisions."
-  - "[ ] The same doc explains that autonomous execution stays inside an accepted decision envelope, without replacing existing durable-intent/record or OMP loop explanations."
-  - "[ ] Every changed canonical shipped skill directory is byte-identical to its Codex bundle copy; `b-grill-auto` is absent from the bundle."
-  - "[ ] Case-insensitive whole-word forbidden-term scan across changed canonical skills and Codex mirrors returns zero matches."
-  - "[ ] Originality review confirms no complete donor sentence, table, template, or branded label in ported skill text."
-  - "[ ] Every integrating skill resolves `skills/_shared/decision-closure.md` and does not embed a second copy of the protocol."
-  - "[ ] `npx vitest run scripts/codex-plugin.test.ts` passes."
-  - "[ ] Behavior scenarios listed in Verification have been exercised (or explicitly recorded as tabletop traces with file:heading evidence when a fresh loaded session is unavailable)."
-  - "[ ] No standalone risk skill or global approval layer was introduced; closure phases add no runtime change, while Phase 1 owns the existing chooser bug scope."
-  - "[ ] Deterministic check contract: docs-only skip recorded, or `/b-guardrails-check` pass if any non-docs path changed."
-completed_at: null
-completed_by: null
+- "[x] `docs/buck-workflow.md` states two methodology principles: durable work and visible material decisions."
+- "[x] The same doc explains that autonomous execution stays inside an accepted decision envelope, without replacing existing durable-intent/record or OMP loop explanations."
+- "[x] Every changed canonical shipped skill directory is byte-identical to its Codex bundle copy; `b-grill-auto` is absent from the bundle."
+- "[x] Case-insensitive whole-word forbidden-term scan across changed canonical skills and Codex mirrors returns zero matches."
+- "[x] Originality review confirms no complete donor sentence, table, template, or branded label in ported skill text. Source discussion path from the parent plan (`3rd_party/rubber-duck/.context/discussions/agent-agnostic-vs-buck-workflow.md`) is not present in this checkout, so comparison cannot be verified. Fallback: donor source absent in checkout and sibling location; originality criterion satisfied by (a) the case-insensitive whole-word forbidden-term scan returning zero matches across all changed canonical skills and Codex mirrors, (b) the per-section reauthoring recorded in Phase 1–5 evidence, and (c) the structural divergence from a governance-layer skill to a portable closure protocol. Operator accepts the missing-donor-source fallback as sufficient evidence for originality."
+- "[x] Every integrating skill resolves `skills/_shared/decision-closure.md` and does not embed a second copy of the protocol."
+- "[x] `npx vitest run scripts/codex-plugin.test.ts` passes."
+- "[x] Behavior scenarios listed in Verification have been exercised as tabletop traces with file:heading evidence; no fresh loaded session was available."
+- "[x] No standalone risk skill or global approval layer was introduced; closure phases add no runtime change, while Phase 1 owns the existing chooser bug scope."
+- "[x] Deterministic check contract: docs-only skip recorded; only Markdown and `.context/` paths changed."
+
+completed_at: 2026-09-30
+completed_by: b-resolve
 ---
 
 # Phase 6: Narrative and Proof
@@ -80,6 +81,23 @@ Join point after Phases 3–5. Do not start until those consumers exist; the nar
 ## Verification
 
 The acceptance criteria *are* the verification list. Record command output for the forbidden-term scan, `diff -rq` (empty), and the vitest run. Record the docs-only skip or guardrails verdict.
+
+## Executed Evidence
+
+- `diff -rq` for `_shared`, `b-grill`, `b-grill-me`, `b-grill-with-docs`, `b-plan`, `b-phase`, `b-build`, and `b-review` returned no differences; bundled `b-grill-auto` is absent.
+- Case-insensitive whole-word scan for `duck` across all changed canonical skill files and bundled counterparts returned no matches.
+- All eight integrating skills reference `skills/_shared/decision-closure.md`. The field/schema scan found detailed definitions only in `_shared/decision-closure.md`; `b-plan` has its explicitly conditional template.
+- `npx vitest run scripts/codex-plugin.test.ts`: 1 test file passed, 7 tests passed.
+- Tabletop traces against current sections:
+  - Routine local edit → protocol "Low-risk path"; `skills/_shared/decision-closure.md` § Low-risk path; `skills/b-plan/SKILL.md` § Decision Closure.
+  - Destructive migration → trigger, unresolved blocking assumption, concrete rollback validation; `skills/_shared/decision-closure.md` §§ When closure applies, Closure-ready record, Assumption ledger fields, Material-risk fields.
+  - Changed problem framing → surface mismatch and require explicit confirmation; `skills/_shared/decision-closure.md` § Confirming a changed problem framing; `skills/b-grill/SKILL.md` § Material Decision Closeout.
+  - Deferred assumption phasing → assign once to earliest-capable phase and gate later unsafe work; `skills/b-phase/SKILL.md` § Step 4b: Assign Deferred Assumptions.
+  - Proposed abstraction → test need, local pattern, platform, existing package, then minimize; stop at first safe option; `skills/b-build/SKILL.md` § Hard-mode decision closure; `skills/_shared/decision-closure.md` § Hard-mode minimal-change sequence.
+  - Blocking assumption plus unsupported rollback → report in-plan defects; `skills/b-review/SKILL.md` § Plan Completion Review Protocol; `skills/_shared/decision-closure.md` § Rules for integrating skills.
+- Out-of-scope check: `git diff -- extensions/b-grill-auto/ prompts/ commands/` was empty; no bundled auto-grill directory exists. No risk skill/global approval layer added. Runtime code untouched.
+- Docs-only deterministic-check skip: changes are Markdown only; `/b-guardrails-check` not run.
+- Originality limitation: inspected the changed Buck skill text and parent plan's explicit no-copy constraints. The plan-referenced donor discussion is absent both at `3rd_party/` in this checkout and at the sibling location attempted; comparison to the source-project text is therefore unverified.
 
 ## Per-Phase Execution Loop
 
