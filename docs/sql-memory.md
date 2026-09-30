@@ -2,6 +2,14 @@
 
 SQL is the source of new reusable memory bodies in configured OMP `/buck-loop` saves. Only metadata receipts belong under `.context/<subject>/sql-memory-receipts/`; they are not offline memory copies and do not create `.context/memory/` entries. Existing Markdown memories remain readable and are not automatically migrated. Without a configured OMP loop, portable file behavior remains unless `sql_memory` is callable and the invoking workflow explicitly supports SQL saving.
 
+## When agents use it
+
+The installed global bootstrap introduces SQL memory in every session, not only inside Buck-loop. Agents recall when the user asks about prior project work or a task could depend on earlier decisions, conventions, pitfalls, or attempts. Self-contained questions and relevant recall already supplied in current context do not need another lookup. When missing history might matter, prefer recall.
+
+Before querying, load the installed [shared recall protocol](../skills/_shared/recall-project-memories.md) (OMP: `skill://_shared/recall-project-memories.md`; other harnesses: `_shared/recall-project-memories.md` under their Buck skills directory). The tool description reinforces these triggers; the protocol supplies project identity and the bounded parameterized SQL. Unavailable or failed tooling is not an empty store. Current instructions and repository evidence take precedence over recalled bodies. Save reusable findings through `/b-save` rather than on every interaction.
+
+Ordinary recall has no pre-query Jev approval gate. Buck-loop already judges retrieved candidates for relevance and supplies recall in its supervisor directive; children reuse that context and follow their stage-specific restrictions. This policy does not add an automatic query/skip router or change loop execution.
+
 ## Operating rules
 
 - **Usage-driven, no gates.** SQL over the schema is the whole tool. No required Jev gate, no `turn_end` auto-writer. These docs are worked examples, not workflow prescriptions (Q4).

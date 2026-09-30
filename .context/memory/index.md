@@ -1,3 +1,7 @@
+- 2026-09-29 — [OMP bootstrap installation](omp-bootstrap-install-2026-09-29.md) — completed (latest repo bootstrap installed through targeted chezmoi apply; OMP/Pi symlink sharing preserved; byte parity and zero deployment drift verified)
+
+- 2026-09-29 — [SQL memory discovery](sql-memory-discovery-2026-09-29.md) — completed (always-loaded bootstrap policy, tool metadata, shared/Codex protocol and docs aligned; registration/protocol smoke and durable guardrails pass)
+
 - 2026-09-29 — [Changelog creation](changelog-creation-2026-09-29.md) — completed (Unreleased rebase changes documented and linked from README; documentation-only verification)
 
 - 2026-09-29 — [Rebase onto deterministic-pr-fix](rebase-deterministic-pr-fix-2026-09-29.md) — completed (fully rebased; both branch histories preserved; required guardrails and real supervisor start/resume smoke pass)
