@@ -1,5 +1,6 @@
 ---
-status: active
+status: completed
+completed_at: 2026-09-30
 date: 2026-09-30
 subject: 2026-09-30.buck-loop-unphased-closeout
 topics: [buck-loop, closeout, subject-lifecycle, acceptance]
@@ -110,13 +111,13 @@ Next action: implement the gate and the resume regression together. Do not land 
 
 ## Acceptance criteria
 
-- [ ] A confirmed unphased commit whose plan is `status: active` or has an open `## Acceptance criteria` box transitions to `blocked`, not `done`, on both the automatic rule and the choice-advance rule.
-- [ ] `--resume` on that blocked or falsely `done` projection does not call `runStep` and does not return `done` while a body box is open.
-- [ ] `--resume` after every body box is `[x]`, with `committing` already in history and a clean worktree, writes `status: completed`, `close-verified` succeeds, and the result is `done` without `runStep`.
-- [ ] `close-verified` still refuses `status: active` with all boxes `[x]`, and also refuses `status: completed` while a body box is open. A missing `## Acceptance criteria` section does not add a box blocker.
-- [ ] A canonical subject that is already `completed` still no-ops on `close-verified`.
-- [ ] The supervisor never changes `[ ]` to `[x]`.
-- [ ] Focused machine, persist, loop, and subject-lifecycle tests pass, and `npm run guardrails:check` passes.
+- [x] A confirmed unphased commit whose plan is `status: active` or has an open `## Acceptance criteria` box transitions to `blocked`, not `done`, on both the automatic rule and the choice-advance rule.
+- [x] `--resume` on that blocked or falsely `done` projection does not call `runStep` and does not return `done` while a body box is open.
+- [x] `--resume` after every body box is `[x]`, with `committing` already in history and a clean worktree, writes `status: completed`, `close-verified` succeeds, and the result is `done` without `runStep`.
+- [x] `close-verified` still refuses `status: active` with all boxes `[x]`, and also refuses `status: completed` while a body box is open. A missing `## Acceptance criteria` section does not add a box blocker.
+- [x] A canonical subject that is already `completed` still no-ops on `close-verified`.
+- [x] The supervisor never changes `[ ]` to `[x]`.
+- [x] Focused machine, persist, loop, and subject-lifecycle tests pass, and `npm run guardrails:check` passes.
 
 ## Verification
 
