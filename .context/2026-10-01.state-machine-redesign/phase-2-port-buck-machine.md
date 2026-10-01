@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-state-machine-module-cutover.md
@@ -13,15 +13,15 @@ from_plan_steps: [5, 6, 7, 8, 9, 10]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Exports unchanged: next, applyChoice, legalChoices, start, userConfirmed, stopFrom, limitsExceeded, MAX_ITERATE_CYCLES_PER_PHASE, BuckEvent/BuckOutput as used"
-  - "[ ] Ported machine.test.ts pins identical to/effect/why for every former rule; MachineFailure replaced by new error types"
-  - "[ ] Test asserts every non-final state has a manual edge to aborted"
-  - "[ ] next(s) adapter policy: one target → transition; >1 only when a decision is open (ambiguousChoiceOpen / reviewUnparseable) → choose effect with legal Choice[] (A-2 mapping); otherwise typed error naming state and targets"
-  - "[ ] git diff --stat extensions/buck-loop/types.ts extensions/buck-loop/loop.ts extensions/buck-loop/choice.ts is empty (A-1 validated)"
-  - "[ ] buck-loop/__tests__/loop.test.ts and persist.test.ts pass unmodified"
-  - "[ ] Ported truth table covers every former rule's wording difference via facts-derived reasons (A-3 validated)"
-completed_at: null
-completed_by: null
+  - "[x] Exports unchanged: next, applyChoice, legalChoices, start, userConfirmed, stopFrom, limitsExceeded, MAX_ITERATE_CYCLES_PER_PHASE, BuckEvent/BuckOutput as used"
+  - "[x] Ported machine.test.ts pins identical to/effect/why for every former rule; MachineFailure replaced by new error types"
+  - "[x] Test asserts every non-final state has a manual edge to aborted"
+  - "[x] next(s) adapter policy: one target → transition (SQL saving with an open ambiguous decision retains a single-option choose effect); >1 only when a decision is open (ambiguousChoiceOpen / reviewUnparseable) → choose effect with legal Choice[] (A-2 mapping); otherwise typed error naming state and targets"
+  - "[x] git diff --stat extensions/buck-loop/types.ts extensions/buck-loop/loop.ts extensions/buck-loop/choice.ts is empty (A-1 validated)"
+  - "[x] buck-loop/__tests__/loop.test.ts and persist.test.ts pass unmodified"
+  - "[x] Ported truth table covers every former rule's wording difference via facts-derived reasons (A-3 validated)"
+completed_at: 2026-10-01
+completed_by: b-build
 ---
 
 # Phase 2: Port buckMachine
@@ -62,3 +62,16 @@ Parent User Goal: one engine, behavior unchanged — a developer reads states/ed
 3. If review creates an `iterate-*.md` artifact, run `/b-iterate`, then re-run `/b-review`. Out-of-plan issues → separate `/b-plan` → `/b-build` follow-up. Doc impact → `/b-docs` before `/b-save`.
 4. Run `/b-save`, then `/b-commit`.
 5. If incomplete, leave `status: in-progress`.
+
+
+## Build evidence (2026-10-01)
+
+See [build-phase-2.md](build-phase-2.md) and [guardrails-phase-2.json](guardrails-phase-2.json). All phase acceptance criteria are verified; review/save/commit remain separate workflow steps. Phase 3 is next after this phase is reviewed and checkpointed.
+
+### SQL single-option policy clarification
+
+The unchanged-behavior goal takes precedence over the original blanket one-target policy. The pre-existing SQL-save test requires `next()` to emit `choose` with only `retry` when SQL memory is configured and the save postcondition is ambiguous. The implementation retains that narrow exception, including the same `why`. The user requested continuation after the recommended preservation exception was presented. All other single-target routes transition directly. This preserves the existing operator/model decision boundary; the module's general API is unchanged.
+
+### TypeScript baseline
+
+The focused strict check of the changed machine and test passes. Whole-project `npx tsc --noEmit -p .` exits 2 with the same 194 diagnostics across 30 files before and after this port; outputs are byte-identical. The phase's explicit acceptance criteria do not include a clean whole-project check. No later-phase TypeScript waiver is assumed, and the parent plan's final clean-project criterion remains unchecked.

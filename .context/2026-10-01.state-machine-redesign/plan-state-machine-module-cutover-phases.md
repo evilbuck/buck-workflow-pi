@@ -25,7 +25,7 @@ format: discrete
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Module Finalization | completed | medium | none | [phase-1-module-finalization.md](phase-1-module-finalization.md) |
-| 2: Port buckMachine | pending | hard | none | [phase-2-port-buck-machine.md](phase-2-port-buck-machine.md) |
+| 2: Port buckMachine | completed | hard | none | [phase-2-port-buck-machine.md](phase-2-port-buck-machine.md) |
 | 3: Port reviewMachine | pending | medium | none | [phase-3-port-review-machine.md](phase-3-port-review-machine.md) |
 | 4: Delete Old Engine and Update Docs | pending | medium | none | [phase-4-delete-and-document.md](phase-4-delete-and-document.md) |
 
@@ -83,5 +83,6 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [ ] Phase 1: Module Finalization — build → review → iterate if in-plan issues → docs if doc impact → save → commit
   - Implementation, accepted re-review and verified SQL save completed 2026-10-01; phase status synchronized. Commit checkpoint remains pending in this checkout.
 - [ ] Phase 2: Port buckMachine — build-hard → review → iterate if in-plan issues → docs if doc impact → save → commit
+  - Implementation and required guardrails completed 2026-10-01; review/save/commit remain pending. See `build-phase-2.md`.
 - [ ] Phase 3: Port reviewMachine — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Delete Old Engine and Update Docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit

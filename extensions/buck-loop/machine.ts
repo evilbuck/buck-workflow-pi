@@ -1,10 +1,10 @@
 /**
- * Buck workflow policy over the generic pure evaluator.
+ * Buck workflow policy over the portable state machine.
  *
- * Named guards, outputs, and the compiled machine live here. The supervisor
+ * Named guards, outputs, and the declarative graph live here. The supervisor
  * in `loop.ts` is the only effect interpreter.
  */
-import { defineMachine, MachineFailure, type AdvanceDecision } from "../state-machine.js";
+import { defineMachine, IllegalTransitionError, type MachineInstance } from "../state_machine/index.js";
 import type { Choice, LoopState, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
 
 /** Six iterate cycles on one phase is the hard ceiling before blocking. */
@@ -22,6 +22,8 @@ const WORK_SKILL: Record<WorkState, WorkSkill> = {
 export type BuckEvent = { type: "START" } | { type: "USER_CONFIRMED" } | { type: "STOP" };
 
 export type BuckOutput = { effect: Transition["effect"]; why: string };
+
+type BuckFacts = Snapshot & { sqlMemoryConfigured: boolean };
 
 export function limitsExceeded(s: Snapshot): boolean {
   return s.loopCount >= s.maxLoops;
@@ -111,574 +113,315 @@ function reviewUnparseable(s: Snapshot): boolean {
   return Boolean(r && !r.iterateArtifact && !r.docsImpact && !r.howtoImpact && !r.parseable);
 }
 
-function sessionAutomatic(state: WorkState, skill: WorkSkill) {
-  return [
-    {
-      id: `${state}-session-pending`,
-      when: (s: Snapshot) => sessionPending(s) && (skill === "iterate" ? canRunIterate(s) : canRunWork(s)),
-      target: state,
-      output: () => runSkill(skill, `${state} session has not run yet`),
-    },
-    {
-      id: `${state}-session-pending-loop-limit`,
-      when: (s: Snapshot) => sessionPending(s) && skill !== "iterate" && limitsExceeded(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-    },
-    {
-      id: `${state}-session-pending-iterate-limit`,
-      when: (s: Snapshot) => sessionPending(s) && skill === "iterate" && !canRunIterate(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        limitsExceeded(s)
-          ? blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`)
-          : blocked(
-              `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
-            ),
-    },
-    {
-      id: `${state}-session-retry`,
-      when: (s: Snapshot) =>
-        sessionFailed(s) && !retryExhausted(s) && (skill === "iterate" ? canRunIterate(s) : canRunWork(s)),
-      target: state,
-      output: () => runSkill(skill, `${state} session failed; retrying once`),
-    },
-    {
-      id: `${state}-session-retry-loop-limit`,
-      when: (s: Snapshot) => sessionFailed(s) && !retryExhausted(s) && skill !== "iterate" && limitsExceeded(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-    },
-    {
-      id: `${state}-session-retry-iterate-limit`,
-      when: (s: Snapshot) => sessionFailed(s) && !retryExhausted(s) && skill === "iterate" && !canRunIterate(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        limitsExceeded(s)
-          ? blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`)
-          : blocked(
-              `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
-            ),
-    },
-    {
-      id: `${state}-session-failed-again`,
-      when: (s: Snapshot) => sessionFailed(s) && retryExhausted(s),
-      target: "blocked" as const,
-      output: () => blocked(`${state} session failed again after one retry`),
-    },
-  ];
-}
-
-function postconditionAutomatic(state: Exclude<WorkState, "reviewing">) {
-  const skill = WORK_SKILL[state];
-  return [
-    ...sessionAutomatic(state, skill),
-    {
-      id: `${state}-postcondition-ambiguous-retry-exhausted`,
-      when: (s: Snapshot) => postconditionAmbiguous(s) && retryExhausted(s),
-      target: "blocked" as const,
-      output: () => blocked("postcondition still ambiguous after one retry; refusing another spin"),
-    },
-    {
-      id: `${state}-postcondition-ambiguous-loop-limit`,
-      when: (s: Snapshot) => postconditionAmbiguous(s) && limitsExceeded(s),
-      target: "blocked" as const,
-      output: () => blocked("postcondition ambiguous and no legal choice remains (limits exceeded)"),
-    },
-    {
-      id: `${state}-postcondition-missing`,
-      when: (s: Snapshot) => postconditionMissing(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`${state} session finished but postcondition is ${s.workFacts.postcondition} (scan defect)`),
-    },
-  ];
-}
-
-function stopEvent(from: LoopState) {
-  return {
-    id: `stop-from-${from}`,
-    event: { type: "STOP" as const },
-    when: () => true,
-    target: "aborted" as const,
-    output: () => none(`STOP requested by operator from ${from}`),
-  };
-}
-
-function committingAutomatic() {
-  return [
-    ...postconditionAutomatic("committing"),
-    {
-      id: "committing-confirmed-loop-limit",
-      when: (s: Snapshot) =>
-        postconditionConfirmed(s) && limitsExceeded(s) && s.planFacts.kind === "phased-incomplete",
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-    },
-    {
-      id: "committing-next-phase",
-      when: (s: Snapshot) => postconditionConfirmed(s) && canRunWork(s) && s.planFacts.kind === "phased-incomplete",
-      target: "building" as const,
-      output: () => runSkill("build", "next incomplete phase"),
-    },
-    {
-      id: "committing-phased-complete",
-      when: (s: Snapshot) => postconditionConfirmed(s) && s.planFacts.kind === "phased-complete",
-      target: "done" as const,
-      output: () => none("no phases remain"),
-    },
-    {
-      id: "committing-unphased-done",
-      when: (s: Snapshot) => postconditionConfirmed(s) && s.planFacts.kind === "unphased",
-      target: "done" as const,
-      output: () => none("unphased plan completed its single cycle"),
-    },
-    {
-      id: "committing-plan-missing",
-      when: (s: Snapshot) => postconditionConfirmed(s) && s.planFacts.kind === "missing",
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(
-          `plan vanished while committing: ${s.planFacts.kind === "missing" ? s.planFacts.reason : "unknown"}`,
-        ),
-    },
-  ];
-}
-
-function buildingLike(state: "building" | "iterating") {
-  return {
-    automatic: [
-      ...postconditionAutomatic(state),
-      {
-        id: `${state}-confirmed-loop-limit`,
-        when: (s: Snapshot) => postconditionConfirmed(s) && limitsExceeded(s),
-        target: "blocked" as const,
-        output: (s: Snapshot) =>
-          blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-      },
-      {
-        id: `${state}-confirmed-review`,
-        when: (s: Snapshot) => postconditionConfirmed(s) && canRunWork(s),
-        target: "reviewing" as const,
-        output: () => runSkill("review", "work landed; reviewing it"),
-      },
-    ],
-    choices: [
-      {
-        id: `${state}-choice-retry`,
-        choice: { kind: "retry" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
-        target: state,
-        output: () => runSkill(WORK_SKILL[state], "accepted choice: retry the session"),
-      },
-      {
-        id: `${state}-choice-advance`,
-        choice: { kind: "advance" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
-        target: "reviewing" as const,
-        output: () => runSkill("review", "work landed; reviewing it"),
-      },
-    ],
-    events: [stopEvent(state)],
-  };
-}
-
-function documentingState() {
-  return {
-    automatic: [
-      ...postconditionAutomatic("documenting"),
-      {
-        id: "documenting-confirmed-loop-limit",
-        when: (s: Snapshot) => postconditionConfirmed(s) && limitsExceeded(s),
-        target: "blocked" as const,
-        output: (s: Snapshot) =>
-          blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-      },
-      {
-        id: "documenting-confirmed-save",
-        when: (s: Snapshot) => postconditionConfirmed(s) && canRunWork(s),
-        target: "saving" as const,
-        output: () => runSkill("save", "docs updated; saving session state"),
-      },
-    ],
-    choices: [
-      {
-        id: "documenting-choice-retry",
-        choice: { kind: "retry" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
-        target: "documenting" as const,
-        output: () => runSkill("docs", "accepted choice: retry the session"),
-      },
-      {
-        id: "documenting-choice-advance",
-        choice: { kind: "advance" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
-        target: "saving" as const,
-        output: () => runSkill("save", "docs updated; saving session state"),
-      },
-    ],
-    events: [stopEvent("documenting")],
-  };
-}
-
-function savingState() {
-  return {
-    automatic: [
-      ...postconditionAutomatic("saving"),
-      {
-        id: "saving-confirmed-loop-limit",
-        when: (s: Snapshot) => postconditionConfirmed(s) && limitsExceeded(s),
-        target: "blocked" as const,
-        output: (s: Snapshot) =>
-          blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-      },
-      {
-        id: "saving-confirmed-commit",
-        when: (s: Snapshot) => postconditionConfirmed(s) && canRunWork(s),
-        target: "committing" as const,
-        output: () => runSkill("commit", "session state saved; committing"),
-      },
-    ],
-    choices: [
-      {
-        id: "saving-choice-retry",
-        choice: { kind: "retry" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s),
-        target: "saving" as const,
-        output: () => runSkill("save", "accepted choice: retry the session"),
-      },
-      {
-        id: "saving-choice-advance",
-        choice: { kind: "advance" as const },
-        when: (s: Snapshot) => ambiguousChoiceOpen(s) && !process.env.SQL_MEMORY_URL,
-        target: "committing" as const,
-        output: () => runSkill("commit", "session state saved; committing"),
-      },
-    ],
-    events: [stopEvent("saving")],
-  };
-}
-
-function committingChoices() {
-  return [
-    {
-      id: "committing-choice-retry",
-      choice: { kind: "retry" as const },
-      when: (s: Snapshot) => ambiguousChoiceOpen(s),
-      target: "committing" as const,
-      output: () => runSkill("commit", "accepted choice: retry the session"),
-    },
-    {
-      id: "committing-choice-advance-next-phase",
-      choice: { kind: "advance" as const },
-      when: (s: Snapshot) =>
-        ambiguousChoiceOpen(s) && s.planFacts.kind === "phased-incomplete",
-      target: "building" as const,
-      output: () => runSkill("build", "next incomplete phase"),
-    },
-    {
-      id: "committing-choice-advance-complete",
-      choice: { kind: "advance" as const },
-      when: (s: Snapshot) =>
-        ambiguousChoiceOpen(s) && s.planFacts.kind === "phased-complete",
-      target: "done" as const,
-      output: () => none("no phases remain"),
-    },
-    {
-      id: "committing-choice-advance-unphased",
-      choice: { kind: "advance" as const },
-      when: (s: Snapshot) => ambiguousChoiceOpen(s) && s.planFacts.kind === "unphased",
-      target: "done" as const,
-      output: () => none("unphased plan completed its single cycle"),
-    },
-    {
-      id: "committing-choice-advance-missing",
-      choice: { kind: "advance" as const },
-      when: (s: Snapshot) => ambiguousChoiceOpen(s) && s.planFacts.kind === "missing",
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(
-          `plan vanished while committing: ${s.planFacts.kind === "missing" ? s.planFacts.reason : "unknown"}`,
-        ),
-    },
-  ];
-}
-
-function committingState() {
-  return {
-    automatic: committingAutomatic(),
-    choices: committingChoices(),
-    events: [stopEvent("committing")],
-  };
-}
-
-function iterateLimitBlocked(s: Snapshot): BuckOutput {
-  if (limitsExceeded(s)) {
-    return blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`);
+export class BuckMachineError extends Error {
+  constructor(
+    readonly code: "NO_ROUTE" | "AMBIGUOUS_ROUTE" | "ILLEGAL_CHOICE",
+    readonly state: LoopState,
+    readonly targets: readonly LoopState[],
+  ) {
+    super(`buck machine ${code}: ${state} -> [${targets.join(", ")}]`);
+    this.name = "BuckMachineError";
   }
-  return blocked(
-    `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`,
-  );
 }
 
-function reviewingSessionAutomatic() {
+function loopLimitReason(s: Snapshot): string {
+  return `loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`;
+}
+
+function iterateLimitReason(s: Snapshot): string {
+  return `iterate limit reached on this phase (${s.iterateCyclesOnPhase} >= ${MAX_ITERATE_CYCLES_PER_PHASE})`;
+}
+
+function sessionBlockReason(state: WorkState, s: Snapshot): string | null {
+  if (sessionFailed(s) && retryExhausted(s)) return `${state} session failed again after one retry`;
+  if (!sessionPending(s) && !sessionFailed(s)) return null;
+  if (limitsExceeded(s)) return loopLimitReason(s);
+  if (state === "iterating" && iterateCeiling(s)) return iterateLimitReason(s);
+  return null;
+}
+
+function postconditionBlockReason(state: WorkState, s: Snapshot): string | null {
+  if (postconditionAmbiguous(s)) {
+    // The former two automatic rules overlap here. Keep that invalid input fail-closed.
+    if (retryExhausted(s) && limitsExceeded(s)) {
+      throw new BuckMachineError("AMBIGUOUS_ROUTE", state, ["blocked"]);
+    }
+    if (retryExhausted(s)) return "postcondition still ambiguous after one retry; refusing another spin";
+    if (limitsExceeded(s)) return "postcondition ambiguous and no legal choice remains (limits exceeded)";
+  }
+  if (postconditionMissing(s)) return `${state} session finished but postcondition is ${s.workFacts.postcondition} (scan defect)`;
+  return null;
+}
+
+function reviewPriority(s: Snapshot): boolean {
+  return docsWins(s) || cleanSave(s);
+}
+
+function reviewBlockReason(s: Snapshot): string | null {
+  if (!sessionOk(s)) return null;
+  if (s.reviewFacts.kind !== "report") return "review session finished but no report facts were scanned (scan defect)";
+  if (iterateWins(s) && !canRunIterate(s)) return limitsExceeded(s) ? loopLimitReason(s) : iterateLimitReason(s);
+  if (reviewPriority(s) && limitsExceeded(s)) return loopLimitReason(s);
+  if (reviewUnparseable(s) && limitsExceeded(s)) return "review report unparseable and no legal choice remains (limits exceeded)";
+  return null;
+}
+
+function commitBlockReason(s: Snapshot): string | null {
+  if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
+  if (s.planFacts.kind === "missing") return `plan vanished while committing: ${s.planFacts.reason}`;
+  if (postconditionConfirmed(s) && s.planFacts.kind === "phased-incomplete" && limitsExceeded(s)) return loopLimitReason(s);
+  return null;
+}
+
+function blockReason(state: WorkState, s: Snapshot): string | null {
+  const session = sessionBlockReason(state, s);
+  if (session !== null) return session;
+  if (state === "reviewing") return reviewBlockReason(s);
+  const postcondition = postconditionBlockReason(state, s);
+  if (postcondition !== null) return postcondition;
+  if (state === "committing") return commitBlockReason(s);
+  if (postconditionConfirmed(s) && limitsExceeded(s)) return loopLimitReason(s);
+  return null;
+}
+
+function rerunReason(state: WorkState, s: Snapshot): string | null {
+  const canRun = state === "iterating" ? canRunIterate(s) : canRunWork(s);
+  if (sessionPending(s) && canRun) return `${state} session has not run yet`;
+  if (sessionFailed(s) && !retryExhausted(s) && canRun) return `${state} session failed; retrying once`;
+  if (state !== "reviewing" && ambiguousChoiceOpen(s)) return "accepted choice: retry the session";
+  return null;
+}
+
+function workEdges(state: WorkState) {
   return [
-    ...sessionAutomatic("reviewing", "review"),
     {
-      id: "reviewing-no-report",
-      when: (s: Snapshot) => sessionOk(s) && s.reviewFacts.kind !== "report",
-      target: "blocked" as const,
-      output: () => blocked("review session finished but no report facts were scanned (scan defect)"),
+      name: state,
+      guard: (s: BuckFacts) => rerunReason(state, s) !== null,
+      effect: (s: BuckFacts) => runSkill(WORK_SKILL[state], rerunReason(state, s)!),
     },
     {
-      id: "reviewing-iterate",
-      when: (s: Snapshot) => sessionOk(s) && iterateWins(s) && canRunIterate(s),
-      target: "iterating" as const,
-      output: () => runSkill("iterate", "iterate artifact present; in-plan issues win"),
+      name: "blocked" as const,
+      guard: (s: BuckFacts) => blockReason(state, s) !== null,
+      effect: (s: BuckFacts) => blocked(blockReason(state, s)!),
     },
-    {
-      id: "reviewing-iterate-limit",
-      when: (s: Snapshot) => sessionOk(s) && iterateWins(s) && !canRunIterate(s),
-      target: "blocked" as const,
-      output: iterateLimitBlocked,
-    },
+    { ...STOP, effect: () => none(`STOP requested by operator from ${state}`) },
   ];
 }
 
-function reviewingPriorityAutomatic() {
-  return [
-    {
-      id: "reviewing-docs",
-      when: (s: Snapshot) => sessionOk(s) && docsWins(s) && canRunWork(s),
-      target: "documenting" as const,
-      output: () => runSkill("docs", "review flagged documentation impact"),
-    },
-    {
-      id: "reviewing-docs-loop-limit",
-      when: (s: Snapshot) => sessionOk(s) && docsWins(s) && limitsExceeded(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-    },
-    {
-      id: "reviewing-save",
-      when: (s: Snapshot) => sessionOk(s) && cleanSave(s) && canRunWork(s),
-      target: "saving" as const,
-      output: () => runSkill("save", "clean review; saving"),
-    },
-    {
-      id: "reviewing-save-loop-limit",
-      when: (s: Snapshot) => sessionOk(s) && cleanSave(s) && limitsExceeded(s),
-      target: "blocked" as const,
-      output: (s: Snapshot) =>
-        blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-    },
-    {
-      id: "reviewing-unparseable-loop-limit",
-      when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && limitsExceeded(s),
-      target: "blocked" as const,
-      output: () => blocked("review report unparseable and no legal choice remains (limits exceeded)"),
-    },
-  ];
+const STOP = { name: "aborted", manual: true } as const;
+
+function confirmedOrAmbiguous(s: Snapshot): boolean {
+  return (postconditionConfirmed(s) && canRunWork(s)) || ambiguousChoiceOpen(s);
 }
 
-function reviewingChoices() {
-  return [
-    {
-      id: "reviewing-choice-iterate",
-      choice: { kind: "iterate" as const },
-      when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && canRunIterate(s),
-      target: "iterating" as const,
-      output: () => runSkill("iterate", "accepted choice: iterate on in-plan issues"),
-    },
-    {
-      id: "reviewing-choice-document",
-      choice: { kind: "document" as const },
-      when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && canRunWork(s),
-      target: "documenting" as const,
-      output: () => runSkill("docs", "accepted choice: document the impact"),
-    },
-    {
-      id: "reviewing-choice-save",
-      choice: { kind: "save" as const },
-      when: (s: Snapshot) => sessionOk(s) && reviewUnparseable(s) && canRunWork(s),
-      target: "saving" as const,
-      output: () => runSkill("save", "accepted choice: treat the review as clean and save"),
-    },
-  ];
+function reviewRoute(s: Snapshot, predicate: (s: Snapshot) => boolean): boolean {
+  return sessionOk(s) && predicate(s) && canRunWork(s);
 }
 
-function reviewingState() {
-  return {
-    automatic: [...reviewingSessionAutomatic(), ...reviewingPriorityAutomatic()],
-    choices: reviewingChoices(),
-    events: [stopEvent("reviewing")],
-  };
+function resolvingBlockReason(s: Snapshot): string | null {
+  if (s.planFacts.kind === "missing") return `plan unresolved: ${s.planFacts.reason}`;
+  if (s.planFacts.kind !== "phased-complete" && limitsExceeded(s)) return loopLimitReason(s);
+  return null;
 }
 
-export const buckMachine = defineMachine<LoopState, Snapshot, Choice, BuckEvent, BuckOutput>({
-  stateOf: (facts) => facts.state,
-  choiceKey: (choice) => choice.kind,
-  eventKey: (event) => event.type,
+function commitDoneReason(s: Snapshot): string | null {
+  if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
+  if (s.planFacts.kind === "phased-complete") return "no phases remain";
+  if (s.planFacts.kind === "unphased") return "unphased plan completed its single cycle";
+  return null;
+}
+
+export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
+  initial: "idle",
   states: {
     idle: {
-      events: [
-        {
-          id: "start",
-          event: { type: "START" },
-          when: () => true,
-          target: "resolving",
-          output: () => none("START: operator supplied a path"),
-        },
-        stopEvent("idle"),
+      targets: [
+        { name: "resolving", manual: true, effect: () => none("START: operator supplied a path") },
+        { ...STOP, effect: () => none("STOP requested by operator from idle") },
       ],
     },
     resolving: {
-      automatic: [
+      targets: [
         {
-          id: "resolving-missing",
-          when: (s) => s.planFacts.kind === "missing",
-          target: "blocked",
-          output: (s) =>
-            blocked(`plan unresolved: ${s.planFacts.kind === "missing" ? s.planFacts.reason : "unknown"}`),
+          name: "building",
+          guard: (s) => (s.planFacts.kind === "unphased" || s.planFacts.kind === "phased-incomplete") && canRunWork(s),
+          effect: (s) => runSkill("build", s.planFacts.kind === "unphased"
+            ? "unphased plan; running its single build cycle"
+            : "active incomplete phase; running its build"),
         },
         {
-          id: "resolving-unphased",
-          when: (s) => s.planFacts.kind === "unphased" && canRunWork(s),
-          target: "building",
-          output: () => runSkill("build", "unphased plan; running its single build cycle"),
+          name: "blocked",
+          guard: (s) => resolvingBlockReason(s) !== null,
+          effect: (s) => blocked(resolvingBlockReason(s)!),
+        },
+        { name: "done", guard: (s) => s.planFacts.kind === "phased-complete", effect: () => none("all phases completed") },
+        { ...STOP, effect: () => none("STOP requested by operator from resolving") },
+      ],
+    },
+    building: {
+      targets: [
+        ...workEdges("building"),
+        { name: "reviewing", guard: confirmedOrAmbiguous, effect: () => runSkill("review", "work landed; reviewing it") },
+      ],
+    },
+    iterating: {
+      targets: [
+        ...workEdges("iterating"),
+        { name: "reviewing", guard: confirmedOrAmbiguous, effect: () => runSkill("review", "work landed; reviewing it") },
+      ],
+    },
+    reviewing: {
+      targets: [
+        ...workEdges("reviewing"),
+        {
+          name: "iterating",
+          guard: (s) => sessionOk(s) && (iterateWins(s) || reviewUnparseable(s)) && canRunIterate(s),
+          effect: (s) => runSkill("iterate", iterateWins(s)
+            ? "iterate artifact present; in-plan issues win"
+            : "accepted choice: iterate on in-plan issues"),
         },
         {
-          id: "resolving-unphased-loop-limit",
-          when: (s) => s.planFacts.kind === "unphased" && limitsExceeded(s),
-          target: "blocked",
-          output: (s) => blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
+          name: "documenting",
+          guard: (s) => reviewRoute(s, docsWins) || reviewRoute(s, reviewUnparseable),
+          effect: (s) => runSkill("docs", docsWins(s)
+            ? "review flagged documentation impact"
+            : "accepted choice: document the impact"),
         },
         {
-          id: "resolving-incomplete",
-          when: (s) => s.planFacts.kind === "phased-incomplete" && canRunWork(s),
-          target: "building",
-          output: () => runSkill("build", "active incomplete phase; running its build"),
-        },
-        {
-          id: "resolving-incomplete-loop-limit",
-          when: (s) => s.planFacts.kind === "phased-incomplete" && limitsExceeded(s),
-          target: "blocked",
-          output: (s) => blocked(`loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`),
-        },
-        {
-          id: "resolving-complete",
-          when: (s) => s.planFacts.kind === "phased-complete",
-          target: "done",
-          output: () => none("all phases completed"),
+          name: "saving",
+          guard: (s) => reviewRoute(s, cleanSave) || reviewRoute(s, reviewUnparseable),
+          effect: (s) => runSkill("save", cleanSave(s)
+            ? "clean review; saving"
+            : "accepted choice: treat the review as clean and save"),
         },
       ],
-      events: [stopEvent("resolving")],
     },
-    building: buildingLike("building"),
-    iterating: buildingLike("iterating"),
-    reviewing: reviewingState(),
-    documenting: documentingState(),
-    saving: savingState(),
-    committing: committingState(),
+    documenting: {
+      targets: [
+        ...workEdges("documenting"),
+        { name: "saving", guard: confirmedOrAmbiguous, effect: () => runSkill("save", "docs updated; saving session state") },
+      ],
+    },
+    saving: {
+      targets: [
+        ...workEdges("saving"),
+        {
+          name: "committing",
+          guard: (s) => (postconditionConfirmed(s) && canRunWork(s)) || (ambiguousChoiceOpen(s) && !s.sqlMemoryConfigured),
+          effect: () => runSkill("commit", "session state saved; committing"),
+        },
+      ],
+    },
+    committing: {
+      targets: [
+        ...workEdges("committing"),
+        {
+          name: "building",
+          guard: (s) => confirmedOrAmbiguous(s) && s.planFacts.kind === "phased-incomplete",
+          effect: () => runSkill("build", "next incomplete phase"),
+        },
+        { name: "done", guard: (s) => commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
+      ],
+    },
     blocked: {
-      events: [
+      targets: [
         {
-          id: "user-confirmed-completed-work",
-          event: { type: "USER_CONFIRMED" },
-          when: completedBlockedWork,
-          target: "reviewing",
-          output: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
+          name: "reviewing", manual: true, guard: completedBlockedWork,
+          effect: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
         },
         {
-          id: "user-confirmed",
-          event: { type: "USER_CONFIRMED" },
-          when: (s: Snapshot) => !completedBlockedWork(s),
-          target: "resolving",
-          output: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
+          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s),
+          effect: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
         },
-        stopEvent("blocked"),
+        { ...STOP, effect: () => none("STOP requested by operator from blocked") },
       ],
     },
-    done: { terminal: true },
-    aborted: { terminal: true },
+    done: { final: true, targets: [] },
+    aborted: { final: true, targets: [] },
   },
 });
+
+function facts(s: Snapshot): BuckFacts {
+  return { ...s, sqlMemoryConfigured: Boolean(process.env.SQL_MEMORY_URL) };
+}
 
 function asTransition(to: LoopState, output: BuckOutput): Transition {
   return { to, effect: output.effect, why: output.why };
 }
 
-function fromDecision(decision: AdvanceDecision<LoopState, Choice, BuckOutput>, snapshot: Snapshot): Transition {
-  if (decision.kind === "choices") {
-    const why =
-      snapshot.state === "reviewing"
-        ? "review report unparseable; no iterate artifact"
-        : "postcondition scan ambiguous";
-    return {
-      to: snapshot.state,
-      effect: { kind: "choose", legal: decision.choices },
-      why,
-    };
-  }
-  return asTransition(decision.to, decision.output);
+function take(instance: MachineInstance<LoopState, BuckFacts, BuckOutput>, to: LoopState, s: BuckFacts): Transition {
+  const transition = instance.transition(to, s);
+  return asTransition(transition.to, transition.effect!);
 }
 
-/** Deterministic automatic decision or closed choose effect. Command-owned states fail closed. */
+function decisionOpen(s: Snapshot): boolean {
+  if (s.state === "reviewing") return reviewRoute(s, reviewUnparseable);
+  if (!Object.hasOwn(WORK_SKILL, s.state)) return false;
+  return ambiguousChoiceOpen(s);
+}
+
+function choiceFor(state: LoopState, to: LoopState): Choice {
+  if (to === state) return { kind: "retry" };
+  if (state !== "reviewing") return { kind: "advance" };
+  const kind = { iterating: "iterate", documenting: "document", saving: "save" } as const;
+  return { kind: kind[to as keyof typeof kind] };
+}
+
+/** Deterministic transition or closed choose effect. Command-owned states fail closed. */
 export function next(s: Snapshot): Transition {
-  return fromDecision(buckMachine.advance(s), s);
+  const f = facts(s);
+  const instance = buckMachine.restore(s.state);
+  const targets = instance.available(f);
+  if (targets.length === 0) throw new BuckMachineError("NO_ROUTE", s.state, targets);
+  // Preserve the SQL-save decision boundary even when only retry is legal.
+  const singleSqlChoice = s.state === "saving" && f.sqlMemoryConfigured && decisionOpen(s);
+  if (targets.length === 1 && !singleSqlChoice) return take(instance, targets[0]!, f);
+  if (!decisionOpen(s)) throw new BuckMachineError("AMBIGUOUS_ROUTE", s.state, targets);
+  return {
+    to: s.state,
+    effect: { kind: "choose", legal: targets.map((to) => choiceFor(s.state, to)) },
+    why: s.state === "reviewing" ? "review report unparseable; no iterate artifact" : "postcondition scan ambiguous",
+  };
 }
 
 export function applyChoice(choice: Choice, s: Snapshot): Transition {
-  const decision = buckMachine.choose(s, choice);
-  return asTransition(decision.to, decision.output);
+  const f = facts(s);
+  const instance = buckMachine.restore(s.state);
+  const targets = instance.available(f);
+  const to = targets.find((target) => choiceFor(s.state, target).kind === choice.kind);
+  if (!decisionOpen(s) || to === undefined) throw new BuckMachineError("ILLEGAL_CHOICE", s.state, targets);
+  return take(instance, to, f);
 }
 
 export function legalChoices(state: LoopState, s: Snapshot): readonly Choice[] {
-  try {
-    const decision = buckMachine.advance({ ...s, state });
-    return decision.kind === "choices" ? decision.choices : [];
-  } catch {
-    return [];
-  }
+  const f = facts({ ...s, state });
+  if (!decisionOpen(f)) return [];
+  return buckMachine.restore(state).available(f).map((to) => choiceFor(state, to));
 }
 
 function stubFacts(state: LoopState): Snapshot {
   return {
-    state,
-    subject: null,
-    planPath: null,
-    phasePath: null,
+    state, subject: null, planPath: null, phasePath: null,
     planFacts: { kind: "missing", reason: "operator edge" },
     workFacts: { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" },
-    reviewFacts: { kind: "pending" },
-    loopCount: 0,
-    maxLoops: 12,
-    iterateCyclesOnPhase: 0,
-    lastChoice: null,
-    history: [],
+    reviewFacts: { kind: "pending" }, loopCount: 0, maxLoops: 12,
+    iterateCyclesOnPhase: 0, lastChoice: null, history: [],
   };
 }
 
 export function start(): Transition {
-  const decision = buckMachine.send(stubFacts("idle"), { type: "START" });
-  return asTransition(decision.to, decision.output);
+  return take(buckMachine.start(), "resolving", facts(stubFacts("idle")));
 }
 
-export function userConfirmed(snapshot: Snapshot): Transition {
-  const decision = buckMachine.send(snapshot, { type: "USER_CONFIRMED" });
-  return asTransition(decision.to, decision.output);
+export function userConfirmed(s: Snapshot): Transition {
+  const to = completedBlockedWork(s) ? "reviewing" : "resolving";
+  if (s.state !== "blocked") throw new IllegalTransitionError(s.state, to, "not-a-target");
+  return take(buckMachine.restore(s.state), to, facts(s));
 }
 
 export function stopFrom(from: LoopState): Transition {
   if (from === "done" || from === "aborted") {
     return { to: "aborted", effect: { kind: "none" }, why: `STOP requested by operator from ${from}` };
   }
-  const decision = buckMachine.send(stubFacts(from), { type: "STOP" });
-  return asTransition(decision.to, decision.output);
+  return take(buckMachine.restore(from), "aborted", facts(stubFacts(from)));
 }
-
-export { MachineFailure };
