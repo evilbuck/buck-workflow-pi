@@ -26,7 +26,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Module Finalization | completed | medium | none | [phase-1-module-finalization.md](phase-1-module-finalization.md) |
 | 2: Port buckMachine | completed | hard | none | [phase-2-port-buck-machine.md](phase-2-port-buck-machine.md) |
-| 3: Port reviewMachine | pending | medium | none | [phase-3-port-review-machine.md](phase-3-port-review-machine.md) |
+| 3: Port reviewMachine | completed | medium | none | [phase-3-port-review-machine.md](phase-3-port-review-machine.md) |
 | 4: Delete Old Engine and Update Docs | pending | medium | none | [phase-4-delete-and-document.md](phase-4-delete-and-document.md) |
 
 ## Dependency Matrix
@@ -54,7 +54,7 @@ Phase 1 ──→ Phase 2 ──┐
 |---|---|---|
 | A-1 (no persisted-format change) | Phase 2 | empty diff on types/loop/choice.ts; persist+loop tests unmodified |
 | A-3 (wording derivable from facts) | Phase 2 | ported truth table pins to/effect/why for every former rule |
-| A-6 (rule-for-edge mapping) | Phase 3 | truth-table tests pin to + output.rule for all 15 rules |
+| A-6 (rule-for-edge mapping) | Phase 3 | truth-table tests pin to + output.rule for all 13 legacy rules |
 | A-5 (no unknown consumers) | Phase 4 | re-run consumer search before deletion |
 
 ## Parallel Opportunities
@@ -85,4 +85,5 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [ ] Phase 2: Port buckMachine — build-hard → review → iterate if in-plan issues → docs if doc impact → save → commit
   - Implementation and required guardrails completed 2026-10-01; review/save/commit remain pending. See `build-phase-2.md`.
 - [ ] Phase 3: Port reviewMachine — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+  - Implementation and required guardrails completed 2026-10-01; review/save/commit remain pending. See `build-phase-3.md`.
 - [ ] Phase 4: Delete Old Engine and Update Docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit

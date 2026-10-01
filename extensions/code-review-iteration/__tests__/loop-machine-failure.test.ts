@@ -3,9 +3,9 @@ import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MachineFailure } from "../../state-machine.js";
+import * as machine from "../machine.js";
 import { runReviewLoop, type LoopDeps, type LoopOptions } from "../loop.js";
-import { reviewMachine } from "../machine.js";
+import { ReviewMachineError } from "../machine.js";
 
 const OPTIONS: LoopOptions = {
   personaName: "balanced",
@@ -58,8 +58,8 @@ describe("runReviewLoop machine failure boundary", () => {
     const repo = makeCheckout();
     const contextRoot = mkdtempSync(join(tmpdir(), "review-machine-context-"));
     cleanup.push(repo, contextRoot);
-    vi.spyOn(reviewMachine, "advance").mockImplementationOnce(() => {
-      throw new MachineFailure("NO_ROUTE", { state: "reviewing", operation: "advance" });
+    vi.spyOn(machine, "decide").mockImplementationOnce(() => {
+      throw new ReviewMachineError("NO_ROUTE", { state: "reviewing", operation: "advance" });
     });
 
     const result = await runReviewLoop(deps(contextRoot), repo, OPTIONS);

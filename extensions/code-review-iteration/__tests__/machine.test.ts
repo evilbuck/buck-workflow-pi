@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { defineMachine, MachineFailure, type MachineFailureCode } from "../../state-machine.js";
+import { describe, expect, it, vi } from "vitest";
 import {
+  decide,
+  ReviewMachineError,
+  type ReviewMachineErrorCode,
   machineFailureReason,
   project,
   reviewMachine,
@@ -102,19 +104,16 @@ function facts(state: ReviewState, overrides: Partial<ReviewFacts> = {}): Review
 }
 
 function transition(input: ReviewFacts) {
-  const decision = reviewMachine.advance(input);
-  expect(decision.kind).toBe("transition");
-  if (decision.kind !== "transition") throw new Error("review machine unexpectedly returned choices");
-  return decision;
+  return decide(input);
 }
 
-function expectCode(fn: () => unknown, code: MachineFailureCode): void {
+function expectCode(fn: () => unknown, code: ReviewMachineErrorCode): void {
   try {
     fn();
     throw new Error(`expected ${code}`);
   } catch (error) {
-    expect(error).toBeInstanceOf(MachineFailure);
-    expect((error as MachineFailure).code).toBe(code);
+    expect(error).toBeInstanceOf(ReviewMachineError);
+    expect((error as ReviewMachineError).code).toBe(code);
   }
 }
 
@@ -215,18 +214,45 @@ const ROWS: readonly {
   },
 ];
 
+const TERMINAL_OUTPUTS: Readonly<Record<string, ReviewOutput>> = {
+  "preflight-failed": { rule: "preflight-failed", effect: "terminal", status: "failed", reason: "model catalog preflight failed (2 error(s))" },
+  "base-failed": { rule: "base-failed", effect: "terminal", status: "failed", reason: "base preparation failed: failed" },
+  "review-failed": { rule: "review-failed", effect: "terminal", status: "failed", reason: "reviewer failed" },
+  "triage-clean": { rule: "triage-clean", effect: "terminal", status: "clean", reason: "reviewer reported no findings" },
+  "triage-uncomputable": { rule: "triage-uncomputable", effect: "terminal", status: "failed", reason: "blocking findings present but no fix hardness computable" },
+  "passes-exhausted": { rule: "passes-exhausted", effect: "terminal", status: "exhausted", reason: "blocking findings unresolved after 3 review passes" },
+  "fixer-blocked": { rule: "fixer-blocked", effect: "terminal", status: "blocked", reason: "deterministic checks failed after fixer pass 1 (npm test exit 1); no checkpoint commit created" },
+};
+
 describe("reviewMachine truth table", () => {
   it("requests catalog preflight before the report rows become decidable", () => {
     const decision = transition(facts("initializing", { catalogOk: undefined }));
-    expect(decision).toMatchObject({
-      from: "initializing",
+    expect(decision).toEqual({
       to: "initializing",
       output: { rule: "preflight-pending", effect: "run-catalog-preflight" },
     });
   });
 
   it.each(ROWS)("routes $name through $rule", ({ facts: input, rule, to, effect }) => {
-    expect(transition(input)).toMatchObject({ to, output: { rule, effect } });
+    expect(transition(input)).toEqual({ to, output: TERMINAL_OUTPUTS[rule] ?? { rule, effect } });
+  });
+
+  it("preserves report-only findings in the clean reason", () => {
+    expect(decide(facts("triaging", { minBlocking: "high", review: { blocking: 0, hardness: null, total: 2 } }))).toEqual({
+      to: "clean",
+      output: { rule: "triage-clean", effect: "terminal", status: "clean", reason: "no high-or-higher findings remain (2 report-only)" },
+    });
+  });
+
+  it("preserves fallback error wording for incomplete observed results", () => {
+    expect(decide(facts("initializing", { catalogOk: false }))).toEqual({
+      to: "failed",
+      output: { rule: "preflight-failed", effect: "terminal", status: "failed", reason: "model catalog preflight failed (unknown error)" },
+    });
+    expect(decide(facts("fixing", { fixer: { checksPassed: false, command: "npm test", exitCode: null } }))).toEqual({
+      to: "blocked",
+      output: { rule: "fixer-blocked", effect: "terminal", status: "blocked", reason: "deterministic checks failed after fixer pass 1 (npm test exit —); no checkpoint commit created" },
+    });
   });
 
   it("runs the fixer on the final review pass before declaring exhaustion", () => {
@@ -353,11 +379,11 @@ describe("reviewMachine exclusivity", () => {
                     fixer: fixerValue,
                   });
                   try {
-                    expect(reviewMachine.advance(input).kind).toBe("transition");
+                    expect(decide(input).to).toBeTypeOf("string");
                     expect(explicitlyUnreachable(input)).toBe(false);
                   } catch (error) {
-                    expect(error).toBeInstanceOf(MachineFailure);
-                    expect((error as MachineFailure).code).toBe("NO_ROUTE");
+                    expect(error).toBeInstanceOf(ReviewMachineError);
+                    expect((error as ReviewMachineError).code).toBe("NO_ROUTE");
                     expect(explicitlyUnreachable(input)).toBe(true);
                   }
                 }
@@ -371,41 +397,41 @@ describe("reviewMachine exclusivity", () => {
 });
 
 describe("fail-closed evaluator pins", () => {
-  it("pins ambiguity, no-route, terminal, and invalid-target failures by code", () => {
-    type State = "open" | "done";
-    type FixtureFacts = { state: State; left: boolean; right: boolean };
-    const machine = defineMachine<State, FixtureFacts, never, never, null>({
-      stateOf: (value) => value.state,
-      choiceKey: (value) => value,
-      eventKey: (value) => value,
-      states: {
-        open: {
-          automatic: [
-            { id: "left", when: (value) => value.left, target: "done", output: () => null },
-            { id: "right", when: (value) => value.right, target: "done", output: () => null },
-          ],
-        },
-        done: { terminal: true },
-      },
-    });
-    expectCode(() => machine.advance({ state: "open", left: true, right: true }), "AMBIGUOUS_AUTOMATIC");
-    expectCode(() => machine.advance({ state: "open", left: false, right: false }), "NO_ROUTE");
-    expectCode(() => machine.advance({ state: "done", left: false, right: false }), "TERMINAL_STATE");
+  it("rejects missing routes including terminal states", () => {
+    expectCode(() => decide(facts("reviewing")), "NO_ROUTE");
+    for (const state of ["clean", "blocked", "exhausted", "failed", "cancelled"] as const) {
+      expect(reviewMachine.isFinal(state)).toBe(true);
+      expect(reviewMachine.targets(state)).toEqual([]);
+      expectCode(() => decide(facts(state)), "NO_ROUTE");
+    }
+  });
 
-    const invalid = defineMachine<"open", { state: "open" }, never, never, null>({
-      stateOf: (value) => value.state,
-      choiceKey: (value) => value,
-      eventKey: (value) => value,
-      states: {
-        open: { automatic: [{ id: "bad-target", when: () => true, target: "missing" as "open", output: () => null }] },
-      },
-    });
-    expectCode(() => invalid.advance({ state: "open" }), "INVALID_TARGET");
+  it("rejects overlapping routes rather than selecting the first", () => {
+    // Substitute availability only; the adapter's policy remains the real production path.
+    const instance = reviewMachine.restore("initializing");
+    vi.spyOn(instance, "available").mockReturnValue(["initializing", "failed"]);
+    const restore = vi.spyOn(reviewMachine, "restore").mockReturnValueOnce(instance);
+    try {
+      expectCode(() => decide(facts("initializing")), "AMBIGUOUS_ROUTE");
+    } finally {
+      restore.mockRestore();
+    }
   });
 
   it("formats machine failures with their code and structured context", () => {
-    const failure = new MachineFailure("NO_ROUTE", { state: "reviewing", operation: "advance" });
-    expect(machineFailureReason(failure)).toContain("NO_ROUTE");
-    expect(machineFailureReason(failure)).toContain('"state":"reviewing"');
+    const failure = new ReviewMachineError("NO_ROUTE", { state: "reviewing", operation: "advance" });
+    expect(machineFailureReason(failure)).toBe('review machine NO_ROUTE: {"state":"reviewing","operation":"advance"}');
+  });
+});
+
+// Public graph seam: operator cancellation is declared but never offered to a tick.
+describe("reviewMachine portable graph", () => {
+  it("declares manual cancellation from every running state", () => {
+    for (const state of ["initializing", "preparingBase", "reviewing", "triaging", "fixing"] as const) {
+      expect(reviewMachine.edge(state, "cancelled").manual).toBe(true);
+      const instance = reviewMachine.restore(state);
+      expect(instance.available(facts(state))).not.toContain("cancelled");
+      expect(instance.transition("cancelled", facts(state)).to).toBe("cancelled");
+    }
   });
 });

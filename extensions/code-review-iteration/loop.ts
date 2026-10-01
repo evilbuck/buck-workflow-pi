@@ -10,7 +10,6 @@
 
 import { readFileSync } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
-import { MachineFailure } from "../state-machine.js";
 import type { CatalogLoad, FixerSelection, ModelCatalogEntry } from "./catalog.js";
 import { reviewerThinking, selectFixerModel, thinkingFor } from "./catalog.js";
 import { extractJson, validateFindingsPayload, type ValidatedFinding } from "./findings.js";
@@ -38,7 +37,8 @@ import { assembleFixerPrompt, assembleReviewerPrompt, type Persona } from "./pro
 import {
   machineFailureReason,
   project,
-  reviewMachine,
+  decide,
+  ReviewMachineError,
   type ReviewFacts,
   type ReviewOutput,
   type ReviewProjection,
@@ -794,17 +794,14 @@ export async function runReviewLoop(deps: LoopDeps, cwd: string, options: LoopOp
     const runtime: MachineRuntime = { state: "initializing" };
     while (true) {
       const facts = project(ctx.state!, runtime);
-      const decision = reviewMachine.advance(facts);
-      if (decision.kind !== "transition") {
-        throw new Error("review machine exposed an unsupported choice");
-      }
+      const decision = decide(facts);
       runtime.state = decision.to;
       const result = await executeMachineOutput(deps, ctx, runtime, facts, decision.output);
       if (result) return result;
     }
   } catch (e: unknown) {
     const status = e instanceof LoopCancelledError ? "cancelled" : "failed";
-    const reason = e instanceof MachineFailure ? machineFailureReason(e) : (e as Error).message;
+    const reason = e instanceof ReviewMachineError ? machineFailureReason(e) : (e as Error).message;
     return terminalResult(deps, ctx, status, reason);
   }
 }

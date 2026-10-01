@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-state-machine-module-cutover.md
@@ -13,14 +13,14 @@ from_plan_steps: [11, 12, 13, 14]
 depends_on: [1]
 dependency_type: SOFT
 acceptance_criteria:
-  - "[ ] Machine edges map rule-for-edge; outputs unchanged including rule labels (A-6 validated by truth-table tests pinning to + output.rule for all 15 rules)"
-  - "[ ] Terminal states final with targets: []; cancelled reached by a manual edge from every non-final state"
-  - "[ ] decide(facts) exported: exactly one available → { to, output }; otherwise ReviewMachineError(NO_ROUTE | AMBIGUOUS_ROUTE, context)"
-  - "[ ] machineFailureReason formats as 'review machine <code>: <context>'"
-  - "[ ] loop.ts uses decide(facts) and imports ReviewMachineError (no MachineFailure)"
-  - "[ ] __tests__/loop.test.ts diff empty and green; exclusivity sweep green against ReviewMachineError"
-completed_at: null
-completed_by: null
+  - "[x] Machine edges map rule-for-edge; outputs unchanged including rule labels (A-6 validated by truth-table tests pinning to + output.rule for all 13 legacy rules (corrected source count))"
+  - "[x] Terminal states final with targets: []; cancelled reached by a manual edge from every non-final state"
+  - "[x] decide(facts) exported: exactly one available → { to, output }; otherwise ReviewMachineError(NO_ROUTE | AMBIGUOUS_ROUTE, context)"
+  - "[x] machineFailureReason formats as 'review machine <code>: <context>'"
+  - "[x] loop.ts uses decide(facts) and imports ReviewMachineError (no MachineFailure)"
+  - "[x] __tests__/loop.test.ts diff empty and green; exclusivity sweep green against ReviewMachineError"
+completed_at: "2026-10-01T14:16:17.944615+00:00"
+completed_by: b-build
 ---
 
 # Phase 3: Port reviewMachine
