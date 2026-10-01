@@ -1,4 +1,4 @@
-import { defineMachine, type MachineFailure } from "../state-machine.js";
+import { defineMachine } from "../state_machine/index.js";
 import { maxBlockingHardness, type ValidatedFinding } from "./findings.js";
 import type { Hardness, Rating } from "./rubric.js";
 import type { MinBlocking, PassFixerRecord, PassReviewRecord, RunState, RunStatus } from "./run-state.js";
@@ -125,76 +125,71 @@ function terminal(
   return { rule, effect: "terminal", status, reason };
 }
 
-export const reviewMachine = defineMachine<ReviewState, ReviewFacts, never, never, ReviewOutput>({
-  stateOf: (facts) => facts.state,
-  choiceKey: (choice) => choice,
-  eventKey: (event) => event,
+const CANCEL = { name: "cancelled", manual: true } as const;
+
+export const reviewMachine = defineMachine<ReviewFacts, ReviewOutput>()({
+  initial: "initializing",
   states: {
     initializing: {
-      automatic: [
+      targets: [
         {
-          id: "preflight-pending",
-          when: (facts) => facts.catalogOk === undefined,
-          target: "initializing",
-          output: () => ({ rule: "preflight-pending", effect: "run-catalog-preflight" }),
+          guard: (facts) => facts.catalogOk === undefined,
+          name: "initializing",
+          effect: () => ({ rule: "preflight-pending", effect: "run-catalog-preflight" }),
         },
         {
-          id: "preflight-failed",
-          when: (facts) => facts.catalogOk === false,
-          target: "failed",
-          output: (facts) => terminal(
+          guard: (facts) => facts.catalogOk === false,
+          name: "failed",
+          effect: (facts) => terminal(
             "preflight-failed",
             "failed",
             `model catalog preflight failed (${facts.catalogError ?? "unknown error"})`,
           ),
         },
         {
-          id: "preflight-ok",
-          when: (facts) => facts.catalogOk === true,
-          target: "preparingBase",
-          output: () => ({ rule: "preflight-ok", effect: "prepare-base" }),
+          guard: (facts) => facts.catalogOk === true,
+          name: "preparingBase",
+          effect: () => ({ rule: "preflight-ok", effect: "prepare-base" }),
         },
+        CANCEL,
       ],
     },
     preparingBase: {
-      automatic: [
+      targets: [
         {
-          id: "base-failed",
-          when: (facts) => facts.baseError !== undefined,
-          target: "failed",
-          output: (facts) => terminal("base-failed", "failed", `base preparation failed: ${facts.baseError}`),
+          guard: (facts) => facts.baseError !== undefined,
+          name: "failed",
+          effect: (facts) => terminal("base-failed", "failed", `base preparation failed: ${facts.baseError}`),
         },
         {
-          id: "base-ready",
-          when: (facts) => facts.baseError === undefined && facts.baseReady,
-          target: "reviewing",
-          output: () => ({ rule: "base-ready", effect: "run-reviewer-pass" }),
+          guard: (facts) => facts.baseError === undefined && facts.baseReady,
+          name: "reviewing",
+          effect: () => ({ rule: "base-ready", effect: "run-reviewer-pass" }),
         },
+        CANCEL,
       ],
     },
     reviewing: {
-      automatic: [
+      targets: [
         {
-          id: "review-failed",
-          when: (facts) => facts.reviewError !== undefined,
-          target: "failed",
-          output: (facts) => terminal("review-failed", "failed", facts.reviewError ?? "review failed"),
+          guard: (facts) => facts.reviewError !== undefined,
+          name: "failed",
+          effect: (facts) => terminal("review-failed", "failed", facts.reviewError ?? "review failed"),
         },
         {
-          id: "review-parsed",
-          when: (facts) => facts.reviewError === undefined && facts.review !== undefined,
-          target: "triaging",
-          output: () => ({ rule: "review-parsed", effect: "none" }),
+          guard: (facts) => facts.reviewError === undefined && facts.review !== undefined,
+          name: "triaging",
+          effect: () => ({ rule: "review-parsed", effect: "none" }),
         },
+        CANCEL,
       ],
     },
     triaging: {
-      automatic: [
+      targets: [
         {
-          id: "triage-clean",
-          when: (facts) => facts.review?.blocking === 0,
-          target: "clean",
-          output: (facts) => {
+          guard: (facts) => facts.review?.blocking === 0,
+          name: "clean",
+          effect: (facts) => {
             const total = facts.review?.total ?? 0;
             const reason = total === 0
               ? "reviewer reported no findings"
@@ -203,62 +198,86 @@ export const reviewMachine = defineMachine<ReviewState, ReviewFacts, never, neve
           },
         },
         {
-          id: "triage-uncomputable",
-          when: (facts) => (facts.review?.blocking ?? 0) > 0 && facts.review?.hardness === null,
-          target: "failed",
-          output: () => terminal(
+          guard: (facts) => (facts.review?.blocking ?? 0) > 0 && facts.review?.hardness === null,
+          name: "failed",
+          effect: () => terminal(
             "triage-uncomputable",
             "failed",
             "blocking findings present but no fix hardness computable",
           ),
         },
         {
-          id: "triage-to-fixer",
-          when: (facts) => (facts.review?.blocking ?? 0) > 0 && facts.review?.hardness !== null,
-          target: "fixing",
-          output: () => ({ rule: "triage-to-fixer", effect: "run-fixer-pass" }),
+          guard: (facts) => (facts.review?.blocking ?? 0) > 0 && facts.review?.hardness !== null,
+          name: "fixing",
+          effect: () => ({ rule: "triage-to-fixer", effect: "run-fixer-pass" }),
         },
+        CANCEL,
       ],
     },
     fixing: {
-      automatic: [
+      targets: [
         {
-          id: "fixer-continue",
-          when: (facts) => !facts.resumedAtPassBound && facts.fixer?.checksPassed === true && facts.pass < facts.maxPasses,
-          target: "reviewing",
-          output: () => ({ rule: "fixer-continue", effect: "run-reviewer-pass" }),
+          guard: (facts) => !facts.resumedAtPassBound && facts.fixer?.checksPassed === true && facts.pass < facts.maxPasses,
+          name: "reviewing",
+          effect: () => ({ rule: "fixer-continue", effect: "run-reviewer-pass" }),
         },
         {
-          id: "passes-exhausted",
-          when: (facts) => facts.resumedAtPassBound || (facts.fixer?.checksPassed === true && facts.pass >= facts.maxPasses),
-          target: "exhausted",
-          output: (facts) => terminal(
+          guard: (facts) => facts.resumedAtPassBound || (facts.fixer?.checksPassed === true && facts.pass >= facts.maxPasses),
+          name: "exhausted",
+          effect: (facts) => terminal(
             "passes-exhausted",
             "exhausted",
             `blocking findings unresolved after ${facts.maxPasses} review passes`,
           ),
         },
         {
-          id: "fixer-blocked",
-          when: (facts) => !facts.resumedAtPassBound && facts.fixer?.checksPassed === false,
-          target: "blocked",
-          output: (facts) => terminal(
+          guard: (facts) => !facts.resumedAtPassBound && facts.fixer?.checksPassed === false,
+          name: "blocked",
+          effect: (facts) => terminal(
             "fixer-blocked",
             "blocked",
             `deterministic checks failed after fixer pass ${facts.pass} (${facts.fixer?.command ?? "unknown"} exit ${facts.fixer?.exitCode ?? "—"}); no checkpoint commit created`,
           ),
         },
+        CANCEL,
       ],
     },
-    clean: { terminal: true },
-    blocked: { terminal: true },
-    exhausted: { terminal: true },
-    failed: { terminal: true },
-    cancelled: { terminal: true },
+    clean: { final: true, targets: [] },
+    blocked: { final: true, targets: [] },
+    exhausted: { final: true, targets: [] },
+    failed: { final: true, targets: [] },
+    cancelled: { final: true, targets: [] },
   },
 });
 
+export type ReviewMachineErrorCode = "NO_ROUTE" | "AMBIGUOUS_ROUTE";
+
+export class ReviewMachineError extends Error {
+  constructor(
+    readonly code: ReviewMachineErrorCode,
+    readonly context: Readonly<Record<string, unknown>>,
+  ) {
+    super(`review machine ${code}: ${JSON.stringify(context)}`);
+    this.name = "ReviewMachineError";
+  }
+}
+
+/** The review loop requires exactly one automatic route for each observed result. */
+export function decide(facts: ReviewFacts): { to: ReviewState; output: ReviewOutput } {
+  const instance = reviewMachine.restore(facts.state);
+  const available = instance.available(facts);
+  if (available.length !== 1) {
+    throw new ReviewMachineError(available.length === 0 ? "NO_ROUTE" : "AMBIGUOUS_ROUTE", {
+      state: facts.state,
+      available,
+    });
+  }
+  const { to, effect } = instance.transition(available[0]!, facts);
+  // Every automatic edge in this consumer declares an output.
+  return { to, output: effect! };
+}
+
 /** Stable terminal reason for an otherwise-unreachable evaluator failure. */
-export function machineFailureReason(error: MachineFailure): string {
+export function machineFailureReason(error: ReviewMachineError): string {
   return `review machine ${error.code}: ${JSON.stringify(error.context)}`;
 }

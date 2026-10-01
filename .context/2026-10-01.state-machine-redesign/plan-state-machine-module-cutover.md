@@ -6,7 +6,7 @@ topics: [state-machine, buck-loop, code-review-iteration, refactor, cutover]
 research: [research-buck-loop-mapping.md]
 iterations:
   - iterate-module-finalization.md
-memory: []
+memory: [state-machine-review-port-build-2026-10-01.md]
 sql_memory_ids:
   - "01a0f787-76f9-7066-b52d-b5881d723178"
 ---
@@ -46,7 +46,7 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 | A-3 | Every automatic-vs-choice wording difference on a shared edge is derivable from facts (`ambiguousChoiceOpen`, `reviewUnparseable`). | validated | false | Phase 2: 100 reachable former-rule fixtures pin literal `to`/`effect`/`why`; machine suite passes. Both-mode comparisons find no output or rejection differences. See `build-phase-2.md`. |
 | A-4 | `loop.ts` needs no change for buck: it already halts on any `Error` from `next()`. | validated | false | `loop.ts:395–400`. |
 | A-5 | No consumer of `extensions/state-machine.ts` exists beyond the list above. | validated | false | `rg` over the repo excluding `.context/**` and `node_modules/**`. Re-run before deletion in Phase 4. |
-| A-6 | `reviewMachine` maps rule-for-edge (no multi-rule edges) except via self-loop `initializing → initializing`. | deferred | false | Validation: Phase 3 truth-table tests pin `to` + `output.rule` for all 15 rules. |
+| A-6 | `reviewMachine` maps rule-for-edge (no multi-rule edges) except via self-loop `initializing → initializing`. | validated | false | Phase 3 pins all 13 legacy rule labels and complete outputs (source count corrected from 15); 129,600 old/new adapter calls match. See build-phase-3.md. |
 
 ## Material Risks
 
