@@ -5,8 +5,10 @@
  * only a copy of that fact. The loop writes `status: completed` when the
  * boxes say so. A phase with no list still uses `status`.
  */
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { scan } from "./scan.js";
+import { planAcceptanceCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
 
 const PHASE_FILE_RE = /^phase-(\d+)-.+\.md$/;
 
@@ -52,18 +54,20 @@ export function phaseFileDone(abs: string): boolean {
  * Returns the paths written. Does not demote a status that the boxes reject.
  */
 export function syncCheckedPhasesAt(root: string, input: string, today: string): string[] {
-  const abs = resolve(root, input);
-  if (!existsSync(abs)) return [];
-  const subjectDir = PHASE_FILE_RE.test(basename(abs)) || basename(abs).startsWith("plan-") ? dirname(abs) : abs;
-  if (!existsSync(subjectDir)) return [];
+  const selected = scan({ projectRoot: root, path: input });
+  if (!selected.planPath) return [];
+  const abs = resolve(root, selected.planPath);
+  const subjectDir = dirname(abs);
   const written: string[] = [];
   for (const name of readdirSync(subjectDir)) {
-    if (!PHASE_FILE_RE.test(name)) continue;
-    const phaseAbs = resolve(subjectDir, name);
-    if (!writeCompletedStatus(phaseAbs, today)) continue;
-    written.push(phaseAbs);
-    syncOverviews(subjectDir, name);
+    if (PHASE_FILE_RE.test(name)) {
+      const phaseAbs = resolve(subjectDir, name);
+      if (!writeCompletedStatus(phaseAbs, today)) continue;
+      written.push(phaseAbs);
+      syncOverviews(subjectDir, name);
+    }
   }
+  if (selected.planFacts.kind === "unphased" && writeUnphasedPlanStatus(abs, today)) written.push(abs);
   return written;
 }
 
@@ -79,6 +83,23 @@ export function markPhaseCompleted(text: string, today: string): string {
     ? body.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
     : body.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
   return text.slice(0, fm.start) + body + text.slice(fm.end);
+}
+
+function writeUnphasedPlanStatus(abs: string, today: string): boolean {
+  const text = readFileSync(abs, "utf8");
+  const fm = frontmatterSpan(text);
+  const criteria = planAcceptanceCriteria(text);
+  if (criteria.length === 0 || criteria.some((line) => !/^\s*[-*]\s+\[x\]/.test(line))) return false;
+  if (!fm) return false;
+  if (frontmatterStatus(text) === "completed") return false;
+  const updated = /^status:/m.test(fm.body)
+    ? fm.body.replace(/^status:.*$/m, "status: completed")
+    : `status: completed\n${fm.body}`;
+  const withDate = /^completed_at:/m.test(updated)
+    ? updated.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
+    : updated.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
+  writeFileSync(abs, text.slice(0, fm.start) + withDate + text.slice(fm.end));
+  return true;
 }
 
 function criteriaAllChecked(criteria: string[] | null): boolean {

@@ -124,6 +124,12 @@ export class BuckMachineError extends Error {
   }
 }
 
+export function unphasedBlockReason(s: Snapshot): string {
+  const lines = s.planFacts.kind === "unphased" ? s.planFacts.openAcceptanceLines ?? [] : [];
+  const details = lines.length > 0 ? `; unchecked acceptance: ${lines.join("; ")}` : "";
+  return `unphased plan remains open${details}`;
+}
+
 function loopLimitReason(s: Snapshot): string {
   return `loop limit reached (${s.loopCount} >= ${s.maxLoops}); refusing further work`;
 }
@@ -168,6 +174,7 @@ function reviewBlockReason(s: Snapshot): string | null {
 
 function commitBlockReason(s: Snapshot): string | null {
   if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
+  if (s.planFacts.kind === "unphased" && !s.planFacts.closeEligible) return unphasedBlockReason(s);
   if (s.planFacts.kind === "missing") return `plan vanished while committing: ${s.planFacts.reason}`;
   if (postconditionConfirmed(s) && s.planFacts.kind === "phased-incomplete" && limitsExceeded(s)) return loopLimitReason(s);
   return null;
@@ -227,7 +234,7 @@ function resolvingBlockReason(s: Snapshot): string | null {
 function commitDoneReason(s: Snapshot): string | null {
   if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
   if (s.planFacts.kind === "phased-complete") return "no phases remain";
-  if (s.planFacts.kind === "unphased") return "unphased plan completed its single cycle";
+  if (s.planFacts.kind === "unphased" && s.planFacts.closeEligible === true) return "unphased plan completed its single cycle";
   return null;
 }
 

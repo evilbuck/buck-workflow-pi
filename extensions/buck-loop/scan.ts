@@ -19,6 +19,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { phaseFileDone } from "./phase-completion.js";
+import { unphasedCloseout } from "../../skills/_shared/scripts/plan-acceptance.js";
 import type { LoopState, PlanFacts, ReviewFacts, WorkFacts } from "./types.js";
 
 /** Subject folders look like `2026-09-18.todo` (date prefix, then a slug). */
@@ -182,6 +183,7 @@ function classifyFile(abs: string): Classified {
   return { kind: "missing", reason: "path is not a plan, phase, or subject" };
 }
 
+
 function loadResolved(
   _root: string,
   classified: Exclude<Classified, { kind: "missing" }>,
@@ -197,7 +199,14 @@ function loadResolved(
   const phases = listPhases(subjectDir, planAbs);
   const picked = pickPhase(phases);
   if (picked.kind === "none") {
-    return { subject, subjectDir, planAbs, phaseAbs: null, planFacts: { kind: "unphased" } };
+    const closeout = unphasedCloseout(readFileSync(planAbs, "utf8"));
+    return {
+      subject,
+      subjectDir,
+      planAbs,
+      phaseAbs: null,
+      planFacts: { kind: "unphased", ...closeout },
+    };
   }
   if (picked.kind === "complete") {
     return { subject, subjectDir, planAbs, phaseAbs: null, planFacts: { kind: "phased-complete" } };

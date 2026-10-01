@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
 import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } from "./types.js";
+import { unphasedBlockReason } from "./machine.js";
 
 export const PROJECTION_RELPATH = ".context/workflow/buck-loop.json";
 export const PROJECTION_VERSION = 1 as const;
@@ -160,13 +161,8 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
     path: pathOverride ?? resumePath(root, projection),
     state: projection.state,
   });
-  if (projection.state === "done" && scanned.planFacts.kind === "phased-incomplete") {
-    return fromScan(scanned, {
-      state: "blocked",
-      planFacts: { kind: "missing", reason: "projection claims done but an incomplete phase exists" },
-      ...counters(projection),
-    });
-  }
+  const closeoutHold = reconcileCloseout(projection, scanned);
+  if (closeoutHold) return closeoutHold;
   const kept = keepCompletedProjectedPhase(root, projection, scanned);
   if (kept) return kept;
   const iterateCyclesOnPhase =
@@ -176,6 +172,29 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
     ...counters(projection),
     iterateCyclesOnPhase,
   });
+}
+
+/** Only terminal closeout attempts bypass ordinary blocked-work recovery. */
+export function isUnphasedCloseoutProjection(projection: Pick<Projection, "state" | "history">): boolean {
+  return projection.state === "done" ||
+    (projection.state === "blocked" && (projection.history.at(-1)?.why ?? "").startsWith("unphased plan"));
+}
+
+function reconcileCloseout(projection: Projection, scanned: ScanResult): Snapshot | null {
+  if (!isUnphasedCloseoutProjection(projection)) return null;
+  if (scanned.planFacts.kind === "unphased" && !scanned.planFacts.closeEligible) {
+    const snapshot = fromScan(scanned, { state: "blocked", ...counters(projection) });
+    const why = unphasedBlockReason(snapshot);
+    return { ...snapshot, history: [...snapshot.history, { from: projection.state, to: "blocked", at: projection.history.at(-1)?.at ?? new Date().toISOString(), why }] };
+  }
+  if (projection.state === "done" && scanned.planFacts.kind === "phased-incomplete") {
+    return fromScan(scanned, {
+      state: "blocked",
+      planFacts: { kind: "missing", reason: "projection claims done but an incomplete phase exists" },
+      ...counters(projection),
+    });
+  }
+  return null;
 }
 
 

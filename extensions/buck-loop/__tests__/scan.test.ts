@@ -136,7 +136,6 @@ describe("scan: path resolution", () => {
     });
     const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
-    expect(result.planFacts).toEqual({ kind: "unphased" });
     expect(result.phasePath).toBeNull();
   });
 
@@ -144,7 +143,6 @@ describe("scan: path resolution", () => {
     const root = repo();
     writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: planMd() });
     const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
-    expect(result.planFacts).toEqual({ kind: "unphased" });
     expect(result.phasePath).toBeNull();
   });
 
@@ -168,7 +166,6 @@ describe("scan: path resolution", () => {
     });
 
     const picker = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-picker.md` });
-    expect(picker.planFacts).toEqual({ kind: "unphased" });
     expect(picker.phasePath).toBeNull();
 
     const epic = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-epic.md` });
@@ -207,7 +204,6 @@ describe("scan: path resolution", () => {
 
     const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
 
-    expect(result.planFacts).toEqual({ kind: "unphased" });
     expect(result.phasePath).toBeNull();
   });
 
@@ -579,7 +575,6 @@ describe("scan: artifact facts", () => {
     const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
     expect(result.phasePath).toBeNull();
-    expect(result.planFacts).toEqual({ kind: "unphased" });
   });
 
   it("picks phases owned by the named plan in a multi-plan subject", () => {

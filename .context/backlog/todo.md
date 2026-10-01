@@ -4,6 +4,7 @@
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 
+- [ ] [Refuse unphased buck-loop done without closeout evidence](items/buck-loop-unphased-closeout.md) — high; false `done` ignores open acceptance and cannot resume — see `.context/2026-09-30.buck-loop-unphased-closeout/plan-buck-loop-unphased-closeout.md`
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning

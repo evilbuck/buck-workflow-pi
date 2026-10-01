@@ -229,10 +229,21 @@ describe("next: confirmed postconditions advance deterministically", () => {
     expect(t).toEqual({ to: "done", effect: { kind: "none" }, why: expect.any(String) });
   });
 
-  it("committing → done for an unphased plan's single cycle", () => {
-    const t = next(workSnap("committing", {}, { planFacts: { kind: "unphased" }, phasePath: null }));
+  it("blocks unphased plans without completed closeout evidence", () => {
+    const t = next(workSnap("committing", {}, {
+      planFacts: { kind: "unphased", closeEligible: false, openAcceptanceLines: ["- [ ] All seven criteria"] },
+      phasePath: null,
+    }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toMatchObject({ kind: "await-operator", reason: expect.stringContaining("All seven criteria") });
+  });
+
+  it("committing → done for an eligible unphased plan", () => {
+    const t = next(workSnap("committing", {}, {
+      planFacts: { kind: "unphased", closeEligible: true, openAcceptanceLines: [] },
+      phasePath: null,
+    }));
     expect(t.to).toBe("done");
-    expect(t.effect.kind).toBe("none");
   });
 
   it("committing blocks if the plan vanished mid-cycle", () => {
@@ -401,6 +412,15 @@ describe("applyChoice", () => {
       ).to,
     ).toBe("done");
     expect(applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" })).to).toBe("building");
+  });
+
+  it.each([false, true])("choice advance requires unphased close eligibility %s", (closeEligible) => {
+    const t = applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" }, {
+      phasePath: null,
+      planFacts: { kind: "unphased", closeEligible, openAcceptanceLines: closeEligible ? [] : ["- [ ] Observed evidence"] },
+    }));
+    expect(t.to).toBe(closeEligible ? "done" : "blocked");
+    if (!closeEligible) expect(t.why).toContain("Observed evidence");
   });
 
   it("rejects choices outside the current legal set — no model string transitions state", () => {
@@ -927,7 +947,7 @@ const LEGACY_ROWS = [
   },
   {
     "id": "committing-unphased-done",
-    "overrides": {"state":"committing","planFacts":{"kind":"unphased"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "overrides": {"state":"committing","planFacts":{"kind":"unphased","closeEligible":true},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
     "expected": {"to":"done","effect":{"kind":"none"},"why":"unphased plan completed its single cycle"},
   },
   {
@@ -959,7 +979,7 @@ const LEGACY_ROWS = [
   },
   {
     "id": "committing-choice-advance-unphased",
-    "overrides": {"state":"committing","planFacts":{"kind":"unphased"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "overrides": {"state":"committing","planFacts":{"kind":"unphased","closeEligible":true},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
     "choice": {"kind":"advance"},
     "expected": {"to":"done","effect":{"kind":"none"},"why":"unphased plan completed its single cycle"},
   },

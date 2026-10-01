@@ -297,6 +297,11 @@ When working on a phased plan with discrete phase files:
 
 If the phases overview has no `format: discrete` frontmatter (legacy single-file format), use the old behavior: scan `## Phase N` sections and check inline acceptance criteria. No discrete phase files to update.
 
+### Unphased Plan Completion
+
+For an unphased plan, check each `## Acceptance criteria` box as `[x]` only after direct verification proves that criterion, using the same evidence standard as phase acceptance. Leave unverified boxes open; never invent evidence or a missing list. The supervisor synchronizes plan `status: completed` only for a non-empty, fully checked list and refuses closeout while any box remains open. Do not write subject lifecycle fields.
+
+
 ## Session Awareness Protocol
 
 The Buck workflow plugin tracks your session automatically. You are responsible for the living memory — the plugin handles the rest.

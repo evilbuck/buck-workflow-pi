@@ -11,7 +11,8 @@ import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree }
 import { handleLoop, prepareCommitCheckpoint } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
-import { readProjection } from "../persist.js";
+import { readProjection, writeProjection } from "../persist.js";
+import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../../skills/_shared/scripts/subject-lifecycle.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
 import type { ChooseResult } from "../choice.js";
 import type { NestedSkill, RunStepResult } from "../run-step.js";
@@ -141,6 +142,114 @@ afterEach(() => {
   cleanupRepos();
   if (originalSqlUrl === undefined) delete process.env.SQL_MEMORY_URL;
   else process.env.SQL_MEMORY_URL = originalSqlUrl;
+});
+
+describe("unphased closeout resume", () => {
+  function fixture(state: "done" | "blocked", criteria: string, status = "active"): string {
+    const cwd = repo();
+    writeTree(cwd, { [PLAN]: `---\nstatus: active\n---\n# Plan\n\n## Acceptance criteria\n${criteria}\n` });
+    const subjectDir = join(cwd, ".context", SUBJECT);
+    applySubjectLifecycleIntent({ kind: "initialize", subjectDir });
+    applySubjectLifecycleIntent({ kind: "activate", subjectDir });
+    mutatePhase(cwd, PLAN, status);
+    writeProjection(cwd, {
+      version: 1, state, subject: SUBJECT, planPath: PLAN, phasePath: null,
+      loopCount: 1, maxLoops: 12, iterateCyclesOnPhase: 0, lastChoice: null,
+      history: [{ from: "saving", to: "committing", at: NOW, why: "saved" },
+        { from: "committing", to: state, at: NOW, why: state === "done" ? "unphased plan completed its single cycle" : "unphased plan remains open" }],
+    });
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "implementation"]);
+    return cwd;
+  }
+
+  it.each(["done", "blocked"] as const)("holds %s without work and names unchecked evidence", async (state) => {
+    const cwd = fixture(state, "- [ ] Observed evidence");
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("- [ ] Observed evidence");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it.each(["\n## Acceptance criteria\n- [ ] Implementation not yet verified\n", ""])(
+    "resumes ordinary unfinished unphased work with acceptance section %j",
+    async (acceptance) => {
+      const cwd = fixture("blocked", "- [ ] Implementation not yet verified");
+      writeFileSync(join(cwd, PLAN), `---\nstatus: active\n---\n# Interrupted plan\n${acceptance}`);
+      git(cwd, ["add", "."]);
+      git(cwd, ["commit", "-qm", "unfinished plan"]);
+      writeProjection(cwd, {
+        ...readProjection(cwd)!,
+        history: [{ from: "building", to: "blocked", at: NOW, why: "nested build interrupted; environment repaired" }],
+      });
+      const deps = workDeps(async () => ({ ok: false, text: "observed resumed build boundary" }));
+      const result = await handleLoop({ cwd, command: "resume", deps });
+      expect(deps.runStep.mock.calls[0]?.[0]).toMatchObject({ skill: "b-build", planOrPhasePath: PLAN });
+      expect(result.state).toBe("blocked");
+      expect(result.reason).not.toContain("unphased plan remains open");
+      expect(readFileSync(join(cwd, PLAN), "utf8")).toContain("status: active");
+      expect(inspectSubjectLifecycle(join(cwd, ".context", SUBJECT)).state).toBe("active");
+    },
+  );
+
+  it.each(["done", "blocked"] as const)("repairs eligible %s with verified closeout and no work", async (state) => {
+    const cwd = fixture(state, "- [x] Observed evidence");
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("done");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(readFileSync(join(cwd, PLAN), "utf8")).toContain("status: completed");
+    expect(inspectSubjectLifecycle(join(cwd, ".context", SUBJECT)).state).toBe("completed");
+    expect(readProjection(cwd)?.state).toBe("done");
+  });
+
+  it("preserves lifecycle refusal without starting work", async () => {
+    const cwd = fixture("done", "- [x] Observed evidence");
+    writeTree(cwd, { [`.context/${SUBJECT}/plan-other.md`]: "---\nstatus: active\n---\n# Other\n" });
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "other plan"]);
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("plan-other.md: unphased plan remains open");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(inspectSubjectLifecycle(join(cwd, ".context", SUBJECT)).state).toBe("active");
+  });
+
+  it("holds eligible repair on a dirty context tree", async () => {
+    const cwd = fixture("done", "- [x] Observed evidence");
+    writeTree(cwd, { [`.context/${SUBJECT}/note.md`]: "# Uncommitted\n" });
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("clean worktree");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it.each(["active", "completed"])("uses status-only evidence for a no-list %s plan", async (status) => {
+    const cwd = fixture("done", "", status);
+    writeFileSync(join(cwd, PLAN), `---\nstatus: ${status}\n---\n# No acceptance list\n`);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "status-only evidence"]);
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe(status === "completed" ? "done" : "blocked");
+    if (status === "active") expect(result.reason).toContain("unphased plan remains open");
+    expect(deps.runStep).not.toHaveBeenCalled();
+  });
+
+  it("requires committing history for eligible repair", async () => {
+    const cwd = fixture("done", "- [x] Observed evidence", "completed");
+    const projection = readProjection(cwd)!;
+    writeProjection(cwd, { ...projection, history: [] });
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("committing history");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(inspectSubjectLifecycle(join(cwd, ".context", SUBJECT)).state).toBe("active");
+  });
 });
 
 describe("handleLoop commands", () => {
