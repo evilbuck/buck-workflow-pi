@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createLazyPool } from "./db.js";
-import { sqlMemoryTool, wire } from "./index.js";
+import { correctSqlMemory, sqlMemoryRows, sqlMemorySaveTransaction, sqlMemoryTool, wire } from "./index.js";
 import type { MigrationPool } from "./migrations.js";
 
 const pool: MigrationPool = {
@@ -34,6 +34,54 @@ afterEach(() => { delete process.env.SQL_MEMORY_URL; });
     expect(migration.details).toMatchObject({ error: true, message: expect.stringContaining("unavailable") });
   });
 
+describe("supervisor SQL activity", () => {
+  const statement = "INSERT INTO memories (body, category) VALUES ($1, $2) RETURNING id";
+
+  it("reports committed writes and stays silent without a sink", async () => {
+    const sink = vi.fn();
+    await sqlMemoryRows(pool, statement, ["settled choice", "decision"], "save", sink);
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: true, message: 'Memory wrote · decision · "settled choice"' },
+    ]);
+    await sqlMemoryRows(pool, statement, ["silent choice", "decision"], "save");
+    expect(sink).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a rolled-back transaction as a successful write", async () => {
+    const sink = vi.fn();
+    await expect(sqlMemorySaveTransaction(pool, async (query) => {
+      await query(statement, ["rolled back", "decision"]);
+      expect(sink).not.toHaveBeenCalled();
+      throw new Error("commit aborted");
+    }, sink)).rejects.toThrow("commit aborted");
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: false, message: "Memory failed · commit aborted" },
+    ]);
+    sink.mockClear();
+    await sqlMemorySaveTransaction(pool, async (query) => {
+      await query(statement, ["committed", "decision"]);
+      expect(sink).not.toHaveBeenCalled();
+    }, sink);
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: true, message: 'Memory wrote · decision · "committed"' },
+    ]);
+  });
+
+  it("reports one denial or redacted connection failure", async () => {
+    const sink = vi.fn();
+    await expect(sqlMemoryRows(pool, "DELETE FROM memories", [], "save", sink)).rejects.toThrow();
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: false, message: "Memory denied · operation not allowed" },
+    ]);
+    sink.mockClear();
+    const failedPool = { ...pool, connect: async () => { throw new Error("postgres://secret@host/db"); } };
+    await expect(sqlMemoryRows(failedPool, "SELECT id FROM memories", [], "recall", sink)).rejects.toThrow();
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: false, message: "Memory failed · redacted" },
+    ]);
+  });
+});
+
 describe("sql_memory tool", () => {
   it("does not register without SQL_MEMORY_URL", () => {
     delete process.env.SQL_MEMORY_URL;
@@ -50,6 +98,56 @@ describe("sql_memory tool", () => {
     const tool = registerTool.mock.calls[0]![0];
     const result = await tool.execute("call", { op: "sql", statement: "SELECT id FROM memories" }, undefined, undefined, {} as never);
     if (result.content[0]!.type === "text") expect(result.content[0]!.text).toContain("mem-1");
+  });
+  it("renders one notice when collapsed and retains JSON when expanded", async () => {
+    const tool = sqlMemoryTool(pool, "recall");
+    const result = await tool.execute("call", { op: "sql", statement: "SELECT id FROM memories", values: ["project", "buck-loop"] }, undefined, undefined, {} as never);
+    expect(result.details).toMatchObject({ notice: "Memory recall · 1 row · \"buck-loop\"" });
+    expect(result.content[0]!.type === "text" && result.content[0]!.text).toContain('"rows"');
+    const theme = {} as never;
+    const context = {} as never;
+    const collapsed = tool.renderResult!(result, { expanded: false } as never, theme, context) as { render(width: number): string[] };
+    const expanded = tool.renderResult!(result, { expanded: true } as never, theme, context) as { render(width: number): string[] };
+    expect(collapsed.render(100).join("").trim()).toBe("Memory recall · 1 row · \"buck-loop\"");
+    expect(expanded.render(100).join("")).toContain('"rows"');
+    expect(tool.renderCall!({ op: "sql", statement: "SELECT 1" } as never, theme, context))
+      .toMatchObject({ render: expect.any(Function) });
+  });
+
+  it("attaches a write synopsis without changing the model-facing JSON", async () => {
+    const testPool: MigrationPool = {
+      async query() { return { rows: [] }; },
+      async connect() {
+        return {
+          async query(text) {
+            if (text.startsWith("SELECT id::text AS id FROM projects")) return { rows: [{ id: "project-id" }] };
+            if (text.startsWith("UPDATE memories SET invalid_at")) return { rows: [{ id: "m" }] };
+            if (text.startsWith("SELECT m.id::text AS id")) return { rows: [] };
+            if (text.startsWith("INSERT INTO memories")) return { rows: [{ id: "successor" }] };
+            if (text.startsWith("UPDATE memories SET superseded_by")) return { rows: [{ id: "m" }] };
+            return { rows: [] };
+          },
+          release() {},
+        };
+      },
+    };
+    const tool = sqlMemoryTool(testPool, "save");
+    const result = await tool.execute("call", {
+      op: "correct", project: "p", previousId: "m", author: "a", branchName: null, commitSha: null,
+      body: "decision body", context: { source_key: "k", subject: "s", phase: null, source: "test" },
+      category: "decision", seq: 1,
+    }, undefined, undefined, {} as never);
+    expect(result.details).toMatchObject({ id: "successor", notice: 'Memory wrote · decision · "decision body"' });
+    expect(result.content[0]!.type === "text" && result.content[0]!.text).toBe('{"id":"successor"}');
+    const sink = vi.fn();
+    await correctSqlMemory(testPool, {
+      op: "correct", project: "p", previousId: "m", author: "a", branchName: null, commitSha: null,
+      body: "decision body", context: { source_key: "k", subject: "s", phase: null, source: "test" },
+      category: "decision", seq: 1,
+    }, sink);
+    expect(sink.mock.calls.map(([event]) => event)).toEqual([
+      { kind: "toolEnd", tool: "sql_memory", ok: true, message: 'Memory wrote · decision · "decision body"' },
+    ]);
   });
 
   it("returns clear gate errors without sending denied SQL to PostgreSQL", async () => {
@@ -77,7 +175,7 @@ describe("sql_memory tool", () => {
       },
     });
     const result = await tool.execute("call", { op: "sql", statement: "SELECT id FROM memories" }, undefined, undefined, {} as never);
-    expect(result.details).toEqual({ rows: [{ id: 7 }], rowCount: 1 });
+    expect(result.details).toMatchObject({ rows: [{ id: 7 }], rowCount: 1, notice: "Memory recall · 1 row" });
     expect(commands).toEqual(["BEGIN", "SET LOCAL search_path = public", "SET LOCAL standard_conforming_strings = on", "SELECT id FROM memories", "COMMIT"]);
     expect(release).toHaveBeenCalledOnce();
   });
@@ -97,7 +195,7 @@ describe("sql_memory tool", () => {
     const result = await tool.execute("call", {
       op: "sql", statement: "UPDATE memories SET invalid_at = now() WHERE id = '00000000-0000-0000-0000-000000000001'",
     }, undefined, undefined, {} as never);
-    expect(result.details).toEqual({ rows: [], rowCount: 1 });
+    expect(result.details).toMatchObject({ rows: [], rowCount: 1, notice: "Memory wrote" });
   });
 
   it("allows save-stage user identity writes but rejects skill-weight changes before connecting", async () => {
@@ -110,7 +208,7 @@ describe("sql_memory tool", () => {
     const identity = await tool.execute("call", {
       op: "sql", statement: "INSERT INTO public.users (email) VALUES ($1)", values: ["a@example.test"],
     }, undefined, undefined, {} as never);
-    expect(identity.details).toEqual({ rows: [], rowCount: 1 });
+    expect(identity.details).toMatchObject({ rows: [], rowCount: 1, notice: "Memory wrote" });
     expect(commands).toContain("INSERT INTO public.users (email) VALUES ($1)");
 
     const denied = await tool.execute("call", {
@@ -118,6 +216,21 @@ describe("sql_memory tool", () => {
     }, undefined, undefined, {} as never);
     expect(denied.details).toMatchObject({ error: true, message: expect.stringContaining("skill_weight") });
     expect(connect).toHaveBeenCalledOnce();
+  });
+  it("uses bound memory body and category for a SQL write notice", async () => {
+    const tool = sqlMemoryTool({
+      async query() { return { rows: [] }; },
+      async connect() {
+        return { async query(text) { return { rows: [], rowCount: text.startsWith("INSERT") ? 1 : undefined }; }, release() {} };
+      },
+    }, "save");
+    const result = await tool.execute("call", {
+      op: "sql",
+      statement: "INSERT INTO memories (body, category) VALUES ($1, $2)",
+      values: ["important decision", "decision"],
+    }, undefined, undefined, {} as never);
+    expect(result.details).toMatchObject({ notice: 'Memory wrote · decision · "important decision"' });
+    expect(result.content[0]!.type === "text" && result.content[0]!.text).toContain('"rows":[]');
   });
 });
 

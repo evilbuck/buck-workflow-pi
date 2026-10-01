@@ -30,6 +30,8 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 - [x] [Phase 3: SQL save and truthful completion](archive/2026-09/phase-3-sql-memory-save-receipts.md) — done 2026-09-29
 - [x] [Phase 4: Policy/docs and live proof](archive/2026-09/phase-4-sql-memory-docs-live-proof.md) — done 2026-09-29
 
+- [ ] [Show a one-line TUI notice when sql_memory is used](items/sql-memory-tui-notice.md) — medium; mimic the Jev decision line — see `.context/2026-09-30.sql-memory-tui-notice/plan-sql-memory-tui-notice.md`
+
 ## Buck Model Profile Phases (2026-09-23)
 
 ### Upcoming Phases

@@ -250,6 +250,15 @@ describe("normalizeActivityEvent", () => {
       .toEqual({ kind: "toolEnd", tool: "read", ok: true });
   });
 
+  it("keeps sql_memory notice in the successful tool-end activity event", () => {
+    expect(normalizeActivityEvent({
+      type: "tool_execution_end",
+      toolName: "sql_memory",
+      isError: false,
+      result: { details: { notice: "Memory recall · 2 rows" } },
+    })).toEqual({ kind: "toolEnd", tool: "sql_memory", ok: true, message: "Memory recall · 2 rows" });
+  });
+
   it("tool_execution_end failure with an error.message object surfaces the message", () => {
     expect(normalizeActivityEvent({
       type: "tool_execution_end",

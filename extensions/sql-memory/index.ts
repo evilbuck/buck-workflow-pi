@@ -1,7 +1,10 @@
 import type { ExtensionAPI, ToolDefinition } from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { createLazyPool } from "./db.js";
 import { applyMigrations, type MigrationPool } from "./migrations.js";
+import { formatSqlMemoryNotice } from "./notice.js";
+import type { ActivityEvent } from "../extension-activity.js";
 import { checkSqlForRole, checkSqlStatement } from "./sql-gate.js";
 
 const CorrectionParams = Type.Object({
@@ -31,12 +34,55 @@ export interface SqlMemoryCallResult {
   kind: "success" | "work" | "gate";
   op: SqlMemoryParamsType["op"];
   error?: unknown;
+  notice?: string;
 }
 export type SqlMemoryCallCallback = (info: SqlMemoryCallResult) => void;
+export type SqlMemoryActivitySink = (event: ActivityEvent) => void;
 
-function response(value: unknown): SqlMemoryResponse {
+function emitNotice(sink: SqlMemoryActivitySink | undefined, notice: string, ok: boolean): void {
+  sink?.({ kind: "toolEnd", tool: "sql_memory", ok, message: notice });
+}
+
+function statementNotice(statement: string, values: unknown[], rows: Array<Record<string, unknown>>, rowCount = rows.length): string {
+  return formatSqlMemoryNotice({
+    op: "sql",
+    ...(/^\s*SELECT\b/i.test(statement) ? { rowCount, query: values[1] } : {
+      body: rows[0]?.body ?? boundInsertValue(statement, values, "body"),
+      category: rows[0]?.category ?? boundInsertValue(statement, values, "category"),
+    }),
+  });
+}
+
+function response(value: unknown, notice?: string): SqlMemoryResponse {
   const text = JSON.stringify(value, (_key, item) => typeof item === "bigint" ? item.toString() : item);
-  return { content: [{ type: "text", text }], details: value };
+  return { content: [{ type: "text", text }], details: notice ? { ...(value as object), notice } : value };
+}
+
+function columnPosition(columns: string[], column: string): number {
+  for (let index = 0; index < columns.length; index += 1) {
+    if (columns[index]!.trim().replaceAll('"', "").toLowerCase() === column) return index;
+  }
+  return -1;
+}
+
+function parameterPosition(expression: string | undefined): number {
+  if (!expression || expression.trim()[0] !== "$") return -1;
+  const index = Number(expression.trim().slice(1)) - 1;
+  return Number.isInteger(index) && index >= 0 ? index : -1;
+}
+
+
+function insertParameterIndex(statement: string, column: string): number {
+  const clauses = statement.toUpperCase().split(" VALUES ");
+  if (clauses.length !== 2) return -1;
+  const columns = clauses[0]!.split("(")[1]?.split(")")[0]?.split(",") ?? [];
+  const expressions = clauses[1]!.split("(")[1]?.split(")")[0]?.split(",") ?? [];
+  const columnIndex = columnPosition(columns, column);
+  return parameterPosition(expressions[columnIndex]);
+}
+
+function boundInsertValue(statement: string, values: unknown[] | undefined, column: string): unknown {
+  return values?.[insertParameterIndex(statement, column)];
 }
 
 async function executeSql(
@@ -47,8 +93,9 @@ async function executeSql(
 ): Promise<SqlMemoryResponse> {
   const gate = role ? checkSqlForRole(params.statement, role) : checkSqlStatement(params.statement);
   if (!gate.allowed) {
-    onResult?.({ kind: "gate", op: "sql" });
-    return response({ error: true, message: gate.reason });
+    const notice = formatSqlMemoryNotice({ op: "sql", denied: true, error: "operation not allowed" });
+    onResult?.({ kind: "gate", op: "sql", notice });
+    return response({ error: true, message: gate.reason }, notice);
   }
   const client = await pool.connect();
   try {
@@ -58,8 +105,19 @@ async function executeSql(
     if (role === "recall") await client.query("SET TRANSACTION READ ONLY");
     const result = await client.query(params.statement, params.values);
     await client.query("COMMIT");
-    onResult?.({ kind: "success", op: "sql" });
-    return response({ rows: result.rows, rowCount: result.rowCount ?? result.rows.length });
+    const isRecall = /^\s*SELECT\b/i.test(params.statement);
+    const body = result.rows[0]?.body ?? boundInsertValue(params.statement, params.values, "body");
+    const category = result.rows[0]?.category ?? boundInsertValue(params.statement, params.values, "category");
+    const query = isRecall && Array.isArray(params.values) ? params.values[1] : undefined;
+    const notice = formatSqlMemoryNotice({
+      op: "sql",
+      ...(isRecall ? { rowCount: result.rowCount ?? result.rows.length, query } : {
+        ...(typeof body === "string" ? { body } : {}),
+        ...(typeof category === "string" ? { category } : {}),
+      }),
+    });
+    onResult?.({ kind: "success", op: "sql", notice });
+    return response({ rows: result.rows, rowCount: result.rowCount ?? result.rows.length }, notice);
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* Preserve the query error. */ }
     throw error;
@@ -68,32 +126,56 @@ async function executeSql(
   }
 }
 /** Shared executor for non-agent save callers; enforces the same stage gate and transaction scope as the tool. */
-export async function sqlMemoryRows(pool: MigrationPool, statement: string, values: unknown[], role: "recall" | "save"): Promise<Array<Record<string, unknown>>> {
-  const result = await executeSql(pool, { op: "sql", statement, values }, role);
-  const details = result.details as { error?: boolean; message?: string; rows?: Array<Record<string, unknown>> };
-  if (details.error || !details.rows) throw new Error(details.message ?? "SQL memory query failed");
-  return details.rows;
+export async function sqlMemoryRows(pool: MigrationPool, statement: string, values: unknown[], role: "recall" | "save", onActivity?: SqlMemoryActivitySink): Promise<Array<Record<string, unknown>>> {
+  let denied = false;
+  try {
+    const result = await executeSql(pool, { op: "sql", statement, values }, role, (info) => {
+      denied = info.kind === "gate";
+      emitNotice(onActivity, info.notice!, info.kind === "success");
+    });
+    const details = result.details as { error?: boolean; message?: string; rows?: Array<Record<string, unknown>> };
+    if (details.error || !details.rows) throw new Error(details.message ?? "SQL memory query failed");
+    return details.rows;
+  } catch (error) {
+    if (!denied) emitNotice(onActivity, formatSqlMemoryNotice({ op: "sql", error: error instanceof Error ? error.message : "operation failed" }), false);
+    throw error;
+  }
 }
 /** Keep a correction's successor insert and predecessor invalidation in one gated transaction. */
 export async function sqlMemorySaveTransaction<T>(
   pool: MigrationPool,
   work: (query: (statement: string, values: unknown[]) => Promise<Array<Record<string, unknown>>>) => Promise<T>,
+  onActivity?: SqlMemoryActivitySink,
 ): Promise<T> {
-  const client = await pool.connect();
+  const notices: string[] | undefined = onActivity ? [] : undefined;
+  let denied = false;
+  let client;
+  try {
+    client = await pool.connect();
+  } catch (error) {
+    emitNotice(onActivity, formatSqlMemoryNotice({ op: "sql", error: error instanceof Error ? error.message : "operation failed" }), false);
+    throw error;
+  }
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL search_path = public");
     await client.query("SET LOCAL standard_conforming_strings = on");
     const value = await work(async (statement, values) => {
       const gate = checkSqlForRole(statement, "save");
-      if (!gate.allowed) throw new Error(gate.reason);
+      if (!gate.allowed) {
+        denied = true;
+        throw new Error(gate.reason);
+      }
       const result = await client.query(statement, values);
+      notices?.push(statementNotice(statement, values, result.rows, result.rowCount ?? result.rows.length));
       return result.rows;
     });
     await client.query("COMMIT");
+    if (notices) for (const notice of notices) emitNotice(onActivity, notice, true);
     return value;
   } catch (error) {
     try { await client.query("ROLLBACK"); } catch { /* Preserve the original error. */ }
+    emitNotice(onActivity, formatSqlMemoryNotice({ op: "sql", denied, error: error instanceof Error ? error.message : "operation failed" }), false);
     throw error;
   } finally {
     client.release();
@@ -134,9 +216,10 @@ async function correctionSuccessor(query: SaveQuery, params: Correction, project
 }
 
 /** Atomic, project-scoped correction for portable save children. */
-export async function correctSqlMemory(pool: MigrationPool, params: Correction): Promise<string> {
-  validateCorrection(params);
-  return sqlMemorySaveTransaction(pool, async (query) => {
+export async function correctSqlMemory(pool: MigrationPool, params: Correction, onActivity?: SqlMemoryActivitySink): Promise<string> {
+  try {
+    validateCorrection(params);
+    const id = await sqlMemorySaveTransaction(pool, async (query) => {
     const projects = await query("SELECT id::text AS id FROM projects WHERE origin_url = $1", [params.project]);
     const projectId = projects[0]?.id;
     if (typeof projectId !== "string") throw new Error("SQL correction project does not exist");
@@ -157,7 +240,13 @@ export async function correctSqlMemory(pool: MigrationPool, params: Correction):
     );
     if (linked.length !== 1) throw new Error("SQL correction target could not be invalidated");
     return id;
-  });
+    });
+    emitNotice(onActivity, formatSqlMemoryNotice({ op: "correct", category: params.category, body: params.body }), true);
+    return id;
+  } catch (error) {
+    emitNotice(onActivity, formatSqlMemoryNotice({ op: "correct", error: error instanceof Error ? error.message : "operation failed" }), false);
+    throw error;
+  }
 }
 
 
@@ -177,27 +266,41 @@ export function sqlMemoryTool(
       try {
         if (params.op === "migrate") {
           if (role) {
-            onResult?.({ kind: "gate", op: "migrate" });
-            return response({ error: true, message: "Migrations are unavailable in Buck-loop children" });
+            const notice = formatSqlMemoryNotice({ op: "migrate", denied: true, error: "migrations unavailable" });
+            onResult?.({ kind: "gate", op: "migrate", notice });
+            return response({ error: true, message: "Migrations are unavailable in Buck-loop children" }, notice);
           }
           const migrated = await applyMigrations(pool, { destructive: params.destructive });
-          onResult?.({ kind: "success", op: "migrate" });
-          return response(migrated);
+          const notice = formatSqlMemoryNotice({ op: "migrate", applied: migrated.applied.length });
+          onResult?.({ kind: "success", op: "migrate", notice });
+          return response(migrated, notice);
         }
         if (params.op === "correct") {
           if (role !== "save") {
-            onResult?.({ kind: "gate", op: "correct" });
-            return response({ error: true, message: "Corrections require the Buck-loop save stage" });
+            const notice = formatSqlMemoryNotice({ op: "correct", denied: true, error: "corrections require save stage" });
+            onResult?.({ kind: "gate", op: "correct", notice });
+            return response({ error: true, message: "Corrections require the Buck-loop save stage" }, notice);
           }
           const id = await correctSqlMemory(pool, params);
-          onResult?.({ kind: "success", op: "correct" });
-          return response({ id });
+          const notice = formatSqlMemoryNotice({ op: "correct", category: params.category, body: params.body });
+          onResult?.({ kind: "success", op: "correct", notice });
+          return response({ id }, notice);
         }
         return await executeSql(pool, params, role, onResult);
       } catch (error) {
-        onResult?.({ kind: "work", op: params.op, error });
-        return response({ error: true, message: error instanceof Error ? error.message : String(error) });
+        const notice = formatSqlMemoryNotice({ op: params.op, error: error instanceof Error ? error.message : "operation failed" });
+        onResult?.({ kind: "work", op: params.op, error, notice });
+        return response({ error: true, message: error instanceof Error ? error.message : String(error) }, notice);
       }
+    },
+    renderCall(args) {
+      return new Text(`Memory ${args.op}…`, 0, 0);
+    },
+    renderResult(result, options) {
+      const details = result.details as { notice?: unknown } | undefined;
+      const notice = typeof details?.notice === "string" ? details.notice : "Memory operation complete";
+      const json = result.content.find((item) => item.type === "text");
+      return new Text(options.expanded && json ? `${notice}\n${json.text}` : notice, 0, 0);
     },
   };
 }

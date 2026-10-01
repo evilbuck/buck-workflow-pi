@@ -283,7 +283,7 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
   let snapshot = resume({ projectRoot: cwd });
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
-  const checked = await checkedResume(cwd, snapshot, deps.now());
+  const checked = await checkedResume(cwd, snapshot, deps.now(), deps.onActivity);
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
   const path = resumePath(snapshot, projection.subject);
@@ -294,8 +294,8 @@ function resumePath(snapshot: Pick<Snapshot, "phasePath" | "planPath">, subject:
   return snapshot.phasePath ?? snapshot.planPath ?? join(".context", subject);
 }
 
-async function checkedResume(cwd: string, snapshot: Snapshot, at: string): Promise<{ snapshot: Snapshot } | { result: LoopResult }> {
-  const reconciled = await reconcileSqlSave(cwd, snapshot, at);
+async function checkedResume(cwd: string, snapshot: Snapshot, at: string, onActivity: LoopDeps["onActivity"]): Promise<{ snapshot: Snapshot } | { result: LoopResult }> {
+  const reconciled = await reconcileSqlSave(cwd, snapshot, at, onActivity);
   if (reconciled.state !== "blocked" || snapshot.state === "blocked") return { snapshot: reconciled };
   persistIfPossible(cwd, reconciled);
   return { result: { state: "blocked", reason: reconciled.history.at(-1)?.why ?? "SQL save was not verified" } };
@@ -643,7 +643,7 @@ async function executeSkill(
     target: planOrPhasePath,
   });
 
-  const opened = await openSqlSave(cwd, snapshot, skill);
+  const opened = await openSqlSave(cwd, snapshot, skill, deps.onActivity);
   if (opened.block) {
     return { snapshot: block(snapshot, opened.block, deps.now()), failedText: opened.block, sessionText: opened.block };
   }
@@ -651,7 +651,7 @@ async function executeSkill(
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
-  const saveCheck = await finishSqlSave(cwd, snapshot, skill);
+  const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity);
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
@@ -664,9 +664,9 @@ async function executeSkill(
   return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
 }
 
-async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill): Promise<{ directive?: string; block?: string }> {
+async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {
   if (skill !== "save" || !sqlMode()) return {};
-  const probe = await probeSql();
+  const probe = await probeSql(undefined, onActivity);
   if (probe.status === "block") return { block: probe.reason };
   if (!snapshot.subject) return { block: "SQL save has no subject; refusing to save." };
   const prepared = prepareSaveAttempt(cwd, snapshot.subject, true, snapshot.phasePath);
@@ -686,14 +686,14 @@ function prepareProjectedSave(cwd: string, transition: Transition, snapshot: Sna
   return null;
 }
 
-async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill) {
+async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]) {
   if (skill !== "save" || !sqlMode()) return { status: "skip" as const };
-  return verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId);
+  return verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
 }
 
-async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string): Promise<Snapshot> {
+async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string, onActivity: LoopDeps["onActivity"]): Promise<Snapshot> {
   if (!sqlMode() || (snapshot.state !== "saving" && snapshot.state !== "committing")) return snapshot;
-  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId);
+  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
   if (resumeSaveDecision(snapshot.state, check) === "block") {
     const reason = check.status === "block"
       ? check.reason
