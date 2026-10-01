@@ -1,3 +1,10 @@
+- 2026-09-30 — [Guide theme switcher (htmx + Tailwind)](site-theme-switcher-2026-09-30.md) — completed (light/dark switcher on state-machine guide; var-based palettes; htmx fragment swap with delegated afterRequest handler; hx-on swap-out gotcha; guardrails pass)
+- 2026-10-01 — [State-machine module Phase 1 review/save](state-machine-module-build-2026-10-01.md) — `active` (two-pass review: pass 1 flagged definition methods mixing captured graph data with live caller configuration; iteration captured initial, finalStates, and used normalized graph keys for restore; pass 2 verified by mutation regressions; TypeScript acceptance exception approved by user; SQL receipt `01a0f787-76f9-7066-b52d-b5881d723178`; Phase 2 hardening W1 recorded for follow-up)
+
+- 2026-09-30 — [State-machine guide API explanation](state-machine-api-guide-2026-09-30.md) — completed (machine/state/rule properties, method and decision APIs, all thirteen failure codes; exact samples and API smoke pass; responsive/no-JS proof; final guardrails pass)
+
+- 2026-09-30 — [Runnable state-machine user guide](state-machine-user-guide-2026-09-30.md) — completed (eight-step HTML recipe, four exact runnable samples, fresh-clone verification, desktop/mobile/no-JS proof, final guardrails pass)
+
 - 2026-09-30 — [Decision-closure lifecycle closeout](decision-closure-final-save-2026-09-30.md) — completed (all six phases saved with verified receipts; buck-loop save/commit handoff recorded in `2026-09-30.buck-loop-save-commit-handoff`; subject lifecycle transitions active → completed)
 
 - 2026-09-30 — [Good-ideas factory hardening closeout](good-ideas-factory-improvements-2026-09-30.md) — completed (all 11 integrity/enforcement criteria verified shipped: frontmatter/codex/mirror/install tests, guardrails CI, hooks; iterate findings left open as out-of-plan)

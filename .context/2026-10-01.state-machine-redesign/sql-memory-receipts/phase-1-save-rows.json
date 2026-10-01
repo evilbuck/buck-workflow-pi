@@ -1,0 +1,11 @@
+{
+  "attemptId": "phase-1-save",
+  "runId": "phase-1-save",
+  "subject": "2026-10-01.state-machine-redesign",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "kind": "rows",
+  "ids": ["01a0f787-76f9-7066-b52d-b5881d723178"],
+  "probed": true,
+  "branchName": "feat/jev-state-machine",
+  "commitSha": "8e013d965a97b78952ef95e588497fc652b133a4"
+}

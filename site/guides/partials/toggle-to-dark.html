@@ -1,0 +1,8 @@
+<button id="theme-toggle" type="button"
+  class="theme-toggle inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--copy-border)] bg-[var(--copy-bg)] px-2.5 py-1.5 text-xs! font-medium! text-[var(--fg)] transition-colors hover:bg-[var(--copy-bg-hover)]"
+  hx-get="partials/toggle-to-light.html" hx-swap="outerHTML"
+  data-apply-theme="dark"
+  aria-label="Switch to dark theme">
+  <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+  <span>Dark</span>
+</button>
