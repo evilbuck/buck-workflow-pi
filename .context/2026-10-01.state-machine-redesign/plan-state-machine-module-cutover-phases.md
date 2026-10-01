@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-10-01
 subject: 2026-10-01.state-machine-redesign
 topics: [phasing, state-machine, buck-loop, code-review-iteration, refactor, cutover]
@@ -27,7 +27,7 @@ format: discrete
 | 1: Module Finalization | completed | medium | none | [phase-1-module-finalization.md](phase-1-module-finalization.md) |
 | 2: Port buckMachine | completed | hard | none | [phase-2-port-buck-machine.md](phase-2-port-buck-machine.md) |
 | 3: Port reviewMachine | completed | medium | none | [phase-3-port-review-machine.md](phase-3-port-review-machine.md) |
-| 4: Delete Old Engine and Update Docs | pending | medium | none | [phase-4-delete-and-document.md](phase-4-delete-and-document.md) |
+| 4: Delete Old Engine and Update Docs | completed | medium | none | [phase-4-delete-and-document.md](phase-4-delete-and-document.md) |
 
 ## Dependency Matrix
 
@@ -80,10 +80,10 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Module Finalization — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-  - Implementation, accepted re-review and verified SQL save completed 2026-10-01; phase status synchronized. Commit checkpoint remains pending in this checkout.
-- [ ] Phase 2: Port buckMachine — build-hard → review → iterate if in-plan issues → docs if doc impact → save → commit
-  - Implementation and required guardrails completed 2026-10-01; review/save/commit remain pending. See `build-phase-2.md`.
-- [ ] Phase 3: Port reviewMachine — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-  - Implementation and required guardrails completed 2026-10-01; review/save/commit remain pending. See `build-phase-3.md`.
-- [ ] Phase 4: Delete Old Engine and Update Docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Module Finalization — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+  - Accepted re-review and verified SQL save; isolated commit `c68e51b`.
+- [x] Phase 2: Port buckMachine — build-hard → review → iterate if in-plan issues → docs if doc impact → save → commit
+  - Accepted review/save; isolated commit `52ce651`. See `build-phase-2.md`.
+- [x] Phase 3: Port reviewMachine — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+  - Corrected review returned Pass; save completed; isolated commit `61b4a11`. See `review-phase-3-port-review-machine.md`.
+- [x] Phase 4: Delete Old Engine and Update Docs — review Pass; durable guardrails reproduce pass; save checkpoint complete 2026-10-01; commit pending. See `build-phase-4.md` and `guardrails-phase-4.json`.

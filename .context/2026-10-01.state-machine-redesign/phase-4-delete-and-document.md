@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-state-machine-module-cutover.md
@@ -13,14 +13,14 @@ from_plan_steps: [15, 16, 17, 18]
 depends_on: [2, 3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] A-5 consumer search re-run: repo search (excluding historical paths) finds no reference to state-machine.ts / ../state-machine.js after deletion"
-  - "[ ] extensions/state-machine.ts and extensions/state-machine.test.ts deleted"
-  - "[ ] ADR 0002 amended (engine replaced by extensions/state_machine/; still one engine; supervisor still the only effect interpreter)"
-  - "[ ] docs/state-machine.md is a short pointer to extensions/state_machine/README.md; docs/extension-loading.md and personas/correctness.md reference the new module"
-  - "[ ] site/guides/state-machine.html rewritten for the new API (same eight-step recipe shape, complete copyable files, exact expected output verified by running them); site/index.html links updated"
-  - "[ ] npm test green; npm run guardrails:check passes (coverage ≥ baseline, no CCN > 10 in new code)"
-completed_at: null
-completed_by: null
+  - "[x] A-5 consumer search re-run: repo search (excluding historical paths) finds no reference to state-machine.ts / ../state-machine.js after deletion"
+  - "[x] extensions/state-machine.ts and extensions/state-machine.test.ts deleted"
+  - "[x] ADR 0002 amended (engine replaced by extensions/state_machine/; still one engine; supervisor still the only effect interpreter)"
+  - "[x] docs/state-machine.md is a short pointer to extensions/state_machine/README.md; docs/extension-loading.md and personas/correctness.md reference the new module"
+  - "[x] site/guides/state-machine.html rewritten for the new API (same eight-step recipe shape, complete copyable files, exact expected output verified by running them); site/index.html links updated"
+  - "[x] npm test green; npm run guardrails:check passes (coverage ≥ baseline, no CCN > 10 in new code)"
+completed_at: "2026-10-01T15:52:47.704Z"
+completed_by: b-build
 ---
 
 # Phase 4: Delete Old Engine and Update Docs

@@ -185,7 +185,7 @@ Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (
 
 - [ ] Phase 2: Port buckMachine — hard, `/b-build-hard` — [phase-2-port-buck-machine.md](../2026-10-01.state-machine-redesign/phase-2-port-buck-machine.md)
 - [ ] Phase 3: Port reviewMachine — medium, `/b-build` — [phase-3-port-review-machine.md](../2026-10-01.state-machine-redesign/phase-3-port-review-machine.md)
-- [ ] Phase 4: Delete Old Engine and Update Docs — medium, `/b-build` — [phase-4-delete-and-document.md](../2026-10-01.state-machine-redesign/phase-4-delete-and-document.md)
+- [x] Phase 4: Delete Old Engine and Update Docs — medium — [phase-4-delete-and-document.md](../2026-10-01.state-machine-redesign/phase-4-delete-and-document.md) — review Pass; durable guardrails reproduce pass; save checkpoint complete 2026-10-01; commit pending.
 
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)

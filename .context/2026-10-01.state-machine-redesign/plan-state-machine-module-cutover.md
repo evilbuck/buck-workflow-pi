@@ -1,12 +1,14 @@
 ---
-status: active
+status: completed
 date: 2026-10-01
 subject: 2026-10-01.state-machine-redesign
 topics: [state-machine, buck-loop, code-review-iteration, refactor, cutover]
 research: [research-buck-loop-mapping.md]
 iterations:
   - iterate-module-finalization.md
-memory: [state-machine-review-port-build-2026-10-01.md]
+memory:
+  - state-machine-review-port-build-2026-10-01.md
+  - state-machine-cutover-phase-4-build-2026-10-01.md
 sql_memory_ids:
   - "01a0f787-76f9-7066-b52d-b5881d723178"
 ---
@@ -35,7 +37,7 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 - **Key trade-offs accepted:** overlap between guards is no longer detected by the module; each adapter restores fail-closed behavior (review: exactly one available; buck: more than one only when facts say a decision is open). Multi-rule edges merge into one guard (OR) with an effect that re-derives the reason from facts.
 - **Evidence:** user decisions above; research findings; `takeStep` converts any thrown `Error` into a blocked halt, so adapters may throw plain typed errors; `Choice` kinds and `lastChoice` are persisted in the buck snapshot (`types.ts:131–135,178`), so the buck `Choice` vocabulary stays at the adapter boundary.
 - **Excluded scope:** see Out of scope.
-- **Next action:** Phase 1 — split the prototype into a side-effect-free `index.ts` plus a runnable example, and add the module's behavior tests.
+- **Next action:** review Phase 4, then save and commit its isolated checkpoint. The parent clean-project TypeScript criterion remains open; Phase 4 checks do not claim it passed.
 
 ## Assumptions Ledger
 
@@ -45,7 +47,7 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 | A-2 | Every buck choice set maps onto distinct targets per state (self = `retry`; `reviewing`: iterating/documenting/saving = iterate/document/save; any other non-self target = `advance`). | validated | false | `machine.ts:269–284,307–322,345–359,365–408,488–512`: no state offers two choices with one target; `committing`'s `advance` targets (building/done/blocked) are mutually exclusive by `planFacts.kind`. |
 | A-3 | Every automatic-vs-choice wording difference on a shared edge is derivable from facts (`ambiguousChoiceOpen`, `reviewUnparseable`). | validated | false | Phase 2: 100 reachable former-rule fixtures pin literal `to`/`effect`/`why`; machine suite passes. Both-mode comparisons find no output or rejection differences. See `build-phase-2.md`. |
 | A-4 | `loop.ts` needs no change for buck: it already halts on any `Error` from `next()`. | validated | false | `loop.ts:395–400`. |
-| A-5 | No consumer of `extensions/state-machine.ts` exists beyond the list above. | validated | false | `rg` over the repo excluding `.context/**` and `node_modules/**`. Re-run before deletion in Phase 4. |
+| A-5 | No consumer of `extensions/state-machine.ts` exists beyond the list above. | validated | false | Phase 4 pre-deletion search and LSP references found only the legacy test and phase-listed living docs outside historical paths. Post-deletion paginated repo search finds only historical `.context/` references. See `build-phase-4.md`. |
 | A-6 | `reviewMachine` maps rule-for-edge (no multi-rule edges) except via self-loop `initializing → initializing`. | validated | false | Phase 3 pins all 13 legacy rule labels and complete outputs (source count corrected from 15); 129,600 old/new adapter calls match. See build-phase-3.md. |
 
 ## Material Risks
@@ -128,8 +130,8 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 - [x] `extensions/buck-loop/{loop,choice,types}.ts` diffs are empty; `buck-loop/__tests__/loop.test.ts` and `persist.test.ts` pass unmodified.
 - [x] Ported buck truth table pins every former rule's `to`/`effect`/`why`; every non-final buck state has a manual `aborted` edge (tested).
 - [ ] `code-review-iteration/__tests__/loop.test.ts` diff empty and green; exclusivity sweep green against `ReviewMachineError`.
-- [ ] `extensions/state-machine.ts` and its test are deleted; repo search (excluding historical paths) finds no reference to `state-machine.ts` / `../state-machine.js`.
-- [ ] ADR 0002, `docs/state-machine.md`, `docs/extension-loading.md`, `personas/correctness.md`, `site/guides/state-machine.html`, `site/index.html` describe the new module only.
+- [x] `extensions/state-machine.ts` and its test are deleted; repo search (excluding historical paths) finds no reference to `state-machine.ts` / `../state-machine.js`.
+- [x] ADR 0002, `docs/state-machine.md`, `docs/extension-loading.md`, `personas/correctness.md`, `site/guides/state-machine.html`, `site/index.html` describe the new module only.
 - [ ] `npx tsc --noEmit -p .` clean; `npm test` green; `npm run guardrails:check` passes (coverage ≥ baseline, no CCN > 10 in new code).
 
 ## Verification
