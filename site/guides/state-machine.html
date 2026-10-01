@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create a State Machine — Buck Workflow Guide</title>
+<meta name="description" content="A runnable TypeScript state-machine recipe with property-by-property machine, state, and rule API explanations, evaluator methods, result objects, and failure codes.">
+<meta property="og:title" content="Create a State Machine — Buck Workflow Guide">
+<meta property="og:description" content="Build a document-approval workflow, one complete file at a time. No agent runtime or API key required.">
+<meta property="og:type" content="article">
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem("guide-theme");
+    var theme = stored === "light" || stored === "dark"
+      ? stored
+      : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = theme;
+  } catch (_) {
+    document.documentElement.dataset.theme = "dark";
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  color-scheme: dark;
+  --bg: #0a0e17;
+  --bg-card: #131a2e;
+  --bg-code: #0f1524;
+  --border: #1e2a45;
+  --fg: #e2e8f0;
+  --fg-dim: #a0afc9;
+  --accent: #8da8ff;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --accent-bright: #c0ceff;
+  --topbar-bg: rgba(10,14,23,.96);
+  --inline-code-fg: #becdff;
+  --inline-code-bg: #151e32;
+  --panel-bg: #151e32;
+  --copy-bg: #202d48;
+  --copy-border: #354768;
+  --copy-bg-hover: #2d3e60;
+  --callout-bg: #101a2c;
+  --callout-warning-bg: #211b10;
+  --callout-success-bg: #0c201d;
+  --chip-border: #234b44;
+  --chip-bg: #0c201d;
+  --scrollbar-thumb: #354768;
+  --pre-code-fg: #d2dcf0;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f8fc;
+  --bg-card: #ffffff;
+  --bg-code: #f0f3f9;
+  --border: #dbe2ee;
+  --fg: #16233f;
+  --fg-dim: #4d5b76;
+  --accent: #3450c8;
+  --green: #0c7a53;
+  --amber: #a16207;
+  --accent-bright: #2743b0;
+  --topbar-bg: rgba(246,248,252,.96);
+  --inline-code-fg: #3a4db8;
+  --inline-code-bg: #e9edf8;
+  --panel-bg: #eef1f8;
+  --copy-bg: #e4eaf5;
+  --copy-border: #c6d0e2;
+  --copy-bg-hover: #d6dfef;
+  --callout-bg: #edf2fc;
+  --callout-warning-bg: #faf0dc;
+  --callout-success-bg: #e4f5ec;
+  --chip-border: #b9ddcd;
+  --chip-bg: #e6f6ef;
+  --scrollbar-thumb: #b9c5d9;
+  --pre-code-fg: #26334f;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 94px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+a:hover { color: var(--accent-bright); }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 5px; }
+button { font: inherit; }
+.skip-link { position: fixed; left: 16px; top: -80px; z-index: 20; padding: 10px 16px; background: var(--fg); color: var(--bg); }
+.skip-link:focus { top: 12px; }
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--topbar-bg); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1180px; min-height: 68px; margin: auto; padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.brand { color: var(--fg); text-decoration: none; font-weight: 800; letter-spacing: -.03em; }
+.brand small { margin-left: 14px; padding-left: 14px; border-left: 1px solid var(--border); font-size: 12px; font-weight: 500; color: var(--fg-dim); letter-spacing: .08em; text-transform: uppercase; }
+.top-links { display: flex; gap: 24px; font-size: 13px; }
+.top-links a { text-decoration: none; color: var(--fg-dim); }
+.top-links a:hover { color: var(--fg); }
+.container { max-width: 1180px; margin: auto; padding: 0 28px; }
+.hero { padding: 66px 0 46px; border-bottom: 1px solid var(--border); }
+.eyebrow { margin: 0 0 18px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(36px, 5vw, 60px); line-height: 1.08; letter-spacing: -.055em; font-weight: 800; }
+h1 span { color: var(--fg-dim); }
+.lead { max-width: 740px; margin: 24px 0; color: var(--fg-dim); font-size: 18px; line-height: 1.75; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; font-size: 11px; color: var(--fg-dim); font-family: 'JetBrains Mono', monospace; }
+.tag:first-child { color: var(--green); border-color: var(--chip-border); background: var(--chip-bg); }
+.layout { display: grid; grid-template-columns: 226px minmax(0,1fr); gap: 54px; align-items: start; }
+.contents { position: sticky; top: 98px; padding: 36px 0; max-height: calc(100vh - 98px); overflow-y: auto; }
+.contents-title { margin: 0 0 18px; color: var(--fg-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.contents ol, .mobile-contents ol { margin: 0; padding: 0; list-style: none; }
+.contents li { margin-bottom: 14px; }
+.contents a, .mobile-contents a { color: var(--fg-dim); font-size: 12px; text-decoration: none; }
+.contents a:hover, .mobile-contents a:hover { color: var(--fg); }
+.contents a span, .mobile-contents a span { margin-right: 9px; font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 10px; }
+.contents-note { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--fg-dim); }
+.api-contents { margin-top: 26px; }
+.mobile-contents { display: none; }
+article { min-width: 0; padding-bottom: 70px; }
+.step { padding: 45px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 96px; }
+.step:last-of-type { border-bottom: 0; }
+.step-heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+.step-number { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); }
+h2 { margin: 0; font-size: clamp(24px,3vw,29px); line-height: 1.25; font-weight: 700; letter-spacing: -.035em; }
+h3 { margin: 28px 0 10px; font-size: 17px; letter-spacing: -.015em; }
+p { margin: 0 0 16px; }
+article p, article li { color: var(--fg-dim); font-size: 15px; }
+article strong { color: var(--fg); font-weight: 600; }
+article ul, article ol { padding-left: 22px; margin: 12px 0 22px; }
+/* Tailwind preflight (layered) would remove these UA-default markers. */
+article ul { list-style: disc; }
+article ol { list-style: decimal; }
+article li { margin-bottom: 7px; padding-left: 3px; }
+code { font-family: 'JetBrains Mono', monospace; font-size: .84em; }
+p code, li code, td code { color: var(--inline-code-fg); background: var(--inline-code-bg); padding: 2px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.callout { padding: 16px 19px; border-left: 2px solid var(--accent); background: var(--callout-bg); border-radius: 0 6px 6px 0; margin: 22px 0; }
+.callout p { margin: 0; font-size: 13px; }
+.callout.warning { border-color: var(--amber); background: var(--callout-warning-bg); }
+.callout.success { border-color: var(--green); background: var(--callout-success-bg); }
+.code-frame { margin: 20px 0 24px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-code); }
+.code-header { min-height: 44px; padding: 9px 15px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--panel-bg); border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-dim); }
+.code-header > span { overflow-wrap: anywhere; }
+.code-header > div { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.language { color: var(--fg-dim); font-size: 10px; text-transform: uppercase; }
+.copy { color: var(--fg); background: var(--copy-bg); border: 1px solid var(--copy-border); border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 10px; }
+.copy:hover { background: var(--copy-bg-hover); }
+.copy[hidden] { display: none; }
+.theme-toggle.htmx-request { opacity: .6; pointer-events: none; }
+pre { margin: 0; padding: 21px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-color: var(--scrollbar-thumb) var(--bg-code); }
+pre code { display: block; font-size: 12px; line-height: 1.75; color: var(--pre-code-fg); tab-size: 2; }
+.table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 7px; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+.table-wrap table[aria-label] { min-width: 620px; }
+table[aria-label$="properties"] td:first-child code, table[aria-label="Machine failure codes"] td:first-child code { white-space: nowrap; overflow-wrap: normal; }
+th, td { padding: 13px 15px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+th { background: var(--panel-bg); color: var(--fg); font-weight: 600; }
+td { color: var(--fg-dim); }
+tr:last-child td { border-bottom: 0; }
+.workflow { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 25px 0 12px; }
+.workflow div { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 17px 12px; background: var(--bg-card); }
+.workflow div + div::before { content: '→'; position: absolute; left: -15px; top: 19px; color: var(--accent); }
+.workflow code { color: var(--fg); font-size: 12px; }
+.workflow small { display: block; margin-top: 7px; color: var(--fg-dim); font-size: 10px; line-height: 1.4; }
+.workflow div:last-child { border-color: var(--chip-border); }
+.workflow div:last-child code { color: var(--green); }
+.branch-note { font-size: 12px; color: var(--fg-dim); margin-bottom: 24px; }
+.file-tree { color: var(--inline-code-fg); }
+.related { margin: 36px 0 0; font-size: 13px; }
+footer { border-top: 1px solid var(--border); }
+.footer-inner { max-width: 1180px; margin: auto; padding: 24px 28px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; color: var(--fg-dim); font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 980px) {
+  .layout { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .contents { display: none; }
+  .mobile-contents { display: block; margin: 24px 0 0; padding: 14px 17px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card); }
+  .mobile-contents summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+  .mobile-contents ol { padding-top: 14px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .hero { padding-top: 46px; }
+  article { width: 100%; max-width: 800px; margin: auto; }
+}
+@media (max-width: 580px) {
+  .container, .topbar-inner { padding-left: 20px; padding-right: 20px; }
+  .brand small { display: none; }
+  .top-links { gap: 16px; font-size: 11px; }
+  .hero { padding: 36px 0 32px; }
+  .lead { font-size: 16px; }
+  .step { padding: 34px 0; }
+  .step-heading { gap: 10px; }
+  .workflow { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .workflow div + div::before { content: none; }
+  .code-header { padding-left: 12px; padding-right: 12px; }
+  .language { display: none; }
+  pre { padding: 16px; }
+  pre code { font-size: 11px; }
+  .mobile-contents ol { grid-template-columns: minmax(0,1fr); }
+  .footer-inner { padding-left: 20px; padding-right: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to the guide</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../index.html">Buck Workflow <small>Guides</small></a>
+    <div class="flex items-center gap-4">
+      <button id="theme-toggle" type="button"
+        class="theme-toggle inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--copy-border)] bg-[var(--copy-bg)] px-2.5 py-1.5 text-xs! font-medium! text-[var(--fg)] transition-colors hover:bg-[var(--copy-bg-hover)]"
+        hx-get="partials/toggle-to-dark.html" hx-swap="outerHTML"
+        data-apply-theme="light"
+        aria-label="Switch to light theme">
+        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span>Light</span>
+      </button>
+      <nav class="top-links" aria-label="Site navigation">
+        <a href="../index.html">Home</a>
+        <a href="https://github.com/evilbuck/buck-workflow-pi">Source</a>
+      </nav>
+    </div>
+  </div>
+</header>
+<main id="main" class="container">
+  <header class="hero">
+    <p class="eyebrow">Developer recipe / State machines</p>
+    <h1>Build a state machine.<br><span>One working recipe.</span></h1>
+    <p class="lead">Create a document-approval workflow from an empty example folder. Learn what every machine, state, and rule property means, drive the evaluator API, write a real publication file, and check that illegal operations are rejected.</p>
+    <div class="tags" aria-label="Recipe requirements">
+      <span class="tag">Complete, runnable files</span>
+      <span class="tag">TypeScript</span>
+      <span class="tag">Node.js 22+</span>
+      <span class="tag">No agent runtime or API key</span>
+    </div>
+  </header>
+  <details class="mobile-contents">
+    <summary>Jump to a recipe step or API section</summary>
+    <nav aria-label="Mobile recipe steps"><ol>
+  <li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+  <li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+  <li><a href="#definition"><span>03</span> Define the machine</a></li>
+  <li><a href="#caller"><span>04</span> Write the caller</a></li>
+  <li><a href="#run"><span>05</span> Run the happy path</a></li>
+  <li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+  <li><a href="#types"><span>07</span> Type-check the files</a></li>
+  <li><a href="#finish"><span>08</span> Verify the whole recipe</a></li>
+</ol></nav>
+    <nav class="api-contents" aria-label="Mobile API reference"><ol>
+<li><a href="#machine-api">Machine properties</a></li>
+<li><a href="#state-api">State properties</a></li>
+<li><a href="#rule-api">Rule properties</a></li>
+<li><a href="#operation-api">Evaluator methods</a></li>
+<li><a href="#decision-api">Returned decisions</a></li>
+<li><a href="#failure-api">Failure codes</a></li>
+</ol></nav>
+  </details>
+  <div class="layout">
+    <aside class="contents">
+      <nav aria-label="Recipe steps">
+        <p class="contents-title">In this recipe</p>
+        <ol>
+  <li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+  <li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+  <li><a href="#definition"><span>03</span> Define the machine</a></li>
+  <li><a href="#caller"><span>04</span> Write the caller</a></li>
+  <li><a href="#run"><span>05</span> Run the happy path</a></li>
+  <li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+  <li><a href="#types"><span>07</span> Type-check the files</a></li>
+  <li><a href="#finish"><span>08</span> Verify the whole recipe</a></li>
+</ol>
+      </nav>
+      <nav class="api-contents" aria-label="API reference">
+        <p class="contents-title">API reference</p>
+        <ol>
+<li><a href="#machine-api">Machine properties</a></li>
+<li><a href="#state-api">State properties</a></li>
+<li><a href="#rule-api">Rule properties</a></li>
+<li><a href="#operation-api">Evaluator methods</a></li>
+<li><a href="#decision-api">Returned decisions</a></li>
+<li><a href="#failure-api">Failure codes</a></li>
+        </ol>
+      </nav>
+      <p class="contents-note"><strong>The boundary</strong><br>The machine decides.<br>Your caller performs the work.<br>Your facts hold the current state.</p>
+    </aside>
+    <article aria-label="Create a state machine recipe">
+      <section class="step" id="setup" aria-labelledby="setup-heading">
+        <div class="step-heading"><span class="step-number">01</span><h2 id="setup-heading">Prepare your kitchen</h2></div>
+        <p>This recipe uses the evaluator shipped in the <strong>Buck Workflow source repository</strong>. It is not an import from a globally installed CLI package. You need basic TypeScript familiarity, a text editor, and a Bash-compatible terminal on Linux, macOS, or Windows through WSL.</p>
+        <ol>
+          <li>Install <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22 or newer</a>. Node includes npm. If you use WSL, install them inside WSL. Reopen your terminal after installation.</li>
+          <li>Check that these commands print version numbers. Your Node version must be <code>v22</code> or newer.</li>
+        </ol>
+        <div class="code-frame"><div class="code-header"><span>Terminal · check your tools</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="versions" data-filename="Terminal · check your tools" aria-label="Copy Terminal · check your tools" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · check your tools"><code id="versions" data-language="bash">git --version
+node --version
+npm --version</code></pre></div>
+        <p><strong>If you do not have a checkout:</strong> run the following commands. If you already work in this repository, skip the clone and open a terminal at its root—the directory containing <code>package.json</code>, <code>package-lock.json</code>, and <code>extensions/</code>.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · obtain the source</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="clone" data-filename="Terminal · obtain the source" aria-label="Copy Terminal · obtain the source" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · obtain the source"><code id="clone" data-language="bash">git clone --branch master https://github.com/evilbuck/buck-workflow-pi.git
+cd buck-workflow-pi</code></pre></div>
+        <p>Confirm the evaluator is present, install the exact locked dependencies, and create a folder for your example. <code>npm ci</code> installs this repository’s TypeScript compiler and <code>tsx</code> runner; you do not need Bun or OMP.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run from the repository root</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="setup-commands" data-filename="Terminal · run from the repository root" aria-label="Copy Terminal · run from the repository root" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run from the repository root"><code id="setup-commands" data-language="bash">test -f extensions/state-machine.ts &amp;&amp; echo &quot;Evaluator source found&quot;
+npm ci
+mkdir -p examples</code></pre></div>
+        <div class="callout warning"><p><strong>Stop if a command fails.</strong> The first command must print <code>Evaluator source found</code>. Do not continue after a failed install. In an existing checkout, <code>npm ci</code> replaces its installed dependencies with the lockfile versions. Choose a separate clone if you need to preserve a customized dependency tree.</p></div>
+        <p>Keep this terminal at the repository root for <strong>every command below</strong>. All filenames are relative to that root. Copy only the contents of a code block—there are no shell prompt characters to remove.</p>
+      </section>
+
+      <section class="step" id="workflow" aria-labelledby="workflow-heading">
+        <div class="step-heading"><span class="step-number">02</span><h2 id="workflow-heading">Sketch the workflow</h2></div>
+        <p>Our article moves through four states. Submitting is an external event; reviewing offers a decision; an approved article is published automatically. Publication here means writing a local text file, not posting to a website.</p>
+        <div class="workflow" aria-label="Happy path: draft, SUBMIT event, review, approve choice, approved, automatic transition, published">
+          <div><code>draft</code><small>Wait for SUBMIT</small></div>
+          <div><code>review</code><small>Offer approve / reject</small></div>
+          <div><code>approved</code><small>Prepare the file write</small></div>
+          <div><code>published</code><small>Terminal: stop</small></div>
+        </div>
+        <p class="branch-note">Alternative route: choosing <code>reject</code> in <code>review</code> returns the article to <code>draft</code>.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Ingredient</th><th scope="col">What it means here</th></tr></thead>
+          <tbody>
+            <tr><td><code>State</code></td><td>One of the four names above. A TypeScript union prevents spelling a different state by accident.</td></tr>
+            <tr><td><code>Facts</code></td><td>The current state, title, body, and reviewer availability. The caller supplies a fresh snapshot.</td></tr>
+            <tr><td><code>Choice</code></td><td>An option to select: approve or reject. The machine declares which options are legal.</td></tr>
+            <tr><td><code>Event</code></td><td>A signal pushed into the machine: SUBMIT.</td></tr>
+            <tr><td><code>Output</code></td><td>A description of work: log the submission, write the publication, or perform no effect.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="callout"><p><strong>A decision is not execution.</strong> Evaluating a transition returns its target and output. It does not change your facts, write files, call a model, or store a history. Your caller handles those responsibilities.</p></div>
+      </section>
+
+      <section class="step" id="definition" aria-labelledby="definition-heading">
+        <div class="step-heading"><span class="step-number">03</span><h2 id="definition-heading">Define the machine</h2></div>
+        <p>In your editor, create <code>examples/article-machine.ts</code>. Paste the <strong>entire</strong> block below and save the file. It contains all types, the word-count guard, and the complete state table.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-machine" data-filename="examples/article-machine.ts" aria-label="Copy examples/article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/article-machine.ts"><code id="sample-machine" data-language="typescript" data-file="examples/article-machine.ts">import { defineMachine } from &quot;../extensions/state-machine.js&quot;;
+
+export type ArticleState = &quot;draft&quot; | &quot;review&quot; | &quot;approved&quot; | &quot;published&quot;;
+
+export interface ArticleFacts {
+  state: ArticleState;
+  title: string;
+  body: string;
+  reviewerAvailable: boolean;
+}
+
+export type ArticleChoice = { kind: &quot;approve&quot; } | { kind: &quot;reject&quot; };
+export type ArticleEvent = { type: &quot;SUBMIT&quot; };
+export type ArticleOutput =
+  | { kind: &quot;log-submission&quot;; title: string }
+  | { kind: &quot;write-publication&quot;; title: string; body: string }
+  | { kind: &quot;none&quot; };
+
+function hasEnoughWords(facts: ArticleFacts): boolean {
+  return facts.body.trim().split(/\s+/).length &gt;= 10;
+}
+
+export const articleMachine = defineMachine&lt;
+  ArticleState,
+  ArticleFacts,
+  ArticleChoice,
+  ArticleEvent,
+  ArticleOutput
+&gt;({
+  stateOf: (facts) =&gt; facts.state,
+  choiceKey: (choice) =&gt; choice.kind,
+  eventKey: (event) =&gt; event.type,
+  states: {
+    draft: {
+      events: [
+        {
+          id: &quot;submit-for-review&quot;,
+          event: { type: &quot;SUBMIT&quot; },
+          when: hasEnoughWords,
+          target: &quot;review&quot;,
+          output: (facts) =&gt; ({ kind: &quot;log-submission&quot;, title: facts.title }),
+        },
+      ],
+    },
+    review: {
+      choices: [
+        {
+          id: &quot;approve-article&quot;,
+          choice: { kind: &quot;approve&quot; },
+          when: (facts) =&gt; facts.reviewerAvailable,
+          target: &quot;approved&quot;,
+          output: () =&gt; ({ kind: &quot;none&quot; }),
+        },
+        {
+          id: &quot;reject-article&quot;,
+          choice: { kind: &quot;reject&quot; },
+          when: () =&gt; true,
+          target: &quot;draft&quot;,
+          output: () =&gt; ({ kind: &quot;none&quot; }),
+        },
+      ],
+    },
+    approved: {
+      automatic: [
+        {
+          id: &quot;publish-approved-article&quot;,
+          when: () =&gt; true,
+          target: &quot;published&quot;,
+          output: (facts) =&gt; ({
+            kind: &quot;write-publication&quot;,
+            title: facts.title,
+            body: facts.body,
+          }),
+        },
+      ],
+    },
+    published: { terminal: true },
+  },
+});</code></pre></div>
+        <h3 id="machine-api">MachineDefinition: the outer object</h3>
+        <p><code>defineMachine&lt;State, Facts, Choice, Event, Output&gt;(definition)</code> takes one definition object and returns a <code>CompiledMachine</code>. The five type arguments are, in order, your state names, fact snapshot, choice values, event values, and output values. Here they are <code>ArticleState</code>, <code>ArticleFacts</code>, <code>ArticleChoice</code>, <code>ArticleEvent</code>, and <code>ArticleOutput</code>. They are compile-time contracts, not runtime configuration fields.</p>
+        <p>All four properties of <code>MachineDefinition</code> are required. <code>PropertyKey</code> means <code>string | number | symbol</code>; this recipe uses readable strings.</p>
+        <div class="table-wrap"><table aria-label="Machine definition properties">
+          <thead><tr><th scope="col">Property</th><th scope="col">Signature / type</th><th scope="col">Meaning and recipe example</th></tr></thead>
+          <tbody>
+            <tr><td><code>stateOf</code></td><td><code>(facts: Facts) =&gt; State</code></td><td>Reads the current state from each supplied snapshot. <code>(facts) =&gt; facts.state</code> is our convention; the SDK does not require a facts property literally named <code>state</code>.</td></tr>
+            <tr><td><code>choiceKey</code></td><td><code>(choice: Choice) =&gt; PropertyKey</code></td><td>Identifies an option. <code>(choice) =&gt; choice.kind</code> makes <code>approve</code> and <code>reject</code> distinct. <code>choose</code> matches by this key, not object identity or whole-object equality.</td></tr>
+            <tr><td><code>eventKey</code></td><td><code>(event: Event) =&gt; PropertyKey</code></td><td>Identifies an incoming signal. <code>(event) =&gt; event.type</code> matches a SUBMIT event to the current state’s SUBMIT rules. Other event fields are payload, not additional matching criteria.</td></tr>
+            <tr><td><code>states</code></td><td><code>Partial&lt;Record&lt;State, StateDefinition&lt;State, Facts, Choice, Event, Output&gt;&gt;&gt;</code></td><td>A map from state name to its rule object. The key <code>review</code> names the state; the value describes its legal routes. Declaring a name in the state union does not create its table entry. Define every state you will enter, including targets.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="callout"><p><strong>There is no <code>initial</code> property.</strong> The caller selects the starting state in its first facts snapshot. Calling <code>defineMachine</code> does not enter a state, run a rule, or start a loop. Its returned object exposes <code>advance</code>, <code>choose</code>, and <code>send</code>—not a mutable <code>states</code> or <code>facts</code> property.</p></div>
+
+        <h3 id="state-api">StateDefinition: the structure of one state</h3>
+        <p>A <strong>state name</strong>, a <strong>state definition</strong>, and the <strong>current state</strong> are different things. <code>"review"</code> is a name in <code>ArticleState</code>; <code>states.review</code> in the definition is its rules; <code>facts.state === "review"</code> says that this article is currently there. The rule’s <code>id</code> is not the state’s name.</p>
+        <p>Each state’s value is a <code>StateDefinition&lt;State, Facts, Choice, Event, Output&gt;</code> with these four <strong>optional</strong> properties. This is a flat state table, not a hierarchy of nested machines.</p>
+        <div class="table-wrap"><table aria-label="State definition properties">
+          <thead><tr><th scope="col">Property</th><th scope="col">Type and default</th><th scope="col">Meaning and how to define it</th></tr></thead>
+          <tbody>
+            <tr><td><code>terminal</code></td><td><code>boolean</code>; omitted or <code>false</code> means nonterminal.</td><td><code>{ terminal: true }</code> marks a finished state. All three operations reject it, even if you also declared outgoing rules. It does not perform a final effect; put that effect on the incoming transition.</td></tr>
+            <tr><td><code>automatic</code></td><td><code>readonly AutomaticRule&lt;State, Facts, Output&gt;[]</code>; omitted means no automatic rules.</td><td>Routes that need no outside selection. <code>advance</code> returns the enabled automatic transition; it does not execute it or continue to the next state. Our <code>approved</code> state has one publication rule.</td></tr>
+            <tr><td><code>choices</code></td><td><code>readonly ChoiceRule&lt;State, Facts, Choice, Output&gt;[]</code>; omitted means no choice rules.</td><td>Options for a person, UI, or model to pick. <code>advance</code> lists enabled options; <code>choose</code> consumes one legal key. Our <code>review</code> state declares approval and rejection.</td></tr>
+            <tr><td><code>events</code></td><td><code>readonly EventRule&lt;State, Facts, Event, Output&gt;[]</code>; omitted means no event rules.</td><td>Routes driven only by <code>send(facts, event)</code>. <code>advance</code> does not dispatch these. Our <code>draft</code> state accepts SUBMIT when the article is long enough.</td></tr>
+          </tbody>
+        </table></div>
+        <p>You may omit unused arrays or write <code>[]</code>. A state can declare more than one rule collection, but their <strong>enabled</strong> routes must be unambiguous: automatic and choice routes cannot be enabled together; event routes are checked separately by <code>send</code>. An empty nonterminal state is not an implicit wait or success: <code>advance</code> throws <code>NO_ROUTE</code>.</p>
+        <h3>Define a new state in five moves</h3>
+        <ol>
+          <li>Add its name to your <code>State</code> union.</li>
+          <li>Add a matching key to the definition’s <code>states</code> object. A spelling in the union alone is not a declaration.</li>
+          <li>Use <code>{ terminal: true }</code> if it is finished. Otherwise choose <code>automatic</code>, <code>choices</code>, or <code>events</code> according to what drives its next step.</li>
+          <li>Give each route an <code>id</code>, <code>when</code>, <code>target</code>, and <code>output</code>; include <code>choice</code> or <code>event</code> for those rule kinds.</li>
+          <li>Declare each target state, then have the caller supply this new state in its initial facts or reach it through a transition. Exercise both passing and failing guards.</li>
+        </ol>
+
+        <h3 id="rule-api">Rule properties: what each route contains</h3>
+        <p><code>AutomaticRule</code>, <code>ChoiceRule</code>, and <code>EventRule</code> share four required fields. Choice and event rules each require one extra field. There is no implicit guard, output, priority, or destination.</p>
+        <div class="table-wrap"><table aria-label="Rule properties">
+          <thead><tr><th scope="col">Property</th><th scope="col">Required on</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>id</code></td><td>Every rule; <code>string</code>.</td><td>A diagnostic label such as <code>"approve-article"</code>. It helps identify offending rules in failure context. It is not used to select a choice or match an event. Make IDs unique and descriptive; uniqueness is a convention, not an enforced check.</td></tr>
+            <tr><td><code>when</code></td><td>Every rule; a callback returning <code>boolean</code>.</td><td>The guard: <code>true</code> enables this route for the current facts. Use <code>() =&gt; true</code> for an unconditional route. Its arguments depend on the rule kind; see the signatures below.</td></tr>
+            <tr><td><code>target</code></td><td>Every rule; <code>State</code>.</td><td>The fixed destination, for example <code>"approved"</code>. This is a state value, <strong>not a callback</strong>. The selected target must exist in the table; a self-transition is allowed.</td></tr>
+            <tr><td><code>output</code></td><td>Every rule; a callback returning <code>Output</code>.</td><td>Builds the transition’s data. It runs only for the selected route, after target validation—not while merely offering choices. <code>() =&gt; ({ kind: "none" })</code> is this recipe’s explicit no-effect output. The SDK does not require a <code>kind</code> or effect field in your own output type.</td></tr>
+            <tr><td><code>choice</code></td><td>Choice rules only; <code>Choice</code>.</td><td>The declared option, such as <code>{ kind: "approve" }</code>. Its <code>choiceKey</code> identifies the route. The SDK snapshots object choices; keep them structured-cloneable and free of shared memory.</td></tr>
+            <tr><td><code>event</code></td><td>Event rules only; <code>Event</code>.</td><td>A declared matching value, such as <code>{ type: "SUBMIT" }</code>. The SDK compares its <code>eventKey</code> with the incoming event’s key. Guards and outputs receive the <strong>incoming event</strong>, including its payload.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="table-wrap"><table aria-label="Rule callback signatures">
+          <thead><tr><th scope="col">Rule kind</th><th scope="col"><code>when</code></th><th scope="col"><code>output</code></th></tr></thead>
+          <tbody>
+            <tr><td>Automatic</td><td><code>(facts: Facts) =&gt; boolean</code></td><td><code>(facts: Facts) =&gt; Output</code></td></tr>
+            <tr><td>Choice</td><td><code>(facts: Facts) =&gt; boolean</code></td><td><code>(facts: Facts, choice: Choice) =&gt; Output</code></td></tr>
+            <tr><td>Event</td><td><code>(facts: Facts, event: Event) =&gt; boolean</code></td><td><code>(facts: Facts, event: Event) =&gt; Output</code></td></tr>
+          </tbody>
+        </table></div>
+        <p><strong>Choice guards do not receive the picked choice.</strong> In a choice output callback, <code>choice</code> is an isolated copy of the <em>declared</em> option, not arbitrary fields supplied by the caller. Matching a legal key does not let a caller replace the declaration’s payload. Event callbacks instead receive the actual event sent in.</p>
+        <p>All callbacks are synchronous. Keep guards, key functions, and output callbacks deterministic and free of side effects. Facts and arbitrary outputs are not automatically deep-cloned or frozen. Treat the definition as immutable after construction; TypeScript <code>readonly</code> declarations are not runtime freezing.</p>
+        <div class="callout warning"><p><strong>Construction is not full graph validation.</strong> <code>defineMachine</code> snapshots declared choices and can reject an unsupported choice immediately. It does not check every guard combination or target up front: current states are checked when an operation locates them, and targets when a transition is selected. Exercise every route.</p></div>
+        <div class="callout"><p><strong>Keep the <code>.js</code> import suffixes.</strong> The source files are TypeScript, but this repository uses ESM/NodeNext imports. The installed <code>tsx</code> runner resolves these local <code>.js</code> imports to their <code>.ts</code> source files.</p></div>
+      </section>
+
+      <section class="step" id="caller" aria-labelledby="caller-heading">
+        <div class="step-heading"><span class="step-number">04</span><h2 id="caller-heading">Write the caller</h2></div>
+        <p>Create <code>examples/run-article-machine.ts</code>, paste this complete block, and save it. This is the program you will execute. It owns the facts, selects an offered option, and performs the actual file write.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/run-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-runner" data-filename="examples/run-article-machine.ts" aria-label="Copy examples/run-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/run-article-machine.ts"><code id="sample-runner" data-language="typescript" data-file="examples/run-article-machine.ts">import { writeFileSync } from &quot;node:fs&quot;;
+import type { TransitionDecision } from &quot;../extensions/state-machine.js&quot;;
+import {
+  articleMachine,
+  type ArticleFacts,
+  type ArticleOutput,
+  type ArticleState,
+} from &quot;./article-machine.js&quot;;
+
+// Run from the repository root; step 1 creates this directory.
+const outputPath = &quot;examples/published-article.txt&quot;;
+let facts: ArticleFacts = {
+  state: &quot;draft&quot;,
+  title: &quot;A small state machine&quot;,
+  body: &quot;A state machine makes the next legal step explicit. The caller &quot; +
+    &quot;supplies current facts, chooses from declared options, and performs &quot; +
+    &quot;effects only after the evaluator returns a valid transition.&quot;,
+  reviewerAvailable: true,
+};
+
+function runEffect(output: ArticleOutput): void {
+  switch (output.kind) {
+    case &quot;log-submission&quot;:
+      console.log(&quot;Submitted for review:&quot;, output.title);
+      return;
+    case &quot;write-publication&quot;:
+      writeFileSync(outputPath, output.title + &quot;\n\n&quot; + output.body + &quot;\n&quot;, &quot;utf8&quot;);
+      console.log(&quot;Wrote:&quot;, outputPath);
+      return;
+    case &quot;none&quot;:
+      return;
+  }
+}
+
+function applyTransition(
+  decision: TransitionDecision&lt;ArticleState, ArticleOutput&gt;,
+): void {
+  // If the effect throws, do not claim the transition completed.
+  runEffect(decision.output);
+  facts = { ...facts, state: decision.to };
+  console.log(&quot;State:&quot;, facts.state);
+}
+
+console.log(&quot;State:&quot;, facts.state);
+
+// draft has event rules only. Start with send(), not advance().
+applyTransition(articleMachine.send(facts, { type: &quot;SUBMIT&quot; }));
+
+const offered = articleMachine.advance(facts);
+if (offered.kind !== &quot;choices&quot;) {
+  throw new Error(&quot;Expected a choice while the article is in review&quot;);
+}
+console.log(&quot;Choices:&quot;, offered.choices.map((choice) =&gt; choice.kind).join(&quot;, &quot;));
+
+// This console recipe deliberately selects approval. In an application,
+// collect a human or model pick here, then pass the freshest facts to choose().
+const picked = offered.choices.find((choice) =&gt; choice.kind === &quot;approve&quot;);
+if (!picked) {
+  throw new Error(&quot;Approval is not currently available&quot;);
+}
+applyTransition(articleMachine.choose(facts, picked));
+
+const publication = articleMachine.advance(facts);
+if (publication.kind !== &quot;transition&quot;) {
+  throw new Error(&quot;Expected an automatic publication transition&quot;);
+}
+applyTransition(publication);
+
+// published is terminal. Stop here; do not call advance() again.</code></pre></div>
+        <h3 id="operation-api">CompiledMachine: the public evaluator API</h3>
+        <p>The object returned by <code>defineMachine</code> has exactly these three operations. Each call uses your current <code>Facts</code> and returns synchronously or throws. There is no hidden current state, stored offer token, background loop, or automatic effect execution.</p>
+        <div class="table-wrap"><table aria-label="Compiled machine operations">
+          <thead><tr><th scope="col">Method and return type</th><th scope="col">What it evaluates</th><th scope="col">What the caller does next</th></tr></thead>
+          <tbody>
+            <tr><td><code>advance(facts: Facts): AdvanceDecision&lt;State, Choice, Output&gt;</code></td><td>Checks automatic and choice guards in the current state. Returns one automatic transition or the enabled choices. Event rules are not evaluated.</td><td>Branch on <code>kind</code>. Execute a transition and update state, or present the choices and obtain a pick. A call performs at most one step; it does not chain into the target state.</td></tr>
+            <tr><td><code>choose(facts: Facts, choice: Choice): TransitionDecision&lt;State, Output&gt;</code></td><td>Rechecks automatic/choice route legality, then matches the supplied <code>choiceKey</code> to one currently enabled option. It does not trust an old offer or caller-supplied payload.</td><td>Use the freshest facts. Execute the returned output and update state. An option is rejected if its key is no longer legal; the SDK does not track whether you previously called <code>advance</code>.</td></tr>
+            <tr><td><code>send(facts: Facts, event: Event): TransitionDecision&lt;State, Output&gt;</code></td><td>Matches the incoming <code>eventKey</code> against this state’s event rules, then checks their guards. Exactly one matching rule must be enabled. Automatic/choice guards are not evaluated.</td><td>Execute the returned output and update state. Our caller uses this to leave the event-only <code>draft</code> state; <code>advance</code> there would throw <code>NO_ROUTE</code>.</td></tr>
+          </tbody>
+        </table></div>
+        <h3>How route selection works</h3>
+        <ol>
+          <li>Read <code>stateOf(facts)</code>, locate its state definition, and reject a terminal state.</li>
+          <li>For <code>advance</code> or <code>choose</code>, test automatic and choice guards. More than one enabled automatic route, repeated enabled choice keys, or automatic/choice overlap is an error—not a priority rule.</li>
+          <li>For <code>advance</code>, return the single automatic transition or a nonempty legal-choice list; if neither exists, throw <code>NO_ROUTE</code>. For <code>choose</code>, require a currently legal matching choice key.</li>
+          <li>For <code>send</code>, inspect event rules separately. An unknown key, no enabled matching rule, or multiple enabled matching rules is an error.</li>
+          <li>Before returning a transition, check its target exists, then call the selected rule’s output callback. The caller still performs the effect and changes its facts.</li>
+        </ol>
+        <p>Distinct choices may be enabled together; the returned list follows their declaration order for display, not priority. Multiple event rules may share one event key if their guards are mutually exclusive. <code>choose</code> also rejects automatic/choice ambiguity; it is not a way to bypass a conflicting definition.</p>
+
+        <h3 id="decision-api">Returned decisions: every property</h3>
+        <p><code>AdvanceDecision</code> is a union of <code>ChoiceDecision</code> and <code>TransitionDecision</code>. <code>advance</code> can return either; <code>choose</code> and <code>send</code> always return a transition on success. Check <code>decision.kind</code> before reading shape-specific fields, as the caller above does.</p>
+        <p>With the recipe’s review facts and an available reviewer, <code>articleMachine.advance(facts)</code> returns this <code>ChoiceDecision</code>:</p>
+        <div class="code-frame"><div class="code-header"><span>ChoiceDecision · review</span><div><span class="language">json</span><button type="button" class="copy" data-copy="api-choice-result" data-filename="ChoiceDecision · review" aria-label="Copy ChoiceDecision · review" hidden>Copy</button></div></div><pre tabindex="0" aria-label="ChoiceDecision · review"><code id="api-choice-result" data-language="json">{
+  &quot;kind&quot;: &quot;choices&quot;,
+  &quot;state&quot;: &quot;review&quot;,
+  &quot;choices&quot;: [
+    {
+      &quot;kind&quot;: &quot;approve&quot;
+    },
+    {
+      &quot;kind&quot;: &quot;reject&quot;
+    }
+  ]
+}</code></pre></div>
+        <p>Choosing approval from those same review facts returns this <code>TransitionDecision</code>:</p>
+        <div class="code-frame"><div class="code-header"><span>TransitionDecision · approve</span><div><span class="language">json</span><button type="button" class="copy" data-copy="api-transition-result" data-filename="TransitionDecision · approve" aria-label="Copy TransitionDecision · approve" hidden>Copy</button></div></div><pre tabindex="0" aria-label="TransitionDecision · approve"><code id="api-transition-result" data-language="json">{
+  &quot;kind&quot;: &quot;transition&quot;,
+  &quot;from&quot;: &quot;review&quot;,
+  &quot;to&quot;: &quot;approved&quot;,
+  &quot;output&quot;: {
+    &quot;kind&quot;: &quot;none&quot;
+  }
+}</code></pre></div>
+        <div class="table-wrap"><table aria-label="Decision result properties">
+          <thead><tr><th scope="col">Property</th><th scope="col">Present on</th><th scope="col">Meaning</th></tr></thead>
+          <tbody>
+            <tr><td><code>kind</code></td><td>Both; <code>"choices" | "transition"</code>.</td><td>The discriminant that tells TypeScript and your caller which result shape it has.</td></tr>
+            <tr><td><code>state</code></td><td><code>ChoiceDecision</code>; <code>State</code>.</td><td>The current state in which the options were offered. This result is not a transition and has no <code>from</code>, <code>to</code>, or <code>output</code>.</td></tr>
+            <tr><td><code>choices</code></td><td><code>ChoiceDecision</code>; <code>readonly Choice[]</code>.</td><td>The currently enabled, distinct-key options—not rule objects. Object choices are isolated copies. Obtain a pick outside the evaluator and call <code>choose</code> with fresh facts.</td></tr>
+            <tr><td><code>from</code></td><td><code>TransitionDecision</code>; <code>State</code>.</td><td>The source state read from the supplied facts, not from an internal machine cursor.</td></tr>
+            <tr><td><code>to</code></td><td><code>TransitionDecision</code>; <code>State</code>.</td><td>The validated destination. The SDK does not assign it to <code>facts.state</code>; your caller must do that.</td></tr>
+            <tr><td><code>output</code></td><td><code>TransitionDecision</code>; <code>Output</code>.</td><td>The selected rule’s returned data. Your domain decides how to interpret it. A returned publication description has not yet written a file.</td></tr>
+          </tbody>
+        </table></div>
+        <p><code>applyTransition</code> executes <code>decision.output</code> first, then assigns <code>decision.to</code> to our new facts snapshot. If writing fails, this caller throws instead of claiming the article was published. It does not call the rule’s output callback again; that callback already ran inside the evaluator.</p>
+        <p>The approval selection is deliberately explicit: this recipe finds the offered <code>approve</code> option. A real interface can collect a human pick, or ask a model to select from that same legal list. It must pass the <strong>current</strong> facts to <code>choose</code>; the evaluator itself never calls the decision-maker.</p>
+        <div class="callout warning"><p><strong>This is not a durable transaction.</strong> The example performs one local write, then updates in-memory facts. An application that needs restart recovery or exactly-once effects must design its own persistence and effect handling. Re-running this example overwrites only <code>examples/published-article.txt</code>.</p></div>
+      </section>
+
+      <section class="step" id="run" aria-labelledby="run-heading">
+        <div class="step-heading"><span class="step-number">05</span><h2 id="run-heading">Run the happy path</h2></div>
+        <p>Save both TypeScript files. In the terminal you kept at the repository root, run the program and inspect the publication:</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run and inspect</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="run-commands" data-filename="Terminal · run and inspect" aria-label="Copy Terminal · run and inspect" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run and inspect"><code id="run-commands" data-language="bash">npx --no-install tsx examples/run-article-machine.ts
+cat examples/published-article.txt</code></pre></div>
+        <p>The first command prints this sequence:</p>
+        <div class="code-frame"><div class="code-header"><span>Expected program output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-run" data-filename="Expected program output" aria-label="Copy Expected program output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected program output"><code id="expected-run" data-language="text">State: draft
+Submitted for review: A small state machine
+State: review
+Choices: approve, reject
+State: approved
+Wrote: examples/published-article.txt
+State: published</code></pre></div>
+        <p>The second command prints the file’s contents:</p>
+        <div class="code-frame"><div class="code-header"><span>examples/published-article.txt · expected contents</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-publication" data-filename="examples/published-article.txt · expected contents" aria-label="Copy examples/published-article.txt · expected contents" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/published-article.txt · expected contents"><code id="expected-publication" data-language="text">A small state machine
+
+A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the evaluator returns a valid transition.</code></pre></div>
+        <p><code>tsx</code> executes TypeScript without compiling a separate JavaScript build. <code>--no-install</code> tells <code>npx</code> to use installed tooling rather than download a missing package. It does <strong>not</strong> type-check the program; we do that in step 7. Toolchain warnings may appear on stderr in addition to the output shown.</p>
+      </section>
+
+      <section class="step" id="safety" aria-labelledby="safety-heading">
+        <div class="step-heading"><span class="step-number">06</span><h2 id="safety-heading">Check the safety rails</h2></div>
+        <p>A useful machine also rejects illegal operations. Create <code>examples/check-article-machine.ts</code>, paste the complete block below, and save it. These checks use Node’s built-in assertions; there is no extra test framework to install.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/check-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-checks" data-filename="examples/check-article-machine.ts" aria-label="Copy examples/check-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/check-article-machine.ts"><code id="sample-checks" data-language="typescript" data-file="examples/check-article-machine.ts">import assert from &quot;node:assert/strict&quot;;
+import {
+  MachineFailure,
+  type MachineFailureCode,
+} from &quot;../extensions/state-machine.js&quot;;
+import { articleMachine, type ArticleFacts } from &quot;./article-machine.js&quot;;
+
+function expectFailure(code: MachineFailureCode, operation: () =&gt; unknown): void {
+  assert.throws(operation, (error: unknown) =&gt; {
+    assert.ok(error instanceof MachineFailure);
+    assert.equal(error.code, code);
+    return true;
+  });
+  console.log(&quot;Rejected as expected:&quot;, code);
+}
+
+const draft: ArticleFacts = {
+  state: &quot;draft&quot;,
+  title: &quot;Safety checks&quot;,
+  body: &quot;This sample article has enough words to be submitted for review safely.&quot;,
+  reviewerAvailable: true,
+};
+
+// An event exists, but its predicate rejects an article that is too short.
+expectFailure(&quot;INVALID_EVENT&quot;, () =&gt;
+  articleMachine.send({ ...draft, body: &quot;Too short&quot; }, { type: &quot;SUBMIT&quot; }),
+);
+
+// An event-only state cannot be driven by advance().
+expectFailure(&quot;NO_ROUTE&quot;, () =&gt; articleMachine.advance(draft));
+
+const submitted = articleMachine.send(draft, { type: &quot;SUBMIT&quot; });
+assert.equal(submitted.to, &quot;review&quot;);
+assert.equal(draft.state, &quot;draft&quot;); // The evaluator did not update our facts.
+const review: ArticleFacts = { ...draft, state: submitted.to };
+
+const offered = articleMachine.advance(review);
+assert.equal(offered.kind, &quot;choices&quot;);
+if (offered.kind !== &quot;choices&quot;) throw new Error(&quot;Expected review choices&quot;);
+assert.deepEqual(offered.choices.map((choice) =&gt; choice.kind), [&quot;approve&quot;, &quot;reject&quot;]);
+const approval = offered.choices.find((choice) =&gt; choice.kind === &quot;approve&quot;);
+if (!approval) throw new Error(&quot;Expected approval to be offered&quot;);
+
+// The reviewer became unavailable after we obtained the options.
+// choose() re-evaluates current facts and rejects the now-illegal pick.
+expectFailure(&quot;ILLEGAL_CHOICE&quot;, () =&gt;
+  articleMachine.choose({ ...review, reviewerAvailable: false }, approval),
+);
+
+const rejected = articleMachine.choose(review, { kind: &quot;reject&quot; });
+assert.equal(rejected.to, &quot;draft&quot;);
+const approved = articleMachine.choose(review, approval);
+assert.equal(approved.to, &quot;approved&quot;);
+const publication = articleMachine.advance({ ...review, state: approved.to });
+assert.equal(publication.kind, &quot;transition&quot;);
+if (publication.kind !== &quot;transition&quot;) throw new Error(&quot;Expected publication&quot;);
+assert.equal(publication.to, &quot;published&quot;);
+assert.deepEqual(publication.output, {
+  kind: &quot;write-publication&quot;,
+  title: draft.title,
+  body: draft.body,
+});
+
+// Returning an output does not write a file. Only the runner executes effects.
+expectFailure(&quot;TERMINAL_STATE&quot;, () =&gt;
+  articleMachine.advance({ ...review, state: &quot;published&quot; }),
+);
+console.log(&quot;All safety checks passed.&quot;);</code></pre></div>
+        <p>Run the checks from the repository root:</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run the safety checks</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="check-commands" data-filename="Terminal · run the safety checks" aria-label="Copy Terminal · run the safety checks" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run the safety checks"><code id="check-commands" data-language="bash">npx --no-install tsx examples/check-article-machine.ts</code></pre></div>
+        <div class="code-frame"><div class="code-header"><span>Expected safety-check output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-checks" data-filename="Expected safety-check output" aria-label="Copy Expected safety-check output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected safety-check output"><code id="expected-checks" data-language="text">Rejected as expected: INVALID_EVENT
+Rejected as expected: NO_ROUTE
+Rejected as expected: ILLEGAL_CHOICE
+Rejected as expected: TERMINAL_STATE
+All safety checks passed.</code></pre></div>
+        <h3 id="failure-api">MachineFailure: error API and every failure code</h3>
+        <p>SDK validation failures throw <code>MachineFailure</code>, an <code>Error</code> subclass. Check <code>error instanceof MachineFailure</code>, then handle <code>error.code</code>, whose type is the exported <code>MachineFailureCode</code> union. <code>error.context</code> is a read-only record of structured diagnostics; fields depend on the failure and can include <code>state</code>, <code>operation</code>, <code>ruleId</code>, <code>ruleIds</code>, <code>target</code>, <code>choiceKey</code>, <code>legalChoiceKeys</code>, <code>eventKey</code>, <code>knownEventKeys</code>, or <code>reason</code>. Do not assume every field is present.</p>
+        <p><code>error.name</code> is <code>"MachineFailure"</code>; <code>error.message</code> is human-readable, not a stable matching API. Assert on the code, not message wording. The check script above treats expected errors as successful checks; a mismatch exits with a failure.</p>
+        <div class="table-wrap"><table aria-label="Machine failure codes">
+          <thead><tr><th scope="col">Code</th><th scope="col">Where</th><th scope="col">What it means</th></tr></thead>
+          <tbody>
+            <tr><td><code>MISSING_STATE</code></td><td>Any operation.</td><td><code>stateOf(facts)</code> names a state missing from the table. A state union alone does not create a definition.</td></tr>
+            <tr><td><code>TERMINAL_STATE</code></td><td><code>advance</code>.</td><td>The current state has <code>terminal: true</code>. Stop driving the machine.</td></tr>
+            <tr><td><code>AMBIGUOUS_AUTOMATIC</code></td><td><code>advance</code>, <code>choose</code>.</td><td>More than one automatic guard passed. Make these routes mutually exclusive.</td></tr>
+            <tr><td><code>AMBIGUOUS_ROUTE</code></td><td><code>advance</code>, <code>choose</code>.</td><td>An automatic rule and one or more choices are enabled together. Neither has implicit priority.</td></tr>
+            <tr><td><code>NO_ROUTE</code></td><td><code>advance</code>.</td><td>No automatic route or choice is enabled. This is also expected when you mistakenly advance an event-only state.</td></tr>
+            <tr><td><code>AMBIGUOUS_CHOICE</code></td><td><code>advance</code>, <code>choose</code>.</td><td>Enabled choice rules have the same <code>choiceKey</code>. Multiple choices with different keys are valid.</td></tr>
+            <tr><td><code>ILLEGAL_CHOICE</code></td><td><code>choose</code>.</td><td>No enabled choice matches the supplied key, or the state is terminal. The option may have become illegal since it was offered.</td></tr>
+            <tr><td><code>UNKNOWN_EVENT</code></td><td><code>send</code>.</td><td>This state declares no event rule matching the incoming <code>eventKey</code>. A rule in another state does not count.</td></tr>
+            <tr><td><code>INVALID_EVENT</code></td><td><code>send</code>.</td><td>The event key is known, but all matching guards returned false.</td></tr>
+            <tr><td><code>AMBIGUOUS_EVENT</code></td><td><code>send</code>.</td><td>More than one matching event rule is enabled. Declaration order does not break the tie.</td></tr>
+            <tr><td><code>INVALID_TERMINAL_EVENT</code></td><td><code>send</code>.</td><td>An event was sent to a terminal state. Terminal-event errors differ from <code>advance</code> and <code>choose</code> errors.</td></tr>
+            <tr><td><code>INVALID_TARGET</code></td><td>Any selected transition.</td><td>The rule targets an undeclared state. Target validation fails before the output callback runs.</td></tr>
+            <tr><td><code>UNSUPPORTED_CHOICE</code></td><td><code>defineMachine</code>, <code>advance</code>, <code>choose</code>.</td><td>A choice cannot be isolated, for example because it contains a function or shared memory. Adding a choice rule after construction also violates the captured definition.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="callout warning"><p><strong>Your callback exceptions are not converted into these codes.</strong> An exception from <code>stateOf</code>, a key function, a guard, or an output callback propagates as thrown. Distinguish SDK validation failures from bugs in your own callbacks and from effect failures in the caller.</p></div>
+      </section>
+
+      <section class="step" id="types" aria-labelledby="types-heading">
+        <div class="step-heading"><span class="step-number">07</span><h2 id="types-heading">Type-check the files</h2></div>
+        <p>Create <code>examples/tsconfig.json</code> and paste this complete JSON. The local config checks our three sample files and the evaluator they import; it does not change the repository’s main TypeScript configuration.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/tsconfig.json</span><div><span class="language">json</span><button type="button" class="copy" data-copy="sample-config" data-filename="examples/tsconfig.json" aria-label="Copy examples/tsconfig.json" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/tsconfig.json"><code id="sample-config" data-language="json" data-file="examples/tsconfig.json">{
+  &quot;compilerOptions&quot;: {
+    &quot;target&quot;: &quot;ES2022&quot;,
+    &quot;module&quot;: &quot;NodeNext&quot;,
+    &quot;moduleResolution&quot;: &quot;NodeNext&quot;,
+    &quot;strict&quot;: true,
+    &quot;noEmit&quot;: true,
+    &quot;types&quot;: [&quot;node&quot;]
+  },
+  &quot;include&quot;: [
+    &quot;article-machine.ts&quot;,
+    &quot;run-article-machine.ts&quot;,
+    &quot;check-article-machine.ts&quot;
+  ]
+}</code></pre></div>
+        <p>Run the installed TypeScript compiler:</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · strict type-check</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="type-commands" data-filename="Terminal · strict type-check" aria-label="Copy Terminal · strict type-check" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · strict type-check"><code id="type-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json</code></pre></div>
+        <p><strong>Success produces no compiler diagnostics and exits with code 0.</strong> If it prints errors, check the named file and line before continuing. <code>strict</code> checks types; <code>noEmit</code> prevents generated JavaScript files. The <code>include</code> names are relative to <code>examples/tsconfig.json</code>, which is why they do not start with <code>examples/</code>.</p>
+        <p>Your folder now contains:</p>
+        <div class="code-frame"><div class="code-header"><span>Final example folder</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-tree" data-filename="Final example folder" aria-label="Copy Final example folder" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Final example folder"><code id="expected-tree" data-language="text">examples/
+  article-machine.ts
+  run-article-machine.ts
+  check-article-machine.ts
+  tsconfig.json
+  published-article.txt</code></pre></div>
+      </section>
+
+      <section class="step" id="finish" aria-labelledby="finish-heading">
+        <div class="step-heading"><span class="step-number">08</span><h2 id="finish-heading">Eat: verify the whole recipe</h2></div>
+        <p>Run this final sequence from the repository root. The <code>&amp;&amp;</code> operators stop it at the first failed command.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · final verification</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="finish-commands" data-filename="Terminal · final verification" aria-label="Copy Terminal · final verification" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · final verification"><code id="finish-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json &amp;&amp;
+npx --no-install tsx examples/check-article-machine.ts &amp;&amp;
+npx --no-install tsx examples/run-article-machine.ts &amp;&amp;
+cat examples/published-article.txt</code></pre></div>
+        <ul>
+          <li>The compiler reports no type errors.</li>
+          <li>The check script prints <code>All safety checks passed.</code></li>
+          <li>The runner finishes at <code>State: published</code>.</li>
+          <li>The printed file contains the article title and body shown in step 5.</li>
+        </ul>
+        <div class="callout success"><p><strong>You have created a new machine.</strong> Its four states, facts, choices, event, and outputs are your domain. The shared evaluator did not need to change.</p></div>
+        <h3>Use the recipe for a different workflow</h3>
+        <ol>
+          <li>Replace the five article types with your domain types. Use <code>never</code> for choices or events your workflow does not support; the definition still requires their key callbacks.</li>
+          <li>Replace the state table and guards. Declare every target state explicitly. Missing or invalid states are rejected at runtime when accessed or selected; defining the machine is not a full graph-validation pass.</li>
+          <li>Keep automatic routes mutually exclusive, and avoid automatic/choice overlap. Offer multiple choices with distinct keys when a decision is needed.</li>
+          <li>Change the caller’s effects and input handling. Keep async work, model calls, retries, clocks, and persistence outside the evaluator.</li>
+          <li>Exercise each new route and the boundary cases. Treat the definition as immutable after construction, keep callbacks pure, and stop driving terminal states.</li>
+        </ol>
+        <h3>If something goes wrong</h3>
+        <div class="table-wrap"><table>
+          <thead><tr><th scope="col">Symptom</th><th scope="col">What to check</th></tr></thead>
+          <tbody>
+            <tr><td>Missing module or missing compiler</td><td>Return to the checkout root, confirm the evaluator file exists, and complete <code>npm ci</code>. Do not install a separate package named <code>tsc</code>.</td></tr>
+            <tr><td><code>NO_ROUTE</code> in draft</td><td>Call <code>send(facts, { type: "SUBMIT" })</code>. Draft has only event rules; <code>advance</code> does not dispatch an event for you.</td></tr>
+            <tr><td><code>INVALID_EVENT</code></td><td>The SUBMIT guard requires at least ten words. Verify the current body.</td></tr>
+            <tr><td><code>ILLEGAL_CHOICE</code></td><td>Re-read the current facts. Approval is not available when the reviewer is unavailable. Do not reuse an option after its guard stops passing.</td></tr>
+            <tr><td><code>TERMINAL_STATE</code></td><td>Stop when you reach published. <code>choose</code> and <code>send</code> also reject terminal states, with their own failure codes.</td></tr>
+            <tr><td>File write fails with <code>ENOENT</code></td><td>Run from the repository root and create <code>examples/</code> as in step 1. The evaluator does not create directories.</td></tr>
+          </tbody>
+        </table></div>
+        <p class="related">Keep exploring: <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/state-machine.md">Evaluator usage reference</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state-machine.ts">SDK source</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/adr/0002-observably-invoked-happy-path-loop.md">Architecture rationale</a>.</p>
+      </section>
+    </article>
+  </div>
+</main>
+<footer><div class="footer-inner"><span>Buck Workflow · State-machine recipe</span><a href="../index.html">Back to Buck Workflow</a></div></footer>
+<p id="copy-status" class="sr-only" role="status" aria-live="polite"></p>
+<script>
+window.__applyTheme = function (theme) {
+  if (theme !== 'light' && theme !== 'dark') return;
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('guide-theme', theme); } catch (_) {}
+};
+if (document.documentElement.dataset.theme === 'light' && window.htmx) {
+  htmx.ajax('GET', 'partials/toggle-to-dark.html', { target: '#theme-toggle', swap: 'outerHTML' });
+}
+// The triggering button is replaced by the swap, so its own hx-on listeners are
+// cleaned up before htmx:afterRequest fires. Apply the theme here instead.
+document.body.addEventListener('htmx:afterRequest', function (evt) {
+  var elt = evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.elt;
+  if (elt && elt.dataset && elt.dataset.applyTheme) window.__applyTheme(elt.dataset.applyTheme);
+});
+const copyStatus = document.getElementById('copy-status');
+for (const button of document.querySelectorAll('[data-copy]')) {
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    const code = document.getElementById(button.dataset.copy);
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+      button.textContent = 'Copied';
+      copyStatus.textContent = 'Copied ' + button.dataset.filename + '.';
+      window.setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+    } catch {
+      copyStatus.textContent = 'Copy is unavailable. Select the code in the block and copy it manually.';
+    }
+  });
+}
+</script>
+</body>
+</html>

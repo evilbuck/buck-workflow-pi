@@ -95,6 +95,7 @@
     "context:index": "bun scripts/context-artifacts.ts index",
     "context:validate": "bun scripts/context-artifacts.ts validate",
     "presentations:serve": "bun scripts/serve-presentations.ts",
+    "site:serve": "bun scripts/serve-presentations.ts --dir site",
     "prepublishOnly": "npm test",
     "release": "node scripts/publish.mjs",
     "guardrails:check": "node skills/b-guardrails-check/scripts/check.mjs",

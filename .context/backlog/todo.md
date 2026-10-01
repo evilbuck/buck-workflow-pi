@@ -171,6 +171,20 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 ## Code-review universal skill (2026-06-07)
 - [x] [Code review skill](items/code-review-skill.md) — pr-context.ts, submit-review.ts, SKILL.md, prompt, symlink, docs reality pass — done 2026-06-07
 
+## State Machine Module Cutover Phases (2026-10-01)
+
+Overview: [`plan-state-machine-module-cutover-phases.md`](../2026-10-01.state-machine-redesign/plan-state-machine-module-cutover-phases.md).
+Umbrella plan: [plan-state-machine-module-cutover.md](../2026-10-01.state-machine-redesign/plan-state-machine-module-cutover.md).
+Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (2,3 → 4).
+
+- [ ] [Phase 1: Module Finalization](items/phase-1-state-machine-module.md) — medium, `/b-build` — [phase-1-module-finalization.md](../2026-10-01.state-machine-redesign/phase-1-module-finalization.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Port buckMachine — hard, `/b-build-hard` — [phase-2-port-buck-machine.md](../2026-10-01.state-machine-redesign/phase-2-port-buck-machine.md)
+- [ ] Phase 3: Port reviewMachine — medium, `/b-build` — [phase-3-port-review-machine.md](../2026-10-01.state-machine-redesign/phase-3-port-review-machine.md)
+- [ ] Phase 4: Delete Old Engine and Update Docs — medium, `/b-build` — [phase-4-delete-and-document.md](../2026-10-01.state-machine-redesign/phase-4-delete-and-document.md)
+
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)
 - [x] [b-pr skill](items/b-pr-skill.md) — SKILL.md, pr-preflight.ts, prompt, command, dual-audience description — done 2026-06-11
