@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Create a State Machine — Buck Workflow Guide</title>
-<meta name="description" content="A runnable TypeScript state-machine recipe with property-by-property machine, state, and rule API explanations, evaluator methods, result objects, and failure codes.">
+<meta name="description" content="An eight-step TypeScript recipe for the portable state-machine module: definitions and instances, guarded targets, manual moves, effect interpretation, restore, and runnable safety checks.">
 <meta property="og:title" content="Create a State Machine — Buck Workflow Guide">
-<meta property="og:description" content="Build a document-approval workflow, one complete file at a time. No agent runtime or API key required.">
+<meta property="og:description" content="Build a portable document-approval graph, one complete file at a time. Guards, effects, operator moves, and runnable safety checks.">
 <meta property="og:type" content="article">
 <script>
 (function () {
@@ -105,7 +105,7 @@ h1 span { color: var(--fg-dim); }
 .tag { border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; font-size: 11px; color: var(--fg-dim); font-family: 'JetBrains Mono', monospace; }
 .tag:first-child { color: var(--green); border-color: var(--chip-border); background: var(--chip-bg); }
 .layout { display: grid; grid-template-columns: 226px minmax(0,1fr); gap: 54px; align-items: start; }
-.contents { position: sticky; top: 98px; padding: 36px 0; max-height: calc(100vh - 98px); overflow-y: auto; }
+.contents { display: block; position: sticky; top: 98px; padding: 36px 0; max-height: calc(100vh - 98px); overflow-y: auto; }
 .contents-title { margin: 0 0 18px; color: var(--fg-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
 .contents ol, .mobile-contents ol { margin: 0; padding: 0; list-style: none; }
 .contents li { margin-bottom: 14px; }
@@ -150,7 +150,7 @@ pre code { display: block; font-size: 12px; line-height: 1.75; color: var(--pre-
 .table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 7px; }
 table { width: 100%; border-collapse: collapse; text-align: left; }
 .table-wrap table[aria-label] { min-width: 620px; }
-table[aria-label$="properties"] td:first-child code, table[aria-label="Machine failure codes"] td:first-child code { white-space: nowrap; overflow-wrap: normal; }
+table[aria-label$="properties"] td:first-child code, table[aria-label="Machine errors"] td:first-child code { white-space: nowrap; overflow-wrap: normal; }
 th, td { padding: 13px 15px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
 th { background: var(--panel-bg); color: var(--fg); font-weight: 600; }
 td { color: var(--fg-dim); }
@@ -220,512 +220,348 @@ footer { border-top: 1px solid var(--border); }
 </header>
 <main id="main" class="container">
   <header class="hero">
-    <p class="eyebrow">Developer recipe / State machines</p>
+    <p class="eyebrow">Developer recipe / Portable state machines</p>
     <h1>Build a state machine.<br><span>One working recipe.</span></h1>
-    <p class="lead">Create a document-approval workflow from an empty example folder. Learn what every machine, state, and rule property means, drive the evaluator API, write a real publication file, and check that illegal operations are rejected.</p>
+    <p class="lead">Declare a document-approval graph in one place. Create an instance, supply current facts, choose guarded targets, handle operator-only moves, and interpret effects in your caller. Finish with a real publication file and runnable safety checks.</p>
     <div class="tags" aria-label="Recipe requirements">
-      <span class="tag">Complete, runnable files</span>
-      <span class="tag">TypeScript</span>
-      <span class="tag">Node.js 22+</span>
-      <span class="tag">No agent runtime or API key</span>
+      <span class="tag">Complete, runnable files</span><span class="tag">TypeScript</span><span class="tag">Node.js 22+</span><span class="tag">No agent runtime or API key</span>
     </div>
   </header>
   <details class="mobile-contents">
     <summary>Jump to a recipe step or API section</summary>
-    <nav aria-label="Mobile recipe steps"><ol>
-  <li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
-  <li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
-  <li><a href="#definition"><span>03</span> Define the machine</a></li>
-  <li><a href="#caller"><span>04</span> Write the caller</a></li>
-  <li><a href="#run"><span>05</span> Run the happy path</a></li>
-  <li><a href="#safety"><span>06</span> Check the safety rails</a></li>
-  <li><a href="#types"><span>07</span> Type-check the files</a></li>
-  <li><a href="#finish"><span>08</span> Verify the whole recipe</a></li>
-</ol></nav>
-    <nav class="api-contents" aria-label="Mobile API reference"><ol>
-<li><a href="#machine-api">Machine properties</a></li>
+    <nav aria-label="Mobile recipe steps"><ol><li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+<li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+<li><a href="#definition"><span>03</span> Define the machine</a></li>
+<li><a href="#caller"><span>04</span> Write the caller</a></li>
+<li><a href="#run"><span>05</span> Run the happy path</a></li>
+<li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+<li><a href="#types"><span>07</span> Type-check the files</a></li>
+<li><a href="#finish"><span>08</span> Verify the whole recipe</a></li></ol></nav>
+    <nav class="api-contents" aria-label="Mobile API reference"><ol><li><a href="#machine-api">Definition and instance</a></li>
 <li><a href="#state-api">State properties</a></li>
-<li><a href="#rule-api">Rule properties</a></li>
-<li><a href="#operation-api">Evaluator methods</a></li>
-<li><a href="#decision-api">Returned decisions</a></li>
-<li><a href="#failure-api">Failure codes</a></li>
-</ol></nav>
+<li><a href="#edge-api">Edge properties</a></li>
+<li><a href="#operation-api">Instance methods</a></li>
+<li><a href="#decision-api">Transition result</a></li>
+<li><a href="#failure-api">Error classes</a></li></ol></nav>
   </details>
   <div class="layout">
     <aside class="contents">
-      <nav aria-label="Recipe steps">
-        <p class="contents-title">In this recipe</p>
-        <ol>
-  <li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
-  <li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
-  <li><a href="#definition"><span>03</span> Define the machine</a></li>
-  <li><a href="#caller"><span>04</span> Write the caller</a></li>
-  <li><a href="#run"><span>05</span> Run the happy path</a></li>
-  <li><a href="#safety"><span>06</span> Check the safety rails</a></li>
-  <li><a href="#types"><span>07</span> Type-check the files</a></li>
-  <li><a href="#finish"><span>08</span> Verify the whole recipe</a></li>
-</ol>
-      </nav>
-      <nav class="api-contents" aria-label="API reference">
-        <p class="contents-title">API reference</p>
-        <ol>
-<li><a href="#machine-api">Machine properties</a></li>
+      <nav aria-label="Recipe steps"><p class="contents-title">In this recipe</p><ol><li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+<li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+<li><a href="#definition"><span>03</span> Define the machine</a></li>
+<li><a href="#caller"><span>04</span> Write the caller</a></li>
+<li><a href="#run"><span>05</span> Run the happy path</a></li>
+<li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+<li><a href="#types"><span>07</span> Type-check the files</a></li>
+<li><a href="#finish"><span>08</span> Verify the whole recipe</a></li></ol></nav>
+      <nav class="api-contents" aria-label="API reference"><p class="contents-title">API reference</p><ol><li><a href="#machine-api">Definition and instance</a></li>
 <li><a href="#state-api">State properties</a></li>
-<li><a href="#rule-api">Rule properties</a></li>
-<li><a href="#operation-api">Evaluator methods</a></li>
-<li><a href="#decision-api">Returned decisions</a></li>
-<li><a href="#failure-api">Failure codes</a></li>
-        </ol>
-      </nav>
-      <p class="contents-note"><strong>The boundary</strong><br>The machine decides.<br>Your caller performs the work.<br>Your facts hold the current state.</p>
+<li><a href="#edge-api">Edge properties</a></li>
+<li><a href="#operation-api">Instance methods</a></li>
+<li><a href="#decision-api">Transition result</a></li>
+<li><a href="#failure-api">Error classes</a></li></ol></nav>
+      <p class="contents-note"><strong>The boundary</strong><br>The definition holds the graph.<br>The instance holds its state.<br>Your caller owns facts and work.</p>
     </aside>
     <article aria-label="Create a state machine recipe">
       <section class="step" id="setup" aria-labelledby="setup-heading">
         <div class="step-heading"><span class="step-number">01</span><h2 id="setup-heading">Prepare your kitchen</h2></div>
-        <p>This recipe uses the evaluator shipped in the <strong>Buck Workflow source repository</strong>. It is not an import from a globally installed CLI package. You need basic TypeScript familiarity, a text editor, and a Bash-compatible terminal on Linux, macOS, or Windows through WSL.</p>
-        <ol>
-          <li>Install <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22 or newer</a>. Node includes npm. If you use WSL, install them inside WSL. Reopen your terminal after installation.</li>
-          <li>Check that these commands print version numbers. Your Node version must be <code>v22</code> or newer.</li>
-        </ol>
+        <p>This recipe uses the portable module in the <strong>Buck Workflow source repository</strong>, not a globally installed CLI. You need basic TypeScript familiarity, a text editor, and a Bash-compatible terminal on Linux, macOS, or Windows through WSL.</p>
+        <ol><li>Install <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22 or newer</a>. Node includes npm. If you use WSL, install them inside WSL.</li><li>Check that these commands print version numbers:</li></ol>
         <div class="code-frame"><div class="code-header"><span>Terminal · check your tools</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="versions" data-filename="Terminal · check your tools" aria-label="Copy Terminal · check your tools" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · check your tools"><code id="versions" data-language="bash">git --version
 node --version
 npm --version</code></pre></div>
-        <p><strong>If you do not have a checkout:</strong> run the following commands. If you already work in this repository, skip the clone and open a terminal at its root—the directory containing <code>package.json</code>, <code>package-lock.json</code>, and <code>extensions/</code>.</p>
+        <p><strong>If you do not have a checkout:</strong> clone the source. Otherwise open a terminal at its root—the directory containing <code>package.json</code> and <code>extensions/</code>.</p>
         <div class="code-frame"><div class="code-header"><span>Terminal · obtain the source</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="clone" data-filename="Terminal · obtain the source" aria-label="Copy Terminal · obtain the source" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · obtain the source"><code id="clone" data-language="bash">git clone --branch master https://github.com/evilbuck/buck-workflow-pi.git
 cd buck-workflow-pi</code></pre></div>
-        <p>Confirm the evaluator is present, install the exact locked dependencies, and create a folder for your example. <code>npm ci</code> installs this repository’s TypeScript compiler and <code>tsx</code> runner; you do not need Bun or OMP.</p>
-        <div class="code-frame"><div class="code-header"><span>Terminal · run from the repository root</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="setup-commands" data-filename="Terminal · run from the repository root" aria-label="Copy Terminal · run from the repository root" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run from the repository root"><code id="setup-commands" data-language="bash">test -f extensions/state-machine.ts &amp;&amp; echo &quot;Evaluator source found&quot;
+        <p>Confirm the module is present, install the locked toolchain, and create the example folder. <code>npm ci</code> provides TypeScript and <code>tsx</code>; you do not need Bun, an agent runtime, or an API key.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run from the repository root</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="setup-commands" data-filename="Terminal · run from the repository root" aria-label="Copy Terminal · run from the repository root" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run from the repository root"><code id="setup-commands" data-language="bash">test -f extensions/state_machine/index.ts &amp;&amp; echo &quot;Module source found&quot;
 npm ci
 mkdir -p examples</code></pre></div>
-        <div class="callout warning"><p><strong>Stop if a command fails.</strong> The first command must print <code>Evaluator source found</code>. Do not continue after a failed install. In an existing checkout, <code>npm ci</code> replaces its installed dependencies with the lockfile versions. Choose a separate clone if you need to preserve a customized dependency tree.</p></div>
-        <p>Keep this terminal at the repository root for <strong>every command below</strong>. All filenames are relative to that root. Copy only the contents of a code block—there are no shell prompt characters to remove.</p>
+        <div class="callout warning"><p><strong>Stop if a command fails.</strong> The first command must print <code>Module source found</code>. In an existing checkout, <code>npm ci</code> replaces installed dependencies with the lockfile versions. Use a separate clone if you need to preserve a customized dependency tree.</p></div>
       </section>
 
       <section class="step" id="workflow" aria-labelledby="workflow-heading">
         <div class="step-heading"><span class="step-number">02</span><h2 id="workflow-heading">Sketch the workflow</h2></div>
-        <p>Our article moves through four states. Submitting is an external event; reviewing offers a decision; an approved article is published automatically. Publication here means writing a local text file, not posting to a website.</p>
-        <div class="workflow" aria-label="Happy path: draft, SUBMIT event, review, approve choice, approved, automatic transition, published">
-          <div><code>draft</code><small>Wait for SUBMIT</small></div>
-          <div><code>review</code><small>Offer approve / reject</small></div>
-          <div><code>approved</code><small>Prepare the file write</small></div>
-          <div><code>published</code><small>Terminal: stop</small></div>
+        <p>The happy path has four states. An operator submits a draft; the caller chooses approval or revision; an approved article publishes automatically. Publication writes a local text file, not a website.</p>
+        <div class="workflow" aria-label="Happy path: draft, manual submit, review, caller approval, approved, automatic publish, published">
+          <div><code>draft</code><small>Manual submit; at least ten words</small></div>
+          <div><code>review</code><small>Choose approval or return to draft</small></div>
+          <div><code>approved</code><small>One automatic publish target</small></div>
+          <div><code>published</code><small>Final; no outgoing targets</small></div>
         </div>
-        <p class="branch-note">Alternative route: choosing <code>reject</code> in <code>review</code> returns the article to <code>draft</code>.</p>
-        <div class="table-wrap"><table>
-          <thead><tr><th scope="col">Ingredient</th><th scope="col">What it means here</th></tr></thead>
-          <tbody>
-            <tr><td><code>State</code></td><td>One of the four names above. A TypeScript union prevents spelling a different state by accident.</td></tr>
-            <tr><td><code>Facts</code></td><td>The current state, title, body, and reviewer availability. The caller supplies a fresh snapshot.</td></tr>
-            <tr><td><code>Choice</code></td><td>An option to select: approve or reject. The machine declares which options are legal.</td></tr>
-            <tr><td><code>Event</code></td><td>A signal pushed into the machine: SUBMIT.</td></tr>
-            <tr><td><code>Output</code></td><td>A description of work: log the submission, write the publication, or perform no effect.</td></tr>
-          </tbody>
-        </table></div>
-        <div class="callout"><p><strong>A decision is not execution.</strong> Evaluating a transition returns its target and output. It does not change your facts, write files, call a model, or store a history. Your caller handles those responsibilities.</p></div>
+        <p class="branch-note">A manual STOP from draft, review, or approved goes to a fifth state, <code>cancelled</code>. It is never an automatic option.</p>
+        <ul><li><strong>Definition:</strong> the static graph, validated once.</li><li><strong>Instance:</strong> one run’s current state. Start a fresh run or restore a persisted name.</li><li><strong>Facts:</strong> caller-owned data about the world, supplied again on each evaluation.</li><li><strong>Effects:</strong> descriptions returned as data. The caller performs the work.</li></ul>
+        <div class="callout"><p><strong>The caller chooses routing policy.</strong> <code>available(facts)</code> can return zero, one, or many targets. The module neither picks the first nor rejects ambiguity. This recipe explicitly chooses in review and requires exactly one target for its automatic publish tick.</p></div>
       </section>
 
       <section class="step" id="definition" aria-labelledby="definition-heading">
         <div class="step-heading"><span class="step-number">03</span><h2 id="definition-heading">Define the machine</h2></div>
-        <p>In your editor, create <code>examples/article-machine.ts</code>. Paste the <strong>entire</strong> block below and save the file. It contains all types, the word-count guard, and the complete state table.</p>
-        <div class="code-frame"><div class="code-header"><span>examples/article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-machine" data-filename="examples/article-machine.ts" aria-label="Copy examples/article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/article-machine.ts"><code id="sample-machine" data-language="typescript" data-file="examples/article-machine.ts">import { defineMachine } from &quot;../extensions/state-machine.js&quot;;
+        <p>Create <code>examples/article-machine.ts</code> and paste the <strong>entire</strong> block. The two generic types describe facts and effect data; state names are inferred from the <code>states</code> keys.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-machine" data-filename="examples/article-machine.ts" aria-label="Copy examples/article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/article-machine.ts"><code id="sample-machine" data-language="typescript" data-file="examples/article-machine.ts">import { defineMachine } from &quot;../extensions/state_machine/index.js&quot;;
 
-export type ArticleState = &quot;draft&quot; | &quot;review&quot; | &quot;approved&quot; | &quot;published&quot;;
-
-export interface ArticleFacts {
-  state: ArticleState;
+export type ArticleFacts = {
   title: string;
   body: string;
   reviewerAvailable: boolean;
-}
+};
 
-export type ArticleChoice = { kind: &quot;approve&quot; } | { kind: &quot;reject&quot; };
-export type ArticleEvent = { type: &quot;SUBMIT&quot; };
-export type ArticleOutput =
-  | { kind: &quot;log-submission&quot;; title: string }
-  | { kind: &quot;write-publication&quot;; title: string; body: string }
-  | { kind: &quot;none&quot; };
+export type ArticleEffect =
+  | { kind: &quot;submit&quot;; title: string }
+  | { kind: &quot;publish&quot;; title: string; body: string };
 
-function hasEnoughWords(facts: ArticleFacts): boolean {
-  return facts.body.trim().split(/\s+/).length &gt;= 10;
-}
-
-export const articleMachine = defineMachine&lt;
-  ArticleState,
-  ArticleFacts,
-  ArticleChoice,
-  ArticleEvent,
-  ArticleOutput
-&gt;({
-  stateOf: (facts) =&gt; facts.state,
-  choiceKey: (choice) =&gt; choice.kind,
-  eventKey: (event) =&gt; event.type,
+export const articleMachine = defineMachine&lt;ArticleFacts, ArticleEffect&gt;()({
+  initial: &quot;draft&quot;,
   states: {
     draft: {
-      events: [
+      targets: [
         {
-          id: &quot;submit-for-review&quot;,
-          event: { type: &quot;SUBMIT&quot; },
-          when: hasEnoughWords,
-          target: &quot;review&quot;,
-          output: (facts) =&gt; ({ kind: &quot;log-submission&quot;, title: facts.title }),
+          name: &quot;review&quot;,
+          manual: true,
+          guard: (facts) =&gt; facts.body.trim().split(/\s+/).length &gt;= 10,
+          effect: (facts) =&gt; ({ kind: &quot;submit&quot;, title: facts.title }),
         },
+        { name: &quot;cancelled&quot;, manual: true },
       ],
     },
     review: {
-      choices: [
-        {
-          id: &quot;approve-article&quot;,
-          choice: { kind: &quot;approve&quot; },
-          when: (facts) =&gt; facts.reviewerAvailable,
-          target: &quot;approved&quot;,
-          output: () =&gt; ({ kind: &quot;none&quot; }),
-        },
-        {
-          id: &quot;reject-article&quot;,
-          choice: { kind: &quot;reject&quot; },
-          when: () =&gt; true,
-          target: &quot;draft&quot;,
-          output: () =&gt; ({ kind: &quot;none&quot; }),
-        },
+      targets: [
+        { name: &quot;approved&quot;, guard: (facts) =&gt; facts.reviewerAvailable },
+        { name: &quot;draft&quot;, guard: (facts) =&gt; facts.reviewerAvailable },
+        { name: &quot;cancelled&quot;, manual: true },
       ],
     },
     approved: {
-      automatic: [
+      targets: [
         {
-          id: &quot;publish-approved-article&quot;,
-          when: () =&gt; true,
-          target: &quot;published&quot;,
-          output: (facts) =&gt; ({
-            kind: &quot;write-publication&quot;,
+          name: &quot;published&quot;,
+          effect: (facts) =&gt; ({
+            kind: &quot;publish&quot;,
             title: facts.title,
             body: facts.body,
           }),
         },
+        { name: &quot;cancelled&quot;, manual: true },
       ],
     },
-    published: { terminal: true },
+    published: { final: true, targets: [] },
+    cancelled: { final: true, targets: [] },
   },
 });</code></pre></div>
-        <h3 id="machine-api">MachineDefinition: the outer object</h3>
-        <p><code>defineMachine&lt;State, Facts, Choice, Event, Output&gt;(definition)</code> takes one definition object and returns a <code>CompiledMachine</code>. The five type arguments are, in order, your state names, fact snapshot, choice values, event values, and output values. Here they are <code>ArticleState</code>, <code>ArticleFacts</code>, <code>ArticleChoice</code>, <code>ArticleEvent</code>, and <code>ArticleOutput</code>. They are compile-time contracts, not runtime configuration fields.</p>
-        <p>All four properties of <code>MachineDefinition</code> are required. <code>PropertyKey</code> means <code>string | number | symbol</code>; this recipe uses readable strings.</p>
-        <div class="table-wrap"><table aria-label="Machine definition properties">
-          <thead><tr><th scope="col">Property</th><th scope="col">Signature / type</th><th scope="col">Meaning and recipe example</th></tr></thead>
-          <tbody>
-            <tr><td><code>stateOf</code></td><td><code>(facts: Facts) =&gt; State</code></td><td>Reads the current state from each supplied snapshot. <code>(facts) =&gt; facts.state</code> is our convention; the SDK does not require a facts property literally named <code>state</code>.</td></tr>
-            <tr><td><code>choiceKey</code></td><td><code>(choice: Choice) =&gt; PropertyKey</code></td><td>Identifies an option. <code>(choice) =&gt; choice.kind</code> makes <code>approve</code> and <code>reject</code> distinct. <code>choose</code> matches by this key, not object identity or whole-object equality.</td></tr>
-            <tr><td><code>eventKey</code></td><td><code>(event: Event) =&gt; PropertyKey</code></td><td>Identifies an incoming signal. <code>(event) =&gt; event.type</code> matches a SUBMIT event to the current state’s SUBMIT rules. Other event fields are payload, not additional matching criteria.</td></tr>
-            <tr><td><code>states</code></td><td><code>Partial&lt;Record&lt;State, StateDefinition&lt;State, Facts, Choice, Event, Output&gt;&gt;&gt;</code></td><td>A map from state name to its rule object. The key <code>review</code> names the state; the value describes its legal routes. Declaring a name in the state union does not create its table entry. Define every state you will enter, including targets.</td></tr>
-          </tbody>
-        </table></div>
-        <div class="callout"><p><strong>There is no <code>initial</code> property.</strong> The caller selects the starting state in its first facts snapshot. Calling <code>defineMachine</code> does not enter a state, run a rule, or start a loop. Its returned object exposes <code>advance</code>, <code>choose</code>, and <code>send</code>—not a mutable <code>states</code> or <code>facts</code> property.</p></div>
-
-        <h3 id="state-api">StateDefinition: the structure of one state</h3>
-        <p>A <strong>state name</strong>, a <strong>state definition</strong>, and the <strong>current state</strong> are different things. <code>"review"</code> is a name in <code>ArticleState</code>; <code>states.review</code> in the definition is its rules; <code>facts.state === "review"</code> says that this article is currently there. The rule’s <code>id</code> is not the state’s name.</p>
-        <p>Each state’s value is a <code>StateDefinition&lt;State, Facts, Choice, Event, Output&gt;</code> with these four <strong>optional</strong> properties. This is a flat state table, not a hierarchy of nested machines.</p>
-        <div class="table-wrap"><table aria-label="State definition properties">
-          <thead><tr><th scope="col">Property</th><th scope="col">Type and default</th><th scope="col">Meaning and how to define it</th></tr></thead>
-          <tbody>
-            <tr><td><code>terminal</code></td><td><code>boolean</code>; omitted or <code>false</code> means nonterminal.</td><td><code>{ terminal: true }</code> marks a finished state. All three operations reject it, even if you also declared outgoing rules. It does not perform a final effect; put that effect on the incoming transition.</td></tr>
-            <tr><td><code>automatic</code></td><td><code>readonly AutomaticRule&lt;State, Facts, Output&gt;[]</code>; omitted means no automatic rules.</td><td>Routes that need no outside selection. <code>advance</code> returns the enabled automatic transition; it does not execute it or continue to the next state. Our <code>approved</code> state has one publication rule.</td></tr>
-            <tr><td><code>choices</code></td><td><code>readonly ChoiceRule&lt;State, Facts, Choice, Output&gt;[]</code>; omitted means no choice rules.</td><td>Options for a person, UI, or model to pick. <code>advance</code> lists enabled options; <code>choose</code> consumes one legal key. Our <code>review</code> state declares approval and rejection.</td></tr>
-            <tr><td><code>events</code></td><td><code>readonly EventRule&lt;State, Facts, Event, Output&gt;[]</code>; omitted means no event rules.</td><td>Routes driven only by <code>send(facts, event)</code>. <code>advance</code> does not dispatch these. Our <code>draft</code> state accepts SUBMIT when the article is long enough.</td></tr>
-          </tbody>
-        </table></div>
-        <p>You may omit unused arrays or write <code>[]</code>. A state can declare more than one rule collection, but their <strong>enabled</strong> routes must be unambiguous: automatic and choice routes cannot be enabled together; event routes are checked separately by <code>send</code>. An empty nonterminal state is not an implicit wait or success: <code>advance</code> throws <code>NO_ROUTE</code>.</p>
-        <h3>Define a new state in five moves</h3>
-        <ol>
-          <li>Add its name to your <code>State</code> union.</li>
-          <li>Add a matching key to the definition’s <code>states</code> object. A spelling in the union alone is not a declaration.</li>
-          <li>Use <code>{ terminal: true }</code> if it is finished. Otherwise choose <code>automatic</code>, <code>choices</code>, or <code>events</code> according to what drives its next step.</li>
-          <li>Give each route an <code>id</code>, <code>when</code>, <code>target</code>, and <code>output</code>; include <code>choice</code> or <code>event</code> for those rule kinds.</li>
-          <li>Declare each target state, then have the caller supply this new state in its initial facts or reach it through a transition. Exercise both passing and failing guards.</li>
-        </ol>
-
-        <h3 id="rule-api">Rule properties: what each route contains</h3>
-        <p><code>AutomaticRule</code>, <code>ChoiceRule</code>, and <code>EventRule</code> share four required fields. Choice and event rules each require one extra field. There is no implicit guard, output, priority, or destination.</p>
-        <div class="table-wrap"><table aria-label="Rule properties">
-          <thead><tr><th scope="col">Property</th><th scope="col">Required on</th><th scope="col">Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>id</code></td><td>Every rule; <code>string</code>.</td><td>A diagnostic label such as <code>"approve-article"</code>. It helps identify offending rules in failure context. It is not used to select a choice or match an event. Make IDs unique and descriptive; uniqueness is a convention, not an enforced check.</td></tr>
-            <tr><td><code>when</code></td><td>Every rule; a callback returning <code>boolean</code>.</td><td>The guard: <code>true</code> enables this route for the current facts. Use <code>() =&gt; true</code> for an unconditional route. Its arguments depend on the rule kind; see the signatures below.</td></tr>
-            <tr><td><code>target</code></td><td>Every rule; <code>State</code>.</td><td>The fixed destination, for example <code>"approved"</code>. This is a state value, <strong>not a callback</strong>. The selected target must exist in the table; a self-transition is allowed.</td></tr>
-            <tr><td><code>output</code></td><td>Every rule; a callback returning <code>Output</code>.</td><td>Builds the transition’s data. It runs only for the selected route, after target validation—not while merely offering choices. <code>() =&gt; ({ kind: "none" })</code> is this recipe’s explicit no-effect output. The SDK does not require a <code>kind</code> or effect field in your own output type.</td></tr>
-            <tr><td><code>choice</code></td><td>Choice rules only; <code>Choice</code>.</td><td>The declared option, such as <code>{ kind: "approve" }</code>. Its <code>choiceKey</code> identifies the route. The SDK snapshots object choices; keep them structured-cloneable and free of shared memory.</td></tr>
-            <tr><td><code>event</code></td><td>Event rules only; <code>Event</code>.</td><td>A declared matching value, such as <code>{ type: "SUBMIT" }</code>. The SDK compares its <code>eventKey</code> with the incoming event’s key. Guards and outputs receive the <strong>incoming event</strong>, including its payload.</td></tr>
-          </tbody>
-        </table></div>
-        <div class="table-wrap"><table aria-label="Rule callback signatures">
-          <thead><tr><th scope="col">Rule kind</th><th scope="col"><code>when</code></th><th scope="col"><code>output</code></th></tr></thead>
-          <tbody>
-            <tr><td>Automatic</td><td><code>(facts: Facts) =&gt; boolean</code></td><td><code>(facts: Facts) =&gt; Output</code></td></tr>
-            <tr><td>Choice</td><td><code>(facts: Facts) =&gt; boolean</code></td><td><code>(facts: Facts, choice: Choice) =&gt; Output</code></td></tr>
-            <tr><td>Event</td><td><code>(facts: Facts, event: Event) =&gt; boolean</code></td><td><code>(facts: Facts, event: Event) =&gt; Output</code></td></tr>
-          </tbody>
-        </table></div>
-        <p><strong>Choice guards do not receive the picked choice.</strong> In a choice output callback, <code>choice</code> is an isolated copy of the <em>declared</em> option, not arbitrary fields supplied by the caller. Matching a legal key does not let a caller replace the declaration’s payload. Event callbacks instead receive the actual event sent in.</p>
-        <p>All callbacks are synchronous. Keep guards, key functions, and output callbacks deterministic and free of side effects. Facts and arbitrary outputs are not automatically deep-cloned or frozen. Treat the definition as immutable after construction; TypeScript <code>readonly</code> declarations are not runtime freezing.</p>
-        <div class="callout warning"><p><strong>Construction is not full graph validation.</strong> <code>defineMachine</code> snapshots declared choices and can reject an unsupported choice immediately. It does not check every guard combination or target up front: current states are checked when an operation locates them, and targets when a transition is selected. Exercise every route.</p></div>
-        <div class="callout"><p><strong>Keep the <code>.js</code> import suffixes.</strong> The source files are TypeScript, but this repository uses ESM/NodeNext imports. The installed <code>tsx</code> runner resolves these local <code>.js</code> imports to their <code>.ts</code> source files.</p></div>
+        <h3 id="machine-api">Definition and instance</h3>
+        <div class="table-wrap"><table aria-label="Machine properties"><thead><tr><th scope="col">Member</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>defineMachine&lt;Facts, Effect&gt;()(config)</code></td><td>Validates the graph once and returns a definition with no current state. Omit the generic types for a machine needing no facts or effects.</td></tr>
+          <tr><td><code>initial</code></td><td>Exactly one declared state; <code>start()</code> begins here.</td></tr>
+          <tr><td><code>states</code></td><td>The keyed graph. TypeScript rejects a misspelled initial or target state.</td></tr>
+          <tr><td><code>definition.start()</code></td><td>Creates a fresh instance. Other instances do not move when this one moves.</td></tr>
+          <tr><td><code>definition.restore(name)</code></td><td>Validates an untrusted string and creates an instance there. No guards, effects, or transitions are replayed.</td></tr>
+          <tr><td><code>definition.targets(state)</code></td><td>All declared destinations, including manual and currently guarded-out edges.</td></tr>
+          <tr><td><code>definition.isFinal(state)</code></td><td>Whether that declared state permits the run to end.</td></tr>
+          <tr><td><code>definition.edge(from, to)</code></td><td>The edge’s guard, effect, and manual flag. A missing edge throws <code>IllegalTransitionError</code>.</td></tr>
+        </tbody></table></div>
+        <h3 id="state-api">State properties</h3>
+        <div class="table-wrap"><table aria-label="State properties"><thead><tr><th scope="col">Property</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>targets</code> (required)</td><td>An array of outgoing edges. Use <code>[]</code> only for a final state; a non-final state with no targets is rejected as stuck.</td></tr>
+          <tr><td><code>final: true</code> (optional)</td><td>The run may legally end here. It may still have outgoing targets, and the initial state may also be final. Final does not forbid a move.</td></tr>
+        </tbody></table></div>
+        <h3 id="edge-api">Edge properties</h3>
+        <div class="table-wrap"><table aria-label="Edge properties"><thead><tr><th scope="col">Property</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>name</code> (required)</td><td>A declared destination. There is at most one edge per source/destination pair.</td></tr>
+          <tr><td><code>guard</code> (optional)</td><td>Pure, synchronous <code>(facts) =&gt; boolean</code>. True permits the move; no guard means allowed. It is checked again during every transition.</td></tr>
+          <tr><td><code>effect</code> (optional)</td><td>Pure, synchronous <code>(facts) =&gt; Effect</code> describing work as data. It is evaluated only during a successful transition, not by <code>available()</code>.</td></tr>
+          <tr><td><code>manual: true</code> (optional)</td><td>Operator-only: excluded from <code>available()</code>. An explicit <code>transition(name, facts)</code> can take it, but still checks its guard.</td></tr>
+        </tbody></table></div>
+        <p>Definition validation rejects undeclared destinations, duplicate edges, unreachable states, stuck non-final states, and graphs with no final state. Reachability follows the static graph—including manual edges—without running guards.</p>
       </section>
 
       <section class="step" id="caller" aria-labelledby="caller-heading">
         <div class="step-heading"><span class="step-number">04</span><h2 id="caller-heading">Write the caller</h2></div>
-        <p>Create <code>examples/run-article-machine.ts</code>, paste this complete block, and save it. This is the program you will execute. It owns the facts, selects an offered option, and performs the actual file write.</p>
+        <p>Create <code>examples/run-article-machine.ts</code> with this complete program. It supplies facts, names the manual submit edge, chooses approval, enforces one automatic publish target, and writes the returned effect.</p>
         <div class="code-frame"><div class="code-header"><span>examples/run-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-runner" data-filename="examples/run-article-machine.ts" aria-label="Copy examples/run-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/run-article-machine.ts"><code id="sample-runner" data-language="typescript" data-file="examples/run-article-machine.ts">import { writeFileSync } from &quot;node:fs&quot;;
-import type { TransitionDecision } from &quot;../extensions/state-machine.js&quot;;
 import {
   articleMachine,
   type ArticleFacts,
-  type ArticleOutput,
-  type ArticleState,
+  type ArticleEffect,
 } from &quot;./article-machine.js&quot;;
 
-// Run from the repository root; step 1 creates this directory.
-const outputPath = &quot;examples/published-article.txt&quot;;
-let facts: ArticleFacts = {
-  state: &quot;draft&quot;,
+const facts: ArticleFacts = {
   title: &quot;A small state machine&quot;,
-  body: &quot;A state machine makes the next legal step explicit. The caller &quot; +
-    &quot;supplies current facts, chooses from declared options, and performs &quot; +
-    &quot;effects only after the evaluator returns a valid transition.&quot;,
+  body: &quot;A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the machine returns a valid transition.&quot;,
   reviewerAvailable: true,
 };
+const run = articleMachine.start();
 
-function runEffect(output: ArticleOutput): void {
-  switch (output.kind) {
-    case &quot;log-submission&quot;:
-      console.log(&quot;Submitted for review:&quot;, output.title);
-      return;
-    case &quot;write-publication&quot;:
-      writeFileSync(outputPath, output.title + &quot;\n\n&quot; + output.body + &quot;\n&quot;, &quot;utf8&quot;);
-      console.log(&quot;Wrote:&quot;, outputPath);
-      return;
-    case &quot;none&quot;:
-      return;
+function interpret(effect: ArticleEffect | undefined): void {
+  if (!effect) return;
+  switch (effect.kind) {
+    case &quot;submit&quot;:
+      console.log(&quot;Submitted for review: &quot; + effect.title);
+      break;
+    case &quot;publish&quot;:
+      writeFileSync(
+        new URL(&quot;./published-article.txt&quot;, import.meta.url),
+        effect.title + &quot;\n\n&quot; + effect.body + &quot;\n&quot;,
+        &quot;utf8&quot;,
+      );
+      console.log(&quot;Published to examples/published-article.txt&quot;);
+      break;
   }
 }
 
-function applyTransition(
-  decision: TransitionDecision&lt;ArticleState, ArticleOutput&gt;,
-): void {
-  // If the effect throws, do not claim the transition completed.
-  runEffect(decision.output);
-  facts = { ...facts, state: decision.to };
-  console.log(&quot;State:&quot;, facts.state);
+console.log(&quot;State: &quot; + run.state);
+console.log(&quot;Automatic before submit: &quot; + (run.available(facts).join(&quot;, &quot;) || &quot;&lt;none&gt;&quot;));
+// An operator's submit handler names the manual edge explicitly.
+interpret(run.transition(&quot;review&quot;, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+
+console.log(&quot;Choices: &quot; + run.available(facts).join(&quot;, &quot;));
+// The caller chooses approval; the module does not resolve multiple targets.
+interpret(run.transition(&quot;approved&quot;, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+
+// This caller's automatic tick requires exactly one available target.
+const targets = run.available(facts);
+const [target] = targets;
+if (targets.length !== 1 || target === undefined) {
+  throw new Error(&quot;Expected exactly one automatic target&quot;);
 }
+interpret(run.transition(target, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+console.log(&quot;Final: &quot; + run.isFinal);
 
-console.log(&quot;State:&quot;, facts.state);
-
-// draft has event rules only. Start with send(), not advance().
-applyTransition(articleMachine.send(facts, { type: &quot;SUBMIT&quot; }));
-
-const offered = articleMachine.advance(facts);
-if (offered.kind !== &quot;choices&quot;) {
-  throw new Error(&quot;Expected a choice while the article is in review&quot;);
-}
-console.log(&quot;Choices:&quot;, offered.choices.map((choice) =&gt; choice.kind).join(&quot;, &quot;));
-
-// This console recipe deliberately selects approval. In an application,
-// collect a human or model pick here, then pass the freshest facts to choose().
-const picked = offered.choices.find((choice) =&gt; choice.kind === &quot;approve&quot;);
-if (!picked) {
-  throw new Error(&quot;Approval is not currently available&quot;);
-}
-applyTransition(articleMachine.choose(facts, picked));
-
-const publication = articleMachine.advance(facts);
-if (publication.kind !== &quot;transition&quot;) {
-  throw new Error(&quot;Expected an automatic publication transition&quot;);
-}
-applyTransition(publication);
-
-// published is terminal. Stop here; do not call advance() again.</code></pre></div>
-        <h3 id="operation-api">CompiledMachine: the public evaluator API</h3>
-        <p>The object returned by <code>defineMachine</code> has exactly these three operations. Each call uses your current <code>Facts</code> and returns synchronously or throws. There is no hidden current state, stored offer token, background loop, or automatic effect execution.</p>
-        <div class="table-wrap"><table aria-label="Compiled machine operations">
-          <thead><tr><th scope="col">Method and return type</th><th scope="col">What it evaluates</th><th scope="col">What the caller does next</th></tr></thead>
-          <tbody>
-            <tr><td><code>advance(facts: Facts): AdvanceDecision&lt;State, Choice, Output&gt;</code></td><td>Checks automatic and choice guards in the current state. Returns one automatic transition or the enabled choices. Event rules are not evaluated.</td><td>Branch on <code>kind</code>. Execute a transition and update state, or present the choices and obtain a pick. A call performs at most one step; it does not chain into the target state.</td></tr>
-            <tr><td><code>choose(facts: Facts, choice: Choice): TransitionDecision&lt;State, Output&gt;</code></td><td>Rechecks automatic/choice route legality, then matches the supplied <code>choiceKey</code> to one currently enabled option. It does not trust an old offer or caller-supplied payload.</td><td>Use the freshest facts. Execute the returned output and update state. An option is rejected if its key is no longer legal; the SDK does not track whether you previously called <code>advance</code>.</td></tr>
-            <tr><td><code>send(facts: Facts, event: Event): TransitionDecision&lt;State, Output&gt;</code></td><td>Matches the incoming <code>eventKey</code> against this state’s event rules, then checks their guards. Exactly one matching rule must be enabled. Automatic/choice guards are not evaluated.</td><td>Execute the returned output and update state. Our caller uses this to leave the event-only <code>draft</code> state; <code>advance</code> there would throw <code>NO_ROUTE</code>.</td></tr>
-          </tbody>
-        </table></div>
-        <h3>How route selection works</h3>
-        <ol>
-          <li>Read <code>stateOf(facts)</code>, locate its state definition, and reject a terminal state.</li>
-          <li>For <code>advance</code> or <code>choose</code>, test automatic and choice guards. More than one enabled automatic route, repeated enabled choice keys, or automatic/choice overlap is an error—not a priority rule.</li>
-          <li>For <code>advance</code>, return the single automatic transition or a nonempty legal-choice list; if neither exists, throw <code>NO_ROUTE</code>. For <code>choose</code>, require a currently legal matching choice key.</li>
-          <li>For <code>send</code>, inspect event rules separately. An unknown key, no enabled matching rule, or multiple enabled matching rules is an error.</li>
-          <li>Before returning a transition, check its target exists, then call the selected rule’s output callback. The caller still performs the effect and changes its facts.</li>
-        </ol>
-        <p>Distinct choices may be enabled together; the returned list follows their declaration order for display, not priority. Multiple event rules may share one event key if their guards are mutually exclusive. <code>choose</code> also rejects automatic/choice ambiguity; it is not a way to bypass a conflicting definition.</p>
-
-        <h3 id="decision-api">Returned decisions: every property</h3>
-        <p><code>AdvanceDecision</code> is a union of <code>ChoiceDecision</code> and <code>TransitionDecision</code>. <code>advance</code> can return either; <code>choose</code> and <code>send</code> always return a transition on success. Check <code>decision.kind</code> before reading shape-specific fields, as the caller above does.</p>
-        <p>With the recipe’s review facts and an available reviewer, <code>articleMachine.advance(facts)</code> returns this <code>ChoiceDecision</code>:</p>
-        <div class="code-frame"><div class="code-header"><span>ChoiceDecision · review</span><div><span class="language">json</span><button type="button" class="copy" data-copy="api-choice-result" data-filename="ChoiceDecision · review" aria-label="Copy ChoiceDecision · review" hidden>Copy</button></div></div><pre tabindex="0" aria-label="ChoiceDecision · review"><code id="api-choice-result" data-language="json">{
-  &quot;kind&quot;: &quot;choices&quot;,
-  &quot;state&quot;: &quot;review&quot;,
-  &quot;choices&quot;: [
-    {
-      &quot;kind&quot;: &quot;approve&quot;
-    },
-    {
-      &quot;kind&quot;: &quot;reject&quot;
-    }
-  ]
-}</code></pre></div>
-        <p>Choosing approval from those same review facts returns this <code>TransitionDecision</code>:</p>
-        <div class="code-frame"><div class="code-header"><span>TransitionDecision · approve</span><div><span class="language">json</span><button type="button" class="copy" data-copy="api-transition-result" data-filename="TransitionDecision · approve" aria-label="Copy TransitionDecision · approve" hidden>Copy</button></div></div><pre tabindex="0" aria-label="TransitionDecision · approve"><code id="api-transition-result" data-language="json">{
-  &quot;kind&quot;: &quot;transition&quot;,
-  &quot;from&quot;: &quot;review&quot;,
-  &quot;to&quot;: &quot;approved&quot;,
-  &quot;output&quot;: {
-    &quot;kind&quot;: &quot;none&quot;
-  }
-}</code></pre></div>
-        <div class="table-wrap"><table aria-label="Decision result properties">
-          <thead><tr><th scope="col">Property</th><th scope="col">Present on</th><th scope="col">Meaning</th></tr></thead>
-          <tbody>
-            <tr><td><code>kind</code></td><td>Both; <code>"choices" | "transition"</code>.</td><td>The discriminant that tells TypeScript and your caller which result shape it has.</td></tr>
-            <tr><td><code>state</code></td><td><code>ChoiceDecision</code>; <code>State</code>.</td><td>The current state in which the options were offered. This result is not a transition and has no <code>from</code>, <code>to</code>, or <code>output</code>.</td></tr>
-            <tr><td><code>choices</code></td><td><code>ChoiceDecision</code>; <code>readonly Choice[]</code>.</td><td>The currently enabled, distinct-key options—not rule objects. Object choices are isolated copies. Obtain a pick outside the evaluator and call <code>choose</code> with fresh facts.</td></tr>
-            <tr><td><code>from</code></td><td><code>TransitionDecision</code>; <code>State</code>.</td><td>The source state read from the supplied facts, not from an internal machine cursor.</td></tr>
-            <tr><td><code>to</code></td><td><code>TransitionDecision</code>; <code>State</code>.</td><td>The validated destination. The SDK does not assign it to <code>facts.state</code>; your caller must do that.</td></tr>
-            <tr><td><code>output</code></td><td><code>TransitionDecision</code>; <code>Output</code>.</td><td>The selected rule’s returned data. Your domain decides how to interpret it. A returned publication description has not yet written a file.</td></tr>
-          </tbody>
-        </table></div>
-        <p><code>applyTransition</code> executes <code>decision.output</code> first, then assigns <code>decision.to</code> to our new facts snapshot. If writing fails, this caller throws instead of claiming the article was published. It does not call the rule’s output callback again; that callback already ran inside the evaluator.</p>
-        <p>The approval selection is deliberately explicit: this recipe finds the offered <code>approve</code> option. A real interface can collect a human pick, or ask a model to select from that same legal list. It must pass the <strong>current</strong> facts to <code>choose</code>; the evaluator itself never calls the decision-maker.</p>
-        <div class="callout warning"><p><strong>This is not a durable transaction.</strong> The example performs one local write, then updates in-memory facts. An application that needs restart recovery or exactly-once effects must design its own persistence and effect handling. Re-running this example overwrites only <code>examples/published-article.txt</code>.</p></div>
+// Persist a state name in a real application, then restore on the next tick.
+const restored = articleMachine.restore(run.state);
+console.log(&quot;Restored: &quot; + restored.state);</code></pre></div>
+        <h3 id="operation-api">Instance methods and state</h3>
+        <div class="table-wrap"><table aria-label="Instance methods"><thead><tr><th scope="col">Member</th><th scope="col">Behavior</th></tr></thead><tbody>
+          <tr><td><code>instance.state</code></td><td>The current state name, owned by this instance rather than by facts.</td></tr>
+          <tr><td><code>instance.isFinal</code></td><td>Whether the run may end here. Zero available targets alone does not prove completion.</td></tr>
+          <tr><td><code>instance.available(facts)</code></td><td>Non-manual, guard-passing targets in declaration order. Does not move state or evaluate effects.</td></tr>
+          <tr><td><code>instance.transition(to, facts)</code></td><td>Checks the edge, evaluates its guard, describes its effect, then moves state. Rechecks current facts even if <code>to</code> came from an earlier <code>available()</code> call.</td></tr>
+        </tbody></table></div>
+        <p>A facts-less definition uses <code>available()</code> and <code>transition(to)</code>. This article machine requires facts for both.</p>
+        <h3 id="decision-api">Transition result</h3>
+        <p>The result is <code>{ from, to, effect }</code>. Approval returns the following object; a transition without an effect still includes <code>effect: undefined</code>:</p>
+        <div class="code-frame"><div class="code-header"><span>Transition · approval</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="api-transition-result" data-filename="Transition · approval" aria-label="Copy Transition · approval" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Transition · approval"><code id="api-transition-result" data-language="typescript">{ from: &quot;review&quot;, to: &quot;approved&quot;, effect: undefined }</code></pre></div>
+        <div class="callout warning"><p><strong>Movement and work are separate.</strong> A rejected edge, rejected guard, or throwing guard/effect function leaves state unchanged. After a successful transition, the instance has already moved before your interpreter runs. The caller owns persistence, asynchronous work, retries, and recovery if that work fails.</p></div>
+        <p>For durable loops, persist the state name at your chosen checkpoint and restore it on the next tick. Rebuild facts from the world; the module neither stores facts nor persists state for you.</p>
       </section>
 
       <section class="step" id="run" aria-labelledby="run-heading">
         <div class="step-heading"><span class="step-number">05</span><h2 id="run-heading">Run the happy path</h2></div>
-        <p>Save both TypeScript files. In the terminal you kept at the repository root, run the program and inspect the publication:</p>
+        <p>Save both files, then run these commands from the repository root:</p>
         <div class="code-frame"><div class="code-header"><span>Terminal · run and inspect</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="run-commands" data-filename="Terminal · run and inspect" aria-label="Copy Terminal · run and inspect" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run and inspect"><code id="run-commands" data-language="bash">npx --no-install tsx examples/run-article-machine.ts
 cat examples/published-article.txt</code></pre></div>
-        <p>The first command prints this sequence:</p>
+        <p>The program prints this exact standard output:</p>
         <div class="code-frame"><div class="code-header"><span>Expected program output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-run" data-filename="Expected program output" aria-label="Copy Expected program output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected program output"><code id="expected-run" data-language="text">State: draft
+Automatic before submit: &lt;none&gt;
 Submitted for review: A small state machine
 State: review
-Choices: approve, reject
+Choices: approved, draft
 State: approved
-Wrote: examples/published-article.txt
-State: published</code></pre></div>
-        <p>The second command prints the file’s contents:</p>
+Published to examples/published-article.txt
+State: published
+Final: true
+Restored: published</code></pre></div>
+        <p>The publication file contains:</p>
         <div class="code-frame"><div class="code-header"><span>examples/published-article.txt · expected contents</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-publication" data-filename="examples/published-article.txt · expected contents" aria-label="Copy examples/published-article.txt · expected contents" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/published-article.txt · expected contents"><code id="expected-publication" data-language="text">A small state machine
 
-A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the evaluator returns a valid transition.</code></pre></div>
-        <p><code>tsx</code> executes TypeScript without compiling a separate JavaScript build. <code>--no-install</code> tells <code>npx</code> to use installed tooling rather than download a missing package. It does <strong>not</strong> type-check the program; we do that in step 7. Toolchain warnings may appear on stderr in addition to the output shown.</p>
+A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the machine returns a valid transition.</code></pre></div>
+        <p><code>tsx</code> runs TypeScript without a separate JavaScript build. <code>--no-install</code> uses installed tooling rather than downloading missing packages. It does not type-check; step 7 does. Toolchain warnings may appear on stderr.</p>
       </section>
 
       <section class="step" id="safety" aria-labelledby="safety-heading">
         <div class="step-heading"><span class="step-number">06</span><h2 id="safety-heading">Check the safety rails</h2></div>
-        <p>A useful machine also rejects illegal operations. Create <code>examples/check-article-machine.ts</code>, paste the complete block below, and save it. These checks use Node’s built-in assertions; there is no extra test framework to install.</p>
+        <p>Create <code>examples/check-article-machine.ts</code>. These complete checks exercise missing edges, guard rejection with unchanged state, multiple and zero automatic targets, manual STOP, restore validation, invalid graphs, and movement out of a final state.</p>
         <div class="code-frame"><div class="code-header"><span>examples/check-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-checks" data-filename="examples/check-article-machine.ts" aria-label="Copy examples/check-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/check-article-machine.ts"><code id="sample-checks" data-language="typescript" data-file="examples/check-article-machine.ts">import assert from &quot;node:assert/strict&quot;;
 import {
-  MachineFailure,
-  type MachineFailureCode,
-} from &quot;../extensions/state-machine.js&quot;;
+  defineMachine,
+  IllegalTransitionError,
+  InvalidMachineError,
+  UnknownStateError,
+} from &quot;../extensions/state_machine/index.js&quot;;
 import { articleMachine, type ArticleFacts } from &quot;./article-machine.js&quot;;
 
-function expectFailure(code: MachineFailureCode, operation: () =&gt; unknown): void {
-  assert.throws(operation, (error: unknown) =&gt; {
-    assert.ok(error instanceof MachineFailure);
-    assert.equal(error.code, code);
-    return true;
-  });
-  console.log(&quot;Rejected as expected:&quot;, code);
-}
-
-const draft: ArticleFacts = {
-  state: &quot;draft&quot;,
-  title: &quot;Safety checks&quot;,
-  body: &quot;This sample article has enough words to be submitted for review safely.&quot;,
+const facts: ArticleFacts = {
+  title: &quot;Safety check&quot;,
+  body: &quot;This article has enough words to pass the submission guard.&quot;,
   reviewerAvailable: true,
 };
+const run = articleMachine.start();
+assert.deepEqual(run.available(facts), []);
 
-// An event exists, but its predicate rejects an article that is too short.
-expectFailure(&quot;INVALID_EVENT&quot;, () =&gt;
-  articleMachine.send({ ...draft, body: &quot;Too short&quot; }, { type: &quot;SUBMIT&quot; }),
+assert.throws(
+  () =&gt; run.transition(&quot;published&quot;, facts),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;not-a-target&quot;,
 );
+assert.equal(run.state, &quot;draft&quot;);
+console.log(&quot;Rejected as expected: not-a-target&quot;);
 
-// An event-only state cannot be driven by advance().
-expectFailure(&quot;NO_ROUTE&quot;, () =&gt; articleMachine.advance(draft));
-
-const submitted = articleMachine.send(draft, { type: &quot;SUBMIT&quot; });
-assert.equal(submitted.to, &quot;review&quot;);
-assert.equal(draft.state, &quot;draft&quot;); // The evaluator did not update our facts.
-const review: ArticleFacts = { ...draft, state: submitted.to };
-
-const offered = articleMachine.advance(review);
-assert.equal(offered.kind, &quot;choices&quot;);
-if (offered.kind !== &quot;choices&quot;) throw new Error(&quot;Expected review choices&quot;);
-assert.deepEqual(offered.choices.map((choice) =&gt; choice.kind), [&quot;approve&quot;, &quot;reject&quot;]);
-const approval = offered.choices.find((choice) =&gt; choice.kind === &quot;approve&quot;);
-if (!approval) throw new Error(&quot;Expected approval to be offered&quot;);
-
-// The reviewer became unavailable after we obtained the options.
-// choose() re-evaluates current facts and rejects the now-illegal pick.
-expectFailure(&quot;ILLEGAL_CHOICE&quot;, () =&gt;
-  articleMachine.choose({ ...review, reviewerAvailable: false }, approval),
+assert.throws(
+  () =&gt; run.transition(&quot;review&quot;, { ...facts, body: &quot;Too short.&quot; }),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;guard-rejected&quot;,
 );
+assert.equal(run.state, &quot;draft&quot;);
+console.log(&quot;Rejected as expected: guard-rejected&quot;);
 
-const rejected = articleMachine.choose(review, { kind: &quot;reject&quot; });
-assert.equal(rejected.to, &quot;draft&quot;);
-const approved = articleMachine.choose(review, approval);
-assert.equal(approved.to, &quot;approved&quot;);
-const publication = articleMachine.advance({ ...review, state: approved.to });
-assert.equal(publication.kind, &quot;transition&quot;);
-if (publication.kind !== &quot;transition&quot;) throw new Error(&quot;Expected publication&quot;);
-assert.equal(publication.to, &quot;published&quot;);
-assert.deepEqual(publication.output, {
-  kind: &quot;write-publication&quot;,
-  title: draft.title,
-  body: draft.body,
-});
-
-// Returning an output does not write a file. Only the runner executes effects.
-expectFailure(&quot;TERMINAL_STATE&quot;, () =&gt;
-  articleMachine.advance({ ...review, state: &quot;published&quot; }),
+run.transition(&quot;review&quot;, facts);
+assert.deepEqual(run.available(facts), [&quot;approved&quot;, &quot;draft&quot;]);
+console.log(&quot;Automatic choices: &quot; + run.available(facts).join(&quot;, &quot;));
+const blocked = { ...facts, reviewerAvailable: false };
+assert.deepEqual(run.available(blocked), []);
+assert.equal(run.isFinal, false);
+assert.throws(
+  () =&gt; run.transition(&quot;approved&quot;, blocked),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;guard-rejected&quot;,
 );
-console.log(&quot;All safety checks passed.&quot;);</code></pre></div>
-        <p>Run the checks from the repository root:</p>
+assert.equal(run.state, &quot;review&quot;);
+console.log(&quot;Unavailable reviewer: no automatic route&quot;);
+
+// STOP is not offered automatically, but its explicit transition is legal.
+run.transition(&quot;cancelled&quot;, facts);
+assert.equal(run.isFinal, true);
+console.log(&quot;Manual cancellation: &quot; + run.state + &quot; (final)&quot;);
+
+assert.throws(() =&gt; articleMachine.restore(&quot;missing&quot;), UnknownStateError);
+console.log(&quot;Rejected as expected: unknown state&quot;);
+assert.throws(
+  () =&gt; defineMachine()({ initial: &quot;draft&quot;, states: { draft: { targets: [] } } }),
+  InvalidMachineError,
+);
+console.log(&quot;Rejected as expected: invalid graph&quot;);
+
+// Final means the run may end here, not that every move is forbidden.
+const transmission = defineMachine()({
+  initial: &quot;park&quot;,
+  states: {
+    park: { final: true, targets: [{ name: &quot;drive&quot; }] },
+    drive: { targets: [{ name: &quot;park&quot; }] },
+  },
+}).start();
+assert.equal(transmission.isFinal, true);
+transmission.transition(&quot;drive&quot;);
+assert.equal(transmission.isFinal, false);
+console.log(&quot;Final states can still move: park -&gt; &quot; + transmission.state);</code></pre></div>
         <div class="code-frame"><div class="code-header"><span>Terminal · run the safety checks</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="check-commands" data-filename="Terminal · run the safety checks" aria-label="Copy Terminal · run the safety checks" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run the safety checks"><code id="check-commands" data-language="bash">npx --no-install tsx examples/check-article-machine.ts</code></pre></div>
-        <div class="code-frame"><div class="code-header"><span>Expected safety-check output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-checks" data-filename="Expected safety-check output" aria-label="Copy Expected safety-check output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected safety-check output"><code id="expected-checks" data-language="text">Rejected as expected: INVALID_EVENT
-Rejected as expected: NO_ROUTE
-Rejected as expected: ILLEGAL_CHOICE
-Rejected as expected: TERMINAL_STATE
-All safety checks passed.</code></pre></div>
-        <h3 id="failure-api">MachineFailure: error API and every failure code</h3>
-        <p>SDK validation failures throw <code>MachineFailure</code>, an <code>Error</code> subclass. Check <code>error instanceof MachineFailure</code>, then handle <code>error.code</code>, whose type is the exported <code>MachineFailureCode</code> union. <code>error.context</code> is a read-only record of structured diagnostics; fields depend on the failure and can include <code>state</code>, <code>operation</code>, <code>ruleId</code>, <code>ruleIds</code>, <code>target</code>, <code>choiceKey</code>, <code>legalChoiceKeys</code>, <code>eventKey</code>, <code>knownEventKeys</code>, or <code>reason</code>. Do not assume every field is present.</p>
-        <p><code>error.name</code> is <code>"MachineFailure"</code>; <code>error.message</code> is human-readable, not a stable matching API. Assert on the code, not message wording. The check script above treats expected errors as successful checks; a mismatch exits with a failure.</p>
-        <div class="table-wrap"><table aria-label="Machine failure codes">
-          <thead><tr><th scope="col">Code</th><th scope="col">Where</th><th scope="col">What it means</th></tr></thead>
-          <tbody>
-            <tr><td><code>MISSING_STATE</code></td><td>Any operation.</td><td><code>stateOf(facts)</code> names a state missing from the table. A state union alone does not create a definition.</td></tr>
-            <tr><td><code>TERMINAL_STATE</code></td><td><code>advance</code>.</td><td>The current state has <code>terminal: true</code>. Stop driving the machine.</td></tr>
-            <tr><td><code>AMBIGUOUS_AUTOMATIC</code></td><td><code>advance</code>, <code>choose</code>.</td><td>More than one automatic guard passed. Make these routes mutually exclusive.</td></tr>
-            <tr><td><code>AMBIGUOUS_ROUTE</code></td><td><code>advance</code>, <code>choose</code>.</td><td>An automatic rule and one or more choices are enabled together. Neither has implicit priority.</td></tr>
-            <tr><td><code>NO_ROUTE</code></td><td><code>advance</code>.</td><td>No automatic route or choice is enabled. This is also expected when you mistakenly advance an event-only state.</td></tr>
-            <tr><td><code>AMBIGUOUS_CHOICE</code></td><td><code>advance</code>, <code>choose</code>.</td><td>Enabled choice rules have the same <code>choiceKey</code>. Multiple choices with different keys are valid.</td></tr>
-            <tr><td><code>ILLEGAL_CHOICE</code></td><td><code>choose</code>.</td><td>No enabled choice matches the supplied key, or the state is terminal. The option may have become illegal since it was offered.</td></tr>
-            <tr><td><code>UNKNOWN_EVENT</code></td><td><code>send</code>.</td><td>This state declares no event rule matching the incoming <code>eventKey</code>. A rule in another state does not count.</td></tr>
-            <tr><td><code>INVALID_EVENT</code></td><td><code>send</code>.</td><td>The event key is known, but all matching guards returned false.</td></tr>
-            <tr><td><code>AMBIGUOUS_EVENT</code></td><td><code>send</code>.</td><td>More than one matching event rule is enabled. Declaration order does not break the tie.</td></tr>
-            <tr><td><code>INVALID_TERMINAL_EVENT</code></td><td><code>send</code>.</td><td>An event was sent to a terminal state. Terminal-event errors differ from <code>advance</code> and <code>choose</code> errors.</td></tr>
-            <tr><td><code>INVALID_TARGET</code></td><td>Any selected transition.</td><td>The rule targets an undeclared state. Target validation fails before the output callback runs.</td></tr>
-            <tr><td><code>UNSUPPORTED_CHOICE</code></td><td><code>defineMachine</code>, <code>advance</code>, <code>choose</code>.</td><td>A choice cannot be isolated, for example because it contains a function or shared memory. Adding a choice rule after construction also violates the captured definition.</td></tr>
-          </tbody>
-        </table></div>
-        <div class="callout warning"><p><strong>Your callback exceptions are not converted into these codes.</strong> An exception from <code>stateOf</code>, a key function, a guard, or an output callback propagates as thrown. Distinguish SDK validation failures from bugs in your own callbacks and from effect failures in the caller.</p></div>
+        <div class="code-frame"><div class="code-header"><span>Expected safety-check output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-checks" data-filename="Expected safety-check output" aria-label="Copy Expected safety-check output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected safety-check output"><code id="expected-checks" data-language="text">Rejected as expected: not-a-target
+Rejected as expected: guard-rejected
+Automatic choices: approved, draft
+Unavailable reviewer: no automatic route
+Manual cancellation: cancelled (final)
+Rejected as expected: unknown state
+Rejected as expected: invalid graph
+Final states can still move: park -&gt; drive</code></pre></div>
+        <h3 id="failure-api">Error classes</h3>
+        <div class="table-wrap"><table aria-label="Machine errors"><thead><tr><th scope="col">Error</th><th scope="col">When</th><th scope="col">Details</th></tr></thead><tbody>
+          <tr><td><code>InvalidMachineError</code></td><td>Graph validation fails during definition.</td><td><code>problems</code>: validation problems.</td></tr>
+          <tr><td><code>UnknownStateError</code></td><td><code>restore()</code> receives an undeclared name.</td><td><code>state</code>: the supplied string.</td></tr>
+          <tr><td><code>IllegalTransitionError</code></td><td>No edge exists, or its guard rejects the move.</td><td><code>from</code>, <code>to</code>, <code>reason</code>: <code>"not-a-target"</code> or <code>"guard-rejected"</code>.</td></tr>
+        </tbody></table></div>
+        <p>Errors thrown by your guard or effect function propagate unchanged. Catch the error classes or inspect their structured details rather than matching message text.</p>
       </section>
 
       <section class="step" id="types" aria-labelledby="types-heading">
         <div class="step-heading"><span class="step-number">07</span><h2 id="types-heading">Type-check the files</h2></div>
-        <p>Create <code>examples/tsconfig.json</code> and paste this complete JSON. The local config checks our three sample files and the evaluator they import; it does not change the repository’s main TypeScript configuration.</p>
+        <p>Create <code>examples/tsconfig.json</code> with this complete JSON. It checks the three examples and imported module without changing the repository’s main configuration.</p>
         <div class="code-frame"><div class="code-header"><span>examples/tsconfig.json</span><div><span class="language">json</span><button type="button" class="copy" data-copy="sample-config" data-filename="examples/tsconfig.json" aria-label="Copy examples/tsconfig.json" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/tsconfig.json"><code id="sample-config" data-language="json" data-file="examples/tsconfig.json">{
   &quot;compilerOptions&quot;: {
     &quot;target&quot;: &quot;ES2022&quot;,
@@ -733,7 +569,10 @@ All safety checks passed.</code></pre></div>
     &quot;moduleResolution&quot;: &quot;NodeNext&quot;,
     &quot;strict&quot;: true,
     &quot;noEmit&quot;: true,
-    &quot;types&quot;: [&quot;node&quot;]
+    &quot;skipLibCheck&quot;: true,
+    &quot;types&quot;: [
+      &quot;node&quot;
+    ]
   },
   &quot;include&quot;: [
     &quot;article-machine.ts&quot;,
@@ -741,10 +580,9 @@ All safety checks passed.</code></pre></div>
     &quot;check-article-machine.ts&quot;
   ]
 }</code></pre></div>
-        <p>Run the installed TypeScript compiler:</p>
         <div class="code-frame"><div class="code-header"><span>Terminal · strict type-check</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="type-commands" data-filename="Terminal · strict type-check" aria-label="Copy Terminal · strict type-check" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · strict type-check"><code id="type-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json</code></pre></div>
-        <p><strong>Success produces no compiler diagnostics and exits with code 0.</strong> If it prints errors, check the named file and line before continuing. <code>strict</code> checks types; <code>noEmit</code> prevents generated JavaScript files. The <code>include</code> names are relative to <code>examples/tsconfig.json</code>, which is why they do not start with <code>examples/</code>.</p>
-        <p>Your folder now contains:</p>
+        <p><strong>Success produces no diagnostics and exits 0.</strong> The compiler infers state names from the graph and catches misspelled initial/target names, missing <code>targets</code>, and incompatible facts/effects. The <code>include</code> paths are relative to this local config.</p>
+        <p>The public types are <code>MachineDefinition</code>, <code>MachineInstance</code>, <code>Transition</code>, <code>Guard</code>, and <code>EffectOf</code>; <code>MachineInstance</code> is also an exported class. Prefer <code>start()</code> or <code>restore()</code> to create instances.</p>
         <div class="code-frame"><div class="code-header"><span>Final example folder</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-tree" data-filename="Final example folder" aria-label="Copy Final example folder" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Final example folder"><code id="expected-tree" data-language="text">examples/
   article-machine.ts
   run-article-machine.ts
@@ -755,39 +593,23 @@ All safety checks passed.</code></pre></div>
 
       <section class="step" id="finish" aria-labelledby="finish-heading">
         <div class="step-heading"><span class="step-number">08</span><h2 id="finish-heading">Eat: verify the whole recipe</h2></div>
-        <p>Run this final sequence from the repository root. The <code>&amp;&amp;</code> operators stop it at the first failed command.</p>
+        <p>Run the final sequence from the repository root. The <code>&amp;&amp;</code> operators stop at the first failed command.</p>
         <div class="code-frame"><div class="code-header"><span>Terminal · final verification</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="finish-commands" data-filename="Terminal · final verification" aria-label="Copy Terminal · final verification" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · final verification"><code id="finish-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json &amp;&amp;
 npx --no-install tsx examples/check-article-machine.ts &amp;&amp;
 npx --no-install tsx examples/run-article-machine.ts &amp;&amp;
 cat examples/published-article.txt</code></pre></div>
-        <ul>
-          <li>The compiler reports no type errors.</li>
-          <li>The check script prints <code>All safety checks passed.</code></li>
-          <li>The runner finishes at <code>State: published</code>.</li>
-          <li>The printed file contains the article title and body shown in step 5.</li>
-        </ul>
-        <div class="callout success"><p><strong>You have created a new machine.</strong> Its four states, facts, choices, event, and outputs are your domain. The shared evaluator did not need to change.</p></div>
-        <h3>Use the recipe for a different workflow</h3>
-        <ol>
-          <li>Replace the five article types with your domain types. Use <code>never</code> for choices or events your workflow does not support; the definition still requires their key callbacks.</li>
-          <li>Replace the state table and guards. Declare every target state explicitly. Missing or invalid states are rejected at runtime when accessed or selected; defining the machine is not a full graph-validation pass.</li>
-          <li>Keep automatic routes mutually exclusive, and avoid automatic/choice overlap. Offer multiple choices with distinct keys when a decision is needed.</li>
-          <li>Change the caller’s effects and input handling. Keep async work, model calls, retries, clocks, and persistence outside the evaluator.</li>
-          <li>Exercise each new route and the boundary cases. Treat the definition as immutable after construction, keep callbacks pure, and stop driving terminal states.</li>
-        </ol>
+        <div class="callout success"><p><strong>Eat:</strong> the compiler exits 0; all eight safety-check lines match step 6; the run ends with <code>Final: true</code> and <code>Restored: published</code>; the local publication matches step 5. You have a working machine, a real effect interpreter, and executable boundary checks.</p></div>
+        <h3>Lift it into your own project</h3>
+        <ol><li>Copy <code>extensions/state_machine/</code> as-is and update your import path. Its <code>index.ts</code> has no imports or runtime dependencies; the folder’s behavior tests use Vitest only as a development dependency.</li><li>Replace facts, effect data, and the state graph. Keep guards and effect descriptions pure and synchronous. Declare every target and a legal final state.</li><li>Choose a zero/one/many routing policy in your caller. Mark START, STOP, and resume edges <code>manual: true</code>; explicit moves still honor guards.</li><li>Keep I/O, model calls, retries, clocks, persistence, and effect execution outside the module. Test the new routes and failure boundaries.</li></ol>
         <h3>If something goes wrong</h3>
-        <div class="table-wrap"><table>
-          <thead><tr><th scope="col">Symptom</th><th scope="col">What to check</th></tr></thead>
-          <tbody>
-            <tr><td>Missing module or missing compiler</td><td>Return to the checkout root, confirm the evaluator file exists, and complete <code>npm ci</code>. Do not install a separate package named <code>tsc</code>.</td></tr>
-            <tr><td><code>NO_ROUTE</code> in draft</td><td>Call <code>send(facts, { type: "SUBMIT" })</code>. Draft has only event rules; <code>advance</code> does not dispatch an event for you.</td></tr>
-            <tr><td><code>INVALID_EVENT</code></td><td>The SUBMIT guard requires at least ten words. Verify the current body.</td></tr>
-            <tr><td><code>ILLEGAL_CHOICE</code></td><td>Re-read the current facts. Approval is not available when the reviewer is unavailable. Do not reuse an option after its guard stops passing.</td></tr>
-            <tr><td><code>TERMINAL_STATE</code></td><td>Stop when you reach published. <code>choose</code> and <code>send</code> also reject terminal states, with their own failure codes.</td></tr>
-            <tr><td>File write fails with <code>ENOENT</code></td><td>Run from the repository root and create <code>examples/</code> as in step 1. The evaluator does not create directories.</td></tr>
-          </tbody>
-        </table></div>
-        <p class="related">Keep exploring: <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/state-machine.md">Evaluator usage reference</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state-machine.ts">SDK source</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/adr/0002-observably-invoked-happy-path-loop.md">Architecture rationale</a>.</p>
+        <div class="table-wrap"><table><thead><tr><th scope="col">Symptom</th><th scope="col">What to check</th></tr></thead><tbody>
+          <tr><td>Missing module or compiler</td><td>Return to the checkout root, confirm <code>extensions/state_machine/index.ts</code> exists, and complete <code>npm ci</code>. Do not install a separate package named <code>tsc</code>.</td></tr>
+          <tr><td>No automatic target in draft</td><td>Submit explicitly with <code>transition("review", facts)</code>. Manual edges are intentionally hidden from <code>available()</code>.</td></tr>
+          <tr><td><code>guard-rejected</code></td><td>Submission requires ten words; approval/revision require an available reviewer. Refresh facts instead of reusing a stale option.</td></tr>
+          <tr><td>Zero or multiple targets</td><td>The caller must wait, choose, or fail according to its policy. Zero does not mean final; inspect <code>isFinal</code>.</td></tr>
+          <tr><td>Publication write fails</td><td>The output is beside the runner. Check filesystem permissions. The instance has already moved; recovery is caller-owned.</td></tr>
+        </tbody></table></div>
+        <p class="related">Keep exploring: <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state_machine/README.md">Canonical module reference</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state_machine/index.ts">Module source</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/adr/0002-observably-invoked-happy-path-loop.md">Architecture rationale</a>.</p>
       </section>
     </article>
   </div>
