@@ -41,9 +41,9 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 
 | id | statement | status | blocking | evidence / validation_path |
 |---|---|---|---|---|
-| A-1 | The port changes no persisted buck-loop data (state names, `Choice` kinds, `lastChoice`, history `why` strings). | deferred | true (Phase 2) | Validation: `git diff --stat extensions/buck-loop/types.ts extensions/buck-loop/loop.ts extensions/buck-loop/choice.ts` is empty after Phase 2; `persist.test.ts` and `loop.test.ts` pass unmodified. |
+| A-1 | The port changes no persisted buck-loop data (state names, `Choice` kinds, `lastChoice`, history `why` strings). | validated | false | Phase 2: required unchanged-file diffs are empty; unchanged loop/persist tests pass. Literal legacy fixtures and both-mode adapter comparisons preserve full outputs. See `build-phase-2.md`. |
 | A-2 | Every buck choice set maps onto distinct targets per state (self = `retry`; `reviewing`: iterating/documenting/saving = iterate/document/save; any other non-self target = `advance`). | validated | false | `machine.ts:269–284,307–322,345–359,365–408,488–512`: no state offers two choices with one target; `committing`'s `advance` targets (building/done/blocked) are mutually exclusive by `planFacts.kind`. |
-| A-3 | Every automatic-vs-choice wording difference on a shared edge is derivable from facts (`ambiguousChoiceOpen`, `reviewUnparseable`). | deferred | true (Phase 2) | Validation: ported `buck-loop/__tests__/machine.test.ts` pins `to` + `effect` + `why` for every former rule and passes. |
+| A-3 | Every automatic-vs-choice wording difference on a shared edge is derivable from facts (`ambiguousChoiceOpen`, `reviewUnparseable`). | validated | false | Phase 2: 100 reachable former-rule fixtures pin literal `to`/`effect`/`why`; machine suite passes. Both-mode comparisons find no output or rejection differences. See `build-phase-2.md`. |
 | A-4 | `loop.ts` needs no change for buck: it already halts on any `Error` from `next()`. | validated | false | `loop.ts:395–400`. |
 | A-5 | No consumer of `extensions/state-machine.ts` exists beyond the list above. | validated | false | `rg` over the repo excluding `.context/**` and `node_modules/**`. Re-run before deletion in Phase 4. |
 | A-6 | `reviewMachine` maps rule-for-edge (no multi-rule edges) except via self-loop `initializing → initializing`. | deferred | false | Validation: Phase 3 truth-table tests pin `to` + `output.rule` for all 15 rules. |
@@ -103,7 +103,7 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 6. Machine facts = `Snapshot & { sqlMemoryConfigured: boolean }`, built inside the adapter (replaces the `process.env.SQL_MEMORY_URL` read in a guard; no `Snapshot` change).
 7. Multi-rule edges: one guard per edge (OR of former `when`s) plus reason functions (`blockReason`, `rerunReason`, …) that both the guard and the effect use, preserving every former `why` string verbatim.
 8. Operator edges: `const STOP = { name: "aborted", manual: true }` spread into every non-final state; `idle → resolving` manual (START); `blocked → reviewing` / `blocked → resolving` manual with guards `completedBlockedWork` / its negation (USER_CONFIRMED).
-9. Adapter policy in `next(s)`: `restore(s.state)`, `available(facts)`; one → transition; more than one **and** a decision is open per facts (`ambiguousChoiceOpen` or `reviewUnparseable`) → `choose` effect with legal `Choice[]` mapped from targets (A-2 mapping); otherwise throw a typed error (message names state and targets). `applyChoice` maps `Choice` → target, validates it against `available`, transitions. `stopFrom` keeps the `done`/`aborted` special case.
+9. Adapter policy in `next(s)`: `restore(s.state)`, `available(facts)`; one → transition (except the existing SQL-saving single-option choice boundary); more than one **and** a decision is open per facts (`ambiguousChoiceOpen` or `reviewUnparseable`) → `choose` effect with legal `Choice[]` mapped from targets (A-2 mapping); otherwise throw a typed error (message names state and targets). `applyChoice` maps `Choice` → target, validates it against `available`, transitions. `stopFrom` keeps the `done`/`aborted` special case.
 10. Port `buck-loop/__tests__/machine.test.ts`: identical `to`/`effect`/`why` expectations; replace `MachineFailure` with the new error types; add a test that every non-final state has a manual edge to `aborted`.
 
 ### Phase 3 — Port `reviewMachine`
@@ -125,8 +125,8 @@ Replace `extensions/state-machine.ts` (rule-kind evaluator: `automatic` / `choic
 - [ ] `extensions/state_machine/**` has no import specifier that leaves the folder and no Node/platform API use; importing `index.ts` has no side effects.
 - [ ] Module behavior tests pass and cover every item in step 3.
 - [ ] `examples/transmission.ts` runs and prints the documented output.
-- [ ] `extensions/buck-loop/{loop,choice,types}.ts` diffs are empty; `buck-loop/__tests__/loop.test.ts` and `persist.test.ts` pass unmodified.
-- [ ] Ported buck truth table pins every former rule's `to`/`effect`/`why`; every non-final buck state has a manual `aborted` edge (tested).
+- [x] `extensions/buck-loop/{loop,choice,types}.ts` diffs are empty; `buck-loop/__tests__/loop.test.ts` and `persist.test.ts` pass unmodified.
+- [x] Ported buck truth table pins every former rule's `to`/`effect`/`why`; every non-final buck state has a manual `aborted` edge (tested).
 - [ ] `code-review-iteration/__tests__/loop.test.ts` diff empty and green; exclusivity sweep green against `ReviewMachineError`.
 - [ ] `extensions/state-machine.ts` and its test are deleted; repo search (excluding historical paths) finds no reference to `state-machine.ts` / `../state-machine.js`.
 - [ ] ADR 0002, `docs/state-machine.md`, `docs/extension-loading.md`, `personas/correctness.md`, `site/guides/state-machine.html`, `site/index.html` describe the new module only.
