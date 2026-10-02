@@ -17,3 +17,9 @@ Adjacent fixture migration: the two captured successful unphased closeout rows n
 Verification after resolution: `npx vitest run extensions/buck-loop skills/_shared/scripts/subject-lifecycle.test.ts` passed 487 tests, with 4 skipped across 14 suites. LSP diagnostics reported no errors for `machine.ts`.
 
 The operator explicitly requested completion of all remaining rebase commits, overriding the conflict skill's default manual continue gate. No push is authorized.
+
+## Final replay metadata
+
+Replaying `5c273a2` added independent SQL-memory history. Preserve both ledger sections, with the incoming remember record first. Keep the existing state-machine current-session pointer because its files, workflow reason, and save summary still describe Phase 4; changing only subject and memory_file would create an inconsistent document.
+
+Native `tool.jev` returned model `jev-1.13.0`: `combine_additive` for the ledger (confidence 0.91) and `keep_ours` for the singleton session metadata (confidence 0.99). These bounded classifications matched the observed patch; they were not automatic authority to edit or a substitute for verification.

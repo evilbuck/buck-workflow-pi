@@ -31,6 +31,7 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 - [x] [Phase 4: Policy/docs and live proof](archive/2026-09/phase-4-sql-memory-docs-live-proof.md) — done 2026-09-29
 
 - [ ] [Show a one-line TUI notice when sql_memory is used](items/sql-memory-tui-notice.md) — medium; mimic the Jev decision line — see `.context/2026-09-30.sql-memory-tui-notice/plan-sql-memory-tui-notice.md`
+- [ ] [Stop model-written SQL memory saves](items/sql-memory-remember-op.md) — medium; `remember` op plus model-facing `fix` — see `.context/2026-10-01.sql-memory-remember-op/plan-sql-memory-remember-op.md`
 
 ## Buck Model Profile Phases (2026-09-23)
 

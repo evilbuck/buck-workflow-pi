@@ -30,11 +30,16 @@ The launcher disables extension discovery, skills, rules, built-in tools, LSP, s
 | `1` | Flow cards: prior, prominent current, expected next |
 | `2` | Compact ribbon: least vertical space |
 | `3` | Vertical timeline: readable in a narrow terminal |
+| Tab | Cycle through the three layouts |
 | `n` / `b` or right / left | Next / previous scenario |
 | `p` | Toggle automatic scenario replay |
 | `w` | Toggle a 44-column panel without resizing your terminal |
 | `q` / Esc / Ctrl+C | Close the gallery; clear its widget and replay timer |
 | `/buck-loop-preview` | Reopen the gallery after closing it |
+
+All three layout names are displayed above the sample panel. The active option has a `>` marker and `SELECTED` label. Layout keys and scenario keys are separate: `1`–`3` / Tab change the layout; `n` / `b` change the scenario. Number and letter shortcuts use the terminal SDK key matcher, including Kitty/CSI-u input; release events are ignored.
+
+Below 80 columns, Flow cards uses the existing stacked fallback, which can resemble Vertical timeline. The preview now explicitly labels that fallback.
 
 Scenarios: building, reviewing, pending choice, iteration, model retry, blocked, committing, completed. Choices in this gallery are illustrative fixture data, not a computed set from the live machine.
 
@@ -52,9 +57,10 @@ The phase iteration and model retry attempt are separate. Completed state visits
 
 Executed in OMP 18.4.5, using the real widget and keyboard controller:
 
-- All eight scenarios in all three layouts at 110 and 44 terminal columns: 48 native frames exercised.
+- All eight scenarios in all three layouts at 110 and 44 terminal columns, with a 44-row viewport: 48 native frames exercised. All three option names and the correct selected marker remained visible; wide layouts were checked for their distinct box/ribbon/timeline forms.
 - Pending choices, selected iteration choice, phase iteration versus retry attempt, blocked/no-next display, and completed token ledger observed.
 - Replay advanced a scenario and paused; narrow toggle worked; closing removed the widget; reopening reset the gallery.
+- Follow-up on 2026-10-01: plain and Kitty/CSI-u shortcuts, Tab cycling/wraparound, ignored release events, encoded scenario/narrow controls, and encoded close followed by `/buck-loop-preview` reopening were exercised in native OMP.
 - Strict TypeScript NodeNext check for both preview files and `bash -n` for the launcher passed.
 - Native desktop capture is unavailable in this environment; verification used the running terminal's actual rendered screen via tmux, not a web mockup.
 
@@ -64,4 +70,4 @@ Only `.context/2026-09-30.buck-loop-tui-preview/` was written by this work. Prod
 
 Pick/tune the presentation before live integration. The pure `renderPreview(snapshot, layout, theme, width)` function is the seam to preserve. A later adapter can project real phase/model/transition/choice/usage events into that snapshot and coalesce each tool operation into one row. The gallery is not that adapter, and the production UI has not changed.
 
-Restart the preview process after editing the renderer. OMP `/reload` alone retained the imported renderer module during this smoke run.
+The dedicated preview session has been restarted with the clearer selector. Restart any separately launched preview process to load changes; its entry module/renderer may remain cached in an already-running OMP session.

@@ -67,11 +67,11 @@ describe("supervisor SQL activity", () => {
     ]);
   });
 
-  it("reports one denial or redacted connection failure", async () => {
+  it("reports the denial reason with column card hints instead of a fixed string", async () => {
     const sink = vi.fn();
     await expect(sqlMemoryRows(pool, "DELETE FROM memories", [], "save", sink)).rejects.toThrow();
     expect(sink.mock.calls.map(([event]) => event)).toEqual([
-      { kind: "toolEnd", tool: "sql_memory", ok: false, message: "Memory denied · operation not allowed" },
+      { kind: "toolEnd", tool: "sql_memory", ok: false, message: expect.stringContaining("DELETE statements are not allowed") },
     ]);
     sink.mockClear();
     const failedPool = { ...pool, connect: async () => { throw new Error("postgres://secret@host/db"); } };

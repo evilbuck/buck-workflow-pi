@@ -1,6 +1,8 @@
 /** Throwaway native OMP styling gallery. No model calls and no live loop connection. */
-import { matchesKey, Key, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import { isKeyRelease, matchesKey, Key, wrapTextWithAnsi } from "@mariozechner/pi-tui";
 import { fixtures, layoutNames, renderPreview, type PreviewTheme } from "./render.js";
+
+const layoutKeys = ["1", "2", "3"] as const;
 
 type Component = { render(width: number): string[]; invalidate(): void; handleInput?(data: string): void };
 type Tui = { requestRender(): void };
@@ -25,7 +27,19 @@ async function showPreview(ctx: PreviewContext): Promise<void> {
   ctx.ui.setWidget(key, (_tui, theme) => ({
     invalidate() {},
     render(width) {
-      return renderPreview(fixtures[fixture]!, layout, theme, narrow ? Math.min(44, width) : width);
+      const panelWidth = narrow ? Math.min(44, width) : width;
+      const options = layoutNames.map((name, index) => {
+        const label = `${index === layout ? ">" : " "} [${index + 1}] ${name}${index === layout ? " · SELECTED" : ""}`;
+        return `  ${theme.fg(index === layout ? "accent" : "muted", index === layout ? theme.bold(label) : label)}`;
+      });
+      return [
+        ...wrapTextWithAnsi(theme.fg("accent", theme.bold(`  PREVIEW LAYOUTS · ${layout + 1} OF 3`)), panelWidth),
+        ...options,
+        ...wrapTextWithAnsi(theme.fg("muted", "  Press 1 / 2 / 3 or Tab to switch layout"), panelWidth),
+        ...(layout === 0 && panelWidth < 80 ? wrapTextWithAnsi(theme.fg("warning", "  Flow cards: stacked fallback below 80 columns"), panelWidth) : []),
+        "",
+        ...renderPreview(fixtures[fixture]!, layout, theme, panelWidth),
+      ];
     },
   }), { placement: "aboveEditor" });
   try {
@@ -36,28 +50,32 @@ async function showPreview(ctx: PreviewContext): Promise<void> {
         render(width) {
           return [
             "",
-            ...wrapTextWithAnsi(theme.fg("accent", theme.bold(`STYLING PREVIEW  ${layout + 1} / 3 · ${layoutNames[layout]}  |  ${fixture + 1} / ${fixtures.length} · ${fixtures[fixture]!.name}`)), width),
-            ...wrapTextWithAnsi(theme.fg("muted", "1–3 layout · n/b scenario · p replay · w narrow · q close"), width),
+            ...wrapTextWithAnsi(theme.fg("accent", theme.bold(`SCENARIO ${fixture + 1} / ${fixtures.length} · ${fixtures[fixture]!.name}`)), width),
+            ...wrapTextWithAnsi(theme.fg("muted", "n/b scenario · p replay · w narrow · q close"), width),
             ...wrapTextWithAnsi(theme.fg("muted", `${replay ? "Replay ON" : "Replay paused"} · ${narrow ? "44-column sample" : "terminal width"} · no models or real work`), width),
           ];
         },
         handleInput(data) {
-          if (data === "q" || matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
+          if (isKeyRelease(data)) return;
+          const chosenLayout = layoutKeys.findIndex((shortcut) => matchesKey(data, shortcut));
+          if (matchesKey(data, "q") || matchesKey(data, Key.escape) || matchesKey(data, Key.ctrl("c"))) {
             stopReplay();
             done();
             return;
           }
-          if (data === "n" || matchesKey(data, Key.right)) {
+          if (chosenLayout >= 0) {
+            layout = chosenLayout;
+          } else if (matchesKey(data, Key.tab)) {
+            layout = (layout + 1) % layoutNames.length;
+          } else if (matchesKey(data, "n") || matchesKey(data, Key.right)) {
             stopReplay();
             fixture = (fixture + 1) % fixtures.length;
-          } else if (data === "b" || matchesKey(data, Key.left)) {
+          } else if (matchesKey(data, "b") || matchesKey(data, Key.left)) {
             stopReplay();
             fixture = (fixture + fixtures.length - 1) % fixtures.length;
-          } else if (["1", "2", "3"].includes(data)) {
-            layout = Number(data) - 1;
-          } else if (data === "w") {
+          } else if (matchesKey(data, "w")) {
             narrow = !narrow;
-          } else if (data === "p") {
+          } else if (matchesKey(data, "p")) {
             if (replay !== undefined) stopReplay();
             else replay = setInterval(() => {
               fixture = (fixture + 1) % fixtures.length;
