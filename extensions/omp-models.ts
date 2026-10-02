@@ -64,12 +64,14 @@ function asToolStart(raw: unknown): ActivityEvent | null {
 function asToolEnd(raw: unknown): ActivityEvent | null {
   const end = raw as { toolName?: unknown; isError?: unknown; result?: unknown };
   if (typeof end.toolName !== "string") return null;
+  const result = end.result as { details?: unknown } | undefined;
+  const details = result?.details as { notice?: unknown } | undefined;
+  const notice = end.toolName === "sql_memory" && typeof details?.notice === "string" ? details.notice : undefined;
   const ok = end.isError !== true;
-  const message = ok ? undefined : extractErrorMessage(end.result);
-  if (ok) return { kind: "toolEnd", tool: end.toolName, ok: true };
+  const message = notice ?? (ok ? undefined : extractErrorMessage(end.result));
   return message === undefined
-    ? { kind: "toolEnd", tool: end.toolName, ok: false }
-    : { kind: "toolEnd", tool: end.toolName, ok: false, message };
+    ? { kind: "toolEnd", tool: end.toolName, ok }
+    : { kind: "toolEnd", tool: end.toolName, ok, message };
 }
 
 function asRetry(raw: unknown): ActivityEvent | null {

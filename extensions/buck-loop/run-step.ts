@@ -1,3 +1,4 @@
+import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
 /**
  * Nested work session: spawn a **child** coding agent to run one Buck skill.
  *
@@ -411,6 +412,7 @@ async function runOneSession(
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
+  let sqlNoticePending = false;
   // Only an unresolved save-stage SQL work error suppresses a model retry. Gate
   // denials are correctable and a subsequent successful SQL call clears the error.
   let unresolvedSqlFailure = false;
@@ -446,6 +448,10 @@ async function runOneSession(
       ...(pool && role ? {
         allowRestrictedCustomTools: true,
         customTools: [sqlMemoryTool(pool, role, (result) => {
+          if (result.notice) {
+            sqlNoticePending = true;
+            opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: result.kind === "success", message: result.notice });
+          }
           if (role !== "save") return;
           if (result.kind === "work") unresolvedSqlFailure = true;
           else if (result.kind === "success") unresolvedSqlFailure = false;
@@ -465,6 +471,10 @@ async function runOneSession(
     unsubscribe = session.subscribe((event) => {
       resetIdleTimer();
       const normalized = normalizeActivityEvent(event);
+      if (normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && sqlNoticePending) {
+        sqlNoticePending = false;
+        return;
+      }
       if (normalized) opts.onActivity?.(normalized);
     });
     resetIdleTimer();
@@ -509,7 +519,7 @@ async function runOneSession(
     recordCleanupError(error, "poolEndError");
     // Surface teardown noise to the supervisor's activity stream for visibility, but do
     // not promote it to a stage failure — the agent's durable work already landed.
-    opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: false, message: errorText(error) });
+    opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: false, message: formatSqlMemoryNotice({ op: "sql", error: errorText(error) }) });
   }
   return {
     retain: outcome.ok,

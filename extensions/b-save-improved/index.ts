@@ -732,7 +732,7 @@ async function runBSaveImproved(
       const facts = reusable.length > 0
         ? [{ body: `# ${scribe.memory.title}\n\n${scribe.memory.body}\n\n## Reusable facts\n\n${reusable.map((fact) => `- ${fact}`).join("\n")}`, supersedes: scribe.supersedes_id }]
         : [];
-      const ids = await saveSqlFacts(ctx.cwd, attempt, facts);
+      const ids = await saveSqlFacts(ctx.cwd, attempt, facts, undefined, activity.ingest);
       payload.sql_receipt = { path: attempt.receiptRel, ids };
       const plans = preflight.plans;
       const refs = Array.isArray(plans) ? plans : [];

@@ -93,6 +93,36 @@ describe("runStep", () => {
       else process.env.SQL_MEMORY_URL = previous;
     }
   });
+  it("streams the sql_memory notice once when the nested SQL tool succeeds", async () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      end: async () => {},
+      async query() { return { rows: [] }; },
+      async connect() {
+        return { async query(text: string) { return { rows: text.startsWith("SELECT") ? [{ id: "m1" }] : [] }; }, release() {} };
+      },
+    }));
+    try {
+      const session = arrange();
+      const onActivity = vi.fn();
+      session.prompt.mockImplementation(async () => {
+        const options = createAgentSessionMock.mock.calls[0]![0];
+        const tool = options.customTools[0];
+        const result = await tool.execute("call", {
+          op: "sql", statement: "SELECT id FROM memories WHERE project = $1", values: ["project", "bounded query"],
+        }, undefined, undefined, {} as never);
+        session.emit({ type: "tool_execution_end", toolName: "sql_memory", isError: false, result });
+      });
+      await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", onActivity });
+      expect(onActivity.mock.calls.map((call) => call[0])).toEqual([
+        { kind: "toolEnd", tool: "sql_memory", ok: true, message: 'Memory recall · 1 row · "bounded query"' },
+      ]);
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
   it("trusts the agent's success when its sql_memory call was denied at the gate", async () => {
     // Gate denials during agent work are recoverable — the agent sees the error and may
     // correct with a different op. run-step must not downgrade `outcome.ok` based on the
@@ -168,7 +198,7 @@ describe("runStep", () => {
     expect(session.dispose).toHaveBeenCalledOnce();
     expect(end).toHaveBeenCalledOnce();
     expect(onActivity).toHaveBeenCalledWith(expect.objectContaining({
-      kind: "toolEnd", tool: "sql_memory", ok: false, message: "pool shutdown failed",
+      kind: "toolEnd", tool: "sql_memory", ok: false, message: "Memory failed · pool shutdown failed",
     }));
     expect(select).toHaveBeenCalledTimes(1);
   });

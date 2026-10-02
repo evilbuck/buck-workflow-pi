@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, join, resolve } from "node:path";
 import { createLazyPool } from "../sql-memory/db.js";
 import { checkSqlForRole } from "../sql-memory/sql-gate.js";
-import { sqlMemoryRows, sqlMemorySaveTransaction } from "../sql-memory/index.js";
+import { sqlMemoryRows, sqlMemorySaveTransaction, type SqlMemoryActivitySink } from "../sql-memory/index.js";
 import { redactRemoteCredentials } from "../token-attribution/git-identity.js";
 
 const ATTEMPT_REL = ".context/workflow/sql-save-attempt.json";
@@ -107,13 +107,13 @@ export function writeReceipt(cwd: string, attempt: SaveAttempt, body: Pick<SaveR
 }
 
 /** Persist reusable facts before applying filesystem metadata. Retries reuse source keys. */
-export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery): Promise<string[]> {
+export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
   if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query));
   const url = process.env.SQL_MEMORY_URL;
   if (!url) throw new Error("SQL_MEMORY_URL is not set");
   const pool = createLazyPool(url)();
-  const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, "save");
-  saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work);
+  const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, "save", onActivity);
+  saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work, onActivity);
   try {
     return await saveFactsWithQuery(cwd, attempt, facts, saveQuery);
   } finally {
@@ -228,7 +228,7 @@ async function findSourceFact(attempt: SaveAttempt, query: SqlQuery, seq: number
   return typeof rows[0]?.id === "string" ? rows[0].id : null;
 }
 
-export async function probeSql(query: SqlQuery = defaultQuery): Promise<SaveCheck> {
+export async function probeSql(query: SqlQuery = (sql, values) => defaultQuery(sql, values, onActivity), onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
   if (!sqlMode()) return { status: "skip" };
   try {
     await guardedQuery(query)("SELECT id FROM projects LIMIT 1", []);
@@ -239,7 +239,7 @@ export async function probeSql(query: SqlQuery = defaultQuery): Promise<SaveChec
 }
 
 /** Confirm the current attempt's receipt against same-project active rows. */
-export async function verifySqlSave(cwd: string, subject: string | null, query: SqlQuery = defaultQuery, requireComplete = true, expectedAttemptId?: string | null): Promise<SaveCheck> {
+export async function verifySqlSave(cwd: string, subject: string | null, query: SqlQuery = (sql, values) => defaultQuery(sql, values, onActivity), requireComplete = true, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
   if (!sqlMode()) return { status: "skip" };
   if (!subject) return { status: "block", reason: "SQL save has no subject; refusing to commit." };
   const attempt = readAttempt(cwd);
@@ -420,12 +420,12 @@ function contained(cwd: string, rel: string): string | null {
   return full === root || full.startsWith(`${root}/`) ? full : null;
 }
 
-async function defaultQuery(sql: string, values: unknown[]): Promise<Array<Record<string, unknown>>> {
+async function defaultQuery(sql: string, values: unknown[], onActivity?: SqlMemoryActivitySink): Promise<Array<Record<string, unknown>>> {
   const url = process.env.SQL_MEMORY_URL;
   if (!url) throw new Error("SQL_MEMORY_URL is not set");
   const pool = createLazyPool(url)();
   try {
-    return await sqlMemoryRows(pool, sql, values, "save");
+    return await sqlMemoryRows(pool, sql, values, "save", onActivity);
   } finally {
     if ("end" in pool && typeof pool.end === "function") await pool.end();
   }

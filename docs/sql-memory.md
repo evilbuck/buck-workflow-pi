@@ -33,6 +33,14 @@ Buck-loop corrections use the save-stage `correct` operation (or the alternate s
 
 Outside a configured OMP loop, a portable `b-save` without a callable `sql_memory` tool uses the file-based memory path even when `SQL_MEMORY_URL` is present, with an availability note. Configured loop saves fail closed instead.
 
+## TUI notices
+
+`sql_memory` renders a collapsed one-line notice for reads, writes, corrections, migrations, denials, and failures. Recall notices show the returned row count and the bound recall text; writes show the category when present and a truncated body synopsis. Synopsis values containing `password`, `connection`, `database_url`, `sql_memory_url`, or `url` (case-insensitive), HTTP/PostgreSQL URLs, or SQL-like text are replaced with `redacted` before truncation. This conservative filter also redacts ordinary text such as `connection refused`; it is not a general-purpose secret detector. Expanding the tool result reveals the unchanged JSON result beneath the notice.
+
+Categories use the same redaction and whitespace normalization as body synopses before truncation. Save-open connectivity probes also emit through the supervisor's existing activity sink.
+
+The same notice appears in Buck-loop activity for child tools and supervisor saves/readback when an activity sink is available; library calls without a sink remain silent. Transaction write notices are emitted only after commit. Recall, write, denial, and failure notices are capped at 50 characters to fit the 64-column activity line. Denial and failure reasons, including child pool-shutdown failures, use the same redaction filter.
+
 ## Identity keys
 
 | What | How |
