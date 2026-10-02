@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Receipt Identity Contract — buck-loop save fix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,420;9..144,560;9..144,640&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f6f2e9;
+    --card:#fdfbf5;
+    --ink:#211d15;
+    --ink-2:#6b6353;
+    --ink-3:#9a917d;
+    --rule:#ddd4c2;
+    --rule-soft:#e8e1d1;
+    --red:#bf3f2b;
+    --red-soft:#f4ddd6;
+    --green:#2f6b4f;
+    --green-soft:#dfeae0;
+    --amber:#8f6b1f;
+    --amber-soft:#f0e6c8;
+    --mono:'Spline Sans Mono',ui-monospace,monospace;
+    --serif:'Newsreader',Georgia,serif;
+    --display:'Fraunces',Georgia,serif;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    background:
+      repeating-linear-gradient(0deg, transparent 0 31px, rgba(33,29,21,.028) 31px 32px),
+      repeating-linear-gradient(90deg, transparent 0 31px, rgba(33,29,21,.028) 31px 32px),
+      var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    font-size:17px;
+    line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--red-soft)}
+
+  .sheet{max-width:1120px;margin:0 auto;padding:0 40px}
+  .layout{display:grid;grid-template-columns:210px 1fr;gap:64px;align-items:start}
+
+  /* ---------- left rail ---------- */
+  .rail{position:sticky;top:48px;padding-top:12px}
+  .rail .meta{border-top:2px solid var(--ink);padding-top:14px}
+  .rail dt{font:600 10.5px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-top:16px}
+  .rail dd{font:500 12.5px/1.5 var(--mono);color:var(--ink);margin-top:5px;word-break:break-all}
+  .rail nav{margin-top:34px;border-top:1px solid var(--rule);padding-top:14px;display:flex;flex-direction:column;gap:2px}
+  .rail nav a{
+    font:500 12px/2.1 var(--mono);color:var(--ink-2);text-decoration:none;
+    display:flex;gap:10px;transition:color .15s;
+  }
+  .rail nav a b{font-weight:600;color:var(--ink-3);transition:color .15s}
+  .rail nav a:hover{color:var(--red)}
+  .rail nav a:hover b{color:var(--red)}
+  .stamp{
+    display:inline-block;margin-top:26px;padding:7px 13px;
+    border:2px solid var(--green);color:var(--green);border-radius:3px;
+    font:600 11px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;
+    transform:rotate(-3deg);
+  }
+
+  /* ---------- masthead ---------- */
+  header.mast{padding:72px 0 44px;border-bottom:3px double var(--ink)}
+  .kicker{font:600 11px/1 var(--mono);letter-spacing:.22em;text-transform:uppercase;color:var(--red);display:flex;align-items:center;gap:14px}
+  .kicker::after{content:"";flex:1;height:1px;background:var(--rule)}
+  h1{
+    font-family:var(--display);font-weight:420;font-size:clamp(40px,5.4vw,64px);
+    line-height:1.04;letter-spacing:-.015em;margin:22px 0 0;
+  }
+  h1 em{font-style:italic;font-weight:560;color:var(--red)}
+  .deck{max-width:640px;margin-top:22px;font-size:19px;color:var(--ink-2);line-height:1.6}
+  .deck strong{color:var(--ink);font-weight:600}
+
+  /* ---------- sections ---------- */
+  main{padding:8px 0 40px}
+  section{padding:52px 0 8px}
+  .sec-head{display:flex;align-items:baseline;gap:18px;margin-bottom:26px}
+  .sec-no{font:300 46px/1 var(--display);color:var(--red);letter-spacing:-.02em}
+  .sec-head h2{font-family:var(--display);font-weight:560;font-size:25px;letter-spacing:-.01em}
+  .sec-head .tick{flex:1;height:1px;background:var(--rule);align-self:center}
+  p.lede{max-width:66ch;color:var(--ink-2);font-size:17.5px}
+  p.lede strong{color:var(--ink)}
+
+  /* evidence panel */
+  .evidence{background:var(--card);border:1px solid var(--rule);border-radius:10px;box-shadow:0 1px 0 rgba(33,29,21,.05),0 14px 34px -22px rgba(33,29,21,.35);overflow:hidden}
+  .ev-top{display:flex;flex-wrap:wrap;gap:8px;padding:14px 22px;border-bottom:1px dashed var(--rule)}
+  .chip{font:500 11.5px/1 var(--mono);padding:6px 10px;border-radius:99px;background:var(--green-soft);color:var(--green)}
+  .chip.bad{background:var(--red-soft);color:var(--red);text-decoration:line-through;text-decoration-thickness:1.5px}
+  .ev-body{display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:stretch}
+  .ev-cell{padding:22px}
+  .ev-cell + .ev-cell{border-left:1px dashed var(--rule)}
+  .ev-label{font:600 10.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3)}
+  .ev-str{font:500 14px/1.7 var(--mono);margin-top:10px;word-break:break-all}
+  .ev-str .ok{color:var(--ink)}
+  .ev-str .diff{color:var(--red);background:var(--red-soft);border-radius:3px;padding:1px 3px;text-decoration:underline wavy var(--red) 1.5px;text-underline-offset:4px}
+  .ev-neq{align-self:center;font:300 40px/1 var(--display);color:var(--red);padding:0 6px}
+  .ev-cell.verdict{display:flex;flex-direction:column;justify-content:center}
+  .ev-foot{padding:13px 22px;border-top:1px dashed var(--rule);font:500 12.5px/1.6 var(--mono);color:var(--ink-2)}
+  .ev-foot b{color:var(--red);font-weight:600}
+
+  /* flow strip */
+  .flow{display:flex;align-items:stretch;gap:0;margin-top:26px;flex-wrap:wrap}
+  .flow .node{
+    flex:1;min-width:150px;background:var(--card);border:1px solid var(--rule);border-radius:8px;
+    padding:13px 15px;text-align:center;
+  }
+  .flow .node .t{font:600 12.5px/1.3 var(--mono)}
+  .flow .node .s{font:400 11px/1.5 var(--mono);color:var(--ink-3);margin-top:4px}
+  .flow .node.fail{border-color:var(--red);background:var(--red-soft)}
+  .flow .node.fail .t,.flow .node.fail .s{color:var(--red)}
+  .flow .arr{align-self:center;padding:0 10px;color:var(--ink-3);font:500 15px var(--mono)}
+
+  /* fix rows */
+  .fixes{display:flex;flex-direction:column}
+  .fix{display:grid;grid-template-columns:56px 1fr;gap:22px;padding:22px 0;border-top:1px solid var(--rule-soft)}
+  .fix:last-child{border-bottom:1px solid var(--rule-soft)}
+  .fix .n{font:300 34px/1 var(--display);color:var(--ink-3)}
+  .fix h3{font-family:var(--display);font-weight:560;font-size:18.5px;letter-spacing:-.01em}
+  .fix p{color:var(--ink-2);margin-top:6px;max-width:64ch}
+  .fix code, .inline{font:500 13px var(--mono);background:var(--card);border:1px solid var(--rule-soft);border-radius:5px;padding:2px 6px;color:var(--ink);white-space:nowrap}
+  .fix .file{display:inline-block;margin-top:10px;font:600 11px/1 var(--mono);letter-spacing:.05em;color:var(--amber);background:var(--amber-soft);border-radius:5px;padding:5px 9px}
+
+  /* scope columns */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .panel{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:22px 24px}
+  .panel h3{font:600 11px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px}
+  .panel.in h3{color:var(--green)}
+  .panel.out h3{color:var(--red)}
+  .panel ul{list-style:none}
+  .panel li{padding:9px 0 9px 26px;position:relative;border-top:1px dashed var(--rule-soft);color:var(--ink-2);font-size:15.5px;line-height:1.55}
+  .panel li:first-child{border-top:0}
+  .panel li strong{color:var(--ink)}
+  .panel.in li::before{content:"";position:absolute;left:2px;top:16px;width:12px;height:2px;background:var(--green)}
+  .panel.in li::after{content:"";position:absolute;left:7px;top:11px;width:2px;height:12px;background:var(--green)}
+  .panel.out li::before,.panel.out li::after{content:"";position:absolute;left:3px;top:14px;width:14px;height:2px;background:var(--red);transform:rotate(45deg)}
+  .panel.out li::after{transform:rotate(-45deg)}
+
+  /* acceptance */
+  .accept{display:grid;grid-template-columns:1fr 1fr;gap:10px 26px;counter-reset:ac}
+  .accept .item{display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px dashed var(--rule-soft);color:var(--ink-2);font-size:15.5px;line-height:1.55}
+  .accept .box{flex:none;width:17px;height:17px;border:1.5px solid var(--ink-3);border-radius:4px;margin-top:3px;position:relative}
+  .accept code{font:500 12.5px var(--mono);color:var(--ink)}
+
+  /* terminal */
+  .term{background:#262218;border-radius:10px;overflow:hidden;box-shadow:0 18px 40px -24px rgba(33,29,21,.55)}
+  .term .bar{display:flex;gap:6px;padding:11px 14px;background:#1d1a12}
+  .term .bar i{width:10px;height:10px;border-radius:99px;background:#4c463a}
+  .term .bar i:first-child{background:var(--red)}
+  .term pre{padding:18px 22px 20px;font:400 13.5px/1.9 var(--mono);color:#e9e2cf;overflow-x:auto}
+  .term .p{color:#8f866f;user-select:none}
+  .term .c{color:#8f866f;font-style:italic}
+  .term .g{color:#9fd0ae}
+
+  /* loop strip */
+  .loopstrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .step{
+    background:var(--card);border:1px solid var(--rule);border-radius:99px;
+    padding:9px 18px;font:600 12.5px/1 var(--mono);color:var(--ink);
+  }
+  .step small{display:block;font:400 10px/1 var(--mono);color:var(--ink-3);margin-top:5px;letter-spacing:.06em}
+  .step.opt{border-style:dashed;color:var(--ink-2)}
+  .loopstrip .arr{color:var(--ink-3);font:500 14px var(--mono)}
+
+  /* risks */
+  .risks{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  .risk{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--amber);border-radius:10px;padding:20px 22px}
+  .risk h3{font-family:var(--display);font-weight:560;font-size:16.5px}
+  .risk p{color:var(--ink-2);font-size:15px;margin-top:8px}
+  .risk p b{color:var(--ink)}
+  .risk.recovery{border-left-color:var(--red);grid-column:1/-1}
+
+  footer{border-top:3px double var(--ink);margin-top:56px;padding:26px 0 60px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+  footer p{font:500 11.5px/1.8 var(--mono);color:var(--ink-3)}
+  footer a{color:var(--ink-2);text-decoration:underline;text-underline-offset:3px}
+
+  /* entrance */
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  header.mast,section,.loopwrap{animation:rise .6s cubic-bezier(.2,.7,.2,1) both}
+  section:nth-of-type(1){animation-delay:.08s}section:nth-of-type(2){animation-delay:.16s}
+  section:nth-of-type(3){animation-delay:.24s}section:nth-of-type(4){animation-delay:.32s}
+  section:nth-of-type(5){animation-delay:.40s}section:nth-of-type(6){animation-delay:.48s}
+  section:nth-of-type(7){animation-delay:.56s}
+
+  @media (max-width:900px){
+    .layout{grid-template-columns:1fr}
+    .rail{position:static;display:flex;flex-wrap:wrap;gap:30px;align-items:flex-start}
+    .rail nav{display:none}
+    .ev-body{grid-template-columns:1fr}
+    .ev-neq{padding:0 22px}
+    .ev-cell + .ev-cell{border-left:0;border-top:1px dashed var(--rule)}
+    .cols,.risks,.accept{grid-template-columns:1fr}
+  }
+  @media print{
+    body{background:#fff}
+    .rail nav,.term .bar{display:none}
+    section{break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="mast">
+    <div class="kicker">Buck-Workflow · Implementation Plan · 2026-10-02</div>
+    <h1>The Receipt<br><em>Identity</em> Contract</h1>
+    <p class="deck">A save child that did the real work must not block at <strong>saving&nbsp;→&nbsp;blocked</strong> because the directive never told it what the canonical <strong>subject</strong> is. Dictate the field; pin the contract; test it.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="rail">
+      <div>
+        <dl class="meta">
+          <dt>Subject</dt><dd>2026-10-02.buck-loop-<br>save-receipt-subject</dd>
+          <dt>Backlog item</dt><dd>buck-loop-save-<br>receipt-subject.md</dd>
+          <dt>Priority</dt><dd>high</dd>
+          <dt>Size</dt><dd>4 files · 1 session</dd>
+          <dt>Driver</dt><dd>/b-build</dd>
+          <dt>Capability</dt><dd>full · all sentinels</dd>
+        </dl>
+        <span class="stamp">Plan · Active</span>
+      </div>
+      <nav>
+        <a href="#goal"><b>01</b> User goal</a>
+        <a href="#defect"><b>02</b> The defect</a>
+        <a href="#fix"><b>03</b> The fix</a>
+        <a href="#scope"><b>04</b> Scope</a>
+        <a href="#verify"><b>05</b> Verification</a>
+        <a href="#loop"><b>06</b> Execution</a>
+        <a href="#risks"><b>07</b> Risks</a>
+      </nav>
+    </aside>
+
+    <main>
+
+      <section id="goal">
+        <div class="sec-head"><span class="sec-no">01</span><h2>User goal</h2><span class="tick"></span></div>
+        <p class="lede">SQL-mode <code class="inline">/buck-loop</code> save checkpoints verify deterministically. A child that persisted real memory rows and wrote a real receipt must <strong>verify and commit</strong> — never fail its postcondition over an identity field it was never given.</p>
+      </section>
+
+      <section id="defect">
+        <div class="sec-head"><span class="sec-no">02</span><h2>The defect</h2><span class="tick"></span></div>
+        <p class="lede"><code class="inline">saveDirective()</code> dictates attempt, run, project, phase, and receipt path — but omits <code class="inline">subject</code>. The child invents one. <code class="inline">sameAttempt()</code> demands an exact match, so the receipt reads <strong>unverified</strong>.</p>
+
+        <div class="evidence" style="margin-top:26px">
+          <div class="ev-top">
+            <span class="chip">attemptId ✓</span>
+            <span class="chip">runId ✓</span>
+            <span class="chip">project ✓</span>
+            <span class="chip">probed ✓</span>
+            <span class="chip">completed ✓</span>
+            <span class="chip">1 real memory id ✓</span>
+            <span class="chip bad">subject</span>
+          </div>
+          <div class="ev-body">
+            <div class="ev-cell">
+              <div class="ev-label">Attempt · sql-save-attempt.json</div>
+              <div class="ev-str"><span class="ok">2026-09-30.buck-loop-tui-preview</span></div>
+            </div>
+            <div class="ev-neq">≠</div>
+            <div class="ev-cell">
+              <div class="ev-label">Receipt · child-written</div>
+              <div class="ev-str"><span class="ok">2026-09-30.buck-loop-tui-preview</span> <span class="diff">&nbsp;stacked-cards live integration&nbsp;</span></div>
+            </div>
+          </div>
+          <div class="ev-foot">Live receipt on disk from the run that ended <b>saving → blocked</b> at 03:50:20Z · 2026-10-02. Every dictated field matched; the one undictated field is the one that failed.</div>
+        </div>
+
+        <div class="flow">
+          <div class="node"><div class="t">saveDirective()</div><div class="s">omits subject</div></div>
+          <span class="arr">→</span>
+          <div class="node"><div class="t">child writes receipt</div><div class="s">invents the string</div></div>
+          <span class="arr">→</span>
+          <div class="node"><div class="t">sameAttempt()</div><div class="s">subject ≠ attempt</div></div>
+          <span class="arr">→</span>
+          <div class="node fail"><div class="t">unverified</div><div class="s">saving → blocked</div></div>
+        </div>
+      </section>
+
+      <section id="fix">
+        <div class="sec-head"><span class="sec-no">03</span><h2>The fix — four one-line moves</h2><span class="tick"></span></div>
+        <div class="fixes">
+          <div class="fix"><span class="n">1</span><div>
+            <h3>Dictate the subject</h3>
+            <p>Insert <code class="inline">subject: ${attempt.subject}</code> after the <code class="inline">runId</code> line. Field order mirrors <code class="inline">SaveAttempt</code>. Nothing else in the directive changes.</p>
+            <span class="file">extensions/buck-loop/sql-save.ts</span>
+          </div></div>
+          <div class="fix"><span class="n">2</span><div>
+            <h3>Pin the contract in the skill</h3>
+            <p>Add <code class="inline">subject</code> to the “directive names these values — use them exactly” list; the receipt’s <code class="inline">subject</code> field and the <code class="inline">op:&nbsp;"remember"</code> parameter are that value, copied exactly.</p>
+            <span class="file">skills/b-save/SKILL.md</span>
+          </div></div>
+          <div class="fix"><span class="n">3</span><div>
+            <h3>Recopy the bundled skill</h3>
+            <p>Byte-identical copy — <code class="inline">scripts/codex-plugin.test.ts</code> enforces the canonical mirror and fails otherwise.</p>
+            <span class="file">plugins/buck-workflow/skills/b-save/SKILL.md</span>
+          </div></div>
+          <div class="fix"><span class="n">4</span><div>
+            <h3>Regression-test the identity</h3>
+            <p>Assert the directive carries the complete receipt identity — <code class="inline">subject:</code> alongside the existing attemptId / runId / project / receipt assertions.</p>
+            <span class="file">extensions/buck-loop/__tests__/sql-save.test.ts</span>
+          </div></div>
+        </div>
+      </section>
+
+      <section id="scope">
+        <div class="sec-head"><span class="sec-no">04</span><h2>Scope boundary</h2><span class="tick"></span></div>
+        <div class="cols">
+          <div class="panel in">
+            <h3>In</h3>
+            <ul>
+              <li>The directive’s <strong>subject line</strong> — the whole fix.</li>
+              <li>Skill wording that <strong>sources the receipt’s subject</strong> from the directive.</li>
+              <li>Byte-identical <strong>bundled recopy</strong>.</li>
+              <li>One <strong>directive-identity test</strong>.</li>
+            </ul>
+          </div>
+          <div class="panel out">
+            <h3>Out</h3>
+            <ul>
+              <li><strong>Extension-side receipt writes</strong> — unforgeability was excluded by the remember-op plan; a separate plan if wanted.</li>
+              <li><strong>save/commit-handoff item</strong> — teardown classification &amp; staging scope; distinct defect.</li>
+              <li><strong>Hand-editing the bad receipt</strong> — that forges the postcondition.</li>
+              <li><strong>Diagnostic reason strings</strong> on unverified receipts.</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="verify">
+        <div class="sec-head"><span class="sec-no">05</span><h2>Verification</h2><span class="tick"></span></div>
+        <div class="term">
+          <div class="bar"><i></i><i></i><i></i></div>
+          <pre><span class="p">$</span> npx vitest run extensions/buck-loop/__tests__/sql-save.test.ts scripts/codex-plugin.test.ts
+<span class="p">$</span> npm run guardrails:check        <span class="c"># verdict must be: pass</span>
+<span class="p">$</span> tsc --noEmit                    <span class="c"># clean on changed files</span>
+
+<span class="c"># behavioral proof (throwaway): directive-conformant receipt → verifySqlSave</span>
+<span class="c"># returns verified — the exact transition that failed in the incident.</span></pre>
+        </div>
+      </section>
+
+      <section id="loop">
+        <div class="sec-head"><span class="sec-no">06</span><h2>Execution loop</h2><span class="tick"></span></div>
+        <div class="loopstrip">
+          <span class="step">/b-build<small>implement</small></span><span class="arr">→</span>
+          <span class="step">/b-review<small>verify plan</small></span><span class="arr">→</span>
+          <span class="step opt">/b-iterate<small>in-plan only</small></span><span class="arr">→</span>
+          <span class="step opt">/b-docs<small>if doc impact</small></span><span class="arr">→</span>
+          <span class="step">/b-save<small>checkpoint</small></span><span class="arr">→</span>
+          <span class="step">/b-commit<small>one commit</small></span>
+        </div>
+        <p class="lede" style="margin-top:18px;font-size:15.5px">Out-of-plan review findings route to a separate <code class="inline">/b-plan</code> → <code class="inline">/b-build</code> cycle; they do not block this plan.</p>
+      </section>
+
+      <section id="risks">
+        <div class="sec-head"><span class="sec-no">07</span><h2>Risks &amp; recovery</h2><span class="tick"></span></div>
+        <div class="risks">
+          <div class="risk">
+            <h3>Residual mistranscription</h3>
+            <p>A model could still mistype a dictated field. <b>Accepted:</b> dictation is exactly how attemptId / runId / project stayed correct in every observed receipt — the incident’s only failure was the undictated field.</p>
+          </div>
+          <div class="risk">
+            <h3>Skill-copy drift</h3>
+            <p>The two <code class="inline">b-save</code> copies can diverge. <b>Mitigated:</b> recopy in the same change; the Codex mirror test fails the suite otherwise.</p>
+          </div>
+          <div class="risk recovery">
+            <h3>Recovering the blocked run · 2026-09-30.buck-loop-tui-preview</h3>
+            <p>After the fix, resume the subject — the attempt is reused and the child re-runs the save stage. <b>Caveat to check at resume:</b> if the original <code class="inline">remember</code> call passed the inflated subject, the retry inserts a second row under a different source key — supersede the duplicate via <code class="inline">previousId</code>.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer>
+    <p>plan-receipt-subject-contract.md · plan.html<br>.context/2026-10-02.buck-loop-save-receipt-subject/</p>
+    <p style="text-align:right">buck-workflow-pi · feat/buck-loop-tui-enhancements<br>decision closure: low-risk path · probe: full</p>
+  </footer>
+
+</div>
+</body>
+</html>
