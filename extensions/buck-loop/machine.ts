@@ -19,8 +19,6 @@ const WORK_SKILL: Record<WorkState, WorkSkill> = {
   committing: "commit",
 };
 
-export type BuckEvent = { type: "START" } | { type: "USER_CONFIRMED" } | { type: "STOP" };
-
 export type BuckOutput = { effect: Transition["effect"]; why: string };
 
 type BuckFacts = Snapshot & { sqlMemoryConfigured: boolean };

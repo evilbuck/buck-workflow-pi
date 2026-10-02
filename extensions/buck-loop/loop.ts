@@ -22,6 +22,7 @@
  * picks the next state. The operator talks to this module through
  * {@link handleLoop}: `start` / `resume` / `status` / `stop`.
  */
+import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -130,6 +131,11 @@ export type LoopDeps = {
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
   onActivity: (event: ActivityEvent) => void;
+  /** Display-only observers. Neither can select or modify a transition. */
+  onSnapshot?: (snapshot: Snapshot) => void;
+  onDecision?: (snapshot: Snapshot) => Promise<void>;
+  onSessionEvent?: (event: unknown, model: string) => void;
+  onContextUsage?: (usage: ContextUsage | undefined) => void;
   /** Warning the operator can read without stopping the run. */
   onWarning: (message: string) => void;
   /** Yes continues despite non-context dirt. No stops this invocation; it does not persist `blocked`. */
@@ -371,6 +377,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
   let lastFail: string | null = null;
   let lastReport = "";
   for (let tick = 0; tick < SAFETY_TICK_CEILING; tick += 1) {
+    deps.onSnapshot?.(snapshot);
     const stopped = haltIfTerminal(cwd, snapshot);
     if (stopped) return stopped;
     const wasSaving = snapshot.state === "saving";
@@ -384,6 +391,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
       snapshot = recovered.snapshot;
       continue;
     }
+    deps.onSnapshot?.(snapshot);
     const ran = await runEffect(cwd, snapshot, path, step.transition, deps, lastReport);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
@@ -571,6 +579,7 @@ async function runChoice(
     label: "Resolving " + snapshot.state + " decision",
     target: snapshot.phasePath ?? snapshot.planPath ?? path,
   });
+  await deps.onDecision?.(snapshot);
   const chosen = await chooseSafely(cwd, snapshot, legal, why, deps);
   reportChoiceFailure(snapshot, chosen, deps);
   const applied = applyChosen(snapshot, chosen, deps.now());
@@ -620,6 +629,7 @@ async function continueChoice(
   handoff?: string,
 ): Promise<EffectResult> {
   const nextSnapshot = withTransition(snapshot, transition, deps.now());
+  deps.onSnapshot?.(nextSnapshot);
   const savePreparation = prepareProjectedSave(cwd, transition, nextSnapshot, snapshot.state === "saving");
   if (savePreparation) {
     const blocked = block(nextSnapshot, savePreparation, deps.now());
@@ -784,6 +794,8 @@ async function runNestedSkill(
       ...(recallHandoff ? { handoff: recallHandoff } : {}),
       ...(directive ? { directive } : {}),
       ...(deps.onActivity ? { onActivity: deps.onActivity } : {}),
+      ...(deps.onSessionEvent ? { onSessionEvent: deps.onSessionEvent } : {}),
+      ...(deps.onContextUsage ? { onContextUsage: deps.onContextUsage } : {}),
       ...(deps.availableIds ? { availableIds: deps.availableIds } : {}),
     });
   } catch (error) {

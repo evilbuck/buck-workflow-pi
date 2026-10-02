@@ -47,13 +47,15 @@
  * - {@link ./call-failure.ts} — JSON we inject into the parent chat on failure
  */
 import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-coding-agent";
-import { createActivity, type ActivityEvent, type ActivityUI } from "../extension-activity.js";
-import { createBuckLoopActivityLog } from "./activity-log.js";
-import { handleLoop, statusOf, type LoopCommand } from "./loop.js";
+import type { ActivityEvent } from "../extension-activity.js";
+import { createActivityCard, type ActivityCard, type ActivityCardUI } from "./activity-widget.js";
+import type { Profile } from "./activity-view.js";
+import { createBuckLoopActivityLog, type BuckLoopActivityLog } from "./activity-log.js";
+import { handleLoop, statusOf, type LoopCommand, type LoopDeps, type LoopResult } from "./loop.js";
 import { formatFailureForAgent, serializeCallError, type AgentCallFailure } from "./call-failure.js";
 /** Printed when the operator types `/buck-loop` with no args, or mixed flags. */
 export const USAGE =
-  "Usage: /buck-loop <path-to-plan|phase|subject> | --resume | --status | --stop";
+  "Usage: /buck-loop <path-to-plan|phase|subject> | --resume | --status | --stop | --profile compact|standard|verbose";
 
 /**
  * Result of {@link parseArgs}.
@@ -66,10 +68,18 @@ export const USAGE =
 export type ParsedArgs =
   | { ok: true; command: "start"; path: string }
   | { ok: true; command: Exclude<LoopCommand, "start"> }
+  | { ok: true; command: "profile"; profile: Profile }
   | { ok: false; error: string };
 
 /** The only flags `/buck-loop` accepts. Used for tab-completion and parsing. */
-const FLAGS = ["--resume", "--status", "--stop"] as const;
+const FLAGS = ["--resume", "--status", "--stop", "--profile compact", "--profile standard", "--profile verbose"] as const;
+
+function profileCommand(tokens: string[]): Extract<ParsedArgs, { command: "profile" }> | undefined {
+  if (tokens[0] !== "--profile" || tokens.length !== 2) return undefined;
+  const profile = tokens[1];
+  if (profile !== "compact" && profile !== "standard" && profile !== "verbose") return undefined;
+  return { ok: true, command: "profile", profile };
+}
 
 /**
  * Split the raw argument string the host passes to the command handler.
@@ -84,6 +94,8 @@ const FLAGS = ["--resume", "--status", "--stop"] as const;
 export function parseArgs(raw: string): ParsedArgs {
   const tokens = raw.trim().split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return { ok: false, error: USAGE };
+  const density = profileCommand(tokens);
+  if (density) return density;
 
   const flags = tokens.filter((token) => token.startsWith("-"));
   const positionals = tokens.filter((token) => !token.startsWith("-"));
@@ -108,18 +120,16 @@ export function parseArgs(raw: string): ParsedArgs {
 /**
  * Host UI the command handler receives as `ctx.ui`.
  *
- * `ActivityUI` is our own adapter around the host's status line and
- * above-editor widget (`notify`, `setStatus`, `setWidget`). `notify` is
- * required here because we toast parse errors and sendMessage failures
- * even when the live widget is not up.
+ * The component factory is optional in non-interactive hosts. Notifications
+ * remain available for parser errors, terminal results and failures.
  */
-type BuckLoopUI = ActivityUI & {
+type BuckLoopUI = ActivityCardUI & {
   notify: (message: string, type?: "info" | "warning" | "error") => void;
   confirm?: (title: string, message: string, opts?: ExtensionUIDialogOptions) => Promise<boolean>;
 };
 
 /** Short label shown in the progress widget for the current command. */
-function initialLabel(parsed: Extract<ParsedArgs, { ok: true }>): string {
+function initialLabel(parsed: Extract<ParsedArgs, { ok: true; command: LoopCommand }>): string {
   if (parsed.command === "start") return "Starting " + parsed.path;
   if (parsed.command === "resume") return "Resuming saved run";
   if (parsed.command === "status") return "Reading loop status";
@@ -216,89 +226,89 @@ async function confirmDirty(ui: BuckLoopUI, paths: string[]): Promise<boolean> {
  *
  * @param pi - Host plugin API. Created by OMP/Pi, passed in from `extensions/index.ts`.
  */
-export function wireBuckLoop(pi: ExtensionAPI): void {
-  pi.registerCommand("buck-loop", {
-    description:
-      "Run a Buck plan unattended through build → review → iterate/docs/save/commit. Existing plans only.",
-    /**
-     * Tab-completion for the argument box. The host calls this as the
-     * operator types; we only complete the three flags, not filesystem paths.
-     */
-    getArgumentCompletions(prefix: string) {
-      return FLAGS.filter((flag) => flag.startsWith(prefix)).map((flag) => ({ value: flag, label: flag }));
-    },
-    /**
-     * Runs once per `/buck-loop` invocation.
-     *
-     * @param args - Raw text after `/buck-loop` (not pre-parsed).
-     * @param ctx.cwd - Project directory the operator's session is in.
-     * @param ctx.ui - Host UI: toasts, status pill, live widget.
-     */
-    handler: async (args: string, ctx: { cwd: string; ui: BuckLoopUI; modelRegistry?: { getAvailable(): Array<{ provider: string; id: string }> } }) => {
-      const parsed = parseArgs(args);
-      if (!parsed.ok) {
-        ctx.ui.notify(parsed.error, "error");
-        return;
-      }
+type RunArgs = Extract<ParsedArgs, { ok: true; command: LoopCommand }>;
+type CommandContext = { cwd: string; ui: BuckLoopUI; modelRegistry?: { getAvailable(): Array<{ provider: string; id: string }> } };
+type CardState = { profile: Profile; active?: ActivityCard };
 
-      // Live 6-line progress footer in the chat. `phase` sets the spinner
-      // label; `ingest` appends nested-session tool/text events; `succeed` /
-      // `fail` freeze the widget; `dispose` always runs so the spinner cannot leak.
-      const activity = createActivity({ ui: ctx.ui, command: "buck-loop", maxActivityLines: 6, maxLineWidth: 64 });
-      activity.phase(initialLabel(parsed));
-      const log = createBuckLoopActivityLog({
-        cwd: ctx.cwd,
-        command: parsed.command,
-        path: parsed.command === "start" ? parsed.path : undefined,
-        onWarning: (message) => ctx.ui.notify(message, "warning"),
-      });
-      const ingestActivity = (event: ActivityEvent): void => {
-        activity.ingest(event);
-        log.activity(event);
-      };
-      try {
-        const result = await handleLoop({
-          cwd: ctx.cwd,
-          command: parsed.command,
-          path: parsed.command === "start" ? parsed.path : undefined,
-          deps: {
-            onProgress: (progress) => {
-              activity.phase(progress.label);
-              log.progress(progress);
-            },
-            onActivity: ingestActivity,
-            onFailure: (failure) => {
-              ingestActivity({
-                kind: "toolEnd",
-                tool: failure.agent?.role ?? failure.operation,
-                ok: false,
-                message: failure.error.message,
-              });
-              returnFailureToAgent(pi, ctx.ui, failure);
-            },
-            onWarning: (message) => ctx.ui.notify(message, "warning"),
-            confirmDirty: (paths) => confirmDirty(ctx.ui, paths),
-            confirmContinue: (reason) =>
-              confirmChoice(ctx.ui, "Buck loop would stop", `${reason}\n\nContinue anyway?`),
-            availableIds: async () => new Set((ctx.modelRegistry?.getAvailable() ?? []).map((model) => `${model.provider}/${model.id}`)),
-          },
-        });
-        const terminal = result.state === "aborted" ? result.reason : result.state + ": " + result.reason;
-        const ok = result.state !== "blocked" && result.state !== "aborted";
-        log.terminal({ state: result.state, reason: result.reason, ok });
-        await log.flush();
-        if (ok || parsed.command === "status" || result.state === "aborted") activity.succeed(terminal);
-        else activity.fail(terminal);
-      } catch (error) {
-        const failure = supervisorFailure(ctx.cwd, parsed, error);
-        log.terminal({ state: failure.state, reason: failure.error.message, ok: false });
-        await log.flush();
-        returnFailureToAgent(pi, ctx.ui, failure);
-        activity.fail(failure.state + ": " + failure.error.message);
-      } finally {
-        await log.close();
-        activity.dispose();
-      }
+function liveDeps(pi: ExtensionAPI, ctx: CommandContext, card: ActivityCard, log: BuckLoopActivityLog): Partial<LoopDeps> {
+  const ingest = (event: ActivityEvent): void => { card.ingest(event); log.activity(event); };
+  return {
+    onProgress: progress => { card.phase(progress.label); log.progress(progress); },
+    onActivity: ingest,
+    onSnapshot: snapshot => card.snapshot(snapshot),
+    onDecision: snapshot => card.decision(snapshot),
+    onSessionEvent: (event, model) => card.session(event, model),
+    onContextUsage: usage => card.context(usage),
+    onFailure: failure => {
+      ingest({ kind: "toolEnd", tool: failure.agent?.role ?? failure.operation, ok: false, message: failure.error.message });
+      returnFailureToAgent(pi, ctx.ui, failure);
     },
+    onWarning: message => ctx.ui.notify(message, "warning"),
+    confirmDirty: paths => confirmDirty(ctx.ui, paths),
+    confirmContinue: reason => confirmChoice(ctx.ui, "Buck loop would stop", `${reason}\n\nContinue anyway?`),
+    availableIds: async () => new Set((ctx.modelRegistry?.getAvailable() ?? []).map(model => `${model.provider}/${model.id}`)),
+  };
+}
+
+async function showResult(result: LoopResult, parsed: RunArgs, card: ActivityCard, log: BuckLoopActivityLog): Promise<void> {
+  const terminal = result.state === "aborted" ? result.reason : result.state + ": " + result.reason;
+  const ok = result.state !== "blocked" && result.state !== "aborted";
+  log.terminal({ state: result.state, reason: result.reason, ok });
+  await log.flush();
+  if (ok || parsed.command === "status" || result.state === "aborted") card.succeed(terminal);
+  else card.fail(terminal);
+}
+
+async function executeCommand(pi: ExtensionAPI, ctx: CommandContext, parsed: RunArgs, state: CardState): Promise<void> {
+  const ownsCard = !state.active;
+  const card = state.active ?? createActivityCard(ctx.ui, state.profile);
+  if (ownsCard) { state.active = card; card.phase(initialLabel(parsed)); }
+  const log = createBuckLoopActivityLog({
+    cwd: ctx.cwd, command: parsed.command, path: parsed.command === "start" ? parsed.path : undefined,
+    onWarning: message => ctx.ui.notify(message, "warning"),
+  });
+  try {
+    const result = await handleLoop({
+      cwd: ctx.cwd, command: parsed.command, path: parsed.command === "start" ? parsed.path : undefined,
+      deps: liveDeps(pi, ctx, card, log),
+    });
+    await showResult(result, parsed, card, log);
+  } catch (error) {
+    const failure = supervisorFailure(ctx.cwd, parsed, error);
+    log.terminal({ state: failure.state, reason: failure.error.message, ok: false });
+    await log.flush();
+    returnFailureToAgent(pi, ctx.ui, failure);
+    card.fail(failure.state + ": " + failure.error.message);
+  } finally {
+    try { await log.close(); }
+    finally {
+      if (ownsCard || parsed.command === "stop") {
+        card.dispose();
+        if (state.active === card) state.active = undefined;
+      }
+    }
+  }
+}
+
+async function dispatchCommand(pi: ExtensionAPI, ctx: CommandContext, raw: string, state: CardState): Promise<void> {
+  const parsed = parseArgs(raw);
+  if (!parsed.ok) { ctx.ui.notify(parsed.error, "error"); return; }
+  if (parsed.command === "profile") {
+    state.profile = parsed.profile;
+    state.active?.setProfile(parsed.profile);
+    ctx.ui.notify(`buck-loop density: ${parsed.profile}`, "info");
+    return;
+  }
+  await executeCommand(pi, ctx, parsed, state);
+}
+
+export function wireBuckLoop(pi: ExtensionAPI): void {
+  const state: CardState = { profile: "standard" };
+  pi.registerCommand("buck-loop", {
+    description: "Run a Buck plan unattended through build → review → iterate/docs/save/commit. Existing plans only.",
+    getArgumentCompletions(prefix: string) {
+      return FLAGS.filter(flag => flag.startsWith(prefix)).map(flag => ({ value: flag, label: flag }));
+    },
+    handler: (args: string, ctx: CommandContext) => dispatchCommand(pi, ctx, args, state),
   });
 }

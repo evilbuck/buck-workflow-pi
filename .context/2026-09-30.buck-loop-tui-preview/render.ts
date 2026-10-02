@@ -21,6 +21,7 @@ export interface PreviewSnapshot {
   usage: Usage | null;
   history: Visit[];
   choices: string[];
+  ranks?: number[];
   selected: string | null;
   reason: string;
   activity: [string, string, string];
@@ -39,6 +40,7 @@ const common = {
   attempt: 1,
   model: "Grok 4.7",
   choices: [] as string[],
+  ranks: [] as number[],
   selected: null,
   reason: "Automatic transition after this stage completes.",
 };
@@ -57,25 +59,25 @@ export const fixtures: PreviewSnapshot[] = [
   {
     ...common, name: "Pending choice", state: "reviewing", skill: "b-review", model: "typesafe/jev-latest",
     previous: build, next: "documenting", usage: { input: 6100, output: 1100 }, history: [build],
-    choices: ["document", "save"], reason: "Awaiting decision · expected path is document, not yet selected.",
+    choices: ["document", "save"], ranks: [0.78, 0.14], reason: "Awaiting decision · ranked by Jev, not pre-selected.",
     activity: ["> selecting a continuation from the offered choices", "+ review complete · no in-scope defects", "Output: documentation impact identified; choose the next action."],
   },
   {
     ...common, name: "Iteration", state: "iterating", skill: "b-iterate", iteration: 2,
     previous: review, next: "reviewing", usage: { input: 8900, output: 1700 }, history: [build, review],
-    choices: ["iterate"], selected: "iterate", reason: "Review found an in-scope width-clipping defect.",
+    choices: ["iterate"], ranks: [0.93], selected: "iterate", reason: "Review found an in-scope width-clipping defect.",
     activity: ["> edit render.ts · 3 edits grouped", "+ narrow-layout smoke · 44 and 80 columns", "Output: retaining the current-state marker at narrow widths."],
   },
   {
     ...common, name: "Model retry", state: "building", skill: "b-build", attempt: 2, model: "GPT-6.1 Codex",
     previous: null, next: "reviewing", usage: { input: 6200, output: 900 }, history: [],
-    choices: ["retry", "block"], selected: "retry", reason: "First model call failed; retry attempt changes, phase iteration stays 0.",
+    choices: ["retry", "block"], ranks: [0.88, 0.05], selected: "retry", reason: "First model call failed; retry attempt changes, phase iteration stays 0.",
     activity: ["> retrying build · model attempt 2", "! prior model call failed · no usage total returned", "Output: continuing the same work stage with the next configured model."],
   },
   {
     ...common, name: "Blocked", state: "blocked", skill: "b-build paused", model: null, attention: true,
     previous: build, next: null, usage: null, history: [build],
-    choices: ["retry", "block"], selected: "block", reason: "Awaiting operator · no automatic next state is promised.",
+    choices: ["retry", "block"], ranks: [0.12, 0.71], selected: "block", reason: "Awaiting operator · no automatic next state is promised.",
     activity: ["! required credential is unavailable", "+ completed work retained · no further work started", "Action: resolve the credential, then resume the loop."],
   },
   {
@@ -92,11 +94,14 @@ export const fixtures: PreviewSnapshot[] = [
   },
 ];
 
-export const layoutNames = ["Flow cards", "Compact ribbon", "Vertical timeline"];
+export const layoutNames = ["Flow cards", "Compact ribbon", "Vertical timeline", "Stacked cards"];
 const amount = (n: number): string => n < 1000 ? String(n) : `${(n / 1000).toFixed(1)}k`;
 const total = (usage: Usage): number => usage.input + usage.output;
 const tokens = (usage: Usage | null): string => usage ? `${amount(total(usage))} tokens` : "— tokens";
 const title = (state: string): string => state.toUpperCase();
+
+/** Braille spinner frames. A live widget should prefer pi-tui's `Loader`; the static gallery bakes one frame. */
+export const spinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
 function choiceRows(s: PreviewSnapshot, theme: PreviewTheme, width: number): string[] {
   const line = s.choices.length
@@ -157,7 +162,45 @@ function timelineRows(s: PreviewSnapshot, theme: PreviewTheme): string[] {
   ];
 }
 
-export function renderPreview(s: PreviewSnapshot, layout: number, theme: PreviewTheme, width: number): string[] {
+function stackedCardsRows(s: PreviewSnapshot, theme: PreviewTheme, width: number, spinner = "⠋"): string[] {
+  const cardWidth = Math.min(width, 58);
+  const edge = (weight: "light" | "heavy", left: string, right: string): string => {
+    const fill = weight === "heavy" ? "═" : "─";
+    return theme.fg(weight === "heavy" ? (s.attention ? "warning" : "accent") : "border", left + fill.repeat(cardWidth - 2) + right);
+  };
+  const row = (active: boolean, glyph: string, text: string, color: string): string => {
+    const body = `${glyph} ${text}`;
+    const clipped = truncateToWidth(body, cardWidth - 4);
+    return theme.fg(color, active ? theme.bold(clipped) : clipped);
+  };
+  const prior = s.previous;
+  const rows: string[] = [];
+  rows.push(edge("light", "╭", "╮"));
+  rows.push(row(false, "◀", `PREVIOUS  ${title(prior?.state ?? "not started")} · ${tokens(prior?.usage ?? null)}`, "muted"));
+  rows.push(edge("light", "├", "┤"));
+  rows.push(edge("heavy", "╟", "╢"));
+  rows.push(row(true, "◉", `CURRENT   ${title(s.state)} · ${s.skill.replace(/^b-/, "")} · ${tokens(s.usage)} ${spinner}`, s.attention ? "warning" : "accent"));
+  rows.push(edge("heavy", "╟", "╢"));
+  if (s.choices.length === 0) {
+    rows.push(edge("light", "├", "┤"));
+    rows.push(row(false, s.next ? "⇢" : "○", s.next ? `NEXT      ⇢ ${title(s.next)} · automatic` : "NEXT      no automatic transition", "muted"));
+  } else {
+    rows.push(edge("light", "├", "┤"));
+    rows.push(row(false, "?", s.next ? `NEXT      ${title(s.next)} if no decision` : "NEXT      decision pending", "muted"));
+    const ordered = s.choices
+      .map((choice, i) => ({ choice, score: s.ranks?.[i] }))
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    ordered.forEach(({ choice, score }) => {
+      const badge = score === undefined ? "  ·" : `${(score * 100).toFixed(0).padStart(3, " ")}%`;
+      const isSelected = choice === s.selected;
+      rows.push(row(isSelected, isSelected ? "▸" : " ", `${badge}  ${choice}${isSelected ? " · selected" : ""}`, isSelected ? "accent" : "muted"));
+    });
+  }
+  rows.push(edge("light", "╰", "╯"));
+  return rows;
+}
+
+export function renderPreview(s: PreviewSnapshot, layout: number, theme: PreviewTheme, width: number, spinner = "⠋"): string[] {
   const contentWidth = Math.max(1, width - 4);
   const fg = (color: string, text: string): string => theme.fg(color, text);
   const header = fg(s.attention ? "warning" : "accent", theme.bold(`BUCK LOOP  /  ${title(s.state)}`)) + fg("muted", "  SAMPLE DATA");
@@ -175,6 +218,8 @@ export function renderPreview(s: PreviewSnapshot, layout: number, theme: Preview
     body = [header, ...metadata, rule, ...wrapTextWithAnsi(ribbon, contentWidth), ...choiceRows(s, theme, contentWidth), rule, ...activity, rule, ...usageRows(s, theme, contentWidth)];
   } else if (layout === 2) {
     body = [header, ...metadata, "", ...timelineRows(s, theme), "", ...choiceRows(s, theme, contentWidth), rule, ...activity, rule, ...usageRows(s, theme, contentWidth)];
+  } else if (layout === 3) {
+    body = [header, ...metadata, "", ...stackedCardsRows(s, theme, contentWidth, spinner), ...(s.reason ? wrapTextWithAnsi(fg(s.attention ? "warning" : "muted", s.reason), contentWidth) : []), rule, ...activity, rule, ...usageRows(s, theme, contentWidth)];
   } else {
     body = [header, ...metadata, ...wrapTextWithAnsi(stageRibbon(s, theme), contentWidth), "", ...flowRows(s, theme, contentWidth), ...choiceRows(s, theme, contentWidth), rule, ...activity, rule, ...usageRows(s, theme, contentWidth)];
   }

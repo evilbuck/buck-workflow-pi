@@ -12,5 +12,6 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **Buck-loop returns a sole legal continuation without a model call.** The chooser filters operator-only stops, records a `sole` transition audit, and returns the accepted action before resolving a model. Audit-write failures still block, and machine validation and retry limits remain unchanged.
 - **Buck-loop ambiguous postconditions retain decision evidence.** The native repair-lift judgment now receives bounded plan, phase, state, work/review facts and the child/disk diagnosis. Its accepted or rejected lift is audited before any retry or operator handoff; audit-write failure blocks the run.
 - **Buck-loop stop and status retain the actual blocker and explain recovery.** Operator stops are informational rather than misleading failure warnings. Status distinguishes historical blockers from current failures and provides the appropriate resume or fresh-start instructions, including recovery from interrupted commit checkpoints.
