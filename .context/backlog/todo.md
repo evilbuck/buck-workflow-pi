@@ -31,6 +31,7 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 - [x] [Phase 4: Policy/docs and live proof](archive/2026-09/phase-4-sql-memory-docs-live-proof.md) — done 2026-09-29
 
 - [ ] [Show a one-line TUI notice when sql_memory is used](items/sql-memory-tui-notice.md) — medium; mimic the Jev decision line — see `.context/2026-09-30.sql-memory-tui-notice/plan-sql-memory-tui-notice.md`
+- [ ] [Stop model-written SQL memory saves](items/sql-memory-remember-op.md) — medium; `remember` op plus model-facing `fix` — see `.context/2026-10-01.sql-memory-remember-op/plan-sql-memory-remember-op.md`
 
 ## Buck Model Profile Phases (2026-09-23)
 
@@ -54,7 +55,6 @@ Phases form a HARD chain (1 → 2) with a SOFT docs tail (2 → 3).
 
 - [ ] Phase 2: Command Boundary and Kickoff — hard, `/b-build-hard` — [phase-2-command-kickoff.md](../2026-09-19.buck-loop-subject-picker/phase-2-command-kickoff.md)
 - [ ] Phase 3: Documentation — easy, `/b-build` — [phase-3-docs.md](../2026-09-19.buck-loop-subject-picker/phase-3-docs.md)
-
 - [ ] [Harden typed Buck Workflow outputs](items/jev-buck-loop-chooser.md) — high; five phased contracts for b-review, buck-loop recovery, and TypeSafe verification — see [phase overview](../2026-09-21.jev-decision-opportunities/plan-jev-buck-loop-chooser-phases.md)
 
 ## Typed Workflow Output Phases (2026-09-22)
@@ -173,6 +173,20 @@ Deferred deliverables from [`plan-mattpocock-findings-remediation.md`](../2026-0
 
 ## Code-review universal skill (2026-06-07)
 - [x] [Code review skill](items/code-review-skill.md) — pr-context.ts, submit-review.ts, SKILL.md, prompt, symlink, docs reality pass — done 2026-06-07
+
+## State Machine Module Cutover Phases (2026-10-01)
+
+Overview: [`plan-state-machine-module-cutover-phases.md`](../2026-10-01.state-machine-redesign/plan-state-machine-module-cutover-phases.md).
+Umbrella plan: [plan-state-machine-module-cutover.md](../2026-10-01.state-machine-redesign/plan-state-machine-module-cutover.md).
+Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (2,3 → 4).
+
+- [ ] [Phase 1: Module Finalization](items/phase-1-state-machine-module.md) — medium, `/b-build` — [phase-1-module-finalization.md](../2026-10-01.state-machine-redesign/phase-1-module-finalization.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Port buckMachine — hard, `/b-build-hard` — [phase-2-port-buck-machine.md](../2026-10-01.state-machine-redesign/phase-2-port-buck-machine.md)
+- [ ] Phase 3: Port reviewMachine — medium, `/b-build` — [phase-3-port-review-machine.md](../2026-10-01.state-machine-redesign/phase-3-port-review-machine.md)
+- [x] Phase 4: Delete Old Engine and Update Docs — medium — [phase-4-delete-and-document.md](../2026-10-01.state-machine-redesign/phase-4-delete-and-document.md) — review Pass; durable guardrails reproduce pass; save checkpoint complete 2026-10-01; commit pending.
 
 ## Other
 - [ ] [Add plan-specific implementation ledger for b-review traceability](items/plan-implementation-ledger.md)

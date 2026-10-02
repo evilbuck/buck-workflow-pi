@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create a State Machine — Buck Workflow Guide</title>
+<meta name="description" content="An eight-step TypeScript recipe for the portable state-machine module: definitions and instances, guarded targets, manual moves, effect interpretation, restore, and runnable safety checks.">
+<meta property="og:title" content="Create a State Machine — Buck Workflow Guide">
+<meta property="og:description" content="Build a portable document-approval graph, one complete file at a time. Guards, effects, operator moves, and runnable safety checks.">
+<meta property="og:type" content="article">
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem("guide-theme");
+    var theme = stored === "light" || stored === "dark"
+      ? stored
+      : (window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    document.documentElement.dataset.theme = theme;
+  } catch (_) {
+    document.documentElement.dataset.theme = "dark";
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.4"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+:root {
+  color-scheme: dark;
+  --bg: #0a0e17;
+  --bg-card: #131a2e;
+  --bg-code: #0f1524;
+  --border: #1e2a45;
+  --fg: #e2e8f0;
+  --fg-dim: #a0afc9;
+  --accent: #8da8ff;
+  --green: #34d399;
+  --amber: #fbbf24;
+  --accent-bright: #c0ceff;
+  --topbar-bg: rgba(10,14,23,.96);
+  --inline-code-fg: #becdff;
+  --inline-code-bg: #151e32;
+  --panel-bg: #151e32;
+  --copy-bg: #202d48;
+  --copy-border: #354768;
+  --copy-bg-hover: #2d3e60;
+  --callout-bg: #101a2c;
+  --callout-warning-bg: #211b10;
+  --callout-success-bg: #0c201d;
+  --chip-border: #234b44;
+  --chip-bg: #0c201d;
+  --scrollbar-thumb: #354768;
+  --pre-code-fg: #d2dcf0;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f6f8fc;
+  --bg-card: #ffffff;
+  --bg-code: #f0f3f9;
+  --border: #dbe2ee;
+  --fg: #16233f;
+  --fg-dim: #4d5b76;
+  --accent: #3450c8;
+  --green: #0c7a53;
+  --amber: #a16207;
+  --accent-bright: #2743b0;
+  --topbar-bg: rgba(246,248,252,.96);
+  --inline-code-fg: #3a4db8;
+  --inline-code-bg: #e9edf8;
+  --panel-bg: #eef1f8;
+  --copy-bg: #e4eaf5;
+  --copy-border: #c6d0e2;
+  --copy-bg-hover: #d6dfef;
+  --callout-bg: #edf2fc;
+  --callout-warning-bg: #faf0dc;
+  --callout-success-bg: #e4f5ec;
+  --chip-border: #b9ddcd;
+  --chip-bg: #e6f6ef;
+  --scrollbar-thumb: #b9c5d9;
+  --pre-code-fg: #26334f;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 94px; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: 'Inter', sans-serif; font-size: 16px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+a:hover { color: var(--accent-bright); }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 5px; }
+button { font: inherit; }
+.skip-link { position: fixed; left: 16px; top: -80px; z-index: 20; padding: 10px 16px; background: var(--fg); color: var(--bg); }
+.skip-link:focus { top: 12px; }
+.topbar { position: sticky; top: 0; z-index: 10; background: var(--topbar-bg); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1180px; min-height: 68px; margin: auto; padding: 12px 28px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.brand { color: var(--fg); text-decoration: none; font-weight: 800; letter-spacing: -.03em; }
+.brand small { margin-left: 14px; padding-left: 14px; border-left: 1px solid var(--border); font-size: 12px; font-weight: 500; color: var(--fg-dim); letter-spacing: .08em; text-transform: uppercase; }
+.top-links { display: flex; gap: 24px; font-size: 13px; }
+.top-links a { text-decoration: none; color: var(--fg-dim); }
+.top-links a:hover { color: var(--fg); }
+.container { max-width: 1180px; margin: auto; padding: 0 28px; }
+.hero { padding: 66px 0 46px; border-bottom: 1px solid var(--border); }
+.eyebrow { margin: 0 0 18px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+h1 { margin: 0; font-size: clamp(36px, 5vw, 60px); line-height: 1.08; letter-spacing: -.055em; font-weight: 800; }
+h1 span { color: var(--fg-dim); }
+.lead { max-width: 740px; margin: 24px 0; color: var(--fg-dim); font-size: 18px; line-height: 1.75; }
+.tags { display: flex; flex-wrap: wrap; gap: 8px; }
+.tag { border: 1px solid var(--border); border-radius: 5px; padding: 4px 10px; font-size: 11px; color: var(--fg-dim); font-family: 'JetBrains Mono', monospace; }
+.tag:first-child { color: var(--green); border-color: var(--chip-border); background: var(--chip-bg); }
+.layout { display: grid; grid-template-columns: 226px minmax(0,1fr); gap: 54px; align-items: start; }
+.contents { display: block; position: sticky; top: 98px; padding: 36px 0; max-height: calc(100vh - 98px); overflow-y: auto; }
+.contents-title { margin: 0 0 18px; color: var(--fg-dim); font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.contents ol, .mobile-contents ol { margin: 0; padding: 0; list-style: none; }
+.contents li { margin-bottom: 14px; }
+.contents a, .mobile-contents a { color: var(--fg-dim); font-size: 12px; text-decoration: none; }
+.contents a:hover, .mobile-contents a:hover { color: var(--fg); }
+.contents a span, .mobile-contents a span { margin-right: 9px; font-family: 'JetBrains Mono', monospace; color: var(--accent); font-size: 10px; }
+.contents-note { margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12px; color: var(--fg-dim); }
+.api-contents { margin-top: 26px; }
+.mobile-contents { display: none; }
+article { min-width: 0; padding-bottom: 70px; }
+.step { padding: 45px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 96px; }
+.step:last-of-type { border-bottom: 0; }
+.step-heading { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+.step-number { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); }
+h2 { margin: 0; font-size: clamp(24px,3vw,29px); line-height: 1.25; font-weight: 700; letter-spacing: -.035em; }
+h3 { margin: 28px 0 10px; font-size: 17px; letter-spacing: -.015em; }
+p { margin: 0 0 16px; }
+article p, article li { color: var(--fg-dim); font-size: 15px; }
+article strong { color: var(--fg); font-weight: 600; }
+article ul, article ol { padding-left: 22px; margin: 12px 0 22px; }
+/* Tailwind preflight (layered) would remove these UA-default markers. */
+article ul { list-style: disc; }
+article ol { list-style: decimal; }
+article li { margin-bottom: 7px; padding-left: 3px; }
+code { font-family: 'JetBrains Mono', monospace; font-size: .84em; }
+p code, li code, td code { color: var(--inline-code-fg); background: var(--inline-code-bg); padding: 2px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.callout { padding: 16px 19px; border-left: 2px solid var(--accent); background: var(--callout-bg); border-radius: 0 6px 6px 0; margin: 22px 0; }
+.callout p { margin: 0; font-size: 13px; }
+.callout.warning { border-color: var(--amber); background: var(--callout-warning-bg); }
+.callout.success { border-color: var(--green); background: var(--callout-success-bg); }
+.code-frame { margin: 20px 0 24px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg-code); }
+.code-header { min-height: 44px; padding: 9px 15px; display: flex; justify-content: space-between; align-items: center; gap: 12px; background: var(--panel-bg); border-bottom: 1px solid var(--border); font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--fg-dim); }
+.code-header > span { overflow-wrap: anywhere; }
+.code-header > div { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.language { color: var(--fg-dim); font-size: 10px; text-transform: uppercase; }
+.copy { color: var(--fg); background: var(--copy-bg); border: 1px solid var(--copy-border); border-radius: 4px; padding: 3px 9px; cursor: pointer; font-size: 10px; }
+.copy:hover { background: var(--copy-bg-hover); }
+.copy[hidden] { display: none; }
+.theme-toggle.htmx-request { opacity: .6; pointer-events: none; }
+pre { margin: 0; padding: 21px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-color: var(--scrollbar-thumb) var(--bg-code); }
+pre code { display: block; font-size: 12px; line-height: 1.75; color: var(--pre-code-fg); tab-size: 2; }
+.table-wrap { overflow-x: auto; margin: 20px 0; border: 1px solid var(--border); border-radius: 7px; }
+table { width: 100%; border-collapse: collapse; text-align: left; }
+.table-wrap table[aria-label] { min-width: 620px; }
+table[aria-label$="properties"] td:first-child code, table[aria-label="Machine errors"] td:first-child code { white-space: nowrap; overflow-wrap: normal; }
+th, td { padding: 13px 15px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+th { background: var(--panel-bg); color: var(--fg); font-weight: 600; }
+td { color: var(--fg-dim); }
+tr:last-child td { border-bottom: 0; }
+.workflow { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; margin: 25px 0 12px; }
+.workflow div { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 17px 12px; background: var(--bg-card); }
+.workflow div + div::before { content: '→'; position: absolute; left: -15px; top: 19px; color: var(--accent); }
+.workflow code { color: var(--fg); font-size: 12px; }
+.workflow small { display: block; margin-top: 7px; color: var(--fg-dim); font-size: 10px; line-height: 1.4; }
+.workflow div:last-child { border-color: var(--chip-border); }
+.workflow div:last-child code { color: var(--green); }
+.branch-note { font-size: 12px; color: var(--fg-dim); margin-bottom: 24px; }
+.file-tree { color: var(--inline-code-fg); }
+.related { margin: 36px 0 0; font-size: 13px; }
+footer { border-top: 1px solid var(--border); }
+.footer-inner { max-width: 1180px; margin: auto; padding: 24px 28px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; color: var(--fg-dim); font-size: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 980px) {
+  .layout { grid-template-columns: minmax(0,1fr); gap: 0; }
+  .contents { display: none; }
+  .mobile-contents { display: block; margin: 24px 0 0; padding: 14px 17px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-card); }
+  .mobile-contents summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+  .mobile-contents ol { padding-top: 14px; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .hero { padding-top: 46px; }
+  article { width: 100%; max-width: 800px; margin: auto; }
+}
+@media (max-width: 580px) {
+  .container, .topbar-inner { padding-left: 20px; padding-right: 20px; }
+  .brand small { display: none; }
+  .top-links { gap: 16px; font-size: 11px; }
+  .hero { padding: 36px 0 32px; }
+  .lead { font-size: 16px; }
+  .step { padding: 34px 0; }
+  .step-heading { gap: 10px; }
+  .workflow { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .workflow div + div::before { content: none; }
+  .code-header { padding-left: 12px; padding-right: 12px; }
+  .language { display: none; }
+  pre { padding: 16px; }
+  pre code { font-size: 11px; }
+  .mobile-contents ol { grid-template-columns: minmax(0,1fr); }
+  .footer-inner { padding-left: 20px; padding-right: 20px; }
+}
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to the guide</a>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="../index.html">Buck Workflow <small>Guides</small></a>
+    <div class="flex items-center gap-4">
+      <button id="theme-toggle" type="button"
+        class="theme-toggle inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-[var(--copy-border)] bg-[var(--copy-bg)] px-2.5 py-1.5 text-xs! font-medium! text-[var(--fg)] transition-colors hover:bg-[var(--copy-bg-hover)]"
+        hx-get="partials/toggle-to-dark.html" hx-swap="outerHTML"
+        data-apply-theme="light"
+        aria-label="Switch to light theme">
+        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+        <span>Light</span>
+      </button>
+      <nav class="top-links" aria-label="Site navigation">
+        <a href="../index.html">Home</a>
+        <a href="https://github.com/evilbuck/buck-workflow-pi">Source</a>
+      </nav>
+    </div>
+  </div>
+</header>
+<main id="main" class="container">
+  <header class="hero">
+    <p class="eyebrow">Developer recipe / Portable state machines</p>
+    <h1>Build a state machine.<br><span>One working recipe.</span></h1>
+    <p class="lead">Declare a document-approval graph in one place. Create an instance, supply current facts, choose guarded targets, handle operator-only moves, and interpret effects in your caller. Finish with a real publication file and runnable safety checks.</p>
+    <div class="tags" aria-label="Recipe requirements">
+      <span class="tag">Complete, runnable files</span><span class="tag">TypeScript</span><span class="tag">Node.js 22+</span><span class="tag">No agent runtime or API key</span>
+    </div>
+  </header>
+  <details class="mobile-contents">
+    <summary>Jump to a recipe step or API section</summary>
+    <nav aria-label="Mobile recipe steps"><ol><li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+<li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+<li><a href="#definition"><span>03</span> Define the machine</a></li>
+<li><a href="#caller"><span>04</span> Write the caller</a></li>
+<li><a href="#run"><span>05</span> Run the happy path</a></li>
+<li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+<li><a href="#types"><span>07</span> Type-check the files</a></li>
+<li><a href="#finish"><span>08</span> Verify the whole recipe</a></li></ol></nav>
+    <nav class="api-contents" aria-label="Mobile API reference"><ol><li><a href="#machine-api">Definition and instance</a></li>
+<li><a href="#state-api">State properties</a></li>
+<li><a href="#edge-api">Edge properties</a></li>
+<li><a href="#operation-api">Instance methods</a></li>
+<li><a href="#decision-api">Transition result</a></li>
+<li><a href="#failure-api">Error classes</a></li></ol></nav>
+  </details>
+  <div class="layout">
+    <aside class="contents">
+      <nav aria-label="Recipe steps"><p class="contents-title">In this recipe</p><ol><li><a href="#setup"><span>01</span> Prepare your kitchen</a></li>
+<li><a href="#workflow"><span>02</span> Sketch the workflow</a></li>
+<li><a href="#definition"><span>03</span> Define the machine</a></li>
+<li><a href="#caller"><span>04</span> Write the caller</a></li>
+<li><a href="#run"><span>05</span> Run the happy path</a></li>
+<li><a href="#safety"><span>06</span> Check the safety rails</a></li>
+<li><a href="#types"><span>07</span> Type-check the files</a></li>
+<li><a href="#finish"><span>08</span> Verify the whole recipe</a></li></ol></nav>
+      <nav class="api-contents" aria-label="API reference"><p class="contents-title">API reference</p><ol><li><a href="#machine-api">Definition and instance</a></li>
+<li><a href="#state-api">State properties</a></li>
+<li><a href="#edge-api">Edge properties</a></li>
+<li><a href="#operation-api">Instance methods</a></li>
+<li><a href="#decision-api">Transition result</a></li>
+<li><a href="#failure-api">Error classes</a></li></ol></nav>
+      <p class="contents-note"><strong>The boundary</strong><br>The definition holds the graph.<br>The instance holds its state.<br>Your caller owns facts and work.</p>
+    </aside>
+    <article aria-label="Create a state machine recipe">
+      <section class="step" id="setup" aria-labelledby="setup-heading">
+        <div class="step-heading"><span class="step-number">01</span><h2 id="setup-heading">Prepare your kitchen</h2></div>
+        <p>This recipe uses the portable module in the <strong>Buck Workflow source repository</strong>, not a globally installed CLI. You need basic TypeScript familiarity, a text editor, and a Bash-compatible terminal on Linux, macOS, or Windows through WSL.</p>
+        <ol><li>Install <a href="https://git-scm.com/downloads">Git</a> and <a href="https://nodejs.org/en/download">Node.js 22 or newer</a>. Node includes npm. If you use WSL, install them inside WSL.</li><li>Check that these commands print version numbers:</li></ol>
+        <div class="code-frame"><div class="code-header"><span>Terminal · check your tools</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="versions" data-filename="Terminal · check your tools" aria-label="Copy Terminal · check your tools" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · check your tools"><code id="versions" data-language="bash">git --version
+node --version
+npm --version</code></pre></div>
+        <p><strong>If you do not have a checkout:</strong> clone the source. Otherwise open a terminal at its root—the directory containing <code>package.json</code> and <code>extensions/</code>.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · obtain the source</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="clone" data-filename="Terminal · obtain the source" aria-label="Copy Terminal · obtain the source" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · obtain the source"><code id="clone" data-language="bash">git clone --branch master https://github.com/evilbuck/buck-workflow-pi.git
+cd buck-workflow-pi</code></pre></div>
+        <p>Confirm the module is present, install the locked toolchain, and create the example folder. <code>npm ci</code> provides TypeScript and <code>tsx</code>; you do not need Bun, an agent runtime, or an API key.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run from the repository root</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="setup-commands" data-filename="Terminal · run from the repository root" aria-label="Copy Terminal · run from the repository root" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run from the repository root"><code id="setup-commands" data-language="bash">test -f extensions/state_machine/index.ts &amp;&amp; echo &quot;Module source found&quot;
+npm ci
+mkdir -p examples</code></pre></div>
+        <div class="callout warning"><p><strong>Stop if a command fails.</strong> The first command must print <code>Module source found</code>. In an existing checkout, <code>npm ci</code> replaces installed dependencies with the lockfile versions. Use a separate clone if you need to preserve a customized dependency tree.</p></div>
+      </section>
+
+      <section class="step" id="workflow" aria-labelledby="workflow-heading">
+        <div class="step-heading"><span class="step-number">02</span><h2 id="workflow-heading">Sketch the workflow</h2></div>
+        <p>The happy path has four states. An operator submits a draft; the caller chooses approval or revision; an approved article publishes automatically. Publication writes a local text file, not a website.</p>
+        <div class="workflow" aria-label="Happy path: draft, manual submit, review, caller approval, approved, automatic publish, published">
+          <div><code>draft</code><small>Manual submit; at least ten words</small></div>
+          <div><code>review</code><small>Choose approval or return to draft</small></div>
+          <div><code>approved</code><small>One automatic publish target</small></div>
+          <div><code>published</code><small>Final; no outgoing targets</small></div>
+        </div>
+        <p class="branch-note">A manual STOP from draft, review, or approved goes to a fifth state, <code>cancelled</code>. It is never an automatic option.</p>
+        <ul><li><strong>Definition:</strong> the static graph, validated once.</li><li><strong>Instance:</strong> one run’s current state. Start a fresh run or restore a persisted name.</li><li><strong>Facts:</strong> caller-owned data about the world, supplied again on each evaluation.</li><li><strong>Effects:</strong> descriptions returned as data. The caller performs the work.</li></ul>
+        <div class="callout"><p><strong>The caller chooses routing policy.</strong> <code>available(facts)</code> can return zero, one, or many targets. The module neither picks the first nor rejects ambiguity. This recipe explicitly chooses in review and requires exactly one target for its automatic publish tick.</p></div>
+      </section>
+
+      <section class="step" id="definition" aria-labelledby="definition-heading">
+        <div class="step-heading"><span class="step-number">03</span><h2 id="definition-heading">Define the machine</h2></div>
+        <p>Create <code>examples/article-machine.ts</code> and paste the <strong>entire</strong> block. The two generic types describe facts and effect data; state names are inferred from the <code>states</code> keys.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-machine" data-filename="examples/article-machine.ts" aria-label="Copy examples/article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/article-machine.ts"><code id="sample-machine" data-language="typescript" data-file="examples/article-machine.ts">import { defineMachine } from &quot;../extensions/state_machine/index.js&quot;;
+
+export type ArticleFacts = {
+  title: string;
+  body: string;
+  reviewerAvailable: boolean;
+};
+
+export type ArticleEffect =
+  | { kind: &quot;submit&quot;; title: string }
+  | { kind: &quot;publish&quot;; title: string; body: string };
+
+export const articleMachine = defineMachine&lt;ArticleFacts, ArticleEffect&gt;()({
+  initial: &quot;draft&quot;,
+  states: {
+    draft: {
+      targets: [
+        {
+          name: &quot;review&quot;,
+          manual: true,
+          guard: (facts) =&gt; facts.body.trim().split(/\s+/).length &gt;= 10,
+          effect: (facts) =&gt; ({ kind: &quot;submit&quot;, title: facts.title }),
+        },
+        { name: &quot;cancelled&quot;, manual: true },
+      ],
+    },
+    review: {
+      targets: [
+        { name: &quot;approved&quot;, guard: (facts) =&gt; facts.reviewerAvailable },
+        { name: &quot;draft&quot;, guard: (facts) =&gt; facts.reviewerAvailable },
+        { name: &quot;cancelled&quot;, manual: true },
+      ],
+    },
+    approved: {
+      targets: [
+        {
+          name: &quot;published&quot;,
+          effect: (facts) =&gt; ({
+            kind: &quot;publish&quot;,
+            title: facts.title,
+            body: facts.body,
+          }),
+        },
+        { name: &quot;cancelled&quot;, manual: true },
+      ],
+    },
+    published: { final: true, targets: [] },
+    cancelled: { final: true, targets: [] },
+  },
+});</code></pre></div>
+        <h3 id="machine-api">Definition and instance</h3>
+        <div class="table-wrap"><table aria-label="Machine properties"><thead><tr><th scope="col">Member</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>defineMachine&lt;Facts, Effect&gt;()(config)</code></td><td>Validates the graph once and returns a definition with no current state. Omit the generic types for a machine needing no facts or effects.</td></tr>
+          <tr><td><code>initial</code></td><td>Exactly one declared state; <code>start()</code> begins here.</td></tr>
+          <tr><td><code>states</code></td><td>The keyed graph. TypeScript rejects a misspelled initial or target state.</td></tr>
+          <tr><td><code>definition.start()</code></td><td>Creates a fresh instance. Other instances do not move when this one moves.</td></tr>
+          <tr><td><code>definition.restore(name)</code></td><td>Validates an untrusted string and creates an instance there. No guards, effects, or transitions are replayed.</td></tr>
+          <tr><td><code>definition.targets(state)</code></td><td>All declared destinations, including manual and currently guarded-out edges.</td></tr>
+          <tr><td><code>definition.isFinal(state)</code></td><td>Whether that declared state permits the run to end.</td></tr>
+          <tr><td><code>definition.edge(from, to)</code></td><td>The edge’s guard, effect, and manual flag. A missing edge throws <code>IllegalTransitionError</code>.</td></tr>
+        </tbody></table></div>
+        <h3 id="state-api">State properties</h3>
+        <div class="table-wrap"><table aria-label="State properties"><thead><tr><th scope="col">Property</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>targets</code> (required)</td><td>An array of outgoing edges. Use <code>[]</code> only for a final state; a non-final state with no targets is rejected as stuck.</td></tr>
+          <tr><td><code>final: true</code> (optional)</td><td>The run may legally end here. It may still have outgoing targets, and the initial state may also be final. Final does not forbid a move.</td></tr>
+        </tbody></table></div>
+        <h3 id="edge-api">Edge properties</h3>
+        <div class="table-wrap"><table aria-label="Edge properties"><thead><tr><th scope="col">Property</th><th scope="col">Meaning</th></tr></thead><tbody>
+          <tr><td><code>name</code> (required)</td><td>A declared destination. There is at most one edge per source/destination pair.</td></tr>
+          <tr><td><code>guard</code> (optional)</td><td>Pure, synchronous <code>(facts) =&gt; boolean</code>. True permits the move; no guard means allowed. It is checked again during every transition.</td></tr>
+          <tr><td><code>effect</code> (optional)</td><td>Pure, synchronous <code>(facts) =&gt; Effect</code> describing work as data. It is evaluated only during a successful transition, not by <code>available()</code>.</td></tr>
+          <tr><td><code>manual: true</code> (optional)</td><td>Operator-only: excluded from <code>available()</code>. An explicit <code>transition(name, facts)</code> can take it, but still checks its guard.</td></tr>
+        </tbody></table></div>
+        <p>Definition validation rejects undeclared destinations, duplicate edges, unreachable states, stuck non-final states, and graphs with no final state. Reachability follows the static graph—including manual edges—without running guards.</p>
+      </section>
+
+      <section class="step" id="caller" aria-labelledby="caller-heading">
+        <div class="step-heading"><span class="step-number">04</span><h2 id="caller-heading">Write the caller</h2></div>
+        <p>Create <code>examples/run-article-machine.ts</code> with this complete program. It supplies facts, names the manual submit edge, chooses approval, enforces one automatic publish target, and writes the returned effect.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/run-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-runner" data-filename="examples/run-article-machine.ts" aria-label="Copy examples/run-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/run-article-machine.ts"><code id="sample-runner" data-language="typescript" data-file="examples/run-article-machine.ts">import { writeFileSync } from &quot;node:fs&quot;;
+import {
+  articleMachine,
+  type ArticleFacts,
+  type ArticleEffect,
+} from &quot;./article-machine.js&quot;;
+
+const facts: ArticleFacts = {
+  title: &quot;A small state machine&quot;,
+  body: &quot;A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the machine returns a valid transition.&quot;,
+  reviewerAvailable: true,
+};
+const run = articleMachine.start();
+
+function interpret(effect: ArticleEffect | undefined): void {
+  if (!effect) return;
+  switch (effect.kind) {
+    case &quot;submit&quot;:
+      console.log(&quot;Submitted for review: &quot; + effect.title);
+      break;
+    case &quot;publish&quot;:
+      writeFileSync(
+        new URL(&quot;./published-article.txt&quot;, import.meta.url),
+        effect.title + &quot;\n\n&quot; + effect.body + &quot;\n&quot;,
+        &quot;utf8&quot;,
+      );
+      console.log(&quot;Published to examples/published-article.txt&quot;);
+      break;
+  }
+}
+
+console.log(&quot;State: &quot; + run.state);
+console.log(&quot;Automatic before submit: &quot; + (run.available(facts).join(&quot;, &quot;) || &quot;&lt;none&gt;&quot;));
+// An operator's submit handler names the manual edge explicitly.
+interpret(run.transition(&quot;review&quot;, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+
+console.log(&quot;Choices: &quot; + run.available(facts).join(&quot;, &quot;));
+// The caller chooses approval; the module does not resolve multiple targets.
+interpret(run.transition(&quot;approved&quot;, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+
+// This caller's automatic tick requires exactly one available target.
+const targets = run.available(facts);
+const [target] = targets;
+if (targets.length !== 1 || target === undefined) {
+  throw new Error(&quot;Expected exactly one automatic target&quot;);
+}
+interpret(run.transition(target, facts).effect);
+console.log(&quot;State: &quot; + run.state);
+console.log(&quot;Final: &quot; + run.isFinal);
+
+// Persist a state name in a real application, then restore on the next tick.
+const restored = articleMachine.restore(run.state);
+console.log(&quot;Restored: &quot; + restored.state);</code></pre></div>
+        <h3 id="operation-api">Instance methods and state</h3>
+        <div class="table-wrap"><table aria-label="Instance methods"><thead><tr><th scope="col">Member</th><th scope="col">Behavior</th></tr></thead><tbody>
+          <tr><td><code>instance.state</code></td><td>The current state name, owned by this instance rather than by facts.</td></tr>
+          <tr><td><code>instance.isFinal</code></td><td>Whether the run may end here. Zero available targets alone does not prove completion.</td></tr>
+          <tr><td><code>instance.available(facts)</code></td><td>Non-manual, guard-passing targets in declaration order. Does not move state or evaluate effects.</td></tr>
+          <tr><td><code>instance.transition(to, facts)</code></td><td>Checks the edge, evaluates its guard, describes its effect, then moves state. Rechecks current facts even if <code>to</code> came from an earlier <code>available()</code> call.</td></tr>
+        </tbody></table></div>
+        <p>A facts-less definition uses <code>available()</code> and <code>transition(to)</code>. This article machine requires facts for both.</p>
+        <h3 id="decision-api">Transition result</h3>
+        <p>The result is <code>{ from, to, effect }</code>. Approval returns the following object; a transition without an effect still includes <code>effect: undefined</code>:</p>
+        <div class="code-frame"><div class="code-header"><span>Transition · approval</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="api-transition-result" data-filename="Transition · approval" aria-label="Copy Transition · approval" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Transition · approval"><code id="api-transition-result" data-language="typescript">{ from: &quot;review&quot;, to: &quot;approved&quot;, effect: undefined }</code></pre></div>
+        <div class="callout warning"><p><strong>Movement and work are separate.</strong> A rejected edge, rejected guard, or throwing guard/effect function leaves state unchanged. After a successful transition, the instance has already moved before your interpreter runs. The caller owns persistence, asynchronous work, retries, and recovery if that work fails.</p></div>
+        <p>For durable loops, persist the state name at your chosen checkpoint and restore it on the next tick. Rebuild facts from the world; the module neither stores facts nor persists state for you.</p>
+      </section>
+
+      <section class="step" id="run" aria-labelledby="run-heading">
+        <div class="step-heading"><span class="step-number">05</span><h2 id="run-heading">Run the happy path</h2></div>
+        <p>Save both files, then run these commands from the repository root:</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run and inspect</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="run-commands" data-filename="Terminal · run and inspect" aria-label="Copy Terminal · run and inspect" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run and inspect"><code id="run-commands" data-language="bash">npx --no-install tsx examples/run-article-machine.ts
+cat examples/published-article.txt</code></pre></div>
+        <p>The program prints this exact standard output:</p>
+        <div class="code-frame"><div class="code-header"><span>Expected program output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-run" data-filename="Expected program output" aria-label="Copy Expected program output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected program output"><code id="expected-run" data-language="text">State: draft
+Automatic before submit: &lt;none&gt;
+Submitted for review: A small state machine
+State: review
+Choices: approved, draft
+State: approved
+Published to examples/published-article.txt
+State: published
+Final: true
+Restored: published</code></pre></div>
+        <p>The publication file contains:</p>
+        <div class="code-frame"><div class="code-header"><span>examples/published-article.txt · expected contents</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-publication" data-filename="examples/published-article.txt · expected contents" aria-label="Copy examples/published-article.txt · expected contents" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/published-article.txt · expected contents"><code id="expected-publication" data-language="text">A small state machine
+
+A state machine makes the next legal step explicit. The caller supplies current facts, chooses from declared options, and performs effects only after the machine returns a valid transition.</code></pre></div>
+        <p><code>tsx</code> runs TypeScript without a separate JavaScript build. <code>--no-install</code> uses installed tooling rather than downloading missing packages. It does not type-check; step 7 does. Toolchain warnings may appear on stderr.</p>
+      </section>
+
+      <section class="step" id="safety" aria-labelledby="safety-heading">
+        <div class="step-heading"><span class="step-number">06</span><h2 id="safety-heading">Check the safety rails</h2></div>
+        <p>Create <code>examples/check-article-machine.ts</code>. These complete checks exercise missing edges, guard rejection with unchanged state, multiple and zero automatic targets, manual STOP, restore validation, invalid graphs, and movement out of a final state.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/check-article-machine.ts</span><div><span class="language">typescript</span><button type="button" class="copy" data-copy="sample-checks" data-filename="examples/check-article-machine.ts" aria-label="Copy examples/check-article-machine.ts" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/check-article-machine.ts"><code id="sample-checks" data-language="typescript" data-file="examples/check-article-machine.ts">import assert from &quot;node:assert/strict&quot;;
+import {
+  defineMachine,
+  IllegalTransitionError,
+  InvalidMachineError,
+  UnknownStateError,
+} from &quot;../extensions/state_machine/index.js&quot;;
+import { articleMachine, type ArticleFacts } from &quot;./article-machine.js&quot;;
+
+const facts: ArticleFacts = {
+  title: &quot;Safety check&quot;,
+  body: &quot;This article has enough words to pass the submission guard.&quot;,
+  reviewerAvailable: true,
+};
+const run = articleMachine.start();
+assert.deepEqual(run.available(facts), []);
+
+assert.throws(
+  () =&gt; run.transition(&quot;published&quot;, facts),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;not-a-target&quot;,
+);
+assert.equal(run.state, &quot;draft&quot;);
+console.log(&quot;Rejected as expected: not-a-target&quot;);
+
+assert.throws(
+  () =&gt; run.transition(&quot;review&quot;, { ...facts, body: &quot;Too short.&quot; }),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;guard-rejected&quot;,
+);
+assert.equal(run.state, &quot;draft&quot;);
+console.log(&quot;Rejected as expected: guard-rejected&quot;);
+
+run.transition(&quot;review&quot;, facts);
+assert.deepEqual(run.available(facts), [&quot;approved&quot;, &quot;draft&quot;]);
+console.log(&quot;Automatic choices: &quot; + run.available(facts).join(&quot;, &quot;));
+const blocked = { ...facts, reviewerAvailable: false };
+assert.deepEqual(run.available(blocked), []);
+assert.equal(run.isFinal, false);
+assert.throws(
+  () =&gt; run.transition(&quot;approved&quot;, blocked),
+  (error) =&gt; error instanceof IllegalTransitionError &amp;&amp; error.reason === &quot;guard-rejected&quot;,
+);
+assert.equal(run.state, &quot;review&quot;);
+console.log(&quot;Unavailable reviewer: no automatic route&quot;);
+
+// STOP is not offered automatically, but its explicit transition is legal.
+run.transition(&quot;cancelled&quot;, facts);
+assert.equal(run.isFinal, true);
+console.log(&quot;Manual cancellation: &quot; + run.state + &quot; (final)&quot;);
+
+assert.throws(() =&gt; articleMachine.restore(&quot;missing&quot;), UnknownStateError);
+console.log(&quot;Rejected as expected: unknown state&quot;);
+assert.throws(
+  () =&gt; defineMachine()({ initial: &quot;draft&quot;, states: { draft: { targets: [] } } }),
+  InvalidMachineError,
+);
+console.log(&quot;Rejected as expected: invalid graph&quot;);
+
+// Final means the run may end here, not that every move is forbidden.
+const transmission = defineMachine()({
+  initial: &quot;park&quot;,
+  states: {
+    park: { final: true, targets: [{ name: &quot;drive&quot; }] },
+    drive: { targets: [{ name: &quot;park&quot; }] },
+  },
+}).start();
+assert.equal(transmission.isFinal, true);
+transmission.transition(&quot;drive&quot;);
+assert.equal(transmission.isFinal, false);
+console.log(&quot;Final states can still move: park -&gt; &quot; + transmission.state);</code></pre></div>
+        <div class="code-frame"><div class="code-header"><span>Terminal · run the safety checks</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="check-commands" data-filename="Terminal · run the safety checks" aria-label="Copy Terminal · run the safety checks" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · run the safety checks"><code id="check-commands" data-language="bash">npx --no-install tsx examples/check-article-machine.ts</code></pre></div>
+        <div class="code-frame"><div class="code-header"><span>Expected safety-check output</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-checks" data-filename="Expected safety-check output" aria-label="Copy Expected safety-check output" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Expected safety-check output"><code id="expected-checks" data-language="text">Rejected as expected: not-a-target
+Rejected as expected: guard-rejected
+Automatic choices: approved, draft
+Unavailable reviewer: no automatic route
+Manual cancellation: cancelled (final)
+Rejected as expected: unknown state
+Rejected as expected: invalid graph
+Final states can still move: park -&gt; drive</code></pre></div>
+        <h3 id="failure-api">Error classes</h3>
+        <div class="table-wrap"><table aria-label="Machine errors"><thead><tr><th scope="col">Error</th><th scope="col">When</th><th scope="col">Details</th></tr></thead><tbody>
+          <tr><td><code>InvalidMachineError</code></td><td>Graph validation fails during definition.</td><td><code>problems</code>: validation problems.</td></tr>
+          <tr><td><code>UnknownStateError</code></td><td><code>restore()</code> receives an undeclared name.</td><td><code>state</code>: the supplied string.</td></tr>
+          <tr><td><code>IllegalTransitionError</code></td><td>No edge exists, or its guard rejects the move.</td><td><code>from</code>, <code>to</code>, <code>reason</code>: <code>"not-a-target"</code> or <code>"guard-rejected"</code>.</td></tr>
+        </tbody></table></div>
+        <p>Errors thrown by your guard or effect function propagate unchanged. Catch the error classes or inspect their structured details rather than matching message text.</p>
+      </section>
+
+      <section class="step" id="types" aria-labelledby="types-heading">
+        <div class="step-heading"><span class="step-number">07</span><h2 id="types-heading">Type-check the files</h2></div>
+        <p>Create <code>examples/tsconfig.json</code> with this complete JSON. It checks the three examples and imported module without changing the repository’s main configuration.</p>
+        <div class="code-frame"><div class="code-header"><span>examples/tsconfig.json</span><div><span class="language">json</span><button type="button" class="copy" data-copy="sample-config" data-filename="examples/tsconfig.json" aria-label="Copy examples/tsconfig.json" hidden>Copy</button></div></div><pre tabindex="0" aria-label="examples/tsconfig.json"><code id="sample-config" data-language="json" data-file="examples/tsconfig.json">{
+  &quot;compilerOptions&quot;: {
+    &quot;target&quot;: &quot;ES2022&quot;,
+    &quot;module&quot;: &quot;NodeNext&quot;,
+    &quot;moduleResolution&quot;: &quot;NodeNext&quot;,
+    &quot;strict&quot;: true,
+    &quot;noEmit&quot;: true,
+    &quot;skipLibCheck&quot;: true,
+    &quot;types&quot;: [
+      &quot;node&quot;
+    ]
+  },
+  &quot;include&quot;: [
+    &quot;article-machine.ts&quot;,
+    &quot;run-article-machine.ts&quot;,
+    &quot;check-article-machine.ts&quot;
+  ]
+}</code></pre></div>
+        <div class="code-frame"><div class="code-header"><span>Terminal · strict type-check</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="type-commands" data-filename="Terminal · strict type-check" aria-label="Copy Terminal · strict type-check" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · strict type-check"><code id="type-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json</code></pre></div>
+        <p><strong>Success produces no diagnostics and exits 0.</strong> The compiler infers state names from the graph and catches misspelled initial/target names, missing <code>targets</code>, and incompatible facts/effects. The <code>include</code> paths are relative to this local config.</p>
+        <p>The public types are <code>MachineDefinition</code>, <code>MachineInstance</code>, <code>Transition</code>, <code>Guard</code>, and <code>EffectOf</code>; <code>MachineInstance</code> is also an exported class. Prefer <code>start()</code> or <code>restore()</code> to create instances.</p>
+        <div class="code-frame"><div class="code-header"><span>Final example folder</span><div><span class="language">text</span><button type="button" class="copy" data-copy="expected-tree" data-filename="Final example folder" aria-label="Copy Final example folder" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Final example folder"><code id="expected-tree" data-language="text">examples/
+  article-machine.ts
+  run-article-machine.ts
+  check-article-machine.ts
+  tsconfig.json
+  published-article.txt</code></pre></div>
+      </section>
+
+      <section class="step" id="finish" aria-labelledby="finish-heading">
+        <div class="step-heading"><span class="step-number">08</span><h2 id="finish-heading">Eat: verify the whole recipe</h2></div>
+        <p>Run the final sequence from the repository root. The <code>&amp;&amp;</code> operators stop at the first failed command.</p>
+        <div class="code-frame"><div class="code-header"><span>Terminal · final verification</span><div><span class="language">bash</span><button type="button" class="copy" data-copy="finish-commands" data-filename="Terminal · final verification" aria-label="Copy Terminal · final verification" hidden>Copy</button></div></div><pre tabindex="0" aria-label="Terminal · final verification"><code id="finish-commands" data-language="bash">npx --no-install tsc --project examples/tsconfig.json &amp;&amp;
+npx --no-install tsx examples/check-article-machine.ts &amp;&amp;
+npx --no-install tsx examples/run-article-machine.ts &amp;&amp;
+cat examples/published-article.txt</code></pre></div>
+        <div class="callout success"><p><strong>Eat:</strong> the compiler exits 0; all eight safety-check lines match step 6; the run ends with <code>Final: true</code> and <code>Restored: published</code>; the local publication matches step 5. You have a working machine, a real effect interpreter, and executable boundary checks.</p></div>
+        <h3>Lift it into your own project</h3>
+        <ol><li>Copy <code>extensions/state_machine/</code> as-is and update your import path. Its <code>index.ts</code> has no imports or runtime dependencies; the folder’s behavior tests use Vitest only as a development dependency.</li><li>Replace facts, effect data, and the state graph. Keep guards and effect descriptions pure and synchronous. Declare every target and a legal final state.</li><li>Choose a zero/one/many routing policy in your caller. Mark START, STOP, and resume edges <code>manual: true</code>; explicit moves still honor guards.</li><li>Keep I/O, model calls, retries, clocks, persistence, and effect execution outside the module. Test the new routes and failure boundaries.</li></ol>
+        <h3>If something goes wrong</h3>
+        <div class="table-wrap"><table><thead><tr><th scope="col">Symptom</th><th scope="col">What to check</th></tr></thead><tbody>
+          <tr><td>Missing module or compiler</td><td>Return to the checkout root, confirm <code>extensions/state_machine/index.ts</code> exists, and complete <code>npm ci</code>. Do not install a separate package named <code>tsc</code>.</td></tr>
+          <tr><td>No automatic target in draft</td><td>Submit explicitly with <code>transition("review", facts)</code>. Manual edges are intentionally hidden from <code>available()</code>.</td></tr>
+          <tr><td><code>guard-rejected</code></td><td>Submission requires ten words; approval/revision require an available reviewer. Refresh facts instead of reusing a stale option.</td></tr>
+          <tr><td>Zero or multiple targets</td><td>The caller must wait, choose, or fail according to its policy. Zero does not mean final; inspect <code>isFinal</code>.</td></tr>
+          <tr><td>Publication write fails</td><td>The output is beside the runner. Check filesystem permissions. The instance has already moved; recovery is caller-owned.</td></tr>
+        </tbody></table></div>
+        <p class="related">Keep exploring: <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state_machine/README.md">Canonical module reference</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/extensions/state_machine/index.ts">Module source</a> · <a href="https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/adr/0002-observably-invoked-happy-path-loop.md">Architecture rationale</a>.</p>
+      </section>
+    </article>
+  </div>
+</main>
+<footer><div class="footer-inner"><span>Buck Workflow · State-machine recipe</span><a href="../index.html">Back to Buck Workflow</a></div></footer>
+<p id="copy-status" class="sr-only" role="status" aria-live="polite"></p>
+<script>
+window.__applyTheme = function (theme) {
+  if (theme !== 'light' && theme !== 'dark') return;
+  document.documentElement.dataset.theme = theme;
+  try { localStorage.setItem('guide-theme', theme); } catch (_) {}
+};
+if (document.documentElement.dataset.theme === 'light' && window.htmx) {
+  htmx.ajax('GET', 'partials/toggle-to-dark.html', { target: '#theme-toggle', swap: 'outerHTML' });
+}
+// The triggering button is replaced by the swap, so its own hx-on listeners are
+// cleaned up before htmx:afterRequest fires. Apply the theme here instead.
+document.body.addEventListener('htmx:afterRequest', function (evt) {
+  var elt = evt.detail && evt.detail.requestConfig && evt.detail.requestConfig.elt;
+  if (elt && elt.dataset && elt.dataset.applyTheme) window.__applyTheme(elt.dataset.applyTheme);
+});
+const copyStatus = document.getElementById('copy-status');
+for (const button of document.querySelectorAll('[data-copy]')) {
+  button.hidden = false;
+  button.addEventListener('click', async () => {
+    const code = document.getElementById(button.dataset.copy);
+    try {
+      await navigator.clipboard.writeText(code.textContent);
+      button.textContent = 'Copied';
+      copyStatus.textContent = 'Copied ' + button.dataset.filename + '.';
+      window.setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+    } catch {
+      copyStatus.textContent = 'Copy is unavailable. Select the code in the block and copy it manually.';
+    }
+  });
+}
+</script>
+</body>
+</html>

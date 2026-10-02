@@ -66,7 +66,7 @@ export type WorkState = Exclude<LoopState, "idle" | "resolving" | "blocked" | "d
  */
 export type PlanFacts =
   | { kind: "missing"; reason: string }
-  | { kind: "unphased" }
+  | { kind: "unphased"; closeEligible?: boolean; openAcceptanceLines?: string[] }
   | { kind: "phased-incomplete" }
   | { kind: "phased-complete" };
 

@@ -1,5 +1,5 @@
 export type SqlMemoryNoticeInput = {
-  op: "sql" | "correct" | "migrate";
+  op: "sql" | "correct" | "remember" | "migrate";
   category?: unknown;
   body?: unknown;
   query?: unknown;
@@ -45,7 +45,7 @@ export function formatSqlMemoryNotice(input: SqlMemoryNoticeInput): string {
   if (input.error !== undefined) return short(`Memory failed · ${safeValue(input.error) ?? "operation failed"}`);
   if (input.op === "migrate") return `Memory migrate · applied ${Number.isFinite(input.applied) ? input.applied : 0}`;
   const query = safeValue(input.query);
-  if (input.op === "correct") return writeNotice(input.category, input.body);
+  if (input.op === "correct" || input.op === "remember") return writeNotice(input.category, input.body);
   if (typeof input.rowCount === "number") {
     return input.rowCount === 0 ? "Memory recall · 0 rows" : short(`Memory recall · ${input.rowCount} ${input.rowCount === 1 ? "row" : "rows"}${query ? ` · "${query}"` : ""}`);
   }

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, renameSync, writeFileSync } from
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { parseSimpleYaml, splitFrontmatter } from "./context-helpers.js";
 import ts from "typescript";
+import { unphasedCloseout } from "./plan-acceptance.js";
 
 export type SubjectLifecycleState = "draft" | "active" | "completed";
 export type SubjectLifecycleIntent =
@@ -168,8 +169,7 @@ function collectPlanBlockers(
   for (const plan of plans) {
     const owned = phasesByPlan.get(plan) ?? [];
     if (owned.length === 0) {
-      if (frontmatter(join(subjectDir, plan)).status === "completed") continue;
-      blockers.push(`${plan}: unphased plan remains open`);
+      collectUnphasedBlockers(subjectDir, plan, blockers);
       continue;
     }
     for (const phase of owned) {
@@ -178,6 +178,13 @@ function collectPlanBlockers(
       }
     }
   }
+}
+
+function collectUnphasedBlockers(subjectDir: string, plan: string, blockers: string[]): void {
+  const text = readFileSync(join(subjectDir, plan), "utf8");
+  const data = frontmatter(join(subjectDir, plan));
+  if (data.status !== "completed") blockers.push(`${plan}: unphased plan remains open`);
+  if (unphasedCloseout(text).openAcceptanceLines.length > 0) blockers.push(`${plan}: open acceptance box`);
 }
 
 function verifyClose(subjectDir: string): Verification {

@@ -102,6 +102,28 @@ describe("subject lifecycle intents", () => {
     });
   });
 
+  it("refuses close when a completed unphased plan has an open acceptance box", () => {
+    const dir = subject();
+    write(dir, "plan-demo.md", "---\nstatus: completed\n---\n# Plan\n\n## Acceptance criteria\n- [ ] Evidence remains open\n");
+    expect(applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: dir })).toMatchObject({
+      ok: false,
+      code: "not-verified",
+      blockers: ["plan-demo.md: open acceptance box"],
+    });
+  });
+
+  it.each([
+    ["active", "- [x] Verified", false],
+    ["completed", "- [X] Not verified", false],
+    ["completed", "- [x] Verified\n## Other\n- [ ] Out of scope", true],
+    ["completed", "", true],
+  ])("honors body boundaries for %s / %s", (status, criteria, ok) => {
+    const dir = subject();
+    write(dir, "index.md", "---\nstatus: active\n---\n");
+    write(dir, "plan-demo.md", `---\nstatus: ${status}\n---\n## Acceptance criteria\n${criteria}\n`);
+    expect(applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: dir }).ok).toBe(ok);
+  });
+
   it("detects legacy verified-closed subjects and canonicalizes only through close", () => {
     const dir = subject();
     write(dir, "index.md", "---\nstatus: active\ntitle: Legacy\n---\n\n# Body\n");

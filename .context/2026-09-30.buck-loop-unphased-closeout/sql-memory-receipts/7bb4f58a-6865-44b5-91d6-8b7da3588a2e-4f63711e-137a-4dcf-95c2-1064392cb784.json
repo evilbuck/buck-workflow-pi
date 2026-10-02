@@ -1,0 +1,12 @@
+{
+  "attemptId": "4f63711e-137a-4dcf-95c2-1064392cb784",
+  "runId": "7bb4f58a-6865-44b5-91d6-8b7da3588a2e",
+  "subject": "2026-09-30.buck-loop-unphased-closeout",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "kind": "rows",
+  "ids": [
+    "01a0f54b-4842-7dd7-b82a-ffbe2d750c10"
+  ],
+  "probed": true,
+  "completed": true
+}

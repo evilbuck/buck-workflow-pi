@@ -3,9 +3,11 @@
  * Covers deterministic edges, closed choice sets, illegal choices, and
  * operator-owned START / USER_CONFIRMED / STOP.
  */
-import { afterEach, describe, expect, it } from "vitest";
-import { MachineFailure } from "../../state-machine.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { IllegalTransitionError, UnknownStateError } from "../../state_machine/index.js";
 import {
+  BuckMachineError,
+  buckMachine,
   MAX_ITERATE_CYCLES_PER_PHASE,
   applyChoice,
   legalChoices,
@@ -227,10 +229,21 @@ describe("next: confirmed postconditions advance deterministically", () => {
     expect(t).toEqual({ to: "done", effect: { kind: "none" }, why: expect.any(String) });
   });
 
-  it("committing → done for an unphased plan's single cycle", () => {
-    const t = next(workSnap("committing", {}, { planFacts: { kind: "unphased" }, phasePath: null }));
+  it("blocks unphased plans without completed closeout evidence", () => {
+    const t = next(workSnap("committing", {}, {
+      planFacts: { kind: "unphased", closeEligible: false, openAcceptanceLines: ["- [ ] All seven criteria"] },
+      phasePath: null,
+    }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toMatchObject({ kind: "await-operator", reason: expect.stringContaining("All seven criteria") });
+  });
+
+  it("committing → done for an eligible unphased plan", () => {
+    const t = next(workSnap("committing", {}, {
+      planFacts: { kind: "unphased", closeEligible: true, openAcceptanceLines: [] },
+      phasePath: null,
+    }));
     expect(t.to).toBe("done");
-    expect(t.effect.kind).toBe("none");
   });
 
   it("committing blocks if the plan vanished mid-cycle", () => {
@@ -377,7 +390,7 @@ describe("applyChoice", () => {
     });
     expect(applyChoice({ kind: "iterate" }, s).to).toBe("iterating");
     expect(applyChoice({ kind: "document" }, s).to).toBe("documenting");
-    expect(() => applyChoice({ kind: "block" }, s)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "block" }, s)).toThrow(BuckMachineError);
   });
 
   it("takes the accepted postcondition choice", () => {
@@ -388,7 +401,7 @@ describe("applyChoice", () => {
       why: expect.any(String),
     });
     expect(applyChoice({ kind: "retry" }, s).to).toBe("building");
-    expect(() => applyChoice({ kind: "block" }, s)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "block" }, s)).toThrow(BuckMachineError);
   });
 
   it("advances from committing per plan facts", () => {
@@ -401,29 +414,38 @@ describe("applyChoice", () => {
     expect(applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" })).to).toBe("building");
   });
 
+  it.each([false, true])("choice advance requires unphased close eligibility %s", (closeEligible) => {
+    const t = applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" }, {
+      phasePath: null,
+      planFacts: { kind: "unphased", closeEligible, openAcceptanceLines: closeEligible ? [] : ["- [ ] Observed evidence"] },
+    }));
+    expect(t.to).toBe(closeEligible ? "done" : "blocked");
+    if (!closeEligible) expect(t.why).toContain("Observed evidence");
+  });
+
   it("rejects choices outside the current legal set — no model string transitions state", () => {
     const review = reviewDone({ parseable: false });
-    expect(() => applyChoice({ kind: "advance" }, review)).toThrow(MachineFailure);
-    expect(() => applyChoice({ kind: "retry" }, review)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "advance" }, review)).toThrow(BuckMachineError);
+    expect(() => applyChoice({ kind: "retry" }, review)).toThrow(BuckMachineError);
     const build = workSnap("building", { postcondition: "ambiguous" });
-    expect(() => applyChoice({ kind: "save" }, build)).toThrow(MachineFailure);
-    expect(() => applyChoice({ kind: "iterate" }, build)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "save" }, build)).toThrow(BuckMachineError);
+    expect(() => applyChoice({ kind: "iterate" }, build)).toThrow(BuckMachineError);
   });
 
   it("rejects every choice once limits are exceeded", () => {
     const s = reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 });
-    expect(() => applyChoice({ kind: "save" }, s)).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "save" }, s)).toThrow(BuckMachineError);
   });
 
   it("rejects choices in deterministic situations entirely", () => {
-    expect(() => applyChoice({ kind: "save" }, workSnap("building"))).toThrow(MachineFailure);
-    expect(() => applyChoice({ kind: "advance" }, snap())).toThrow(MachineFailure);
+    expect(() => applyChoice({ kind: "save" }, workSnap("building"))).toThrow(BuckMachineError);
+    expect(() => applyChoice({ kind: "advance" }, snap())).toThrow(BuckMachineError);
   });
 });
 
 describe("next: non-loop states fail explicitly", () => {
   it.each(["idle", "blocked", "done", "aborted"] as const)("throws for %s", (state) => {
-    expect(() => next(snap({ state }))).toThrow(MachineFailure);
+    expect(() => next(snap({ state }))).toThrow(BuckMachineError);
   });
 });
 
@@ -469,3 +491,657 @@ describe("SQL save cannot vote past persistence", () => {
   });
 });
 
+
+// Literal transition fixtures captured from the legacy rules before the cutover.
+// Tests enter the production adapters; no engine or model is mocked.
+const LEGACY_ROWS = [
+  {
+    "id": "start",
+    "overrides": {"state":"idle"},
+    "event": "START",
+    "expected": {"to":"resolving","effect":{"kind":"none"},"why":"START: operator supplied a path"},
+  },
+  {
+    "id": "stop-from-idle",
+    "overrides": {"state":"idle"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from idle"},
+  },
+  {
+    "id": "resolving-incomplete",
+    "overrides": {},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"active incomplete phase; running its build"},
+  },
+  {
+    "id": "stop-from-resolving",
+    "overrides": {},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from resolving"},
+  },
+  {
+    "id": "resolving-unphased",
+    "overrides": {"planFacts":{"kind":"unphased"}},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"unphased plan; running its single build cycle"},
+  },
+  {
+    "id": "resolving-complete",
+    "overrides": {"planFacts":{"kind":"phased-complete"}},
+    "expected": {"to":"done","effect":{"kind":"none"},"why":"all phases completed"},
+  },
+  {
+    "id": "resolving-missing",
+    "overrides": {"planFacts":{"kind":"missing","reason":"fixture missing"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"plan unresolved: fixture missing"},"why":"plan unresolved: fixture missing"},
+  },
+  {
+    "id": "resolving-incomplete-loop-limit",
+    "overrides": {"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "resolving-unphased-loop-limit",
+    "overrides": {"planFacts":{"kind":"unphased"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "building-session-pending",
+    "overrides": {"state":"building"},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"building session has not run yet"},
+  },
+  {
+    "id": "stop-from-building",
+    "overrides": {"state":"building"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from building"},
+  },
+  {
+    "id": "building-session-pending-loop-limit",
+    "overrides": {"state":"building","loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "building-session-retry",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"building session failed; retrying once"},
+  },
+  {
+    "id": "building-session-retry-loop-limit",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "building-session-failed-again",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"building session failed again after one retry"},"why":"building session failed again after one retry"},
+  },
+  {
+    "id": "building-postcondition-missing",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"building session finished but postcondition is pending (scan defect)"},"why":"building session finished but postcondition is pending (scan defect)"},
+  },
+  {
+    "id": "building-confirmed-review",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
+  },
+  {
+    "id": "building-confirmed-loop-limit",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "building-choice-retry",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"retry"},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"accepted choice: retry the session"},
+  },
+  {
+    "id": "building-choice-advance",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
+  },
+  {
+    "id": "building-postcondition-ambiguous-loop-limit",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "building-postcondition-ambiguous-retry-exhausted",
+    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+  },
+  {
+    "id": "iterating-session-pending",
+    "overrides": {"state":"iterating"},
+    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"iterating session has not run yet"},
+  },
+  {
+    "id": "stop-from-iterating",
+    "overrides": {"state":"iterating"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from iterating"},
+  },
+  {
+    "id": "iterating-session-pending-iterate-limit",
+    "overrides": {"state":"iterating","iterateCyclesOnPhase":6},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterate limit reached on this phase (6 >= 6)"},"why":"iterate limit reached on this phase (6 >= 6)"},
+  },
+  {
+    "id": "iterating-session-retry",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"iterating session failed; retrying once"},
+  },
+  {
+    "id": "iterating-session-retry-iterate-limit",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"iterateCyclesOnPhase":6},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterate limit reached on this phase (6 >= 6)"},"why":"iterate limit reached on this phase (6 >= 6)"},
+  },
+  {
+    "id": "iterating-session-failed-again",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterating session failed again after one retry"},"why":"iterating session failed again after one retry"},
+  },
+  {
+    "id": "iterating-postcondition-missing",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterating session finished but postcondition is pending (scan defect)"},"why":"iterating session finished but postcondition is pending (scan defect)"},
+  },
+  {
+    "id": "iterating-confirmed-review",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
+  },
+  {
+    "id": "iterating-confirmed-loop-limit",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "iterating-choice-retry",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"retry"},
+    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"accepted choice: retry the session"},
+  },
+  {
+    "id": "iterating-choice-advance",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
+  },
+  {
+    "id": "iterating-postcondition-ambiguous-loop-limit",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "iterating-postcondition-ambiguous-retry-exhausted",
+    "overrides": {"state":"iterating","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+  },
+  {
+    "id": "reviewing-session-pending",
+    "overrides": {"state":"reviewing"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"reviewing session has not run yet"},
+  },
+  {
+    "id": "stop-from-reviewing",
+    "overrides": {"state":"reviewing"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from reviewing"},
+  },
+  {
+    "id": "reviewing-session-pending-loop-limit",
+    "overrides": {"state":"reviewing","loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "reviewing-session-retry",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"reviewing session failed; retrying once"},
+  },
+  {
+    "id": "reviewing-session-retry-loop-limit",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "reviewing-session-failed-again",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"reviewing session failed again after one retry"},"why":"reviewing session failed again after one retry"},
+  },
+  {
+    "id": "reviewing-no-report",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"review session finished but no report facts were scanned (scan defect)"},"why":"review session finished but no report facts were scanned (scan defect)"},
+  },
+  {
+    "id": "reviewing-iterate",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":true,"howtoImpact":true}},
+    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"iterate artifact present; in-plan issues win"},
+  },
+  {
+    "id": "reviewing-docs",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":false,"docsImpact":true,"howtoImpact":true}},
+    "expected": {"to":"documenting","effect":{"kind":"run-skill","skill":"docs"},"why":"review flagged documentation impact"},
+  },
+  {
+    "id": "reviewing-save",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false}},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"clean review; saving"},
+  },
+  {
+    "id": "reviewing-choice-iterate",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":false,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false}},
+    "choice": {"kind":"iterate"},
+    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"accepted choice: iterate on in-plan issues"},
+  },
+  {
+    "id": "reviewing-choice-document",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":false,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false}},
+    "choice": {"kind":"document"},
+    "expected": {"to":"documenting","effect":{"kind":"run-skill","skill":"docs"},"why":"accepted choice: document the impact"},
+  },
+  {
+    "id": "reviewing-choice-save",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":false,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false}},
+    "choice": {"kind":"save"},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"accepted choice: treat the review as clean and save"},
+  },
+  {
+    "id": "reviewing-iterate-limit",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":true,"howtoImpact":true},"iterateCyclesOnPhase":6},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterate limit reached on this phase (6 >= 6)"},"why":"iterate limit reached on this phase (6 >= 6)"},
+  },
+  {
+    "id": "reviewing-docs-loop-limit",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":false,"docsImpact":true,"howtoImpact":true},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "reviewing-save-loop-limit",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "reviewing-unparseable-loop-limit",
+    "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":false,"iterateArtifact":false,"docsImpact":false,"howtoImpact":false},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"review report unparseable and no legal choice remains (limits exceeded)"},"why":"review report unparseable and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "documenting-session-pending",
+    "overrides": {"state":"documenting"},
+    "expected": {"to":"documenting","effect":{"kind":"run-skill","skill":"docs"},"why":"documenting session has not run yet"},
+  },
+  {
+    "id": "stop-from-documenting",
+    "overrides": {"state":"documenting"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from documenting"},
+  },
+  {
+    "id": "documenting-session-pending-loop-limit",
+    "overrides": {"state":"documenting","loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "documenting-session-retry",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"documenting","effect":{"kind":"run-skill","skill":"docs"},"why":"documenting session failed; retrying once"},
+  },
+  {
+    "id": "documenting-session-retry-loop-limit",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "documenting-session-failed-again",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"documenting session failed again after one retry"},"why":"documenting session failed again after one retry"},
+  },
+  {
+    "id": "documenting-postcondition-missing",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"documenting session finished but postcondition is pending (scan defect)"},"why":"documenting session finished but postcondition is pending (scan defect)"},
+  },
+  {
+    "id": "documenting-confirmed-save",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"docs updated; saving session state"},
+  },
+  {
+    "id": "documenting-confirmed-loop-limit",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "documenting-choice-retry",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"retry"},
+    "expected": {"to":"documenting","effect":{"kind":"run-skill","skill":"docs"},"why":"accepted choice: retry the session"},
+  },
+  {
+    "id": "documenting-choice-advance",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"docs updated; saving session state"},
+  },
+  {
+    "id": "documenting-postcondition-ambiguous-loop-limit",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "documenting-postcondition-ambiguous-retry-exhausted",
+    "overrides": {"state":"documenting","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+  },
+  {
+    "id": "saving-session-pending",
+    "overrides": {"state":"saving"},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"saving session has not run yet"},
+  },
+  {
+    "id": "stop-from-saving",
+    "overrides": {"state":"saving"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from saving"},
+  },
+  {
+    "id": "saving-session-pending-loop-limit",
+    "overrides": {"state":"saving","loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "saving-session-retry",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"saving session failed; retrying once"},
+  },
+  {
+    "id": "saving-session-retry-loop-limit",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "saving-session-failed-again",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"saving session failed again after one retry"},"why":"saving session failed again after one retry"},
+  },
+  {
+    "id": "saving-postcondition-missing",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"saving session finished but postcondition is pending (scan defect)"},"why":"saving session finished but postcondition is pending (scan defect)"},
+  },
+  {
+    "id": "saving-confirmed-commit",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"session state saved; committing"},
+  },
+  {
+    "id": "saving-confirmed-loop-limit",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "saving-choice-retry",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"retry"},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"accepted choice: retry the session"},
+  },
+  {
+    "id": "saving-choice-advance",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"session state saved; committing"},
+  },
+  {
+    "id": "saving-postcondition-ambiguous-loop-limit",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "saving-postcondition-ambiguous-retry-exhausted",
+    "overrides": {"state":"saving","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+  },
+  {
+    "id": "committing-session-pending",
+    "overrides": {"state":"committing"},
+    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"committing session has not run yet"},
+  },
+  {
+    "id": "stop-from-committing",
+    "overrides": {"state":"committing"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from committing"},
+  },
+  {
+    "id": "committing-session-pending-loop-limit",
+    "overrides": {"state":"committing","loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "committing-session-retry",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"committing session failed; retrying once"},
+  },
+  {
+    "id": "committing-session-retry-loop-limit",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"failed","retriesUsed":0,"postcondition":"pending"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "committing-session-failed-again",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"failed","retriesUsed":1,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"committing session failed again after one retry"},"why":"committing session failed again after one retry"},
+  },
+  {
+    "id": "committing-postcondition-missing",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"committing session finished but postcondition is pending (scan defect)"},"why":"committing session finished but postcondition is pending (scan defect)"},
+  },
+  {
+    "id": "committing-next-phase",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"next incomplete phase"},
+  },
+  {
+    "id": "committing-unphased-done",
+    "overrides": {"state":"committing","planFacts":{"kind":"unphased","closeEligible":true},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"done","effect":{"kind":"none"},"why":"unphased plan completed its single cycle"},
+  },
+  {
+    "id": "committing-phased-complete",
+    "overrides": {"state":"committing","planFacts":{"kind":"phased-complete"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"done","effect":{"kind":"none"},"why":"no phases remain"},
+  },
+  {
+    "id": "committing-plan-missing",
+    "overrides": {"state":"committing","planFacts":{"kind":"missing","reason":"fixture missing"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"plan vanished while committing: fixture missing"},"why":"plan vanished while committing: fixture missing"},
+  },
+  {
+    "id": "committing-confirmed-loop-limit",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+  },
+  {
+    "id": "committing-choice-retry",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"retry"},
+    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"accepted choice: retry the session"},
+  },
+  {
+    "id": "committing-choice-advance-next-phase",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"next incomplete phase"},
+  },
+  {
+    "id": "committing-choice-advance-unphased",
+    "overrides": {"state":"committing","planFacts":{"kind":"unphased","closeEligible":true},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"done","effect":{"kind":"none"},"why":"unphased plan completed its single cycle"},
+  },
+  {
+    "id": "committing-choice-advance-complete",
+    "overrides": {"state":"committing","planFacts":{"kind":"phased-complete"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"done","effect":{"kind":"none"},"why":"no phases remain"},
+  },
+  {
+    "id": "committing-choice-advance-missing",
+    "overrides": {"state":"committing","planFacts":{"kind":"missing","reason":"fixture missing"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
+    "choice": {"kind":"advance"},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"plan vanished while committing: fixture missing"},"why":"plan vanished while committing: fixture missing"},
+  },
+  {
+    "id": "committing-postcondition-ambiguous-loop-limit",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+  },
+  {
+    "id": "committing-postcondition-ambiguous-retry-exhausted",
+    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+  },
+  {
+    "id": "user-confirmed",
+    "overrides": {"state":"blocked"},
+    "event": "USER_CONFIRMED",
+    "expected": {"to":"resolving","effect":{"kind":"none"},"why":"USER_CONFIRMED: operator resumed a blocked loop"},
+  },
+  {
+    "id": "stop-from-blocked",
+    "overrides": {"state":"blocked"},
+    "event": "STOP",
+    "expected": {"to":"aborted","effect":{"kind":"none"},"why":"STOP requested by operator from blocked"},
+  },
+  {
+    "id": "user-confirmed-completed-work",
+    "overrides": {"state":"blocked","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"history":[{"from":"building","to":"blocked","why":"fixture"}]},
+    "event": "USER_CONFIRMED",
+    "expected": {"to":"reviewing","effect":{"kind":"none"},"why":"USER_CONFIRMED: completed blocked work; reviewing its phase"},
+  },
+] as const;
+
+describe("legacy rule truth table", () => {
+  it.each(LEGACY_ROWS)("$id", (row) => {
+    const previous = process.env.SQL_MEMORY_URL;
+    delete process.env.SQL_MEMORY_URL;
+    try {
+      const s = snap(row.overrides as Partial<Snapshot>);
+      let actual;
+      if ("choice" in row) actual = applyChoice(row.choice, s);
+      else if ("event" in row) {
+        if (row.event === "START") actual = start();
+        else if (row.event === "STOP") actual = stopFrom(s.state);
+        else actual = userConfirmed(s);
+      } else actual = next(s);
+      expect(actual).toEqual(row.expected);
+    } finally {
+      if (previous !== undefined) process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+});
+
+describe("declarative operator graph", () => {
+  it.each(["idle", "resolving", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
+    expect(buckMachine.edge(state, "aborted").manual).toBe(true);
+    expect(buckMachine.restore(state).available({...snap({state}), sqlMemoryConfigured: false})).not.toContain("aborted");
+    expect(stopFrom(state)).toEqual({to: "aborted", effect: {kind: "none"}, why: `STOP requested by operator from ${state}`});
+  });
+
+  it("hides START and USER_CONFIRMED from ticks and enforces the resume guard", () => {
+    expect(buckMachine.edge("idle", "resolving").manual).toBe(true);
+    expect(buckMachine.edge("blocked", "resolving").manual).toBe(true);
+    expect(buckMachine.edge("blocked", "reviewing").manual).toBe(true);
+    expect(() => buckMachine.restore("blocked").transition("reviewing", {...snap({state: "blocked"}), sqlMemoryConfigured: false})).toThrow(IllegalTransitionError);
+    expect(() => userConfirmed(snap({state: "building"}))).toThrow(IllegalTransitionError);
+    expect(buckMachine.targets("done")).toEqual([]);
+    expect(buckMachine.targets("aborted")).toEqual([]);
+  });
+});
+
+describe("adapter safety boundaries", () => {
+  it("keeps conflicting exhausted retries fail-closed but reports no legal choices", () => {
+    const s = workSnap("building", { postcondition: "ambiguous", retriesUsed: 1 }, { loopCount: 12 });
+    expect(() => next(s)).toThrow(BuckMachineError);
+    expect(legalChoices("building", s)).toEqual([]);
+  });
+
+  it("rejects USER_CONFIRMED outside blocked even when a normal review edge exists", () => {
+    const s = workSnap("building", {}, { history: [{ from: "building", to: "blocked", why: "fixture", at: "2026-10-01" }] });
+    expect(() => userConfirmed(s)).toThrow(IllegalTransitionError);
+  });
+
+  it("keeps review routing independent of a work postcondition ambiguity", () => {
+    expect(next(reviewDone({}, {workFacts: wf({sessionOutcome: "ok", postcondition: "ambiguous"})}))).toEqual({
+      to: "saving", effect: {kind: "run-skill", skill: "save"}, why: "clean review; saving",
+    });
+  });
+});
+
+
+describe("routing and reason boundaries", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("names unexpected automatic overlap and rejects it", () => {
+    // Simulate an overlapping graph at the adapter/module seam.
+    const instance = buckMachine.restore("building");
+    vi.spyOn(instance, "available").mockReturnValue(["building", "reviewing"]);
+    vi.spyOn(buckMachine, "restore").mockReturnValue(instance);
+    const s = snap({ state: "building" });
+    expect(() => next(s)).toThrow("buck machine AMBIGUOUS_ROUTE: building -> [building, reviewing]");
+    expect(() => next(s)).toThrow(BuckMachineError);
+  });
+
+  it("rejects an unrecognized persisted state with the module error", () => {
+    expect(() => next(snap({state: "unknown" as Snapshot["state"]}))).toThrow(UnknownStateError);
+  });
+
+  it.each(WORK_STATES)("pins loop-limit wording for pending and failed %s sessions", (state) => {
+    for (const sessionOutcome of ["pending", "failed"] as const) {
+      expect(next(snap({state, loopCount: 12, workFacts: wf({sessionOutcome})}))).toEqual({
+        to: "blocked", effect: {kind: "await-operator", reason: "loop limit reached (12 >= 12); refusing further work"},
+        why: "loop limit reached (12 >= 12); refusing further work",
+      });
+    }
+  });
+
+  it.each(POSTCONDITION_STATES)("pins ambiguous loop-limit wording for %s", (state) => {
+    expect(next(workSnap(state, {postcondition: "ambiguous"}, {loopCount: 12}))).toEqual({
+      to: "blocked", effect: {kind: "await-operator", reason: "postcondition ambiguous and no legal choice remains (limits exceeded)"},
+      why: "postcondition ambiguous and no legal choice remains (limits exceeded)",
+    });
+  });
+
+  it("pins the global limit when both review iteration limits are exceeded", () => {
+    expect(next(reviewDone({iterateArtifact: true}, {loopCount: 12, iterateCyclesOnPhase: 6}))).toEqual({
+      to: "blocked", effect: {kind: "await-operator", reason: "loop limit reached (12 >= 12); refusing further work"},
+      why: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+
+  it("keeps the environment outside the SQL guard and revalidates stale choices", () => {
+    const previous = process.env.SQL_MEMORY_URL;
+    const s = workSnap("saving", {postcondition: "ambiguous"});
+    delete process.env.SQL_MEMORY_URL;
+    try {
+      expect(legalChoices("saving", s)).toEqual([{kind: "retry"}, {kind: "advance"}]);
+      process.env.SQL_MEMORY_URL = "postgres://example.invalid/save";
+      expect(buckMachine.restore("saving").available({...s, sqlMemoryConfigured: false})).toEqual(["saving", "committing"]);
+      expect(() => applyChoice({kind: "advance"}, s)).toThrow(BuckMachineError);
+      expect(applyChoice({kind: "retry"}, s)).toEqual({
+        to: "saving", effect: {kind: "run-skill", skill: "save"}, why: "accepted choice: retry the session",
+      });
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+
+  it.each(["done", "aborted"] as const)("preserves STOP from terminal %s", (state) => {
+    expect(stopFrom(state)).toEqual({to: "aborted", effect: {kind: "none"}, why: `STOP requested by operator from ${state}`});
+  });
+});

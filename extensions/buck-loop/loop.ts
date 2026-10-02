@@ -40,6 +40,7 @@ import {
 import type { ActivityEvent } from "../extension-activity.js";
 import {
   PROJECTION_VERSION,
+  isUnphasedCloseoutProjection,
   readProjection,
   resume,
   writeProjection,
@@ -53,6 +54,7 @@ import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
 import { applyChoice, next, start, stopFrom, userConfirmed } from "./machine.js";
+import { applySubjectLifecycleIntent } from "../../skills/_shared/scripts/subject-lifecycle.js";
 import type {
   AcceptedChoice,
   Choice,
@@ -280,14 +282,49 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
   const resumeTarget = resumePath(projection, projection.subject);
+  const cleanBeforeSync = cleanCloseoutTree(cwd);
   syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
   let snapshot = resume({ projectRoot: cwd });
+  const closeout = repairUnphasedCloseout(cwd, projection, snapshot, cleanBeforeSync, deps.now());
+  if (closeout) return closeout;
   snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
   const checked = await checkedResume(cwd, snapshot, deps.now(), deps.onActivity);
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
   const path = resumePath(snapshot, projection.subject);
   return drive(cwd, snapshot, path, deps);
+}
+
+function cleanCloseoutTree(cwd: string): boolean {
+  try {
+    return execFileSync("git", ["status", "--porcelain"], { cwd, encoding: "utf8" }).trim() === "";
+  } catch {
+    return false;
+  }
+}
+
+function repairUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, clean: boolean, at: string): LoopResult | null {
+  if (snapshot.planFacts.kind !== "unphased") return null;
+  if (!isUnphasedCloseoutProjection(projection)) return null;
+  if (!snapshot.planFacts.closeEligible) return haltIfTerminal(cwd, snapshot);
+  const committed = projection.history.some((entry) => entry.from === "committing" || entry.to === "committing");
+  return finishUnphasedCloseout(cwd, projection, snapshot, committed && clean, at);
+}
+
+function finishUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, verifiedCommit: boolean, at: string): LoopResult {
+  let reason = "unphased plan closeout requires committing history and a clean worktree";
+  if (verifiedCommit) {
+    const closed = applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: join(cwd, ".context", projection.subject) });
+    if (closed.ok) {
+      const completed = withTransition(snapshot, { to: "done", effect: { kind: "none" }, why: "unphased plan verified closeout repaired" }, at);
+      persistIfPossible(cwd, completed);
+      return { state: "done", reason: completed.history.at(-1)!.why };
+    }
+    reason = `unphased plan closeout refused: ${closed.blockers.join("; ")}`;
+  }
+  const held = block(snapshot, reason, at);
+  persistIfPossible(cwd, held);
+  return { state: "blocked", reason };
 }
 
 function resumePath(snapshot: Pick<Snapshot, "phasePath" | "planPath">, subject: string): string {
@@ -309,13 +346,12 @@ function idleOrUnreadableProjection(cwd: string): LoopResult {
 }
 
 function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
-  if (projection.state !== "blocked" || snapshot.state !== "blocked") {
-    return snapshot;
-  }
+  if (projection.state !== "blocked" || snapshot.state !== "blocked") return snapshot;
   if (
     snapshot.planFacts.kind === "missing" ||
     snapshot.planPath !== projection.planPath ||
-    snapshot.phasePath !== projection.phasePath
+    snapshot.phasePath !== projection.phasePath ||
+    (isUnphasedCloseoutProjection(projection) && snapshot.planFacts.kind === "unphased" && !snapshot.planFacts.closeEligible)
   ) {
     persistIfPossible(cwd, snapshot);
     return snapshot;

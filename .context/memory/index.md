@@ -1,3 +1,15 @@
+- 2026-10-01 — [sql-memory remember iteration](sql-memory-remember-op-iterate-2026-10-01.md) — completed (second pass closed complexity split and recall-only denial fix; guardrails pass, complexity_gate pass; re-review still required)
+
+- 2026-10-01 — [Portable state-machine Phase 4 build](state-machine-cutover-phase-4-build-2026-10-01.md) — active (legacy engine/suite removed; living docs and eight-step guide migrated; copied recipe and strict examples pass; desktop/mobile/themes/navigation verified; 1373 Vitest + 70 Bun tests pass; guardrails pass at 87.4% vs 84%; review Pass with no in-plan defects; fresh durable guardrails re-run reproduces pass; subject lifecycle close-verified with zero blockers; commit next)
+- 2026-10-01 — [Review machine portable-module Phase 3 save](state-machine-review-port-build-2026-10-01.md) — active (168 review tests; 129,600 adapter comparisons without drift; required guardrails pass; `b-review` Pass after matrix corrections; A-6 metadata restored to `validated | false`; `/b-commit` next; Phase 4 deletion+docs remains)
+- 2026-10-01 — [Buck machine portable-module Phase 2 build](state-machine-buck-port-build-2026-10-01.md) — `completed` (Phase 2 criteria verified; 204 machine tests; 438 Buck tests; 1,148,928 SQL/file adapter comparisons without drift; required guardrails pass; unchanged existing project TypeScript diagnostics; `/b-review` pass with warnings — fixture row shapes unchecked via `as Partial<Snapshot>` + untyped `toEqual` is the only standards nit; commit next)
+- 2026-09-30 — [Guide theme switcher (htmx + Tailwind)](site-theme-switcher-2026-09-30.md) — completed (light/dark switcher on state-machine guide; var-based palettes; htmx fragment swap with delegated afterRequest handler; hx-on swap-out gotcha; guardrails pass)
+- 2026-10-01 — [State-machine module Phase 1 review/save](state-machine-module-build-2026-10-01.md) — `active` (two-pass review: pass 1 flagged definition methods mixing captured graph data with live caller configuration; iteration captured initial, finalStates, and used normalized graph keys for restore; pass 2 verified by mutation regressions; TypeScript acceptance exception approved by user; SQL receipt `01a0f787-76f9-7066-b52d-b5881d723178`; Phase 2 hardening W1 recorded for follow-up)
+
+- 2026-09-30 — [State-machine guide API explanation](state-machine-api-guide-2026-09-30.md) — completed (machine/state/rule properties, method and decision APIs, all thirteen failure codes; exact samples and API smoke pass; responsive/no-JS proof; final guardrails pass)
+
+- 2026-09-30 — [Runnable state-machine user guide](state-machine-user-guide-2026-09-30.md) — completed (eight-step HTML recipe, four exact runnable samples, fresh-clone verification, desktop/mobile/no-JS proof, final guardrails pass)
+
 - 2026-09-30 — [Decision-closure lifecycle closeout](decision-closure-final-save-2026-09-30.md) — completed (all six phases saved with verified receipts; buck-loop save/commit handoff recorded in `2026-09-30.buck-loop-save-commit-handoff`; subject lifecycle transitions active → completed)
 
 - 2026-09-30 — [Good-ideas factory hardening closeout](good-ideas-factory-improvements-2026-09-30.md) — completed (all 11 integrity/enforcement criteria verified shipped: frontmatter/codex/mirror/install tests, guardrails CI, hooks; iterate findings left open as out-of-plan)
@@ -183,7 +195,6 @@
 
 - 2026-09-28 — [fix-pr native PR/tool integration plan](fix-pr-native-tool-plan-2026-09-28.md) — `completed` (plan: native PR view for orientation; exhaustive TypeScript ingest through a thin agent tool with CLI fallback; implementation queued)
 - 2026-09-27 — [Deterministic fix-pr ingest](fix-pr-deterministic-ingest-2026-09-27.md) — `completed` (TypeScript sibling script replaces TSV fetch; CI signals included; stderr progress; fixture tests and PR 51 smoke passed)
-
 - 2026-09-27 — [Jev-ranked `/buck-loop` subject picker plan](buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md) — `completed` (bare command ranks runnable subjects with Jev, presents up to ten probability-ordered TUI rows, and starts only the operator's selection)
 
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)

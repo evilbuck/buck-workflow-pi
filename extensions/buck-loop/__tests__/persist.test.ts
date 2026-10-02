@@ -81,6 +81,34 @@ describe("projection round-trip", () => {
 });
 
 describe("resume reconciliation", () => {
+  it.each(["done", "blocked"] as const)("refreshes open acceptance blockers on %s resume", (state) => {
+    const root = repo();
+    writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}\n## Acceptance criteria\n- [X] Observed evidence\n` });
+    writeProjection(root, projection({
+      state, phasePath: null,
+      history: [{ from: "committing", to: state, at: "2026-09-18T00:00:00Z", why: "unphased plan remains open" }],
+    }));
+    const snapshot = resume({ projectRoot: root });
+    expect(snapshot.state).toBe("blocked");
+    expect(snapshot.history.at(-1)?.why).toContain("unphased plan remains open");
+    expect(snapshot.history.at(-1)?.why).toContain("- [X] Observed evidence");
+  });
+
+  it.each(["\n## Acceptance criteria\n- [ ] Implementation not yet verified\n", ""])(
+    "preserves an ordinary unphased build interruption with acceptance section %j",
+    (acceptance) => {
+      const root = repo();
+      writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}${acceptance}` });
+      const history: Projection["history"] = [
+        { from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: "nested build interrupted; environment repaired" },
+      ];
+      writeProjection(root, projection({ state: "blocked", phasePath: null, history }));
+      const snapshot = resume({ projectRoot: root });
+      expect(snapshot.state).toBe("blocked");
+      expect(snapshot.history).toEqual(history);
+    },
+  );
+
   it("rescans before returning; stale building plus all phases completed becomes done", () => {
     const root = repo();
     phased(root, ["completed", "completed"]);
