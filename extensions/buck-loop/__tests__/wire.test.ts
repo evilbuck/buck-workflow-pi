@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { TUI, ProcessTerminal, type Component } from "@mariozechner/pi-tui";
 import type { ActivityEvent } from "../../extension-activity.js";
 
 const handleLoop = vi.fn();
@@ -22,7 +23,7 @@ function createMockApi(): {
   commands: Map<string, { handler: (args: string, ctx: { cwd: string; ui: {
     notify: (m: string, l?: string) => void;
     setStatus?: (key: string, text: string | undefined) => void;
-    setWidget?: (key: string, content: string[] | undefined) => void;
+    setWidget?: ExtensionContext["ui"]["setWidget"];
   } }) => Promise<void> }>;
   sendMessage: ReturnType<typeof vi.fn>;
 } {
@@ -106,33 +107,42 @@ describe("wireBuckLoop", () => {
     expect(handleLoop).toHaveBeenLastCalledWith(expect.objectContaining({ cwd: "/tmp/repo", command: "stop", path: undefined }));
     expect(notes.some((n) => n.includes("idle:"))).toBe(true);
   });
-  it("shows live activity before the supervisor settles and clears it afterward", async () => {
-    let settle!: (value: { state: string; reason: string }) => void;
-    handleLoop.mockImplementation((opts: { deps?: { onProgress?: (event: { label: string }) => void } }) => {
-      opts.deps?.onProgress?.({ label: "Building phase-1-demo.md" });
-      return new Promise((resolve) => { settle = resolve; });
+  it("changes live density without restarting work and removes the card on stop", async () => {
+    const tui = new TUI(new ProcessTerminal());
+    const repaint = vi.spyOn(tui, "requestRender").mockImplementation(() => {});
+    let component: (Component & { dispose?(): void }) | undefined;
+    let cleared = false;
+    const setWidget: ExtensionContext["ui"]["setWidget"] = (_key, content) => {
+      if (typeof content === "function") component = content(tui, {} as never);
+      if (content === undefined) { component?.dispose?.(); cleared = true; }
+    };
+    const { promise: gate, resolve: settle } = Promise.withResolvers<{ state: string; reason: string }>();
+    handleLoop.mockImplementation(({ command, deps }) => {
+      if (command === "stop") return { state: "aborted", reason: "operator stop" };
+      deps.onProgress({ state: "building", operation: "run-skill", target: "plan.md", label: "building" });
+      deps.onActivity({ kind: "toolStart", tool: "read", target: "important.ts" });
+      return gate;
     });
     const { api, commands } = createMockApi();
     wireBuckLoop(api);
-    const statuses: Array<string | undefined> = [];
-    const widgets: Array<string[] | undefined> = [];
-    const pending = commands.get("buck-loop")!.handler("plan.md", {
-      cwd: "/tmp/repo",
-      ui: {
-        notify: () => undefined,
-        setStatus: (_key, text) => statuses.push(text),
-        setWidget: (_key, content) => widgets.push(content),
-      },
-    });
-
-    expect(statuses.some((text) => text?.includes("Starting plan.md"))).toBe(true);
-    expect(statuses.some((text) => text?.includes("Building phase-1-demo.md"))).toBe(true);
-    expect(widgets.some((content) => content?.join("\n").includes("buck-loop"))).toBe(true);
-
-    settle({ state: "done", reason: "all phases completed" });
-    await pending;
-    expect(statuses.at(-1)).toBeUndefined();
-    expect(widgets.at(-1)).toBeUndefined();
+    const ctx = { cwd: "/tmp/repo", ui: { notify() {}, setWidget } };
+    const handler = commands.get("buck-loop")!.handler;
+    const pending = handler("plan.md", ctx);
+    try {
+      expect(component!.render(80).join("\\n")).toContain("important.ts");
+      await handler("--profile compact", ctx);
+      expect(component!.render(44).join("\\n")).not.toContain("important.ts");
+      await handler("--profile verbose", ctx);
+      expect(component!.render(80).join("\\n")).toContain("important.ts");
+      expect(handleLoop).toHaveBeenCalledTimes(1);
+      await handler("--stop", ctx);
+      expect(cleared).toBe(true);
+      expect(component!.render(80)).toEqual([]);
+    } finally {
+      settle({ state: "aborted", reason: "operator stop" });
+      await pending;
+      repaint.mockRestore();
+    }
   });
 
   it("drains nested activity to JSONL before the supervisor settles", async () => {
@@ -179,34 +189,6 @@ describe("wireBuckLoop", () => {
     }
   });
 
-  it("renders the newest six nested activity rows", async () => {
-    handleLoop.mockImplementation(async (opts: { deps?: { onActivity?: (event: ActivityEvent) => void } }) => {
-      for (let index = 0; index < 10; index += 1) {
-        opts.deps?.onActivity?.({ kind: "toolStart", tool: "tool-" + index, target: index === 9 ? "x".repeat(100) : undefined });
-      }
-      opts.deps?.onActivity?.({ kind: "complete", ok: true, message: "agent finished" });
-      return { state: "done", reason: "all phases completed" };
-    });
-    const { api, commands } = createMockApi();
-    wireBuckLoop(api);
-    const widgets: Array<string[] | undefined> = [];
-
-    await commands.get("buck-loop")!.handler("plan.md", {
-      cwd: "/tmp/repo",
-      ui: {
-        notify: () => undefined,
-        setStatus: () => undefined,
-        setWidget: (_key, content) => widgets.push(content),
-      },
-    });
-
-    const viewport = widgets.find((lines) => lines?.some((line) => line.includes("tool-9")));
-    expect(viewport?.slice(1)).toHaveLength(6);
-    expect(viewport?.slice(1).every((line) => line.length <= 64)).toBe(true);
-    expect(viewport?.join(" ")).not.toContain("tool-0");
-    expect(viewport?.join(" ")).toContain("tool-9");
-    expect(viewport?.join(" ")).toContain("…");
-  });
 
   it("returns structured nested-call failures to the parent agent", async () => {
     const failure = {

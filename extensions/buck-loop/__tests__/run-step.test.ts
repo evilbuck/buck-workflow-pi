@@ -39,6 +39,7 @@ function arrange(text = "worker result") {
   const session = {
     prompt: vi.fn().mockResolvedValue(undefined),
     messages: [{ role: "assistant", content: text }] as Array<{ role: string; content: string; stopReason?: string }>,
+    getContextUsage: vi.fn<() => PiCodingAgent.ContextUsage | undefined>(() => undefined),
     subscribe: vi.fn((next: (event: unknown) => void) => { listener = next; return unsubscribe; }),
     emit: (event: unknown) => listener?.(event),
     abort: vi.fn().mockResolvedValue(undefined),
@@ -68,6 +69,27 @@ afterEach(() => {
   delete process.env.SQL_MEMORY_URL;
 });
 describe("runStep", () => {
+  it("samples current child context through compaction and unavailable usage", async () => {
+    const child = arrange();
+    let usage: PiCodingAgent.ContextUsage | undefined = { tokens: 42000, contextWindow: 200000, percent: 21 };
+    child.getContextUsage.mockImplementation(() => usage);
+    const observed: Array<PiCodingAgent.ContextUsage | undefined> = [];
+    child.prompt.mockImplementation(async () => {
+      usage = { tokens: 60000, contextWindow: 200000, percent: 30 };
+      child.emit({ type: "message_update" });
+      usage = { tokens: null, contextWindow: 200000, percent: null };
+      child.emit({ type: "auto_compaction_end" });
+      usage = undefined;
+      child.emit({ type: "message_update" });
+    });
+    await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md", onContextUsage: value => observed.push(value) });
+    expect(observed).toEqual([
+      { tokens: 42000, contextWindow: 200000, percent: 21 },
+      { tokens: 60000, contextWindow: 200000, percent: 30 },
+      { tokens: null, contextWindow: 200000, percent: null },
+      undefined,
+    ]);
+  });
   it("leads with the canonical skill contract and names the exact phase path", async () => { const fake = arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: ".context/example/phase-2.md" }); const prompt = fake.prompt.mock.calls[0][0] as string; expect(prompt.startsWith("---")).toBe(true); expect(prompt).toContain("# b-build: Implementation Agent with TDD"); expect(prompt).toContain(".context/example/phase-2.md"); expect(prompt).toContain("stage only files you created or modified"); expect(prompt).toContain("no authority to choose the next loop state"); });
   it("creates isolated sessions with the build tool allowlist", async () => { arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ disableExtensionDiscovery: true, restrictToolNames: true, enableMCP: false, enableLsp: false, modelPattern: "provider/picked", thinkingLevel: "medium", tools: ["read", "edit", "write", "grep", "bash"], toolNames: ["read", "edit", "write", "grep", "bash"] })); });
   it.each([["b-review", ["read", "edit", "write", "grep", "find", "ls", "bash"]], ["b-docs", ["read", "edit", "write", "grep", "bash"]], ["b-howto", ["read", "edit", "write", "grep", "bash"]], ["b-commit", ["read", "bash"]]] as const)("uses the least-privilege allowlist for %s", async (skill, tools) => { arrange(); await runStep({ select: selectOnce(), cwd: tmp(), skill, planOrPhasePath: "plan.md" }); expect(createAgentSessionMock).toHaveBeenCalledWith(expect.objectContaining({ tools, toolNames: tools, modelPattern: "provider/picked" })); });

@@ -13,6 +13,7 @@ steps, then **Eat** — the check that it worked.
 6. [Recover a blocked /buck-loop run](recover-buck-loop.md)
 7. [Recall project memories from the SQL store](recall-project-memories.md)
 8. [Resume /buck-loop after a supervisor repair](resume-buck-loop-after-repair.md)
+9. [Change /buck-loop activity density](change-buck-loop-density.md)
 
 ## Why
 

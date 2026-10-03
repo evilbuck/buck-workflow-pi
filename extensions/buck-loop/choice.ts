@@ -1,19 +1,19 @@
 /**
- * Closed-set choice: ask Jev for **one** legal continuation, then the
- * configured `choice` stage model if Jev fails.
+ * Closed-set choice: return a sole legal continuation locally; otherwise
+ * ask Jev, then the configured `choice` stage model if Jev fails.
  *
  * This is not a coding session. Neither caller can edit files or invent an
- * action. `block` is stripped before either call. Machine stops stay in
+ * action. `block` is stripped before selection. Machine stops stay in
  * `machine.ts`; the model does not vote to halt.
  *
- * The choice-stage model is resolved before the continuation question.
- * A missing profile, stage, or candidate blocks and names the stage.
- * The tool-less fallback uses that picked id and thinking level. It does
- * not resolve the `smol` role or the host model. A failed fallback call
- * excludes that id before the next attempt. Illegal text is not a failed
- * model call. Two attempts, then the loop blocks. Never default-advance.
+ * Multiple continuations require a configured choice-stage model before
+ * the continuation question. A missing profile, stage, or candidate blocks
+ * and names the stage. The tool-less fallback uses the picked id and thinking
+ * level, never the `smol` role or host model. A failed fallback call excludes
+ * that id before the next attempt. Illegal text is not a failed model call.
+ * Two attempts, then the loop blocks. Never invent a default continuation.
  *
- * Every attempt writes `.context/<subject>/transition-audits/<id>.json`.
+ * Every local selection and model attempt writes a transition audit.
  */
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -49,7 +49,7 @@ type JevAttempt = {
   raw: string;
 };
 
-const CONTINUATION_RUBRIC: Record<string, string> = {
+export const CONTINUATION_RUBRIC: Record<string, string> = {
   retry: "Run the same step again",
   advance: "Treat the step as landed and continue",
   iterate: "Run iterate on in-plan issues",
@@ -184,7 +184,7 @@ async function writeAudit(opts: {
   reason: string;
   context?: string;
   attempt: number;
-  source: "jev" | "profile";
+  source: "sole" | "jev" | "profile";
 }): Promise<void> {
   const directory = join(opts.cwd, ".context", opts.subject, "transition-audits");
   await mkdir(directory, { recursive: true });
@@ -202,9 +202,9 @@ async function writeAudit(opts: {
 }
 
 /**
- * Ask Jev, then the configured choice-stage model, to pick a continuation.
- * `block` is never offered. Two profile attempts after a Jev miss, then
- * block. Never default-advance.
+ * Return a sole legal continuation locally; otherwise ask Jev, then the
+ * configured choice-stage model. `block` is never offered. Two profile
+ * attempts after a Jev miss, then block. Never invent a default continuation.
  */
 export async function choose(opts: {
   cwd: string;
@@ -219,6 +219,32 @@ export async function choose(opts: {
   if (offered.length === 0) {
     const reason = opts.legal.length > 0 ? "block is not a model choice." : "No legal choices were supplied.";
     return { status: "blocked", reason };
+  }
+
+  const sole = offered[0];
+  if (offered.length === 1 && sole) {
+    const reason = `Only legal continuation: ${sole.kind}`;
+    try {
+      await writeAudit({
+        cwd: opts.cwd,
+        subject: opts.subject,
+        legal: offered,
+        context: opts.context,
+        raw: "",
+        parsed: { choice: sole.kind, reason },
+        accepted: true,
+        reason,
+        attempt: 1,
+        source: "sole",
+      });
+    } catch (error) {
+      return {
+        status: "blocked",
+        reason: `could not write choice audit: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    opts.onActivity?.({ kind: "text", delta: reason });
+    return { status: "accepted", accepted: { choice: sole, reason } };
   }
 
   const continuation = { continuation: opts.context ?? null };

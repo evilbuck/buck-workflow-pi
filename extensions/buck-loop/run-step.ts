@@ -30,6 +30,7 @@ import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
  *
  * The child is told it has no authority to choose the next loop state.
  */
+import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { createLazyPool } from "../sql-memory/db.js";
 import { sqlMemoryTool } from "../sql-memory/index.js";
@@ -171,6 +172,7 @@ type SessionHandle = {
   prompt: (text: string) => Promise<unknown>;
   abort: () => Promise<unknown> | unknown;
   subscribe: (listener: (event: unknown) => void) => () => void;
+  getContextUsage: () => ContextUsage | undefined;
   dispose?: () => Promise<unknown> | unknown;
   messages: Array<{ role?: string; content?: unknown; stopReason?: unknown }>;
 };
@@ -224,6 +226,8 @@ export async function runStep(opts: {
   /** Supervisor contract for this run, such as a SQL save attempt. Not a repair diagnosis. */
   directive?: string;
   onActivity?: (event: ActivityEvent) => void;
+  onSessionEvent?: (event: unknown, model: string) => void;
+  onContextUsage?: (usage: ContextUsage | undefined) => void;
   /** Live host registry ids. Same source `/buck-models` uses. */
   availableIds?: () => Promise<ReadonlySet<string>>;
   select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
@@ -398,7 +402,7 @@ function planBody(cwd: string, rel: string): string {
 type SessionAttempt = { retain: boolean; blockRetry: boolean; result: RunStepResult };
 
 async function runOneSession(
-  opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void },
+  opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void; onSessionEvent?: (event: unknown, model: string) => void; onContextUsage?: (usage: ContextUsage | undefined) => void },
   prompt: string,
   agent: CallAgent,
   picked: { id: string; thinking: BuckThinking },
@@ -460,6 +464,8 @@ async function runOneSession(
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
+    opts.onSessionEvent?.({ type: "session_start", skill: opts.skill }, picked.id);
+    opts.onContextUsage?.(session.getContextUsage());
     let timedOut = false;
     const resetIdleTimer = (): void => {
       clearTimeout(timer);
@@ -470,6 +476,8 @@ async function runOneSession(
     };
     unsubscribe = session.subscribe((event) => {
       resetIdleTimer();
+      opts.onSessionEvent?.(event, picked.id);
+      opts.onContextUsage?.(session!.getContextUsage());
       const normalized = normalizeActivityEvent(event);
       if (normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && sqlNoticePending) {
         sqlNoticePending = false;

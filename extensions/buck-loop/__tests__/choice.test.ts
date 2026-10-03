@@ -4,7 +4,7 @@
  * `block` is never offered. The smol role is not a model source.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type * as OmpModels from "../../omp-models.js";
 import { cleanupRepos, repo } from "./fixtures.js";
@@ -97,16 +97,34 @@ function smolPrompt(call: unknown): string {
     ]);
   });
 
-  it("audits the rejected Jev attempt when fewer than two continuations are offered", async () => {
+  it("returns the sole permitted continuation without requiring a model", async () => {
     const cwd = repo();
-    runOmpModelSession.mockResolvedValue('{"choice":"save","reason":"only move"}');
+    const selectModel = vi.fn<ChoiceModelSelect>(async () => ({ ok: false, message: "No choice-stage model is configured" }));
 
-    await choose({ ...picked, cwd, subject, legal: [{ kind: "save" }] });
+    await expect(choose({ cwd, subject, legal: [{ kind: "block" }, { kind: "retry" }], selectModel })).resolves.toMatchObject({
+      status: "accepted",
+      accepted: { choice: { kind: "retry" }, reason: expect.any(String) },
+    });
 
+    expect(selectModel).not.toHaveBeenCalled();
     expect(evaluate).not.toHaveBeenCalled();
-    expect(audits(cwd)).toContainEqual(
-      expect.objectContaining({ source: "jev", accepted: false, reason: expect.stringContaining("at least two") }),
-    );
+    expect(runOmpModelSession).not.toHaveBeenCalled();
+    expect(audits(cwd)).toEqual([
+      expect.objectContaining({
+        source: "sole", legal: [{ kind: "retry" }], accepted: true, raw: "",
+        parsed: expect.objectContaining({ choice: "retry" }),
+      }),
+    ]);
+  });
+
+  it("blocks a singleton when its audit cannot be written", async () => {
+    const cwd = repo();
+    mkdirSync(join(cwd, ".context", subject), { recursive: true });
+    writeFileSync(join(cwd, ".context", subject, "transition-audits"), "not a directory");
+
+    await expect(choose({ cwd, subject, legal: [{ kind: "retry" }] })).resolves.toMatchObject({ status: "blocked" });
+    expect(evaluate).not.toHaveBeenCalled();
+    expect(runOmpModelSession).not.toHaveBeenCalled();
   });
 
   it("streams the Jev pick through the supplied sink", async () => {

@@ -1,8 +1,8 @@
 {
-  "attemptId": "4f63711e-137a-4dcf-95c2-1064392cb784",
-  "runId": "7bb4f58a-6865-44b5-91d6-8b7da3588a2e",
-  "subject": "2026-09-30.buck-loop-unphased-closeout",
+  "attemptId": "190ee6c4-6215-4e2e-ad94-73c37ad22245",
+  "runId": "5cbd82ce-dafb-40ba-bfd0-792e08b4aec7",
+  "subject": "2026-09-30.buck-loop-tui-preview",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
   "phase": null,
-  "receiptRel": ".context/2026-09-30.buck-loop-unphased-closeout/sql-memory-receipts/7bb4f58a-6865-44b5-91d6-8b7da3588a2e-4f63711e-137a-4dcf-95c2-1064392cb784.json"
+  "receiptRel": ".context/2026-09-30.buck-loop-tui-preview/sql-memory-receipts/5cbd82ce-dafb-40ba-bfd0-792e08b4aec7-190ee6c4-6215-4e2e-ad94-73c37ad22245.json"
 }
