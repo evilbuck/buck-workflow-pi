@@ -29,18 +29,19 @@ describe("serializeCallError", () => {
     error.cause = { detail: "SQL pool unreachable", code: "ECONNREFUSED" };
     const serialized = serializeCallError(error);
     expect(serialized.name).toBe("ProviderError");
-    expect(serialized.cause).toMatchObject({ detail: "SQL pool unreachable", code: "ECONNREFUSED" });
-    expect(() => JSON.stringify(serialized)).not.toThrow();
     // The whole point: the operator can read the cause instead of seeing
     // the literal string "[object Object]".
-    expect(JSON.stringify(serialized.cause)).toContain("SQL pool unreachable");
+    expect(serialized.cause).toContain("SQL pool unreachable");
+    expect(serialized.cause).toContain("ECONNREFUSED");
+    expect(serialized.cause).not.toContain("[object Object]");
   });
 
-  it("keeps a string cause as a string and recurses into a nested error cause", () => {
+  it("keeps a string cause as a string and renders an Error cause as Name: message", () => {
     expect(serializeCallError(Object.assign(new Error("outer"), { cause: "plain text" })).cause).toBe("plain text");
-    const inner = new Error("inner detail");
-    const error = Object.assign(new Error("outer"), { cause: inner });
-    expect(serializeCallError(error).cause).toMatchObject({ name: "Error", message: "inner detail" });
+    const error = Object.assign(new Error("outer"), { cause: new Error("inner detail") });
+    // JSON.stringify(new Error(...)) is "{}", so an Error cause must not take
+    // the plain-object path.
+    expect(serializeCallError(error).cause).toBe("Error: inner detail");
   });
 
   it("survives a circular cause instead of throwing", () => {
@@ -49,7 +50,15 @@ describe("serializeCallError", () => {
     const error = Object.assign(new Error("cyclic"), { cause });
     const serialized = serializeCallError(error);
     expect(() => JSON.stringify(serialized)).not.toThrow();
-    expect(JSON.stringify(serialized)).toContain("circular");
+    expect(serialized.cause).toContain("circular");
+  });
+
+  it("keeps a Date readable rather than reducing it to an empty object", () => {
+    // Date has its own toString; a structural walk would yield {} and lose it.
+    // Compare against Date's own rendering so the assertion is timezone-safe.
+    const when = new Date(0);
+    const error = Object.assign(new Error("outer"), { when });
+    expect(serializeCallError(error).details?.when).toBe(String(when));
   });
 
   it("carries extra own fields as details", () => {

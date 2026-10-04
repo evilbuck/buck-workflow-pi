@@ -16,8 +16,7 @@ export type SerializedCallError = {
   name: string;
   message: string;
   stack?: string;
-  /** Preserves a structured cause; a bare `[object Object]` tells an operator nothing. */
-  cause?: string | Record<string, unknown>;
+  cause?: string;
   details?: Record<string, unknown>;
 };
 
@@ -51,10 +50,34 @@ export type AgentCallFailure = CallFailureDetails & {
 
 function safeString(value: unknown): string {
   try {
+    // A plain object stringifies to "[object Object]", which discards every
+    // field an operator would need. Date, Map, Set, and class instances keep
+    // their own toString, and an Error keeps "Name: message" rather than "{}".
+    if (isPlainObject(value)) return JSON.stringify(value, jsonSafeReplacer()) ?? "[unprintable value]";
     return String(value);
   } catch {
     return "[unprintable value]";
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === Object.prototype || proto === null;
+}
+
+/** Replace cycles and non-JSON values so a circular cause cannot throw. */
+function jsonSafeReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet<object>();
+  return (_key, value) => {
+    if (value !== null && typeof value === "object") {
+      if (seen.has(value)) return "[circular]";
+      seen.add(value);
+    }
+    if (typeof value === "bigint") return value.toString();
+    if (typeof value === "function") return undefined;
+    return value;
+  };
 }
 
 function serializableDetail(value: unknown): unknown {
@@ -63,25 +86,7 @@ function serializableDetail(value: unknown): unknown {
   }
   if (typeof value === "bigint") return value.toString();
   if (Array.isArray(value)) return value.map(serializableDetail);
-  // A plain object stringifies to "[object Object]", which discards every field
-  // an operator would need. Keep the structure, guarding against cycles.
-  if (value instanceof Error) return { name: value.name, message: value.message, ...(value.cause === undefined ? {} : { cause: serializableDetail(value.cause) }) };
-  if (typeof value === "object") return structuredDetail(value as Record<string, unknown>, new Set());
   return safeString(value);
-}
-
-function structuredDetail(record: Record<string, unknown>, seen: Set<object>): Record<string, unknown> {
-  if (seen.has(record)) return "[circular]";
-  seen.add(record);
-  const out: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(record)) {
-    if (typeof entry === "function") continue;
-    out[key] = entry !== null && typeof entry === "object"
-      ? (Array.isArray(entry) ? entry.map(serializableDetail) : structuredDetail(entry as Record<string, unknown>, seen))
-      : serializableDetail(entry);
-  }
-  seen.delete(record);
-  return out;
 }
 
 /** Flatten any thrown value into {@link SerializedCallError} for JSON. */
@@ -94,7 +99,7 @@ export function serializeCallError(error: unknown): SerializedCallError {
       name: error.name || "Error",
       message: error.message || safeString(error),
       ...(error.stack ? { stack: error.stack } : {}),
-      ...(error.cause !== undefined ? { cause: serializableDetail(error.cause) as SerializedCallError["cause"] } : {}),
+      ...(error.cause !== undefined ? { cause: safeString(error.cause) } : {}),
       ...(Object.keys(details).length > 0 ? { details } : {}),
     };
   }

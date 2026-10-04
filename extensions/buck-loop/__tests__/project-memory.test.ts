@@ -201,21 +201,8 @@ describe("project memory ranking validation", () => {
   ];
 
   beforeEach(() => {
-    cwd = mkdtempSync(join(tmpdir(), "project-memory-"));
-    execFileSync("git", ["init", "-q"], { cwd });
-    git("config", "user.email", "agent@example.test");
-    git("config", "user.name", "Test Agent");
-    writeFileSync(join(cwd, "tracked"), "tracked\n");
-    git("add", "tracked");
-    git("commit", "-qm", "initial");
-    git("remote", "add", "origin", "https://user:secret@example.test/acme/project.git");
-    stage = ".context/phase.md";
-    writeFileSync(join(cwd, "tracked"), "phase search terms\n");
-    query.mockReset();
+    // The file-level beforeEach already built the repo and reset the mocks.
     query.mockResolvedValue({ rows });
-    end.mockReset();
-    end.mockResolvedValue(undefined);
-    runJev.mockReset();
     process.env.SQL_MEMORY_URL = "postgres://unused";
   });
 
@@ -255,9 +242,9 @@ describe("project memory ranking validation", () => {
     await expectShortlistFallback({ details: { answers: { relevant_memory_a: { type: "noul", noul: 0.9 } } } });
   });
 
-  it("keeps every candidate when no score clears the relevance threshold", async () => {
-    // An empty ranking means the judgment was not usable, so the deterministic
-    // shortlist stands rather than being silently narrowed to nothing.
+  it("returns the full shortlist when no score clears the threshold", async () => {
+    // `filterAndResolve` drops everything below 0.7, so an all-below judgment
+    // yields an empty ranking and the caller falls back to the shortlist.
     runJev.mockResolvedValue({ details: { answers: {
       relevant_memory_a: { type: "noul", noul: 0.69 },
       relevant_memory_b: { type: "noul", noul: 0.1 },

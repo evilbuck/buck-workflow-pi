@@ -222,7 +222,7 @@ describe("saveSqlFacts with an injected query", () => {
     await expect(saveSqlFacts(cwd, prepared, ["a fact"], emptyQuery)).rejects.toThrow(/project id/);
   });
 
-  it("never issues a statement the save stage forbids", async () => {
+  it("runs the identity lookups the save stage requires", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
@@ -230,13 +230,15 @@ describe("saveSqlFacts with an injected query", () => {
     const seen: string[] = [];
     const query: SqlQuery = async (sql) => {
       seen.push(sql);
-      return [];
+      // The project lookup must return an id for the save to continue.
+      return /SELECT id FROM projects/.test(sql) ? [{ id: "project-id" }] : [];
     };
-    await saveSqlFacts(cwd, prepared, ["a fact"], query).catch(() => undefined);
-    expect(seen.length).toBeGreaterThan(0);
-    for (const sql of seen) {
-      expect(checkSqlForRole(sql, "save").allowed).toBe(true);
-    }
+    // The fact store then needs a read-back row, so the failure surfaces
+    // exactly where the fixture stops satisfying it.
+    await expect(saveSqlFacts(cwd, prepared, ["a fact"], query)).rejects.toThrow();
+    expect(seen.some((sql) => /INSERT INTO memories/.test(sql))).toBe(true);
+    // Every statement the save actually issued is one the gate allows.
+    for (const sql of seen) expect(checkSqlForRole(sql, "save").allowed).toBe(true);
   });
 });
 

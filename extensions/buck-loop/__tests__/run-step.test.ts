@@ -595,12 +595,15 @@ describe("runStep prompt shaping and model exhaustion", () => {
   });
 
   it("stops when the picker repeats a model that already failed", async () => {
-    arrange();
+    const fake = arrange();
+    // First host call fails, so the id enters the exclusion list. The picker
+    // then returns the same id again, which must stop rather than loop.
+    fake.prompt.mockRejectedValueOnce(new Error("host call failed"));
     const select = vi.fn(async () => ({ ok: true as const, id: "provider/same", thinking: "low" as const }));
     const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
-    // The session succeeds, so the loop keeps the first result rather than
-    // spinning on a repeated pick.
-    expect(select).toHaveBeenCalledTimes(1);
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.text).toContain('repeated failed model "provider/same"');
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
   });
 });

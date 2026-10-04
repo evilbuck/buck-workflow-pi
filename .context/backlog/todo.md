@@ -7,6 +7,16 @@
 - [ ] [Replace modelRoles YAML parser with omp Settings API](items/settings-api-model-roles.md) — medium; hard dep on @oh-my-pi fork, async resolution, legacy `.pi` mapping retired — see `.context/2026-09-19.settings-api-model-roles/plan-settings-api-model-roles.md`
 
 - [ ] [Report `/buck-models` write failures in the command UI](items/buck-models-write-error-feedback.md) — medium; out-of-plan Phase 5 review warning
+
+## Verified bugs found while raising buck-loop coverage (2026-10-03)
+
+Each item was reproduced by direct execution, not inferred. Found during the
+`extensions/buck-loop/` 75%-per-file coverage pass; none is fixed by that work.
+
+- [ ] [repairCheckedPhase rewrites a body status line outside the frontmatter](items/buck-loop-repair-checked-phase-escapes-frontmatter.md) — medium; whole-document regex, and `completed_at` receives a full ISO timestamp from `resolveAmbiguity`
+- [ ] [formatRecall's "no relevant candidates" branch is unreachable](items/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented
+- [ ] [serializeCallError emits an empty message for a nameless, messageless Error](items/serialize-call-error-empty-message.md) — low; intentionally untested pending a product decision
+- [ ] [initialLabel does not narrow the profile command, so index.ts fails tsc](items/buck-loop-index-initial-label-narrowing.md) — low; pre-existing typing gap, runtime-safe
 - [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
 
 ## Postgres Agent Memory Phases (2026-09-28)
@@ -77,6 +87,8 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 - [ ] [Phase 3: b-phase Integration and Proof](items/phase-3-b-phase-integration-and-proof.md) — medium, `/b-build` — [phase-3-b-phase-integration-and-proof.md](../2026-09-21.jev-tool/phase-3-b-phase-integration-and-proof.md)
 - [ ] [Fix buck-loop context-free choice stalls](items/buck-loop-contextless-choice-stall.md) — high; original incident first in [combined Phase 1](../2026-09-16.decision-closure/phase-1-chooser-stall.md); broader typed-review/recovery scope remains separate
 - [ ] [Fix buck-loop save/commit checkpoint handoff](items/buck-loop-save-commit-handoff.md) — high; verified save receipts reported as SqlMemoryError + commit guard blocking phase deliverables — see `.context/2026-09-30.buck-loop-save-commit-handoff/plan-save-commit-handoff.md`
+- [ ] [Preserve buck-loop commit checkpoint identity](items/buck-loop-commit-phase-identity.md) — high; retain the phase across failed commits and restarts; no next-phase work before a verified commit
+- [ ] [Fix buck-loop SQL-save receipt subject mismatch](items/buck-loop-save-receipt-subject.md) — high; `saveDirective()` omits `subject`, so `sameAttempt()` rejects a receipt the child verified and the save postcondition stays ambiguous — observed 2026-10-02 blocking the stacked-cards run at `saving → blocked`
 - [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
 - [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
@@ -195,3 +207,16 @@ Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (
 - [ ] [Make b-commit the final Buck workflow step](items/b-commit-final-step.md)
 - [ ] [Make Buck execution loops loop-agnostic](items/loop-agnostic-execution-loops.md) — remove Ralph-specific instructions from generated mini-cycles
 - [ ] [Locate Pi coding-agent runtime source in clean worktrees](items/pi-runtime-source-clean-worktree.md) — medium priority
+
+## Viability Cleanup Phases (2026-10-01)
+
+Overview: [`plan-viability-cleanup-phases.md`](../2026-10-01.skill-command-viability/plan-viability-cleanup-phases.md).
+HARD chain: 1 → 2 → 3 → 4. X1–X3 are not phased.
+
+- [ ] [Phase 1: OMP stubs to docs](items/phase-1-omp-stubs.md) — medium, `/b-build` — [phase-1-omp-stubs.md](../2026-10-01.skill-command-viability/phase-1-omp-stubs.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Fold duplicates — medium, `/b-build` — [phase-2-fold-duplicates.md](../2026-10-01.skill-command-viability/phase-2-fold-duplicates.md)
+- [ ] Phase 3: Delete the grill shell — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md)
+- [ ] Phase 4: Move out of the package — medium, `/b-build` — [phase-4-move-out.md](../2026-10-01.skill-command-viability/phase-4-move-out.md)

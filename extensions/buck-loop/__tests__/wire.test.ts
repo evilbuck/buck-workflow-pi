@@ -102,13 +102,15 @@ describe("wireBuckLoop", () => {
     expect(spec.getArgumentCompletions("--nope")).toEqual([]);
   });
 
-  it("treats a missing or declining confirm dialog as no, and never hangs", async () => {
-    const { api, commands } = createMockApi();
+  it("treats a missing, declining, or throwing confirm dialog as no", async () => {
+    const { api, commands, sendMessage } = createMockApi();
     wireBuckLoop(api);
     const handler = commands.get("buck-loop")!.handler;
-    // Drive the deps the host builds, so the confirm seam is the one under test.
+    // Record the answer rather than asserting inside the mock: executeCommand
+    // catches anything thrown here and turns it into a supervisor failure.
+    const answers: boolean[] = [];
     handleLoop.mockImplementation(async ({ deps }) => {
-      expect(await deps.confirmContinue("stop reason")).toBe(false);
+      answers.push(await deps.confirmContinue("stop reason"));
       return { state: "idle", reason: "no projection" };
     });
 
@@ -119,11 +121,12 @@ describe("wireBuckLoop", () => {
     await handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm: declined } as never });
     expect(declined).toHaveBeenCalled();
 
-    // A dialog that throws is also a no, not a crash.
     const threw = vi.fn(async () => { throw new Error("dialog failed"); });
-    await expect(
-      handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm: threw } as never }),
-    ).resolves.toBeUndefined();
+    await handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm: threw } as never });
+
+    expect(answers).toEqual([false, false, false]);
+    // A refused dialog must not surface as a supervisor failure to the parent.
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 
   it("names the dirty paths and the overflow count in the confirmation body", async () => {

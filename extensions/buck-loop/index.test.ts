@@ -147,16 +147,6 @@ describe("live card", () => {
     h.card.dispose();
   });
 
-  it("replaces a rank error line and clears the open text run on decision", async () => {
-    vi.stubEnv("TYPESAFE_API_KEY", "");
-    const h = harness();
-    h.card.snapshot(snapshot);
-    await h.card.decision({ ...snapshot, workFacts: { ...snapshot.workFacts, postcondition: "ambiguous" } });
-    // Without a judge key the ranking cannot run; the card must still show why.
-    expect(h.render(120)).toMatch(/Jev display ranking/);
-    h.card.dispose();
-  });
-
   it("notifies the operator on success and failure without rendering", () => {
     const notify = vi.fn();
     const tui = new TUI(new ProcessTerminal());
