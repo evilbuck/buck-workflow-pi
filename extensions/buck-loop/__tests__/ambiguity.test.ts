@@ -4,10 +4,12 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runJev } from "../../jev-tool/index.js";
 import {
+  acceptanceCriteria,
   askRepairLift,
   closeSingleUnfinishedIterate,
   diagnoseAmbiguity,
   explainAmbiguity,
+  repairCheckedPhase,
   unfinishedIterateReport,
   unfinishedIterates,
 } from "../ambiguity.js";
@@ -168,6 +170,56 @@ describe("ambiguity diagnosis for an iterating miss", () => {
       "iterate-b.md": "---\nstatus: below-waterline\n---\n# iterate\n",
     });
     expect(unfinishedIterateReport(dir)).toBe("no unfinished iterate artifact");
+  });
+});
+
+describe("repairCheckedPhase", () => {
+  it("marks a fully checked phase completed and stamps completed_at once", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const abs = join(dir, "phase.md");
+    writeFileSync(abs, "---\nstatus: in-progress\nacceptance_criteria:\n  - \"[x] a\"\n  - \"[x] b\"\n---\n");
+    expect(repairCheckedPhase(abs, "2026-10-03")).toBe(true);
+    const text = readFileSync(abs, "utf8");
+    expect(text).toMatch(/^status: completed$/m);
+    expect(text).toMatch(/^completed_at: 2026-10-03$/m);
+    // Already completed: nothing left to repair.
+    expect(repairCheckedPhase(abs, "2026-10-04")).toBe(false);
+  });
+
+  it("refuses when a box is unchecked, the list is empty, or the key is absent", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const open = join(dir, "open.md");
+    const empty = join(dir, "empty.md");
+    const none = join(dir, "none.md");
+    const noFront = join(dir, "no-front.md");
+    writeFileSync(open, "---\nstatus: active\nacceptance_criteria:\n  - \"[x] a\"\n  - \"[ ] b\"\n---\n");
+    writeFileSync(empty, "---\nstatus: active\nacceptance_criteria: []\n---\n");
+    writeFileSync(none, "---\nstatus: active\n---\n");
+    writeFileSync(noFront, "# no frontmatter\n");
+    for (const abs of [open, empty, none, noFront]) {
+      expect(repairCheckedPhase(abs, "2026-10-03")).toBe(false);
+    }
+  });
+});
+
+describe("acceptanceCriteria parsing", () => {
+  it("returns nothing for a file with no frontmatter or no key", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const plain = join(dir, "plain.md");
+    const noKey = join(dir, "nokey.md");
+    writeFileSync(plain, "# plain\n");
+    writeFileSync(noKey, "---\nstatus: active\n---\n");
+    expect(acceptanceCriteria(plain)).toEqual([]);
+    expect(acceptanceCriteria(noKey)).toEqual([]);
+  });
+
+  it("stops at the first unindented line and unquotes items", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const abs = join(dir, "p.md");
+    // `status` sits at column 0 after the list, so the walk must stop there
+    // rather than treating it as another criterion.
+    writeFileSync(abs, "---\nacceptance_criteria:\n  - \"[x] one\"\n  - '[x] two'\nstatus: active\n---\n");
+    expect(acceptanceCriteria(abs)).toEqual(["[x] one", "[x] two"]);
   });
 });
 

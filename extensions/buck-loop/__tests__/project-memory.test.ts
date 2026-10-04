@@ -193,3 +193,79 @@ describe("project memory recall", () => {
     expect(query.mock.calls[0]?.[1]?.[0]).toBe(git("rev-parse", "--path-format=absolute", "--git-common-dir"));
   });
 });
+
+describe("project memory ranking validation", () => {
+  const rows = [
+    { id: "memory-a", body: "first", category: "decision", project: "origin", branch_name: "one", commit_sha: "a".repeat(40) },
+    { id: "memory-b", body: "second", category: "pitfall", project: "origin", branch_name: "two", commit_sha: "b".repeat(40) },
+  ];
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "project-memory-"));
+    execFileSync("git", ["init", "-q"], { cwd });
+    git("config", "user.email", "agent@example.test");
+    git("config", "user.name", "Test Agent");
+    writeFileSync(join(cwd, "tracked"), "tracked\n");
+    git("add", "tracked");
+    git("commit", "-qm", "initial");
+    git("remote", "add", "origin", "https://user:secret@example.test/acme/project.git");
+    stage = ".context/phase.md";
+    writeFileSync(join(cwd, "tracked"), "phase search terms\n");
+    query.mockReset();
+    query.mockResolvedValue({ rows });
+    end.mockReset();
+    end.mockResolvedValue(undefined);
+    runJev.mockReset();
+    process.env.SQL_MEMORY_URL = "postgres://unused";
+  });
+
+  /** A malformed judgment must fall back to the deterministic shortlist, never crash. */
+  async function expectShortlistFallback(runJevResult: unknown): Promise<void> {
+    runJev.mockResolvedValue(runJevResult);
+    const result = await recallProjectMemories(cwd, stage);
+    expect(result.kind).toBe("success-rows");
+    if (result.kind === "success-rows") {
+      expect(result.rows.map((row) => row.id).sort()).toEqual(["memory-a", "memory-b"]);
+    }
+  }
+
+  it("falls back when the judgment carries no answers object", async () => {
+    await expectShortlistFallback({ details: {} });
+  });
+
+  it("falls back when an answer is not a noul", async () => {
+    await expectShortlistFallback({ details: { answers: {
+      relevant_memory_a: { type: "choice", choice: "yes" },
+      relevant_memory_b: { type: "noul", noul: 0.9 },
+    } } });
+  });
+
+  it("falls back when a noul score is not a finite number", async () => {
+    await expectShortlistFallback({ details: { answers: {
+      relevant_memory_a: { type: "noul", noul: "high" },
+      relevant_memory_b: { type: "noul", noul: 0.9 },
+    } } });
+    await expectShortlistFallback({ details: { answers: {
+      relevant_memory_a: { type: "noul", noul: Number.NaN },
+      relevant_memory_b: { type: "noul", noul: 0.9 },
+    } } });
+  });
+
+  it("falls back when the judgment does not cover every candidate", async () => {
+    await expectShortlistFallback({ details: { answers: { relevant_memory_a: { type: "noul", noul: 0.9 } } } });
+  });
+
+  it("keeps every candidate when no score clears the relevance threshold", async () => {
+    // An empty ranking means the judgment was not usable, so the deterministic
+    // shortlist stands rather than being silently narrowed to nothing.
+    runJev.mockResolvedValue({ details: { answers: {
+      relevant_memory_a: { type: "noul", noul: 0.69 },
+      relevant_memory_b: { type: "noul", noul: 0.1 },
+    } } });
+    const result = await recallProjectMemories(cwd, stage);
+    expect(result.kind).toBe("success-rows");
+    if (result.kind === "success-rows") {
+      expect(result.rows.map((row) => row.id).sort()).toEqual(["memory-a", "memory-b"]);
+    }
+  });
+});

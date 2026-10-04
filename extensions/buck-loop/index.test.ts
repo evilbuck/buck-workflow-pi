@@ -120,4 +120,63 @@ describe("live card", () => {
     expect(parseArgs("--profile dense").ok).toBe(false);
     expect(parseArgs("--profile compact --resume").ok).toBe(false);
   });
+
+  it("renders every activity event kind, with and without a target or message", () => {
+    const h = harness();
+    h.card.setProfile("verbose");
+    h.card.snapshot(snapshot);
+    h.card.ingest({ kind: "text", delta: "first line " });
+    // A second text delta must join the open line rather than start a new one.
+    h.card.ingest({ kind: "text", delta: "continued" });
+    h.card.ingest({ kind: "toolStart", tool: "read", target: "file.ts" });
+    h.card.ingest({ kind: "toolStart", tool: "grep" });
+    h.card.ingest({ kind: "toolEnd", tool: "read", ok: true, message: "ok" });
+    h.card.ingest({ kind: "toolEnd", tool: "grep", ok: false });
+    h.card.ingest({ kind: "retry", message: "transient" });
+    h.card.ingest({ kind: "complete", ok: true });
+    h.card.ingest({ kind: "complete", ok: false, message: "blocked" });
+    const rendered = h.render(120);
+    expect(rendered).toContain("first line continued");
+    expect(rendered).toContain("▸ read → file.ts");
+    expect(rendered).toContain("▸ grep");
+    expect(rendered).toContain("✓ read: ok");
+    expect(rendered).toContain("✗ grep");
+    expect(rendered).toContain("↻ retry: transient");
+    expect(rendered).toContain("✓ buck-loop");
+    expect(rendered).toContain("✗ buck-loop: blocked");
+    h.card.dispose();
+  });
+
+  it("replaces a rank error line and clears the open text run on decision", async () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "");
+    const h = harness();
+    h.card.snapshot(snapshot);
+    await h.card.decision({ ...snapshot, workFacts: { ...snapshot.workFacts, postcondition: "ambiguous" } });
+    // Without a judge key the ranking cannot run; the card must still show why.
+    expect(h.render(120)).toMatch(/Jev display ranking/);
+    h.card.dispose();
+  });
+
+  it("notifies the operator on success and failure without rendering", () => {
+    const notify = vi.fn();
+    const tui = new TUI(new ProcessTerminal());
+    vi.spyOn(tui, "requestRender").mockImplementation(() => {});
+    const card = createActivityCard({ setWidget: () => {}, notify }, "standard");
+    card.succeed("finished");
+    card.fail("blocked");
+    expect(notify).toHaveBeenCalledWith("buck-loop: finished", "info");
+    expect(notify).toHaveBeenCalledWith("buck-loop: blocked", "warning");
+    card.dispose();
+    // Disposal is idempotent: a second call must not re-notify the host.
+    expect(() => card.dispose()).not.toThrow();
+  });
+
+  it("tolerates a session event that is not an object", () => {
+    const h = harness();
+    h.card.session(null, "some/model");
+    h.card.session("not-an-object", "other/model");
+    h.card.session({ type: "session_start" }, "third/model");
+    expect(h.render(120)).toContain("third/model");
+    h.card.dispose();
+  });
 });

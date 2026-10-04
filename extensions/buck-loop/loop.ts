@@ -514,9 +514,11 @@ function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): bool
  * mechanically, so the run reaches review instead of a heavy-lift handoff the
  * operator cannot act on. Narrow on purpose: the helper refuses anything it
  * cannot rewrite safely, and the caller keeps the normal diagnosis path.
+ * Only called when the postcondition is ambiguous, which implies an ok
+ * session, so no separate outcome guard is needed.
  */
 function closeFinishedIterate(cwd: string, snapshot: Snapshot, deps: LoopDeps): boolean {
-  if (!snapshot.subject || snapshot.workFacts.sessionOutcome !== "ok") return false;
+  if (!snapshot.subject) return false;
   return closeSingleUnfinishedIterate(join(cwd, ".context", snapshot.subject), deps.now());
 }
 
@@ -529,9 +531,6 @@ async function resolveAmbiguity(
   sessionText: string,
 ): Promise<EffectResult> {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-  if (snapshot.state === "iterating" && closeFinishedIterate(cwd, snapshot, deps)) {
-    return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
-  }
   if (abs && repairCheckedPhase(abs, deps.now())) {
     return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
   }

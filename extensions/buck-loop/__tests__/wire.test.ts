@@ -86,6 +86,67 @@ describe("wireBuckLoop", () => {
     expect([...commands.keys()]).toEqual(["buck-loop"]);
   });
 
+  it("completes only the flags that match the typed prefix", () => {
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const spec = commands.get("buck-loop")! as unknown as {
+      getArgumentCompletions: (prefix: string) => Array<{ value: string; label: string }>;
+    };
+    expect(spec.getArgumentCompletions("").map((c) => c.value)).toEqual([
+      "--resume", "--status", "--stop", "--profile compact", "--profile standard", "--profile verbose",
+    ]);
+    expect(spec.getArgumentCompletions("--pro").map((c) => c.value)).toEqual([
+      "--profile compact", "--profile standard", "--profile verbose",
+    ]);
+    expect(spec.getArgumentCompletions("--st").map((c) => c.value)).toEqual(["--status", "--stop"]);
+    expect(spec.getArgumentCompletions("--nope")).toEqual([]);
+  });
+
+  it("treats a missing or declining confirm dialog as no, and never hangs", async () => {
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const handler = commands.get("buck-loop")!.handler;
+    // Drive the deps the host builds, so the confirm seam is the one under test.
+    handleLoop.mockImplementation(async ({ deps }) => {
+      expect(await deps.confirmContinue("stop reason")).toBe(false);
+      return { state: "idle", reason: "no projection" };
+    });
+
+    // No `confirm` on the host UI at all: the loop must proceed as if declined.
+    await handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {} } });
+
+    const declined = vi.fn(async () => false);
+    await handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm: declined } as never });
+    expect(declined).toHaveBeenCalled();
+
+    // A dialog that throws is also a no, not a crash.
+    const threw = vi.fn(async () => { throw new Error("dialog failed"); });
+    await expect(
+      handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm: threw } as never }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("names the dirty paths and the overflow count in the confirmation body", async () => {
+    const { api, commands } = createMockApi();
+    wireBuckLoop(api);
+    const handler = commands.get("buck-loop")!.handler;
+    const confirm = vi.fn(async () => false);
+    handleLoop.mockImplementation(async ({ deps }) => {
+      await deps.confirmDirty([...Array.from({ length: 15 }, (_, i) => `dirty-${i}.ts`)]);
+      await deps.confirmContinue("would stop for a reason");
+      return { state: "idle", reason: "done" };
+    });
+    await handler("plan.md", { cwd: "/tmp/repo", ui: { notify() {}, confirm } as never });
+    const [dirtyTitle, dirtyBody] = confirm.mock.calls[0] as [string, string];
+    expect(dirtyTitle).toContain("dirty");
+    expect(dirtyBody).toContain("15 change(s)");
+    expect(dirtyBody).toContain("dirty-0.ts");
+    expect(dirtyBody).toContain("and 3 more");
+    const [, continueBody] = confirm.mock.calls[1] as [string, string];
+    expect(continueBody).toContain("would stop for a reason");
+    expect(continueBody).toContain("Continue anyway?");
+  });
+
   it("delegates start/resume/status/stop to the supervisor", async () => {
     handleLoop.mockResolvedValue({ state: "idle", reason: "no projection" });
     const { api, commands } = createMockApi();

@@ -138,11 +138,15 @@ After an ok iterating session, if exactly one unfinished iterate artifact remain
 
 **Three deviations from the plan, all forced by evidence.**
 
-1. The close is applied in `executeSkill()` via `closeIterateAfterSession()`, not only in `resolveAmbiguity()`: a used retry or an exhausted limit never reaches the ambiguity choice, so a close placed only there would miss exactly the incident runs. That extraction also keeps `executeSkill()` inside the complexity ceiling, which a required guardrails gate enforced.
+1. The close is applied in `executeSkill()` via `closeIterateAfterSession()`, not in `resolveAmbiguity()`: a used retry or an exhausted limit never reaches the ambiguity choice, so a close placed only there would miss exactly the incident runs. That extraction also keeps `executeSkill()` inside the complexity ceiling, which a required guardrails gate enforced.
 2. The iterate artifacts are supplied to the lift judge itself through `AmbiguityEvidence.iterateReport` (built by `iterateEvidence()` in the production `classifyRepair`), not appended in `stopForOperator`. Appending after Jev answered left the original failure mode intact: Jev's lift question and the light/medium retry handoff never named the artifacts.
 3. `productionClassifyRepair` is exported so a test can drive the real diagnosis. A test fake that re-implements the wiring proves nothing about the wiring.
 
-**Both close call sites are load-bearing.** Mutation-checked by disabling each in turn: removing the `executeSkill` close turns `closes after a retry that bypasses the ambiguity choice` and `leaves two unfinished artifacts untouched` red; removing the `resolveAmbiguity` close turns the latter red. Neither site is dead code. The close is byte-exact — a whole-file comparison confirms one opening and one closing delimiter, the body unchanged, and only `status`/`completed`/`updated` rewritten.
+**Only one close call site is load-bearing; the second was dead and has been removed.** The `executeSkill` close is proven: disabling it turns `closes after a retry that bypasses the ambiguity choice` red. The former `resolveAmbiguity` close was *not* proven, and the earlier claim in this file was wrong. Re-running the mutation from a clean green baseline (78 passed) with only that call site deleted changed nothing — 78 passed, 0 red. An earlier mutation run appeared to show it mattered, but that run was invalid: the test was already failing for an unrelated reason, so the removal could not have been observed.
+
+It is unreachable by construction. A snapshot reaches `resolveAmbiguity` from `executeSkill`, which already applied the close; if that close succeeded the postcondition is no longer ambiguous and the machine emits no `choose`. The resume argument does not rescue it: `persist.ts` `Projection` has no `workFacts` field at all, so no stale `ok`+`ambiguous` snapshot can be persisted, and `reconcile()` rebuilds `workFacts` from a live `scan()` that returns `pending` for any non-`ok` outcome. The call site was deleted; the full suite still passes.
+
+The close is byte-exact — a whole-file comparison confirms one opening and one closing delimiter, the body unchanged, and only `status`/`completed`/`updated` rewritten.
 
 **Smoke requires `SQL_MEMORY_URL` unset.** It is set in this shell, so `sqlMode()` would take the SQL path. Run as `env -u SQL_MEMORY_URL bun <smoke>`; the run then reaches `done` via `b-build > b-review > b-iterate > b-review > b-save > b-commit`.
 

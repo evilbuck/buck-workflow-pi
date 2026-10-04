@@ -551,3 +551,56 @@ describe("runStep", () => {
     if (choice.ok) expect(["zai/glm-5.3-flash", "openai-codex/gpt-5.6-terra"]).toContain(choice.id);
   });
 });
+
+describe("runStep prompt shaping and model exhaustion", () => {
+  it("marks the hard variant and appends a handoff diagnosis", async () => {
+    const fake = arrange();
+    await runStep({
+      select: selectOnce(),
+      cwd: tmp(),
+      skill: "b-build-hard",
+      planOrPhasePath: "plan.md",
+      handoff: "SQL retrieval is not implemented.",
+    });
+    const prompt = fake.prompt.mock.calls[0][0] as string;
+    expect(prompt).toContain("hard variant of b-build");
+    expect(prompt).toContain("The previous attempt left this assignment incomplete");
+    expect(prompt).toContain("SQL retrieval is not implemented.");
+  });
+
+  it("carries a supervisor directive into the child prompt", async () => {
+    const fake = arrange();
+    await runStep({
+      select: selectOnce(),
+      cwd: tmp(),
+      skill: "b-save",
+      planOrPhasePath: "plan.md",
+      directive: "SQL save attempt. attemptId: abc",
+    });
+    const prompt = fake.prompt.mock.calls[0][0] as string;
+    expect(prompt).toContain("Supervisor directive:");
+    expect(prompt).toContain("attemptId: abc");
+  });
+
+  it("stops with the stage named when no model can be selected", async () => {
+    arrange();
+    const result = await runStep({
+      select: async () => ({ ok: false as const, message: "no models configured" }),
+      cwd: tmp(),
+      skill: "b-review",
+      planOrPhasePath: "plan.md",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.text).toContain('stage "review"');
+  });
+
+  it("stops when the picker repeats a model that already failed", async () => {
+    arrange();
+    const select = vi.fn(async () => ({ ok: true as const, id: "provider/same", thinking: "low" as const }));
+    const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+    // The session succeeds, so the loop keeps the first result rather than
+    // spinning on a repeated pick.
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(result.ok).toBe(true);
+  });
+});
