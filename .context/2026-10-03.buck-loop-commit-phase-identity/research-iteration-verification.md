@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-10-03
 subject: 2026-10-03.buck-loop-commit-phase-identity
 domains: [runtime, testing, docs]
@@ -12,7 +12,7 @@ informs: [plan-commit-phase-identity.md]
 
 ## Disposition
 
-Runtime fixes and focused verification are implemented in `/tmp/buck-loop-commit-phase-identity` on `fix/buck-loop-commit-phase-identity`. Closeout remains blocked by two untouched SQL test failures. The iteration stays active; no commit, save receipt, production resume, or next supervisor state was selected.
+Historical 2026-10-03 runtime/focused verification in `/tmp/buck-loop-commit-phase-identity` on `fix/buck-loop-commit-phase-identity`. Its gate blockers were resolved by the 2026-10-04 rebase onto assignment base cca1691, without SQL edits. The stopped-checkpoint defect from the subsequent review is fixed and the iteration is completed; see `research-stop-checkpoint-iteration.md` for current verification and staging ownership. No commit, save receipt, production resume, or next supervisor state was selected.
 
 ## Files amended in the repair worktree
 
@@ -35,12 +35,12 @@ Existing staged `types.ts`, `machine.ts`, `scan.ts`, and machine/scan test edits
 - Authoritative guardrails: required complexity passes with **no new violations and no hard-ceiling violations**. Required unit/global-ratchet fail; coverage command exits 1, so coverage is **unknown**, not a measured regression. Lint and functional gates are disabled/skipped; patch is advisory. No contract thresholds, baselines, ignores, or enforcement states were changed.
 - Actual OMP UI was not exercised. Fresh Bun processes exercise the public supervisor seam; a fresh OMP process is still required before loading these imported extension changes in production.
 
-## Remaining external gate blockers
+## Historical external gate blockers (resolved by rebase)
 
 1. `extensions/buck-loop/__tests__/sql-save.test.ts:91`: expects `subject:` in `saveDirective`; the repair base's unchanged `sql-save.ts` omits it. The supplied plan explicitly excludes SQL save directive/protocol changes and this checkout must not absorb the incident checkout's separate SQL-save repair.
 2. `extensions/sql-memory/index.test.ts:267`: correction reuse returns `{ id, notice }`; the untouched test expects exactly `{ id }`. This unrelated SQL-memory surface is outside the declared repair scope.
 
-No unrelated test was deleted or repinned to turn the gate green. The supervisor must resolve these independently or supply explicit authority for the affected work/required-gate override. Re-review against this same plan remains required; b-save/b-commit are not authorized by this iteration result.
+These failures were historical observations on the previous base. The 2026-10-04 iteration rebased onto cca1691 and freshly passed npm test and required guardrails without editing either SQL surface. No unrelated test was deleted or repinned. Re-review against this same plan remains required; the nested supervisor owns b-save/b-commit.
 
 ## Abandoned approaches
 
