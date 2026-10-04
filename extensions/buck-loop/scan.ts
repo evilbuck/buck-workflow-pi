@@ -346,10 +346,23 @@ function scanReviewFacts(subjectDir: string, activePhase: number | null): Review
   };
 }
 
+/**
+ * `iterate-*.md` artifacts in a subject folder. The single source of truth for
+ * "is this iteration still open": the postcondition, the supervisor close, and
+ * the ambiguity diagnosis all read this list, so they cannot disagree.
+ */
+export function iterateArtifacts(subjectDir: string): string[] {
+  return listNames(subjectDir)
+    .filter((name) => /^iterate-.*\.md$/.test(name))
+    .map((name) => join(subjectDir, name))
+    .sort();
+}
+
 function hasIterate(subjectDir: string): boolean {
-  return listNames(subjectDir).some(
-    (name) => /^iterate-.*\.md$/.test(name) && readStatus(join(subjectDir, name)) !== "completed",
-  );
+  return iterateArtifacts(subjectDir).some((abs) => {
+    const status = readStatus(abs);
+    return status !== "completed" && status !== "below-waterline";
+  });
 }
 
 function findReviewReport(subjectDir: string): string | null {
@@ -567,7 +580,8 @@ function porcelainPath(line: string): string | null {
   return path.replace(/^"|"$/g, "") || null;
 }
 
-function readStatus(abs: string): string | null {
+/** Frontmatter `status`, or `null` when absent or unparseable. */
+export function readStatus(abs: string): string | null {
   return readFrontmatter(abs).status ?? null;
 }
 

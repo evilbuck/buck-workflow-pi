@@ -8,9 +8,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop, prepareCommitCheckpoint } from "../loop.js";
+import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
+const judge = vi.mocked(runJev);
 import { readProjection, writeProjection } from "../persist.js";
 import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../../skills/_shared/scripts/subject-lifecycle.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
@@ -1454,6 +1455,205 @@ describe("configured SQL memory recall contract", () => {
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/SQL save|SQL memory/i);
     expect(deps.runStep).toHaveBeenCalled();
+  });
+});
+
+describe("single unfinished iterate artifact closeout", () => {
+  const TODAY = NOW.slice(0, 10);
+  const ITERATE_BODY = "---\n\n# Iteration: demo\n\n- Critical: fix the seam\n";
+
+  function iteratePath(cwd: string, name = "iterate-x.md"): string {
+    return join(cwd, `.context/${SUBJECT}/${name}`);
+  }
+
+  /** Review writes an artifact the iterate child leaves `active` — the incident shape. */
+  function writeIterate(cwd: string, name = "iterate-x.md", front = "---\nstatus: active\ncompleted: null\n"): string {
+    writeTree(cwd, { [`.context/${SUBJECT}/${name}`]: `${front}${ITERATE_BODY}` });
+    return iteratePath(cwd, name);
+  }
+
+  it("closes the artifact after a completed phase and reviews the result", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied the fix" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    const text = readFileSync(iteratePath(cwd), "utf8");
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(text).toMatch(/^status: completed$/m);
+    expect(text).toMatch(new RegExp(`^completed: ${TODAY}$`, "m"));
+    expect(text).toMatch(new RegExp(`^updated: ${TODAY}$`, "m"));
+    expect(text).not.toContain("completed: null");
+    expect(text).toContain("- Critical: fix the seam");
+    expect(text.endsWith(ITERATE_BODY)).toBe(true);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills.lastIndexOf("b-iterate")).toBeLessThan(skills.lastIndexOf("b-review"));
+    expect(result.state).toBe("done");
+  });
+
+  it("closes the artifact for an unphased open plan without touching the plan", async () => {
+    const cwd = repo();
+    // The open box lives under a body `## Acceptance criteria` heading, which is
+    // what `planAcceptanceCriteria` reads; the plan must stay open for this
+    // fixture to be meaningful.
+    const planBody = "---\nstatus: active\n---\n# Plan\n\n## Acceptance criteria\n- [ ] ship the closeout\n";
+    writeTree(cwd, { [PLAN]: planBody });
+    const planText = readFileSync(join(cwd, PLAN), "utf8");
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      // The shared build fake would mark an unphased plan completed; that would
+      // hide whether the close, not the harness, is what leaves the plan alone.
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "built" };
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd), "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(planText);
+    expect(readFileSync(join(cwd, PLAN), "utf8")).toMatch(/^status: active$/m);
+  });
+
+  it("leaves two unfinished artifacts untouched and names both in the diagnosis", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const first = writeIterate(cwd, "iterate-a.md", "---\nstatus: active\n");
+    const second = writeIterate(cwd, "iterate-b.md", "---\nstatus: in-progress\n");
+    const before = [readFileSync(first, "utf8"), readFileSync(second, "utf8")];
+    const landing = landingWork();
+    // No `classifyRepair` override: the production default runs, with Jev
+    // mocked to answer "heavy". The assertion then covers the shipped
+    // diagnosis, not a hardcoded string from a fake.
+    judge.mockResolvedValueOnce({ raw: "", details: { answers: { lift: { type: "choice", choice: "heavy", confidence: 0.9 } } } });
+    const deps = workDeps(
+      async (opts) => (opts.skill === "b-iterate" ? { ok: true, text: "handled" } : landing({ ...opts, difficulty: "standard" })),
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, classifyRepair: productionClassifyRepair } });
+    expect(judge).toHaveBeenCalled();
+    expect(readFileSync(first, "utf8")).toBe(before[0]);
+    expect(readFileSync(second, "utf8")).toBe(before[1]);
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("iterate-a.md (status active)");
+    expect(result.reason).toContain("iterate-b.md (status in-progress)");
+  });
+
+  it("does not close after a failed iterate session", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const abs = writeIterate(cwd);
+    const before = readFileSync(abs, "utf8");
+    let iterates = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-iterate") {
+        iterates += 1;
+        return { ok: false, text: `iterate-fail-${iterates}` };
+      }
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(readFileSync(abs, "utf8")).toBe(before);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/failed again after one retry/i);
+  });
+
+  it("closes after an ok retry too, leaving loop and iterate counters alone", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    let iterates = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-iterate") {
+        iterates += 1;
+        return { ok: iterates > 1, text: iterates > 1 ? "applied" : "transient" };
+      }
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    const projection = readProjection(cwd);
+    expect(iterates).toBe(2);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd), "utf8")).toMatch(/^status: completed$/m);
+    // The retry stayed inside one iterate cycle: the close and the retry must
+    // not each consume a crossing of the same edge.
+    const crossings = (projection?.history ?? []).filter((entry) => entry.to === "iterating" && entry.from !== "iterating");
+    expect(crossings).toHaveLength(1);
+    expect(projection?.loopCount).toBe(1);
+  });
+
+  it("closes after a retry that bypasses the ambiguity choice", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    // Two artifacts make the first ok session ambiguous, so the machine opens
+    // the retry/advance choice instead of routing straight to review. The retry
+    // child finishes one artifact, leaving exactly one active: the only place
+    // that can close it is the successful-iterate path, because a used retry
+    // never reaches the ambiguity choice again.
+    const first = writeIterate(cwd, "iterate-a.md");
+    const second = writeIterate(cwd, "iterate-b.md");
+    const landing = landingWork();
+    let iterates = 0;
+    const classifyRepair = vi.fn(async () => ({ lift: "light" as const, reason: "same assignment", diagnosis: "finish the second artifact" }));
+    const deps = workDeps(
+      async (opts) => {
+        if (opts.skill === "b-iterate") {
+          iterates += 1;
+          if (iterates === 1) return { ok: true, text: "held both open" };
+          writeTree(cwd, { [`.context/${SUBJECT}/iterate-a.md`]: "---\nstatus: completed\ncompleted: 2026-09-18\n---\n# Iteration: demo\n" });
+          return { ok: true, text: "closed the first" };
+        }
+        return landing({ ...opts, difficulty: "standard" });
+      },
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      classifyRepair,
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(classifyRepair).toHaveBeenCalledTimes(1);
+    expect(iterates).toBe(2);
+    expect(readFileSync(first, "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(second, "utf8")).toMatch(/^status: completed$/m);
+    expect(deps.classifyRepair).toHaveBeenCalledTimes(1);
+    expect(result.state).toBe("done");
+  });
+
+  it("closes the new artifact a later review writes, leaving the earlier one alone", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    let reviews = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        reviews += 1;
+        if (reviews === 1) writeIterate(cwd);
+        if (reviews === 2) writeIterate(cwd, "iterate-y.md");
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("done");
+    expect(reviews).toBe(3);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd, "iterate-x.md"), "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(iteratePath(cwd, "iterate-y.md"), "utf8")).toMatch(/^status: completed$/m);
   });
 });
 

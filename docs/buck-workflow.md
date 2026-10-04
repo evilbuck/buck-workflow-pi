@@ -151,14 +151,21 @@ for the decision log.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
 - **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+
 - **Ambiguous postconditions are diagnosed, then lifted.** A phase whose acceptance boxes are all
   checked but whose status is not completed is marked complete by the supervisor.
-  Otherwise the supervisor diagnoses the child report and disk gap, then asks Jev
-  to classify that diagnosis as a light, medium, or heavy lift. Light and medium
-  lifts continue automatically once, with the diagnosis handed to the next skill
-  run. A heavy lift, or a lift call that does not return a legal class, is told
-  to the operator with the diagnosis, phase status, unchecked criteria, and
-  execution checkpoint. Missing credentials or a disposable database are heavy.
+  An ok iterate session that leaves exactly one `status: active` `iterate-*.md` gets
+  the same treatment: the supervisor closes that one artifact and reviews the work.
+  `completed` and `below-waterline` artifacts are finished, not unfinished. Two
+  unfinished artifacts, a malformed one, or any failed close are left untouched.
+  Every remaining miss is diagnosed from the child report and the disk gap — an
+  iterating miss names each unfinished artifact and its status, not just the phase
+  status — and Jev classifies that diagnosis as a light, medium, or heavy lift.
+  Light and medium lifts continue automatically once, with the diagnosis handed
+  to the next skill run. A heavy lift, or a lift call that does not return a legal
+  class, is told to the operator with the diagnosis, phase status, unchecked
+  criteria, and execution checkpoint. Missing credentials or a disposable database
+  are heavy.
   A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
   until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
 - **Blocked resume preserves a completed phase's review.** If a build or iterate

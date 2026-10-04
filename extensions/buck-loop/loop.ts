@@ -31,11 +31,13 @@ import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
   askRepairLift,
   changedLoopExtensionFiles,
+  closeSingleUnfinishedIterate,
   diagnoseAmbiguity,
   explainAmbiguity,
   loopExtensionFiles,
   phaseAbs,
   repairCheckedPhase,
+  unfinishedIterateReport,
   type RepairPlan,
 } from "./ambiguity.js";
 import type { ActivityEvent } from "../extension-activity.js";
@@ -157,6 +159,19 @@ type EffectResult = {
   sessionText?: string;
 };
 
+/**
+ * The production lift judgment. Exported so a test can drive the real
+ * diagnosis instead of restating it — a fake that re-implements the wiring
+ * proves nothing about the wiring.
+ */
+export const productionClassifyRepair: LoopDeps["classifyRepair"] = async ({ cwd, snapshot, why, sessionText }) => {
+  const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
+  const diagnosis = diagnoseAmbiguity({ abs, sessionText, why, ...iterateEvidence(cwd, snapshot) });
+  return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
+    cwd, subject: snapshot.subject ?? "unknown",
+  });
+};
+
 const DEFAULT_DEPS: LoopDeps = {
   runStep: defaultRunStep,
   choose: defaultChoose,
@@ -167,14 +182,18 @@ const DEFAULT_DEPS: LoopDeps = {
   onWarning: () => undefined,
   confirmDirty: async () => false,
   confirmContinue: async () => false,
-  classifyRepair: async ({ cwd, snapshot, why, sessionText }) => {
-    const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-    const diagnosis = diagnoseAmbiguity({ abs, sessionText, why });
-    return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
-      cwd, subject: snapshot.subject ?? "unknown",
-    });
-  },
+  classifyRepair: productionClassifyRepair,
 };
+
+/**
+ * An iterating miss is caused by iterate artifacts, not by a phase status.
+ * Feed them to the lift judge itself, so a light/medium retry handoff and a
+ * heavy operator stop name the same files.
+ */
+function iterateEvidence(cwd: string, snapshot: Snapshot): { iterateReport?: string } {
+  if (snapshot.state !== "iterating" || !snapshot.subject) return {};
+  return { iterateReport: unfinishedIterateReport(join(cwd, ".context", snapshot.subject)) };
+}
 
 /**
  * Entry point used by `index.ts`.
@@ -490,6 +509,17 @@ function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): bool
     && legal.some((choice) => choice.kind === "advance");
 }
 
+/**
+ * An ok iterate session that left exactly one artifact `active` is closed
+ * mechanically, so the run reaches review instead of a heavy-lift handoff the
+ * operator cannot act on. Narrow on purpose: the helper refuses anything it
+ * cannot rewrite safely, and the caller keeps the normal diagnosis path.
+ */
+function closeFinishedIterate(cwd: string, snapshot: Snapshot, deps: LoopDeps): boolean {
+  if (!snapshot.subject || snapshot.workFacts.sessionOutcome !== "ok") return false;
+  return closeSingleUnfinishedIterate(join(cwd, ".context", snapshot.subject), deps.now());
+}
+
 async function resolveAmbiguity(
   cwd: string,
   snapshot: Snapshot,
@@ -499,6 +529,9 @@ async function resolveAmbiguity(
   sessionText: string,
 ): Promise<EffectResult> {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
+  if (snapshot.state === "iterating" && closeFinishedIterate(cwd, snapshot, deps)) {
+    return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
+  }
   if (abs && repairCheckedPhase(abs, deps.now())) {
     return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
   }
@@ -537,6 +570,7 @@ function stopForOperator(
   abs: string | null,
   deps: LoopDeps,
 ): EffectResult {
+  // The diagnosis already names the iterate artifacts for an iterating miss.
   const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
   const reason = `heavy lift: ${plan.reason}. ${plan.diagnosis} ${disk}`;
   deps.onWarning(reason);
@@ -701,13 +735,45 @@ async function executeSkill(
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
-  syncCheckedPhasesAt(cwd, planOrPhasePath, deps.now().slice(0, 10));
+  return finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
+    planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
+  }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+}
+
+/** Rescan after a nested session, closing a single finished iterate artifact first. */
+function scanLandedWork(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  deps: LoopDeps,
+  work: { planOrPhasePath: string; skill: WorkSkill; ok: boolean; retriesUsed: number; sqlSaveVerified: boolean },
+): Snapshot {
+  syncCheckedPhasesAt(cwd, work.planOrPhasePath, deps.now().slice(0, 10));
   const scanned = rescan(cwd, snapshot, path, {
-    sessionOutcome: result.ok ? "ok" : "failed",
-    retriesUsed,
-    sqlSaveVerified: saveCheck.status === "verified",
+    sessionOutcome: work.ok ? "ok" : "failed",
+    retriesUsed: work.retriesUsed,
+    sqlSaveVerified: work.sqlSaveVerified,
   });
-  return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+  return closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps) ?? scanned;
+}
+
+/**
+ * Close the artifact here, not only in the ambiguity choice: a used retry or an
+ * exhausted limit bypasses `resolveAmbiguity`, and the session already reported
+ * ok. Review stays the next permitted work effect. Returns `null` when there is
+ * nothing to close, so the caller keeps the original scan.
+ */
+function closeIterateAfterSession(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  scanned: Snapshot,
+  skill: WorkSkill,
+  deps: LoopDeps,
+): Snapshot | null {
+  if (skill !== "iterate" || scanned.workFacts.postcondition !== "ambiguous") return null;
+  if (!closeFinishedIterate(cwd, scanned, deps)) return null;
+  return rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
 }
 
 async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {

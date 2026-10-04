@@ -1,0 +1,719 @@
+{
+  "status": "completed",
+  "date": "2026-10-03",
+  "subject": "2026-10-03.buck-loop-iterate-closeout",
+  "baseline": {
+    "branch": "chore/cleanup-skills",
+    "head": "b184c34ae00a686ac7410321b226951e24f6c30e"
+  },
+  "sectionRequest": {
+    "model": "jev-latest",
+    "state": {
+      "task": "Pre-implementation review, not code changes. Judge all 14 sections independently; preserve native bounded judgments and keep recommendations human-authored.",
+      "sections": [
+        {
+          "title": "User Goal",
+          "text": "An operator running `/buck-loop` is not stopped by a heavy-lift handoff when the iterate session finished and the only miss is one `iterate-*.md` left `active`."
+        },
+        {
+          "title": "Goal",
+          "text": "After an ok iterating session, if exactly one unfinished iterate artifact remains, the supervisor marks it completed and advances to review without asking Jev. Every other ambiguous miss is diagnosed from the artifact the scanner actually required. A phase or plan that is already `completed` is never reported as `not completed`."
+        },
+        {
+          "title": "Context used / assumptions",
+          "text": "- User-provided context: two blocked runs on 2026-10-03, both `iterating → blocked` after `sessionOutcome=ok`, `retriesUsed=0`, `postcondition=ambiguous`, with Jev classifying the repair heavy.\n- Session context: the ranking run's phase file was already `status: completed` with every acceptance box checked. The commit-phase-identity run is unphased, `phasePath` null, plan `status: active`, and all ten boxes open. Both iterate artifacts were still `status: active` / `completed: null`. The children left them active on purpose, citing supervisor re-review or out-of-scope gates.\n- Code: `POSTCONDITION.iterating` confirms only when `hasIterate()` is false (`extensions/buck-loop/scan.ts`). `hasIterate()` ignores `completed` and `below-waterline`. `resolveAmbiguity()` (`extensions/buck-loop/loop.ts`) may rewrite a fully checked phase via `repairCheckedPhase()`, then asks Jev. `explainAmbiguity()` always appends `, not completed`, even when the inspected file is already completed.\n- Skill clash: `skills/b-iterate/SKILL.md` says an active artifact stays blocking until review passes, and also says completion must set `status: completed` before yield. `skills/b-review/SKILL.md` tells an execution session the artifact is not done until review and save. Children followed the stay-active sentence.\n- Docs: `docs/buck-workflow.md` says every ambiguity that is not a fully checked phase goes to Jev, and the operator message includes phase status.\n- Recalled decision `01a1025d-c2a2-74cf-baa8-f6f4f9a1e853` (2026-10-03, `feat/review-severity-ranking`): an active `iterate-*.md` forces iterating; below-waterline findings must not remain in an active iterate file. This plan keeps that force. It does not change the waterline.\n- Recalled recovery note `01a0fce8-dfed-7605-8a1e-15570c9b2469` is a different save-receipt defect. Do not fold it in.\n- Buck capability: full. Probe source: system available-skills catalog. Sentinels `b-build`, `b-review`, and `b-save` resolved. This plan is not phased: the close and the diagnosis are one cutover.\n- OMP execution recommendation: none. The path `skills/b-review/SKILL.md` contains the word review, but this is not a cross-cutting audit and must not fan out as `workflow`."
+        },
+        {
+          "title": "Decision Closure",
+          "text": "**Selected course:** reuse the existing `repairCheckedPhase()` pattern. Before `classifyRepair()`, an ok iterating snapshot with exactly one unfinished iterate file is closed by the supervisor and rescanned. Jev is not called. Zero unfinished files already confirm. Two or more are not closed; the diagnosis names those files and their statuses. `explainAmbiguity()` stops claiming `not completed` when status is already completed. Building, saving, committing, and reviewing postconditions stay as they are.\n\n**Evidence:** both incident projections, both iterate files, `scan.ts` `POSTCONDITION.iterating`, `loop.ts` `resolveAmbiguity()`, and `ambiguity.ts` `explainAmbiguity()`. The ranking phase was done; the unphased plan was not. The shared miss was the active iterate file.\n\n**Excluded scope:** ranking waterline, commit-phase identity, SQL save-directive subject omission, hand-editing either blocked projection, and changing `hasIterate()` so an active file no longer forces iterating.\n\n**Next bounded action:** implement the close and the diagnosis together in a clean worktree, then prove both incident shapes with `handleLoop` fixtures."
+        },
+        {
+          "title": "Assumptions Ledger",
+          "text": "| id | statement | status | blocking | evidence / validation_path |\n|---|---|---|---|---|\n| A-1 | Both stops were caused by one unfinished iterate file, not by a missing phase completion. | validated | false | Ranking phase is `completed` with all boxes checked. Commit-phase-identity has no phase path. Both iterate files are `status: active`. |\n| A-2 | Closing that file and entering review does not hide unfinished in-plan work. | validated | false | Review remains the next state. An active iterate file written by that review still forces iterating. Prove with a `handleLoop` fixture that the next effect after the close is review, and that a newly written active iterate file routes back to iterating. |\n| A-3 | `repairCheckedPhase()` cannot clear an iterating miss. | validated | false | It rewrites phase or plan status only when every box is checked, and it returns false when status is already completed or any box is open. The iterating predicate ignores that status. |\n| A-4 | A process already running `/buck-loop` keeps the old supervisor until OMP restarts. | validated | false | `stopForExtensionRestart()` and `docs/howto/resume-buck-loop-after-repair.md`. This plan does not resume either live run. |"
+        },
+        {
+          "title": "Material Risks",
+          "text": "| failure_mode | impact | mitigation | rollback_or_fallback | validation_path |\n|---|---|---|---|---|\n| Supervisor closes an iterate file the child did not finish | The loop reviews incomplete work and may save it | Close only after `sessionOutcome=ok` and only when exactly one unfinished file exists. Do not skip review. | Revert the close helper. A later review can write a new iterate file; the operator can set that file back to `active` and resume. | `handleLoop` fixture: close does not run on a failed iterate session; the following state is reviewing, not saving. |\n| Two unfinished iterate files are both closed | A second unaddressed finding disappears | Count with the same predicate as `hasIterate()`. Count other than 1 returns false and closes nothing. | Leave both files active and block with their paths in the diagnosis. | Unit fixture with two `status: active` iterate files asserts neither file changes and `classifyRepair` can still run. |\n| Diagnosis still blames a completed phase | Jev repeats the false heavy lift | Iterating diagnosis names the iterate file. `explainAmbiguity()` emits `not completed` only when status is not completed. | Operator reads the iterate file status directly. The building pending-phase heavy-lift test remains the regression for the old wording. | `ambiguity.test.ts` covers `status: completed` and an active iterate file. Existing loop test still expects `phase status is pending, not completed`. |\n| Fix lands in the dirty ranking worktree | Ranking and this supervisor repair share one commit | Implement from a clean branch. Carry only this subject folder. Do not adopt `feat/review-severity-ranking` index entries. | Reset the mixed commit and reapply on the clean branch. | `git diff --name-only` against the clean base contains this plan's `files:` and this subject folder, not `ranking.ts`. |"
+        },
+        {
+          "title": "Scope",
+          "text": "- Supervisor close of exactly one unfinished `iterate-*.md` after an ok iterating session, before `classifyRepair()`.\n- Rescan with `sessionOutcome: \"ok\"` and `retriesUsed: 0`, matching `repairCheckedPhase()`.\n- State-aware diagnosis for an iterating miss that is not closed.\n- `explainAmbiguity()` no longer appends `, not completed` when the inspected status is already `completed`.\n- `b-iterate` and the `b-review` iterate template stop telling the child to leave the artifact active until review or save.\n- One sentence in `docs/buck-workflow.md` for the new mechanical close."
+        },
+        {
+          "title": "Out of scope",
+          "text": "- Do not change `POSTCONDITION` for building, documenting, saving, committing, or reviewing.\n- Do not treat below-waterline iterate files as unfinished, and do not write `below-waterline` from this repair.\n- Do not ask Jev whether to close the single file.\n- Do not hand-edit `.context/workflow/buck-loop.json` in this worktree or in `/home/buckleyrobinson/projects/development_tools/buck-workflow-pi`.\n- Do not implement review-severity ranking or commit-phase identity.\n- Do not change `saveDirective()`, SQL receipts, or the two failing SQL tests reported by the commit-phase-identity child.\n- Do not phase this plan. Splitting the close from the diagnosis leaves the false heavy lift in place."
+        },
+        {
+          "title": "Affected files",
+          "text": "| Path | Change |\n|---|---|\n| `extensions/buck-loop/ambiguity.ts` | Add the single-file close. Fix `explainAmbiguity()`. Add an iterating diagnosis that names unfinished iterate files. |\n| `extensions/buck-loop/loop.ts` | Call the close from `resolveAmbiguity()` before `repairCheckedPhase()` and `classifyRepair()` when state is `iterating` and the session is ok. Pass the iterate-file diagnosis into any remaining lift. |\n| `extensions/buck-loop/__tests__/ambiguity.test.ts` | Completed status is not described as `not completed`. Iterating diagnosis names the active file. |\n| `extensions/buck-loop/__tests__/loop.test.ts` | Public `handleLoop` coverage for one file, two files, and a failed session. Keep the existing pending-phase heavy-lift assertion. |\n| `skills/b-iterate/SKILL.md` | Completion closes the artifact before yield. Review is the next supervisor step, not a reason to leave `status: active`. |\n| `skills/b-review/SKILL.md` | Template no longer says the artifact stays open until review and save. |\n| `docs/buck-workflow.md` | Document the one-file iterate close next to the checked-phase close. |"
+        },
+        {
+          "title": "Implementation steps",
+          "text": "1. Add `closeSingleUnfinishedIterate(subjectDir, at)` beside `repairCheckedPhase()`. List `iterate-*.md` whose status is neither `completed` nor `below-waterline`, using that same predicate as `hasIterate()`. Return false unless the count is exactly one. On that file, set `status: completed`, `completed: YYYY-MM-DD`, and `updated: YYYY-MM-DD` from `at`. Do not check acceptance boxes. Do not create a second frontmatter parser; follow the existing rewrite in `repairCheckedPhase()`.\n2. In `resolveAmbiguity()`, when `snapshot.state === \"iterating\"` and `sessionOutcome === \"ok\"`, call that helper before `repairCheckedPhase()`. On true, rescan with `{ sessionOutcome: \"ok\", retriesUsed: 0 }` and return. Do not call `classifyRepair()`.\n3. When the helper returns false, build the lift diagnosis from the unfinished iterate files and their statuses. Do not send only the phase or plan status. `explainAmbiguity()` may still report unchecked phase boxes for a building miss, but if status is `completed` it must not say `not completed`.\n4. Replace the stay-active sentence in `skills/b-iterate/SKILL.md` line 19. Keep the completion rules at lines 51 and 58–60, and state that an active file after yield is a failed iterating postcondition. In `skills/b-review/SKILL.md`, change the execution-session sentence so `b-iterate` completes the artifact before the supervisor re-reviews.\n5. Add the mechanical-close sentence to the ambiguous-postcondition bullet in `docs/buck-workflow.md`. Leave the checked-phase sentence and the heavy-lift handoff for every other miss.\n6. Prove both incident shapes through `handleLoop` with the real scanner and machine. Do not mock `scan` or `next`."
+        },
+        {
+          "title": "Acceptance criteria",
+          "text": "- [ ] AC-1: An ok iterating session that leaves exactly one `status: active` iterate file does not call `classifyRepair()`. The file becomes `status: completed` with `completed` and `updated` set to the supervisor date, and the next effect is review.\n- [ ] AC-2: The same close happens for an unphased plan whose status is still `active` and whose acceptance boxes are open. Plan status and boxes are unchanged.\n- [ ] AC-3: A failed iterating session does not close the iterate file and does not ask Jev to repair a phase status.\n- [ ] AC-4: Two unfinished iterate files are left unchanged. The diagnosis names both paths and statuses. Neither is closed.\n- [ ] AC-5: A `below-waterline` iterate file is not a close target. A completed iterate file still confirms the iterating postcondition without a lift.\n- [ ] AC-6: `explainAmbiguity()` on `status: completed` does not contain `not completed`. The existing building fixture still reports `phase status is pending, not completed` and its unchecked box.\n- [ ] AC-7: `b-iterate` no longer says an active artifact stays blocking until review passes. The review template no longer tells the iterate child to wait for review and save before completing the file.\n- [ ] AC-8: Focused ambiguity and loop tests pass. Required guardrails gates pass. No ranking or SQL-save source is part of the diff."
+        },
+        {
+          "title": "Verification",
+          "text": "```bash\nnpx vitest run extensions/buck-loop/__tests__/ambiguity.test.ts extensions/buck-loop/__tests__/loop.test.ts\nnpm run guardrails:check\n```\n\nThe loop fixture must construct the two incident shapes: a completed phase plus one active iterate file, and an unphased active plan plus one active iterate file. Assert `classifyRepair` is not called and the following skill is review. A second fixture with two active iterate files asserts zero frontmatter writes.\n\nExpected guardrails contract: unit, global ratchet, and complexity required; patch advisory; lint and functional disabled. Do not lower the coverage baseline or complexity ceiling. Fresh diagnostics on the touched TypeScript files must be clean."
+        },
+        {
+          "title": "Execution Instructions",
+          "text": "This is one non-phased repair. Implement it on a clean branch, not on top of the `feat/review-severity-ranking` index.\n\n1. Carry this subject folder into that clean branch. Do not adopt ranking, commit-phase-identity, or unrelated dirty files.\n2. Run `/b-build-hard` against this plan.\n3. Run `/b-review` against this plan.\n4. If review creates an `iterate-*.md` for an in-plan defect, run `/b-iterate`, complete that artifact, and re-run `/b-review`. Out-of-plan findings go to a separate `/b-plan`. If review flags documentation impact beyond the sentence in this plan, run `/b-docs` before `/b-save`.\n5. Run `/b-save`, then `/b-commit`.\n6. Restart OMP before the fixed supervisor can affect a live loop. `/reload` does not reload imported extension modules.\n7. The two already-blocked runs are not edited by this implementation. After restart, resume each only if the operator wants that work to continue. Resume currently fabricates a confirmed postcondition and enters review; a still-active iterate file sends that review back to iterating, where the new close applies. Setting those two files to `completed` before resume skips that extra iterate cycle. It is optional and outside this commit."
+        },
+        {
+          "title": "Risks",
+          "text": "- A child that reports ok without applying the fixes gets a review instead of another iterate cycle. That is the selected tradeoff. Review is the checker.\n- The loaded OMP process will not pick up `loop.ts` until restart. Shipping the patch without restart does not unstick a running supervisor."
+        }
+      ],
+      "evidence": [
+        {
+          "source": "User clarification",
+          "fact": "Incident occurred in ../review-ranking.wt. User copied the plan here to the main plugin directory to fix directly. Review targets current main plugin; do not require a separate clean branch or adopt unrelated ranking implementation."
+        },
+        {
+          "source": "Current checkout b184c34; scan.ts:349-352",
+          "fact": "hasIterate treats every iterate-*.md whose parsed status is not completed as unfinished. It DOES NOT ignore below-waterline. Ranking incident checkout scan.ts:349-354 DOES ignore both completed and below-waterline; its phase-1 artifact lists this as implemented. Thus the copied plan assumes a scanner contract not present at intended fix target."
+        },
+        {
+          "source": "ambiguity.ts:41-59; loop.ts:493-515",
+          "fact": "repairCheckedPhase acts only on a nonempty fully-checked frontmatter acceptance_criteria list; it returns false for already completed status. Current explainAmbiguity always says phase status is <status>, not completed. Actual smoke emitted phase status is completed, not completed. resolveAmbiguity tries phase/plan repair then native lift classification."
+        },
+        {
+          "source": "loop.ts:463-490; machine.ts:66-75,147-155,272-276; actual smoke",
+          "fact": "resolveAmbiguity is reachable only through choose with retry and advance legal. An ok iterating session at retriesUsed=0 under loop limits enters choose. At retriesUsed=1 it blocks before resolveAmbiguity. At loopCount=maxLoops it also blocks before resolveAmbiguity. Therefore placing close only in resolveAmbiguity does not cover every ok iterating session. Do not bypass limits to force review."
+        },
+        {
+          "source": "scan.ts:574-590; ambiguity.ts:40-49",
+          "fact": "Scanner parses frontmatter into status strings, returning no status on missing/malformed/unreadable frontmatter. Such iterate files still count unfinished. Existing repairCheckedPhase mutates using whole-file regexes; if missing status it can write no effective status change and still return true. Proposed helper needs explicit bounded valid-frontmatter rewrite, confirmed changed status, preserved body, and fail-closed behavior, not a blind regex transplant."
+        },
+        {
+          "source": "machine.ts:272-300; actual scan/next smoke",
+          "fact": "Completed iterate artifact makes iterating postcondition confirmed; next effect is review. A review leaving a new active iterate artifact routes back to iteration. These facts support mandatory re-review as the safety gate. A successful session return alone is not evidence that code fixes or required checks succeeded."
+        },
+        {
+          "source": "Incident ranking iterate artifact:1-9,50-67; phase-1:1-31",
+          "fact": "Ranking iterate artifact active/completed:null while phase completed with every box checked. Artifact records all three assigned fixes verified, but keeps active for supervisor re-review/save and notes an unrelated required SQL-save check failure. This corroborates artifact lifecycle clash, not a guarantee all required gates pass."
+        },
+        {
+          "source": "Main copied commit-phase-identity iterate artifact:81-98",
+          "fact": "Artifact still active after detailed in-plan implementation evidence; reports required npm/guardrails failures in two untouched SQL surfaces. Those reported failures were NOT rerun. Repairing artifact status may allow re-review but must not override or conceal required gate failures."
+        },
+        {
+          "source": "skills/b-iterate/SKILL.md:15,19,51-74; skills/b-review/SKILL.md:413-449; run-step.ts:188-198",
+          "fact": "b-iterate line19 says active until review passes, while lines51/58-61 require completion before closeout. Line74 additionally says do not yield until review passes and save recorded durable state. Review template line449 uses same completion/review/save blend. Nested run-step explicitly gives child only assigned work and supervisor owns next state. Proposed line19/template edits leave b-iterate line74 conflicting unless standalone-vs-supervised behavior is clarified."
+        },
+        {
+          "source": "scripts/codex-plugin.test.ts:8-16,34,41,102-114",
+          "fact": "Both b-iterate and b-review exist as physical curated canonical copies in plugins/buck-workflow/skills; test enforces byte-for-byte parity. Plan affected files and files frontmatter omit both copies; changing only canonical files violates packaging contract."
+        },
+        {
+          "source": "persist.ts:159-216; machine.ts:82-85,331-340; loop.ts:354-367",
+          "fact": "Resume synthesizes confirmed work only when preserving a completed projected phase after scan selects another phase. This shortcut requires phasePath non-null. Unphased blocked projection with open plan normally resumes with pending work, USER_CONFIRMED goes to resolving, then building—not necessarily directly review. Plan execution step7 generalizes the phased shortcut to both incident shapes incorrectly."
+        },
+        {
+          "source": "Plan A-2 and AC-1..8; proposed verification",
+          "fact": "A-2 claims validated while helper does not exist and calls for a future integration fixture. Acceptance tests cover failed and multiple files, but no explicit ok-after-retry, exhausted-limit, invalid-frontmatter/failed-write, or review rejecting fixes then recreating active artifact criterion. Two active files are intentionally not auto-closed; plan still allows Jev light/medium retry, so they are not guaranteed to block."
+        },
+        {
+          "source": "guardrails.json:3-16,19",
+          "fact": "Plan correctly states unit/global ratchet/complexity required, patch advisory, lint/functional disabled. Baseline coverage84; complexity max10 hard ceiling15; patch90. No guardrails execution claimed during this docs-only review."
+        },
+        {
+          "source": "Current git status; copied plan metadata",
+          "fact": "Checkout has unrelated staged and unstaged changes including docs and SQL save. Preserve them and scope later commit; do not reset mixed user work or carry ranking changes into direct fix. Plan is unphased and can remain one coherent repair. Restart requirement is corroborated by docs/howto/resume-buck-loop-after-repair.md."
+        }
+      ]
+    },
+    "questions": {
+      "section_01": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[0]`, headed \"User Goal\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_02": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[1]`, headed \"Goal\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_03": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[2]`, headed \"Context used / assumptions\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_04": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[3]`, headed \"Decision Closure\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_05": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[4]`, headed \"Assumptions Ledger\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_06": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[5]`, headed \"Material Risks\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_07": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[6]`, headed \"Scope\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_08": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[7]`, headed \"Out of scope\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_09": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[8]`, headed \"Affected files\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_10": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[9]`, headed \"Implementation steps\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_11": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[10]`, headed \"Acceptance criteria\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_12": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[11]`, headed \"Verification\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_13": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[12]`, headed \"Execution Instructions\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      },
+      "section_14": {
+        "type": "choice",
+        "instructions": "Evaluate the validity and implementation-readiness of the approach stated in `sections[13]`, headed \"Risks\", against the exact current implementation evidence and latest user intent in `evidence`. Judge this section in context of the whole plan. Do not mistake a legitimate user goal or explicit scope exclusion for an implementation guarantee. An unimplemented test is a future obligation, not existing validation. Return only the most appropriate defined label.",
+        "criteria": {
+          "valid": "This section is substantively supported and needs no material correction; its approach or boundary is appropriate.",
+          "needs_revision": "The section can keep its core approach, but wrong factual claims, omitted prerequisites or callsites, contradictory lifecycle instructions, unsafe detail, or missing verification require edits before implementing it.",
+          "invalid": "The central approach in this section is fundamentally unsound; correcting factual details alone cannot make it acceptable while retaining its design.",
+          "insufficient_evidence": "Available facts do not support a judgment; material external evidence is missing rather than merely a future implementation test."
+        }
+      }
+    }
+  },
+  "sectionResponse": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "section_01": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.9,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.93,
+          "invalid": 0.03,
+          "valid": 0.04
+        }
+      },
+      "section_02": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.94,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.96,
+          "invalid": 0.04,
+          "valid": 0
+        }
+      },
+      "section_03": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.9,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.93,
+          "invalid": 0.07,
+          "valid": 0
+        }
+      },
+      "section_04": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.93,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.95,
+          "invalid": 0.05,
+          "valid": 0
+        }
+      },
+      "section_05": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.95,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.96,
+          "invalid": 0.04,
+          "valid": 0
+        }
+      },
+      "section_06": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.97,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.98,
+          "invalid": 0.02,
+          "valid": 0
+        }
+      },
+      "section_07": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.96,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.97,
+          "invalid": 0.03,
+          "valid": 0
+        }
+      },
+      "section_08": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.73,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.8,
+          "invalid": 0.02,
+          "valid": 0.18
+        }
+      },
+      "section_09": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.94,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.96,
+          "invalid": 0.04,
+          "valid": 0
+        }
+      },
+      "section_10": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.91,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.93,
+          "invalid": 0.07,
+          "valid": 0
+        }
+      },
+      "section_11": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.98,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.98,
+          "invalid": 0.02,
+          "valid": 0
+        }
+      },
+      "section_12": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.98,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.99,
+          "invalid": 0.01,
+          "valid": 0
+        }
+      },
+      "section_13": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.96,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.97,
+          "invalid": 0.03,
+          "valid": 0
+        }
+      },
+      "section_14": {
+        "type": "choice",
+        "choice": "needs_revision",
+        "confidence": 0.58,
+        "probabilities": {
+          "insufficient_evidence": 0,
+          "needs_revision": 0.6900000000000001,
+          "invalid": 0.01,
+          "valid": 0.3
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 9259,
+      "output_tokens": 745
+    }
+  },
+  "centralDesignRequest": {
+    "model": "jev-latest",
+    "state": {
+      "plan": "---\nstatus: active\ndate: 2026-10-03\nsubject: 2026-10-03.buck-loop-iterate-closeout\ntopics: [buck-loop, iterating, postcondition, heavy-lift]\nresearch: []\niterations: []\nspec: null\nmemory: []\ndifficulty: hard\nbuck_hint: /b-build-hard\nfiles:\n  - extensions/buck-loop/ambiguity.ts\n  - extensions/buck-loop/loop.ts\n  - extensions/buck-loop/__tests__/ambiguity.test.ts\n  - extensions/buck-loop/__tests__/loop.test.ts\n  - skills/b-iterate/SKILL.md\n  - skills/b-review/SKILL.md\n  - docs/buck-workflow.md\n---\n\n# Plan: Close one finished iterate artifact before a heavy-lift handoff\n\n## User Goal\n\nAn operator running `/buck-loop` is not stopped by a heavy-lift handoff when the iterate session finished and the only miss is one `iterate-*.md` left `active`.\n\n## Goal\n\nAfter an ok iterating session, if exactly one unfinished iterate artifact remains, the supervisor marks it completed and advances to review without asking Jev. Every other ambiguous miss is diagnosed from the artifact the scanner actually required. A phase or plan that is already `completed` is never reported as `not completed`.\n\n## Context used / assumptions\n\n- User-provided context: two blocked runs on 2026-10-03, both `iterating → blocked` after `sessionOutcome=ok`, `retriesUsed=0`, `postcondition=ambiguous`, with Jev classifying the repair heavy.\n- Session context: the ranking run's phase file was already `status: completed` with every acceptance box checked. The commit-phase-identity run is unphased, `phasePath` null, plan `status: active`, and all ten boxes open. Both iterate artifacts were still `status: active` / `completed: null`. The children left them active on purpose, citing supervisor re-review or out-of-scope gates.\n- Code: `POSTCONDITION.iterating` confirms only when `hasIterate()` is false (`extensions/buck-loop/scan.ts`). `hasIterate()` ignores `completed` and `below-waterline`. `resolveAmbiguity()` (`extensions/buck-loop/loop.ts`) may rewrite a fully checked phase via `repairCheckedPhase()`, then asks Jev. `explainAmbiguity()` always appends `, not completed`, even when the inspected file is already completed.\n- Skill clash: `skills/b-iterate/SKILL.md` says an active artifact stays blocking until review passes, and also says completion must set `status: completed` before yield. `skills/b-review/SKILL.md` tells an execution session the artifact is not done until review and save. Children followed the stay-active sentence.\n- Docs: `docs/buck-workflow.md` says every ambiguity that is not a fully checked phase goes to Jev, and the operator message includes phase status.\n- Recalled decision `01a1025d-c2a2-74cf-baa8-f6f4f9a1e853` (2026-10-03, `feat/review-severity-ranking`): an active `iterate-*.md` forces iterating; below-waterline findings must not remain in an active iterate file. This plan keeps that force. It does not change the waterline.\n- Recalled recovery note `01a0fce8-dfed-7605-8a1e-15570c9b2469` is a different save-receipt defect. Do not fold it in.\n- Buck capability: full. Probe source: system available-skills catalog. Sentinels `b-build`, `b-review`, and `b-save` resolved. This plan is not phased: the close and the diagnosis are one cutover.\n- OMP execution recommendation: none. The path `skills/b-review/SKILL.md` contains the word review, but this is not a cross-cutting audit and must not fan out as `workflow`.\n\n## Decision Closure\n\n**Selected course:** reuse the existing `repairCheckedPhase()` pattern. Before `classifyRepair()`, an ok iterating snapshot with exactly one unfinished iterate file is closed by the supervisor and rescanned. Jev is not called. Zero unfinished files already confirm. Two or more are not closed; the diagnosis names those files and their statuses. `explainAmbiguity()` stops claiming `not completed` when status is already completed. Building, saving, committing, and reviewing postconditions stay as they are.\n\n**Evidence:** both incident projections, both iterate files, `scan.ts` `POSTCONDITION.iterating`, `loop.ts` `resolveAmbiguity()`, and `ambiguity.ts` `explainAmbiguity()`. The ranking phase was done; the unphased plan was not. The shared miss was the active iterate file.\n\n**Excluded scope:** ranking waterline, commit-phase identity, SQL save-directive subject omission, hand-editing either blocked projection, and changing `hasIterate()` so an active file no longer forces iterating.\n\n**Next bounded action:** implement the close and the diagnosis together in a clean worktree, then prove both incident shapes with `handleLoop` fixtures.\n\n## Assumptions Ledger\n\n| id | statement | status | blocking | evidence / validation_path |\n|---|---|---|---|---|\n| A-1 | Both stops were caused by one unfinished iterate file, not by a missing phase completion. | validated | false | Ranking phase is `completed` with all boxes checked. Commit-phase-identity has no phase path. Both iterate files are `status: active`. |\n| A-2 | Closing that file and entering review does not hide unfinished in-plan work. | validated | false | Review remains the next state. An active iterate file written by that review still forces iterating. Prove with a `handleLoop` fixture that the next effect after the close is review, and that a newly written active iterate file routes back to iterating. |\n| A-3 | `repairCheckedPhase()` cannot clear an iterating miss. | validated | false | It rewrites phase or plan status only when every box is checked, and it returns false when status is already completed or any box is open. The iterating predicate ignores that status. |\n| A-4 | A process already running `/buck-loop` keeps the old supervisor until OMP restarts. | validated | false | `stopForExtensionRestart()` and `docs/howto/resume-buck-loop-after-repair.md`. This plan does not resume either live run. |\n\n## Material Risks\n\n| failure_mode | impact | mitigation | rollback_or_fallback | validation_path |\n|---|---|---|---|---|\n| Supervisor closes an iterate file the child did not finish | The loop reviews incomplete work and may save it | Close only after `sessionOutcome=ok` and only when exactly one unfinished file exists. Do not skip review. | Revert the close helper. A later review can write a new iterate file; the operator can set that file back to `active` and resume. | `handleLoop` fixture: close does not run on a failed iterate session; the following state is reviewing, not saving. |\n| Two unfinished iterate files are both closed | A second unaddressed finding disappears | Count with the same predicate as `hasIterate()`. Count other than 1 returns false and closes nothing. | Leave both files active and block with their paths in the diagnosis. | Unit fixture with two `status: active` iterate files asserts neither file changes and `classifyRepair` can still run. |\n| Diagnosis still blames a completed phase | Jev repeats the false heavy lift | Iterating diagnosis names the iterate file. `explainAmbiguity()` emits `not completed` only when status is not completed. | Operator reads the iterate file status directly. The building pending-phase heavy-lift test remains the regression for the old wording. | `ambiguity.test.ts` covers `status: completed` and an active iterate file. Existing loop test still expects `phase status is pending, not completed`. |\n| Fix lands in the dirty ranking worktree | Ranking and this supervisor repair share one commit | Implement from a clean branch. Carry only this subject folder. Do not adopt `feat/review-severity-ranking` index entries. | Reset the mixed commit and reapply on the clean branch. | `git diff --name-only` against the clean base contains this plan's `files:` and this subject folder, not `ranking.ts`. |\n\n## Scope\n\n- Supervisor close of exactly one unfinished `iterate-*.md` after an ok iterating session, before `classifyRepair()`.\n- Rescan with `sessionOutcome: \"ok\"` and `retriesUsed: 0`, matching `repairCheckedPhase()`.\n- State-aware diagnosis for an iterating miss that is not closed.\n- `explainAmbiguity()` no longer appends `, not completed` when the inspected status is already `completed`.\n- `b-iterate` and the `b-review` iterate template stop telling the child to leave the artifact active until review or save.\n- One sentence in `docs/buck-workflow.md` for the new mechanical close.\n\n## Out of scope\n\n- Do not change `POSTCONDITION` for building, documenting, saving, committing, or reviewing.\n- Do not treat below-waterline iterate files as unfinished, and do not write `below-waterline` from this repair.\n- Do not ask Jev whether to close the single file.\n- Do not hand-edit `.context/workflow/buck-loop.json` in this worktree or in `/home/buckleyrobinson/projects/development_tools/buck-workflow-pi`.\n- Do not implement review-severity ranking or commit-phase identity.\n- Do not change `saveDirective()`, SQL receipts, or the two failing SQL tests reported by the commit-phase-identity child.\n- Do not phase this plan. Splitting the close from the diagnosis leaves the false heavy lift in place.\n\n## Affected files\n\n| Path | Change |\n|---|---|\n| `extensions/buck-loop/ambiguity.ts` | Add the single-file close. Fix `explainAmbiguity()`. Add an iterating diagnosis that names unfinished iterate files. |\n| `extensions/buck-loop/loop.ts` | Call the close from `resolveAmbiguity()` before `repairCheckedPhase()` and `classifyRepair()` when state is `iterating` and the session is ok. Pass the iterate-file diagnosis into any remaining lift. |\n| `extensions/buck-loop/__tests__/ambiguity.test.ts` | Completed status is not described as `not completed`. Iterating diagnosis names the active file. |\n| `extensions/buck-loop/__tests__/loop.test.ts` | Public `handleLoop` coverage for one file, two files, and a failed session. Keep the existing pending-phase heavy-lift assertion. |\n| `skills/b-iterate/SKILL.md` | Completion closes the artifact before yield. Review is the next supervisor step, not a reason to leave `status: active`. |\n| `skills/b-review/SKILL.md` | Template no longer says the artifact stays open until review and save. |\n| `docs/buck-workflow.md` | Document the one-file iterate close next to the checked-phase close. |\n\n## Implementation steps\n\n1. Add `closeSingleUnfinishedIterate(subjectDir, at)` beside `repairCheckedPhase()`. List `iterate-*.md` whose status is neither `completed` nor `below-waterline`, using that same predicate as `hasIterate()`. Return false unless the count is exactly one. On that file, set `status: completed`, `completed: YYYY-MM-DD`, and `updated: YYYY-MM-DD` from `at`. Do not check acceptance boxes. Do not create a second frontmatter parser; follow the existing rewrite in `repairCheckedPhase()`.\n2. In `resolveAmbiguity()`, when `snapshot.state === \"iterating\"` and `sessionOutcome === \"ok\"`, call that helper before `repairCheckedPhase()`. On true, rescan with `{ sessionOutcome: \"ok\", retriesUsed: 0 }` and return. Do not call `classifyRepair()`.\n3. When the helper returns false, build the lift diagnosis from the unfinished iterate files and their statuses. Do not send only the phase or plan status. `explainAmbiguity()` may still report unchecked phase boxes for a building miss, but if status is `completed` it must not say `not completed`.\n4. Replace the stay-active sentence in `skills/b-iterate/SKILL.md` line 19. Keep the completion rules at lines 51 and 58–60, and state that an active file after yield is a failed iterating postcondition. In `skills/b-review/SKILL.md`, change the execution-session sentence so `b-iterate` completes the artifact before the supervisor re-reviews.\n5. Add the mechanical-close sentence to the ambiguous-postcondition bullet in `docs/buck-workflow.md`. Leave the checked-phase sentence and the heavy-lift handoff for every other miss.\n6. Prove both incident shapes through `handleLoop` with the real scanner and machine. Do not mock `scan` or `next`.\n\n## Acceptance criteria\n\n- [ ] AC-1: An ok iterating session that leaves exactly one `status: active` iterate file does not call `classifyRepair()`. The file becomes `status: completed` with `completed` and `updated` set to the supervisor date, and the next effect is review.\n- [ ] AC-2: The same close happens for an unphased plan whose status is still `active` and whose acceptance boxes are open. Plan status and boxes are unchanged.\n- [ ] AC-3: A failed iterating session does not close the iterate file and does not ask Jev to repair a phase status.\n- [ ] AC-4: Two unfinished iterate files are left unchanged. The diagnosis names both paths and statuses. Neither is closed.\n- [ ] AC-5: A `below-waterline` iterate file is not a close target. A completed iterate file still confirms the iterating postcondition without a lift.\n- [ ] AC-6: `explainAmbiguity()` on `status: completed` does not contain `not completed`. The existing building fixture still reports `phase status is pending, not completed` and its unchecked box.\n- [ ] AC-7: `b-iterate` no longer says an active artifact stays blocking until review passes. The review template no longer tells the iterate child to wait for review and save before completing the file.\n- [ ] AC-8: Focused ambiguity and loop tests pass. Required guardrails gates pass. No ranking or SQL-save source is part of the diff.\n\n## Verification\n\n```bash\nnpx vitest run extensions/buck-loop/__tests__/ambiguity.test.ts extensions/buck-loop/__tests__/loop.test.ts\nnpm run guardrails:check\n```\n\nThe loop fixture must construct the two incident shapes: a completed phase plus one active iterate file, and an unphased active plan plus one active iterate file. Assert `classifyRepair` is not called and the following skill is review. A second fixture with two active iterate files asserts zero frontmatter writes.\n\nExpected guardrails contract: unit, global ratchet, and complexity required; patch advisory; lint and functional disabled. Do not lower the coverage baseline or complexity ceiling. Fresh diagnostics on the touched TypeScript files must be clean.\n\n## Execution Instructions\n\nThis is one non-phased repair. Implement it on a clean branch, not on top of the `feat/review-severity-ranking` index.\n\n1. Carry this subject folder into that clean branch. Do not adopt ranking, commit-phase-identity, or unrelated dirty files.\n2. Run `/b-build-hard` against this plan.\n3. Run `/b-review` against this plan.\n4. If review creates an `iterate-*.md` for an in-plan defect, run `/b-iterate`, complete that artifact, and re-run `/b-review`. Out-of-plan findings go to a separate `/b-plan`. If review flags documentation impact beyond the sentence in this plan, run `/b-docs` before `/b-save`.\n5. Run `/b-save`, then `/b-commit`.\n6. Restart OMP before the fixed supervisor can affect a live loop. `/reload` does not reload imported extension modules.\n7. The two already-blocked runs are not edited by this implementation. After restart, resume each only if the operator wants that work to continue. Resume currently fabricates a confirmed postcondition and enters review; a still-active iterate file sends that review back to iterating, where the new close applies. Setting those two files to `completed` before resume skips that extra iterate cycle. It is optional and outside this commit.\n\n## Risks\n\n- A child that reports ok without applying the fixes gets a review instead of another iterate cycle. That is the selected tradeoff. Review is the checker.\n- The loaded OMP process will not pick up `loop.ts` until restart. Shipping the patch without restart does not unstick a running supervisor.",
+      "evidence": [
+        {
+          "source": "User clarification",
+          "fact": "Incident occurred in ../review-ranking.wt. User copied the plan here to the main plugin directory to fix directly. Review targets current main plugin; do not require a separate clean branch or adopt unrelated ranking implementation."
+        },
+        {
+          "source": "Current checkout b184c34; scan.ts:349-352",
+          "fact": "hasIterate treats every iterate-*.md whose parsed status is not completed as unfinished. It DOES NOT ignore below-waterline. Ranking incident checkout scan.ts:349-354 DOES ignore both completed and below-waterline; its phase-1 artifact lists this as implemented. Thus the copied plan assumes a scanner contract not present at intended fix target."
+        },
+        {
+          "source": "ambiguity.ts:41-59; loop.ts:493-515",
+          "fact": "repairCheckedPhase acts only on a nonempty fully-checked frontmatter acceptance_criteria list; it returns false for already completed status. Current explainAmbiguity always says phase status is <status>, not completed. Actual smoke emitted phase status is completed, not completed. resolveAmbiguity tries phase/plan repair then native lift classification."
+        },
+        {
+          "source": "loop.ts:463-490; machine.ts:66-75,147-155,272-276; actual smoke",
+          "fact": "resolveAmbiguity is reachable only through choose with retry and advance legal. An ok iterating session at retriesUsed=0 under loop limits enters choose. At retriesUsed=1 it blocks before resolveAmbiguity. At loopCount=maxLoops it also blocks before resolveAmbiguity. Therefore placing close only in resolveAmbiguity does not cover every ok iterating session. Do not bypass limits to force review."
+        },
+        {
+          "source": "scan.ts:574-590; ambiguity.ts:40-49",
+          "fact": "Scanner parses frontmatter into status strings, returning no status on missing/malformed/unreadable frontmatter. Such iterate files still count unfinished. Existing repairCheckedPhase mutates using whole-file regexes; if missing status it can write no effective status change and still return true. Proposed helper needs explicit bounded valid-frontmatter rewrite, confirmed changed status, preserved body, and fail-closed behavior, not a blind regex transplant."
+        },
+        {
+          "source": "machine.ts:272-300; actual scan/next smoke",
+          "fact": "Completed iterate artifact makes iterating postcondition confirmed; next effect is review. A review leaving a new active iterate artifact routes back to iteration. These facts support mandatory re-review as the safety gate. A successful session return alone is not evidence that code fixes or required checks succeeded."
+        },
+        {
+          "source": "Incident ranking iterate artifact:1-9,50-67; phase-1:1-31",
+          "fact": "Ranking iterate artifact active/completed:null while phase completed with every box checked. Artifact records all three assigned fixes verified, but keeps active for supervisor re-review/save and notes an unrelated required SQL-save check failure. This corroborates artifact lifecycle clash, not a guarantee all required gates pass."
+        },
+        {
+          "source": "Main copied commit-phase-identity iterate artifact:81-98",
+          "fact": "Artifact still active after detailed in-plan implementation evidence; reports required npm/guardrails failures in two untouched SQL surfaces. Those reported failures were NOT rerun. Repairing artifact status may allow re-review but must not override or conceal required gate failures."
+        },
+        {
+          "source": "skills/b-iterate/SKILL.md:15,19,51-74; skills/b-review/SKILL.md:413-449; run-step.ts:188-198",
+          "fact": "b-iterate line19 says active until review passes, while lines51/58-61 require completion before closeout. Line74 additionally says do not yield until review passes and save recorded durable state. Review template line449 uses same completion/review/save blend. Nested run-step explicitly gives child only assigned work and supervisor owns next state. Proposed line19/template edits leave b-iterate line74 conflicting unless standalone-vs-supervised behavior is clarified."
+        },
+        {
+          "source": "scripts/codex-plugin.test.ts:8-16,34,41,102-114",
+          "fact": "Both b-iterate and b-review exist as physical curated canonical copies in plugins/buck-workflow/skills; test enforces byte-for-byte parity. Plan affected files and files frontmatter omit both copies; changing only canonical files violates packaging contract."
+        },
+        {
+          "source": "persist.ts:159-216; machine.ts:82-85,331-340; loop.ts:354-367",
+          "fact": "Resume synthesizes confirmed work only when preserving a completed projected phase after scan selects another phase. This shortcut requires phasePath non-null. Unphased blocked projection with open plan normally resumes with pending work, USER_CONFIRMED goes to resolving, then building—not necessarily directly review. Plan execution step7 generalizes the phased shortcut to both incident shapes incorrectly."
+        },
+        {
+          "source": "Plan A-2 and AC-1..8; proposed verification",
+          "fact": "A-2 claims validated while helper does not exist and calls for a future integration fixture. Acceptance tests cover failed and multiple files, but no explicit ok-after-retry, exhausted-limit, invalid-frontmatter/failed-write, or review rejecting fixes then recreating active artifact criterion. Two active files are intentionally not auto-closed; plan still allows Jev light/medium retry, so they are not guaranteed to block."
+        },
+        {
+          "source": "guardrails.json:3-16,19",
+          "fact": "Plan correctly states unit/global ratchet/complexity required, patch advisory, lint/functional disabled. Baseline coverage84; complexity max10 hard ceiling15; patch90. No guardrails execution claimed during this docs-only review."
+        },
+        {
+          "source": "Current git status; copied plan metadata",
+          "fact": "Checkout has unrelated staged and unstaged changes including docs and SQL save. Preserve them and scope later commit; do not reset mixed user work or carry ranking changes into direct fix. Plan is unphased and can remain one coherent repair. Restart requirement is corroborated by docs/howto/resume-buck-loop-after-repair.md."
+        }
+      ]
+    },
+    "questions": {
+      "central_design": {
+        "type": "choice",
+        "instructions": "Judge only the central architectural decision: after a successful iteration, mechanically close exactly one correctly identified unfinished iteration artifact and require a fresh review, preserving all quality gates and work limits. Is this central idea defensible once the documented baseline, hook, write-safety, lifecycle and verification defects are corrected? Do not classify execution readiness or the unchanged copied plan.",
+        "criteria": {
+          "retain": "Retain this central design; a separate artifact-completion versus review-acceptance lifecycle is defensible with mandatory fresh review and unchanged gates.",
+          "replace": "Even after those corrections, the central design must be replaced because mandatory review cannot adequately guard it.",
+          "undetermined": "The evidence cannot decide the central design."
+        }
+      }
+    }
+  },
+  "centralDesignResponse": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "central_design": {
+        "type": "choice",
+        "choice": "retain",
+        "confidence": 0.95,
+        "probabilities": {
+          "replace": 0.03,
+          "undetermined": 0.01,
+          "retain": 0.96
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 5816,
+      "output_tokens": 41
+    }
+  },
+  "sectionResults": [
+    {
+      "section": "User Goal",
+      "key": "section_01",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.9,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.93,
+        "invalid": 0.03,
+        "valid": 0.04
+      }
+    },
+    {
+      "section": "Goal",
+      "key": "section_02",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.94,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.96,
+        "invalid": 0.04,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Context used / assumptions",
+      "key": "section_03",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.9,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.93,
+        "invalid": 0.07,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Decision Closure",
+      "key": "section_04",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.93,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.95,
+        "invalid": 0.05,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Assumptions Ledger",
+      "key": "section_05",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.95,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.96,
+        "invalid": 0.04,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Material Risks",
+      "key": "section_06",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.97,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.98,
+        "invalid": 0.02,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Scope",
+      "key": "section_07",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.96,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.97,
+        "invalid": 0.03,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Out of scope",
+      "key": "section_08",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.73,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.8,
+        "invalid": 0.02,
+        "valid": 0.18
+      }
+    },
+    {
+      "section": "Affected files",
+      "key": "section_09",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.94,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.96,
+        "invalid": 0.04,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Implementation steps",
+      "key": "section_10",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.91,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.93,
+        "invalid": 0.07,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Acceptance criteria",
+      "key": "section_11",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.98,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.98,
+        "invalid": 0.02,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Verification",
+      "key": "section_12",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.98,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.99,
+        "invalid": 0.01,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Execution Instructions",
+      "key": "section_13",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.96,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.97,
+        "invalid": 0.03,
+        "valid": 0
+      }
+    },
+    {
+      "section": "Risks",
+      "key": "section_14",
+      "type": "choice",
+      "choice": "needs_revision",
+      "confidence": 0.58,
+      "probabilities": {
+        "insufficient_evidence": 0,
+        "needs_revision": 0.6900000000000001,
+        "invalid": 0.01,
+        "valid": 0.3
+      }
+    }
+  ],
+  "smoke": "{\"case\":\"active-first-ok\",\"postcondition\":\"ambiguous\",\"iterateArtifact\":true,\"to\":\"iterating\",\"effect\":{\"kind\":\"choose\",\"legal\":[{\"kind\":\"retry\"},{\"kind\":\"advance\"}]},\"why\":\"postcondition scan ambiguous\"}\n{\"case\":\"active-ok-after-retry\",\"postcondition\":\"ambiguous\",\"iterateArtifact\":true,\"to\":\"blocked\",\"effect\":{\"kind\":\"await-operator\",\"reason\":\"postcondition still ambiguous after one retry; refusing another spin\"},\"why\":\"postcondition still ambiguous after one retry; refusing another spin\"}\n{\"case\":\"active-ok-at-loop-limit\",\"postcondition\":\"ambiguous\",\"iterateArtifact\":true,\"to\":\"blocked\",\"effect\":{\"kind\":\"await-operator\",\"reason\":\"postcondition ambiguous and no legal choice remains (limits exceeded)\"},\"why\":\"postcondition ambiguous and no legal choice remains (limits exceeded)\"}\n{\"case\":\"below-waterline-current-base\",\"postcondition\":\"ambiguous\",\"iterateArtifact\":true,\"to\":\"iterating\",\"effect\":{\"kind\":\"choose\",\"legal\":[{\"kind\":\"retry\"},{\"kind\":\"advance\"}]},\"why\":\"postcondition scan ambiguous\"}\n{\"case\":\"completed-enters-review\",\"postcondition\":\"confirmed\",\"to\":\"reviewing\",\"effect\":{\"kind\":\"run-skill\",\"skill\":\"review\"},\"why\":\"work landed; reviewing it\"}\n{\"case\":\"completed-diagnosis\",\"diagnosis\":\"phase status is completed, not completed.\"}\n{\"case\":\"rereview-reopens-iteration\",\"postcondition\":\"confirmed\",\"iterateArtifact\":true,\"to\":\"iterating\",\"effect\":{\"kind\":\"run-skill\",\"skill\":\"iterate\"},\"why\":\"iterate artifact present; in-plan issues win\"}\nSMOKE PASS: six scanner/machine cases plus completed-status diagnosis\n\n\nWall time: 0.10 seconds",
+  "failedAttempt": {
+    "model": "typesafe/jev-latest",
+    "error": "HTTP 400; corrected to provider-native model identifier jev-latest; no fallback performed"
+  }
+}
