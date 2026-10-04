@@ -105,6 +105,17 @@ describe("closeSingleUnfinishedIterate", () => {
     expect(readFileSync(join(other, "iterate-a.md"), "utf8")).toBe(unterminated);
   });
 
+  it("refuses a single artifact whose status is not active", () => {
+    // One candidate, so the count check passes and the status guard decides.
+    // The supervisor may only close what the child declared it was working on.
+    for (const status of ["in-progress", "pending", "draft"]) {
+      const body = `---\nstatus: ${status}\ncompleted: null\n${ITERATE_BODY}`;
+      const dir = subjectDir({ "iterate-a.md": body });
+      expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
+      expect(readFileSync(join(dir, "iterate-a.md"), "utf8")).toBe(body);
+    }
+  });
+
   it("fails closed when the write cannot land", () => {
     const original = `---\nstatus: active\n${ITERATE_BODY}`;
     const dir = subjectDir({ "iterate-a.md": original });
@@ -149,6 +160,14 @@ describe("ambiguity diagnosis for an iterating miss", () => {
       sessionText: "held",
     });
     expect(diagnosis).not.toContain("Iterate artifacts:");
+  });
+
+  it("reports nothing to iterate on when every artifact is finished", () => {
+    const dir = subjectDir({
+      "iterate-a.md": "---\nstatus: completed\n---\n# iterate\n",
+      "iterate-b.md": "---\nstatus: below-waterline\n---\n# iterate\n",
+    });
+    expect(unfinishedIterateReport(dir)).toBe("no unfinished iterate artifact");
   });
 });
 
