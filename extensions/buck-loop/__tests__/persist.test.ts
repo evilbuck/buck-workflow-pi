@@ -61,6 +61,27 @@ describe("projection round-trip", () => {
     expect(disk.state).toBe("building");
     expect(readProjection(root)).toEqual(original);
   });
+  it("loads a ranking projection and a projection written before ranking existed", () => {
+    const root = repo();
+    writeProjection(root, projection({ state: "ranking" }));
+    expect(readProjection(root)?.state).toBe("ranking");
+    writeTree(root, {
+      [PROJECTION_RELPATH]: JSON.stringify({
+        version: 1,
+        state: "building",
+        subject: SUBJECT,
+        planPath: `.context/${SUBJECT}/plan-demo.md`,
+        phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        loopCount: 3,
+        iterateCyclesOnPhase: 1,
+        maxLoops: 12,
+        lastChoice: { choice: { kind: "advance" }, reason: "prior" },
+        history: [{ from: "resolving", to: "building", at: "2026-09-18T00:00:00Z", why: "start" }],
+      }),
+    });
+    expect(readProjection(root)).toEqual(projection());
+  });
+
 
   it("does not create or read an XState snapshot file", () => {
     const root = repo();

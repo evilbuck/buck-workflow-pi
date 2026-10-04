@@ -96,6 +96,7 @@ const restartRequired = new Map<string, string>();
 const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "building",
   "reviewing",
+  "ranking",
   "iterating",
   "documenting",
   "saving",

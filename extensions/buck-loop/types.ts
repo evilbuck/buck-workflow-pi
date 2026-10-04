@@ -18,12 +18,13 @@
  * User-visible states of one `/buck-loop` run.
  *
  * Scanning, classifying, and verifying are **functions inside a state**,
- * not states of their own. The operator sees these eleven:
+ * not states of their own. The operator sees twelve:
  *
  * - `idle` — nothing saved; waiting for `/buck-loop <path>`.
  * - `resolving` — we have a path; looking up the plan/phase on disk.
  * - `building` — nested session is implementing the current phase (`b-build`).
  * - `reviewing` — nested session is reviewing the implementation (`b-review`).
+ * - `ranking` — in-process review-issue severity ranking.
  * - `iterating` — nested session is fixing in-plan review issues (`b-iterate`).
  * - `documenting` — nested session is updating living docs (`b-docs` / `b-howto`).
  * - `saving` — nested session is writing session memory (`b-save`).
@@ -37,6 +38,7 @@ export type LoopState =
   | "resolving"
   | "building"
   | "reviewing"
+  | "ranking"
   | "iterating"
   | "documenting"
   | "saving"
@@ -47,10 +49,10 @@ export type LoopState =
 
 /**
  * States whose stay is filled by one nested coding session (a child agent
- * that runs a skill). `idle` / `resolving` / `blocked` / `done` / `aborted`
- * do not spawn a child.
+ * that runs a skill). `ranking` performs an in-process judgment, not a skill.
  */
-export type WorkState = Exclude<LoopState, "idle" | "resolving" | "blocked" | "done" | "aborted">;
+export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "blocked" | "done" | "aborted">;
+
 
 /**
  * What the plan scan found. Domain facts, not filesystem mechanics:
@@ -193,6 +195,7 @@ export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "comm
  * - `none` — just sit in that state (START, STOP, arriving at `done`).
  * - `run-skill` — spawn a nested coding session for this skill.
  * - `choose` — ask a model to pick from `legal` (already closed by the machine).
+ * - `rank` — rank review issues in-process using the judgment API.
  * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
  *
  * Work and choice are separate variants so execution code cannot smuggle a
@@ -202,6 +205,7 @@ export type Effect =
   | { kind: "none" }
   | { kind: "run-skill"; skill: WorkSkill }
   | { kind: "choose"; legal: readonly Choice[] }
+  | { kind: "rank" }
   | { kind: "await-operator"; reason: string };
 
 /** One edge of the state graph: target state, the effect to perform, and why. */

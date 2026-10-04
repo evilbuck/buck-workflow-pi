@@ -27,6 +27,7 @@ const LOOP_STATES: Record<LoopState, true> = {
   resolving: true,
   building: true,
   reviewing: true,
+  ranking: true,
   iterating: true,
   documenting: true,
   saving: true,

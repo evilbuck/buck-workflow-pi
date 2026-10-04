@@ -1,5 +1,18 @@
 # Backlog
 
+## Review Severity Ranking Phases (2026-10-03)
+
+Overview: [`plan-review-severity-ranking-phases.md`](../2026-10-03.review-severity-ranking/plan-review-severity-ranking-phases.md).
+Phases form a HARD chain (1 → 2 → 3 → 4).
+
+- [ ] [Phase 1: Types, Scan, and the Pure Waterline](items/phase-1-ranking-types-scan-waterline.md) — medium, `/b-build-hard`, `orchestrate` — [phase-1-types-scan-pure-waterline.md](../2026-10-03.review-severity-ranking/phase-1-types-scan-pure-waterline.md)
+
+### Upcoming Phases
+
+- [ ] Phase 2: Jev Ranking Core and Audit Trail — hard, `/b-build-hard`, `orchestrate` — [phase-2-jev-ranking-core.md](../2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md)
+- [ ] Phase 3: Machine Edges and the Rank Effect Handler — hard, `/b-build-hard`, `orchestrate` — [phase-3-machine-loop-routing.md](../2026-10-03.review-severity-ranking/phase-3-machine-loop-routing.md)
+- [ ] Phase 4: State Diagram and Doc Sentence — easy, `/b-build`, `orchestrate` — [phase-4-docs.md](../2026-10-03.review-severity-ranking/phase-4-docs.md)
+
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
@@ -89,6 +102,7 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 - [ ] [Fix buck-loop save/commit checkpoint handoff](items/buck-loop-save-commit-handoff.md) — high; verified save receipts reported as SqlMemoryError + commit guard blocking phase deliverables — see `.context/2026-09-30.buck-loop-save-commit-handoff/plan-save-commit-handoff.md`
 - [ ] [Preserve buck-loop commit checkpoint identity](items/buck-loop-commit-phase-identity.md) — high; retain the phase across failed commits and restarts; no next-phase work before a verified commit
 - [ ] [Fix buck-loop SQL-save receipt subject mismatch](items/buck-loop-save-receipt-subject.md) — high; `saveDirective()` omits `subject`, so `sameAttempt()` rejects a receipt the child verified and the save postcondition stays ambiguous — observed 2026-10-02 blocking the stacked-cards run at `saving → blocked`
+- [ ] [Stop false heavy lifts when an iterate file stays active](items/buck-loop-iterate-closeout.md) — high; supervisor closes one unfinished iterate artifact after an ok session — see `.context/2026-10-03.buck-loop-iterate-closeout/plan-iterate-closeout.md`
 - [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
 - [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
