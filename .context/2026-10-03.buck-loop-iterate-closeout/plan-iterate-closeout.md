@@ -6,7 +6,7 @@ topics: [buck-loop, iterating, postcondition, heavy-lift]
 research: []
 iterations: []
 spec: null
-memory: []
+memory: [repair-checked-phase-frontmatter-fix-2026-10-03.md]
 difficulty: hard
 buck_hint: /b-build-hard
 files:

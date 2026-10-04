@@ -1,1 +1,0 @@
-../prompts/omp-goal.md

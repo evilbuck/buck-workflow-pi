@@ -1,3 +1,5 @@
+- 2026-10-03 — [repairCheckedPhase frontmatter fix + memory-index conflict resolution](repair-checked-phase-frontmatter-fix-2026-10-03.md) — completed (span-bounded status rewrite via exported frontmatterSpan, bare-date completed_at, red-then-green regression tests, backlog item archived; index.md union conflict resolved and Jev-graded 0.95/0.85/0.89; subject stays active, plan implementation pending)
+
 - 2026-10-01 — [sql-memory remember iteration](sql-memory-remember-op-iterate-2026-10-01.md) — completed (second pass closed complexity split and recall-only denial fix; guardrails pass, complexity_gate pass; re-review still required)
 
 - 2026-10-01 — [Portable state-machine Phase 4 build](state-machine-cutover-phase-4-build-2026-10-01.md) — active (legacy engine/suite removed; living docs and eight-step guide migrated; copied recipe and strict examples pass; desktop/mobile/themes/navigation verified; 1373 Vitest + 70 Bun tests pass; guardrails pass at 87.4% vs 84%; review Pass with no in-plan defects; fresh durable guardrails re-run reproduces pass; subject lifecycle close-verified with zero blockers; commit next)
@@ -195,6 +197,8 @@
 
 - 2026-09-28 — [fix-pr native PR/tool integration plan](fix-pr-native-tool-plan-2026-09-28.md) — `completed` (plan: native PR view for orientation; exhaustive TypeScript ingest through a thin agent tool with CLI fallback; implementation queued)
 - 2026-09-27 — [Deterministic fix-pr ingest](fix-pr-deterministic-ingest-2026-09-27.md) — `completed` (TypeScript sibling script replaces TSV fetch; CI signals included; stderr progress; fixture tests and PR 51 smoke passed)
+- 2026-09-28 — [Buck-loop transition guard brainstorm](buck-loop-transition-guard-brainstorm-2026-09-28.md) — `active` (choice rules already pause for Jev; gap is happy-path build routing and missing session output; no code)
+
 - 2026-09-27 — [Jev-ranked `/buck-loop` subject picker plan](buck-loop-jev-ranked-subject-picker-plan-2026-09-27.md) — `completed` (bare command ranks runnable subjects with Jev, presents up to ten probability-ordered TUI rows, and starts only the operator's selection)
 
 - 2026-09-27 — [fix-pr PR #51 CI failures](fix-pr-51-2026-09-27.md) — `active` (loop 2: Wooderson 5330264172; untrack warning, unreadable YAML wording, WARNING how-to, editor registry throw)

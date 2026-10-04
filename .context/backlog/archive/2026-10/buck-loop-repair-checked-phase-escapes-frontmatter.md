@@ -1,10 +1,10 @@
 ---
 title: repairCheckedPhase rewrites a body status line outside the frontmatter
-status: active
+status: completed
 priority: medium
 created: 2026-10-03
 updated: 2026-10-03
-completed: null
+completed: 2026-10-03
 related:
   - extensions/buck-loop/ambiguity.ts
   - extensions/buck-loop/__tests__/ambiguity.test.ts
@@ -60,3 +60,13 @@ from `at.slice(0, 10)`.
 
 Both are pure unit tests over a temp file; no supervisor, model, or database
 required.
+
+## Resolution (2026-10-03)
+
+Fixed as prescribed: `repairCheckedPhase()` now bounds the rewrite to
+`frontmatterSpan()` (exported from `phase-completion.ts`, imported into
+`ambiguity.ts`), mirrors `markPhaseCompleted()`'s insert-or-replace logic, and
+derives `completed_at` from `at.slice(0, 10)`. Both mandated tests added to
+`extensions/buck-loop/__tests__/ambiguity.test.ts` (red before the fix, green
+after); full suite 1565 passed; tsc clean on touched files; guardrails
+`status: pass`.

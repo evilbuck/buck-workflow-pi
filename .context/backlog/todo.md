@@ -13,7 +13,7 @@
 Each item was reproduced by direct execution, not inferred. Found during the
 `extensions/buck-loop/` 75%-per-file coverage pass; none is fixed by that work.
 
-- [ ] [repairCheckedPhase rewrites a body status line outside the frontmatter](items/buck-loop-repair-checked-phase-escapes-frontmatter.md) — medium; whole-document regex, and `completed_at` receives a full ISO timestamp from `resolveAmbiguity`
+- [x] [repairCheckedPhase rewrites a body status line outside the frontmatter](archive/2026-10/buck-loop-repair-checked-phase-escapes-frontmatter.md) — medium; whole-document regex, and `completed_at` receives a full ISO timestamp from `resolveAmbiguity` — done 2026-10-03
 - [ ] [formatRecall's "no relevant candidates" branch is unreachable](items/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented
 - [ ] [serializeCallError emits an empty message for a nameless, messageless Error](items/serialize-call-error-empty-message.md) — low; intentionally untested pending a product decision
 - [ ] [initialLabel does not narrow the profile command, so index.ts fails tsc](items/buck-loop-index-initial-label-narrowing.md) — low; pre-existing typing gap, runtime-safe

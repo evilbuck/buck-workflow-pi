@@ -82,6 +82,7 @@ export function saveDirective(attempt: SaveAttempt): string {
     "SQL save attempt.",
     `attemptId: ${attempt.attemptId}`,
     `runId: ${attempt.runId}`,
+    `subject: ${attempt.subject}`,
     `project: ${attempt.project}`,
     `phase: ${attempt.phase ?? "null"}`,
     `receipt: ${attempt.receiptRel}`,

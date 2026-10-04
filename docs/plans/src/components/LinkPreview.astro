@@ -1,0 +1,143 @@
+---
+import type { Synopsis } from '../lib/plans/synopsis';
+
+interface Props {
+  /** Route path (`/subject/slug`) → synopsis, inlined as JSON. */
+  entries: Record<string, Synopsis>;
+}
+
+const { entries } = Astro.props;
+const payload = JSON.stringify(entries).replace(/</g, '\\u003c');
+---
+
+<script type="application/json" id="link-previews" set:html={payload} />
+
+<script>
+  const dataEl = document.getElementById('link-previews');
+  const PREVIEWS = dataEl?.textContent ? JSON.parse(dataEl.textContent) : {};
+  const WIDTH = 300;
+  const GAP = 12;
+  let timer = 0;
+  let pop = null;
+
+  function escapeHtml(text) {
+    return String(text ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function ensurePop() {
+    if (!pop) {
+      pop = document.createElement('div');
+      pop.className = 'link-popover';
+      pop.hidden = true;
+      document.body.appendChild(pop);
+      pop.addEventListener('mouseleave', hide);
+    }
+    return pop;
+  }
+
+  function keyOf(anchor) {
+    try {
+      const url = new URL(anchor.href, location.origin);
+      if (url.origin !== location.origin) return null;
+      return url.pathname.replace(/\/+$/, '') || '/';
+    } catch {
+      return null;
+    }
+  }
+
+  function show(anchor) {
+    const preview = PREVIEWS[keyOf(anchor)];
+    if (!preview) return;
+    const el = ensurePop();
+    const meta = [preview.status, preview.date].filter(Boolean).map(escapeHtml).join(' · ');
+    el.innerHTML =
+      `<div class="lp-title">${escapeHtml(preview.title)}</div>` +
+      (meta ? `<div class="lp-meta">${meta}</div>` : '') +
+      `<div class="lp-excerpt">${escapeHtml(preview.excerpt)}</div>`;
+    el.style.visibility = 'hidden';
+    el.hidden = false;
+    const popHeight = el.offsetHeight;
+    const rect = anchor.getBoundingClientRect();
+    // Side with room wins: right by default, left when cramped.
+    let left = rect.right + GAP;
+    if (left + WIDTH > window.innerWidth - GAP) left = rect.left - WIDTH - GAP;
+    if (left < GAP) left = Math.max(GAP, Math.min(window.innerWidth - WIDTH - GAP, rect.left));
+    const maxTop = Math.max(GAP, window.innerHeight - popHeight - GAP);
+    el.style.left = `${Math.round(left)}px`;
+    el.style.top = `${Math.round(Math.min(Math.max(rect.top, GAP), maxTop))}px`;
+    el.style.visibility = '';
+  }
+
+  function hide() {
+    window.clearTimeout(timer);
+    if (pop) pop.hidden = true;
+  }
+
+  function schedule(anchor) {
+    hide();
+    timer = window.setTimeout(() => show(anchor), 180);
+  }
+
+  document.addEventListener('mouseover', (event) => {
+    const anchor = event.target.closest('a[href]');
+    if (!anchor || (pop && pop.contains(event.target))) return;
+    if (!PREVIEWS[keyOf(anchor)]) return;
+    schedule(anchor);
+  });
+  document.addEventListener('mouseout', (event) => {
+    const anchor = event.target.closest('a[href]');
+    if (!anchor) return;
+    if (anchor.contains(event.relatedTarget)) return;
+    hide();
+  });
+  document.addEventListener('focusin', (event) => {
+    const anchor = event.target.closest('a[href]');
+    if (anchor && PREVIEWS[keyOf(anchor)]) show(anchor);
+  });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('scroll', hide, { passive: true, capture: true });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') hide();
+  });
+</script>
+
+<style is:global>
+  .link-popover {
+    position: fixed;
+    z-index: 50;
+    width: 300px;
+    max-height: 70vh;
+    overflow: auto;
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--ink);
+    border-radius: 8px;
+    box-shadow: 4px 4px 0 rgba(28, 25, 23, 0.85);
+    padding: 0.7rem 0.85rem;
+  }
+  .link-popover .lp-title {
+    font-family: var(--serif);
+    font-weight: 700;
+    font-size: 0.9rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .link-popover .lp-meta {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-ink);
+    margin-top: 0.25rem;
+  }
+  .link-popover .lp-excerpt {
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--muted);
+    margin-top: 0.35rem;
+  }
+</style>

@@ -9,6 +9,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { iterateArtifacts, readStatus } from "./scan.js";
+import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 
@@ -45,10 +46,17 @@ export function repairCheckedPhase(abs: string, at: string): boolean {
   const items = acceptanceCriteria(abs);
   if (items.length === 0 || items.some((item) => !item.startsWith("[x]"))) return false;
   const text = readFileSync(abs, "utf8");
-  if (/^status:\s*completed\s*$/m.test(text)) return false;
-  let next = text.replace(/^status:\s*.+$/m, "status: completed");
-  if (!/^completed_at:/m.test(next)) next = next.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${at}`);
-  writeFileSync(abs, next);
+  const fm = frontmatterSpan(text);
+  if (!fm) return false;
+  if (/^status:\s*completed\s*$/m.test(fm.body)) return false;
+  const today = at.slice(0, 10);
+  let body = /^status:/m.test(fm.body)
+    ? fm.body.replace(/^status:.*$/m, "status: completed")
+    : `status: completed\n${fm.body}`;
+  body = /^completed_at:/m.test(body)
+    ? body.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
+    : body.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
+  writeFileSync(abs, text.slice(0, fm.start) + body + text.slice(fm.end));
   return true;
 }
 

@@ -1,0 +1,93 @@
+---
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = 'Readable browser for .context/ plan markdown.' } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title} · plans</title>
+    <style>
+      :root {
+        --paper: #faf7f0;
+        --ink: #1c1917;
+        --muted: #78716c;
+        --faint: #e7e0d3;
+        --accent: #b45309;
+        --accent-ink: #92400e;
+        --card: #ffffff;
+        --mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+        --serif: 'Iowan Old Style', Charter, Georgia, 'Times New Roman', serif;
+        --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--sans);
+        line-height: 1.6;
+      }
+      .masthead {
+        border-bottom: 3px double var(--ink);
+        padding: 1.25rem 1.5rem 1rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: 0.5rem 1.5rem;
+      }
+      .masthead a.brand {
+        font-family: var(--serif);
+        font-weight: 700;
+        font-size: 1.35rem;
+        color: var(--ink);
+        text-decoration: none;
+        letter-spacing: 0.01em;
+      }
+      .masthead a.brand span { color: var(--accent); }
+      .masthead .tagline {
+        font-family: var(--mono);
+        font-size: 0.75rem;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      main { max-width: 72rem; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+      .crumbs {
+        font-family: var(--mono);
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 1.5rem;
+      }
+      .crumbs a { color: var(--accent-ink); }
+      footer {
+        border-top: 1px solid var(--faint);
+        padding: 1rem 1.5rem 2rem;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        color: var(--muted);
+        max-width: 72rem;
+        margin: 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="brand" href="/">plans<span>.</span></a>
+      <span class="tagline">.context / subjects · readable</span>
+    </header>
+    <main>
+      <slot />
+    </main>
+    <footer>
+      sourced via PlanSource adapter · filesystem (.context/) today, SQL when the plan-document table lands
+    </footer>
+  </body>
+</html>

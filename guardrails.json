@@ -9,8 +9,8 @@
     "complexity_gate": "required"
   },
   "targets": {
-    "coverage_min": 60,
-    "coverage_target": 75,
+    "coverage_min": 75,
+    "coverage_target": 90,
     "cyclomatic_max": 10,
     "cyclomatic_hard_ceiling": 15,
     "patch_coverage_min": 90

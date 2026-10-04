@@ -1,0 +1,130 @@
+---
+import Base from '../layouts/Base.astro';
+import { FilesystemPlanSource } from '../lib/plans/filesystem';
+
+const source = new FilesystemPlanSource();
+const subjects = await source.listSubjects();
+const totalDocs = subjects.reduce((n, s) => n + s.documents.length, 0);
+---
+
+<Base title="All subjects" description="Every .context/ subject folder with its plan markdown.">
+  <div class="lede">
+    <h1>Subjects</h1>
+    <p>{subjects.length} subjects · {totalDocs} documents · source: filesystem (.context/)</p>
+    <input id="filter" type="search" placeholder="filter subjects…" autocomplete="off" />
+  </div>
+
+  <ul id="subjects" class="grid">
+    {subjects.map((subject) => (
+      <li class="card" data-name={subject.name}>
+        <div class="row">
+          <a class="name" href={`/${subject.name}/`}>{subject.name}</a>
+          {subject.status && <span class="status">{subject.status}</span>}
+        </div>
+        <div class="count">{subject.documents.length} doc{subject.documents.length === 1 ? '' : 's'}</div>
+        <ul class="docs">
+          {subject.documents.slice(0, 5).map((file) => (
+            <li>
+              <a href={`/${subject.name}/${file.replace(/\.md$/i, '')}`}>{file}</a>
+            </li>
+          ))}
+        </ul>
+        {subject.documents.length > 5 && (
+          <a class="more" href={`/${subject.name}/`}>+{subject.documents.length - 5} more →</a>
+        )}
+      </li>
+    ))}
+  </ul>
+
+  <script>
+    const input = document.querySelector('#filter');
+    const cards = [...document.querySelectorAll('#subjects .card')];
+    input?.addEventListener('input', (event) => {
+      const query = (event.target as HTMLInputElement).value.toLowerCase();
+      for (const card of cards) {
+        const name = (card as HTMLElement).dataset.name?.toLowerCase() ?? '';
+        (card as HTMLElement).style.display = name.includes(query) ? '' : 'none';
+      }
+    });
+  </script>
+
+  <style>
+    .lede h1 {
+      font-family: var(--serif);
+      font-size: 2.2rem;
+      margin: 0;
+      letter-spacing: 0.01em;
+    }
+    .lede p {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin: 0.25rem 0 1rem;
+    }
+    #filter {
+      width: 100%;
+      max-width: 28rem;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      padding: 0.6rem 0.8rem;
+      border: 1px solid var(--faint);
+      border-radius: 6px;
+      background: var(--card);
+      color: var(--ink);
+      margin-bottom: 1.5rem;
+    }
+    .grid {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--faint);
+      border-left: 4px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.9rem 1rem;
+    }
+    .row { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
+    .name {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--ink);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+    .name:hover { color: var(--accent-ink); text-decoration: underline; }
+    .status {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--faint);
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .count {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0.2rem 0 0.5rem;
+    }
+    .docs { list-style: none; margin: 0; padding: 0; }
+    .docs li {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      padding: 0.15rem 0;
+      border-top: 1px dashed var(--faint);
+      overflow-wrap: anywhere;
+    }
+    .docs a, .more { color: var(--accent-ink); text-decoration: none; }
+    .docs a:hover, .more:hover { text-decoration: underline; }
+    .more { font-family: var(--mono); font-size: 0.75rem; }
+  </style>
+</Base>

@@ -186,6 +186,29 @@ describe("repairCheckedPhase", () => {
     expect(repairCheckedPhase(abs, "2026-10-04")).toBe(false);
   });
 
+  it("never touches a status line in the body, even when frontmatter has no status key", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const abs = join(dir, "phase.md");
+    const body = '\n\n# Phase\n\n```\nstatus: pending\n```\n';
+    writeFileSync(abs, `---\nacceptance_criteria:\n  - "[x] a"\n---${body}`);
+    expect(repairCheckedPhase(abs, "2026-10-03T00:00:00.000Z")).toBe(true);
+    const text = readFileSync(abs, "utf8");
+    expect(text.endsWith(body)).toBe(true);
+    expect(text).toMatch(/^status: pending$/m);
+    expect(text).toMatch(/^status: completed$/m);
+    expect(text).toMatch(/^completed_at: 2026-10-03$/m);
+  });
+
+  it("stamps completed_at as a bare date with no time component", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
+    const abs = join(dir, "phase.md");
+    writeFileSync(abs, '---\nstatus: in-progress\nacceptance_criteria:\n  - "[x] a"\n---\n');
+    expect(repairCheckedPhase(abs, "2026-10-03T00:00:00.000Z")).toBe(true);
+    const text = readFileSync(abs, "utf8");
+    expect(text).toMatch(/^completed_at: 2026-10-03$/m);
+    expect(text).not.toMatch(/^completed_at: \d{4}-\d{2}-\d{2}T/m);
+  });
+
   it("refuses when a box is unchecked, the list is empty, or the key is absent", () => {
     const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
     const open = join(dir, "open.md");
