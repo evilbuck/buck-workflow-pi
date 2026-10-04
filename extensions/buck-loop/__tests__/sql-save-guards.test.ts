@@ -14,8 +14,8 @@ import {
   completeSaveAttempt,
   prepareSaveAttempt,
   resumeSaveDecision,
-  saveDirective,
   saveSqlFacts,
+  saveDirective,
   verifySqlSave,
   writeReceipt,
 } from "../sql-save.js";
@@ -83,6 +83,23 @@ describe("prepareSaveAttempt refusals", () => {
   });
 });
 
+describe("saveDirective credential boundary", () => {
+  it.each([null, ".context/sql-guards/phase-1-save.md"])("does not disclose database credentials for phase %s", phase => {
+    const secret = "postgres://save-user:save-password-934@example.invalid/memory";
+    process.env.SQL_MEMORY_URL = secret;
+    const cwd = repo();
+    try {
+      const attempt = prepareSaveAttempt(cwd, SUBJECT, false, phase);
+      if ("error" in attempt) throw new Error(attempt.error);
+      const directive = saveDirective(cwd, attempt);
+      expect(directive).not.toContain(secret);
+      expect(directive).not.toContain("save-password-934");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("completeSaveAttempt", () => {
   it("refuses when the receipt is missing", () => {
     process.env.SQL_MEMORY_URL = URL;
@@ -101,29 +118,6 @@ describe("completeSaveAttempt", () => {
     completeSaveAttempt(cwd, prepared);
     const receipt = JSON.parse(readFileSync(join(cwd, prepared.receiptRel), "utf8"));
     expect(receipt.completed).toBe(true);
-  });
-});
-
-describe("saveDirective", () => {
-  it("carries the identity fields that exist at HEAD and no connection string", () => {
-    process.env.SQL_MEMORY_URL = URL;
-    const cwd = repo();
-    const prepared = prepareSaveAttempt(cwd, SUBJECT, false, ".context/x/phase-2-b.md");
-    if ("error" in prepared) throw new Error(prepared.error);
-    const directive = saveDirective(prepared);
-    expect(directive).toContain(`attemptId: ${prepared.attemptId}`);
-    expect(directive).toContain(`project: ${prepared.project}`);
-    expect(directive).toContain("phase: .context/x/phase-2-b.md");
-    expect(directive).toContain("Do not record the database URL");
-    expect(directive).not.toContain(URL);
-  });
-
-  it("writes null for an absent phase", () => {
-    process.env.SQL_MEMORY_URL = URL;
-    const cwd = repo();
-    const prepared = prepareSaveAttempt(cwd, SUBJECT);
-    if ("error" in prepared) throw new Error(prepared.error);
-    expect(saveDirective(prepared)).toContain("phase: null");
   });
 });
 

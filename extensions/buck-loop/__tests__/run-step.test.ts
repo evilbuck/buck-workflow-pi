@@ -4,6 +4,7 @@
  * and the `{ ok, text }` result. No live child agent is spawned.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -27,7 +28,7 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 });
 vi.mock("../../sql-memory/db.js", () => ({ createLazyPool: createLazyPoolMock }));
 import { WORK_SESSION_IDLE_TIMEOUT_MS, runStep, selectBuckStageModel, type WorkModelSelectInput } from "../run-step.js";
-import { cleanupRepos, repo } from "./fixtures.js";
+import { cleanupRepos, git, repo } from "./fixtures.js";
 import { completeSaveAttempt, prepareSaveAttempt, verifySqlSave, writeReceipt } from "../sql-save.js";
 
 const dirs: string[] = [];
@@ -145,7 +146,7 @@ describe("runStep", () => {
       else process.env.SQL_MEMORY_URL = previous;
     }
   });
-  it("trusts the agent's success when its sql_memory call was denied at the gate", async () => {
+  it.each(["b-build", "b-save"] as const)("allows correction after a SQL gate denial in %s", async skill => {
     // Gate denials during agent work are recoverable — the agent sees the error and may
     // correct with a different op. run-step must not downgrade `outcome.ok` based on the
     // gate denial alone; the supervisor's `finishSqlSave` is the receipt authority.
@@ -156,11 +157,14 @@ describe("runStep", () => {
       createAgentSessionMock.mockImplementationOnce(async (options) => {
         const sqlTool = options.customTools?.[0] as { execute: (...args: unknown[]) => Promise<{ details: unknown }> };
         const result = await sqlTool.execute("call", { op: "sql", statement: "DELETE FROM memories" }, undefined, undefined, {} as never);
+        session.prompt.mockImplementation(async () => {
+          session.emit({ type: "tool_execution_end", toolName: "sql_memory", isError: true, result });
+        });
         expect(result.details).toMatchObject({ error: true });
         return { session };
       });
       const select = selectOnce();
-      const result = await runStep({ select, cwd: tmp(), skill: "b-build", planOrPhasePath: "plan.md" });
+      const result = await runStep({ select, cwd: tmp(), skill, planOrPhasePath: "plan.md" });
       expect(result).toEqual({ ok: true, text: "I finished." });
       expect(select).toHaveBeenCalledTimes(1);
       expect(createAgentSessionMock).toHaveBeenCalledTimes(1);
@@ -313,6 +317,69 @@ describe("runStep", () => {
     expect(await verifySqlSave(cwd, prepared.subject, async () => [{ id: "probe" }], true, prepared.attemptId))
       .toEqual({ status: "unverified" });
   });
+  it("preserves a save-tool validation failure when the child returns a final report", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const session = arrange("Save blocked; no receipt written.");
+    session.prompt.mockImplementation(async () => {
+      session.emit({ type: "tool_execution_end", toolName: "sql_memory", isError: true,
+        result: { content: [{ type: "text", text: "Validation failed for sql_memory: op was undefined. Received arguments {}" }] } });
+    });
+    const select = selectOnce();
+    const result = await runStep({ select, cwd: tmp(), skill: "b-save", planOrPhasePath: "plan.md" });
+    expect(result).toMatchObject({ ok: true, sqlFailure: expect.stringContaining("Validation failed") });
+    expect(select).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a recovered save-tool validation failure after a successful SQL call", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      end: async () => {},
+      async query() { return { rows: [] }; },
+      async connect() { return { async query() { return { rows: [{ id: "saved-id" }] }; }, release() {} }; },
+    }));
+    const session = arrange("Completed after correcting arguments.");
+    session.prompt.mockImplementation(async () => {
+      session.emit({ type: "tool_execution_end", toolName: "sql_memory", isError: true,
+        result: { content: [{ type: "text", text: "Validation failed for sql_memory" }] } });
+      const tool = createAgentSessionMock.mock.calls[0]![0].customTools[0];
+      const result = await tool.execute("recovered", { op: "sql", statement: "SELECT id FROM projects" });
+      expect(result.details).toMatchObject({ rows: [{ id: "saved-id" }] });
+    });
+    expect(await runStep({ select: selectOnce(), cwd: tmp(), skill: "b-save", planOrPhasePath: "plan.md" }))
+      .toEqual({ ok: true, text: "Completed after correcting arguments." });
+  });
+
+  it("saves remember identity and provenance from the child checkout", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://test.invalid/memory";
+    const cwd = repo();
+    git(cwd, ["config", "user.email", "child-save@example.test"]);
+    git(cwd, ["remote", "add", "origin", "https://example.test/child-save.git"]);
+    writeFileSync(join(cwd, "tracked.txt"), "child checkout");
+    git(cwd, ["add", "tracked.txt"]);
+    git(cwd, ["commit", "-qm", "child baseline"]);
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    let inserted: unknown[] | undefined;
+    createLazyPoolMock.mockReturnValueOnce(() => ({
+      end: async () => {},
+      async query(sql: string, values?: unknown[]) {
+        if (sql.startsWith("SELECT slug")) return { rows: [{ slug: "project" }] };
+        if (sql.startsWith("SELECT id::text AS id FROM projects")) return { rows: [{ id: "child-project" }] };
+        if (sql.includes("m.context @>")) return { rows: [] };
+        if (sql.startsWith("SELECT coalesce(max(seq)")) return { rows: [{ bigint: "1" }] };
+        if (sql.startsWith("INSERT INTO memories")) inserted = values;
+        return { rows: [{ id: "child-memory" }] };
+      },
+    }));
+    const session = arrange("Saved child fact.");
+    session.prompt.mockImplementation(async () => {
+      const tool = createAgentSessionMock.mock.calls[0]![0].customTools[0];
+      const result = await tool.execute("save", { op: "remember", subject: "2026-10-04.child-save", body: "Child fact." });
+      expect(result.details).toMatchObject({ id: "child-memory" });
+    });
+    await runStep({ select: selectOnce(), cwd, skill: "b-save", planOrPhasePath: "plan.md" });
+    expect(inserted?.slice(0, 4)).toEqual(["child-save@example.test", "child-project", "loop-work", head]);
+  });
+
   it.each(["unsubscribe", "dispose"] as const)("keeps the stage ok when %s throws after a successful session", async (cleanup) => {
     // Cleanup failures must not flip a successful session into a failure; the agent's
     // durable work already landed and the supervisor's receipt verification is the

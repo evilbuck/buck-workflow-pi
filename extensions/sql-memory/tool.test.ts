@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { validateToolArguments } from "@mariozechner/pi-ai";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,6 +62,19 @@ function rememberPool(activeSlugs: string[] = ["project", "decision"]): Migratio
 }
 
 describe("sqlMemoryTool remember op", () => {
+  it.each([
+    {},
+    { op: "sql" },
+    { op: "sql", body: "fact", subject: "subject-a" },
+    { op: "remember", statement: "SELECT 1" },
+    { op: "remember", body: "fact" },
+    { op: "remember", body: "", subject: "subject-a" },
+    { op: "correct", project: "project-a", previousId: "id" },
+  ])("rejects incomplete operation arguments before database access: %j", params => {
+    const tool = sqlMemoryTool(rememberPool(), "save");
+    expect(() => validateToolArguments(tool, { type: "toolCall", id: "call", name: tool.name, arguments: params })).toThrow();
+  });
+
   it("denies remember in recall role with a recall-protocol fix", async () => {
     const tool = sqlMemoryTool(rememberPool(), "recall", undefined, "/cwd");
     const result = await tool.execute("call", {

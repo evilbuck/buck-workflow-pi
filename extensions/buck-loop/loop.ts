@@ -730,7 +730,7 @@ async function executeSkill(
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
-  const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity);
+  const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity, result.sqlFailure);
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
@@ -797,9 +797,13 @@ function prepareProjectedSave(cwd: string, transition: Transition, snapshot: Sna
   return null;
 }
 
-async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]) {
+async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"], sqlFailure?: string) {
   if (skill !== "save" || !sqlMode()) return { status: "skip" as const };
-  return verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
+  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
+  if (check.status === "unverified" && sqlFailure) {
+    return { status: "block" as const, reason: `SQL save failed before a verified receipt: ${sqlFailure}` };
+  }
+  return check;
 }
 
 async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string, onActivity: LoopDeps["onActivity"]): Promise<Snapshot> {
