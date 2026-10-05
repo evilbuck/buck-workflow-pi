@@ -150,16 +150,21 @@ Review against this plan, handle only in-plan defects, record durable state, and
 
 ## Acceptance criteria
 
-- [ ] AC-1: Initial checkpoint refusal, automatic retry, and terminal block all retain Phase 1's target and immutable baseline; Phase 2 never builds or commits, and unrelated unstaged content/index entries remain untouched.
-- [ ] AC-2: A failed commit child with unchanged HEAD retains the same target/baseline through the existing retry ceiling. A child saying ok with no new commit cannot authorize advance.
-- [ ] AC-3: A real successful Phase 1 commit advances to Phase 2 exactly once; normal two-phase execution produces one commit per phase. The final verified commit can reach done without getting stuck on the completed phase.
-- [ ] AC-4: A fresh-process restart before the Git commit resumes only the retained Phase 1 checkpoint after USER_CONFIRMED; no Phase 2 build and no repeated Phase 1 build/review/save precedes it.
-- [ ] AC-5: A fresh-process restart after Git commit but before projection advance verifies that existing commit and advances without another commit child or duplicate commit.
-- [ ] AC-6: HEAD advanced with remaining dirt, divergent history, malformed/missing marker, lost target, or failed Git proof cannot advance or silently select another phase. After appropriate operator recovery, no second commit is created for a verified checkpoint.
-- [ ] AC-7: The actual legacy blocked/Phase-2 projection shape without a marker remains blocked with manual recovery guidance; no previous target is guessed from phase completion or log prose.
-- [ ] AC-8: Commit ambiguity cannot be lifted to advance by a model. Ordinary non-commit ambiguity handling, build/iterate USER_CONFIRMED recovery, counters, and existing staging/protected-branch gates retain their contracts.
-- [ ] AC-9: File mode and configured SQL mode exercise the same commit-identity behavior; a stale or mismatched SQL save receipt still cannot authorize commit progress. Unphased closeout eligibility remains enforced.
-- [ ] AC-10: Focused suites, npm test, required guardrails gates, and the disposable fresh-process smoke pass. Recovery docs/changelog match observed behavior; no production projection, receipt, cleanup-phase status, or unrelated work is mutated.
+- [x] AC-1: Initial checkpoint refusal, automatic retry, and terminal block all retain Phase 1's target and immutable baseline; Phase 2 never builds or commits, and unrelated unstaged content/index entries remain untouched.
+- [x] AC-2: A failed commit child with unchanged HEAD retains the same target/baseline through the existing retry ceiling. A child saying ok with no new commit cannot authorize advance.
+- [x] AC-3: A real successful Phase 1 commit advances to Phase 2 exactly once; normal two-phase execution produces one commit per phase. The final verified commit can reach done without getting stuck on the completed phase.
+- [x] AC-4: A fresh-process restart before the Git commit resumes only the retained Phase 1 checkpoint after USER_CONFIRMED; no Phase 2 build and no repeated Phase 1 build/review/save precedes it.
+- [x] AC-5: A fresh-process restart after Git commit but before projection advance verifies that existing commit and advances without another commit child or duplicate commit.
+- [x] AC-6: HEAD advanced with remaining dirt, divergent history, malformed/missing marker, lost target, or failed Git proof cannot advance or silently select another phase. After appropriate operator recovery, no second commit is created for a verified checkpoint.
+- [x] AC-7: The actual legacy blocked/Phase-2 projection shape without a marker remains blocked with manual recovery guidance; no previous target is guessed from phase completion or log prose.
+- [x] AC-8: Commit ambiguity cannot be lifted to advance by a model. Ordinary non-commit ambiguity handling, build/iterate USER_CONFIRMED recovery, counters, and existing staging/protected-branch gates retain their contracts.
+- [x] AC-9: File mode and configured SQL mode exercise the same commit-identity behavior; a stale or mismatched SQL save receipt still cannot authorize commit progress. Unphased closeout eligibility remains enforced.
+- [x] AC-10: Focused suites, npm test, required guardrails gates, and the disposable fresh-process smoke pass. Recovery docs/changelog match observed behavior; no production projection, receipt, cleanup-phase status, or unrelated work is mutated.
+
+## Acceptance stamp
+
+2026-10-04. AC-2 and AC-3 were stamped from `jev-1.13.0` at noul 0.73. Operator directed the remaining boxes checked.
+
 
 ## Verification
 
