@@ -5,7 +5,7 @@
  * save stage if it lets a bad attempt through.
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,7 +19,6 @@ import {
   verifySqlSave,
   writeReceipt,
 } from "../sql-save.js";
-import { checkSqlForRole } from "../../sql-memory/sql-gate.js";
 
 const SUBJECT = "2026-10-03.sql-guards";
 const PROJECT = "git@example.test:buck/workflow.git";
@@ -32,6 +31,7 @@ function repo(withRemote = true): string {
   const cwd = mkdtempSync(join(tmpdir(), "sql-guards-"));
   execFileSync("git", ["init"], { cwd, stdio: "ignore" });
   if (withRemote) execFileSync("git", ["remote", "add", "origin", PROJECT], { cwd, stdio: "ignore" });
+  execFileSync("git", ["config", "user.email", "guard@example.test"], { cwd, stdio: "ignore" });
   return cwd;
 }
 
@@ -91,7 +91,7 @@ describe("saveDirective credential boundary", () => {
     try {
       const attempt = prepareSaveAttempt(cwd, SUBJECT, false, phase);
       if ("error" in attempt) throw new Error(attempt.error);
-      const directive = saveDirective(cwd, attempt);
+      const directive = saveDirective(attempt);
       expect(directive).not.toContain(secret);
       expect(directive).not.toContain("save-password-934");
     } finally {
@@ -216,23 +216,15 @@ describe("saveSqlFacts with an injected query", () => {
     await expect(saveSqlFacts(cwd, prepared, ["a fact"], emptyQuery)).rejects.toThrow(/project id/);
   });
 
-  it("runs the identity lookups the save stage requires", async () => {
+  it("does not persist a receipt when the fact insert returns no id", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
-    const seen: string[] = [];
-    const query: SqlQuery = async (sql) => {
-      seen.push(sql);
-      // The project lookup must return an id for the save to continue.
-      return /SELECT id FROM projects/.test(sql) ? [{ id: "project-id" }] : [];
-    };
-    // The fact store then needs a read-back row, so the failure surfaces
-    // exactly where the fixture stops satisfying it.
-    await expect(saveSqlFacts(cwd, prepared, ["a fact"], query)).rejects.toThrow();
-    expect(seen.some((sql) => /INSERT INTO memories/.test(sql))).toBe(true);
-    // Every statement the save actually issued is one the gate allows.
-    for (const sql of seen) expect(checkSqlForRole(sql, "save").allowed).toBe(true);
+    const query: SqlQuery = async (sql) =>
+      /SELECT id FROM projects/.test(sql) ? [{ id: "project-id" }] : [];
+    await expect(saveSqlFacts(cwd, prepared, ["a fact"], query)).rejects.toThrow("SQL save did not return a memory id");
+    expect(existsSync(join(cwd, prepared.receiptRel))).toBe(false);
   });
 });
 

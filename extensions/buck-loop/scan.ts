@@ -346,23 +346,26 @@ function scanReviewFacts(subjectDir: string, activePhase: number | null): Review
   };
 }
 
-/**
- * `iterate-*.md` artifacts in a subject folder. The single source of truth for
- * "is this iteration still open": the postcondition, the supervisor close, and
- * the ambiguity diagnosis all read this list, so they cannot disagree.
- */
-export function iterateArtifacts(subjectDir: string): string[] {
+/** Enumerate iterate artifacts; the shared lifecycle predicate determines which remain open. */
+function iterateArtifacts(subjectDir: string): string[] {
   return listNames(subjectDir)
     .filter((name) => /^iterate-.*\.md$/.test(name))
     .map((name) => join(subjectDir, name))
     .sort();
 }
 
+/** Unreadable or statusless artifacts remain unfinished, never proof of completion. */
+export function unfinishedIterates(subjectDir: string): string[] {
+  return iterateArtifacts(subjectDir).filter(iterateUnfinished);
+}
+
 function hasIterate(subjectDir: string): boolean {
-  return iterateArtifacts(subjectDir).some((abs) => {
-    const status = readStatus(abs);
-    return status !== "completed" && status !== "below-waterline";
-  });
+  return iterateArtifacts(subjectDir).some(iterateUnfinished);
+}
+
+function iterateUnfinished(abs: string): boolean {
+  const status = readStatus(abs);
+  return status !== "completed" && status !== "below-waterline";
 }
 
 function findReviewReport(subjectDir: string): string | null {

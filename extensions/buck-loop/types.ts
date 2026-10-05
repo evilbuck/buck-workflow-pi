@@ -102,12 +102,10 @@ export interface WorkFacts {
  * - `unresolved` — the evaluation failed twice. The machine opens the closed
  *   document/save choice instead of assuming an update is needed.
  *
- * Every value is terminal, and that is deliberate. An in-flight judgment is
- * not a value: a garbled report carries an **absent** `docsVerdict`, and the
- * loop re-ranks until it reaches one of these. A `pending` member would be
- * unreachable — the rank handler always reaches a terminal verdict in one
- * visit, and the projection does not persist `reviewFacts`, so no resume can
- * reintroduce one — and an unreachable member is a spin waiting to happen.
+ * Every value is terminal. `docsVerdict` is absent when no garbled,
+ * below-waterline report needs judgment, or before that judgment completes.
+ * The rank handler resolves a needed verdict in one visit; review facts are
+ * not persisted, so no resumable `pending` enum member is needed.
  */
 export type DocsVerdict = "flagged" | "none" | "unresolved";
 

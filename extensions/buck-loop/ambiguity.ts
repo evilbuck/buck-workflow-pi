@@ -8,7 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
-import { iterateArtifacts, readStatus } from "./scan.js";
+import { unfinishedIterates, readStatus } from "./scan.js";
 import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
@@ -58,19 +58,6 @@ export function repairCheckedPhase(abs: string, at: string): boolean {
     : body.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
   writeFileSync(abs, text.slice(0, fm.start) + body + text.slice(fm.end));
   return true;
-}
-
-/**
- * `iterate-*.md` files that still demand supervisor action. One rule serves
- * the scanner, the close target, and the diagnosis. An unreadable or
- * statusless artifact counts unfinished: a file nobody can parse is not
- * evidence of completion.
- */
-export function unfinishedIterates(subjectDir: string): string[] {
-  return iterateArtifacts(subjectDir).filter((abs) => {
-    const status = readStatus(abs);
-    return status !== "completed" && status !== "below-waterline";
-  });
 }
 
 /** Status a diagnosis should name for each unfinished artifact. */

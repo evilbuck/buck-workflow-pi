@@ -4,7 +4,7 @@
  * operator-owned START / USER_CONFIRMED / STOP.
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { defineMachine, IllegalTransitionError, UnknownStateError } from "../../state_machine/index.js";
+import { IllegalTransitionError, UnknownStateError } from "../../state_machine/index.js";
 import {
   BuckMachineError,
   buckMachine,
@@ -17,7 +17,7 @@ import {
   stopFrom,
   userConfirmed,
 } from "../machine.js";
-import type { RankingFacts, ReviewFacts, Snapshot, Transition, WorkFacts, WorkSkill, WorkState } from "../types.js";
+import type { RankingFacts, ReviewFacts, Snapshot, WorkFacts, WorkSkill, WorkState } from "../types.js";
 
 const SUBJECT = "2026-09-18.demo-subject";
 const PLAN_PATH = `.context/${SUBJECT}/plan-demo.md`;
@@ -641,63 +641,6 @@ describe("next: ranking", () => {
   it("does not route stale impact flags from a garbled report before its judgment", () => {
     const s = snap({ state: "ranking", reviewFacts: rf({ iterateArtifact: true, parseable: false, docsImpact: true, ranking: { kind: "ranked", above: false } }) });
     expect(next(s).effect).toEqual({ kind: "rank" });
-  });
-});
-
-describe("R-1 rollback: reviewing → iterating", () => {
-  /**
-   * Recovery check for R-1. The rollback is "point the `reviewing` edge back
-   * at the iterate artifact". This block reconstructs that pre-change shape as
-   * a real machine and runs the pre-change assertion against it, so a future
-   * revert is proven here rather than only described in a comment.
-   *
-   * To roll back in production, change the `ranking` target in `reviewing` to
-   * `iterateWins(s)` and delete the `ranking` state. `LEGACY_REVIEWING_PASSES`
-   * below is the acceptance proof that this is sufficient.
-   */
-  const legacyMachine = defineMachine<Snapshot, Transition["effect"]>()({
-    initial: "reviewing",
-    states: {
-      reviewing: {
-        targets: [
-          {
-            name: "iterating",
-            guard: (s) => Boolean(s.reviewFacts.kind === "report" && s.reviewFacts.iterateArtifact),
-            effect: () => ({ kind: "run-skill", skill: "iterate" }),
-          },
-          { name: "done", effect: () => ({ kind: "none" }) },
-        ],
-      },
-      iterating: { targets: [{ name: "done", effect: () => ({ kind: "none" }) }] },
-      done: { final: true, targets: [] },
-    },
-  });
-
-  /**
-   * The pre-change assertion, verbatim: an iterate artifact wins outright.
-   * `LEGACY_ARTIFACT_WINS` is the exact snapshot the old rule answered.
-   */
-  const LEGACY_ARTIFACT_WINS = reviewDone({ iterateArtifact: true, docsImpact: true, howtoImpact: true });
-
-  it("proves the reverted edge restores 'iterate artifact present → iterating'", () => {
-    const instance = legacyMachine.restore("reviewing");
-    expect(instance.available(LEGACY_ARTIFACT_WINS)).toContain("iterating");
-    expect(instance.transition("iterating", LEGACY_ARTIFACT_WINS)).toEqual({
-      from: "reviewing",
-      to: "iterating",
-      effect: { kind: "run-skill", skill: "iterate" },
-    });
-  });
-
-  it("keeps the legacy edge unreachable once an iterate artifact is absent", () => {
-    expect(legacyMachine.restore("reviewing").available(reviewDone())).not.toContain("iterating");
-  });
-
-  it("names the edge this phase replaced, and the one that now intercepts it", () => {
-    expect(buckMachine.targets("reviewing")).toEqual(expect.arrayContaining(["ranking", "iterating"]));
-    // The gate is what makes the change reversible: remove it and the legacy
-    // assertion above holds again.
-    expect(next(reviewDone({ iterateArtifact: true })).to).not.toBe("iterating");
   });
 });
 

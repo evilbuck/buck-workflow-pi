@@ -1,3 +1,5 @@
+- 2026-10-05 — [PR #58 CI and Wooderson fixes](fix-pr-58-2026-10-05.md) — active (native Jev-validated claims; SQL fixture identity, canonical directive, shared CRLF artifact lifecycle and actual production rollback proof; required checks pass; independent settlement pending)
+
 - 2026-10-03 — [repairCheckedPhase frontmatter fix + memory-index conflict resolution](repair-checked-phase-frontmatter-fix-2026-10-03.md) — completed (span-bounded status rewrite via exported frontmatterSpan, bare-date completed_at, red-then-green regression tests, backlog item archived; index.md union conflict resolved and Jev-graded 0.95/0.85/0.89; subject stays active, plan implementation pending)
 
 - 2026-10-01 — [sql-memory remember iteration](sql-memory-remember-op-iterate-2026-10-01.md) — completed (second pass closed complexity split and recall-only denial fix; guardrails pass, complexity_gate pass; re-review still required)

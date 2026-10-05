@@ -367,9 +367,9 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
       targets: [
         ...workEdges("reviewing"),
         {
-          // R-1 rollback: restore the former iterating target, iterateWins
-          // guard, and runSkill("iterate") effect. The named machine test
-          // constructs that legacy edge and exercises its recovery path.
+          // R-1 rollback: remove this edge and the ranking state; restore
+          // iterateWins on the iterating edge and its review-time ceiling.
+          // Verify the reverted production source, not a test-created graph.
           name: "ranking",
           guard: (s) => sessionOk(s) && iterateWins(s) && canRunWork(s),
           effect: () => ({ effect: { kind: "rank" } as const, why: "unfinished iterate artifact; ranking in-plan issues before iterating" }),

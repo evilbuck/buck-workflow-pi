@@ -1203,6 +1203,21 @@ describe("in-process rank effect", () => {
     expect(auditText).toContain("below waterline");
   });
 
+  it("ignores retired CRLF iterate artifacts when ranking the current review", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle([]));
+    const retired = {
+      [`.context/${SUBJECT}/iterate-completed.md`]: "---\r\nstatus: completed\r\n---\r\n# Retired\r\n",
+      [`.context/${SUBJECT}/iterate-below.md`]: "---\r\nstatus: below-waterline\r\n---\r\n# Retired\r\n",
+    };
+    writeTree(cwd, retired);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-iterate");
+    for (const [path, text] of Object.entries(retired)) {
+      expect(readFileSync(join(cwd, path), "utf8")).toBe(text);
+    }
+  });
+
   it("marks the artifact below-waterline and skips docs/save choice when nothing clears", async () => {
     const { cwd, deps } = rankedRun(rankingByTitle([]));
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });

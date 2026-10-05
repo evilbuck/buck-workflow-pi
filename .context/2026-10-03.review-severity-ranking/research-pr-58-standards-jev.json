@@ -1,0 +1,82 @@
+{
+  "date": "2026-10-05",
+  "anchor": "7ecbc6cdd1eb9057c50d8dfc477f57be8be434b7",
+  "source": "independent local standards review",
+  "state": {
+    "review": "PR58 independent local standards review",
+    "claim": "Removing the explicit per-statement checkSqlForRole assertions permits a future save statement widened into gate-denied territory to pass the replacement test.",
+    "evidence": {
+      "sql": "[extensions/buck-loop/sql-save.ts#9D91]\n109:\n110:/** Persist reusable facts before applying filesystem metadata. Retries reuse source keys. */\n111:export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery, onActivity?: SqlMemoryActivitySink): Promise<string[]> {\n112:  if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query));\n113:  const url = process.env.SQL_MEMORY_URL;\n114:  if (!url) throw new Error(\"SQL_MEMORY_URL is not set\");\n115:  const pool = createLazyPool(url)();\n116:  const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, \"save\", onActivity);\n117:  saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work, onActivity);\n118:  try {\n119:    return await saveFactsWithQuery(cwd, attempt, facts, saveQuery);\n120:  } finally {\n121:    await pool.end();\n122:  }\n123:}\n124:\n125:function guardedQuery(query: SqlQuery): SqlQuery {\n126:  const guarded: SqlQuery = (sql, values) => {\n127:    const gate = checkSqlForRole(sql, \"save\");\n128:    if (!gate.allowed) throw new Error(`SQL save policy denied statement: ${gate.reason}`);\n129:    return query(sql, values);\n130:  };\n131:  if (query.transaction) guarded.transaction = (work) => query.transaction!((inside) => work(guardedQuery(inside)));\n132:  return guarded;\n133:}\n134:\n135:async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query: SqlQuery): Promise<string[]> {\n136:  if (facts.length === 0) return saveNoFacts(cwd, attempt, query);\n137:  const email = git(cwd, \"config\", \"user.email\");\n138:  if (!email) throw new Error(\"SQL save requires git user.email\");\n139:  const branch = git(cwd, \"branch\", \"--show-current\");\n140:  const sha = git(cwd, \"rev-parse\", \"HEAD\");\n141:  const provenance = branch && sha ? [branch, sha] : [null, null];\n142:  await query(\"INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO NOTHING\", [email]);\n143:  await query(\n144:    \"INSERT INTO projects (origin_url, name) VALUES ($1, $2) ON CONFLICT (origin_url) DO NOTHING\",\n145:    [attempt.project, attempt.subject],\n146:  );\n147:  const projectRows = await query(\"SELECT id FROM projects WHERE origin_url = $1\", [attempt.project]);\n148:  const projectId = projectRows[0]?.id;\n149:  if (typeof projectId !== \"string\") throw new Error(\"SQL save could not resolve project id\");\n150:  const ids: string[] = [];\n151:  for (const [index, fact] of facts.entries()) {\n152:    ids.push(await storeCorrectedFact(attempt, query, { email, projectId, provenance }, fact, index + 1));\n153:  }\n154:  for (const id of ids) {\n155:    const rows = await query(READBACK_SQL, [attempt.project, id]);\n156:    if (rows.length !== 1) throw new Error(`SQL save row was not readable for this project: ${id}`);\n157:  }\n158:  writeReceipt(cwd, attempt, { kind: \"rows\", ids });\n159:  return ids;\n160:}\n161:\n162:async function storeCorrectedFact(\n…\n168:): Promise<string> {\n…\n196:}\n\n[Showing lines 109-162 of 437. Use :163 to continue]",
+      "test": "[extensions/buck-loop/__tests__/sql-save-guards.test.ts#A5A9]\n196:describe(\"saveSqlFacts with an injected query\", () => {\n…\n208:\n209:  it(\"refuses to write a fact when the project id cannot be resolved\", async () => {\n210:    process.env.SQL_MEMORY_URL = URL;\n211:    const cwd = repo();\n212:    const prepared = prepareSaveAttempt(cwd, SUBJECT);\n213:    if (\"error\" in prepared) throw new Error(prepared.error);\n214:    // Without a project row the save must stop rather than store a fact that\n215:    // no project can own.\n216:    await expect(saveSqlFacts(cwd, prepared, [\"a fact\"], emptyQuery)).rejects.toThrow(/project id/);\n217:  });\n218:\n219:  it(\"does not persist a receipt when the fact insert returns no id\", async () => {\n220:    process.env.SQL_MEMORY_URL = URL;\n221:    const cwd = repo();\n222:    const prepared = prepareSaveAttempt(cwd, SUBJECT);\n223:    if (\"error\" in prepared) throw new Error(prepared.error);\n224:    const query: SqlQuery = async (sql) =>\n225:      /SELECT id FROM projects/.test(sql) ? [{ id: \"project-id\" }] : [];\n226:    await expect(saveSqlFacts(cwd, prepared, [\"a fact\"], query)).rejects.toThrow(\"SQL save did not return a memory id\");\n227:    expect(existsSync(join(cwd, prepared.receiptRel))).toBe(false);\n228:  });\n229:});\n230:\n231:describe(\"attempt file hygiene\", () => {\n232:  it(\"never persists the database URL or credentials\", () => {\n233:    process.env.SQL_MEMORY_URL = URL;\n234:    const cwd = repo();\n…\n242:  });\n243:});\n\n[Showing lines 208-234 of 243. Use :235 to continue]"
+    },
+    "constraints": "Judge current code paths, not test-line coverage percentages. Injected queries are wrapped in guardedQuery; replacement expects the specific memory-id error and receipt absence. No new scope or default SQL guard relaxation."
+  },
+  "questions": {
+    "silentGateRegression": {
+      "type": "noul",
+      "criteria": {
+        "yes": "A gate-denied production statement reached before the expected missing-id failure could pass the test without the removed per-statement assertions.",
+        "no": "guardedQuery throws a different policy-denial error before delegating, and the replacement expects the exact missing-memory-id error, so a denial fails this test."
+      },
+      "instructions": "Is the claim that a gate-denied save statement could pass this replacement test supported by these code paths?"
+    },
+    "explicitAssertionNeeded": {
+      "type": "noul",
+      "criteria": {
+        "yes": "The replacement bypasses the policy gate or does not distinguish policy denial from the expected persistence error.",
+        "no": "The production wrapper already enforces the policy and the expected semantic failure distinguishes denial, making explicit per-statement allowed checks redundant."
+      },
+      "instructions": "Does preserving detection of gate-denied save statements require restoring the removed explicit checkSqlForRole wiring assertions?"
+    }
+  },
+  "initial": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "silentGateRegression": {
+        "type": "noul",
+        "noul": 0.15
+      },
+      "explicitAssertionNeeded": {
+        "type": "noul",
+        "noul": 0.7
+      }
+    },
+    "usage": {
+      "input_tokens": 1955,
+      "output_tokens": 48
+    }
+  },
+  "followupState": {
+    "review": "PR58 independent local standards review",
+    "claim": "Removing the explicit per-statement checkSqlForRole assertions permits a future save statement widened into gate-denied territory to pass the replacement test.",
+    "evidence": {
+      "sql": "[extensions/buck-loop/sql-save.ts#9D91]\n109:\n110:/** Persist reusable facts before applying filesystem metadata. Retries reuse source keys. */\n111:export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery, onActivity?: SqlMemoryActivitySink): Promise<string[]> {\n112:  if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query));\n113:  const url = process.env.SQL_MEMORY_URL;\n114:  if (!url) throw new Error(\"SQL_MEMORY_URL is not set\");\n115:  const pool = createLazyPool(url)();\n116:  const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, \"save\", onActivity);\n117:  saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work, onActivity);\n118:  try {\n119:    return await saveFactsWithQuery(cwd, attempt, facts, saveQuery);\n120:  } finally {\n121:    await pool.end();\n122:  }\n123:}\n124:\n125:function guardedQuery(query: SqlQuery): SqlQuery {\n126:  const guarded: SqlQuery = (sql, values) => {\n127:    const gate = checkSqlForRole(sql, \"save\");\n128:    if (!gate.allowed) throw new Error(`SQL save policy denied statement: ${gate.reason}`);\n129:    return query(sql, values);\n130:  };\n131:  if (query.transaction) guarded.transaction = (work) => query.transaction!((inside) => work(guardedQuery(inside)));\n132:  return guarded;\n133:}\n134:\n135:async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query: SqlQuery): Promise<string[]> {\n136:  if (facts.length === 0) return saveNoFacts(cwd, attempt, query);\n137:  const email = git(cwd, \"config\", \"user.email\");\n138:  if (!email) throw new Error(\"SQL save requires git user.email\");\n139:  const branch = git(cwd, \"branch\", \"--show-current\");\n140:  const sha = git(cwd, \"rev-parse\", \"HEAD\");\n141:  const provenance = branch && sha ? [branch, sha] : [null, null];\n142:  await query(\"INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO NOTHING\", [email]);\n143:  await query(\n144:    \"INSERT INTO projects (origin_url, name) VALUES ($1, $2) ON CONFLICT (origin_url) DO NOTHING\",\n145:    [attempt.project, attempt.subject],\n146:  );\n147:  const projectRows = await query(\"SELECT id FROM projects WHERE origin_url = $1\", [attempt.project]);\n148:  const projectId = projectRows[0]?.id;\n149:  if (typeof projectId !== \"string\") throw new Error(\"SQL save could not resolve project id\");\n150:  const ids: string[] = [];\n151:  for (const [index, fact] of facts.entries()) {\n152:    ids.push(await storeCorrectedFact(attempt, query, { email, projectId, provenance }, fact, index + 1));\n153:  }\n154:  for (const id of ids) {\n155:    const rows = await query(READBACK_SQL, [attempt.project, id]);\n156:    if (rows.length !== 1) throw new Error(`SQL save row was not readable for this project: ${id}`);\n157:  }\n158:  writeReceipt(cwd, attempt, { kind: \"rows\", ids });\n159:  return ids;\n160:}\n161:\n162:async function storeCorrectedFact(\n…\n168:): Promise<string> {\n…\n196:}\n\n[Showing lines 109-162 of 437. Use :163 to continue]",
+      "test": "[extensions/buck-loop/__tests__/sql-save-guards.test.ts#A5A9]\n196:describe(\"saveSqlFacts with an injected query\", () => {\n…\n208:\n209:  it(\"refuses to write a fact when the project id cannot be resolved\", async () => {\n210:    process.env.SQL_MEMORY_URL = URL;\n211:    const cwd = repo();\n212:    const prepared = prepareSaveAttempt(cwd, SUBJECT);\n213:    if (\"error\" in prepared) throw new Error(prepared.error);\n214:    // Without a project row the save must stop rather than store a fact that\n215:    // no project can own.\n216:    await expect(saveSqlFacts(cwd, prepared, [\"a fact\"], emptyQuery)).rejects.toThrow(/project id/);\n217:  });\n218:\n219:  it(\"does not persist a receipt when the fact insert returns no id\", async () => {\n220:    process.env.SQL_MEMORY_URL = URL;\n221:    const cwd = repo();\n222:    const prepared = prepareSaveAttempt(cwd, SUBJECT);\n223:    if (\"error\" in prepared) throw new Error(prepared.error);\n224:    const query: SqlQuery = async (sql) =>\n225:      /SELECT id FROM projects/.test(sql) ? [{ id: \"project-id\" }] : [];\n226:    await expect(saveSqlFacts(cwd, prepared, [\"a fact\"], query)).rejects.toThrow(\"SQL save did not return a memory id\");\n227:    expect(existsSync(join(cwd, prepared.receiptRel))).toBe(false);\n228:  });\n229:});\n230:\n231:describe(\"attempt file hygiene\", () => {\n232:  it(\"never persists the database URL or credentials\", () => {\n233:    process.env.SQL_MEMORY_URL = URL;\n234:    const cwd = repo();\n…\n242:  });\n243:});\n\n[Showing lines 208-234 of 243. Use :235 to continue]"
+    },
+    "constraints": "Judge current code paths, not test-line coverage percentages. Injected queries are wrapped in guardedQuery; replacement expects the specific memory-id error and receipt absence. No new scope or default SQL guard relaxation.",
+    "runtimeProof": {
+      "mutation": "Changed actual first save SQL statement to DELETE FROM users; kept injected query and the replacement test unchanged.",
+      "result": "Replacement test failed: expected SQL save did not return a memory id, received SQL save policy denied statement: DELETE statements are not allowed through sql_memory.",
+      "cleanup": "Original INSERT statement restored in finally; source hash matches pre-mutation state."
+    },
+    "closedQuestion": "The allegation concerns future production SQL widened into gate-denied territory, not a separate negative test for the policy table. Are removed allowed-assertions required to catch that regression?"
+  },
+  "followup": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "silentGateRegression": {
+        "type": "noul",
+        "noul": 0.07
+      },
+      "explicitAssertionNeeded": {
+        "type": "noul",
+        "noul": 0.53
+      }
+    },
+    "usage": {
+      "input_tokens": 2097,
+      "output_tokens": 48
+    }
+  },
+  "decision": "Production mutation proves the new semantic refusal test detects policy-denied save SQL. Do not restore redundant per-statement wiring assertions. Remove the now-internal raw discovery export and clean deletion whitespace; leave pre-existing CRLF writer behavior unchanged."
+}

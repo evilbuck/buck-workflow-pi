@@ -11,9 +11,8 @@ import {
   explainAmbiguity,
   repairCheckedPhase,
   unfinishedIterateReport,
-  unfinishedIterates,
 } from "../ambiguity.js";
-
+import { unfinishedIterates } from "../scan.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 
 const judge = vi.mocked(runJev);

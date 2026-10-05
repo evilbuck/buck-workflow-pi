@@ -52,7 +52,7 @@ import {
 import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
-import { scan } from "./scan.js";
+import { scan, unfinishedIterates } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
@@ -649,24 +649,14 @@ function binaryJudgment(value: unknown): boolean | null {
   return null;
 }
 
-/**
- * Unfinished `iterate-*.md` files, mirroring `scan.hasIterate()`: `completed`
- * and `below-waterline` are no longer iterate work, and `ranking-*.md` never
- * matches the prefix.
- */
+/** Read source text only for artifacts the shared scan predicate still considers unfinished. */
 function unfinishedIterateArtifacts(cwd: string, snapshot: Snapshot): Array<{ path: string; text: string }> {
   if (!snapshot.subject) return [];
   const dir = join(cwd, ".context", snapshot.subject);
-  if (!existsSync(dir)) return [];
-  const artifacts: Array<{ path: string; text: string }> = [];
-  for (const name of readdirSync(dir).filter((entry) => /^iterate-.*\.md$/.test(entry)).sort()) {
-    const text = readFileSync(join(dir, name), "utf8");
-    const status = /^---\n([\s\S]*?)\n---/.exec(text)?.[1].split("\n")
-      .find((line) => line.startsWith("status:"))?.slice("status:".length).trim();
-    if (status === "completed" || status === "below-waterline") continue;
-    artifacts.push({ path: `.context/${snapshot.subject}/${name}`, text });
-  }
-  return artifacts;
+  return unfinishedIterates(dir).map((abs) => ({
+    path: `.context/${snapshot.subject}/${basename(abs)}`,
+    text: readFileSync(abs, "utf8"),
+  }));
 }
 
 /** The report `scan` parsed: the last `review-*.md` by name. */
