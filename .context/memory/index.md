@@ -1,3 +1,7 @@
+- 2026-09-21 — [Dead b-grill-auto cleanup](cleanup-b-grill-auto-2026-09-21.md) — `completed` (deleted `extensions/b-grill-auto/` + `skills/b-grill-auto/`; auto grilling is `/skill:b-grill --mode auto`; complexity inventory 33 → 32)
+
+  - 2026-09-21 | `cleanup-b-grill-auto-2026-09-21.md` | domains: [extensions, skills, cleanup, docs] | topics: [b-grill-auto, grill, deprecation] | status: completed
+
 - 2026-09-21 — [Documentation–implementation sync](documentation-implementation-sync-2026-09-21.md) — `completed` (five-scout living-doc audit; current eval API; harness/command/runtime catalogs; 11 focused tests and durable guardrails pass)
 
 - 2026-09-20 — [Dead b-loop extension cleanup](cleanup-dead-b-loop-2026-09-20.md) — `completed` (deleted `extensions/b-flow/` + `xstate`; coverage ratchet 79.2 → 84)

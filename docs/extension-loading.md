@@ -128,7 +128,6 @@ buck-workflow-pi/
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
     buck-loop/              # (wired) observably invoked /buck-loop runner
     code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
-    b-grill-auto/           # (unwired) b-grill-auto RPC subsystem
     grill-me-dialog.ts      # (unwired) grill-me dialog
     tmux-window-status.ts   # (unwired) tmux window status
     *.test.ts               # Tests for extension behavior
@@ -169,7 +168,7 @@ buck-workflow-pi/
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 
-Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow (deleted), b-grill-auto extension command, session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
+Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow (deleted), session state machine, tmux status) has been removed or left unwired. `/b-save` proper remains a pure skill + prompt — the LLM reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler. See `skills/b-save/SKILL.md` for details.
 
 
 ## Sub-directory auto-discovery in OMP
@@ -199,7 +198,7 @@ Auto-discovery supplements the explicit `omp` manifest arrays. This package decl
   "extensions": ["+extensions/index.ts"],
   "skills": [
     "+skills/b-blueprint/", "+skills/b-brainstorm/", "+skills/b-build/",
-    "+skills/b-explore/", "+skills/b-grill/", "+skills/b-grill-auto/",
+    "+skills/b-explore/", "+skills/b-grill/",
     "+skills/b-grill-me/", "+skills/b-grill-with-docs/", "+skills/b-iterate/",
     "+skills/b-phase/", "+skills/b-plan/", "+skills/b-present/",
     "+skills/b-research/", "+skills/b-review/", "+skills/crawl4ai/",

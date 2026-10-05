@@ -14,7 +14,7 @@ Interview relentlessly about every aspect of a plan or design. Track question co
 - User provides answers and makes decisions
 - User steers the conversation
 
-### Auto Mode (`b-grill-auto`)
+### Auto Mode
 - Sends questions to a different AI model via RPC
 - Model's answers inform decision traversal
 - Model's context shapes the path
@@ -22,7 +22,7 @@ Interview relentlessly about every aspect of a plan or design. Track question co
 
 ### Mode Selection
 - `/b-grill-me` or `/skill:b-grill --mode user` → user mode
-- `/b-grill-auto` or `/skill:b-grill --mode auto` → auto mode
+- `/skill:b-grill --mode auto` → auto mode
 - Default: user mode
 
 ## Core Behavior (Both Modes)

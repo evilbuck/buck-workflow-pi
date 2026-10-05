@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { runApply } from "./save-apply.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
-const LEGACY = "- 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, orchestration] | topics: [grill-auto, rpc, pi-extension] | status: completed\n";
+const LEGACY = "- 2026-05-08 | `example-2026-05-08.md` | domains: [tooling, orchestration] | topics: [example, rpc, pi-extension] | status: completed\n";
 
 function write(root: string, path: string, text: string): void {
   const full = join(root, path);

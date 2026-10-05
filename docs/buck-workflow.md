@@ -80,7 +80,7 @@ Practical translation rules:
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
 - Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: model auto-switch, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact `turn_end` hook.
 
-**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`extensions/b-grill-auto/`, `grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
+**Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The genuinely historical/unwired extension code (`grill-me-dialog.ts`, `tmux-window-status.ts`) is not imported by `index.ts`. See `docs/extension-loading.md` for the loading truth table.
 
 ---
 
@@ -511,7 +511,6 @@ The following older subsystems are **not** wired by the package manifest:
 | `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
 | `/b-flow` / `/b-next` orchestration | Removed 2026-09-20 |
-| `b-grill-auto` extension command | Historical/unwired (`extensions/b-grill-auto/`); the skill remains available |
 | Session-state injection / tmux status | Removed/unwired (`extensions/tmux-window-status.ts`, `grill-me-dialog.ts` kept as unused code) |
 
 The durable-artifact behavior now comes from AGENTS.md instructions and
@@ -734,13 +733,11 @@ informs: []  # Plans/specs this research fed into
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Single entrypoint for plan stress-testing. Mode `user` interviews the user directly (equivalent to `b-grill-me`); mode `auto` sends the questions to a different AI model via RPC (equivalent to `b-grill-auto`). Same complexity tracking and phasing-threshold behavior as the specialized variants.
+**Purpose**: Single entrypoint for plan stress-testing. Mode `user` interviews the user directly (equivalent to `b-grill-me`); mode `auto` sends the questions to a different AI model via RPC. Same complexity tracking and phasing-threshold behavior as the specialized variants.
 
 **Pi/OMP primitive**: Skill only (`skills/b-grill/SKILL.md`) — no `prompts/`/`commands/` wrapper.
 
 **When to use**: You want grilling without choosing the variant up front; pass the mode or let the skill ask. Prefer `b-grill-with-docs` when the project has CONTEXT.md/ADRs to challenge against.
-
-**Note**: the `b-grill-auto` *extension command* is historical/unwired; the `b-grill-auto` *skill* and `b-grill` mode `auto` remain available.
 
 ---
 #### `/b-init-guardrails` — Quality Guardrails Init
@@ -2083,7 +2080,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/b-phase` — break a large plan into phases
 - `/b-present` — presentation package
 - `/b-blueprint` *(skill-only)* — single-page HTML architecture blueprint
-- `/skill:b-grill` / `/skill:b-grill-me` / `/skill:b-grill-with-docs` / `/skill:b-grill-auto` *(skill-only)* — plan stress-testing variants
+- `/skill:b-grill` / `/skill:b-grill-me` / `/skill:b-grill-with-docs` *(skill-only)* — plan stress-testing variants
 - `/b-init-guardrails` + `/b-guardrails-check` — quality gate init and measurement
 - `/b-init-factory` — nested agent software factory
 - `/b-init-tracker` — issue tracker + triage label config

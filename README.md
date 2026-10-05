@@ -320,7 +320,6 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-save-improved` | Deterministic session checkpoint — code-driven counterpart to `b-save` (`/b-save-improved` extension command) |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
-| `b-grill-auto` | Grill a different AI model via RPC about a plan |
 | `b-grill-with-docs` | Grill against existing domain documentation |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
 | `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
@@ -347,7 +346,7 @@ One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
-Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`. Unwired: `b-grill-auto` extension command, tmux status, session-state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
+Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`. Unwired: tmux status, session-state injection. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 

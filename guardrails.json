@@ -99,11 +99,6 @@
         "complexity": 18
       },
       {
-        "file": "extensions/b-grill-auto/grill-state.ts",
-        "function": "buildSessionBody",
-        "complexity": 17
-      },
-      {
         "file": "skills/b-auto-fix/scripts/auto-fix.ts",
         "function": "main",
         "complexity": 17
