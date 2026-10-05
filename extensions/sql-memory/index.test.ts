@@ -264,7 +264,7 @@ describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("portable correction on dispos
       const first = await call(params);
       const successor = (first.details as { id: string }).id;
       expect(successor).toBeTruthy();
-      expect((await call(params)).details).toEqual({ id: successor });
+      expect(((await call(params)).details as { id: string }).id).toBe(successor);
       expect((await sql("SELECT superseded_by::text AS successor FROM memories WHERE id = $1", [predecessor]))[0]?.successor).toBe(successor);
       expect((await sql("SELECT context FROM memories WHERE id = $1", [successor]))[0]?.context)
         .toMatchObject({ phase: ".context/demo/phase-2.md" });

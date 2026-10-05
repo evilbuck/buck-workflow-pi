@@ -1,0 +1,143 @@
+---
+import { Marked } from 'marked';
+import Base from '../../layouts/Base.astro';
+import LinkPreview from '../../components/LinkPreview.astro';
+import { FilesystemPlanSource } from '../../lib/plans/filesystem';
+import { resolveDocHref, routeKey } from '../../lib/plans/links';
+import { synopsisOf } from '../../lib/plans/synopsis';
+import type { Synopsis } from '../../lib/plans/synopsis';
+
+export async function getStaticPaths() {
+  const source = new FilesystemPlanSource();
+  const subjects = await source.listSubjects();
+  const linkPattern = /\[[^\]]*\]\(([^)\s]+)\)/g;
+  const paths = [];
+  for (const subject of subjects) {
+    const docs = await source.listDocuments(subject.name);
+    const previews: Record<string, Synopsis> = {};
+    for (const doc of docs) {
+      previews[`/${subject.name}/${doc.slug}`] = synopsisOf(doc.file, doc.raw);
+    }
+    for (const doc of docs) {
+      // Cross-subject link targets get previews too; same-subject links are
+      // already covered by the sibling map above.
+      const hrefs = new Set<string>();
+      for (const match of doc.body.matchAll(linkPattern)) hrefs.add(match[1]);
+      for (const href of hrefs) {
+        const ref = resolveDocHref(subject.name, href);
+        if (!ref || ref.subject === subject.name) continue;
+        const key = routeKey(ref);
+        if (key in previews) continue;
+        const target = await source.getDocument(ref.subject, ref.slug).catch(() => null);
+        if (target) previews[key] = synopsisOf(target.file, target.raw);
+      }
+      paths.push({
+        params: { subject: subject.name, doc: doc.slug },
+        props: { doc, previews },
+      });
+    }
+  }
+  return paths;
+}
+
+const { doc, previews } = Astro.props;
+const subjectName = doc.subject;
+
+const md = new Marked();
+md.use({
+  renderer: {
+    link({ href, title, text }) {
+      if (!href) return false;
+      const hash = href.indexOf('#');
+      const frag = hash === -1 ? '' : href.slice(hash);
+      const ref = resolveDocHref(subjectName, hash === -1 ? href : href.slice(0, hash));
+      if (!ref) return false;
+      const titleAttr = title ? ` title="${title.replace(/"/g, '&quot;')}"` : '';
+      return `<a href="${routeKey(ref)}${frag}"${titleAttr}>${text}</a>`;
+    },
+  },
+});
+const html = await md.parse(doc.body);
+const metaKeys = Object.keys(doc.frontmatter);
+---
+
+<Base title={doc.title} description={`Plan document ${doc.file} in ${doc.subject}.`}>
+  <nav class="crumbs">
+    <a href="/">subjects</a> / <a href={`/${doc.subject}/`}>{doc.subject}</a> / {doc.file}
+  </nav>
+
+  <article>
+    <header>
+      <div class="file">{doc.file}</div>
+      <h1>{doc.title}</h1>
+      {metaKeys.length > 0 && (
+        <dl class="meta">
+          {metaKeys.map((key) => (
+            <div class="kv">
+              <dt>{key}</dt>
+              <dd>{doc.frontmatter[key]}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </header>
+    <div class="prose" set:html={html} />
+  </article>
+
+  <LinkPreview entries={previews} />
+
+  <style>
+    .file {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      overflow-wrap: anywhere;
+    }
+    h1 {
+      font-family: var(--serif);
+      font-size: 2rem;
+      line-height: 1.2;
+      margin: 0.25rem 0 1rem;
+    }
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--card);
+      border: 1px solid var(--faint);
+      border-radius: 8px;
+    }
+    .kv { display: flex; gap: 0.4rem; font-family: var(--mono); font-size: 0.72rem; }
+    .kv dt { color: var(--muted); }
+    .kv dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+    .prose {
+      background: var(--card);
+      border: 1px solid var(--faint);
+      border-radius: 8px;
+      padding: 1.5rem 1.75rem;
+      overflow-wrap: break-word;
+    }
+    .prose :is(h1, h2, h3, h4) { font-family: var(--serif); line-height: 1.3; }
+    .prose h1 { font-size: 1.6rem; border-bottom: 1px solid var(--faint); padding-bottom: 0.4rem; }
+    .prose h2 { font-size: 1.3rem; margin-top: 2rem; }
+    .prose pre {
+      background: var(--ink);
+      color: #f5f0e6;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      font-size: 0.8rem;
+    }
+    .prose code { font-family: var(--mono); font-size: 0.85em; }
+    .prose :not(pre) > code { background: var(--paper); border: 1px solid var(--faint); border-radius: 4px; padding: 0.05rem 0.3rem; }
+    .prose table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    .prose th, .prose td { border: 1px solid var(--faint); padding: 0.4rem 0.6rem; text-align: left; }
+    .prose th { background: var(--paper); font-family: var(--mono); font-size: 0.75rem; }
+    .prose blockquote { border-left: 3px solid var(--accent); margin-left: 0; padding-left: 1rem; color: var(--muted); }
+    .prose a { color: var(--accent-ink); }
+  </style>
+</Base>

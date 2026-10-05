@@ -82,13 +82,14 @@ export function saveDirective(attempt: SaveAttempt): string {
     "SQL save attempt.",
     `attemptId: ${attempt.attemptId}`,
     `runId: ${attempt.runId}`,
+    `subject: ${attempt.subject}`,
     `project: ${attempt.project}`,
     `phase: ${attempt.phase ?? "null"}`,
     `receipt: ${attempt.receiptRel}`,
     "Connectivity probe succeeded.",
     "Do not write .context/memory files or the memory index.",
     "Do not record the database URL, password, or connection string in any file.",
-    "Look up the source key before insert; use save-stage sql_memory op correct for corrections. Read back each returned or reused active id in this project before writing a rows receipt. If read-back fails, do not write a receipt. Use kind no-fact with ids [] only when this session has no reusable fact.",
+    "Use sql_memory op remember with body, the exact subject above, and phase; include previousId for a correction. The tool derives provenance, reuses the source key, and verifies the active same-project id internally. Do not issue raw memory INSERT/UPDATE or a separate read-back SELECT. Write a rows receipt only from ids returned by successful remember calls. Use kind no-fact with ids [] only when this session has no reusable fact.",
     "After all metadata duties succeed, set completed: true on the receipt; persistence alone is not stage completion.",
   ].join("\n");
 }

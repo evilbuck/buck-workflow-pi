@@ -1,11 +1,11 @@
 /** Throwaway native OMP styling gallery. No model calls and no live loop connection. */
-import { isKeyRelease, matchesKey, Key, wrapTextWithAnsi } from "@mariozechner/pi-tui";
-import { fixtures, layoutNames, renderPreview, type PreviewTheme } from "./render.js";
+import { isKeyRelease, matchesKey, Key, wrapTextWithAnsi, Loader, type TUI } from "@mariozechner/pi-tui";
+import { fixtures, layoutNames, renderPreview, spinnerFrames, type PreviewTheme } from "./render.js";
 
-const layoutKeys = ["1", "2", "3"] as const;
+const layoutKeys = ["1", "2", "3", "4"] as const;
 
 type Component = { render(width: number): string[]; invalidate(): void; handleInput?(data: string): void };
-type Tui = { requestRender(): void };
+type Tui = TUI & { addChild(c: Component): void; removeChild(c: Component): void };
 type PreviewContext = {
   ui: {
     setWidget(key: string, component: ((tui: Tui, theme: PreviewTheme) => Component) | undefined, options?: { placement: "aboveEditor" }): void;
@@ -24,24 +24,37 @@ async function showPreview(ctx: PreviewContext): Promise<void> {
     clearInterval(replay);
     replay = undefined;
   };
-  ctx.ui.setWidget(key, (_tui, theme) => ({
-    invalidate() {},
-    render(width) {
-      const panelWidth = narrow ? Math.min(44, width) : width;
-      const options = layoutNames.map((name, index) => {
-        const label = `${index === layout ? ">" : " "} [${index + 1}] ${name}${index === layout ? " · SELECTED" : ""}`;
-        return `  ${theme.fg(index === layout ? "accent" : "muted", index === layout ? theme.bold(label) : label)}`;
-      });
-      return [
-        ...wrapTextWithAnsi(theme.fg("accent", theme.bold(`  PREVIEW LAYOUTS · ${layout + 1} OF 3`)), panelWidth),
-        ...options,
-        ...wrapTextWithAnsi(theme.fg("muted", "  Press 1 / 2 / 3 or Tab to switch layout"), panelWidth),
-        ...(layout === 0 && panelWidth < 80 ? wrapTextWithAnsi(theme.fg("warning", "  Flow cards: stacked fallback below 80 columns"), panelWidth) : []),
-        "",
-        ...renderPreview(fixtures[fixture]!, layout, theme, panelWidth),
-      ];
-    },
-  }), { placement: "aboveEditor" });
+  ctx.ui.setWidget(key, (tui, theme) => {
+    // Loader must be registered with the TUI (Container.addChild) so the host drives
+    // its animation via requestComponentRender; polling it by hand never advances.
+    const loader = new Loader(tui, (s) => s, (s) => s, "", { frames: spinnerFrames, intervalMs: 80 });
+    tui.addChild(loader);
+    loader.start();
+    return {
+      invalidate() {},
+      dispose() {
+        loader.stop();
+        tui.removeChild(loader);
+      },
+      render(width) {
+        // Loader.render() emits a leading empty padding line; the indicator is index 1.
+        const spinner = loader.render(4)[1]?.trim() || "⠋";
+        const panelWidth = narrow ? Math.min(44, width) : width;
+        const options = layoutNames.map((name, index) => {
+          const label = `${index === layout ? ">" : " "} [${index + 1}] ${name}${index === layout ? " · SELECTED" : ""}`;
+          return `  ${theme.fg(index === layout ? "accent" : "muted", index === layout ? theme.bold(label) : label)}`;
+        });
+        return [
+          ...wrapTextWithAnsi(theme.fg("accent", theme.bold(`  PREVIEW LAYOUTS · ${layout + 1} OF ${layoutNames.length}`)), panelWidth),
+          ...options,
+          ...wrapTextWithAnsi(theme.fg("muted", `  Press 1-${layoutKeys.length} or Tab to switch layout`), panelWidth),
+          ...(layout === 0 && panelWidth < 80 ? wrapTextWithAnsi(theme.fg("warning", "  Flow cards: stacked fallback below 80 columns"), panelWidth) : []),
+          "",
+          ...renderPreview(fixtures[fixture]!, layout, theme, panelWidth, spinner),
+        ];
+      },
+    };
+  }, { placement: "aboveEditor" });
   try {
     await ctx.ui.custom((tui, theme, _keybindings, done) => {
       repaint = () => tui.requestRender();

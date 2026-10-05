@@ -18,12 +18,13 @@
  * User-visible states of one `/buck-loop` run.
  *
  * Scanning, classifying, and verifying are **functions inside a state**,
- * not states of their own. The operator sees these eleven:
+ * not states of their own. The operator sees twelve:
  *
  * - `idle` — nothing saved; waiting for `/buck-loop <path>`.
  * - `resolving` — we have a path; looking up the plan/phase on disk.
  * - `building` — nested session is implementing the current phase (`b-build`).
  * - `reviewing` — nested session is reviewing the implementation (`b-review`).
+ * - `ranking` — in-process review-issue severity ranking.
  * - `iterating` — nested session is fixing in-plan review issues (`b-iterate`).
  * - `documenting` — nested session is updating living docs (`b-docs` / `b-howto`).
  * - `saving` — nested session is writing session memory (`b-save`).
@@ -37,6 +38,7 @@ export type LoopState =
   | "resolving"
   | "building"
   | "reviewing"
+  | "ranking"
   | "iterating"
   | "documenting"
   | "saving"
@@ -47,10 +49,10 @@ export type LoopState =
 
 /**
  * States whose stay is filled by one nested coding session (a child agent
- * that runs a skill). `idle` / `resolving` / `blocked` / `done` / `aborted`
- * do not spawn a child.
+ * that runs a skill). `ranking` performs an in-process judgment, not a skill.
  */
-export type WorkState = Exclude<LoopState, "idle" | "resolving" | "blocked" | "done" | "aborted">;
+export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "blocked" | "done" | "aborted">;
+
 
 /**
  * What the plan scan found. Domain facts, not filesystem mechanics:
@@ -93,6 +95,38 @@ export interface WorkFacts {
 }
 
 /**
+ * The loop's own judgment of documentation impact, used only when the review
+ * report is too garbled to state it. The loop never asks a chat model here.
+ *
+ * - `flagged` / `none` — docs or how-to do / do not need updating.
+ * - `unresolved` — the evaluation failed twice. The machine opens the closed
+ *   document/save choice instead of assuming an update is needed.
+ *
+ * Every value is terminal. `docsVerdict` is absent when no garbled,
+ * below-waterline report needs judgment, or before that judgment completes.
+ * The rank handler resolves a needed verdict in one visit; review facts are
+ * not persisted, so no resumable `pending` enum member is needed.
+ */
+export type DocsVerdict = "flagged" | "none" | "unresolved";
+
+/**
+ * Outcome of the in-process `rank` effect for the current review cycle.
+ * Produced by `loop.ts` after {@link Effect} `rank` returns; the scan never
+ * fills it, because the judgment is a judgment and not a file fact.
+ *
+ * - `ranked` — the audit file is written and the iterate artifact is narrowed.
+ *   `above` is the *summary* of the whole set: true when at least one issue
+ *   cleared the severity waterline. The per-issue record lives in
+ *   `ranking-<utc>.md`, not here.
+ * - `blocked` — the rank could not be completed (unparseable artifact, two
+ *   unfinished artifacts, audit write failure). The loop records the reason
+ *   and the machine blocks; it never routes onward on a failed rank.
+ */
+export type RankingFacts =
+  | { kind: "ranked"; above: boolean; docsVerdict?: DocsVerdict }
+  | { kind: "blocked"; reason: string };
+
+/**
  * Facts from scanning the review artifacts of the current phase cycle.
  * Reset to `pending` when a new cycle begins (new phase, or iterating
  * re-enters reviewing).
@@ -114,6 +148,12 @@ export type ReviewFacts =
       docsImpact: boolean;
       /** True when the report's How-to Impact section is flagged. */
       howtoImpact: boolean;
+      /**
+       * Absent until the `rank` effect reports back. An absent field means
+       * ranking is still pending, so `reviewing` re-emits `rank` instead of
+       * iterating on an unranked artifact.
+       */
+      ranking?: RankingFacts;
     };
 
 /**
@@ -193,6 +233,7 @@ export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "comm
  * - `none` — just sit in that state (START, STOP, arriving at `done`).
  * - `run-skill` — spawn a nested coding session for this skill.
  * - `choose` — ask a model to pick from `legal` (already closed by the machine).
+ * - `rank` — rank review issues in-process using the judgment API.
  * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
  *
  * Work and choice are separate variants so execution code cannot smuggle a
@@ -202,6 +243,7 @@ export type Effect =
   | { kind: "none" }
   | { kind: "run-skill"; skill: WorkSkill }
   | { kind: "choose"; legal: readonly Choice[] }
+  | { kind: "rank" }
   | { kind: "await-operator"; reason: string };
 
 /** One edge of the state graph: target state, the effect to perform, and why. */

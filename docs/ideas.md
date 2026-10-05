@@ -49,7 +49,7 @@ Why do we get progress that looks like
 ```
 ```
 
-**Answer:** This was addressed by the shared activity renderer. `createActivity()` now renders tool targets (`▸ tool → target`), tool failures, retry messages, and completion state; `/buck-loop` keeps a six-row viewport with a 64-character line cap. Consecutive identical operations are still separate events rather than a counted aggregate.
+**Answer:** The shared `createActivity()` surface renders tool targets (`▸ tool → target`), tool failures, retries and completion state. `/buck-loop` uses a stacked CURRENT card with compact, standard and verbose density, plus advisory native Jev rankings; see [the card contract](buck-loop.md). Consecutive identical operations remain separate events rather than a counted aggregate.
 
 ## buck-loop is it idempotent?
 

@@ -1,0 +1,79 @@
+---
+import Base from '../layouts/Base.astro';
+import LinkPreview from '../components/LinkPreview.astro';
+import { FilesystemPlanSource } from '../lib/plans/filesystem';
+import { synopsisOf } from '../lib/plans/synopsis';
+import type { Synopsis } from '../lib/plans/synopsis';
+
+export async function getStaticPaths() {
+  const source = new FilesystemPlanSource();
+  const subjects = await source.listSubjects();
+  return await Promise.all(
+    subjects.map(async (subject) => {
+      const previews: Record<string, Synopsis> = {};
+      const docs = await source.listDocuments(subject.name);
+      for (const doc of docs) previews[`/${subject.name}/${doc.slug}`] = synopsisOf(doc.file, doc.raw);
+      return { params: { subject: subject.name }, props: { subject, previews } };
+    }),
+  );
+}
+
+const { subject, previews } = Astro.props;
+---
+
+<Base title={subject.name} description={`Plan markdown in ${subject.name}.`}>
+  <nav class="crumbs"><a href="/">subjects</a> / {subject.name}</nav>
+
+  <div class="head">
+    <h1>{subject.name}</h1>
+    <div class="meta">
+      {subject.status && <span class="status">{subject.status}</span>}
+      <span class="count">{subject.documents.length} doc{subject.documents.length === 1 ? '' : 's'}</span>
+    </div>
+  </div>
+
+  <ul class="docs">
+    {subject.documents.map((file) => (
+      <li>
+        <a href={`/${subject.name}/${file.replace(/\.md$/i, '')}`}>{file}</a>
+      </li>
+    ))}
+  </ul>
+
+  <LinkPreview entries={previews} />
+
+  <style>
+    h1 {
+      font-family: var(--serif);
+      font-size: 1.9rem;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+    .head { margin-bottom: 1.25rem; }
+    .meta { display: flex; gap: 0.75rem; align-items: center; margin-top: 0.4rem; }
+    .status {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border: 1px solid var(--faint);
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      color: var(--muted);
+    }
+    .count { font-family: var(--mono); font-size: 0.75rem; color: var(--muted); }
+    .docs { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--faint); border-radius: 8px; }
+    .docs li { border-top: 1px dashed var(--faint); }
+    .docs li:first-child { border-top: none; }
+    .docs a {
+      display: block;
+      padding: 0.6rem 1rem;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--ink);
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+    .docs a:hover { color: var(--accent-ink); background: var(--paper); }
+  </style>
+</Base>

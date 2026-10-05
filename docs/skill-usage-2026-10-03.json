@@ -1,0 +1,5880 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-04T02:45:41Z",
+  "window": {
+    "start": "2026-04-03T04:00:00Z",
+    "end": "2026-10-04T02:27:24Z",
+    "local_timezone": "America/New_York",
+    "local_dates": "2026-04-03 through 2026-10-03"
+  },
+  "ranking_metric": "explicit_recorded_invocations",
+  "tie_breakers": [
+    "invocation_sessions_desc",
+    "skill_ascending"
+  ],
+  "source": {
+    "root": "~/.omp/agent/sessions/",
+    "jq_version": "1.8.2",
+    "analysis_session_excluded": true,
+    "files_enumerated": 1197,
+    "files_included": 1195,
+    "parent_sessions_included": 621,
+    "top_level_files": 621,
+    "subagent_files": 574,
+    "project_directories": 60,
+    "lines_scanned": 179597,
+    "invalid_json_lines": 1,
+    "earliest_available_record": "2026-05-31T23:45:53Z",
+    "excluded_analysis_transcripts": 2,
+    "invalid_line_detail": {
+      "record_type": "message",
+      "role": "toolResult",
+      "skill_path_present": false,
+      "reason": "invalid Unicode surrogate pair"
+    }
+  },
+  "totals": {
+    "observed_skills": 166,
+    "current_repository_skills": 64,
+    "current_repository_skills_without_evidence": 1,
+    "ranked_skills": 167,
+    "invocations": 370,
+    "skill_reads": 1461,
+    "duplicate_invocation_records_removed": 0,
+    "duplicate_read_records_removed": 0
+  },
+  "source_totals": {
+    "expanded-prompt": 208,
+    "explicit-load-request": 2,
+    "legacy-b-save-prompt": 23,
+    "legacy-git-commit-prompt": 2,
+    "skill-prompt": 130,
+    "skill-read": 1461,
+    "slash-command": 5
+  },
+  "ranking": [
+    {
+      "skill": "b-review",
+      "current_repository": true,
+      "sessions": 86,
+      "invocations": 50,
+      "invocation_sessions": 48,
+      "skill_reads": 107,
+      "read_sessions": 69,
+      "top_level_invocations": 50,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T11:15:57Z",
+      "last_seen": "2026-10-04T00:06:22Z",
+      "sources": {
+        "expanded-prompt": 40,
+        "skill-prompt": 9,
+        "skill-read": 107,
+        "slash-command": 1
+      },
+      "rank": 1
+    },
+    {
+      "skill": "b-save",
+      "current_repository": true,
+      "sessions": 78,
+      "invocations": 44,
+      "invocation_sessions": 43,
+      "skill_reads": 83,
+      "read_sessions": 55,
+      "top_level_invocations": 44,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:02:37Z",
+      "last_seen": "2026-10-04T02:06:27Z",
+      "sources": {
+        "expanded-prompt": 11,
+        "legacy-b-save-prompt": 23,
+        "skill-prompt": 10,
+        "skill-read": 83
+      },
+      "rank": 2
+    },
+    {
+      "skill": "b-build",
+      "current_repository": true,
+      "sessions": 75,
+      "invocations": 42,
+      "invocation_sessions": 39,
+      "skill_reads": 79,
+      "read_sessions": 58,
+      "top_level_invocations": 42,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T02:15:37Z",
+      "last_seen": "2026-10-04T00:39:08Z",
+      "sources": {
+        "expanded-prompt": 32,
+        "skill-prompt": 9,
+        "skill-read": 79,
+        "slash-command": 1
+      },
+      "rank": 3
+    },
+    {
+      "skill": "git-commit",
+      "current_repository": true,
+      "sessions": 67,
+      "invocations": 39,
+      "invocation_sessions": 35,
+      "skill_reads": 61,
+      "read_sessions": 52,
+      "top_level_invocations": 39,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-01T20:01:18Z",
+      "last_seen": "2026-10-01T02:32:32Z",
+      "sources": {
+        "expanded-prompt": 24,
+        "legacy-git-commit-prompt": 2,
+        "skill-prompt": 11,
+        "skill-read": 61,
+        "slash-command": 2
+      },
+      "rank": 4
+    },
+    {
+      "skill": "b-plan",
+      "current_repository": true,
+      "sessions": 87,
+      "invocations": 38,
+      "invocation_sessions": 37,
+      "skill_reads": 118,
+      "read_sessions": 73,
+      "top_level_invocations": 38,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T13:52:26Z",
+      "last_seen": "2026-10-04T00:05:50Z",
+      "sources": {
+        "expanded-prompt": 34,
+        "skill-prompt": 3,
+        "skill-read": 118,
+        "slash-command": 1
+      },
+      "rank": 5
+    },
+    {
+      "skill": "fix-pr",
+      "current_repository": true,
+      "sessions": 35,
+      "invocations": 26,
+      "invocation_sessions": 24,
+      "skill_reads": 48,
+      "read_sessions": 21,
+      "top_level_invocations": 26,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-13T20:33:25Z",
+      "last_seen": "2026-09-27T12:59:51Z",
+      "sources": {
+        "explicit-load-request": 2,
+        "skill-prompt": 24,
+        "skill-read": 48
+      },
+      "rank": 6
+    },
+    {
+      "skill": "b-phase",
+      "current_repository": true,
+      "sessions": 42,
+      "invocations": 22,
+      "invocation_sessions": 22,
+      "skill_reads": 66,
+      "read_sessions": 35,
+      "top_level_invocations": 22,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T03:44:02Z",
+      "last_seen": "2026-10-03T19:44:37Z",
+      "sources": {
+        "expanded-prompt": 15,
+        "skill-prompt": 7,
+        "skill-read": 66
+      },
+      "rank": 7
+    },
+    {
+      "skill": "b-iterate",
+      "current_repository": true,
+      "sessions": 37,
+      "invocations": 22,
+      "invocation_sessions": 21,
+      "skill_reads": 31,
+      "read_sessions": 26,
+      "top_level_invocations": 22,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:51:13Z",
+      "last_seen": "2026-10-04T00:49:52Z",
+      "sources": {
+        "expanded-prompt": 20,
+        "skill-prompt": 2,
+        "skill-read": 31
+      },
+      "rank": 8
+    },
+    {
+      "skill": "b-brainstorm",
+      "current_repository": true,
+      "sessions": 18,
+      "invocations": 7,
+      "invocation_sessions": 7,
+      "skill_reads": 26,
+      "read_sessions": 18,
+      "top_level_invocations": 7,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T16:53:16Z",
+      "last_seen": "2026-10-03T15:09:56Z",
+      "sources": {
+        "expanded-prompt": 6,
+        "skill-prompt": 1,
+        "skill-read": 26
+      },
+      "rank": 9
+    },
+    {
+      "skill": "b-init-guardrails",
+      "current_repository": true,
+      "sessions": 16,
+      "invocations": 6,
+      "invocation_sessions": 6,
+      "skill_reads": 26,
+      "read_sessions": 15,
+      "top_level_invocations": 6,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:17:23Z",
+      "last_seen": "2026-09-21T12:19:06Z",
+      "sources": {
+        "expanded-prompt": 6,
+        "skill-read": 26
+      },
+      "rank": 10
+    },
+    {
+      "skill": "b-recap",
+      "current_repository": true,
+      "sessions": 10,
+      "invocations": 6,
+      "invocation_sessions": 6,
+      "skill_reads": 12,
+      "read_sessions": 8,
+      "top_level_invocations": 6,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:23:28Z",
+      "last_seen": "2026-10-04T02:12:47Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-prompt": 4,
+        "skill-read": 12
+      },
+      "rank": 11
+    },
+    {
+      "skill": "github-story-breakdown",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 5,
+      "invocation_sessions": 5,
+      "skill_reads": 13,
+      "read_sessions": 8,
+      "top_level_invocations": 5,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T12:53:36Z",
+      "last_seen": "2026-06-11T19:46:27Z",
+      "sources": {
+        "skill-prompt": 5,
+        "skill-read": 13
+      },
+      "rank": 12
+    },
+    {
+      "skill": "b-auto-fix",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 12,
+      "read_sessions": 7,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T01:12:59Z",
+      "last_seen": "2026-09-21T12:18:48Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 12
+      },
+      "rank": 13
+    },
+    {
+      "skill": "b-blueprint",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T16:25:43Z",
+      "last_seen": "2026-09-21T12:18:49Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 2
+      },
+      "rank": 14
+    },
+    {
+      "skill": "b-docs",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 13,
+      "read_sessions": 11,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:49:36Z",
+      "last_seen": "2026-09-30T19:58:50Z",
+      "sources": {
+        "expanded-prompt": 4,
+        "skill-read": 13
+      },
+      "rank": 15
+    },
+    {
+      "skill": "b-pr-review-2-issues",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 5,
+      "read_sessions": 3,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T13:34:16Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 3,
+        "skill-read": 5
+      },
+      "rank": 16
+    },
+    {
+      "skill": "git-commit-improved",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 11,
+      "read_sessions": 7,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-13T17:12:53Z",
+      "last_seen": "2026-09-21T12:19:36Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 11
+      },
+      "rank": 17
+    },
+    {
+      "skill": "requirements-refiner",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 16,
+      "read_sessions": 3,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:58:11Z",
+      "last_seen": "2026-06-11T19:46:09Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 16
+      },
+      "rank": 18
+    },
+    {
+      "skill": "b-grill-me",
+      "current_repository": true,
+      "sessions": 7,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 16,
+      "read_sessions": 7,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T01:21:05Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-prompt": 1,
+        "skill-read": 16
+      },
+      "rank": 19
+    },
+    {
+      "skill": "b-research",
+      "current_repository": true,
+      "sessions": 18,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 20,
+      "read_sessions": 18,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T23:41:42Z",
+      "last_seen": "2026-10-03T15:14:59Z",
+      "sources": {
+        "expanded-prompt": 3,
+        "skill-read": 20
+      },
+      "rank": 20
+    },
+    {
+      "skill": "improve-codebase-architecture",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-04T20:45:59Z",
+      "last_seen": "2026-10-01T02:07:25Z",
+      "sources": {
+        "skill-prompt": 3,
+        "skill-read": 2
+      },
+      "rank": 21
+    },
+    {
+      "skill": "b-arch-qa",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T15:53:24Z",
+      "last_seen": "2026-10-01T17:19:43Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 5
+      },
+      "rank": 22
+    },
+    {
+      "skill": "b-explore",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 12,
+      "read_sessions": 10,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T16:55:32Z",
+      "last_seen": "2026-09-30T19:56:53Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 1,
+        "skill-read": 12
+      },
+      "rank": 23
+    },
+    {
+      "skill": "b-guardrails-check",
+      "current_repository": true,
+      "sessions": 37,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 50,
+      "read_sessions": 37,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:20:22Z",
+      "last_seen": "2026-10-01T17:07:00Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-read": 50
+      },
+      "rank": 24
+    },
+    {
+      "skill": "b-pr",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 13,
+      "read_sessions": 10,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T22:39:56Z",
+      "last_seen": "2026-09-21T12:19:16Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 1,
+        "skill-read": 13
+      },
+      "rank": 25
+    },
+    {
+      "skill": "b-writer",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-17T14:30:27Z",
+      "last_seen": "2026-09-24T14:18:30Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 26
+    },
+    {
+      "skill": "deep-research",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T12:59:43Z",
+      "last_seen": "2026-06-14T15:19:33Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 27
+    },
+    {
+      "skill": "github-issue-prioritizer",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 5,
+      "read_sessions": 3,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T15:34:43Z",
+      "last_seen": "2026-06-10T15:42:11Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 5
+      },
+      "rank": 28
+    },
+    {
+      "skill": "seo-plan",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-01T20:00:56Z",
+      "last_seen": "2026-06-06T15:13:26Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 29
+    },
+    {
+      "skill": "typesafe-ai",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 10,
+      "read_sessions": 8,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-22T00:36:49Z",
+      "last_seen": "2026-10-04T02:03:57Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 10
+      },
+      "rank": 30
+    },
+    {
+      "skill": "accessibility",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T00:17:29Z",
+      "last_seen": "2026-09-11T11:28:25Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 1
+      },
+      "rank": 31
+    },
+    {
+      "skill": "b-diagnose",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 6,
+      "read_sessions": 5,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-19T00:04:59Z",
+      "last_seen": "2026-10-01T01:35:40Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 6
+      },
+      "rank": 32
+    },
+    {
+      "skill": "b-grill-with-docs",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 9,
+      "read_sessions": 5,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T22:38:37Z",
+      "last_seen": "2026-10-03T15:38:38Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 9
+      },
+      "rank": 33
+    },
+    {
+      "skill": "b-issue-create",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:46:06Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 34
+    },
+    {
+      "skill": "b-plan-update",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:07:04Z",
+      "last_seen": "2026-09-21T23:57:28Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 35
+    },
+    {
+      "skill": "code-review",
+      "current_repository": true,
+      "sessions": 12,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 14,
+      "read_sessions": 12,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:45:41Z",
+      "last_seen": "2026-09-30T11:55:10Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 14
+      },
+      "rank": 36
+    },
+    {
+      "skill": "code-smells",
+      "current_repository": true,
+      "sessions": 19,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 41,
+      "read_sessions": 18,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T12:13:32Z",
+      "last_seen": "2026-10-02T15:20:23Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 41
+      },
+      "rank": 37
+    },
+    {
+      "skill": "git-clean-orphans",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T15:31:25Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 38
+    },
+    {
+      "skill": "intake",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T21:39:02Z",
+      "last_seen": "2026-06-06T21:39:02Z",
+      "sources": {
+        "skill-prompt": 1
+      },
+      "rank": 39
+    },
+    {
+      "skill": "omp-eval-helpers",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-27T12:10:49Z",
+      "last_seen": "2026-10-04T02:13:17Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 6
+      },
+      "rank": 40
+    },
+    {
+      "skill": "pi-to-omp-convert",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T12:49:04Z",
+      "last_seen": "2026-06-07T12:49:13Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 1
+      },
+      "rank": 41
+    },
+    {
+      "skill": "thought-dump-writer",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-10-02T15:58:27Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 42
+    },
+    {
+      "skill": "agent-browser",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:51:24Z",
+      "last_seen": "2026-10-02T15:35:40Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 43
+    },
+    {
+      "skill": "architecture-sync",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T16:00:13Z",
+      "last_seen": "2026-08-26T16:00:13Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 44
+    },
+    {
+      "skill": "b-backlog",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T13:47:01Z",
+      "last_seen": "2026-10-03T15:25:59Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 45
+    },
+    {
+      "skill": "b-capture",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:07:04Z",
+      "last_seen": "2026-09-30T14:25:05Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 46
+    },
+    {
+      "skill": "b-create-styleguide",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:42Z",
+      "last_seen": "2026-09-21T12:18:52Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 47
+    },
+    {
+      "skill": "b-create-ux-guide",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-09-21T12:18:52Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 48
+    },
+    {
+      "skill": "b-eval-upstream-prs",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:56Z",
+      "last_seen": "2026-09-21T21:27:13Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 49
+    },
+    {
+      "skill": "b-fix-rebase-conflict",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-21T22:10:27Z",
+      "last_seen": "2026-10-02T00:47:39Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 50
+    },
+    {
+      "skill": "b-grill",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T22:19:22Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 51
+    },
+    {
+      "skill": "b-grill-auto",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:20:49Z",
+      "last_seen": "2026-09-21T13:40:12Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 52
+    },
+    {
+      "skill": "b-handoff",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:44Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 53
+    },
+    {
+      "skill": "b-hindsight-import-projects",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T15:20:19Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 54
+    },
+    {
+      "skill": "b-howto",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T23:53:14Z",
+      "last_seen": "2026-09-30T20:00:23Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 55
+    },
+    {
+      "skill": "b-init-factory",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:03Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 56
+    },
+    {
+      "skill": "b-init-tracker",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:25:46Z",
+      "last_seen": "2026-09-21T12:19:06Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 57
+    },
+    {
+      "skill": "b-loop",
+      "current_repository": false,
+      "sessions": 11,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 17,
+      "read_sessions": 11,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T18:35:43Z",
+      "last_seen": "2026-09-20T22:14:56Z",
+      "sources": {
+        "skill-read": 17
+      },
+      "rank": 58
+    },
+    {
+      "skill": "b-memory-import",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T02:34:26Z",
+      "last_seen": "2026-09-28T17:41:00Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 59
+    },
+    {
+      "skill": "b-nasa-prd",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:12Z",
+      "last_seen": "2026-09-21T12:19:12Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 60
+    },
+    {
+      "skill": "b-present",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T01:09:04Z",
+      "last_seen": "2026-09-21T12:19:16Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 61
+    },
+    {
+      "skill": "b-save-improved",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 17,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:58:15Z",
+      "last_seen": "2026-09-29T18:50:16Z",
+      "sources": {
+        "skill-read": 17
+      },
+      "rank": 62
+    },
+    {
+      "skill": "b-triage",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:25:14Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 63
+    },
+    {
+      "skill": "b-wizard",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:23Z",
+      "last_seen": "2026-09-21T12:19:23Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 64
+    },
+    {
+      "skill": "best-practices",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-29T22:30:57Z",
+      "last_seen": "2026-10-01T17:06:49Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 65
+    },
+    {
+      "skill": "blacksmith-e2e-watch",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T01:17:07Z",
+      "last_seen": "2026-06-13T01:17:07Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 66
+    },
+    {
+      "skill": "btw",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:52:07Z",
+      "last_seen": "2026-09-19T05:18:41Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 67
+    },
+    {
+      "skill": "buck-loop-commit-refusal",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:34:24Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 68
+    },
+    {
+      "skill": "buck-loop-premature-done-closeout",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:34:24Z",
+      "last_seen": "2026-10-02T03:48:18Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 69
+    },
+    {
+      "skill": "buck-loop-sql-memory-stage-failure",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T12:53:35Z",
+      "last_seen": "2026-10-02T03:50:10Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 70
+    },
+    {
+      "skill": "buck-workflow-pi-add-skill",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:03:11Z",
+      "last_seen": "2026-09-18T21:09:02Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 71
+    },
+    {
+      "skill": "bun-hono-daisyui-tailwind-v4",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T16:02:48Z",
+      "last_seen": "2026-10-02T16:02:48Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 72
+    },
+    {
+      "skill": "caddy-docker-static-projects-server",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T10:14:42Z",
+      "last_seen": "2026-10-01T10:14:42Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 73
+    },
+    {
+      "skill": "chezmoi",
+      "current_repository": false,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:41:01Z",
+      "last_seen": "2026-09-24T15:49:18Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 74
+    },
+    {
+      "skill": "chrome-extensions",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:45:50Z",
+      "last_seen": "2026-08-19T15:22:41Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 75
+    },
+    {
+      "skill": "code-review-universal",
+      "current_repository": true,
+      "sessions": 20,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 24,
+      "read_sessions": 20,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:50Z",
+      "last_seen": "2026-10-02T15:18:26Z",
+      "sources": {
+        "skill-read": 24
+      },
+      "rank": 76
+    },
+    {
+      "skill": "codebase-design",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T23:49:46Z",
+      "last_seen": "2026-09-21T12:19:27Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 77
+    },
+    {
+      "skill": "commit",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T00:16:58Z",
+      "last_seen": "2026-06-12T16:13:07Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 78
+    },
+    {
+      "skill": "crawl4ai",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-19T13:23:15Z",
+      "last_seen": "2026-09-21T12:19:27Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 79
+    },
+    {
+      "skill": "create-skill",
+      "current_repository": false,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T12:34:01Z",
+      "last_seen": "2026-09-11T17:02:26Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 80
+    },
+    {
+      "skill": "cross-platform-pi-omp-loading",
+      "current_repository": true,
+      "sessions": 10,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 12,
+      "read_sessions": 10,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:05:01Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "skill-read": 12
+      },
+      "rank": 81
+    },
+    {
+      "skill": "cross-platform-pi-omp-loading/slash-command-mirror",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:16:57Z",
+      "last_seen": "2026-09-18T18:02:42Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 82
+    },
+    {
+      "skill": "defuddle",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-10T23:36:45Z",
+      "last_seen": "2026-09-10T23:36:45Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 83
+    },
+    {
+      "skill": "deprecated-b-save",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T02:56:18Z",
+      "last_seen": "2026-09-11T12:38:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 84
+    },
+    {
+      "skill": "design-brief",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 85
+    },
+    {
+      "skill": "diagnose",
+      "current_repository": false,
+      "sessions": 12,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 12,
+      "read_sessions": 12,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:32:24Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 12
+      },
+      "rank": 86
+    },
+    {
+      "skill": "diagnose-crash",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:16:10Z",
+      "last_seen": "2026-08-26T18:16:11Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 87
+    },
+    {
+      "skill": "diagnose-failed-buck-loop-call",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T11:36:46Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 88
+    },
+    {
+      "skill": "diagnose-stuck-buck-loop",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:31:56Z",
+      "last_seen": "2026-10-03T21:32:45Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 89
+    },
+    {
+      "skill": "duck-grill",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-16T18:18:08Z",
+      "last_seen": "2026-09-16T18:18:08Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 90
+    },
+    {
+      "skill": "employ-assess",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:31Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 91
+    },
+    {
+      "skill": "employ-critique",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:18Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 92
+    },
+    {
+      "skill": "employ-customer-reply",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:26:30Z",
+      "last_seen": "2026-10-01T17:06:39Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 93
+    },
+    {
+      "skill": "employ-implement",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:27:01Z",
+      "last_seen": "2026-10-01T17:06:38Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 94
+    },
+    {
+      "skill": "employ-intake",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T00:09:59Z",
+      "last_seen": "2026-10-01T17:06:37Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 95
+    },
+    {
+      "skill": "employ-investigate",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 13,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T00:09:59Z",
+      "last_seen": "2026-10-01T17:06:42Z",
+      "sources": {
+        "skill-read": 13
+      },
+      "rank": 96
+    },
+    {
+      "skill": "employ-onboard",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:28Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 97
+    },
+    {
+      "skill": "employ-ops",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:28Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 98
+    },
+    {
+      "skill": "employ-plan",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:21Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 99
+    },
+    {
+      "skill": "employ-reopen-rate",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:31Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 100
+    },
+    {
+      "skill": "employ-review",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:35Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 101
+    },
+    {
+      "skill": "employ-scope",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:18Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 102
+    },
+    {
+      "skill": "employ-triage",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:35Z",
+      "last_seen": "2026-10-01T17:06:42Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 103
+    },
+    {
+      "skill": "fail-closed-pagination-loops",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T20:02:15Z",
+      "last_seen": "2026-09-20T20:02:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 104
+    },
+    {
+      "skill": "find-omp-session",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T02:02:08Z",
+      "last_seen": "2026-10-02T02:02:08Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 105
+    },
+    {
+      "skill": "find-skills",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:06:27Z",
+      "last_seen": "2026-09-21T22:47:12Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 106
+    },
+    {
+      "skill": "flux-drip-loop-orchestrator",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:14Z",
+      "last_seen": "2026-09-23T01:36:14Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 107
+    },
+    {
+      "skill": "flux-drip-occupancy-flag",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:18Z",
+      "last_seen": "2026-09-23T01:36:18Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 108
+    },
+    {
+      "skill": "forensics",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-29T11:24:40Z",
+      "last_seen": "2026-09-29T18:07:16Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 109
+    },
+    {
+      "skill": "frontend-design",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-02T14:58:54Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 110
+    },
+    {
+      "skill": "gh-pr-merge-squash-bookkeeping",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:36Z",
+      "last_seen": "2026-09-12T02:18:36Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 111
+    },
+    {
+      "skill": "grill-me",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-15T11:17:01Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 112
+    },
+    {
+      "skill": "herdr",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:02:26Z",
+      "last_seen": "2026-10-02T01:21:47Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 113
+    },
+    {
+      "skill": "hindsight-http-api",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T19:18:02Z",
+      "last_seen": "2026-08-27T19:18:02Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 114
+    },
+    {
+      "skill": "image-generation",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:54:15Z",
+      "last_seen": "2026-08-27T14:54:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 115
+    },
+    {
+      "skill": "intake-skill",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:41:17Z",
+      "last_seen": "2026-06-05T20:49:37Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 116
+    },
+    {
+      "skill": "jev-typesafe-choice-schema",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-24T16:27:40Z",
+      "last_seen": "2026-10-04T00:21:24Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 117
+    },
+    {
+      "skill": "llm-wiki-vault",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-03T01:10:27Z",
+      "last_seen": "2026-10-03T15:20:31Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 118
+    },
+    {
+      "skill": "make-interfaces-feel-better",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-02T16:12:16Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 119
+    },
+    {
+      "skill": "manage-herdr-panes",
+      "current_repository": true,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:08:05Z",
+      "last_seen": "2026-10-03T22:20:04Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 120
+    },
+    {
+      "skill": "monitor-buck-loop",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:31:56Z",
+      "last_seen": "2026-10-02T01:59:35Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 121
+    },
+    {
+      "skill": "node5-code-review",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:35Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 122
+    },
+    {
+      "skill": "obsidian-cli",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-01T14:15:56Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 123
+    },
+    {
+      "skill": "obsidian-markdown",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:21Z",
+      "last_seen": "2026-10-01T14:15:56Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 124
+    },
+    {
+      "skill": "obsidian-research-subagent",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-28T17:37:36Z",
+      "last_seen": "2026-10-03T15:15:24Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 125
+    },
+    {
+      "skill": "omarchy",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T21:08:22Z",
+      "last_seen": "2026-09-10T13:55:11Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 126
+    },
+    {
+      "skill": "omp-hashline-edits",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T12:15:58Z",
+      "last_seen": "2026-10-03T17:48:19Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 127
+    },
+    {
+      "skill": "pi-ralph-wiggum",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:30Z",
+      "last_seen": "2026-09-23T01:36:30Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 128
+    },
+    {
+      "skill": "pi-rpc",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-04T20:45:33Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 129
+    },
+    {
+      "skill": "plan-synopsis",
+      "current_repository": true,
+      "sessions": 0,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": null,
+      "last_seen": null,
+      "sources": {},
+      "rank": 130
+    },
+    {
+      "skill": "pm-story-groomer",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:41:15Z",
+      "last_seen": "2026-06-05T19:41:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 131
+    },
+    {
+      "skill": "pr",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T00:16:53Z",
+      "last_seen": "2026-06-11T22:24:01Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 132
+    },
+    {
+      "skill": "pr-review",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T13:16:17Z",
+      "last_seen": "2026-06-12T13:16:17Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 133
+    },
+    {
+      "skill": "pr-watch",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T01:05:01Z",
+      "last_seen": "2026-06-13T01:16:35Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 134
+    },
+    {
+      "skill": "product-tour",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:20:03Z",
+      "last_seen": "2026-09-21T12:20:06Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 135
+    },
+    {
+      "skill": "profile-pr-screenshots",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:17:32Z",
+      "last_seen": "2026-09-12T02:17:32Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 136
+    },
+    {
+      "skill": "project-researcher",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-07-27T14:30:33Z",
+      "last_seen": "2026-07-27T14:30:33Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 137
+    },
+    {
+      "skill": "prototype",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:52:58Z",
+      "last_seen": "2026-10-01T01:52:58Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 138
+    },
+    {
+      "skill": "qmd",
+      "current_repository": false,
+      "sessions": 10,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 10,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:03:43Z",
+      "last_seen": "2026-08-26T14:02:55Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 139
+    },
+    {
+      "skill": "rails-app",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-10T18:20:10Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 140
+    },
+    {
+      "skill": "rebase-merge-stale-pr",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:36Z",
+      "last_seen": "2026-09-12T02:18:36Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 141
+    },
+    {
+      "skill": "rebase-onto-current-master",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T20:57:01Z",
+      "last_seen": "2026-09-20T20:57:01Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 142
+    },
+    {
+      "skill": "recover-blocked-buck-loop-run",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-03T15:22:17Z",
+      "last_seen": "2026-10-04T02:12:47Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 143
+    },
+    {
+      "skill": "review",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T22:25:59Z",
+      "last_seen": "2026-10-01T17:06:49Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 144
+    },
+    {
+      "skill": "run-in-idle-pane",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:40:28Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 145
+    },
+    {
+      "skill": "security-audit",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T19:46:13Z",
+      "last_seen": "2026-06-11T19:49:48Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 146
+    },
+    {
+      "skill": "simple-review",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T02:22:37Z",
+      "last_seen": "2026-06-12T13:16:17Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 147
+    },
+    {
+      "skill": "skill-explainer",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:42Z",
+      "last_seen": "2026-09-21T12:20:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 148
+    },
+    {
+      "skill": "spec-progress",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T16:21:26Z",
+      "last_seen": "2026-08-19T16:21:26Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 149
+    },
+    {
+      "skill": "tailwind",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:46:49Z",
+      "last_seen": "2026-09-30T23:46:49Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 150
+    },
+    {
+      "skill": "tdd",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-24T02:45:00Z",
+      "last_seen": "2026-09-11T02:06:42Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 151
+    },
+    {
+      "skill": "tmux-dev-server",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:41:06Z",
+      "last_seen": "2026-09-30T23:13:25Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 152
+    },
+    {
+      "skill": "tmux-sudo",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T15:37:56Z",
+      "last_seen": "2026-09-14T15:37:47Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 153
+    },
+    {
+      "skill": "to-issues",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:46:06Z",
+      "last_seen": "2026-09-11T11:46:06Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 154
+    },
+    {
+      "skill": "tui-over-ssh-diagnose",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:39:26Z",
+      "last_seen": "2026-08-17T18:39:26Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 155
+    },
+    {
+      "skill": "tutorial-path",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T17:09:10Z",
+      "last_seen": "2026-06-07T18:15:39Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 156
+    },
+    {
+      "skill": "userinterface-wiki",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:36:47Z",
+      "last_seen": "2026-09-11T11:28:25Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 157
+    },
+    {
+      "skill": "validate-a-plan",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-04T00:20:43Z",
+      "last_seen": "2026-10-04T00:20:43Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 158
+    },
+    {
+      "skill": "verify-before-complete",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:30:41Z",
+      "last_seen": "2026-10-04T02:19:33Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 159
+    },
+    {
+      "skill": "verify-doc-snippets",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:19:52Z",
+      "last_seen": "2026-09-30T23:19:52Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 160
+    },
+    {
+      "skill": "web-design",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T15:02:32Z",
+      "last_seen": "2026-10-02T16:01:50Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 161
+    },
+    {
+      "skill": "web-design-guidelines",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:28:25Z",
+      "last_seen": "2026-10-01T17:06:59Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 162
+    },
+    {
+      "skill": "web-images",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:57:21Z",
+      "last_seen": "2026-08-27T14:57:21Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 163
+    },
+    {
+      "skill": "web-quality-audit",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:28:38Z",
+      "last_seen": "2026-09-11T11:28:38Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 164
+    },
+    {
+      "skill": "write-a-skill",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T14:24:28Z",
+      "last_seen": "2026-09-18T21:09:02Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 165
+    },
+    {
+      "skill": "write-docs",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-03T17:18:58Z",
+      "last_seen": "2026-10-03T17:18:58Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 166
+    },
+    {
+      "skill": "writing-for-agents",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:09:02Z",
+      "last_seen": "2026-09-21T12:20:03Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 167
+    }
+  ],
+  "session_ranking": [
+    {
+      "skill": "b-plan",
+      "current_repository": true,
+      "sessions": 87,
+      "invocations": 38,
+      "invocation_sessions": 37,
+      "skill_reads": 118,
+      "read_sessions": 73,
+      "top_level_invocations": 38,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T13:52:26Z",
+      "last_seen": "2026-10-04T00:05:50Z",
+      "sources": {
+        "expanded-prompt": 34,
+        "skill-prompt": 3,
+        "skill-read": 118,
+        "slash-command": 1
+      },
+      "rank": 1
+    },
+    {
+      "skill": "b-review",
+      "current_repository": true,
+      "sessions": 86,
+      "invocations": 50,
+      "invocation_sessions": 48,
+      "skill_reads": 107,
+      "read_sessions": 69,
+      "top_level_invocations": 50,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T11:15:57Z",
+      "last_seen": "2026-10-04T00:06:22Z",
+      "sources": {
+        "expanded-prompt": 40,
+        "skill-prompt": 9,
+        "skill-read": 107,
+        "slash-command": 1
+      },
+      "rank": 2
+    },
+    {
+      "skill": "b-save",
+      "current_repository": true,
+      "sessions": 78,
+      "invocations": 44,
+      "invocation_sessions": 43,
+      "skill_reads": 83,
+      "read_sessions": 55,
+      "top_level_invocations": 44,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:02:37Z",
+      "last_seen": "2026-10-04T02:06:27Z",
+      "sources": {
+        "expanded-prompt": 11,
+        "legacy-b-save-prompt": 23,
+        "skill-prompt": 10,
+        "skill-read": 83
+      },
+      "rank": 3
+    },
+    {
+      "skill": "b-build",
+      "current_repository": true,
+      "sessions": 75,
+      "invocations": 42,
+      "invocation_sessions": 39,
+      "skill_reads": 79,
+      "read_sessions": 58,
+      "top_level_invocations": 42,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T02:15:37Z",
+      "last_seen": "2026-10-04T00:39:08Z",
+      "sources": {
+        "expanded-prompt": 32,
+        "skill-prompt": 9,
+        "skill-read": 79,
+        "slash-command": 1
+      },
+      "rank": 4
+    },
+    {
+      "skill": "git-commit",
+      "current_repository": true,
+      "sessions": 67,
+      "invocations": 39,
+      "invocation_sessions": 35,
+      "skill_reads": 61,
+      "read_sessions": 52,
+      "top_level_invocations": 39,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-01T20:01:18Z",
+      "last_seen": "2026-10-01T02:32:32Z",
+      "sources": {
+        "expanded-prompt": 24,
+        "legacy-git-commit-prompt": 2,
+        "skill-prompt": 11,
+        "skill-read": 61,
+        "slash-command": 2
+      },
+      "rank": 5
+    },
+    {
+      "skill": "b-phase",
+      "current_repository": true,
+      "sessions": 42,
+      "invocations": 22,
+      "invocation_sessions": 22,
+      "skill_reads": 66,
+      "read_sessions": 35,
+      "top_level_invocations": 22,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T03:44:02Z",
+      "last_seen": "2026-10-03T19:44:37Z",
+      "sources": {
+        "expanded-prompt": 15,
+        "skill-prompt": 7,
+        "skill-read": 66
+      },
+      "rank": 6
+    },
+    {
+      "skill": "b-iterate",
+      "current_repository": true,
+      "sessions": 37,
+      "invocations": 22,
+      "invocation_sessions": 21,
+      "skill_reads": 31,
+      "read_sessions": 26,
+      "top_level_invocations": 22,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:51:13Z",
+      "last_seen": "2026-10-04T00:49:52Z",
+      "sources": {
+        "expanded-prompt": 20,
+        "skill-prompt": 2,
+        "skill-read": 31
+      },
+      "rank": 7
+    },
+    {
+      "skill": "b-guardrails-check",
+      "current_repository": true,
+      "sessions": 37,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 50,
+      "read_sessions": 37,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:20:22Z",
+      "last_seen": "2026-10-01T17:07:00Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-read": 50
+      },
+      "rank": 8
+    },
+    {
+      "skill": "fix-pr",
+      "current_repository": true,
+      "sessions": 35,
+      "invocations": 26,
+      "invocation_sessions": 24,
+      "skill_reads": 48,
+      "read_sessions": 21,
+      "top_level_invocations": 26,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-13T20:33:25Z",
+      "last_seen": "2026-09-27T12:59:51Z",
+      "sources": {
+        "explicit-load-request": 2,
+        "skill-prompt": 24,
+        "skill-read": 48
+      },
+      "rank": 9
+    },
+    {
+      "skill": "code-review-universal",
+      "current_repository": true,
+      "sessions": 20,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 24,
+      "read_sessions": 20,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:50Z",
+      "last_seen": "2026-10-02T15:18:26Z",
+      "sources": {
+        "skill-read": 24
+      },
+      "rank": 10
+    },
+    {
+      "skill": "code-smells",
+      "current_repository": true,
+      "sessions": 19,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 41,
+      "read_sessions": 18,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T12:13:32Z",
+      "last_seen": "2026-10-02T15:20:23Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 41
+      },
+      "rank": 11
+    },
+    {
+      "skill": "b-brainstorm",
+      "current_repository": true,
+      "sessions": 18,
+      "invocations": 7,
+      "invocation_sessions": 7,
+      "skill_reads": 26,
+      "read_sessions": 18,
+      "top_level_invocations": 7,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T16:53:16Z",
+      "last_seen": "2026-10-03T15:09:56Z",
+      "sources": {
+        "expanded-prompt": 6,
+        "skill-prompt": 1,
+        "skill-read": 26
+      },
+      "rank": 12
+    },
+    {
+      "skill": "b-research",
+      "current_repository": true,
+      "sessions": 18,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 20,
+      "read_sessions": 18,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T23:41:42Z",
+      "last_seen": "2026-10-03T15:14:59Z",
+      "sources": {
+        "expanded-prompt": 3,
+        "skill-read": 20
+      },
+      "rank": 13
+    },
+    {
+      "skill": "b-init-guardrails",
+      "current_repository": true,
+      "sessions": 16,
+      "invocations": 6,
+      "invocation_sessions": 6,
+      "skill_reads": 26,
+      "read_sessions": 15,
+      "top_level_invocations": 6,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:17:23Z",
+      "last_seen": "2026-09-21T12:19:06Z",
+      "sources": {
+        "expanded-prompt": 6,
+        "skill-read": 26
+      },
+      "rank": 14
+    },
+    {
+      "skill": "code-review",
+      "current_repository": true,
+      "sessions": 12,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 14,
+      "read_sessions": 12,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:45:41Z",
+      "last_seen": "2026-09-30T11:55:10Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 14
+      },
+      "rank": 15
+    },
+    {
+      "skill": "diagnose",
+      "current_repository": false,
+      "sessions": 12,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 12,
+      "read_sessions": 12,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:32:24Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 12
+      },
+      "rank": 16
+    },
+    {
+      "skill": "b-docs",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 13,
+      "read_sessions": 11,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:49:36Z",
+      "last_seen": "2026-09-30T19:58:50Z",
+      "sources": {
+        "expanded-prompt": 4,
+        "skill-read": 13
+      },
+      "rank": 17
+    },
+    {
+      "skill": "git-commit-improved",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 11,
+      "read_sessions": 7,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-13T17:12:53Z",
+      "last_seen": "2026-09-21T12:19:36Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 11
+      },
+      "rank": 18
+    },
+    {
+      "skill": "b-explore",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 12,
+      "read_sessions": 10,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T16:55:32Z",
+      "last_seen": "2026-09-30T19:56:53Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 1,
+        "skill-read": 12
+      },
+      "rank": 19
+    },
+    {
+      "skill": "b-pr",
+      "current_repository": true,
+      "sessions": 11,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 13,
+      "read_sessions": 10,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T22:39:56Z",
+      "last_seen": "2026-09-21T12:19:16Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 1,
+        "skill-read": 13
+      },
+      "rank": 20
+    },
+    {
+      "skill": "b-loop",
+      "current_repository": false,
+      "sessions": 11,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 17,
+      "read_sessions": 11,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T18:35:43Z",
+      "last_seen": "2026-09-20T22:14:56Z",
+      "sources": {
+        "skill-read": 17
+      },
+      "rank": 21
+    },
+    {
+      "skill": "b-recap",
+      "current_repository": true,
+      "sessions": 10,
+      "invocations": 6,
+      "invocation_sessions": 6,
+      "skill_reads": 12,
+      "read_sessions": 8,
+      "top_level_invocations": 6,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:23:28Z",
+      "last_seen": "2026-10-04T02:12:47Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-prompt": 4,
+        "skill-read": 12
+      },
+      "rank": 22
+    },
+    {
+      "skill": "cross-platform-pi-omp-loading",
+      "current_repository": true,
+      "sessions": 10,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 12,
+      "read_sessions": 10,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:05:01Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "skill-read": 12
+      },
+      "rank": 23
+    },
+    {
+      "skill": "qmd",
+      "current_repository": false,
+      "sessions": 10,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 10,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:03:43Z",
+      "last_seen": "2026-08-26T14:02:55Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 24
+    },
+    {
+      "skill": "github-story-breakdown",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 5,
+      "invocation_sessions": 5,
+      "skill_reads": 13,
+      "read_sessions": 8,
+      "top_level_invocations": 5,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T12:53:36Z",
+      "last_seen": "2026-06-11T19:46:27Z",
+      "sources": {
+        "skill-prompt": 5,
+        "skill-read": 13
+      },
+      "rank": 25
+    },
+    {
+      "skill": "b-auto-fix",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 12,
+      "read_sessions": 7,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T01:12:59Z",
+      "last_seen": "2026-09-21T12:18:48Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 12
+      },
+      "rank": 26
+    },
+    {
+      "skill": "typesafe-ai",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 10,
+      "read_sessions": 8,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-22T00:36:49Z",
+      "last_seen": "2026-10-04T02:03:57Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 10
+      },
+      "rank": 27
+    },
+    {
+      "skill": "b-fix-rebase-conflict",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-21T22:10:27Z",
+      "last_seen": "2026-10-02T00:47:39Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 28
+    },
+    {
+      "skill": "b-save-improved",
+      "current_repository": true,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 17,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:58:15Z",
+      "last_seen": "2026-09-29T18:50:16Z",
+      "sources": {
+        "skill-read": 17
+      },
+      "rank": 29
+    },
+    {
+      "skill": "jev-typesafe-choice-schema",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-24T16:27:40Z",
+      "last_seen": "2026-10-04T00:21:24Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 30
+    },
+    {
+      "skill": "verify-before-complete",
+      "current_repository": false,
+      "sessions": 9,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 9,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:30:41Z",
+      "last_seen": "2026-10-04T02:19:33Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 31
+    },
+    {
+      "skill": "requirements-refiner",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 16,
+      "read_sessions": 3,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:58:11Z",
+      "last_seen": "2026-06-11T19:46:09Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 16
+      },
+      "rank": 32
+    },
+    {
+      "skill": "b-grill-me",
+      "current_repository": true,
+      "sessions": 7,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 16,
+      "read_sessions": 7,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T01:21:05Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "expanded-prompt": 2,
+        "skill-prompt": 1,
+        "skill-read": 16
+      },
+      "rank": 33
+    },
+    {
+      "skill": "omp-eval-helpers",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-27T12:10:49Z",
+      "last_seen": "2026-10-04T02:13:17Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 6
+      },
+      "rank": 34
+    },
+    {
+      "skill": "frontend-design",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-02T14:58:54Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 35
+    },
+    {
+      "skill": "herdr",
+      "current_repository": false,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:02:26Z",
+      "last_seen": "2026-10-02T01:21:47Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 36
+    },
+    {
+      "skill": "manage-herdr-panes",
+      "current_repository": true,
+      "sessions": 7,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 7,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:08:05Z",
+      "last_seen": "2026-10-03T22:20:04Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 37
+    },
+    {
+      "skill": "b-pr-review-2-issues",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 5,
+      "read_sessions": 3,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T13:34:16Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-prompt": 3,
+        "skill-read": 5
+      },
+      "rank": 38
+    },
+    {
+      "skill": "b-diagnose",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 6,
+      "read_sessions": 5,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-19T00:04:59Z",
+      "last_seen": "2026-10-01T01:35:40Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 6
+      },
+      "rank": 39
+    },
+    {
+      "skill": "b-grill-with-docs",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 9,
+      "read_sessions": 5,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T22:38:37Z",
+      "last_seen": "2026-10-03T15:38:38Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 9
+      },
+      "rank": 40
+    },
+    {
+      "skill": "b-backlog",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T13:47:01Z",
+      "last_seen": "2026-10-03T15:25:59Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 41
+    },
+    {
+      "skill": "b-memory-import",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 10,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T02:34:26Z",
+      "last_seen": "2026-09-28T17:41:00Z",
+      "sources": {
+        "skill-read": 10
+      },
+      "rank": 42
+    },
+    {
+      "skill": "chezmoi",
+      "current_repository": false,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:41:01Z",
+      "last_seen": "2026-09-24T15:49:18Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 43
+    },
+    {
+      "skill": "create-skill",
+      "current_repository": false,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T12:34:01Z",
+      "last_seen": "2026-09-11T17:02:26Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 44
+    },
+    {
+      "skill": "llm-wiki-vault",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-03T01:10:27Z",
+      "last_seen": "2026-10-03T15:20:31Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 45
+    },
+    {
+      "skill": "run-in-idle-pane",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:40:28Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 46
+    },
+    {
+      "skill": "writing-for-agents",
+      "current_repository": true,
+      "sessions": 6,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 6,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:09:02Z",
+      "last_seen": "2026-09-21T12:20:03Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 47
+    },
+    {
+      "skill": "b-blueprint",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 4,
+      "invocation_sessions": 4,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 4,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T16:25:43Z",
+      "last_seen": "2026-09-21T12:18:49Z",
+      "sources": {
+        "skill-prompt": 4,
+        "skill-read": 2
+      },
+      "rank": 48
+    },
+    {
+      "skill": "b-arch-qa",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T15:53:24Z",
+      "last_seen": "2026-10-01T17:19:43Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 5
+      },
+      "rank": 49
+    },
+    {
+      "skill": "b-grill",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T22:19:22Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 50
+    },
+    {
+      "skill": "b-howto",
+      "current_repository": true,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T23:53:14Z",
+      "last_seen": "2026-09-30T20:00:23Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 51
+    },
+    {
+      "skill": "diagnose-stuck-buck-loop",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:31:56Z",
+      "last_seen": "2026-10-03T21:32:45Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 52
+    },
+    {
+      "skill": "omarchy",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T21:08:22Z",
+      "last_seen": "2026-09-10T13:55:11Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 53
+    },
+    {
+      "skill": "tmux-sudo",
+      "current_repository": false,
+      "sessions": 5,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 5,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T15:37:56Z",
+      "last_seen": "2026-09-14T15:37:47Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 54
+    },
+    {
+      "skill": "improve-codebase-architecture",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 3,
+      "invocation_sessions": 3,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 3,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-04T20:45:59Z",
+      "last_seen": "2026-10-01T02:07:25Z",
+      "sources": {
+        "skill-prompt": 3,
+        "skill-read": 2
+      },
+      "rank": 55
+    },
+    {
+      "skill": "github-issue-prioritizer",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 5,
+      "read_sessions": 3,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T15:34:43Z",
+      "last_seen": "2026-06-10T15:42:11Z",
+      "sources": {
+        "skill-prompt": 2,
+        "skill-read": 5
+      },
+      "rank": 56
+    },
+    {
+      "skill": "b-issue-create",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:46:06Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 57
+    },
+    {
+      "skill": "b-plan-update",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:07:04Z",
+      "last_seen": "2026-09-21T23:57:28Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 58
+    },
+    {
+      "skill": "git-clean-orphans",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T15:31:25Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "expanded-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 59
+    },
+    {
+      "skill": "b-grill-auto",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:20:49Z",
+      "last_seen": "2026-09-21T13:40:12Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 60
+    },
+    {
+      "skill": "cross-platform-pi-omp-loading/slash-command-mirror",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T20:16:57Z",
+      "last_seen": "2026-09-18T18:02:42Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 61
+    },
+    {
+      "skill": "obsidian-cli",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-01T14:15:56Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 62
+    },
+    {
+      "skill": "obsidian-markdown",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:21Z",
+      "last_seen": "2026-10-01T14:15:56Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 63
+    },
+    {
+      "skill": "rails-app",
+      "current_repository": true,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-10T18:20:10Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 64
+    },
+    {
+      "skill": "tdd",
+      "current_repository": false,
+      "sessions": 4,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 4,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-24T02:45:00Z",
+      "last_seen": "2026-09-11T02:06:42Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 65
+    },
+    {
+      "skill": "thought-dump-writer",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-10-02T15:58:27Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 4
+      },
+      "rank": 66
+    },
+    {
+      "skill": "b-capture",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:07:04Z",
+      "last_seen": "2026-09-30T14:25:05Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 67
+    },
+    {
+      "skill": "b-triage",
+      "current_repository": true,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:25:14Z",
+      "last_seen": "2026-09-21T21:27:10Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 68
+    },
+    {
+      "skill": "btw",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:52:07Z",
+      "last_seen": "2026-09-19T05:18:41Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 69
+    },
+    {
+      "skill": "buck-loop-commit-refusal",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:34:24Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 70
+    },
+    {
+      "skill": "diagnose-crash",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T18:16:10Z",
+      "last_seen": "2026-08-26T18:16:11Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 71
+    },
+    {
+      "skill": "find-skills",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T21:06:27Z",
+      "last_seen": "2026-09-21T22:47:12Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 72
+    },
+    {
+      "skill": "intake-skill",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 6,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:41:17Z",
+      "last_seen": "2026-06-05T20:49:37Z",
+      "sources": {
+        "skill-read": 6
+      },
+      "rank": 73
+    },
+    {
+      "skill": "make-interfaces-feel-better",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:35:12Z",
+      "last_seen": "2026-10-02T16:12:16Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 74
+    },
+    {
+      "skill": "monitor-buck-loop",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:31:56Z",
+      "last_seen": "2026-10-02T01:59:35Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 75
+    },
+    {
+      "skill": "omp-hashline-edits",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T12:15:58Z",
+      "last_seen": "2026-10-03T17:48:19Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 76
+    },
+    {
+      "skill": "pr",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T00:16:53Z",
+      "last_seen": "2026-06-11T22:24:01Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 77
+    },
+    {
+      "skill": "recover-blocked-buck-loop-run",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-03T15:22:17Z",
+      "last_seen": "2026-10-04T02:12:47Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 78
+    },
+    {
+      "skill": "review",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T22:25:59Z",
+      "last_seen": "2026-10-01T17:06:49Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 79
+    },
+    {
+      "skill": "tmux-dev-server",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:41:06Z",
+      "last_seen": "2026-09-30T23:13:25Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 80
+    },
+    {
+      "skill": "write-a-skill",
+      "current_repository": false,
+      "sessions": 3,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 3,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T14:24:28Z",
+      "last_seen": "2026-09-18T21:09:02Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 81
+    },
+    {
+      "skill": "b-writer",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-17T14:30:27Z",
+      "last_seen": "2026-09-24T14:18:30Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 82
+    },
+    {
+      "skill": "deep-research",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T12:59:43Z",
+      "last_seen": "2026-06-14T15:19:33Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 83
+    },
+    {
+      "skill": "seo-plan",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 2,
+      "invocation_sessions": 2,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 2,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-01T20:00:56Z",
+      "last_seen": "2026-06-06T15:13:26Z",
+      "sources": {
+        "skill-prompt": 2
+      },
+      "rank": 84
+    },
+    {
+      "skill": "accessibility",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T00:17:29Z",
+      "last_seen": "2026-09-11T11:28:25Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 1
+      },
+      "rank": 85
+    },
+    {
+      "skill": "agent-browser",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:51:24Z",
+      "last_seen": "2026-10-02T15:35:40Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 86
+    },
+    {
+      "skill": "b-eval-upstream-prs",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:56Z",
+      "last_seen": "2026-09-21T21:27:13Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 87
+    },
+    {
+      "skill": "b-hindsight-import-projects",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T15:20:19Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 88
+    },
+    {
+      "skill": "b-init-tracker",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:25:46Z",
+      "last_seen": "2026-09-21T12:19:06Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 89
+    },
+    {
+      "skill": "b-present",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T01:09:04Z",
+      "last_seen": "2026-09-21T12:19:16Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 90
+    },
+    {
+      "skill": "best-practices",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-29T22:30:57Z",
+      "last_seen": "2026-10-01T17:06:49Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 91
+    },
+    {
+      "skill": "buck-loop-premature-done-closeout",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:34:24Z",
+      "last_seen": "2026-10-02T03:48:18Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 92
+    },
+    {
+      "skill": "buck-loop-sql-memory-stage-failure",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T12:53:35Z",
+      "last_seen": "2026-10-02T03:50:10Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 93
+    },
+    {
+      "skill": "buck-workflow-pi-add-skill",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T17:03:11Z",
+      "last_seen": "2026-09-18T21:09:02Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 94
+    },
+    {
+      "skill": "chrome-extensions",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T14:45:50Z",
+      "last_seen": "2026-08-19T15:22:41Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 95
+    },
+    {
+      "skill": "codebase-design",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-18T23:49:46Z",
+      "last_seen": "2026-09-21T12:19:27Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 96
+    },
+    {
+      "skill": "commit",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-09T00:16:58Z",
+      "last_seen": "2026-06-12T16:13:07Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 97
+    },
+    {
+      "skill": "crawl4ai",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-19T13:23:15Z",
+      "last_seen": "2026-09-21T12:19:27Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 98
+    },
+    {
+      "skill": "deprecated-b-save",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T02:56:18Z",
+      "last_seen": "2026-09-11T12:38:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 99
+    },
+    {
+      "skill": "diagnose-failed-buck-loop-call",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T11:36:46Z",
+      "last_seen": "2026-10-03T15:22:17Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 100
+    },
+    {
+      "skill": "employ-customer-reply",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:26:30Z",
+      "last_seen": "2026-10-01T17:06:39Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 101
+    },
+    {
+      "skill": "employ-intake",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T00:09:59Z",
+      "last_seen": "2026-10-01T17:06:37Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 102
+    },
+    {
+      "skill": "employ-scope",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:18Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 103
+    },
+    {
+      "skill": "employ-triage",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 9,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:35Z",
+      "last_seen": "2026-10-01T17:06:42Z",
+      "sources": {
+        "skill-read": 9
+      },
+      "rank": 104
+    },
+    {
+      "skill": "forensics",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-29T11:24:40Z",
+      "last_seen": "2026-09-29T18:07:16Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 105
+    },
+    {
+      "skill": "grill-me",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-15T11:17:01Z",
+      "last_seen": "2026-10-03T15:38:31Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 106
+    },
+    {
+      "skill": "obsidian-research-subagent",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-28T17:37:36Z",
+      "last_seen": "2026-10-03T15:15:24Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 107
+    },
+    {
+      "skill": "pi-rpc",
+      "current_repository": true,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-04T20:45:33Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 108
+    },
+    {
+      "skill": "simple-review",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T02:22:37Z",
+      "last_seen": "2026-06-12T13:16:17Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 109
+    },
+    {
+      "skill": "tutorial-path",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T17:09:10Z",
+      "last_seen": "2026-06-07T18:15:39Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 110
+    },
+    {
+      "skill": "userinterface-wiki",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T17:36:47Z",
+      "last_seen": "2026-09-11T11:28:25Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 111
+    },
+    {
+      "skill": "web-design",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T15:02:32Z",
+      "last_seen": "2026-10-02T16:01:50Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 112
+    },
+    {
+      "skill": "web-design-guidelines",
+      "current_repository": false,
+      "sessions": 2,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 2,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:28:25Z",
+      "last_seen": "2026-10-01T17:06:59Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 113
+    },
+    {
+      "skill": "intake",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-06T21:39:02Z",
+      "last_seen": "2026-06-06T21:39:02Z",
+      "sources": {
+        "skill-prompt": 1
+      },
+      "rank": 114
+    },
+    {
+      "skill": "pi-to-omp-convert",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 1,
+      "invocation_sessions": 1,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 1,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-07T12:49:04Z",
+      "last_seen": "2026-06-07T12:49:13Z",
+      "sources": {
+        "skill-prompt": 1,
+        "skill-read": 1
+      },
+      "rank": 115
+    },
+    {
+      "skill": "architecture-sync",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-26T16:00:13Z",
+      "last_seen": "2026-08-26T16:00:13Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 116
+    },
+    {
+      "skill": "b-create-styleguide",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:42Z",
+      "last_seen": "2026-09-21T12:18:52Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 117
+    },
+    {
+      "skill": "b-create-ux-guide",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-09-21T12:18:52Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 118
+    },
+    {
+      "skill": "b-handoff",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:44Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 119
+    },
+    {
+      "skill": "b-init-factory",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:03Z",
+      "last_seen": "2026-09-21T12:19:03Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 120
+    },
+    {
+      "skill": "b-nasa-prd",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:12Z",
+      "last_seen": "2026-09-21T12:19:12Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 121
+    },
+    {
+      "skill": "b-wizard",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:19:23Z",
+      "last_seen": "2026-09-21T12:19:23Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 122
+    },
+    {
+      "skill": "blacksmith-e2e-watch",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T01:17:07Z",
+      "last_seen": "2026-06-13T01:17:07Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 123
+    },
+    {
+      "skill": "bun-hono-daisyui-tailwind-v4",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T16:02:48Z",
+      "last_seen": "2026-10-02T16:02:48Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 124
+    },
+    {
+      "skill": "caddy-docker-static-projects-server",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T10:14:42Z",
+      "last_seen": "2026-10-01T10:14:42Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 125
+    },
+    {
+      "skill": "defuddle",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-10T23:36:45Z",
+      "last_seen": "2026-09-10T23:36:45Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 126
+    },
+    {
+      "skill": "design-brief",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:41Z",
+      "last_seen": "2026-09-21T12:19:31Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 127
+    },
+    {
+      "skill": "duck-grill",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-16T18:18:08Z",
+      "last_seen": "2026-09-16T18:18:08Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 128
+    },
+    {
+      "skill": "employ-assess",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:31Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 129
+    },
+    {
+      "skill": "employ-critique",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:18Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 130
+    },
+    {
+      "skill": "employ-implement",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 7,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:27:01Z",
+      "last_seen": "2026-10-01T17:06:38Z",
+      "sources": {
+        "skill-read": 7
+      },
+      "rank": 131
+    },
+    {
+      "skill": "employ-investigate",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 13,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T00:09:59Z",
+      "last_seen": "2026-10-01T17:06:42Z",
+      "sources": {
+        "skill-read": 13
+      },
+      "rank": 132
+    },
+    {
+      "skill": "employ-onboard",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:28Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 133
+    },
+    {
+      "skill": "employ-ops",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 8,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:28Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 8
+      },
+      "rank": 134
+    },
+    {
+      "skill": "employ-plan",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:21Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 135
+    },
+    {
+      "skill": "employ-reopen-rate",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 4,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:31Z",
+      "last_seen": "2026-10-01T17:06:15Z",
+      "sources": {
+        "skill-read": 4
+      },
+      "rank": 136
+    },
+    {
+      "skill": "employ-review",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 5,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T15:38:27Z",
+      "last_seen": "2026-10-01T17:06:35Z",
+      "sources": {
+        "skill-read": 5
+      },
+      "rank": 137
+    },
+    {
+      "skill": "fail-closed-pagination-loops",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T20:02:15Z",
+      "last_seen": "2026-09-20T20:02:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 138
+    },
+    {
+      "skill": "find-omp-session",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-02T02:02:08Z",
+      "last_seen": "2026-10-02T02:02:08Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 139
+    },
+    {
+      "skill": "flux-drip-loop-orchestrator",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:14Z",
+      "last_seen": "2026-09-23T01:36:14Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 140
+    },
+    {
+      "skill": "flux-drip-occupancy-flag",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:18Z",
+      "last_seen": "2026-09-23T01:36:18Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 141
+    },
+    {
+      "skill": "gh-pr-merge-squash-bookkeeping",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:36Z",
+      "last_seen": "2026-09-12T02:18:36Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 142
+    },
+    {
+      "skill": "hindsight-http-api",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T19:18:02Z",
+      "last_seen": "2026-08-27T19:18:02Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 143
+    },
+    {
+      "skill": "image-generation",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:54:15Z",
+      "last_seen": "2026-08-27T14:54:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 144
+    },
+    {
+      "skill": "node5-code-review",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:35Z",
+      "last_seen": "2026-09-21T12:20:00Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 145
+    },
+    {
+      "skill": "pi-ralph-wiggum",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-23T01:36:30Z",
+      "last_seen": "2026-09-23T01:36:30Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 146
+    },
+    {
+      "skill": "pm-story-groomer",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-05T19:41:15Z",
+      "last_seen": "2026-06-05T19:41:15Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 147
+    },
+    {
+      "skill": "pr-review",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-12T13:16:17Z",
+      "last_seen": "2026-06-12T13:16:17Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 148
+    },
+    {
+      "skill": "pr-watch",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-13T01:05:01Z",
+      "last_seen": "2026-06-13T01:16:35Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 149
+    },
+    {
+      "skill": "product-tour",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:20:03Z",
+      "last_seen": "2026-09-21T12:20:06Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 150
+    },
+    {
+      "skill": "profile-pr-screenshots",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:17:32Z",
+      "last_seen": "2026-09-12T02:17:32Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 151
+    },
+    {
+      "skill": "project-researcher",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-07-27T14:30:33Z",
+      "last_seen": "2026-07-27T14:30:33Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 152
+    },
+    {
+      "skill": "prototype",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-01T01:52:58Z",
+      "last_seen": "2026-10-01T01:52:58Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 153
+    },
+    {
+      "skill": "rebase-merge-stale-pr",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-12T02:18:36Z",
+      "last_seen": "2026-09-12T02:18:36Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 154
+    },
+    {
+      "skill": "rebase-onto-current-master",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-20T20:57:01Z",
+      "last_seen": "2026-09-20T20:57:01Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 155
+    },
+    {
+      "skill": "security-audit",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 3,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-06-11T19:46:13Z",
+      "last_seen": "2026-06-11T19:49:48Z",
+      "sources": {
+        "skill-read": 3
+      },
+      "rank": 156
+    },
+    {
+      "skill": "skill-explainer",
+      "current_repository": true,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 2,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-21T12:18:42Z",
+      "last_seen": "2026-09-21T12:20:03Z",
+      "sources": {
+        "skill-read": 2
+      },
+      "rank": 157
+    },
+    {
+      "skill": "spec-progress",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-19T16:21:26Z",
+      "last_seen": "2026-08-19T16:21:26Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 158
+    },
+    {
+      "skill": "tailwind",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:46:49Z",
+      "last_seen": "2026-09-30T23:46:49Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 159
+    },
+    {
+      "skill": "to-issues",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:46:06Z",
+      "last_seen": "2026-09-11T11:46:06Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 160
+    },
+    {
+      "skill": "tui-over-ssh-diagnose",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-17T18:39:26Z",
+      "last_seen": "2026-08-17T18:39:26Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 161
+    },
+    {
+      "skill": "validate-a-plan",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-04T00:20:43Z",
+      "last_seen": "2026-10-04T00:20:43Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 162
+    },
+    {
+      "skill": "verify-doc-snippets",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-30T23:19:52Z",
+      "last_seen": "2026-09-30T23:19:52Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 163
+    },
+    {
+      "skill": "web-images",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-08-27T14:57:21Z",
+      "last_seen": "2026-08-27T14:57:21Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 164
+    },
+    {
+      "skill": "web-quality-audit",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-09-11T11:28:38Z",
+      "last_seen": "2026-09-11T11:28:38Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 165
+    },
+    {
+      "skill": "write-docs",
+      "current_repository": false,
+      "sessions": 1,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 1,
+      "read_sessions": 1,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": "2026-10-03T17:18:58Z",
+      "last_seen": "2026-10-03T17:18:58Z",
+      "sources": {
+        "skill-read": 1
+      },
+      "rank": 166
+    },
+    {
+      "skill": "plan-synopsis",
+      "current_repository": true,
+      "sessions": 0,
+      "invocations": 0,
+      "invocation_sessions": 0,
+      "skill_reads": 0,
+      "read_sessions": 0,
+      "top_level_invocations": 0,
+      "subagent_invocations": 0,
+      "first_seen": null,
+      "last_seen": null,
+      "sources": {},
+      "rank": 167
+    }
+  ],
+  "session_ranking_metric": "distinct_parent_sessions_with_explicit_invocation_or_successful_skill_read",
+  "session_ranking_tie_breakers": [
+    "invocations_desc",
+    "skill_ascending"
+  ],
+  "metric_definitions": {
+    "invocations": "Explicit recorded skill requests: native skill-prompt events, expanded command wrappers, leading slash commands, explicit skill load requests, and recognized legacy save/commit prompt bodies. A request is not proof of successful workflow completion.",
+    "skill_reads": "Successful read/eval tool results identifying a skill root or SKILL.md through read metadata or a skill-file header. Count at most once per skill in each tool-result record. Includes inspection/documentation reads; not equivalent to executing a skill.",
+    "invocation_sessions": "Distinct parent sessions with an explicit recorded invocation. Subagent transcripts are folded into their parent session.",
+    "sessions": "Distinct parent sessions with either an explicit invocation or a successful skill read. Repeated reads and multiple subagents do not inflate this count.",
+    "current_repository": "Skill had a root SKILL.md in the current repository inventory when scanned. The shared resource directory is excluded.",
+    "first_seen": "Earliest observed invocation or successful read within the window, not skill installation or creation date.",
+    "last_seen": "Latest observed invocation or successful read within the window."
+  },
+  "aliases": {
+    "b-commit": "git-commit",
+    "b-commit-improved": "git-commit-improved",
+    "b-build-hard": "b-build"
+  },
+  "legacy_normalization": {
+    "b-save": "23 historical full save-prompt requests",
+    "git-commit": "2 historical full Conventional Commits prompt requests"
+  },
+  "limitations": [
+    "The requested six-month window begins April 3, but the available source logs begin May 31, 2026. No earlier usage can be inferred.",
+    "Invocation recognition is conservative and measures recorded explicit requests, not every natural-language request or autonomous workflow-stage execution. Automatic command handling can leave no explicit invocation event.",
+    "Successful skill reads include auditing and editing skill definitions. A positive read count alone does not establish actual execution; zero explicit invocations does not establish that a skill is unused.",
+    "The inventory covers every observed skill identifier and all 64 current repository skills, not a complete historical inventory of every installed global skill.",
+    "One malformed JSON line was skipped: a tool-result record with an invalid Unicode surrogate pair and no skill path. It is not a user or skill-prompt invocation.",
+    "This analysis session and its advisor transcript were excluded. Raw prompts, project paths, tool payloads and private transcript contents are not included in the saved aggregates."
+  ]
+}

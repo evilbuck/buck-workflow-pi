@@ -50,10 +50,34 @@ export type AgentCallFailure = CallFailureDetails & {
 
 function safeString(value: unknown): string {
   try {
+    // A plain object stringifies to "[object Object]", which discards every
+    // field an operator would need. Date, Map, Set, and class instances keep
+    // their own toString, and an Error keeps "Name: message" rather than "{}".
+    if (isPlainObject(value)) return JSON.stringify(value, jsonSafeReplacer()) ?? "[unprintable value]";
     return String(value);
   } catch {
     return "[unprintable value]";
   }
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null) return false;
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === Object.prototype || proto === null;
+}
+
+/** Replace cycles and non-JSON values so a circular cause cannot throw. */
+function jsonSafeReplacer(): (key: string, value: unknown) => unknown {
+  const seen = new WeakSet<object>();
+  return (_key, value) => {
+    if (value !== null && typeof value === "object") {
+      if (seen.has(value)) return "[circular]";
+      seen.add(value);
+    }
+    if (typeof value === "bigint") return value.toString();
+    if (typeof value === "function") return undefined;
+    return value;
+  };
 }
 
 function serializableDetail(value: unknown): unknown {

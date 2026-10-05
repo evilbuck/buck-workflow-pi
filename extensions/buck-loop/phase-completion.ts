@@ -154,7 +154,7 @@ function frontmatterBody(text: string): string | null {
   return frontmatterSpan(text)?.body ?? null;
 }
 
-function frontmatterSpan(text: string): { body: string; start: number; end: number } | null {
+export function frontmatterSpan(text: string): { body: string; start: number; end: number } | null {
   if (!text.startsWith("---")) return null;
   const end = text.indexOf("\n---", 3);
   if (end < 0) return null;

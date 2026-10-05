@@ -446,7 +446,7 @@ from_review: b-review
 
 Start with `/b-iterate` — it will pick up this file automatically.
 Then re-run `/b-review` against the same plan or phase.
-Inside an OMP execution session, the iterate artifact is not done until it is completed, review passes, and `/b-save` has recorded durable state.
+Inside an OMP execution session, `/b-iterate` completes this artifact before it returns; the supervisor then re-reviews. Do not leave the file `active` waiting for review or save.
 For larger rework, use `/b-build` or `/b-build-hard`.
 ```
 

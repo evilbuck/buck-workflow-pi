@@ -346,10 +346,26 @@ function scanReviewFacts(subjectDir: string, activePhase: number | null): Review
   };
 }
 
+/** Enumerate iterate artifacts; the shared lifecycle predicate determines which remain open. */
+function iterateArtifacts(subjectDir: string): string[] {
+  return listNames(subjectDir)
+    .filter((name) => /^iterate-.*\.md$/.test(name))
+    .map((name) => join(subjectDir, name))
+    .sort();
+}
+
+/** Unreadable or statusless artifacts remain unfinished, never proof of completion. */
+export function unfinishedIterates(subjectDir: string): string[] {
+  return iterateArtifacts(subjectDir).filter(iterateUnfinished);
+}
+
 function hasIterate(subjectDir: string): boolean {
-  return listNames(subjectDir).some(
-    (name) => /^iterate-.*\.md$/.test(name) && readStatus(join(subjectDir, name)) !== "completed",
-  );
+  return iterateArtifacts(subjectDir).some(iterateUnfinished);
+}
+
+function iterateUnfinished(abs: string): boolean {
+  const status = readStatus(abs);
+  return status !== "completed" && status !== "below-waterline";
 }
 
 function findReviewReport(subjectDir: string): string | null {
@@ -567,7 +583,8 @@ function porcelainPath(line: string): string | null {
   return path.replace(/^"|"$/g, "") || null;
 }
 
-function readStatus(abs: string): string | null {
+/** Frontmatter `status`, or `null` when absent or unparseable. */
+export function readStatus(abs: string): string | null {
   return readFrontmatter(abs).status ?? null;
 }
 

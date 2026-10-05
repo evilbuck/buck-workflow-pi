@@ -49,10 +49,10 @@ Same TypeScript extension system as Pi, but under `~/.omp/`:
 
 ### Extension activity convention (bundled with buck-workflow)
 
-Long-running slash commands (`/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`) must surface work-in-progress through OMP's two non-modal surfaces rather than `pi.sendMessage` or `ctx.ui.custom()`:
+Long-running slash commands surface work-in-progress through non-modal status/widget surfaces rather than `pi.sendMessage` or `ctx.ui.custom()`. `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, and `/b-kamal-release` use the shared activity handle below; `/buck-loop` uses the component card described after it.
 
 - **Footer spinner** — `ctx.ui.setStatus(key, "<frame> <phase>")`. Frames advance on a small bounded interval; the status **key** identifies the owning command (`<command>:activity`), while the rendered text carries only the spinner frame and the current semantic phase. `setWorkingMessage` does not animate during nested work, so it is not the surface to drive.
-- **Live activity widget** — `ctx.ui.setWidget(key, lines, { placement: "aboveEditor" })`. Reserved for a short transient window above the editor. One header line plus at most eight activity lines by default (well under OMP's 10-line string-widget cap). `/buck-loop` overrides this to six activity rows at 64 columns so nested assistant/tool output stays a bounded viewport. Use `setWidget(key, undefined, ...)` to clear it.
+- **Live activity widget** — `ctx.ui.setWidget(key, lines, { placement: "aboveEditor" })`. Reserved for a short transient window above the editor. One header line plus at most eight activity lines by default (well under OMP's 10-line string-widget cap). Use `setWidget(key, undefined, ...)` to clear it.
 
 Both surfaces go through `extensions/extension-activity.ts`'s `createActivity({ ui, command })` handle. The handle owns lifecycle, animation, throttling, sanitization, and idempotent cleanup:
 
@@ -64,9 +64,11 @@ Both surfaces go through `extensions/extension-activity.ts`'s `createActivity({ 
 | `fail(label)` | Same as `succeed` but `warning` notification. |
 | `dispose()` | Idempotent cleanup — call from the outermost `finally`. |
 
-The `Activity` interface hides timer cadence, frame selection, render throttling, line coalescing, bounds, sanitization, and feature detection. **New long-running commands must use this module** — do not introduce per-command progress renderers. The shared module is OMP-first; Pi/print/RPC adapters that omit `setStatus`/`setWidget` are handled structurally without crashing.
+The `Activity` interface hides timer cadence, frame selection, render throttling, line coalescing, bounds, sanitization, and feature detection. **New long-running commands must use this module** — do not introduce per-command progress renderers. `/buck-loop` is the explicit component-card exception below, not a second shared activity convention. The shared module is OMP-first; Pi/print/RPC adapters that omit `setStatus`/`setWidget` are handled structurally without crashing.
 
 For model calls, `runOmpModelSession({ cwd, tools, prompt, modelOverride, timeoutMs, onActivity })` translates the raw OMP `AgentSessionEvent` stream into normalized `ActivityEvent`s before forwarding them to `activity.ingest`. Nested `/buck-loop` work sessions do the same via `AgentSession.subscribe()` in `run-step.ts`. Tool arguments are untrusted: only allowlisted display metadata (repo-relative `path`/`filePath`/`command`/`query`/`pattern`) is forwarded; raw prompts, edit contents, environments, and result bodies never reach the widget.
+
+`/buck-loop` owns a stacked activity card through `extensions/buck-loop/activity-widget.ts`'s `createActivityCard()`. It registers an above-editor `setWidget` component factory, not a capped string widget or the shared footer spinner. A `pi-tui` `Loader` supplies the CURRENT box's animated glyph; cleanup stops and removes the Loader and clears the widget. The pure `activity-view.ts` renderer consumes the live projection from `activity-snapshot.ts`; display-only Jev ranking orders legal continuations without selecting one. Separate observers carry the selected model, completed assistant usage, and event-sampled context occupancy from the child stage session, never the parent chat. Density defaults to standard and can change during a run without restarting work. See [the card and profile contract](buck-loop.md) and [Change Buck-loop activity density](howto/change-buck-loop-density.md). Other commands retain the shared eight-row activity surface.
 
 ### `plan-artifact` (bundled with buck-workflow, opt-in)
 

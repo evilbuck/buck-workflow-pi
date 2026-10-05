@@ -36,15 +36,15 @@ In an OMP Buck-loop with `SQL_MEMORY_URL` configured, SQL is required: a missing
 
 In SQL mode, do not create or update `.context/memory/` files or `.context/memory/index.md`. Responsibilities 3 and 7 are replaced by this section. Backlog, phase, spec, and subject-lifecycle duties still run.
 
-The supervisor directive names `attemptId`, `runId`, `project`, `phase` (repo-relative active phase path or `null` for unphased work), and `receipt`. Use those values exactly. Do not record the database URL, password, or connection string in any file.
+The supervisor directive names `attemptId`, `runId`, `subject`, `project`, `phase` (repo-relative active phase path or `null` for unphased work), and `receipt`. Use those values exactly. Do not record the database URL, password, or connection string in any file.
 
 1. Save it through `op: "remember"` — never assemble raw `INSERT`/`UPDATE`/`SELECT` against the memory tables.
-   - Pass `body` and `subject`. Include `phase` from the directive when it is non-null. Pass `previousId` only when correcting an existing row.
+   - Pass `body` and `subject`. The `subject` parameter is the directive's `subject` value, copied exactly. Include `phase` from the directive when it is non-null. Pass `previousId` only when correcting an existing row.
    - The tool derives `author`, `project`, `branch_name`, `commit_sha`, `seq`, `source_key`, `context`, `category` (default `"project"`), the new `id`, and timestamps. It reads back the active same-project row before returning `{ id }`. Category is checked against the currently active database slugs.
    - Identical `subject`, `phase`, `body`, and `previousId` reuse the same active row and id; retries do not create another memory. Change the body or phase for a distinct fact, or use `previousId` to supersede an existing fact.
    - A `{ error: true }` response blocks the save. The `fix` field tells you which call or column to use next. Identity errors mean `git config user.email` or `git remote add origin` is missing; fix and retry rather than bypass the tool.
 2. If `previousId` is set, the tool runs the save-stage `op: "correct"` (same atomic correction the supervisor would have done): it claims it, inserts or reuses the source-key successor, and links `superseded_by`. Never update immutable memory content.
-3. Once the tool returns `{ id }`, write `.context/<subject>/sql-memory-receipts/<runId>-<attemptId>.json` with `attemptId`, `runId`, `subject`, `project`, `kind` (`rows` or `no-fact`), `ids` (the returned or reused id(s)), and `probed: true`. No-fact is allowed only when the directive says the connectivity probe succeeded and this session has no reusable fact; `ids` must be `[]`. After all metadata responsibilities and lifecycle work succeed, add `completed: true` to the receipt.
+3. Once the tool returns `{ id }`, write `.context/<subject>/sql-memory-receipts/<runId>-<attemptId>.json` with `attemptId`, `runId`, `subject`, `project`, `kind` (`rows` or `no-fact`), `ids` (the returned or reused id(s)), and `probed: true`. The receipt's `subject` is the directive's `subject` value, exactly. No-fact is allowed only when the directive says the connectivity probe succeeded and this session has no reusable fact; `ids` must be `[]`. After all metadata responsibilities and lifecycle work succeed, add `completed: true` to the receipt.
 4. Do not run a separate readback SELECT against `memories` for the receipt. `remember` and `correct` already read back the active same-project row internally. Issuing your own `SELECT` will fail at the gate or at the schema and is not the save procedure.
 ## The 12 Responsibilities
 

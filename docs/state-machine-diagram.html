@@ -90,7 +90,7 @@
 
 <header>
   <h1><code>/buck-loop</code> State Machine</h1>
-  <div class="sub">11 states · unattended buck-workflow runner · <code>extensions/buck-loop/machine.ts</code> · scroll = zoom · drag = pan · click = inspect</div>
+  <div class="sub">12 states · unattended buck-workflow runner · <code>extensions/buck-loop/machine.ts</code> · scroll = zoom · drag = pan · click = inspect</div>
 </header>
 
 <div class="legend" id="legend">
@@ -144,8 +144,9 @@ const nodes = [
   { id: 'idle', label: 'idle', cat: 'entry', desc: 'Nothing saved; waiting for /buck-loop <path>.' },
   { id: 'resolving', label: 'resolving', cat: 'entry', desc: 'A path is known; the scan looks up the plan/phase on disk and classifies it (missing / unphased / phased-incomplete / phased-complete).' },
   { id: 'building', label: 'building', cat: 'work', desc: 'Nested coding session implements the current phase (b-build). One retry on failure.' },
-  { id: 'reviewing', label: 'reviewing', cat: 'work', desc: 'Nested session reviews the implementation (b-review). Priority tree: iterate artifact → docs impact → clean save; unparseable report defers to a closed model choice (iterate | document | save).' },
-  { id: 'iterating', label: 'iterating', cat: 'rework', desc: 'Nested session fixes in-plan review issues (b-iterate). Max 3 iterate cycles per phase.' },
+  { id: 'reviewing', label: 'reviewing', cat: 'work', desc: 'Nested review session (b-review). An unfinished iterate artifact goes to ranking with the rank effect, not directly to iterating. Without an artifact, clear docs flags and the existing unparseable-report choice remain unchanged.' },
+  { id: 'ranking', label: 'ranking', cat: 'rework', desc: 'In-process native Jev judgment; no nested session or counter increment. Floor valid fractional scores before matrix lookup. Audit every issue, retain only above-waterline issues for iteration, otherwise mark the artifact below-waterline. Clear docs flags are trusted; garbled reports get binary docs/how-to judgment, retry once, then document/save choice on failure.' },
+  { id: 'iterating', label: 'iterating', cat: 'rework', desc: 'Nested session fixes above-waterline in-plan review issues (b-iterate). Max 6 iterate cycles per phase.' },
   { id: 'documenting', label: 'documenting', cat: 'wrap', desc: 'Nested session updates living docs (b-docs / b-howto) because review flagged documentation or how-to impact.' },
   { id: 'saving', label: 'saving', cat: 'wrap', desc: 'Nested session writes session memory (b-save) to .context/memory.' },
   { id: 'committing', label: 'committing', cat: 'wrap', desc: 'Nested session creates the git commit (b-commit). Then: next phase → building, or all phases complete → done.' },
@@ -167,7 +168,12 @@ const edges = [
   e('building', 'reviewing', 'session ok', 'flow', 'postcondition confirmed (or ambiguous + choice: advance); work landed, review it.'),
   e('iterating', 'reviewing', 'session ok', 'flow', 'fixes landed; re-review the phase.'),
   // rework cycle
-  e('reviewing', 'iterating', 'iterate issues', 'cycle', 'iterate-*.md artifact wins (max 3 cycles/phase), or unparseable report + choice: iterate.'),
+  e('reviewing', 'ranking', 'unfinished artifact / rank', 'flow', 'Run native issue judgment in-process before deciding whether to iterate.'),
+  e('reviewing', 'iterating', 'no artifact / choice', 'cycle', 'Only an unparseable report with no iterate artifact and choice: iterate uses this direct edge.'),
+  e('ranking', 'iterating', 'above waterline', 'cycle', 'An issue cleared the waterline and iterate budget remains; artifact contains only above-waterline issues.'),
+  e('ranking', 'documenting', 'docs / how-to impact', 'flow', 'Nothing above waterline; clear report flags or native binary judgment says update docs/how-to, or unresolved judgment choice: document.'),
+  e('ranking', 'saving', 'nothing worth fixing', 'flow', 'Nothing above waterline and no docs/how-to impact, or unresolved judgment choice: save. Valid even at the iterate ceiling.'),
+  e('ranking', 'blocked', 'scan / audit / limits', 'halt', 'Zero parsed issues, two unfinished artifacts, failed audit/rewrite, global loop limit, or above-waterline issue with exhausted iterate budget.'),
   e('reviewing', 'documenting', 'docs impact', 'flow', 'review flagged documentation / how-to impact, or choice: document.'),
   e('reviewing', 'saving', 'clean review', 'flow', 'clean save; or unparseable report + choice: save.'),
   // wrap-up chain
@@ -193,7 +199,7 @@ const edges = [
   e('saving', 'blocked', 'limits', 'halt', 'Loop limit or missing postcondition.'),
   e('committing', 'blocked', 'limits / plan gone', 'halt', 'Loop limit with phases remaining, or plan vanished while committing.'),
   // stop fan-in (unlabeled — the legend explains the STOP→aborted pattern)
-  ...['idle','resolving','building','iterating','reviewing','documenting','saving','committing','blocked']
+  ...['idle','resolving','building','iterating','reviewing','ranking','documenting','saving','committing','blocked']
     .map(s => e(s, 'aborted', s === 'idle' ? 'STOP' : '', 'stop', `Operator typed /buck-loop --stop while ${s === 'idle' ? 'idle' : `in ${s}`}.`)),
 ];
 

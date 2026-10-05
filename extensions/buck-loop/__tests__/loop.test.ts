@@ -8,9 +8,10 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop, prepareCommitCheckpoint } from "../loop.js";
+import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
+const judge = vi.mocked(runJev);
 import { readProjection, writeProjection } from "../persist.js";
 import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../../skills/_shared/scripts/subject-lifecycle.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
@@ -18,6 +19,7 @@ import type { ChooseResult } from "../choice.js";
 import type { NestedSkill, RunStepResult } from "../run-step.js";
 import type { ActivityEvent } from "../../extension-activity.js";
 import type { Choice } from "../types.js";
+import type { RankAttempt } from "../ranking.js";
 
 const SUBJECT = "2026-09-18.demo";
 const PLAN = `.context/${SUBJECT}/plan-demo.md`;
@@ -91,11 +93,13 @@ function workDeps(
     reason: "test default: heavy lift",
     diagnosis: "test diagnosis",
   }),
+  ask: (state: unknown, questions: Record<string, { type: string; instructions: string; criteria?: Record<string, string> | string[] }>) => Promise<RankAttempt> = async () => ratingAnswer(4),
 ) {
   return {
     runStep: vi.fn(runStep),
     choose: vi.fn(choose),
     classifyRepair: vi.fn(classifyRepair),
+    ask: vi.fn(ask),
     now: () => NOW,
   };
 }
@@ -107,7 +111,7 @@ function mutatePhase(cwd: string, rel: string, status: string): void {
 
 function landingWork() {
   let saves = 0;
-  return async (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty: string }) => {
+  return async (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty?: string }) => {
     const cwd = opts.cwd;
     if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
       mutatePhase(cwd, opts.planOrPhasePath, "completed");
@@ -143,6 +147,63 @@ afterEach(() => {
   if (originalSqlUrl === undefined) delete process.env.SQL_MEMORY_URL;
   else process.env.SQL_MEMORY_URL = originalSqlUrl;
 });
+
+/**
+ * A real `iterate-*.md` the ranking parser accepts, naming `src/a.ts` so the
+ * `ask` seam receives the same file text `rankIssues` sends to Jev.
+ */
+const RANKED_ITERATE = `---
+status: active
+---
+# Iteration: demo
+## Critical Issues
+### 1. Critical defect
+- **File**: src/a.ts
+- **Problem**: Invalid transition admits unsafe progress.
+- **Proposed fix**: Reject the transition.
+## Warnings
+### 1. Warning title
+- **File**: src/a.ts
+- **Problem**: Parsing may miss a finding.
+- **Suggested approach**: Add parser coverage.
+`;
+
+/** One `ask` answer: `impact` 4 with `likelihood` 4 is High, impact 0 is below. */
+function ratingAnswer(impact = 4): RankAttempt {
+  return {
+    raw: "bounded answer",
+    details: { answers: {
+      scope: { type: "choice", choice: "in_scope" },
+      real: { type: "noul", noul: 0.9 },
+      impact: { type: "score", score: impact },
+      likelihood: { type: "score", score: 4 },
+      regression: { type: "choice", choice: "pre_existing" },
+    } },
+  };
+}
+
+/** Native binary answers for the garbled-report gate. */
+function docsAnswer(docs = "no", howto = "no"): RankAttempt {
+  return { raw: "docs verdict", details: { answers: { docs: { type: "choice", choice: docs }, howto: { type: "choice", choice: howto } } } };
+}
+
+/** Route per-issue rating by title so one call can clear only the critical. */
+function rankingByTitle(above: readonly string[]): (state: unknown, questions: Record<string, unknown>) => Promise<RankAttempt> {
+  return async (state) => {
+    const title = state && typeof state === "object" && "title" in state ? String(state.title) : "";
+    return ratingAnswer(above.includes(title) ? 4 : 0);
+  };
+}
+
+/**
+ * Commit the file the iterate artifact names. The rank sends its current text
+ * to Jev, and `/buck-loop` refuses to start on an unstaged tree.
+ */
+function rankedSubject(cwd: string): void {
+  writeTree(cwd, { "src/a.ts": "export const current = true;\n" });
+  git(cwd, ["add", "-f", "src/a.ts"]);
+  git(cwd, ["commit", "-qm", "subject under review"]);
+}
 
 describe("unphased closeout resume", () => {
   function fixture(state: "done" | "blocked", criteria: string, status = "active"): string {
@@ -502,27 +563,29 @@ describe("happy path", () => {
     expect(readProjection(cwd)?.history.at(-1)?.why).toContain('stage "build"');
   });
 
-  it("routes iterate when the review artifact exists, then re-reviews", async () => {
+  it("ranks the review artifact before iterating, then re-reviews", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
+    rankedSubject(cwd);
     let reviews = 0;
+    const ask = vi.fn(rankingByTitle(["Critical defect"]));
     const deps = workDeps(async (opts) => {
       if (opts.skill === "b-review") {
         reviews += 1;
         if (reviews === 1) {
-          writeTree(cwd, {
-            [`.context/${SUBJECT}/iterate-x.md`]: "---\nstatus: active\n---\n# Iterate\n",
-          });
+          writeTree(cwd, { [`.context/${SUBJECT}/iterate-x.md`]: RANKED_ITERATE });
           return { ok: true, text: CLEAN_REVIEW };
         }
       }
       return landingWork()(opts);
-    });
+    }, undefined, undefined, ask);
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
     expect(skills).toContain("b-iterate");
     expect(skills.filter((s) => s === "b-review").length).toBeGreaterThan(1);
+    // Ranking happens in-process: no nested session, no chooser.
+    expect(ask).toHaveBeenCalled();
   });
 
   it("routes documentation when review flags docs impact", async () => {
@@ -1026,14 +1089,13 @@ describe("failure and choice", () => {
     expect(deps2.runStep).not.toHaveBeenCalled();
   });
 
-  it("blocks after six iterate cycles on one phase", async () => {
+  it("stops iterating at the ceiling when a ranked issue is still above the waterline", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
+    rankedSubject(cwd);
     const deps = workDeps(async (opts) => {
       if (opts.skill === "b-review") {
-        writeTree(cwd, {
-          [`.context/${SUBJECT}/iterate-x.md`]: "---\nstatus: active\n---\n# Iterate\n",
-        });
+        writeTree(cwd, { [`.context/${SUBJECT}/iterate-x.md`]: RANKED_ITERATE });
         return { ok: true, text: CLEAN_REVIEW };
       }
       return landingWork()(opts);
@@ -1042,6 +1104,271 @@ describe("failure and choice", () => {
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/iterate limit reached/i);
     expect(deps.runStep.mock.calls.map((call) => call[0].skill).filter((s) => s === "b-iterate")).toHaveLength(6);
+  });
+
+  it("moves past the iterate ceiling when nothing is above the waterline (grill Q2)", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    rankedSubject(cwd);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        writeTree(cwd, { [`.context/${SUBJECT}/iterate-x.md`]: RANKED_ITERATE });
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      return landingWork()(opts);
+    }, undefined, undefined, rankingByTitle([]));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-iterate");
+  });
+});
+
+describe("in-process rank effect", () => {
+  /**
+   * One review that leaves an iterate artifact, then the ordinary landing tail.
+   * `report` is the worker's review text; `ask` is the judgment seam. Only the
+   * first review writes the artifact, so the re-review after an iterate finds
+   * a clean phase instead of re-opening the same finding forever.
+   */
+  function rankedRun(
+    ask: (state: unknown, questions: Record<string, unknown>) => Promise<RankAttempt>,
+    report = CLEAN_REVIEW,
+    iterate = RANKED_ITERATE,
+    choose: (opts: { cwd: string; subject: string; legal: readonly Choice[] }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
+  ) {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    rankedSubject(cwd);
+    let reviews = 0;
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        reviews += 1;
+        if (reviews === 1) writeTree(cwd, { [`.context/${SUBJECT}/iterate-x.md`]: iterate });
+        return { ok: true, text: report };
+      }
+      return landingWork()(opts);
+    }, choose, undefined, ask);
+    return { cwd, deps };
+  }
+
+  /** Chooser that takes the first legal continuation, so the A-11 choice can run. */
+  const acceptFirst = async (opts: { legal: readonly Choice[] }): Promise<ChooseResult> => ({
+    status: "accepted",
+    accepted: { choice: opts.legal[0]!, reason: "test chooser" },
+  });
+
+  it("ranks in-process: no nested session, no choose, and no counter moves for the rank call", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle(["Critical defect"]));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+
+    const beforeRank = readProjection(cwd);
+    expect(beforeRank).not.toBeNull();
+    // The rank transition is a supervisor hop, not a build loop or an iterate cycle.
+    const rankHop = beforeRank!.history.find((entry) => entry.to === "ranking");
+    expect(rankHop?.from).toBe("reviewing");
+    expect(beforeRank!.loopCount).toBe(1);
+    expect(beforeRank!.iterateCyclesOnPhase).toBe(0);
+
+    const rankHistory = readProjection(cwd)!.history;
+    const rankIndex = rankHistory.findIndex((entry) => entry.to === "ranking");
+    const iterateIndex = rankHistory.findIndex((entry) => entry.to === "iterating");
+    expect(iterateIndex).toBeGreaterThan(rankIndex);
+  });
+
+  it("spawns no nested skill session and never calls choose while ranking", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle(["Critical defect"]));
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    // b-iterate only runs after the rank; no b-review or b-iterate is spawned
+    // from inside the rank call itself, and the chooser stays untouched.
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills.indexOf("b-iterate")).toBeGreaterThan(0);
+    expect(deps.choose).not.toHaveBeenCalled();
+  });
+
+  it("keeps only above-waterline ids in the iterate artifact and writes the audit first", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle(["Critical defect"]));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+
+    const artifact = readFileSync(join(cwd, `.context/${SUBJECT}/iterate-x.md`), "utf8");
+    expect(artifact).toContain("Critical defect");
+    expect(artifact).not.toContain("Warning title");
+
+    const audit = readdirSync(join(cwd, ".context", SUBJECT)).filter((name) => /^ranking-.*\.md$/.test(name));
+    expect(audit).toHaveLength(1);
+    const auditText = readFileSync(join(cwd, ".context", SUBJECT, audit[0]!), "utf8");
+    expect(auditText).toContain("## critical:1");
+    expect(auditText).toContain("above waterline");
+    expect(auditText).toContain("below waterline");
+  });
+
+  it("ignores retired CRLF iterate artifacts when ranking the current review", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle([]));
+    const retired = {
+      [`.context/${SUBJECT}/iterate-completed.md`]: "---\r\nstatus: completed\r\n---\r\n# Retired\r\n",
+      [`.context/${SUBJECT}/iterate-below.md`]: "---\r\nstatus: below-waterline\r\n---\r\n# Retired\r\n",
+    };
+    writeTree(cwd, retired);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-iterate");
+    for (const [path, text] of Object.entries(retired)) {
+      expect(readFileSync(join(cwd, path), "utf8")).toBe(text);
+    }
+  });
+
+  it("marks the artifact below-waterline and skips docs/save choice when nothing clears", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle([]));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const artifact = readFileSync(join(cwd, `.context/${SUBJECT}/iterate-x.md`), "utf8");
+    expect(artifact).toContain("status: below-waterline");
+    // A clear report states its own impact, so no docs judgment is spent.
+    const questions = deps.ask.mock.calls.flatMap((call) => Object.keys(call[1] as Record<string, unknown>));
+    expect(questions).not.toContain("docs");
+    expect(deps.choose).not.toHaveBeenCalled();
+  });
+
+  it("judges a garbled report once and routes to documenting when docs impact clears", async () => {
+    const { cwd, deps } = rankedRun(
+      (_state, questions) => Promise.resolve("docs" in (questions as Record<string, unknown>) ? docsAnswer("yes") : ratingAnswer(0)),
+      UNPARSEABLE_REVIEW,
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).toContain("b-docs");
+    const docsCalls = deps.ask.mock.calls.filter((call) => "docs" in (call[1] as Record<string, unknown>));
+    expect(docsCalls).toHaveLength(1);
+  });
+
+  it("retries a failed docs evaluation once with the same seam, then saves on the retry", async () => {
+    let attempts = 0;
+    const { cwd, deps } = rankedRun((state, questions) => {
+      if ("docs" in (questions as Record<string, unknown>)) {
+        attempts += 1;
+        if (attempts === 1) return Promise.reject(new Error("Jev unavailable"));
+        return Promise.resolve(docsAnswer());
+      }
+      return Promise.resolve(ratingAnswer(0));
+    }, UNPARSEABLE_REVIEW);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(attempts).toBe(2);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).not.toContain("b-docs");
+    expect(skills).toContain("b-save");
+  });
+
+  it("retries incomplete documentation answers instead of silently treating them as no impact", async () => {
+    let attempts = 0;
+    const { cwd, deps } = rankedRun((_state, questions) => {
+      if (!("docs" in questions)) return Promise.resolve(ratingAnswer(0));
+      attempts += 1;
+      return Promise.resolve(attempts === 1
+        ? { raw: "partial", details: { answers: { docs: { type: "choice", choice: "no" } } } }
+        : docsAnswer("no", "yes"));
+    }, UNPARSEABLE_REVIEW);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(attempts).toBe(2);
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-docs");
+  });
+
+  it("opens the closed document/save choice when the docs evaluation fails twice (A-11)", async () => {
+    const { cwd, deps } = rankedRun((state, questions) => {
+      if ("docs" in (questions as Record<string, unknown>)) return Promise.reject(new Error("Jev unavailable"));
+      return Promise.resolve(ratingAnswer(0));
+    }, UNPARSEABLE_REVIEW, RANKED_ITERATE, acceptFirst);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    // A-11: the choice offers document or save, never iterate.
+    const legal = deps.choose.mock.calls.flatMap((call) => (call[0].legal as readonly Choice[]).map((choice) => choice.kind));
+    expect(legal.length).toBeGreaterThan(0);
+    expect(new Set(legal)).toEqual(new Set(["document", "save"]));
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).not.toContain("b-iterate");
+  });
+
+  it("retries a per-issue rating once through the same ask seam and records the note (A-4/R-1)", async () => {
+    const seen: string[] = [];
+    const { cwd, deps } = rankedRun((state, questions) => {
+      const title = state && typeof state === "object" && "title" in state ? String(state.title) : "";
+      if ("scope" in (questions as Record<string, unknown>)) {
+        seen.push(title);
+        if (title === "Warning title" && seen.filter((t) => t === "Warning title").length === 1) {
+          return Promise.reject(new Error("Jev unavailable"));
+        }
+      }
+      return Promise.resolve(ratingAnswer(0));
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(seen.filter((title) => title === "Warning title")).toHaveLength(2);
+    const audit = readdirSync(join(cwd, ".context", SUBJECT)).filter((name) => /^ranking-.*\.md$/.test(name));
+    const auditText = readFileSync(join(cwd, ".context", SUBJECT, audit[0]!), "utf8");
+    expect(auditText).toContain("Jev failure");
+  });
+
+  it("blocks with a scan-defect reason when the artifact parses to zero issues (R-2)", async () => {
+    const empty = "---\nstatus: active\n---\n# Iterate\n## Critical Issues\n";
+    const { cwd, deps } = rankedRun(rankingByTitle([]), CLEAN_REVIEW, empty);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/scan defect/i);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).not.toContain("b-save");
+    expect(skills).not.toContain("b-iterate");
+  });
+
+  it("blocks rather than picking one when two iterate artifacts are unfinished (A-10)", async () => {
+    const { cwd, deps } = rankedRun(rankingByTitle([]));
+    writeTree(cwd, { [`.context/${SUBJECT}/iterate-y.md`]: RANKED_ITERATE });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/multiple unfinished iterate artifacts/i);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).not.toContain("b-iterate");
+    expect(skills).not.toContain("b-save");
+  });
+
+  it("finishes a garbled review after one rating pass and one docs judgment", async () => {
+    const { cwd, deps } = rankedRun(
+      (_state, questions) => Promise.resolve("docs" in questions ? docsAnswer() : ratingAnswer(0)),
+      UNPARSEABLE_REVIEW,
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    // One rank and one docs evaluation, not one per rescan tick.
+    const ranking = deps.ask.mock.calls.filter((call) => "scope" in (call[1] as Record<string, unknown>));
+    expect(ranking).toHaveLength(2);
+    const docs = deps.ask.mock.calls.filter((call) => "docs" in (call[1] as Record<string, unknown>));
+    expect(docs).toHaveLength(1);
+  });
+
+  it("does not re-spend judgment when the machine re-emits rank for a recorded verdict", async () => {
+    // A docs evaluation that always fails leaves an `unresolved` verdict, so
+    // the machine keeps re-entering `ranking` until a continuation is taken.
+    // Total judgment spend must stay flat across those hops: one per-issue
+    // rating pass plus one docs evaluation (two failed attempts). If the rank
+    // ever re-judged a recorded verdict, these counts would scale with the
+    // hop count instead of staying at 2 and 2.
+    const { cwd, deps } = rankedRun(
+      (_state, questions) => "docs" in (questions as Record<string, unknown>)
+        ? Promise.reject(new Error("Jev unavailable"))
+        : Promise.resolve(ratingAnswer(0)),
+      UNPARSEABLE_REVIEW, RANKED_ITERATE, acceptFirst,
+    );
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    const ranking = deps.ask.mock.calls.filter((call) => "scope" in (call[1] as Record<string, unknown>));
+    expect(ranking).toHaveLength(2);
+    const docs = deps.ask.mock.calls.filter((call) => "docs" in (call[1] as Record<string, unknown>));
+    expect(docs).toHaveLength(2);
+    // More than one hop into `ranking`, so the flat spend is meaningful.
+    const rankHops = readProjection(cwd)!.history.filter((entry) => entry.to === "ranking");
+    expect(rankHops.length).toBeGreaterThan(1);
   });
 });
 
@@ -1457,6 +1784,222 @@ describe("configured SQL memory recall contract", () => {
   });
 });
 
+describe("single unfinished iterate artifact closeout", () => {
+  const TODAY = NOW.slice(0, 10);
+  const ITERATE_BODY = RANKED_ITERATE.slice(RANKED_ITERATE.indexOf("---", 3)).replace("### 1. Critical defect", "### 1. Critical defect\n- Critical: fix the seam");
+
+  function resumeIterating(cwd: string): void {
+    writeProjection(cwd, {
+      version: 1, state: "iterating", subject: SUBJECT, planPath: PLAN,
+      phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+      loopCount: 0, maxLoops: 12, iterateCyclesOnPhase: 1, lastChoice: null,
+      history: [{ from: "ranking", to: "iterating", at: NOW, why: "ranked findings require iteration" }],
+    });
+  }
+
+  function closeoutRepo(): string {
+    const cwd = repo();
+    rankedSubject(cwd);
+    return cwd;
+  }
+
+  function iteratePath(cwd: string, name = "iterate-x.md"): string {
+    return join(cwd, `.context/${SUBJECT}/${name}`);
+  }
+
+  /** Review writes an artifact the iterate child leaves `active` — the incident shape. */
+  function writeIterate(cwd: string, name = "iterate-x.md", front = "---\nstatus: active\ncompleted: null\n"): string {
+    writeTree(cwd, { [`.context/${SUBJECT}/${name}`]: `${front}${ITERATE_BODY}` });
+    return iteratePath(cwd, name);
+  }
+
+  it("closes the artifact after a completed phase and reviews the result", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied the fix" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    const text = readFileSync(iteratePath(cwd), "utf8");
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(text).toMatch(/^status: completed$/m);
+    expect(text).toMatch(new RegExp(`^completed: ${TODAY}$`, "m"));
+    expect(text).toMatch(new RegExp(`^updated: ${TODAY}$`, "m"));
+    expect(text).not.toContain("completed: null");
+    expect(text).toContain("- Critical: fix the seam");
+    expect(text.endsWith(ITERATE_BODY)).toBe(true);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills.lastIndexOf("b-iterate")).toBeLessThan(skills.lastIndexOf("b-review"));
+    expect(result.state).toBe("done");
+  });
+
+  it("closes the artifact for an unphased open plan without touching the plan", async () => {
+    const cwd = closeoutRepo();
+    // The open box lives under a body `## Acceptance criteria` heading, which is
+    // what `planAcceptanceCriteria` reads; the plan must stay open for this
+    // fixture to be meaningful.
+    const planBody = "---\nstatus: active\n---\n# Plan\n\n## Acceptance criteria\n- [ ] ship the closeout\n";
+    writeTree(cwd, { [PLAN]: planBody });
+    const planText = readFileSync(join(cwd, PLAN), "utf8");
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      // The shared build fake would mark an unphased plan completed; that would
+      // hide whether the close, not the harness, is what leaves the plan alone.
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "built" };
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd), "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(planText);
+    expect(readFileSync(join(cwd, PLAN), "utf8")).toMatch(/^status: active$/m);
+  });
+
+  it("leaves two unfinished artifacts untouched and names both in the diagnosis", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    const first = writeIterate(cwd, "iterate-a.md", "---\nstatus: active\n");
+    const second = writeIterate(cwd, "iterate-b.md", "---\nstatus: in-progress\n");
+    const before = [readFileSync(first, "utf8"), readFileSync(second, "utf8")];
+    const landing = landingWork();
+    // No `classifyRepair` override: the production default runs, with Jev
+    // mocked to answer "heavy". The assertion then covers the shipped
+    // diagnosis, not a hardcoded string from a fake.
+    judge.mockResolvedValueOnce({ raw: "", details: { answers: { lift: { type: "choice", choice: "heavy", confidence: 0.9 } } } });
+    const deps = workDeps(
+      async (opts) => (opts.skill === "b-iterate" ? { ok: true, text: "handled" } : landing({ ...opts, difficulty: "standard" })),
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+    );
+    resumeIterating(cwd);
+    const result = await handleLoop({ cwd, command: "resume", deps: { ...deps, classifyRepair: productionClassifyRepair } });
+    expect(judge).toHaveBeenCalled();
+    expect(readFileSync(first, "utf8")).toBe(before[0]);
+    expect(readFileSync(second, "utf8")).toBe(before[1]);
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("iterate-a.md (status active)");
+    expect(result.reason).toContain("iterate-b.md (status in-progress)");
+  });
+
+  it("does not close after a failed iterate session", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    const abs = writeIterate(cwd);
+    const before = readFileSync(abs, "utf8");
+    let iterates = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-iterate") {
+        iterates += 1;
+        return { ok: false, text: `iterate-fail-${iterates}` };
+      }
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(readFileSync(abs, "utf8")).toBe(before);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/failed again after one retry/i);
+  });
+
+  it("closes after an ok retry too, leaving loop and iterate counters alone", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    let iterates = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-iterate") {
+        iterates += 1;
+        return { ok: iterates > 1, text: iterates > 1 ? "applied" : "transient" };
+      }
+      if (opts.skill === "b-review" && !existsSync(iteratePath(cwd))) {
+        writeIterate(cwd);
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    const projection = readProjection(cwd);
+    expect(iterates).toBe(2);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd), "utf8")).toMatch(/^status: completed$/m);
+    // The retry stayed inside one iterate cycle: the close and the retry must
+    // not each consume a crossing of the same edge.
+    const crossings = (projection?.history ?? []).filter((entry) => entry.to === "iterating" && entry.from !== "iterating");
+    expect(crossings).toHaveLength(1);
+    expect(projection?.loopCount).toBe(1);
+  });
+
+  it("closes after a retry that bypasses the ambiguity choice", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    // Two artifacts make the first ok session ambiguous, so the machine opens
+    // the retry/advance choice instead of routing straight to review. The retry
+    // child finishes one artifact, leaving exactly one active: the only place
+    // that can close it is the successful-iterate path, because a used retry
+    // never reaches the ambiguity choice again.
+    const first = writeIterate(cwd, "iterate-a.md");
+    const second = writeIterate(cwd, "iterate-b.md");
+    const landing = landingWork();
+    let iterates = 0;
+    const classifyRepair = vi.fn(async () => ({ lift: "light" as const, reason: "same assignment", diagnosis: "finish the second artifact" }));
+    const deps = workDeps(
+      async (opts) => {
+        if (opts.skill === "b-iterate") {
+          iterates += 1;
+          if (iterates === 1) return { ok: true, text: "held both open" };
+          writeTree(cwd, { [`.context/${SUBJECT}/iterate-a.md`]: "---\nstatus: completed\ncompleted: 2026-09-18\n---\n# Iteration: demo\n" });
+          return { ok: true, text: "closed the first" };
+        }
+        return landing({ ...opts, difficulty: "standard" });
+      },
+      async () => ({ status: "blocked", reason: "choose not expected" }),
+      classifyRepair,
+    );
+    resumeIterating(cwd);
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(classifyRepair).toHaveBeenCalledTimes(1);
+    expect(iterates).toBe(2);
+    expect(readFileSync(first, "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(second, "utf8")).toMatch(/^status: completed$/m);
+    expect(deps.classifyRepair).toHaveBeenCalledTimes(1);
+    expect(result.state).toBe("done");
+  });
+
+  it("closes the new artifact a later review writes, leaving the earlier one alone", async () => {
+    const cwd = closeoutRepo();
+    phased(cwd, ["pending"]);
+    let reviews = 0;
+    const landing = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-review") {
+        reviews += 1;
+        if (reviews === 1) writeIterate(cwd);
+        if (reviews === 2) writeIterate(cwd, "iterate-y.md");
+        return { ok: true, text: CLEAN_REVIEW };
+      }
+      if (opts.skill === "b-iterate") return { ok: true, text: "applied" };
+      return landing({ ...opts, difficulty: "standard" });
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("done");
+    expect(reviews).toBe(3);
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(iteratePath(cwd, "iterate-x.md"), "utf8")).toMatch(/^status: completed$/m);
+    expect(readFileSync(iteratePath(cwd, "iterate-y.md"), "utf8")).toMatch(/^status: completed$/m);
+  });
+});
+
 describe("prepareCommitCheckpoint phase-scope staging", () => {
   beforeEach(cleanupRepos);
   afterEach(cleanupRepos);
@@ -1550,3 +2093,4 @@ describe("prepareCommitCheckpoint phase-scope staging", () => {
     expect(execFileSync("git", ["-C", cwd, "diff", "--cached", "--name-only"], { encoding: "utf8" })).toBe("");
   });
 });
+

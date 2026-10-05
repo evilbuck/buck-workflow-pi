@@ -9,27 +9,38 @@ import { checkSqlForRole, checkSqlStatement } from "./sql-gate.js";
 import { columnCard, fixFor } from "./columns.js";
 import { RememberCategoryError, rememberSqlMemory } from "./remember.js";
 
-const CorrectionParams = Type.Object({
-  op: Type.Literal("correct"), project: Type.String(), previousId: Type.String(),
-  author: Type.String(), branchName: Type.Union([Type.String(), Type.Null()]),
-  commitSha: Type.Union([Type.String(), Type.Null()]), body: Type.String(),
-  context: Type.Object({ source_key: Type.String(), subject: Type.String(), phase: Type.Union([Type.String(), Type.Null()]), source: Type.String() }),
-  category: Type.String(), seq: Type.Integer({ minimum: 1 }),
+// Keep operation fields visible at the provider-facing object root. Branch
+// requirements still validate before execute; flattening must not weaken them.
+const SqlMemoryParams = Type.Unsafe<SqlMemoryParamsType>({
+  type: "object",
+  properties: {
+    op: { type: "string", enum: ["sql", "correct", "remember", "migrate"] },
+    statement: { type: "string", minLength: 1 },
+    values: { type: "array", items: {} },
+    body: { type: "string" },
+    subject: { type: "string", minLength: 1 },
+    phase: { type: ["string", "null"] },
+    category: { type: "string" },
+    previousId: { type: "string" },
+    project: { type: "string" },
+    author: { type: "string" },
+    branchName: { type: ["string", "null"] },
+    commitSha: { type: ["string", "null"] },
+    context: { type: "object", properties: {
+      source_key: { type: "string" }, subject: { type: "string" },
+      phase: { type: ["string", "null"] }, source: { type: "string" },
+    }, required: ["source_key", "subject", "phase", "source"] },
+    seq: { type: "integer", minimum: 1 },
+    destructive: { type: "string" },
+  },
+  required: ["op"],
+  anyOf: [
+    { type: "object", properties: { op: { const: "sql" } }, required: ["statement"] },
+    { type: "object", properties: { op: { const: "correct" } }, required: ["project", "previousId", "author", "branchName", "commitSha", "body", "context", "category", "seq"] },
+    { type: "object", properties: { op: { const: "remember" }, body: { minLength: 1 } }, required: ["body", "subject"] },
+    { type: "object", properties: { op: { const: "migrate" } } },
+  ],
 });
-const RememberParams = Type.Object({
-  op: Type.Literal("remember"),
-  body: Type.String({ minLength: 1 }),
-  subject: Type.String({ minLength: 1 }),
-  phase: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  category: Type.Optional(Type.String()),
-  previousId: Type.Optional(Type.String()),
-});
-const SqlMemoryParams = Type.Union([
-  Type.Object({ op: Type.Literal("sql"), statement: Type.String({ minLength: 1 }), values: Type.Optional(Type.Array(Type.Unknown())) }),
-  CorrectionParams,
-  RememberParams,
-  Type.Object({ op: Type.Literal("migrate"), destructive: Type.Optional(Type.String()) }),
-]);
 interface SqlMemoryResponse { content: Array<{ type: "text"; text: string }>; details: unknown; }
 type SqlMemoryParamsType = { op: "sql"; statement: string; values?: unknown[] } | { op: "migrate"; destructive?: string } | {
   op: "correct"; project: string; previousId: string; author: string; branchName: string | null;
@@ -384,7 +395,7 @@ ${columnCard()}`,
       }
     },
     renderCall(args) {
-      return new Text(`Memory ${args.op}…`, 0, 0);
+      return new Text(`Memory ${(args as SqlMemoryParamsType).op}…`, 0, 0);
     },
     renderResult(result, options) {
       const details = result.details as { notice?: unknown } | undefined;

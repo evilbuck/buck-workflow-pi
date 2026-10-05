@@ -16,7 +16,7 @@ After subject resolution, scan the resolved subject folder for `iterate-*.md` fi
 
 Also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
 
-When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Treat any active (`status: active` / `completed: null`) iterate artifact as blocking until review passes; read `status` as the source of truth.
+When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Read `status` as the source of truth: a `status: active` artifact is open work you must finish, not a file you defer to review. Leaving one active after you report the work done is a failed iterating postcondition, not a state the reviewer waits on.
 
 ## Behavior
 
@@ -48,9 +48,9 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 8. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-9. If you worked from an `iterate-*.md` artifact, update its frontmatter `status: completed`
+9. If you worked from an `iterate-*.md` artifact, set its frontmatter `status: completed` and `completed: YYYY-MM-DD` before you report the work done. This is the artifact's completion contract, not a courtesy for the reviewer.
 10. Do a final memory update
-11. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save` (and before yielding the execution session).
+11. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save`. Inside an execution session, return once your assignment is done: the supervisor owns review, save, and commit, and it reads the artifact's `status` to decide what runs next.
 
 ## Closeout
 
@@ -71,7 +71,7 @@ After completing iteration:
    $BODY
    ```
 
-5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." Inside an OMP execution session, do not yield until review passes and `/b-save` has durable state.
+5. Tell the user: "Run `/b-review` to validate the iteration (it flags documentation impact for `/b-docs`), then `/b-save` to finalize this session's record, then `/b-commit` to commit." Inside an OMP execution session, return as soon as the iteration is applied and its artifact reads `status: completed` — the supervisor runs review, save, and commit itself, and an artifact left `active` sends it back to iterating. Completing the artifact never waives a required quality gate.
 
 ## Best For
 

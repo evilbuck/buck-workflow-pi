@@ -30,6 +30,7 @@ import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
  *
  * The child is told it has no authority to choose the next loop state.
  */
+import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { randomUUID } from "node:crypto";
 import { createLazyPool } from "../sql-memory/db.js";
 import { sqlMemoryTool } from "../sql-memory/index.js";
@@ -118,6 +119,7 @@ export type RunStepResult = {
   ok: boolean;
   text: string;
   failure?: CallFailureDetails;
+  sqlFailure?: string;
 };
 
 /** Abort after 15 minutes without SDK activity; productive sessions have no fixed wall-clock limit. */
@@ -171,6 +173,7 @@ type SessionHandle = {
   prompt: (text: string) => Promise<unknown>;
   abort: () => Promise<unknown> | unknown;
   subscribe: (listener: (event: unknown) => void) => () => void;
+  getContextUsage: () => ContextUsage | undefined;
   dispose?: () => Promise<unknown> | unknown;
   messages: Array<{ role?: string; content?: unknown; stopReason?: unknown }>;
 };
@@ -224,6 +227,8 @@ export async function runStep(opts: {
   /** Supervisor contract for this run, such as a SQL save attempt. Not a repair diagnosis. */
   directive?: string;
   onActivity?: (event: ActivityEvent) => void;
+  onSessionEvent?: (event: unknown, model: string) => void;
+  onContextUsage?: (usage: ContextUsage | undefined) => void;
   /** Live host registry ids. Same source `/buck-models` uses. */
   availableIds?: () => Promise<ReadonlySet<string>>;
   select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
@@ -398,7 +403,7 @@ function planBody(cwd: string, rel: string): string {
 type SessionAttempt = { retain: boolean; blockRetry: boolean; result: RunStepResult };
 
 async function runOneSession(
-  opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void },
+  opts: { cwd: string; skill: NestedSkill; onActivity?: (event: ActivityEvent) => void; onSessionEvent?: (event: unknown, model: string) => void; onContextUsage?: (usage: ContextUsage | undefined) => void },
   prompt: string,
   agent: CallAgent,
   picked: { id: string; thinking: BuckThinking },
@@ -413,9 +418,9 @@ async function runOneSession(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
   let sqlNoticePending = false;
-  // Only an unresolved save-stage SQL work error suppresses a model retry. Gate
-  // denials are correctable and a subsequent successful SQL call clears the error.
-  let unresolvedSqlFailure = false;
+  // Keep pre-execute validation and executor failures until a successful SQL call.
+  // Receipt verification remains the supervisor's authority for durable success.
+  let unresolvedSqlFailure: string | undefined;
   let teardownSqlFailed = false;
   const sqlUrl = process.env.SQL_MEMORY_URL;
   const role = sqlRoleBySkill[opts.skill];
@@ -436,7 +441,7 @@ async function runOneSession(
       cwd: opts.cwd,
       agentDir: ompAgentDir(),
       modelPattern: picked.id,
-      thinkingLevel: picked.thinking as NonNullable<Parameters<typeof createAgentSession>[0]["thinkingLevel"]>,
+      thinkingLevel: picked.thinking as NonNullable<NonNullable<Parameters<typeof createAgentSession>[0]>["thinkingLevel"]>,
       tools: toolsBySkill[opts.skill],
       toolNames: [...toolsBySkill[opts.skill], ...(pool ? ["sql_memory"] : [])],
       restrictToolNames: true,
@@ -453,13 +458,15 @@ async function runOneSession(
             opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: result.kind === "success", message: result.notice });
           }
           if (role !== "save") return;
-          if (result.kind === "work") unresolvedSqlFailure = true;
-          else if (result.kind === "success") unresolvedSqlFailure = false;
-        })],
+          if (result.kind === "work") unresolvedSqlFailure = result.notice ?? formatSqlMemoryNotice({ op: result.op, error: errorText(result.error) });
+          else if (result.kind === "success") unresolvedSqlFailure = undefined;
+        }, opts.cwd)],
       } : {}),
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
+    opts.onSessionEvent?.({ type: "session_start", skill: opts.skill }, picked.id);
+    opts.onContextUsage?.(session.getContextUsage());
     let timedOut = false;
     const resetIdleTimer = (): void => {
       clearTimeout(timer);
@@ -470,7 +477,15 @@ async function runOneSession(
     };
     unsubscribe = session.subscribe((event) => {
       resetIdleTimer();
+      opts.onSessionEvent?.(event, picked.id);
+      opts.onContextUsage?.(session!.getContextUsage());
       const normalized = normalizeActivityEvent(event);
+      if (role === "save" && normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && !normalized.ok && !sqlNoticePending) {
+        const failed = event as { result?: { content?: Array<{ type?: string; text?: string }> } };
+        const message = failed.result?.content?.find(item => item.type === "text")?.text ?? "SQL tool call failed";
+        unresolvedSqlFailure = formatSqlMemoryNotice({ op: "sql", error: message });
+        normalized.message = unresolvedSqlFailure;
+      }
       if (normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && sqlNoticePending) {
         sqlNoticePending = false;
         return;
@@ -511,6 +526,7 @@ async function runOneSession(
     }
     // A completed agent session remains successful; only failed outcomes carry cleanup details.
   };
+  if (unresolvedSqlFailure) outcome.sqlFailure = unresolvedSqlFailure;
   try { unsubscribe?.(); } catch (error) { recordCleanupError(error, "unsubscribeError"); }
   try { await session?.dispose?.(); } catch (error) { recordCleanupError(error, "disposeError"); }
   try { await (pool as MigrationPool & { end?: () => Promise<void> } | undefined)?.end?.(); }
@@ -523,7 +539,7 @@ async function runOneSession(
   }
   return {
     retain: outcome.ok,
-    blockRetry: unresolvedSqlFailure || teardownSqlFailed,
+    blockRetry: unresolvedSqlFailure !== undefined || teardownSqlFailed,
     result: outcome,
   };
 }

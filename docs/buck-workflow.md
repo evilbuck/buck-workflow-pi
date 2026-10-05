@@ -112,19 +112,16 @@ for the decision log.
 | **`orchestrate` keyword** | User types `orchestrate` as a standalone lowercase prose word | Injects a hidden `orchestrate-notice`; switches the model into the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase). |
 | **`workflow` keyword** | User types `workflow` or `workflows` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python in the `eval` tool, fanning out via `agent()` handles and joining them with `wait()` under the active budget ceiling. |
 
-### How buck-workflow surfaces them
+### How buck-workflow documents them
 
-- **Slash-command stubs** at `prompts/omp-orchestrate.md`,
-  `prompts/omp-workflow.md`, and `prompts/omp-goal.md` (each
-  symlinked into `commands/` for OMP discovery). These are observation
-  only — they make the primitives discoverable in the agent's slash
-  menu and document the contract.
+- **No extra slash-command stubs.** The primitives are native OMP runtime
+  features, not Buck commands. On non-OMP harnesses, the `orchestrate` and
+  `workflow` keywords have no effect; `/goal` is a separate namespace on
+  Claude Code. Use the native controls only in OMP.
 - **`omp_execution` field on phase files.** When a phase file carries
   `omp_execution: orchestrate | workflow | goal` in its frontmatter,
   `b-phase` writes a "Per-Phase Execution Loop" expansion that
   tells the user to drop the keyword (orchestrate/workflow) or run `/goal set` (goal mode) on the first turn of the phase.
-  `omp_execution: none` (the default) is omitted from frontmatter and
-  means "standard / no opt-in."
 - **Optional `omp_goal_budget: <tokens>` companion field.** When
   `omp_execution: goal`, this hints at the recommended `token_budget`
   to set on the `/goal` session. The user sets the actual budget when
@@ -138,10 +135,28 @@ for the decision log.
   `.context/<subject>/eval-<topic>.py` (Python) that fans one
   `agent()` per phase. The cell is a **deliverable artifact** the user
   edits before invoking the keyword.
-- **`b-review` 6-step completion audit.** The goal-mode completion-audit
-  protocol (see `prompts/omp-goal.md`) is mirrored by `b-review`'s
-  completion matrix — every unchecked acceptance criterion requires
-  direct current-state evidence, uncertainty is treated as not-achieved.
+- **`b-review` 6-step completion-audit protocol.** Goal mode injects this audit on
+  autonomous turn boundaries via `goal-continuation.md`:
+
+  1. **Restate the objective as concrete deliverables.** Pull from the
+     active plan/phase file's `acceptance_criteria`.
+  2. **Map each deliverable to evidence.** Cite file paths, line numbers,
+     or test names.
+  3. **Inspect the actual current state.** Read the code and run the tests;
+     do not trust checkboxes.
+  4. **Match verification scope to claim scope.** What you can run is what
+     counts.
+  5. **Treat uncertainty as not-yet-achieved.** "Looks right" is not
+     evidence.
+  6. **Budget exhaustion is not completion.** If the budget ran out,
+     surface what is missing.
+
+  Before `goal({op: "complete"})` succeeds, every unchecked acceptance
+  criterion must produce direct current-state evidence or be flagged as
+  partial/missing. `b-review`'s completion matrix mirrors this: every
+  unchecked criterion requires direct evidence, and uncertainty is not
+  treated as achievement.
+
 
 ### What the workflow does NOT do
 
@@ -151,14 +166,21 @@ for the decision log.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
 - **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+
 - **Ambiguous postconditions are diagnosed, then lifted.** A phase whose acceptance boxes are all
   checked but whose status is not completed is marked complete by the supervisor.
-  Otherwise the supervisor diagnoses the child report and disk gap, then asks Jev
-  to classify that diagnosis as a light, medium, or heavy lift. Light and medium
-  lifts continue automatically once, with the diagnosis handed to the next skill
-  run. A heavy lift, or a lift call that does not return a legal class, is told
-  to the operator with the diagnosis, phase status, unchecked criteria, and
-  execution checkpoint. Missing credentials or a disposable database are heavy.
+  An ok iterate session that leaves exactly one `status: active` `iterate-*.md` gets
+  the same treatment: the supervisor closes that one artifact and reviews the work.
+  `completed` and `below-waterline` artifacts are finished, not unfinished. Two
+  unfinished artifacts, a malformed one, or any failed close are left untouched.
+  Every remaining miss is diagnosed from the child report and the disk gap — an
+  iterating miss names each unfinished artifact and its status, not just the phase
+  status — and Jev classifies that diagnosis as a light, medium, or heavy lift.
+  Light and medium lifts continue automatically once, with the diagnosis handed
+  to the next skill run. A heavy lift, or a lift call that does not return a legal
+  class, is told to the operator with the diagnosis, phase status, unchecked
+  criteria, and execution checkpoint. Missing credentials or a disposable database
+  are heavy.
   A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
   until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
 - **Blocked resume preserves a completed phase's review.** If a build or iterate
@@ -166,17 +188,16 @@ for the decision log.
   the confirmed run enters review for that phase without incrementing the build
   count. A still-incomplete phase follows the normal resolving/build path.
 - **Save and commit checkpoints trust durable artifacts.** A configured SQL save succeeds when the receipt verifies; pool teardown is an activity warning, not `SqlMemoryError`. Only an unresolved save-stage SQL work failure suppresses model retry. The commit checkpoint stages `.context/` and the active phase's `files:` list (exact paths, or a directory prefix ending in `/`), then refuses every other unstaged non-`.context` path. A missing `files:` field grants no extra scope. See [ADR 0003](adr/0003-checkpoint-trusts-durable-artifacts.md).
+- **Commit identity is pinned until Git proves completion.** Buck-loop persists the active target and pre-commit `HEAD` before commit effects, retains that marker across failures and restarts, and advances only when a clean worktree has exactly one verified commit after the baseline. A completed phase file or a clean tree alone is not commit proof. If a checkpoint marker is missing or inconsistent, resume stays blocked for manual recovery rather than guessing the prior phase. See [recover a blocked run](howto/recover-buck-loop.md).
+- **Commit recovery does not create a second commit to clear dirt.** A commit effect is permitted only when Git positively observes the original baseline unchanged (or the original unborn HEAD still unborn). Advanced HEAD with remaining dirt, divergent history, and failed proof queries retain the checkpoint without invoking a commit child. After intended dirt is resolved, explicit resume rechecks the original baseline and can recognize the existing commit idempotently. Status reports the retained target/baseline and pending, verified, or unsafe evidence.
 - **An unphased commit is not completion evidence.** Both automatic and choice-advance commit paths require plan `status: completed` and no open box under `## Acceptance criteria` (only lowercase `[x]` is checked). The supervisor synchronizes status only from a non-empty, fully checked list; it never checks boxes. A missing or empty list keeps status-only eligibility. An ineligible historical `done` becomes `blocked` with the unchecked lines, and resume cannot restart build to bypass that hold. Eligible repair invokes `close-verified` and returns `done` without nested work only with committing history and a clean worktree before metadata synchronization. Lifecycle refusal stays blocked. See [recover a blocked run](howto/recover-buck-loop.md).
 - **Unrelated unphased blockers retain normal recovery.** The no-build closeout hold applies only to historical `done` or an existing unphased-closeout blocker. Interrupted build, review, or save work preserves its original failure reason and may resume through the normal confirmed work path even while acceptance remains open.
-- **Does not break on non-OMP harnesses.** Each OMP slash-command stub
-  (`prompts/omp-*.md`) opens with a "Harness note" blockquote that
-  declares itself a no-op on Pi / Claude Code / OpenCode / Codex. The
-  `b-plan` "OMP Execution Recommendation" table has a top-row guard
-  that returns `none` on non-OMP, and the eval-cell template prelude
-  is wrapped in `try / except ImportError` so the cell degrades to a
-  no-op instead of crashing when the omp prelude is missing. Together
-  these are the cross-harness safety net — the workflow stays
-  authoritative-looking on OMP and silent on every other harness.
+- **Does not apply OMP controls on other harnesses.** The native
+  `orchestrate` and `workflow` keywords and `/goal` command are OMP-only;
+  the `b-plan` "OMP Execution Recommendation" table returns `none` on
+  non-OMP harnesses, and the eval-cell template prelude is wrapped in
+  `try / except ImportError` so it degrades to a no-op when the OMP
+  prelude is missing.
 
 ### Recommended workflow variations
 
@@ -210,8 +231,6 @@ for the decision log.
   full source-verified analysis of the three primitives.
 - **Decision log**: `.context/2026-06-06.omp-integration-buck-workflow/follow-ups.md` —
   follow-ups F1–F9 with the "do not" list and open decisions.
-- **Stubs**: `prompts/omp-orchestrate.md`, `prompts/omp-workflow.md`,
-  `prompts/omp-goal.md`.
 
 
 ---
@@ -2202,10 +2221,6 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 
 **Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `thought-dump-writer`, `skill-explainer`, `code-smells`, `crawl4ai`, `design-brief`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
 
-**OMP autonomous-loop primitives** (user-toggled; buck-workflow only *recommends* them — see [OMP Autonomous Loops](#omp-autonomous-loops) above):
-- `/omp-orchestrate` — Document the `orchestrate` keyword contract. User must type the keyword on the relevant turn.
-- `/omp-workflow` — Document the `workflow` keyword contract. User must type the keyword on the relevant turn.
-- `/omp-goal` — Document the `/goal` runtime state and the 6-step completion-audit protocol.
 
 ## Version
 Last updated: 2026-09-28

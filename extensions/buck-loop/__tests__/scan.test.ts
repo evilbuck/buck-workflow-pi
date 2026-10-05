@@ -344,6 +344,33 @@ describe("scan: artifact facts", () => {
     expect(report.iterateArtifact).toBe(false);
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
+  it("ignores below-waterline iterate artifacts and ranking files", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: below-waterline\n---\n# iterate\n",
+      [`.context/${SUBJECT}/ranking-demo.md`]: "---\nstatus: active\n---\n# ranking\n",
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
+    });
+    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    expect(asReport(result.reviewFacts).iterateArtifact).toBe(false);
+  });
+
+
+  it("ignores below-waterline iterate artifacts and confirms the iterating postcondition", () => {
+    const root = repo();
+    phased(root, [{ n: 1, status: "pending" }], {
+      [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: below-waterline\n---\n# iterate\n",
+      [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
+    });
+    const result = scan({
+      projectRoot: root,
+      path: `.context/${SUBJECT}`,
+      state: "iterating",
+      sessionOutcome: "ok",
+    });
+    expect(asReport(result.reviewFacts).iterateArtifact).toBe(false);
+    expect(result.workFacts.postcondition).toBe("confirmed");
+  });
 
   it("parses a clean review report as parseable with both impact flags false", () => {
     const root = repo();

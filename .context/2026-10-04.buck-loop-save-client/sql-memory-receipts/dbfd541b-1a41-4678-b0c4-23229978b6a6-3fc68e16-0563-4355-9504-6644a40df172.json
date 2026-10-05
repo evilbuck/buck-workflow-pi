@@ -1,0 +1,15 @@
+{
+  "attemptId": "3fc68e16-0563-4355-9504-6644a40df172",
+  "runId": "dbfd541b-1a41-4678-b0c4-23229978b6a6",
+  "subject": "2026-10-04.buck-loop-save-client",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "phase": null,
+  "kind": "rows",
+  "ids": [
+    "01a10716-1130-704e-ae8f-34d5ba2665be"
+  ],
+  "probed": true,
+  "completed": true,
+  "mode": "portable",
+  "verification": "remember returned the internally read-back active same-project row; subject close-verified succeeded with no blockers; required guardrails and lifecycle audit passed"
+}

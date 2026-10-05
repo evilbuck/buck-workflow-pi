@@ -7,7 +7,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
+import { unfinishedIterates, readStatus } from "./scan.js";
+import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 
@@ -21,6 +23,8 @@ export type AmbiguityEvidence = {
   abs: string | null;
   sessionText: string;
   why: string;
+  /** An iterating miss is about artifacts, not the phase; supplied by the caller. */
+  iterateReport?: string;
 };
 
 export function acceptanceCriteria(abs: string): string[] {
@@ -42,11 +46,58 @@ export function repairCheckedPhase(abs: string, at: string): boolean {
   const items = acceptanceCriteria(abs);
   if (items.length === 0 || items.some((item) => !item.startsWith("[x]"))) return false;
   const text = readFileSync(abs, "utf8");
-  if (/^status:\s*completed\s*$/m.test(text)) return false;
-  let next = text.replace(/^status:\s*.+$/m, "status: completed");
-  if (!/^completed_at:/m.test(next)) next = next.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${at}`);
-  writeFileSync(abs, next);
+  const fm = frontmatterSpan(text);
+  if (!fm) return false;
+  if (/^status:\s*completed\s*$/m.test(fm.body)) return false;
+  const today = at.slice(0, 10);
+  let body = /^status:/m.test(fm.body)
+    ? fm.body.replace(/^status:.*$/m, "status: completed")
+    : `status: completed\n${fm.body}`;
+  body = /^completed_at:/m.test(body)
+    ? body.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
+    : body.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
+  writeFileSync(abs, text.slice(0, fm.start) + body + text.slice(fm.end));
   return true;
+}
+
+/** Status a diagnosis should name for each unfinished artifact. */
+export function unfinishedIterateReport(subjectDir: string): string {
+  const files = unfinishedIterates(subjectDir);
+  if (files.length === 0) return "no unfinished iterate artifact";
+  return `unfinished iterate artifacts: ${files
+    .map((abs) => `${basename(abs)} (status ${readStatus(abs) ?? "missing"})`)
+    .join(", ")}`;
+}
+
+/**
+ * Close the one iterate artifact a successful session left open, so the run
+ * reaches review instead of a heavy-lift handoff. Deliberately narrow: exactly
+ * one candidate, well-formed `active` frontmatter, only the three lifecycle
+ * fields touched, and a verified status change. Anything else returns false and
+ * the caller keeps the normal diagnosis path.
+ */
+export function closeSingleUnfinishedIterate(subjectDir: string, at: string): boolean {
+  const targets = unfinishedIterates(subjectDir);
+  if (targets.length !== 1) return false;
+  const abs = targets[0]!;
+  const original = readFileSync(abs, "utf8");
+  const end = original.startsWith("---") ? original.indexOf("\n---", 3) : -1;
+  if (end < 0) return false;
+  const head = original.slice(4, end);
+  if (!/^status:\s*active\s*$/m.test(head)) return false;
+  const today = at.slice(0, 10);
+  let next = head.replace(/^status:\s*active\s*$/m, "status: completed");
+  for (const key of ["completed", "updated"]) {
+    next = new RegExp(`^${key}:`, "m").test(next)
+      ? next.replace(new RegExp(`^${key}:.*$`, "m"), `${key}: ${today}`)
+      : next.replace(/^status: completed$/m, `status: completed\n${key}: ${today}`);
+  }
+  try {
+    writeFileSync(abs, `---\n${next}\n---${original.slice(end + 4)}`);
+  } catch {
+    return false;
+  }
+  return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
 }
 
 export function explainAmbiguity(abs: string | null): string {
@@ -56,7 +107,8 @@ export function explainAmbiguity(abs: string | null): string {
   const checkpoint = section(readFileSync(abs, "utf8"), "Execution checkpoint");
   const unchecked = open.length > 0 ? ` Unchecked: ${open.join("; ")}.` : "";
   const why = checkpoint ? ` ${firstSentence(checkpoint)}` : "";
-  return `phase status is ${status}, not completed.${unchecked}${why}`;
+  const headline = status === "completed" ? `phase status is ${status}.` : `phase status is ${status}, not completed.`;
+  return `${headline}${unchecked}${why}`;
 }
 
 export function diagnoseAmbiguity(evidence: AmbiguityEvidence): string {
@@ -67,6 +119,7 @@ export function diagnoseAmbiguity(evidence: AmbiguityEvidence): string {
     "Diagnosis: the assigned session finished without landing the expected artifact.",
     `Supervisor saw: ${evidence.why}`,
     `Child report: ${child}`,
+    ...(evidence.iterateReport ? [`Iterate artifacts: ${evidence.iterateReport}`] : []),
     `Disk: ${disk}`,
     "Judge the remaining work from the child report and disk evidence. Unchecked boxes name the gap; they are not a separate cause.",
   ].join("\n");

@@ -22,6 +22,7 @@
  * picks the next state. The operator talks to this module through
  * {@link handleLoop}: `start` / `resume` / `status` / `stop`.
  */
+import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
@@ -30,11 +31,13 @@ import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import {
   askRepairLift,
   changedLoopExtensionFiles,
+  closeSingleUnfinishedIterate,
   diagnoseAmbiguity,
   explainAmbiguity,
   loopExtensionFiles,
   phaseAbs,
   repairCheckedPhase,
+  unfinishedIterateReport,
   type RepairPlan,
 } from "./ambiguity.js";
 import type { ActivityEvent } from "../extension-activity.js";
@@ -49,7 +52,10 @@ import {
 import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
-import { scan } from "./scan.js";
+import { scan, unfinishedIterates } from "./scan.js";
+import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
+import { runJev } from "../jev-tool/index.js";
+import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
@@ -58,7 +64,9 @@ import { applySubjectLifecycleIntent } from "../../skills/_shared/scripts/subjec
 import type {
   AcceptedChoice,
   Choice,
+  DocsVerdict,
   LoopState,
+  RankingFacts,
   Snapshot,
   Transition,
   TransitionRecord,
@@ -93,6 +101,7 @@ const restartRequired = new Map<string, string>();
 const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "building",
   "reviewing",
+  "ranking",
   "iterating",
   "documenting",
   "saving",
@@ -107,17 +116,20 @@ export type LoopResult = {
   reason: string;
 };
 
+/** One named TypeSafe question, as `ranking.ts` declares it. */
+type RankQuestion = { type: string; instructions: string; criteria?: Record<string, string> | string[] };
+
 /** Live progress event for the chat widget (`onProgress`). */
 export type LoopProgress = {
   state: LoopState;
-  operation: "run-skill" | "choose";
+  operation: "run-skill" | "choose" | "rank";
   label: string;
   target: string;
 };
 
 /**
  * Injectable seams. Production uses the defaults; tests swap `runStep` /
- * `choose` / `now` so CI never calls a live model.
+ * `choose` / `ask` / `now` so CI never calls a live model.
  *
  * - `onProgress` — update the spinner label.
  * - `onActivity` — stream nested-session tokens/tools into the widget.
@@ -126,10 +138,21 @@ export type LoopProgress = {
 export type LoopDeps = {
   runStep: typeof defaultRunStep;
   choose: typeof defaultChoose;
+  /**
+   * The one judgment seam the `rank` effect uses. It answers named TypeSafe
+   * questions; it never selects a transition, so the rank can neither
+   * iterate nor save on its own. Its retry is another `ask`, never a chat model.
+   */
+  ask?: (state: unknown, questions: Record<string, RankQuestion>) => Promise<RankAttempt>;
   now: () => string;
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
   onActivity: (event: ActivityEvent) => void;
+  /** Display-only observers. Neither can select or modify a transition. */
+  onSnapshot?: (snapshot: Snapshot) => void;
+  onDecision?: (snapshot: Snapshot) => Promise<void>;
+  onSessionEvent?: (event: unknown, model: string) => void;
+  onContextUsage?: (usage: ContextUsage | undefined) => void;
   /** Warning the operator can read without stopping the run. */
   onWarning: (message: string) => void;
   /** Yes continues despite non-context dirt. No stops this invocation; it does not persist `blocked`. */
@@ -151,6 +174,19 @@ type EffectResult = {
   sessionText?: string;
 };
 
+/**
+ * The production lift judgment. Exported so a test can drive the real
+ * diagnosis instead of restating it — a fake that re-implements the wiring
+ * proves nothing about the wiring.
+ */
+export const productionClassifyRepair: LoopDeps["classifyRepair"] = async ({ cwd, snapshot, why, sessionText }) => {
+  const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
+  const diagnosis = diagnoseAmbiguity({ abs, sessionText, why, ...iterateEvidence(cwd, snapshot) });
+  return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
+    cwd, subject: snapshot.subject ?? "unknown",
+  });
+};
+
 const DEFAULT_DEPS: LoopDeps = {
   runStep: defaultRunStep,
   choose: defaultChoose,
@@ -161,14 +197,18 @@ const DEFAULT_DEPS: LoopDeps = {
   onWarning: () => undefined,
   confirmDirty: async () => false,
   confirmContinue: async () => false,
-  classifyRepair: async ({ cwd, snapshot, why, sessionText }) => {
-    const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-    const diagnosis = diagnoseAmbiguity({ abs, sessionText, why });
-    return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
-      cwd, subject: snapshot.subject ?? "unknown",
-    });
-  },
+  classifyRepair: productionClassifyRepair,
 };
+
+/**
+ * An iterating miss is caused by iterate artifacts, not by a phase status.
+ * Feed them to the lift judge itself, so a light/medium retry handoff and a
+ * heavy operator stop name the same files.
+ */
+function iterateEvidence(cwd: string, snapshot: Snapshot): { iterateReport?: string } {
+  if (snapshot.state !== "iterating" || !snapshot.subject) return {};
+  return { iterateReport: unfinishedIterateReport(join(cwd, ".context", snapshot.subject)) };
+}
 
 /**
  * Entry point used by `index.ts`.
@@ -371,6 +411,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
   let lastFail: string | null = null;
   let lastReport = "";
   for (let tick = 0; tick < SAFETY_TICK_CEILING; tick += 1) {
+    deps.onSnapshot?.(snapshot);
     const stopped = haltIfTerminal(cwd, snapshot);
     if (stopped) return stopped;
     const wasSaving = snapshot.state === "saving";
@@ -384,6 +425,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
       snapshot = recovered.snapshot;
       continue;
     }
+    deps.onSnapshot?.(snapshot);
     const ran = await runEffect(cwd, snapshot, path, step.transition, deps, lastReport);
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
@@ -452,7 +494,7 @@ function unusedTransition(): Transition {
   return { to: "blocked", effect: { kind: "none" }, why: "unused" };
 }
 
-/** Perform `choose` or `run-skill`. `none` is a no-op this tick. */
+/** Perform `choose`, `rank`, or `run-skill`. `none` is a no-op this tick. */
 async function runEffect(
   cwd: string,
   snapshot: Snapshot,
@@ -467,6 +509,9 @@ async function runEffect(
     }
     return carryReport(await runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps), sessionText);
   }
+  if (transition.effect.kind === "rank") {
+    return carryReport(await runRank(cwd, snapshot, path, deps), sessionText);
+  }
   if (transition.effect.kind !== "run-skill") return carryReport({ snapshot, lastFail: null, halt: null }, sessionText);
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null, sessionText: ran.sessionText };
@@ -476,10 +521,170 @@ function carryReport(result: EffectResult, sessionText: string): EffectResult & 
   return result.sessionText === undefined ? { ...result, sessionText } : { ...result, sessionText: result.sessionText };
 }
 
+// --- rank effect ----------------------------------------------------------
+// The severity gate runs in this process: no nested skill session, no
+// `choose()`, and no profile chat model. Every judgment is the same `ask`
+// seam, so the gate stays the stored rating rather than a model's opinion.
+
+/** Production judgment seam. Tests inject `ask`; neither path selects a transition. */
+const nativeAsk = (state: unknown, questions: Record<string, RankQuestion>): Promise<RankAttempt> =>
+  runJev(createTypeSafeEvaluator(), { state, questions }) as Promise<RankAttempt>;
+
+const DOCS_IMPACT_QUESTIONS: Record<string, RankQuestion> = {
+  docs: {
+    type: "choice",
+    instructions: "Does this review report require a documentation or living-document update (CONTEXT.md, AGENTS.md, docs/)?",
+    criteria: { yes: "The report requires a documentation update.", no: "The report does not require a documentation update." },
+  },
+  howto: {
+    type: "choice",
+    instructions: "Does this review report require a how-to update (a documented procedure an operator follows)?",
+    criteria: { yes: "The report requires a how-to update.", no: "The report does not require a how-to update." },
+  },
+};
+
+/**
+ * Rank the unfinished iterate artifact and record the verdict on `reviewFacts`.
+ * A recorded verdict is never recomputed, so re-entering `ranking` costs no
+ * second judgment. An in-flight docs evaluation is the absence of
+ * `docsVerdict`, so a garbled report always runs to a verdict in one visit.
+ */
+async function runRank(cwd: string, snapshot: Snapshot, path: string, deps: LoopDeps): Promise<EffectResult> {
+  const target = snapshot.phasePath ?? snapshot.planPath ?? path;
+  emitProgress(deps, { state: "ranking", operation: "rank", label: "Ranking review issues", target });
+  if (snapshot.reviewFacts.kind !== "report") {
+    // Unreachable through `reviewing -> ranking`, which requires a report.
+    // Fail closed rather than re-emit `rank` forever on facts that cannot rank.
+    const reason = "review ranking found no report facts to rank (scan defect)";
+    return { snapshot: block(snapshot, reason, deps.now()), lastFail: null, halt: { state: "blocked", reason } };
+  }
+  const verdict = await rankVerdict(cwd, snapshot, path, deps, snapshot.reviewFacts);
+  const ranked: Snapshot = { ...snapshot, reviewFacts: { ...snapshot.reviewFacts, ranking: verdict } };
+  persistIfPossible(cwd, ranked);
+  return { snapshot: ranked, lastFail: null, halt: null };
+}
+
+async function rankVerdict(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  deps: LoopDeps,
+  report: Extract<Snapshot["reviewFacts"], { kind: "report" }>,
+): Promise<RankingFacts> {
+  // Ranking facts live only in this review cycle; restarting scans disk fresh.
+  if (report.ranking) return report.ranking;
+
+  const target = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const ranked = await rankUnfinishedArtifact(cwd, snapshot, target, deps);
+  if (ranked.status === "blocked") return { kind: "blocked", reason: ranked.reason };
+  if (ranked.issues.some((issue) => issue.above)) return { kind: "ranked", above: true };
+  // A clear report states its own impact; only a garbled one needs judging.
+  if (report.parseable) return { kind: "ranked", above: false };
+  return { kind: "ranked", above: false, docsVerdict: await judgeDocsImpact(cwd, snapshot, path, deps) };
+}
+
+function readRankArtifact(cwd: string, snapshot: Snapshot):
+  | { kind: "blocked"; reason: string }
+  | { kind: "ready"; artifact: { path: string; text: string }; issues: ReviewIssue[] } {
+  const artifacts = unfinishedIterateArtifacts(cwd, snapshot);
+  if (artifacts.length === 0) return { kind: "blocked", reason: "no unfinished iterate artifact to rank" };
+  if (artifacts.length > 1) return { kind: "blocked", reason: `multiple unfinished iterate artifacts: ${artifacts.map((artifact) => artifact.path).join(", ")}` };
+  const artifact = artifacts[0];
+  const parsed = parseIterateArtifacts([artifact]);
+  if (parsed.kind === "blocked") return parsed;
+  if (parsed.kind === "scan-defect") return { kind: "blocked", reason: `scan defect in ${parsed.path}: ${parsed.reason}` };
+  return { kind: "ready", artifact, issues: parsed.issues };
+}
+
+async function rankUnfinishedArtifact(cwd: string, snapshot: Snapshot, target: string, deps: LoopDeps) {
+  const input = readRankArtifact(cwd, snapshot);
+  if (input.kind === "blocked") return { status: "blocked" as const, reason: input.reason };
+  return rankIssues({ cwd, planPath: target, artifactPath: input.artifact.path, artifactText: input.artifact.text, issues: input.issues },
+    { ask: deps.ask ?? nativeAsk, now: () => new Date(deps.now()) });
+}
+
+/**
+ * A garbled report leaves documentation impact unstated. Ask once, retry once
+ * with the same seam, and then stop: two failures are `unresolved`, which opens
+ * the closed document/save choice. It never iterates and never assumes an
+ * update is needed.
+ */
+async function judgeDocsImpact(cwd: string, snapshot: Snapshot, path: string, deps: LoopDeps): Promise<DocsVerdict> {
+  const report = latestReviewReport(cwd, snapshot);
+  if (!report) return "unresolved";
+  const state = {
+    reviewReport: report.text,
+    planPath: snapshot.planPath ?? path,
+    phasePath: snapshot.phasePath,
+  };
+  const ask = deps.ask ?? nativeAsk;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const verdict = docsVerdictFrom(await ask(state, DOCS_IMPACT_QUESTIONS));
+      if (verdict !== null) return verdict;
+    } catch {
+      // Retried once below; a second failure is `unresolved`, not a guess.
+    }
+  }
+  return "unresolved";
+}
+
+function docsVerdictFrom(attempt: RankAttempt): DocsVerdict | null {
+  if (!isJudgmentRecord(attempt.details) || !isJudgmentRecord(attempt.details.answers)) return null;
+  const answers = attempt.details.answers;
+  const docs = binaryJudgment(answers.docs);
+  const howto = binaryJudgment(answers.howto);
+  if (docs === null || howto === null) return null;
+  return docs || howto ? "flagged" : "none";
+}
+
+function isJudgmentRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function binaryJudgment(value: unknown): boolean | null {
+  if (!isJudgmentRecord(value) || value.type !== "choice") return null;
+  if (value.choice === "yes") return true;
+  if (value.choice === "no") return false;
+  return null;
+}
+
+/** Read source text only for artifacts the shared scan predicate still considers unfinished. */
+function unfinishedIterateArtifacts(cwd: string, snapshot: Snapshot): Array<{ path: string; text: string }> {
+  if (!snapshot.subject) return [];
+  const dir = join(cwd, ".context", snapshot.subject);
+  return unfinishedIterates(dir).map((abs) => ({
+    path: `.context/${snapshot.subject}/${basename(abs)}`,
+    text: readFileSync(abs, "utf8"),
+  }));
+}
+
+/** The report `scan` parsed: the last `review-*.md` by name. */
+function latestReviewReport(cwd: string, snapshot: Snapshot): { path: string; text: string } | null {
+  if (!snapshot.subject) return null;
+  const dir = join(cwd, ".context", snapshot.subject);
+  if (!existsSync(dir)) return null;
+  const name = readdirSync(dir).filter((entry) => /^review-.*\.md$/.test(entry)).sort().at(-1);
+  return name ? { path: `.context/${snapshot.subject}/${name}`, text: readFileSync(join(dir, name), "utf8") } : null;
+}
+
 function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): boolean {
   return snapshot.workFacts.postcondition === "ambiguous"
     && legal.some((choice) => choice.kind === "retry")
     && legal.some((choice) => choice.kind === "advance");
+}
+
+/**
+ * An ok iterate session that left exactly one artifact `active` is closed
+ * mechanically, so the run reaches review instead of a heavy-lift handoff the
+ * operator cannot act on. Narrow on purpose: the helper refuses anything it
+ * cannot rewrite safely, and the caller keeps the normal diagnosis path.
+ * Only called when the postcondition is ambiguous, which implies an ok
+ * session, so no separate outcome guard is needed.
+ */
+function closeFinishedIterate(cwd: string, snapshot: Snapshot, deps: LoopDeps): boolean {
+  if (!snapshot.subject) return false;
+  return closeSingleUnfinishedIterate(join(cwd, ".context", snapshot.subject), deps.now());
 }
 
 async function resolveAmbiguity(
@@ -529,6 +734,7 @@ function stopForOperator(
   abs: string | null,
   deps: LoopDeps,
 ): EffectResult {
+  // The diagnosis already names the iterate artifacts for an iterating miss.
   const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
   const reason = `heavy lift: ${plan.reason}. ${plan.diagnosis} ${disk}`;
   deps.onWarning(reason);
@@ -571,6 +777,7 @@ async function runChoice(
     label: "Resolving " + snapshot.state + " decision",
     target: snapshot.phasePath ?? snapshot.planPath ?? path,
   });
+  await deps.onDecision?.(snapshot);
   const chosen = await chooseSafely(cwd, snapshot, legal, why, deps);
   reportChoiceFailure(snapshot, chosen, deps);
   const applied = applyChosen(snapshot, chosen, deps.now());
@@ -620,6 +827,7 @@ async function continueChoice(
   handoff?: string,
 ): Promise<EffectResult> {
   const nextSnapshot = withTransition(snapshot, transition, deps.now());
+  deps.onSnapshot?.(nextSnapshot);
   const savePreparation = prepareProjectedSave(cwd, transition, nextSnapshot, snapshot.state === "saving");
   if (savePreparation) {
     const blocked = block(nextSnapshot, savePreparation, deps.now());
@@ -687,17 +895,49 @@ async function executeSkill(
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
-  const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity);
+  const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity, result.sqlFailure);
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
-  syncCheckedPhasesAt(cwd, planOrPhasePath, deps.now().slice(0, 10));
+  return finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
+    planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
+  }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+}
+
+/** Rescan after a nested session, closing a single finished iterate artifact first. */
+function scanLandedWork(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  deps: LoopDeps,
+  work: { planOrPhasePath: string; skill: WorkSkill; ok: boolean; retriesUsed: number; sqlSaveVerified: boolean },
+): Snapshot {
+  syncCheckedPhasesAt(cwd, work.planOrPhasePath, deps.now().slice(0, 10));
   const scanned = rescan(cwd, snapshot, path, {
-    sessionOutcome: result.ok ? "ok" : "failed",
-    retriesUsed,
-    sqlSaveVerified: saveCheck.status === "verified",
+    sessionOutcome: work.ok ? "ok" : "failed",
+    retriesUsed: work.retriesUsed,
+    sqlSaveVerified: work.sqlSaveVerified,
   });
-  return finishSkill(cwd, scanned, skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+  return closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps) ?? scanned;
+}
+
+/**
+ * Close the artifact here, not only in the ambiguity choice: a used retry or an
+ * exhausted limit bypasses `resolveAmbiguity`, and the session already reported
+ * ok. Review stays the next permitted work effect. Returns `null` when there is
+ * nothing to close, so the caller keeps the original scan.
+ */
+function closeIterateAfterSession(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  scanned: Snapshot,
+  skill: WorkSkill,
+  deps: LoopDeps,
+): Snapshot | null {
+  if (skill !== "iterate" || scanned.workFacts.postcondition !== "ambiguous") return null;
+  if (!closeFinishedIterate(cwd, scanned, deps)) return null;
+  return rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
 }
 
 async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {
@@ -722,9 +962,13 @@ function prepareProjectedSave(cwd: string, transition: Transition, snapshot: Sna
   return null;
 }
 
-async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]) {
+async function finishSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"], sqlFailure?: string) {
   if (skill !== "save" || !sqlMode()) return { status: "skip" as const };
-  return verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
+  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, onActivity);
+  if (check.status === "unverified" && sqlFailure) {
+    return { status: "block" as const, reason: `SQL save failed before a verified receipt: ${sqlFailure}` };
+  }
+  return check;
 }
 
 async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string, onActivity: LoopDeps["onActivity"]): Promise<Snapshot> {
@@ -784,6 +1028,8 @@ async function runNestedSkill(
       ...(recallHandoff ? { handoff: recallHandoff } : {}),
       ...(directive ? { directive } : {}),
       ...(deps.onActivity ? { onActivity: deps.onActivity } : {}),
+      ...(deps.onSessionEvent ? { onSessionEvent: deps.onSessionEvent } : {}),
+      ...(deps.onContextUsage ? { onContextUsage: deps.onContextUsage } : {}),
       ...(deps.availableIds ? { availableIds: deps.availableIds } : {}),
     });
   } catch (error) {
@@ -827,6 +1073,7 @@ function progressLabel(state: LoopState, target: string): string {
   switch (state) {
     case "building": return "Building " + name;
     case "reviewing": return "Reviewing " + name;
+    case "ranking": return "Ranking review issues in " + name;
     case "iterating": return "Iterating " + name;
     case "documenting": return "Documenting " + name;
     case "saving": return "Saving session state";

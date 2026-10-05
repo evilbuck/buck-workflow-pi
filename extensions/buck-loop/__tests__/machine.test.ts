@@ -17,7 +17,7 @@ import {
   stopFrom,
   userConfirmed,
 } from "../machine.js";
-import type { ReviewFacts, Snapshot, WorkFacts, WorkSkill, WorkState } from "../types.js";
+import type { RankingFacts, ReviewFacts, Snapshot, WorkFacts, WorkSkill, WorkState } from "../types.js";
 
 const SUBJECT = "2026-09-18.demo-subject";
 const PLAN_PATH = `.context/${SUBJECT}/plan-demo.md`;
@@ -145,16 +145,18 @@ describe("safety limits", () => {
     expect(t.why).toContain("loop limit");
   });
 
-  it("blocks instead of iterating a fourth time on one phase", () => {
+  it("ranks rather than blocking at the iterate ceiling; the limit applies once a rank is in (Q2)", () => {
     const t = next(
       reviewDone(
         { iterateArtifact: true },
         { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE },
       ),
     );
-    expect(t.to).toBe("blocked");
-    expect(t.effect.kind).toBe("await-operator");
-    expect(t.why).toContain("iterate limit");
+    expect(t).toEqual({
+      to: "ranking",
+      effect: { kind: "rank" },
+      why: "unfinished iterate artifact; ranking in-plan issues before iterating",
+    });
   });
 
   it("exposes limitsExceeded for the global loop ceiling only", () => {
@@ -301,15 +303,25 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
 });
 
 describe("next: reviewing", () => {
-  it("prioritizes the iterate artifact over documentation impact and save", () => {
-    const t = next(reviewDone({ iterateArtifact: true, docsImpact: true }));
-    expect(t).toEqual({ to: "iterating", effect: { kind: "run-skill", skill: "iterate" }, why: expect.any(String) });
+  it("routes an unfinished iterate artifact to ranking, never straight to iterating", () => {
+    const t = next(reviewDone({ iterateArtifact: true }));
+    expect(t).toEqual({
+      to: "ranking",
+      effect: { kind: "rank" },
+      why: "unfinished iterate artifact; ranking in-plan issues before iterating",
+    });
   });
 
-  it("iterates even when the report itself is unparseable", () => {
+  it("ranks ahead of documentation impact and the save route", () => {
+    const t = next(reviewDone({ iterateArtifact: true, docsImpact: true, howtoImpact: true }));
+    expect(t.to).toBe("ranking");
+    expect(t.effect).toEqual({ kind: "rank" });
+  });
+
+  it("ranks an unparseable report's artifact rather than iterating it unranked", () => {
     const t = next(reviewDone({ iterateArtifact: true, parseable: false }));
-    expect(t.to).toBe("iterating");
-    expect(t.effect).toEqual({ kind: "run-skill", skill: "iterate" });
+    expect(t.to).toBe("ranking");
+    expect(t.effect).toEqual({ kind: "rank" });
   });
 
   it("documents when docs impact is flagged and no iterate artifact exists", () => {
@@ -340,6 +352,295 @@ describe("next: reviewing", () => {
     const t = next(snap({ state: "reviewing", workFacts: wf({ sessionOutcome: "ok" }) }));
     expect(t.to).toBe("blocked");
     expect(t.effect.kind).toBe("await-operator");
+  });
+
+  it("blocks an unranked artifact at the loop limit before spending a rank", () => {
+    const t = next(reviewDone({ iterateArtifact: true }, { loopCount: 12 }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+});
+
+/** A snapshot parked in `ranking` carrying the verdict the `rank` effect reported back. */
+function rankingDone(ranking: RankingFacts, overrides: Partial<Snapshot> = {}): Snapshot {
+  return snap({
+    state: "ranking",
+    reviewFacts: rf({ iterateArtifact: true, ranking }),
+    ...overrides,
+  });
+}
+
+describe("next: ranking", () => {
+  it("re-emits the rank effect while a garbled report has no docs verdict yet", () => {
+    // A garbled report carries an ABSENT docsVerdict, not a "pending" one:
+    // every DocsVerdict member is terminal, so absence is the only "not yet".
+    const pending = snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false },
+      }),
+    });
+    const t = next(pending);
+    expect(t).toEqual({ to: "ranking", effect: { kind: "rank" }, why: "review ranking still pending" });
+    expect(legalChoices("ranking", pending)).toEqual([]);
+  });
+
+  it("iterates when an issue cleared the waterline and budget remains", () => {
+    const t = next(rankingDone({ kind: "ranked", above: true }));
+    expect(t).toEqual({
+      to: "iterating",
+      effect: { kind: "run-skill", skill: "iterate" },
+      why: "issue above the severity waterline; in-plan issues win",
+    });
+  });
+
+  it("uses the existing limit block when an issue is above the waterline with no budget", () => {
+    const t = next(rankingDone({ kind: "ranked", above: true }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }));
+    expect(t).toEqual({
+      to: "blocked",
+      effect: { kind: "await-operator", reason: "iterate limit reached on this phase (6 >= 6)" },
+      why: "iterate limit reached on this phase (6 >= 6)",
+    });
+  });
+
+  it("pins the global limit when both ceilings are reached above the waterline", () => {
+    const t = next(rankingDone({ kind: "ranked", above: true }, { loopCount: 12, iterateCyclesOnPhase: 6 }));
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+
+  it("documents when a clear report flags docs impact and nothing cleared the waterline", () => {
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: true,
+        docsImpact: true,
+        ranking: { kind: "ranked", above: false },
+      }),
+    }));
+    expect(t).toEqual({
+      to: "documenting",
+      effect: { kind: "run-skill", skill: "docs" },
+      why: "nothing above the waterline; documentation impact flagged",
+    });
+  });
+
+  it("saves on a clear report with neither flag, including at the iterate ceiling (A-6)", () => {
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true, parseable: true, ranking: { kind: "ranked", above: false } }),
+      iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE,
+    }));
+    expect(t).toEqual({
+      to: "saving",
+      effect: { kind: "run-skill", skill: "save" },
+      why: "nothing above the waterline; clean review; saving",
+    });
+  });
+
+  it("routes a garbled report on the loop's own docs verdict rather than the report's flags", () => {
+    const flagged = next(snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false, docsVerdict: "flagged" },
+      }),
+    }));
+    expect(flagged.to).toBe("documenting");
+
+    const none = next(snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false, docsVerdict: "none" },
+      }),
+    }));
+    expect(none.to).toBe("saving");
+  });
+
+  it("opens the closed document/save choice when the docs evaluation fails twice (A-11)", () => {
+    const s = snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false, docsVerdict: "unresolved" },
+      }),
+    });
+    const t = next(s);
+    expect(t.to).toBe("ranking");
+    expect(t.effect).toEqual({
+      kind: "choose",
+      legal: [{ kind: "document" }, { kind: "save" }],
+    });
+    expect(legalChoices("ranking", s)).toEqual([{ kind: "document" }, { kind: "save" }]);
+    // Nothing cleared the waterline, so iterate is never on offer from ranking.
+    expect(legalChoices("ranking", s).map((choice) => choice.kind)).not.toContain("iterate");
+  });
+
+  it("takes the operator's document or save answer for the unresolved verdict", () => {
+    const s = snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false, docsVerdict: "unresolved" },
+      }),
+    });
+    expect(applyChoice({ kind: "document" }, s).to).toBe("documenting");
+    expect(applyChoice({ kind: "save" }, s).to).toBe("saving");
+    expect(() => applyChoice({ kind: "iterate" }, s)).toThrow(BuckMachineError);
+  });
+
+  it("blocks with the scan-defect reason when the rank failed (R-2)", () => {
+    const t = next(rankingDone({ kind: "blocked", reason: "multiple unfinished iterate artifacts" }));
+    expect(t).toEqual({
+      to: "blocked",
+      effect: { kind: "await-operator", reason: "review ranking failed (scan defect): multiple unfinished iterate artifacts" },
+      why: "review ranking failed (scan defect): multiple unfinished iterate artifacts",
+    });
+  });
+
+  it("blocks an artifact that parsed to zero issues instead of saving (R-2)", () => {
+    const t = next(rankingDone({ kind: "blocked", reason: "unfinished iterate artifact contains no parseable issues" }));
+    expect(t.to).toBe("blocked");
+    expect(t.why).toContain("scan defect");
+  });
+
+  it("refuses a rank at the loop limit and blocks with the global reason", () => {
+    const t = next(rankingDone({ kind: "ranked", above: false }, { loopCount: 12 }));
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+
+  it("never iterates from ranking when nothing cleared the waterline", () => {
+    for (const docsVerdict of ["flagged", "none", "unresolved"] as const) {
+      const targets = buckMachine.restore("ranking").available({
+        ...rankingDone({ kind: "ranked", above: false, docsVerdict }),
+        sqlMemoryConfigured: false,
+      });
+      expect(targets).not.toContain("iterating");
+    }
+    // …and the still-unjudged garbled case, which has no verdict at all.
+    const unjudged = buckMachine.restore("ranking").available({
+      ...snap({
+        state: "ranking",
+        reviewFacts: rf({ iterateArtifact: true, parseable: false, ranking: { kind: "ranked", above: false } }),
+      }),
+      sqlMemoryConfigured: false,
+    });
+    expect(unjudged).not.toContain("iterating");
+  });
+
+  it("exposes STOP from ranking as an operator-only edge", () => {
+    expect(buckMachine.edge("ranking", "aborted").manual).toBe(true);
+    expect(stopFrom("ranking")).toEqual({
+      to: "aborted",
+      effect: { kind: "none" },
+      why: "STOP requested by operator from ranking",
+    });
+  });
+
+  it("treats a garbled report with no recorded verdict as still owing a judgment", () => {
+    // Guards a fail-open: a missing verdict must not read as a clean save.
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true, parseable: false, ranking: { kind: "ranked", above: false } }),
+    }));
+    expect(t).toEqual({ to: "ranking", effect: { kind: "rank" }, why: "review ranking still pending" });
+  });
+
+  it("trusts a clear report without a verdict rather than re-judging it (Q6)", () => {
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true, parseable: true, ranking: { kind: "ranked", above: false } }),
+    }));
+    expect(t.to).toBe("saving");
+  });
+
+  it("blocks an absent ranking outcome at the global loop limit", () => {
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true }),
+      loopCount: 12,
+    }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+
+  it("blocks rather than dropping an unjudged garbled report at the loop limit", () => {
+    const t = next(snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false },
+      }),
+      loopCount: 12,
+    }));
+    expect(t.effect).toEqual({
+      kind: "await-operator",
+      reason: "loop limit reached (12 >= 12); refusing further work",
+    });
+  });
+
+  it("offers no choice at the loop limit even when the verdict is unresolved", () => {
+    const s = snap({
+      state: "ranking",
+      reviewFacts: rf({
+        iterateArtifact: true,
+        parseable: false,
+        ranking: { kind: "ranked", above: false, docsVerdict: "unresolved" },
+      }),
+      loopCount: 12,
+    });
+    expect(legalChoices("ranking", s)).toEqual([]);
+  });
+
+  it("tells a verdict-less garbled rank from a verdict-less clear one by report.parseable", () => {
+    // The absence of `docsVerdict` is ambiguous on its own — both snapshots
+    // carry the identical RankingFacts. `scan.ts` owns `parseable`, and that
+    // is what separates "unjudged" from "done, route on".
+    const unjudged = { kind: "ranked", above: false } as const;
+    const garbled = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true, parseable: false, ranking: unjudged }),
+    }));
+    const clear = next(snap({
+      state: "ranking",
+      reviewFacts: rf({ iterateArtifact: true, parseable: true, ranking: unjudged }),
+    }));
+    // Identical verdict, opposite routing — the split is the scan's to make.
+    expect(garbled.effect).toEqual({ kind: "rank" });
+    expect(clear.effect).toEqual({ kind: "run-skill", skill: "save" });
+  });
+
+  it.each(["flagged", "none", "unresolved"] as const)("trusts clear-report impact flags over a conflicting %s verdict", (docsVerdict) => {
+    const ranked = { kind: "ranked" as const, above: false, docsVerdict };
+    const clear = snap({ state: "ranking", reviewFacts: rf({ iterateArtifact: true, parseable: true, ranking: ranked }) });
+    const flagged = snap({ state: "ranking", reviewFacts: rf({ iterateArtifact: true, parseable: true, docsImpact: true, ranking: ranked }) });
+    expect(next(clear).effect).toEqual({ kind: "run-skill", skill: "save" });
+    expect(next(flagged).effect).toEqual({ kind: "run-skill", skill: "docs" });
+  });
+
+  it("does not route stale impact flags from a garbled report before its judgment", () => {
+    const s = snap({ state: "ranking", reviewFacts: rf({ iterateArtifact: true, parseable: false, docsImpact: true, ranking: { kind: "ranked", above: false } }) });
+    expect(next(s).effect).toEqual({ kind: "rank" });
   });
 });
 
@@ -717,8 +1018,9 @@ const LEGACY_ROWS = [
   },
   {
     "id": "reviewing-iterate",
+    "note": "SUPERSEDED by the ranking edge. Pre-change this artifact won outright; now it is ranked first.",
     "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":true,"howtoImpact":true}},
-    "expected": {"to":"iterating","effect":{"kind":"run-skill","skill":"iterate"},"why":"iterate artifact present; in-plan issues win"},
+    "expected": {"to":"ranking","effect":{"kind":"rank"},"why":"unfinished iterate artifact; ranking in-plan issues before iterating"},
   },
   {
     "id": "reviewing-docs",
@@ -750,8 +1052,33 @@ const LEGACY_ROWS = [
   },
   {
     "id": "reviewing-iterate-limit",
+    "note": "SUPERSEDED. The ceiling now applies in ranking after the waterline verdict, not before it (grill Q2).",
     "overrides": {"state":"reviewing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"},"reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":true,"howtoImpact":true},"iterateCyclesOnPhase":6},
+    "expected": {"to":"ranking","effect":{"kind":"rank"},"why":"unfinished iterate artifact; ranking in-plan issues before iterating"},
+  },
+  {
+    "id": "ranking-above-waterline-iterate-limit",
+    "note": "The relocated ceiling check: an above-waterline issue with no budget blocks (grill Q2).",
+    "overrides": {"state":"ranking","reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":true,"howtoImpact":true,"ranking":{"kind":"ranked","above":true}},"iterateCyclesOnPhase":6},
     "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"iterate limit reached on this phase (6 >= 6)"},"why":"iterate limit reached on this phase (6 >= 6)"},
+  },
+  {
+    "id": "ranking-none-above-iterate-ceiling-saves",
+    "note": "Grill Q2: nothing worth fixing moves on even after six fix rounds.",
+    "overrides": {"state":"ranking","reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":false,"howtoImpact":false,"ranking":{"kind":"ranked","above":false}},"iterateCyclesOnPhase":6},
+    "expected": {"to":"saving","effect":{"kind":"run-skill","skill":"save"},"why":"nothing above the waterline; clean review; saving"},
+  },
+  {
+    "id": "ranking-scan-defect-blocks",
+    "note": "R-2: an artifact that parses to zero issues blocks, never saves.",
+    "overrides": {"state":"ranking","reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":false,"howtoImpact":false,"ranking":{"kind":"blocked","reason":"unfinished iterate artifact contains no parseable issues"}}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"review ranking failed (scan defect): unfinished iterate artifact contains no parseable issues"},"why":"review ranking failed (scan defect): unfinished iterate artifact contains no parseable issues"},
+  },
+  {
+    "id": "ranking-two-unfinished-artifacts-block",
+    "note": "A-10: the loop does not pick one of two unfinished artifacts.",
+    "overrides": {"state":"ranking","reviewFacts":{"kind":"report","parseable":true,"iterateArtifact":true,"docsImpact":false,"howtoImpact":false,"ranking":{"kind":"blocked","reason":"multiple unfinished iterate artifacts"}}},
+    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"review ranking failed (scan defect): multiple unfinished iterate artifacts"},"why":"review ranking failed (scan defect): multiple unfinished iterate artifacts"},
   },
   {
     "id": "reviewing-docs-loop-limit",
@@ -1046,7 +1373,7 @@ describe("legacy rule truth table", () => {
 });
 
 describe("declarative operator graph", () => {
-  it.each(["idle", "resolving", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
+  it.each(["idle", "resolving", "ranking", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
     expect(buckMachine.edge(state, "aborted").manual).toBe(true);
     expect(buckMachine.restore(state).available({...snap({state}), sqlMemoryConfigured: false})).not.toContain("aborted");
     expect(stopFrom(state)).toEqual({to: "aborted", effect: {kind: "none"}, why: `STOP requested by operator from ${state}`});

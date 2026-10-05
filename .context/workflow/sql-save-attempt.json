@@ -1,8 +1,8 @@
 {
-  "attemptId": "4f63711e-137a-4dcf-95c2-1064392cb784",
-  "runId": "7bb4f58a-6865-44b5-91d6-8b7da3588a2e",
-  "subject": "2026-09-30.buck-loop-unphased-closeout",
+  "attemptId": "0730bceb-956d-4251-9801-8424cb810509",
+  "runId": "495ba247-6090-46ad-ad04-025a7b1339bf",
+  "subject": "2026-10-03.review-severity-ranking",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": null,
-  "receiptRel": ".context/2026-09-30.buck-loop-unphased-closeout/sql-memory-receipts/7bb4f58a-6865-44b5-91d6-8b7da3588a2e-4f63711e-137a-4dcf-95c2-1064392cb784.json"
+  "phase": ".context/2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md",
+  "receiptRel": ".context/2026-10-03.review-severity-ranking/sql-memory-receipts/495ba247-6090-46ad-ad04-025a7b1339bf-0730bceb-956d-4251-9801-8424cb810509.json"
 }

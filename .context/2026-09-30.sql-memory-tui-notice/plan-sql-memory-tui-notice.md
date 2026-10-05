@@ -1,10 +1,10 @@
 ---
-status: active
+status: completed
 date: 2026-09-30
 subject: 2026-09-30.sql-memory-tui-notice
 topics: [sql-memory, tui, jev, activity]
 research: []
-iterations: []
+iterations: [iterate-sql-memory-tui-notice.md]
 spec: null
 memory: []
 sql_memory_ids: [01a0f518-52fe-74d9-8c00-0897723d1855]
@@ -92,13 +92,13 @@ One line. No embedded newlines. Cap the synopsis so `✓ sql_memory: ` plus the 
 
 ## Acceptance criteria
 
-- [ ] A parent-session `sql_memory` call shows one collapsed line and does not dump SQL or row JSON until expanded.
-- [ ] A write or correction line includes category (when present) and a truncated body synopsis.
-- [ ] A recall line includes the row count and the bound query text, not the SQL.
-- [ ] A denial or failure line is one short reason, with no connection string.
-- [ ] Buck-loop activity shows `✓ sql_memory: <notice>` on success, not a bare `✓ sql_memory`.
-- [ ] The model-facing tool `content` is still the JSON result.
-- [ ] Focused sql-memory and run-step tests pass, and `npm run guardrails:check` passes.
+- [x] A parent-session `sql_memory` call shows one collapsed line and does not dump SQL or row JSON until expanded.
+- [x] A write or correction line includes category (when present) and a truncated body synopsis.
+- [x] A recall line includes the row count and the bound query text, not the SQL.
+- [x] A denial or failure line is one short reason, with no connection string.
+- [x] Buck-loop activity shows `✓ sql_memory: <notice>` on success, not a bare `✓ sql_memory`.
+- [x] The model-facing tool `content` is still the JSON result.
+- [x] Focused sql-memory and run-step tests pass, and `npm run guardrails:check` passes.
 
 ## Verification
 

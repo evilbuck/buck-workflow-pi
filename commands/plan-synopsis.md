@@ -1,0 +1,1 @@
+../prompts/plan-synopsis.md

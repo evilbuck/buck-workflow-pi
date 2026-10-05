@@ -88,6 +88,7 @@ describe("SQL save receipts", () => {
     cwd = repo();
     const first = attempt(cwd, `.context/${SUBJECT}/phase-1.md`);
     expect(saveDirective(first)).toContain(`phase: .context/${SUBJECT}/phase-1.md`);
+    expect(saveDirective(first)).toContain(`subject: ${SUBJECT}\n`);
     expect(prepareSaveAttempt(cwd, SUBJECT, true, first.phase)).toEqual(first);
     const next = prepareSaveAttempt(cwd, SUBJECT, true, `.context/${SUBJECT}/phase-2.md`);
     if ("error" in next) throw new Error(next.error);

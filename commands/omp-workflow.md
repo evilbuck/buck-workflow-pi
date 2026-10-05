@@ -1,1 +1,0 @@
-../prompts/omp-workflow.md
