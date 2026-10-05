@@ -1771,7 +1771,22 @@ describe("configured SQL memory recall contract", () => {
 
 describe("single unfinished iterate artifact closeout", () => {
   const TODAY = NOW.slice(0, 10);
-  const ITERATE_BODY = "---\n\n# Iteration: demo\n\n- Critical: fix the seam\n";
+  const ITERATE_BODY = RANKED_ITERATE.slice(RANKED_ITERATE.indexOf("---", 3)).replace("### 1. Critical defect", "### 1. Critical defect\n- Critical: fix the seam");
+
+  function resumeIterating(cwd: string): void {
+    writeProjection(cwd, {
+      version: 1, state: "iterating", subject: SUBJECT, planPath: PLAN,
+      phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+      loopCount: 0, maxLoops: 12, iterateCyclesOnPhase: 1, lastChoice: null,
+      history: [{ from: "ranking", to: "iterating", at: NOW, why: "ranked findings require iteration" }],
+    });
+  }
+
+  function closeoutRepo(): string {
+    const cwd = repo();
+    rankedSubject(cwd);
+    return cwd;
+  }
 
   function iteratePath(cwd: string, name = "iterate-x.md"): string {
     return join(cwd, `.context/${SUBJECT}/${name}`);
@@ -1784,7 +1799,7 @@ describe("single unfinished iterate artifact closeout", () => {
   }
 
   it("closes the artifact after a completed phase and reviews the result", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     const landing = landingWork();
     const deps = workDeps(async (opts) => {
@@ -1810,7 +1825,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("closes the artifact for an unphased open plan without touching the plan", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     // The open box lives under a body `## Acceptance criteria` heading, which is
     // what `planAcceptanceCriteria` reads; the plan must stay open for this
     // fixture to be meaningful.
@@ -1837,7 +1852,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("leaves two unfinished artifacts untouched and names both in the diagnosis", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     const first = writeIterate(cwd, "iterate-a.md", "---\nstatus: active\n");
     const second = writeIterate(cwd, "iterate-b.md", "---\nstatus: in-progress\n");
@@ -1851,7 +1866,8 @@ describe("single unfinished iterate artifact closeout", () => {
       async (opts) => (opts.skill === "b-iterate" ? { ok: true, text: "handled" } : landing({ ...opts, difficulty: "standard" })),
       async () => ({ status: "blocked", reason: "choose not expected" }),
     );
-    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, classifyRepair: productionClassifyRepair } });
+    resumeIterating(cwd);
+    const result = await handleLoop({ cwd, command: "resume", deps: { ...deps, classifyRepair: productionClassifyRepair } });
     expect(judge).toHaveBeenCalled();
     expect(readFileSync(first, "utf8")).toBe(before[0]);
     expect(readFileSync(second, "utf8")).toBe(before[1]);
@@ -1861,7 +1877,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("does not close after a failed iterate session", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     const abs = writeIterate(cwd);
     const before = readFileSync(abs, "utf8");
@@ -1882,7 +1898,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("closes after an ok retry too, leaving loop and iterate counters alone", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     let iterates = 0;
     const landing = landingWork();
@@ -1910,7 +1926,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("closes after a retry that bypasses the ambiguity choice", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     // Two artifacts make the first ok session ambiguous, so the machine opens
     // the retry/advance choice instead of routing straight to review. The retry
@@ -1935,7 +1951,8 @@ describe("single unfinished iterate artifact closeout", () => {
       async () => ({ status: "blocked", reason: "choose not expected" }),
       classifyRepair,
     );
-    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    resumeIterating(cwd);
+    const result = await handleLoop({ cwd, command: "resume", deps });
     expect(classifyRepair).toHaveBeenCalledTimes(1);
     expect(iterates).toBe(2);
     expect(readFileSync(first, "utf8")).toMatch(/^status: completed$/m);
@@ -1945,7 +1962,7 @@ describe("single unfinished iterate artifact closeout", () => {
   });
 
   it("closes the new artifact a later review writes, leaving the earlier one alone", async () => {
-    const cwd = repo();
+    const cwd = closeoutRepo();
     phased(cwd, ["pending"]);
     let reviews = 0;
     const landing = landingWork();
