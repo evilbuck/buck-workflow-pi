@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-review-severity-ranking.md
@@ -14,19 +14,22 @@ files:
   - extensions/buck-loop/loop.ts
   - extensions/buck-loop/__tests__/machine.test.ts
   - extensions/buck-loop/__tests__/loop.test.ts
+  - extensions/buck-loop/types.ts
+  - extensions/buck-loop/ranking.ts
+  - extensions/buck-loop/__tests__/ranking.test.ts
 from_plan_steps: [4, 5, 6]
 depends_on: [1, 2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] A review with an unfinished iterate artifact transitions to `ranking` with effect `rank`, and never straight to `iterating`; no iterate artifact keeps today's docs, save, and unparseable-choice edges (A-2 unchanged)."
-  - "[ ] From `ranking`: above-waterline issue + iterate budget remaining → `iterating`, and the iterate artifact contains only above-waterline ids; above-waterline + no budget → the existing limit block."
-  - "[ ] No issue above the waterline and a parseable report → `documenting` when docs or howto impact is flagged, otherwise `saving`, including at the iterate ceiling; `hasIterate()` is false because the file is `below-waterline` (A-6)."
-  - "[ ] None above and a garbled report → Jev evaluates docs impact and how-to impact; either yes → `documenting`, both no → `saving`; a second failure of that evaluation opens the existing choice — no iterate, no save (A-11)."
-  - "[ ] `runEffect` handles `kind: \"rank\"` in-process: no nested session, no `choose()`, no profile chat model, no `iterateCyclesOnPhase` or `loopCount` increment for the rank call (A-4)."
-  - "[ ] An unfinished iterate artifact that parses to zero issues blocks with a scan-defect reason; two unfinished iterate files block (A-10 at the machine edge)."
-  - "[ ] Rollback check on record: a machine test names the old edge and asserts reverting it restores `iterate artifact present → iterating` (R-1 recovery check)."
-completed_at: null
-completed_by: null
+  - "[x] A review with an unfinished iterate artifact transitions to `ranking` with effect `rank`, and never straight to `iterating`; no iterate artifact keeps today's docs, save, and unparseable-choice edges (A-2 unchanged)."
+  - "[x] From `ranking`: above-waterline issue + iterate budget remaining → `iterating`, and the iterate artifact contains only above-waterline ids; above-waterline + no budget → the existing limit block."
+  - "[x] No issue above the waterline and a parseable report → `documenting` when docs or howto impact is flagged, otherwise `saving`, including at the iterate ceiling; `hasIterate()` is false because the file is `below-waterline` (A-6)."
+  - "[x] None above and a garbled report → Jev evaluates docs impact and how-to impact; either yes → `documenting`, both no → `saving`; a second failure of that evaluation opens the existing choice — no iterate, no save (A-11)."
+  - "[x] `runEffect` handles `kind: \"rank\"` in-process: no nested session, no `choose()`, no profile chat model, no `iterateCyclesOnPhase` or `loopCount` increment for the rank call (A-4)."
+  - "[x] An unfinished iterate artifact that parses to zero issues blocks with a scan-defect reason; two unfinished iterate files block (A-10 at the machine edge)."
+  - "[x] Rollback check on record: a machine test names the old edge and asserts reverting it restores `iterate artifact present → iterating` (R-1 recovery check)."
+completed_at: 2026-10-05
+completed_by: manual-recovery
 ---
 
 # Phase 3: Machine Edges and the Rank Effect Handler

@@ -172,7 +172,7 @@ export async function rankIssues(options: {
   issues: readonly ReviewIssue[];
 }, deps: RankDependencies = {}): Promise<RankResult> {
   const parsed = parseIterateArtifacts([{ path: options.artifactPath, text: options.artifactText }]);
-  if (parsed.kind === "blocked") return { status: "blocked", reason: parsed.reason };
+  if (parsed.kind !== "issues") return { status: "blocked", reason: parsed.reason };
   const duplicate = duplicateIssueId(options.issues);
   if (duplicate) return { status: "blocked", reason: `duplicate issue id ${duplicate}` };
   const read = deps.readFile ?? ((path: string) => {
@@ -308,7 +308,9 @@ function scoreIndex(answer: unknown, labels: readonly string[]): number | null {
   if (!answer || typeof answer !== "object" || Array.isArray(answer) ||
       !("type" in answer) || answer.type !== "score" || !("score" in answer)) return null;
   const score = answer.score;
-  if (typeof score === "number" && Number.isInteger(score) && score >= 0 && score < labels.length) return score;
+  // Native score answers are weighted fractional ordinals. The operator
+  // selected flooring valid scores before the discrete matrix lookup.
+  if (typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= labels.length - 1) return Math.floor(score);
   if (typeof score === "string") {
     const index = labels.indexOf(score);
     return index < 0 ? null : index;

@@ -5,7 +5,7 @@
  * in `loop.ts` is the only effect interpreter.
  */
 import { defineMachine, IllegalTransitionError, type MachineInstance } from "../state_machine/index.js";
-import type { Choice, LoopState, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
+import type { Choice, DocsVerdict, LoopState, RankingFacts, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
 
 /** Six iterate cycles on one phase is the hard ceiling before blocking. */
 export const MAX_ITERATE_CYCLES_PER_PHASE = 6;
@@ -111,6 +111,89 @@ function reviewUnparseable(s: Snapshot): boolean {
   return Boolean(r && !r.iterateArtifact && !r.docsImpact && !r.howtoImpact && !r.parseable);
 }
 
+// --- ranking -------------------------------------------------------------
+// The verdict of the in-process `rank` effect. Absent means still pending, so
+// `reviewing` re-emits `rank` rather than iterating an unranked artifact.
+
+function rankOutcome(s: Snapshot): RankingFacts | null {
+  return report(s)?.ranking ?? null;
+}
+
+/** True when an issue cleared the waterline, so an iterate cycle is still owed. */
+function aboveWaterline(s: Snapshot): boolean {
+  const outcome = rankOutcome(s);
+  return outcome?.kind === "ranked" && outcome.above;
+}
+
+/** True when the rank completed and nothing cleared the waterline. */
+function noneAbove(s: Snapshot): boolean {
+  const outcome = rankOutcome(s);
+  return outcome?.kind === "ranked" && !outcome.above;
+}
+
+/**
+ * A garbled report leaves docs impact unstated, so the loop judges it itself.
+ * `unresolved` is the operator's A-11 default: the evaluation failed twice.
+ */
+function docsVerdict(s: Snapshot): DocsVerdict | null {
+  if (report(s)?.parseable) return null;
+  const outcome = rankOutcome(s);
+  return outcome?.kind === "ranked" ? outcome.docsVerdict ?? null : null;
+}
+
+/**
+ * Still owing work in this state: the issue rank, or the garbled-report docs
+ * evaluation. Every `ranked` verdict is terminal, so "still pending" means
+ * exactly one thing — a garbled report whose docs judgment has not been
+ * recorded yet. A clear report states its own impact and is never re-judged.
+ * Never past the loop limit — no rank is worth spending there.
+ *
+ * A clear report owns its docs flags. Only a garbled report consults
+ * `docsVerdict`; a missing verdict there means judgment is still owed.
+ */
+function rankPending(s: Snapshot): boolean {
+  if (!canRunWork(s)) return false;
+  const outcome = rankOutcome(s);
+  if (outcome === null) return true;
+  if (outcome.kind !== "ranked" || outcome.above) return false;
+  return outcome.docsVerdict === undefined && !report(s)?.parseable;
+}
+
+/** The docs evaluation failed twice. Open the choice; never iterate, never assume an update. */
+function docsUnresolved(s: Snapshot): boolean {
+  return noneAbove(s) && docsVerdict(s) === "unresolved";
+}
+
+/** Trust a clear report's own flags; fall back to the loop's verdict for a garbled one. */
+function rankDocsImpact(s: Snapshot): boolean {
+  if (!noneAbove(s)) return false;
+  const verdict = docsVerdict(s);
+  if (verdict !== null) return verdict === "flagged";
+  const r = report(s);
+  return Boolean(r?.parseable && (r.docsImpact || r.howtoImpact));
+}
+
+function rankCleanSave(s: Snapshot): boolean {
+  if (!noneAbove(s)) return false;
+  const verdict = docsVerdict(s);
+  if (verdict !== null) return verdict === "none";
+  const r = report(s);
+  return Boolean(r?.parseable) && !r?.docsImpact && !r?.howtoImpact;
+}
+
+/**
+ * A failed rank is a scan defect, not a low-priority review: the artifact
+ * could not be parsed, was ambiguous, or its audit could not be written.
+ */
+function rankingBlockReason(s: Snapshot): string | null {
+  const outcome = rankOutcome(s);
+  if (outcome?.kind === "blocked") return `review ranking failed (scan defect): ${outcome.reason}`;
+  if (limitsExceeded(s)) return loopLimitReason(s);
+  if (outcome?.kind !== "ranked") return null;
+  if (outcome.above && !canRunIterate(s)) return iterateLimitReason(s);
+  return null;
+}
+
 export class BuckMachineError extends Error {
   constructor(
     readonly code: "NO_ROUTE" | "AMBIGUOUS_ROUTE" | "ILLEGAL_CHOICE",
@@ -164,7 +247,12 @@ function reviewPriority(s: Snapshot): boolean {
 function reviewBlockReason(s: Snapshot): string | null {
   if (!sessionOk(s)) return null;
   if (s.reviewFacts.kind !== "report") return "review session finished but no report facts were scanned (scan defect)";
-  if (iterateWins(s) && !canRunIterate(s)) return limitsExceeded(s) ? loopLimitReason(s) : iterateLimitReason(s);
+  // The iterate ceiling is NOT checked here. An artifact of unknown severity
+  // may still clear the waterline after ranking, and grill Q2 rules that a
+  // phase does not stop merely because six rounds were already spent. The
+  // limit applies in `ranking`, once the waterline verdict exists. The global
+  // loop limit still stops here: no rank is worth spending past the ceiling.
+  if (iterateWins(s) && limitsExceeded(s)) return loopLimitReason(s);
   if (reviewPriority(s) && limitsExceeded(s)) return loopLimitReason(s);
   if (reviewUnparseable(s) && limitsExceeded(s)) return "review report unparseable and no legal choice remains (limits exceeded)";
   return null;
@@ -279,11 +367,17 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
       targets: [
         ...workEdges("reviewing"),
         {
+          // R-1 rollback: restore the former iterating target, iterateWins
+          // guard, and runSkill("iterate") effect. The named machine test
+          // constructs that legacy edge and exercises its recovery path.
+          name: "ranking",
+          guard: (s) => sessionOk(s) && iterateWins(s) && canRunWork(s),
+          effect: () => ({ effect: { kind: "rank" } as const, why: "unfinished iterate artifact; ranking in-plan issues before iterating" }),
+        },
+        {
           name: "iterating",
-          guard: (s) => sessionOk(s) && (iterateWins(s) || reviewUnparseable(s)) && canRunIterate(s),
-          effect: (s) => runSkill("iterate", iterateWins(s)
-            ? "iterate artifact present; in-plan issues win"
-            : "accepted choice: iterate on in-plan issues"),
+          guard: (s) => sessionOk(s) && reviewUnparseable(s) && canRunIterate(s),
+          effect: () => runSkill("iterate", "accepted choice: iterate on in-plan issues"),
         },
         {
           name: "documenting",
@@ -299,6 +393,43 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
             ? "clean review; saving"
             : "accepted choice: treat the review as clean and save"),
         },
+      ],
+    },
+    ranking: {
+      targets: [
+        {
+          name: "ranking",
+          guard: rankPending,
+          effect: () => ({ effect: { kind: "rank" } as const, why: "review ranking still pending" }),
+        },
+        {
+          name: "blocked",
+          guard: (s) => rankingBlockReason(s) !== null,
+          effect: (s) => blocked(rankingBlockReason(s)!),
+        },
+        {
+          name: "iterating",
+          guard: (s) => aboveWaterline(s) && canRunIterate(s),
+          effect: () => runSkill("iterate", "issue above the severity waterline; in-plan issues win"),
+        },
+        {
+          // A-11: the docs evaluation failed twice, so both edges open and the
+          // closed document/save choice is offered. Iterate is never offered —
+          // nothing cleared the waterline.
+          name: "documenting",
+          guard: (s) => (rankDocsImpact(s) || docsUnresolved(s)) && canRunWork(s),
+          effect: (s) => runSkill("docs", docsUnresolved(s)
+            ? "accepted choice: documentation impact could not be judged; document it"
+            : "nothing above the waterline; documentation impact flagged"),
+        },
+        {
+          name: "saving",
+          guard: (s) => (rankCleanSave(s) || docsUnresolved(s)) && canRunWork(s),
+          effect: (s) => runSkill("save", docsUnresolved(s)
+            ? "accepted choice: documentation impact could not be judged; treat the review as clean and save"
+            : "nothing above the waterline; clean review; saving"),
+        },
+        { ...STOP, effect: () => none("STOP requested by operator from ranking") },
       ],
     },
     documenting: {
@@ -361,16 +492,22 @@ function take(instance: MachineInstance<LoopState, BuckFacts, BuckOutput>, to: L
 
 function decisionOpen(s: Snapshot): boolean {
   if (s.state === "reviewing") return reviewRoute(s, reviewUnparseable);
+  if (s.state === "ranking") return docsUnresolved(s) && canRunWork(s);
   if (!Object.hasOwn(WORK_SKILL, s.state)) return false;
   return ambiguousChoiceOpen(s);
 }
 
 function choiceFor(state: LoopState, to: LoopState): Choice {
   if (to === state) return { kind: "retry" };
-  if (state !== "reviewing") return { kind: "advance" };
+  if (state !== "reviewing" && state !== "ranking") return { kind: "advance" };
   const kind = { iterating: "iterate", documenting: "document", saving: "save" } as const;
   return { kind: kind[to as keyof typeof kind] };
 }
+
+const REVIEW_CHOICE_WHY: Partial<Record<LoopState, string>> = {
+  reviewing: "review report unparseable; no iterate artifact",
+  ranking: "documentation impact could not be judged; no iterate artifact",
+};
 
 /** Deterministic transition or closed choose effect. Command-owned states fail closed. */
 export function next(s: Snapshot): Transition {
@@ -385,7 +522,7 @@ export function next(s: Snapshot): Transition {
   return {
     to: s.state,
     effect: { kind: "choose", legal: targets.map((to) => choiceFor(s.state, to)) },
-    why: s.state === "reviewing" ? "review report unparseable; no iterate artifact" : "postcondition scan ambiguous",
+    why: REVIEW_CHOICE_WHY[s.state] ?? "postcondition scan ambiguous",
   };
 }
 

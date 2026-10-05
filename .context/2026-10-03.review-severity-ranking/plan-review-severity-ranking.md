@@ -13,6 +13,7 @@ sql_memory_ids:
   - 01a104c8-5bcf-73e3-b861-f77e6257f093
   - "01a109b4-3261-762c-8598-fe95de11c7f8"
   - "01a109be-2ad3-76c5-808e-80944ad0229e"
+  - "01a10c0e-084e-78f1-8636-8488b3582531"
 ---
 
 # Plan: review severity ranking
@@ -52,7 +53,7 @@ Evidence: grill session 2026-10-03, Q1–Q6, each closing turn classified `direc
 
 Excluded scope: human `/b-review` still writes `iterate-*.md`. This plan does not change that skill. Out-of-plan issues are not ranked. A clear docs or how-to flag is not re-judged. `choice-ranking.ts` stays display-only. No chat-model fallback. No CVSS equation. No change to the stored thresholds. No site HTML copy of the state diagram. No resume path for a loop caught mid-cycle at cutover.
 
-Next action: execute Phase 1 via `/b-build-hard` (type the `orchestrate` keyword on the first turn). Phased: see `plan-review-severity-ranking-phases.md` (4 phases, HARD chain). Do not start with the unphased plan.
+Next action: Phase 4 diagram and verified subject closeout.
 
 ## Assumptions Ledger
 
@@ -80,13 +81,13 @@ Next action: execute Phase 1 via `/b-build-hard` (type the `orchestrate` keyword
 - Parse in-plan issues from the unfinished iterate artifact.
 - Apply the stored five-question rating and the matrix below.
 - Route from ranking without reopening the unparseable choice.
-- Record every ranked issue. Complete the iterate artifact when nothing is above the waterline.
+- Record every ranked issue. Mark the iterate artifact `below-waterline` when nothing is above the waterline; never mark skipped work completed.
 - Tests for the new edges and the pure waterline function.
 
 ## Out of scope
 
 - Editing `skills/b-review/SKILL.md` or its bundled copy.
-- Ranking out-of-plan issues, documentation impact, or how-to impact.
+- Ranking out-of-plan issues or re-judging clear documentation/how-to flags.
 - Changing `choice-ranking.ts` or legal-choice selection.
 - A feature flag. Rollback is the machine edge, not a runtime switch.
 - Copying the state diagram into `site/`.
@@ -118,7 +119,7 @@ Jev answers, per issue, and does no arithmetic:
 | likelihood | score | rare, unlikely, possible, likely, almost_certain |
 | regression | choice | `regression`, `pre_existing`, `unknown` |
 
-Map impact and likelihood to `0..4` in that order. Cell labels are Note, Low, Medium, High, Critical.
+Map impact and likelihood to `0..4` in that order. Floor valid native fractional scores before matrix lookup (operator decision 2026-10-05); retain raw answers in the audit. Cell labels are Note, Low, Medium, High, Critical.
 
 | Impact \ likelihood | 0 | 1 | 2 | 3 | 4 |
 |---|---|---|---|---|---|

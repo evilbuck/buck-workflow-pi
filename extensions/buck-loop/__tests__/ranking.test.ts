@@ -242,6 +242,33 @@ describe("rankIssues", () => {
     expect(writes[1].contents).not.toContain("Warning title");
   });
 
+  it("blocks a scan-defect artifact before judgment or rewriting", async () => {
+    const fixture = rankingFixture();
+    const ask = vi.fn();
+    const writeFile = vi.fn();
+    const result = await rankIssues({ ...fixture, planPath: "plan.md", artifactText: "---\nstatus: active\n---\n## Critical Issues\n", issues: [] }, { ask, writeFile });
+    expect(result).toMatchObject({ status: "blocked", reason: expect.stringContaining("no parseable issues") });
+    expect(ask).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it("floors native fractional scores without retrying or escalating a below-waterline finding", async () => {
+    const fixture = rankingFixture();
+    const ask = vi.fn().mockResolvedValue({ raw: "native fractional answer", details: { answers: {
+      scope: { type: "choice", choice: "in_scope" },
+      real: { type: "noul", noul: 0.96 },
+      impact: { type: "score", score: 1.92 },
+      likelihood: { type: "score", score: 2.97 },
+      regression: { type: "choice", choice: "pre_existing" },
+    } } });
+    const result = await rankIssues({ ...fixture, planPath: "plan.md", issues: fixture.issues.slice(0, 1) }, { ask });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "ranked", issues: [{ above: false, cell: "Low" }] });
+    if (result.status !== "ranked") throw new Error(result.reason);
+    expect(result.issues[0].jevFailure).toBeUndefined();
+    expect(readFileSync(result.artifactPath, "utf8")).toContain("status: below-waterline");
+  });
+
   it("retries a missing required answer once, then fails open for routing with a Jev note", async () => {
     const fixture = rankingFixture();
     const missing = { raw: "partial", details: { answers: { scope: { type: "choice", choice: "in_scope" } } } };

@@ -95,6 +95,40 @@ export interface WorkFacts {
 }
 
 /**
+ * The loop's own judgment of documentation impact, used only when the review
+ * report is too garbled to state it. The loop never asks a chat model here.
+ *
+ * - `flagged` / `none` — docs or how-to do / do not need updating.
+ * - `unresolved` — the evaluation failed twice. The machine opens the closed
+ *   document/save choice instead of assuming an update is needed.
+ *
+ * Every value is terminal, and that is deliberate. An in-flight judgment is
+ * not a value: a garbled report carries an **absent** `docsVerdict`, and the
+ * loop re-ranks until it reaches one of these. A `pending` member would be
+ * unreachable — the rank handler always reaches a terminal verdict in one
+ * visit, and the projection does not persist `reviewFacts`, so no resume can
+ * reintroduce one — and an unreachable member is a spin waiting to happen.
+ */
+export type DocsVerdict = "flagged" | "none" | "unresolved";
+
+/**
+ * Outcome of the in-process `rank` effect for the current review cycle.
+ * Produced by `loop.ts` after {@link Effect} `rank` returns; the scan never
+ * fills it, because the judgment is a judgment and not a file fact.
+ *
+ * - `ranked` — the audit file is written and the iterate artifact is narrowed.
+ *   `above` is the *summary* of the whole set: true when at least one issue
+ *   cleared the severity waterline. The per-issue record lives in
+ *   `ranking-<utc>.md`, not here.
+ * - `blocked` — the rank could not be completed (unparseable artifact, two
+ *   unfinished artifacts, audit write failure). The loop records the reason
+ *   and the machine blocks; it never routes onward on a failed rank.
+ */
+export type RankingFacts =
+  | { kind: "ranked"; above: boolean; docsVerdict?: DocsVerdict }
+  | { kind: "blocked"; reason: string };
+
+/**
  * Facts from scanning the review artifacts of the current phase cycle.
  * Reset to `pending` when a new cycle begins (new phase, or iterating
  * re-enters reviewing).
@@ -116,6 +150,12 @@ export type ReviewFacts =
       docsImpact: boolean;
       /** True when the report's How-to Impact section is flagged. */
       howtoImpact: boolean;
+      /**
+       * Absent until the `rank` effect reports back. An absent field means
+       * ranking is still pending, so `reviewing` re-emits `rank` instead of
+       * iterating on an unranked artifact.
+       */
+      ranking?: RankingFacts;
     };
 
 /**

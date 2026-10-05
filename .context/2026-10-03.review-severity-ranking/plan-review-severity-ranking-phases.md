@@ -25,7 +25,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Types, Scan, and the Pure Waterline | completed | medium | orchestrate | [phase-1-types-scan-pure-waterline.md](phase-1-types-scan-pure-waterline.md) |
 | 2: Jev Ranking Core and Audit Trail | completed | hard | orchestrate | [phase-2-jev-ranking-core.md](phase-2-jev-ranking-core.md) |
-| 3: Machine Edges and the Rank Effect Handler | pending | hard | orchestrate | [phase-3-machine-loop-routing.md](phase-3-machine-loop-routing.md) |
+| 3: Machine Edges and the Rank Effect Handler | completed | hard | orchestrate | [phase-3-machine-loop-routing.md](phase-3-machine-loop-routing.md) |
 | 4: State Diagram and Doc Sentence | pending | easy | orchestrate | [phase-4-docs.md](phase-4-docs.md) |
 
 ## Dependency Matrix
@@ -91,6 +91,6 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 ## Execution Checklist
 
 - [x] Phase 1: Types, Scan, and the Pure Waterline — build → review → iterate → save (manual) → committed `8f8c511`
-- [x] Phase 2: Jev Ranking Core and Audit Trail — build → review → iterate → save (2026-10-04, SQL id `01a109b4-3261-762c-8598-fe95de11c7f8`); commit pending — closeout blocked by [sql-save phase-provenance test failure](../../backlog/items/buck-loop-sql-save-phase-provenance-test.md)
-- [ ] Phase 3: Machine Edges and the Rank Effect Handler — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 2: Jev Ranking Core and Audit Trail — SQL save verified (`01a109b4-3261-762c-8598-fe95de11c7f8`); required gate restored and committed `63b237e`. See [manual checkpoint recovery](research-manual-checkpoint-recovery.md).
+- [x] Phase 3: Machine Edges and the Rank Effect Handler — native supervisor smoke, 462 tests passing; SQL memory `01a10c0e-084e-78f1-8636-8488b3582531`; guardrails pass.
 - [ ] Phase 4: State Diagram and Doc Sentence — build → review → iterate if in-plan issues → docs if doc impact → save → commit

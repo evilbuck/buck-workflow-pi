@@ -53,6 +53,9 @@ import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan } from "./scan.js";
+import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
+import { runJev } from "../jev-tool/index.js";
+import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
@@ -61,7 +64,9 @@ import { applySubjectLifecycleIntent } from "../../skills/_shared/scripts/subjec
 import type {
   AcceptedChoice,
   Choice,
+  DocsVerdict,
   LoopState,
+  RankingFacts,
   Snapshot,
   Transition,
   TransitionRecord,
@@ -111,17 +116,20 @@ export type LoopResult = {
   reason: string;
 };
 
+/** One named TypeSafe question, as `ranking.ts` declares it. */
+type RankQuestion = { type: string; instructions: string; criteria?: Record<string, string> | string[] };
+
 /** Live progress event for the chat widget (`onProgress`). */
 export type LoopProgress = {
   state: LoopState;
-  operation: "run-skill" | "choose";
+  operation: "run-skill" | "choose" | "rank";
   label: string;
   target: string;
 };
 
 /**
  * Injectable seams. Production uses the defaults; tests swap `runStep` /
- * `choose` / `now` so CI never calls a live model.
+ * `choose` / `ask` / `now` so CI never calls a live model.
  *
  * - `onProgress` — update the spinner label.
  * - `onActivity` — stream nested-session tokens/tools into the widget.
@@ -130,6 +138,12 @@ export type LoopProgress = {
 export type LoopDeps = {
   runStep: typeof defaultRunStep;
   choose: typeof defaultChoose;
+  /**
+   * The one judgment seam the `rank` effect uses. It answers named TypeSafe
+   * questions; it never selects a transition, so the rank can neither
+   * iterate nor save on its own. Its retry is another `ask`, never a chat model.
+   */
+  ask?: (state: unknown, questions: Record<string, RankQuestion>) => Promise<RankAttempt>;
   now: () => string;
   onProgress: (progress: LoopProgress) => void;
   onFailure: (failure: AgentCallFailure) => void;
@@ -480,7 +494,7 @@ function unusedTransition(): Transition {
   return { to: "blocked", effect: { kind: "none" }, why: "unused" };
 }
 
-/** Perform `choose` or `run-skill`. `none` is a no-op this tick. */
+/** Perform `choose`, `rank`, or `run-skill`. `none` is a no-op this tick. */
 async function runEffect(
   cwd: string,
   snapshot: Snapshot,
@@ -495,6 +509,9 @@ async function runEffect(
     }
     return carryReport(await runChoice(cwd, snapshot, path, transition.effect.legal, transition.why, deps), sessionText);
   }
+  if (transition.effect.kind === "rank") {
+    return carryReport(await runRank(cwd, snapshot, path, deps), sessionText);
+  }
   if (transition.effect.kind !== "run-skill") return carryReport({ snapshot, lastFail: null, halt: null }, sessionText);
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null, sessionText: ran.sessionText };
@@ -502,6 +519,163 @@ async function runEffect(
 
 function carryReport(result: EffectResult, sessionText: string): EffectResult & { sessionText: string } {
   return result.sessionText === undefined ? { ...result, sessionText } : { ...result, sessionText: result.sessionText };
+}
+
+// --- rank effect ----------------------------------------------------------
+// The severity gate runs in this process: no nested skill session, no
+// `choose()`, and no profile chat model. Every judgment is the same `ask`
+// seam, so the gate stays the stored rating rather than a model's opinion.
+
+/** Production judgment seam. Tests inject `ask`; neither path selects a transition. */
+const nativeAsk = (state: unknown, questions: Record<string, RankQuestion>): Promise<RankAttempt> =>
+  runJev(createTypeSafeEvaluator(), { state, questions }) as Promise<RankAttempt>;
+
+const DOCS_IMPACT_QUESTIONS: Record<string, RankQuestion> = {
+  docs: {
+    type: "choice",
+    instructions: "Does this review report require a documentation or living-document update (CONTEXT.md, AGENTS.md, docs/)?",
+    criteria: { yes: "The report requires a documentation update.", no: "The report does not require a documentation update." },
+  },
+  howto: {
+    type: "choice",
+    instructions: "Does this review report require a how-to update (a documented procedure an operator follows)?",
+    criteria: { yes: "The report requires a how-to update.", no: "The report does not require a how-to update." },
+  },
+};
+
+/**
+ * Rank the unfinished iterate artifact and record the verdict on `reviewFacts`.
+ * A recorded verdict is never recomputed, so re-entering `ranking` costs no
+ * second judgment. An in-flight docs evaluation is the absence of
+ * `docsVerdict`, so a garbled report always runs to a verdict in one visit.
+ */
+async function runRank(cwd: string, snapshot: Snapshot, path: string, deps: LoopDeps): Promise<EffectResult> {
+  const target = snapshot.phasePath ?? snapshot.planPath ?? path;
+  emitProgress(deps, { state: "ranking", operation: "rank", label: "Ranking review issues", target });
+  if (snapshot.reviewFacts.kind !== "report") {
+    // Unreachable through `reviewing -> ranking`, which requires a report.
+    // Fail closed rather than re-emit `rank` forever on facts that cannot rank.
+    const reason = "review ranking found no report facts to rank (scan defect)";
+    return { snapshot: block(snapshot, reason, deps.now()), lastFail: null, halt: { state: "blocked", reason } };
+  }
+  const verdict = await rankVerdict(cwd, snapshot, path, deps, snapshot.reviewFacts);
+  const ranked: Snapshot = { ...snapshot, reviewFacts: { ...snapshot.reviewFacts, ranking: verdict } };
+  persistIfPossible(cwd, ranked);
+  return { snapshot: ranked, lastFail: null, halt: null };
+}
+
+async function rankVerdict(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  deps: LoopDeps,
+  report: Extract<Snapshot["reviewFacts"], { kind: "report" }>,
+): Promise<RankingFacts> {
+  // Ranking facts live only in this review cycle; restarting scans disk fresh.
+  if (report.ranking) return report.ranking;
+
+  const target = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const ranked = await rankUnfinishedArtifact(cwd, snapshot, target, deps);
+  if (ranked.status === "blocked") return { kind: "blocked", reason: ranked.reason };
+  if (ranked.issues.some((issue) => issue.above)) return { kind: "ranked", above: true };
+  // A clear report states its own impact; only a garbled one needs judging.
+  if (report.parseable) return { kind: "ranked", above: false };
+  return { kind: "ranked", above: false, docsVerdict: await judgeDocsImpact(cwd, snapshot, path, deps) };
+}
+
+function readRankArtifact(cwd: string, snapshot: Snapshot):
+  | { kind: "blocked"; reason: string }
+  | { kind: "ready"; artifact: { path: string; text: string }; issues: ReviewIssue[] } {
+  const artifacts = unfinishedIterateArtifacts(cwd, snapshot);
+  if (artifacts.length === 0) return { kind: "blocked", reason: "no unfinished iterate artifact to rank" };
+  if (artifacts.length > 1) return { kind: "blocked", reason: `multiple unfinished iterate artifacts: ${artifacts.map((artifact) => artifact.path).join(", ")}` };
+  const artifact = artifacts[0];
+  const parsed = parseIterateArtifacts([artifact]);
+  if (parsed.kind === "blocked") return parsed;
+  if (parsed.kind === "scan-defect") return { kind: "blocked", reason: `scan defect in ${parsed.path}: ${parsed.reason}` };
+  return { kind: "ready", artifact, issues: parsed.issues };
+}
+
+async function rankUnfinishedArtifact(cwd: string, snapshot: Snapshot, target: string, deps: LoopDeps) {
+  const input = readRankArtifact(cwd, snapshot);
+  if (input.kind === "blocked") return { status: "blocked" as const, reason: input.reason };
+  return rankIssues({ cwd, planPath: target, artifactPath: input.artifact.path, artifactText: input.artifact.text, issues: input.issues },
+    { ask: deps.ask ?? nativeAsk, now: () => new Date(deps.now()) });
+}
+
+/**
+ * A garbled report leaves documentation impact unstated. Ask once, retry once
+ * with the same seam, and then stop: two failures are `unresolved`, which opens
+ * the closed document/save choice. It never iterates and never assumes an
+ * update is needed.
+ */
+async function judgeDocsImpact(cwd: string, snapshot: Snapshot, path: string, deps: LoopDeps): Promise<DocsVerdict> {
+  const report = latestReviewReport(cwd, snapshot);
+  if (!report) return "unresolved";
+  const state = {
+    reviewReport: report.text,
+    planPath: snapshot.planPath ?? path,
+    phasePath: snapshot.phasePath,
+  };
+  const ask = deps.ask ?? nativeAsk;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const verdict = docsVerdictFrom(await ask(state, DOCS_IMPACT_QUESTIONS));
+      if (verdict !== null) return verdict;
+    } catch {
+      // Retried once below; a second failure is `unresolved`, not a guess.
+    }
+  }
+  return "unresolved";
+}
+
+function docsVerdictFrom(attempt: RankAttempt): DocsVerdict | null {
+  if (!isJudgmentRecord(attempt.details) || !isJudgmentRecord(attempt.details.answers)) return null;
+  const answers = attempt.details.answers;
+  const docs = binaryJudgment(answers.docs);
+  const howto = binaryJudgment(answers.howto);
+  if (docs === null || howto === null) return null;
+  return docs || howto ? "flagged" : "none";
+}
+
+function isJudgmentRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function binaryJudgment(value: unknown): boolean | null {
+  if (!isJudgmentRecord(value) || value.type !== "choice") return null;
+  if (value.choice === "yes") return true;
+  if (value.choice === "no") return false;
+  return null;
+}
+
+/**
+ * Unfinished `iterate-*.md` files, mirroring `scan.hasIterate()`: `completed`
+ * and `below-waterline` are no longer iterate work, and `ranking-*.md` never
+ * matches the prefix.
+ */
+function unfinishedIterateArtifacts(cwd: string, snapshot: Snapshot): Array<{ path: string; text: string }> {
+  if (!snapshot.subject) return [];
+  const dir = join(cwd, ".context", snapshot.subject);
+  if (!existsSync(dir)) return [];
+  const artifacts: Array<{ path: string; text: string }> = [];
+  for (const name of readdirSync(dir).filter((entry) => /^iterate-.*\.md$/.test(entry)).sort()) {
+    const text = readFileSync(join(dir, name), "utf8");
+    const status = /^---\n([\s\S]*?)\n---/.exec(text)?.[1].split("\n")
+      .find((line) => line.startsWith("status:"))?.slice("status:".length).trim();
+    if (status === "completed" || status === "below-waterline") continue;
+    artifacts.push({ path: `.context/${snapshot.subject}/${name}`, text });
+  }
+  return artifacts;
+}
+
+/** The report `scan` parsed: the last `review-*.md` by name. */
+function latestReviewReport(cwd: string, snapshot: Snapshot): { path: string; text: string } | null {
+  if (!snapshot.subject) return null;
+  const dir = join(cwd, ".context", snapshot.subject);
+  if (!existsSync(dir)) return null;
+  const name = readdirSync(dir).filter((entry) => /^review-.*\.md$/.test(entry)).sort().at(-1);
+  return name ? { path: `.context/${snapshot.subject}/${name}`, text: readFileSync(join(dir, name), "utf8") } : null;
 }
 
 function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): boolean {
@@ -909,6 +1083,7 @@ function progressLabel(state: LoopState, target: string): string {
   switch (state) {
     case "building": return "Building " + name;
     case "reviewing": return "Reviewing " + name;
+    case "ranking": return "Ranking review issues in " + name;
     case "iterating": return "Iterating " + name;
     case "documenting": return "Documenting " + name;
     case "saving": return "Saving session state";
