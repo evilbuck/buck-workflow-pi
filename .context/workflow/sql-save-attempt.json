@@ -1,8 +1,8 @@
 {
-  "attemptId": "ba3c52f0-16be-4002-9a76-23cf7715d46f",
-  "runId": "ad8299a4-9d62-451c-a71e-6b9081049d31",
+  "attemptId": "0730bceb-956d-4251-9801-8424cb810509",
+  "runId": "495ba247-6090-46ad-ad04-025a7b1339bf",
   "subject": "2026-10-03.review-severity-ranking",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-10-03.review-severity-ranking/phase-1-types-scan-pure-waterline.md",
-  "receiptRel": ".context/2026-10-03.review-severity-ranking/sql-memory-receipts/ad8299a4-9d62-451c-a71e-6b9081049d31-ba3c52f0-16be-4002-9a76-23cf7715d46f.json"
+  "phase": ".context/2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md",
+  "receiptRel": ".context/2026-10-03.review-severity-ranking/sql-memory-receipts/495ba247-6090-46ad-ad04-025a7b1339bf-0730bceb-956d-4251-9801-8424cb810509.json"
 }

@@ -4,8 +4,15 @@ date: 2026-10-03
 subject: 2026-10-03.review-severity-ranking
 topics: [buck-loop, jev, review, severity, ranking]
 research: [research-severity-weighting.md]
-iterations: []
+iterations:
+  - iterate-phase-1-types-scan-pure-waterline.md
+  - iterate-phase-2-jev-ranking-core.md
 memory: []
+sql_memory_ids:
+  - 01a1025d-c2a2-74cf-baa8-f6f4f9a1e853
+  - 01a104c8-5bcf-73e3-b861-f77e6257f093
+  - "01a109b4-3261-762c-8598-fe95de11c7f8"
+  - "01a109be-2ad3-76c5-808e-80944ad0229e"
 ---
 
 # Plan: review severity ranking

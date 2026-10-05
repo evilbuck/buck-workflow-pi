@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-review-severity-ranking.md
@@ -16,13 +16,15 @@ from_plan_steps: [3]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `rankIssues()` calls `runJev` with the plan's five named questions per issue (scope/real/impact/likelihood/regression) and does no arithmetic in Jev; state sent is issue title, problem, file path, fix field, plan path, and the named file's current text — not the repo; a missing or too-big file is a Jev failure."
-  - "[ ] A thrown judge call or a missing scope/real/impact/likelihood answer retries that issue once, in the same step, with another `runJev`; no second caller exists (R-4 test: a thrown judge error never invokes `choose` or `callChoiceModel`)."
-  - "[ ] A second failure on an issue marks that issue valid (above the waterline for routing) and the first failure is noted on the issue; a missing Q5 answer does not bump (A-5, A-8 validated)."
-  - "[ ] `ranking-<utc>.md` is written first with id, raw answer, cell, above/below, and any Jev-failure note; if the audit write fails, the function blocks and does not route onward or rewrite the iterate artifact (R-3 ordering)."
-  - "[ ] The iterate artifact is rewritten to exactly the above-waterline ids and no others (unit test on content), or marked `status: below-waterline` when that set is empty."
-completed_at: null
-completed_by: null
+  - "[x] `rankIssues()` calls `runJev` with the plan's five named questions per issue (scope/real/impact/likelihood/regression) and does no arithmetic in Jev; state sent is issue title, problem, file path, fix field, plan path, and the named file's current text — not the repo; a missing or too-big file is a Jev failure."
+  - "[x] A thrown judge call or a missing scope/real/impact/likelihood answer retries that issue once, in the same step, with another `runJev`; no second caller exists (R-4 test: a thrown judge error never invokes `choose` or `callChoiceModel`)."
+  - "[x] A second failure on an issue marks that issue valid (above the waterline for routing) and the first failure is noted on the issue; a missing Q5 answer does not bump (A-5, A-8 validated)."
+  - "[x] `ranking-<utc>.md` is written first with id, raw answer, cell, above/below, and any Jev-failure note; if the audit write fails, the function blocks and does not route onward or rewrite the iterate artifact (R-3 ordering)."
+  - "[x] The iterate artifact is rewritten to exactly the above-waterline ids and no others (unit test on content), or marked `status: below-waterline` when that set is empty."
+completed_at: 2026-10-04
+completed_by: b-build-hard
+sql_memory_ids:
+  - "01a109b4-3261-762c-8598-fe95de11c7f8"
 ---
 
 # Phase 2: Jev Ranking Core and Audit Trail
@@ -56,6 +58,15 @@ From plan step 3, on top of Phase 1's parser and `aboveWaterline()`:
 ## Verification
 
 - `ranking.test.ts` (network-free, injected ask): two issues with one missing answer fails only that issue; first-call-throws-then-retry-succeeds (A-8); second failure marks valid with note (A-5); audit-first ordering; rewrite contains exactly the above-waterline ids; empty above-waterline set writes `status: below-waterline`; audit write failure blocks.
+
+## Execution checkpoint
+
+Phase implementation is complete; loop integration remains out of scope for this phase.
+
+- Focused tests: `ranking.test.ts`, 129 passed.
+- Targeted TypeScript check for the ranking module and tests passed.
+- Durable guardrails: failed the required unit gate and coverage command because existing `sql-save.test.ts` case “keeps phase provenance stable on retry but rotates a new phase's source key” fails; complexity passed with no new violations. This assignment changed only ranking code/tests and did not modify SQL-save behavior.
+- No live Jev call was made; all ranking behavior was exercised through the injected `ask` seam.
 
 ## Per-Phase Execution Loop
 

@@ -84,6 +84,7 @@ export function saveDirective(attempt: SaveAttempt): string {
     `runId: ${attempt.runId}`,
     `subject: ${attempt.subject}`,
     `project: ${attempt.project}`,
+    `subject: ${attempt.subject}`,
     `phase: ${attempt.phase ?? "null"}`,
     `receipt: ${attempt.receiptRel}`,
     "Connectivity probe succeeded.",
