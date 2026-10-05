@@ -1,5 +1,6 @@
 ---
-status: active
+status: completed
+completed_at: 2026-10-05
 date: 2026-10-03
 subject: 2026-10-03.buck-loop-commit-phase-identity
 topics: [buck-loop, commit-checkpoint, phase-identity, retry, restart-recovery]

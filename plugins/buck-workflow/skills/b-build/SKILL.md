@@ -287,7 +287,7 @@ When working on a phased plan with discrete phase files:
 2. **Mark phase in-progress**: Update the phase file's frontmatter `status: in-progress`.
 3. **Implement**: Execute only the current phase's scope.
 4. **On completion**:
-   a. Update acceptance criteria checkboxes in the phase file: `[ ]` → `[x]`
+   a. Check acceptance boxes only through **Acceptance wrap-up**. Do not mark `[x]` from your own judgment.
    b. The loop writes `status: completed` and `completed_at` when every `acceptance_criteria` item is `[x]`. That list is the completion signal. An unchecked item is not done, even if `status` already says `completed`. A phase with no list still uses `status`.
    c. Update the phases overview file (`plan-*-phases.md`): change the phase's status from `pending`/`in-progress` to `completed` in the summary table
    d. Note the next phase to execute
@@ -295,11 +295,11 @@ When working on a phased plan with discrete phase files:
 
 ### Legacy Phased Plans
 
-If the phases overview has no `format: discrete` frontmatter (legacy single-file format), use the old behavior: scan `## Phase N` sections and check inline acceptance criteria. No discrete phase files to update.
+If the phases overview has no `format: discrete` frontmatter (legacy single-file format), scan `## Phase N` sections. Check those inline boxes only through **Acceptance wrap-up**. No discrete phase files to update.
 
 ### Unphased Plan Completion
 
-For an unphased plan, check each `## Acceptance criteria` box as `[x]` only after direct verification proves that criterion, using the same evidence standard as phase acceptance. Leave unverified boxes open; never invent evidence or a missing list. The supervisor synchronizes plan `status: completed` only for a non-empty, fully checked list and refuses closeout while any box remains open. Do not write subject lifecycle fields.
+For an unphased plan, check each `## Acceptance criteria` box only through **Acceptance wrap-up**. Leave unverified boxes open; never invent evidence or a missing list. The supervisor synchronizes plan `status: completed` only for a non-empty, fully checked list and refuses closeout while any box remains open. Do not write subject lifecycle fields.
 
 
 ## Session Awareness Protocol
@@ -344,8 +344,16 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
 ## Closeout
 
 1. **Verification** — confirm the changes work. For code-touching work, the project's deterministic check contract (`/b-guardrails-check`) is the closeout gate; an ad-hoc `npx vitest run` / `npx playwright test` is the TDD inner-loop proof, not the closeout proof. Keep those commands as the inner-loop examples in `### 2. Red Phase` / `### 3. Green Phase` — the contract is what closes the implementation. Docs-only sessions skip the contract with one line of explanation.
-2. **Phase status** — if working from a phased plan, note which phase was completed
-3. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Replace `$TITLE` with a Conventional Commits subject (`feat(scope): add retry`, <=72 chars). Replace `$BODY` with 1–3 lines on why. Do not leave angle-bracket hints in the file.
+2. **Acceptance wrap-up** — this is the only writer of `[ ]` → `[x]`, and it runs before you yield a completed build.
+   - Collect still-open criteria. Phased: unchecked `acceptance_criteria` items on the active phase file. Unphased: unchecked lines under the plan's `## Acceptance criteria`. Skip a file with no list. Do not invent one. If none are open, do not call Jev.
+   - Otherwise make one `jev` tool call. One `noul` per open criterion, same `state`. Do not pass a model override. Question ids are not sent to the model, so the criterion text goes in `instructions`.
+   - `state`: `{ "evidence": "<commands and results you actually ran>", "criteria": ["<open line 1>", "<open line 2>"] }`.
+   - Each question: `{ "type": "noul", "instructions": "Is this acceptance criterion done: <exact line>?", "criteria": { "true": "The supplied evidence directly proves this criterion. A review claim, an unchecked box, or an intention is not proof.", "false": "Evidence is missing, indirect, or contradicts the criterion." } }`. Use ids `criterion_1`, `criterion_2`, in list order.
+   - Check that box `[x]` only when its answer is a noul and `noul >= 0.7`. Leave `[ ]` when the noul is below 0.7, the answer is missing, or the type is not noul. Do not uncheck a box that is already `[x]`.
+   - If `jev` is missing, errors, or returns no answers, leave every remaining box open. Do not judge the criteria yourself and do not invent a score. The build is not complete.
+   - Record each line, its noul, and the stamp decision in the closeout notes. Do not write subject lifecycle fields. The supervisor writes `status: completed` only after every box is `[x]`.
+3. **Phase status** — if working from a phased plan, note which phase was completed
+4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. Replace `$TITLE` with a Conventional Commits subject (`feat(scope): add retry`, <=72 chars). Replace `$BODY` with 1–3 lines on why. Do not leave angle-bracket hints in the file.
 
    ```markdown
    ## Title
@@ -355,4 +363,4 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
    $BODY
    ```
 
-4. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit
+5. **Recommendation** — suggest `/b-review` for validation (which flags documentation impact for `/b-docs`), `/b-save` to finalize, then `/b-commit` to commit

@@ -193,6 +193,7 @@ Umbrella plan: [plan-state-machine-module-cutover.md](../2026-10-01.state-machin
 Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (2,3 → 4).
 
 - [ ] [Phase 1: Module Finalization](items/phase-1-state-machine-module.md) — medium, `/b-build` — [phase-1-module-finalization.md](../2026-10-01.state-machine-redesign/phase-1-module-finalization.md)
+- [ ] [State-machine guards must attach context to the next step](items/state-machine-guard-step-context.md) — high; a refused edge must name the alternate step and the context that step receives
 
 ### Upcoming Phases
 
