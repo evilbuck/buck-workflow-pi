@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-10-03
 subject: 2026-10-03.review-severity-ranking
 topics: [buck-loop, jev, review, severity, ranking]
@@ -14,6 +14,7 @@ sql_memory_ids:
   - "01a109b4-3261-762c-8598-fe95de11c7f8"
   - "01a109be-2ad3-76c5-808e-80944ad0229e"
   - "01a10c0e-084e-78f1-8636-8488b3582531"
+  - "01a10c10-77db-7ce2-97aa-27e53c317383"
 ---
 
 # Plan: review severity ranking
@@ -53,21 +54,21 @@ Evidence: grill session 2026-10-03, Q1–Q6, each closing turn classified `direc
 
 Excluded scope: human `/b-review` still writes `iterate-*.md`. This plan does not change that skill. Out-of-plan issues are not ranked. A clear docs or how-to flag is not re-judged. `choice-ranking.ts` stays display-only. No chat-model fallback. No CVSS equation. No change to the stored thresholds. No site HTML copy of the state diagram. No resume path for a loop caught mid-cycle at cutover.
 
-Next action: Phase 4 diagram and verified subject closeout.
+Next action: Restart OMP before a new loop invocation to load the shipped extension. All four phases are verified and checkpointed manually; the old blocked run projection is retained, not forged done.
 
 ## Assumptions Ledger
 
-- A-1: In-plan issues are the `## Critical Issues` and `## Warnings` subsections of the unfinished `iterate-*.md`, in the shape `skills/b-review/SKILL.md` already specifies. Warnings use **Suggested approach**, not **Proposed fix**. `status: deferred`. `blocking: false`. Validation path: a fixture copied from that template, parsed in the ranking unit test, before the machine edge is added.
+- A-1: In-plan issues are the `## Critical Issues` and `## Warnings` subsections of the unfinished `iterate-*.md`, in the shape `skills/b-review/SKILL.md` already specifies. Warnings use **Suggested approach**, not **Proposed fix**. `status: validated`. `blocking: false`. Validation path: a fixture copied from that template, parsed in the ranking unit test, before the machine edge is added. Evidence: completed phase tests and review-phase-3-machine-loop-routing.md.
 - A-2: An unparseable review with no iterate artifact must stay on the existing closed choice. `status: validated`. `blocking: false`. Evidence: `reviewUnparseable()` and `machine.test.ts` reviewing-choice cases.
 - A-3: `status: completed` on `iterate-*.md` makes `hasIterate()` false. `status: validated`. `blocking: false`. Evidence: `scan.ts` `hasIterate()` and `scan.test.ts` "ignores completed iterate artifacts". This status is not the skip record.
 - A-4: A `rank` effect can run in `loop.ts` `runEffect` without a nested skill session. `status: validated`. `blocking: false`. Evidence: `runEffect` already branches on effect kind and returns without a child when the kind is not `run-skill`.
 - A-5: Jev unavailable, or a missing scope, confidence, impact, or likelihood answer, does not iterate. `status: invalidated`. `blocking: false`. Evidence: grill Q1 and Q3. First failure retries once. Second failure treats that issue as valid.
 - A-6: No issue above the waterline, and a parseable report, routes to `documenting` when docs or howto impact is flagged, otherwise `saving`. `status: validated`. `blocking: false`. Evidence: user confirmation 2026-10-03, grill Q2 and Q6. This does not apply to a garbled report.
 - A-7: `ranking-*.md` does not satisfy `hasIterate()`. `status: validated`. `blocking: false`. Evidence: `scan.ts` matches only `iterate-*.md`.
-- A-8: One Jev call with named questions per issue is enough for a successful rank. One invalid answer fails that issue only. A thrown call fails that call's issues, then one retry runs. `status: deferred`. `blocking: false`. Validation path: ranking unit test with two issues, one missing answer, and a second test where the first judge call throws and the retry succeeds.
-- A-9: `hasIterate()` ignores `status: below-waterline` the same way it ignores `completed`. `status: deferred`. `blocking: false`. Validation path: scan unit test before the machine edge.
-- A-10: Two unfinished `iterate-*.md` files block. The loop does not pick one. `status: deferred`. `blocking: false`. Validation path: ranking test with two unfinished files expects `blocked`.
-- A-11: A docs or how-to evaluation that fails twice opens the existing choice. It does not iterate, save, or assume an update is needed. `status: deferred`. `blocking: false`. Validation path: machine test. Operator can reject this default before `/b-phase`.
+- A-8: One Jev call with named questions per issue is enough for a successful rank. One invalid answer fails that issue only. A thrown call fails that call's issues, then one retry runs. `status: validated`. `blocking: false`. Validation path: ranking unit test with two issues, one missing answer, and a second test where the first judge call throws and the retry succeeds. Evidence: completed phase tests and review-phase-3-machine-loop-routing.md.
+- A-9: `hasIterate()` ignores `status: below-waterline` the same way it ignores `completed`. `status: validated`. `blocking: false`. Validation path: scan unit test before the machine edge. Evidence: completed phase tests and review-phase-3-machine-loop-routing.md.
+- A-10: Two unfinished `iterate-*.md` files block. The loop does not pick one. `status: validated`. `blocking: false`. Validation path: ranking test with two unfinished files expects `blocked`. Evidence: completed phase tests and review-phase-3-machine-loop-routing.md.
+- A-11: A docs or how-to evaluation that fails twice opens the existing choice. It does not iterate, save, or assume an update is needed. `status: validated`. `blocking: false`. Validation path: machine test. Operator can reject this default before `/b-phase`. Evidence: completed phase tests and review-phase-3-machine-loop-routing.md.
 
 ## Material Risks
 
@@ -154,16 +155,16 @@ State sent to Jev is the issue title, problem, file path, proposed fix or sugges
 
 ## Acceptance criteria
 
-- [ ] A review with an unfinished iterate artifact transitions to `ranking` and does not run `b-iterate` before the rank effect.
-- [ ] One above-waterline issue, and iterate budget remaining, transitions to `iterating` and the iterate artifact contains only above-waterline ids.
-- [ ] No above-waterline issue, and a parseable report, transitions to `documenting` when docs or howto impact is flagged, otherwise to `saving`, including at the iterate ceiling, and `hasIterate()` is false because the iterate file is `below-waterline`.
-- [ ] Likelihood `0` or `1` does not produce a High or Critical cell.
-- [ ] A regression can clear a Medium cell only when impact is at least moderate. It cannot clear an out-of-scope or low-confidence issue.
-- [ ] A Jev failure retries once. The second failure iterates that issue and does not call a chat model. The first failure is noted on the issue.
-- [ ] An unfinished iterate artifact that parses to zero issues blocks. It does not save.
-- [ ] An unparseable review with no iterate artifact still opens the existing iterate/document/save choice.
-- [ ] `ranking-*.md` does not set `iterateArtifact`.
-- [ ] A projection written before this change still loads. Mid-cycle resume is not required.
+- [x] A review with an unfinished iterate artifact transitions to `ranking` and does not run `b-iterate` before the rank effect.
+- [x] One above-waterline issue, and iterate budget remaining, transitions to `iterating` and the iterate artifact contains only above-waterline ids.
+- [x] No above-waterline issue, and a parseable report, transitions to `documenting` when docs or howto impact is flagged, otherwise to `saving`, including at the iterate ceiling, and `hasIterate()` is false because the iterate file is `below-waterline`.
+- [x] Likelihood `0` or `1` does not produce a High or Critical cell.
+- [x] A regression can clear a Medium cell only when impact is at least moderate. It cannot clear an out-of-scope or low-confidence issue.
+- [x] A Jev failure retries once. The second failure iterates that issue and does not call a chat model. The first failure is noted on the issue.
+- [x] An unfinished iterate artifact that parses to zero issues blocks. It does not save.
+- [x] An unparseable review with no iterate artifact still opens the existing iterate/document/save choice.
+- [x] `ranking-*.md` does not set `iterateArtifact`.
+- [x] A projection written before this change still loads. Mid-cycle resume is not required.
 
 ## Verification
 

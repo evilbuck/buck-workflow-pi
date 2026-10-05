@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-review-severity-ranking.md
@@ -16,11 +16,11 @@ from_plan_steps: [7]
 depends_on: [3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `docs/state-machine-diagram.html` reviewing description reflects the new exit: unfinished iterate artifact goes to `ranking` (rank effect), not directly to `iterating`."
-  - "[ ] `docs/buck-loop.md` review-exit sentence updated if and only if that sentence exists; no other prose churn."
-  - "[ ] No site HTML copy of the state diagram was added (out of scope)."
-completed_at: null
-completed_by: null
+  - "[x] `docs/state-machine-diagram.html` reviewing description reflects the new exit: unfinished iterate artifact goes to `ranking` (rank effect), not directly to `iterating`."
+  - "[x] `docs/buck-loop.md` review-exit sentence updated if and only if that sentence exists; no other prose churn."
+  - "[x] No site HTML copy of the state diagram was added (out of scope)."
+completed_at: 2026-10-05
+completed_by: manual-recovery
 ---
 
 # Phase 4: State Diagram and Doc Sentence
