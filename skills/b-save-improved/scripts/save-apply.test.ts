@@ -8,7 +8,7 @@ import { prepareSaveAttempt, saveSqlFacts } from "../../../extensions/buck-loop/
 import { createLazyPool } from "../../../extensions/sql-memory/db.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
-const LEGACY = "- 2026-05-08 | `b-grill-auto-2026-05-08.md` | domains: [tooling, orchestration] | topics: [grill-auto, rpc, pi-extension] | status: completed\n";
+const LEGACY = "- 2026-05-08 | `example-2026-05-08.md` | domains: [tooling, orchestration] | topics: [example, rpc, pi-extension] | status: completed\n";
 
 function write(root: string, path: string, text: string): void {
   const full = join(root, path);

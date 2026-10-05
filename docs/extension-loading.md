@@ -172,7 +172,7 @@ buck-workflow-pi/
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 
-Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, the b-grill-auto extension command, session state machine, and tmux status) has been removed. The `b-grill-auto` skill remains available. `/b-save` proper remains a pure skill reached through a thin prompt loader — `skills/b-save/SKILL.md` is the canonical procedure and reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler.
+Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, the b-grill-auto extension command and skill, session state machine, and tmux status) has been removed. Auto grilling is `/skill:b-grill --mode auto`. `/b-save` proper remains a pure skill reached through a thin prompt loader — `skills/b-save/SKILL.md` is the canonical procedure and reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler.
 
 
 ## Sub-directory auto-discovery in OMP
@@ -202,7 +202,7 @@ Auto-discovery supplements the explicit `omp` manifest arrays. This package decl
   "extensions": ["+extensions/index.ts"],
   "skills": [
     "+skills/b-blueprint/", "+skills/b-brainstorm/", "+skills/b-build/",
-    "+skills/b-explore/", "+skills/b-grill/", "+skills/b-grill-auto/",
+    "+skills/b-explore/", "+skills/b-grill/",
     "+skills/b-grill-me/", "+skills/b-grill-with-docs/", "+skills/b-iterate/",
     "+skills/b-phase/", "+skills/b-plan/", "+skills/b-present/",
     "+skills/b-research/", "+skills/b-review/", "+skills/crawl4ai/",
