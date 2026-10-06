@@ -68,7 +68,7 @@ function retryExhausted(s: Snapshot): boolean {
 }
 
 function ambiguousChoiceOpen(s: Snapshot): boolean {
-  return postconditionAmbiguous(s) && canRunWork(s) && !retryExhausted(s);
+  return s.state !== "committing" && postconditionAmbiguous(s) && canRunWork(s) && !retryExhausted(s);
 }
 
 function postconditionAmbiguous(s: Snapshot): boolean {
@@ -259,7 +259,10 @@ function reviewBlockReason(s: Snapshot): string | null {
 }
 
 function commitBlockReason(s: Snapshot): string | null {
-  if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
+  if (sessionOk(s) && s.workFacts.postcondition === "ambiguous") {
+    return "commit outcome is ambiguous; inspect the retained checkpoint, HEAD, and working tree before retrying";
+  }
+  if (!postconditionConfirmed(s)) return null;
   if (s.planFacts.kind === "unphased" && !s.planFacts.closeEligible) return unphasedBlockReason(s);
   if (s.planFacts.kind === "missing") return `plan vanished while committing: ${s.planFacts.reason}`;
   if (postconditionConfirmed(s) && s.planFacts.kind === "phased-incomplete" && limitsExceeded(s)) return loopLimitReason(s);
@@ -304,7 +307,7 @@ function workEdges(state: WorkState) {
 const STOP = { name: "aborted", manual: true } as const;
 
 function confirmedOrAmbiguous(s: Snapshot): boolean {
-  return (postconditionConfirmed(s) && canRunWork(s)) || ambiguousChoiceOpen(s);
+  return (postconditionConfirmed(s) && canRunWork(s)) || (s.state !== "committing" && ambiguousChoiceOpen(s));
 }
 
 function reviewRoute(s: Snapshot, predicate: (s: Snapshot) => boolean): boolean {
@@ -453,20 +456,26 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
         ...workEdges("committing"),
         {
           name: "building",
-          guard: (s) => confirmedOrAmbiguous(s) && s.planFacts.kind === "phased-incomplete",
-          effect: () => runSkill("build", "next incomplete phase"),
+          guard: (s) => postconditionConfirmed(s) && canRunWork(s) && s.planFacts.kind === "phased-incomplete",
+          effect: () => runSkill("build", "verified commit; next incomplete phase"),
         },
-        { name: "done", guard: (s) => commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
+        { name: "done", guard: (s) => postconditionConfirmed(s) && commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
       ],
     },
     blocked: {
       targets: [
         {
+          name: "committing",
+          manual: true,
+          guard: (s) => s.commitCheckpoint !== null && s.commitCheckpoint !== undefined,
+          effect: () => none("USER_CONFIRMED: resume the retained commit checkpoint"),
+        },
+        {
           name: "reviewing", manual: true, guard: completedBlockedWork,
           effect: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
         },
         {
-          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s),
+          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s) && !s.commitCheckpoint,
           effect: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
         },
         { ...STOP, effect: () => none("STOP requested by operator from blocked") },
@@ -556,7 +565,7 @@ export function start(): Transition {
 }
 
 export function userConfirmed(s: Snapshot): Transition {
-  const to = completedBlockedWork(s) ? "reviewing" : "resolving";
+  const to = s.commitCheckpoint ? "committing" : completedBlockedWork(s) ? "reviewing" : "resolving";
   if (s.state !== "blocked") throw new IllegalTransitionError(s.state, to, "not-a-target");
   return take(buckMachine.restore(s.state), to, facts(s));
 }

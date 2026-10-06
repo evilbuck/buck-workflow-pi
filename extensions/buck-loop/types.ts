@@ -195,8 +195,17 @@ export interface TransitionRecord {
  * `.context/workflow/buck-loop.json` serializes a subset; artifacts win on
  * disagreement.
  */
+/** Durable identity and Git baseline for one in-flight phase commit. */
+export interface CommitCheckpoint {
+  targetPath: string;
+  /** Full HEAD object id before the commit, or null for verified unborn HEAD. */
+  baseHead: string | null;
+}
+
 export interface Snapshot {
   state: LoopState;
+  /** Retained until a verified commit postcondition advances the phase. */
+  commitCheckpoint?: CommitCheckpoint | null;
   /** Resolved subject folder name, or null before resolution. */
   subject: string | null;
   /** Resolved plan file path, or null before resolution. */

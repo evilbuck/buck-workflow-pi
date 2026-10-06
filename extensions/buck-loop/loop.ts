@@ -23,7 +23,7 @@
  * {@link handleLoop}: `start` / `resume` / `status` / `stop`.
  */
 import type { ContextUsage } from "@mariozechner/pi-coding-agent";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
@@ -105,6 +105,7 @@ const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "iterating",
   "documenting",
   "saving",
+  "committing",
 ]);
 
 /** Public commands the slash-command layer may send. */
@@ -244,27 +245,39 @@ export function statusOf(cwd: string): LoopResult {
   const last = projection.history.at(-1);
   if (projection.state === "blocked") {
     const cause = lastWhy(projection) ?? "reason unavailable";
-    return { state: "blocked", reason: `${cause}. ${recoveryFor(projection, last?.from)}` };
+    return { state: "blocked", reason: `${cause}. ${recoveryFor(cwd, projection, last?.from)}` };
   }
-  if (projection.state === "aborted") return stoppedStatus(projection, last);
+  if (projection.state === "aborted") return stoppedStatus(cwd, projection, last);
+  if (projection.state === "committing") return { state: "committing", reason: recoveryFor(cwd, projection, last?.from) };
   return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
 }
 
-function stoppedStatus(projection: Projection, last: TransitionRecord | undefined): LoopResult {
+function stoppedStatus(cwd: string, projection: Projection, last: TransitionRecord | undefined): LoopResult {
   const stoppedBlock = last?.from === "blocked" ? projection.history.at(-2) : undefined;
   const historical = stoppedBlock?.to === "blocked" ? ` Previous blocker (historical): ${stoppedBlock.why}.` : "";
-  return { state: "aborted", reason: `Run stopped.${historical} ${recoveryFor(projection, stoppedBlock?.from)}` };
+  return { state: "aborted", reason: `Run stopped.${historical} ${recoveryFor(cwd, projection, stoppedBlock?.from ?? last?.from)}` };
 }
 
-function recoveryFor(projection: Projection, from: LoopState | undefined): string {
+function recoveryFor(cwd: string, projection: Projection, from: LoopState | undefined): string {
   const target = projection.phasePath ?? projection.planPath;
-  if (from === "committing") {
-    return `Commit checkpoint interrupted. Check the last commit and staged changes; if the previous phase is not committed, stage only intended changes and run /b-commit. Then run /buck-loop ${target}.`;
+  if (projection.commitCheckpoint || from === "committing" || projection.state === "committing") {
+    return commitRecoveryGuidance(cwd, projection);
   }
   if (projection.state === "blocked") {
     return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
   }
   return `To continue, run /buck-loop ${target}.`;
+}
+
+function commitRecoveryGuidance(cwd: string, projection: Projection): string {
+  const checkpoint = projection.commitCheckpoint;
+  if (!checkpoint) return "Commit identity is missing; manual recovery required. Inspect HEAD and staged changes, complete only the reviewed checkpoint, then explicitly select the next phase; do not blindly resume.";
+  const identity = `Retained commit checkpoint ${checkpoint.targetPath}, baseline ${checkpoint.baseHead ?? "unborn"}.`;
+  if (resume({ projectRoot: cwd }).planFacts.kind === "missing") return `${identity} Inconsistent ownership; manual recovery required.`;
+  if (projection.state === "aborted") return `${identity} An aborted run will not continue this checkpoint. Inspect HEAD and staged changes, verify or complete the retained commit manually, then explicitly start the next phase; do not start a new run before resolving this checkpoint.`;
+  const proof = commitProof(cwd, checkpoint);
+  if (proof === "unsafe") return `${identity} Git history, dirt, or proof is unsafe; inspect manually before resuming. No new commit is authorized.`;
+  return `${identity} ${proof === "verified" ? "Existing commit verified; resume will not repeat it." : "Checkpoint is still uncommitted."} Run /buck-loop --resume for this same checkpoint.`;
 }
 
 /** Mark the saved run aborted. No saved file → no-op idle. */
@@ -276,6 +289,8 @@ function stopRun(cwd: string, now: () => string): LoopResult {
   const snapshot = resume({ projectRoot: cwd });
   persist(cwd, withTransition({
     ...snapshot,
+    state: projection.state,
+    history: projection.history,
     subject: snapshot.subject ?? projection.subject,
     planPath: snapshot.planPath ?? projection.planPath,
     phasePath: snapshot.phasePath ?? projection.phasePath,
@@ -331,6 +346,10 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   const checked = await checkedResume(cwd, snapshot, deps.now(), deps.onActivity);
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
+  if (snapshot.state === "committing" && snapshot.commitCheckpoint && verifiedCommit(cwd, snapshot.commitCheckpoint)) {
+    const target = snapshot.commitCheckpoint.targetPath;
+    snapshot = rescan(cwd, snapshot, target, { sessionOutcome: "ok", retriesUsed: 0 });
+  }
   const path = resumePath(snapshot, projection.subject);
   return drive(cwd, snapshot, path, deps);
 }
@@ -383,10 +402,11 @@ function idleOrUnreadableProjection(cwd: string): LoopResult {
     return { state: "blocked", reason: "unreadable projection" };
   }
   return { state: "idle", reason: "no projection to resume" };
-}
 
+}
 function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
-  if (projection.state !== "blocked" || snapshot.state !== "blocked") return snapshot;
+  if (snapshot.state !== "blocked") return snapshot;
+  if (legacyCommitRecovery(projection)) return snapshot;
   if (
     snapshot.planFacts.kind === "missing" ||
     snapshot.planPath !== projection.planPath ||
@@ -399,6 +419,11 @@ function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Sna
   const confirmed = withTransition(snapshot, userConfirmed(snapshot), at);
   persistIfPossible(cwd, confirmed);
   return confirmed;
+}
+
+function legacyCommitRecovery(projection: Projection): boolean {
+  if (projection.commitCheckpoint) return false;
+  return projection.state === "committing" || projection.history.at(-1)?.from === "committing";
 }
 
 
@@ -415,7 +440,8 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     const stopped = haltIfTerminal(cwd, snapshot);
     if (stopped) return stopped;
     const wasSaving = snapshot.state === "saving";
-    const step = takeStep(snapshot, lastFail, deps.now());
+    let step = takeStep(snapshot, lastFail, deps.now());
+    step = prepareCommitTransition(cwd, snapshot, step, deps.now());
     snapshot = step.snapshot;
     const preparationFailure = persistSaveTransition(cwd, snapshot, step.transition, wasSaving);
     if (preparationFailure) return preparationFailure;
@@ -443,6 +469,28 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
   return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
 }
 
+type SupervisorStep = { snapshot: Snapshot; transition: Transition; halt: LoopResult | null };
+
+function prepareCommitTransition(cwd: string, previous: Snapshot, step: SupervisorStep, at: string): SupervisorStep {
+  if (verifiedCommitAdvance(previous, step.transition)) {
+    const scanned = scan({ projectRoot: cwd, path: previous.planPath!, state: step.transition.to });
+    return { ...step, snapshot: { ...step.snapshot, phasePath: scanned.phasePath, commitCheckpoint: null } };
+  }
+  if (step.transition.to !== "committing" || step.snapshot.commitCheckpoint) return step;
+  const targetPath = step.snapshot.phasePath ?? step.snapshot.planPath;
+  const baseHead = previous.state !== "committing" && targetPath ? checkpointHead(cwd) : undefined;
+  if (targetPath && baseHead !== undefined) {
+    return { ...step, snapshot: { ...step.snapshot, commitCheckpoint: { targetPath, baseHead } } };
+  }
+  const reason = "cannot establish a safe commit checkpoint target or Git baseline; manual recovery required";
+  return { ...step, snapshot: block(step.snapshot, reason, at), halt: { state: "blocked", reason } };
+}
+
+function verifiedCommitAdvance(previous: Snapshot, transition: Transition): boolean {
+  return previous.state === "committing" && previous.workFacts.postcondition === "confirmed" &&
+    (transition.to === "building" || transition.to === "done");
+}
+
 async function handleEffectHalt(cwd: string, snapshot: Snapshot, ran: EffectResult, deps: LoopDeps): Promise<{ snapshot: Snapshot; result: LoopResult | null }> {
   if (ran.mandatoryStop) return { snapshot, result: ran.halt };
   const recovered = await recoverBlocked(cwd, snapshot, ran.halt!, deps);
@@ -468,7 +516,7 @@ function takeStep(
   snapshot: Snapshot,
   lastFail: string | null,
   at: string,
-): { snapshot: Snapshot; transition: Transition; halt: LoopResult | null } {
+): SupervisorStep {
   let transition: Transition;
   try {
     transition = next(snapshot);
@@ -826,7 +874,14 @@ async function continueChoice(
   deps: LoopDeps,
   handoff?: string,
 ): Promise<EffectResult> {
-  const nextSnapshot = withTransition(snapshot, transition, deps.now());
+  const prepared = prepareCommitTransition(cwd, snapshot, {
+    snapshot: withTransition(snapshot, transition, deps.now()), transition, halt: null,
+  }, deps.now());
+  const nextSnapshot = prepared.snapshot;
+  if (prepared.halt) {
+    persistIfPossible(cwd, nextSnapshot);
+    return { snapshot: nextSnapshot, lastFail: prepared.halt.reason, halt: prepared.halt };
+  }
   deps.onSnapshot?.(nextSnapshot);
   const savePreparation = prepareProjectedSave(cwd, transition, nextSnapshot, snapshot.state === "saving");
   if (savePreparation) {
@@ -1008,7 +1063,9 @@ async function runNestedSkill(
   directive?: string,
 ): Promise<RunStepResult> {
   try {
-    if (skill === "commit") prepareCommitCheckpoint(cwd, planOrPhasePath);
+    if (skill === "commit") {
+      if (prepareCommitEffect(cwd, snapshot, planOrPhasePath)) return { ok: true, text: "existing commit checkpoint verified" };
+    }
     const difficulty = difficultyLabel(cwd, snapshot);
     const memoryContext = skill === "commit" ? null : await recallProjectMemories(cwd, planOrPhasePath);
     if (memoryContext?.kind === "failure") {
@@ -1039,6 +1096,16 @@ async function runNestedSkill(
       failure: { prompt: null, agent: null, error: serializeCallError(error) },
     };
   }
+}
+
+function prepareCommitEffect(cwd: string, snapshot: Snapshot, targetPath: string): boolean {
+  const checkpoint = snapshot.commitCheckpoint;
+  if (!checkpoint || checkpoint.targetPath !== targetPath) throw new Error("missing or mismatched commit checkpoint; refusing to select a new target");
+  const proof = commitProof(cwd, checkpoint);
+  if (proof === "verified") return true;
+  if (proof !== "pending") throw new Error("commit checkpoint history, dirt, or Git probe is unsafe; inspect before resuming");
+  prepareCommitCheckpoint(cwd, checkpoint.targetPath);
+  return false;
 }
 
 function reportSkillFailure(
@@ -1181,6 +1248,42 @@ function gitOutput(cwd: string, ...args: string[]): string {
   } catch {
     return "";
   }
+}
+function strictGit(cwd: string, ...args: string[]): string {
+  return execFileSync("git", ["-C", cwd, ...args], {
+    encoding: "utf8", timeout: 10_000, stdio: ["pipe", "pipe", "pipe"],
+  }).trim();
+}
+
+function checkpointHead(cwd: string): string | null | undefined {
+  try {
+    const head = spawnSync("git", ["-C", cwd, "rev-parse", "--verify", "HEAD^{commit}"], { encoding: "utf8", timeout: 10_000 });
+    if (head.status === 0) return head.stdout.trim();
+    const branch = strictGit(cwd, "symbolic-ref", "HEAD");
+    const ref = spawnSync("git", ["-C", cwd, "show-ref", "--verify", "--quiet", branch], { timeout: 10_000 });
+    // Only a positively absent symbolic HEAD ref establishes an unborn baseline.
+    if (head.error || ref.error || ref.status !== 1) return undefined;
+    strictGit(cwd, "status", "--porcelain");
+    return null;
+  } catch { return undefined; }
+}
+
+function commitProof(cwd: string, checkpoint: NonNullable<Snapshot["commitCheckpoint"]>): "pending" | "verified" | "unsafe" {
+  try {
+    const status = strictGit(cwd, "status", "--porcelain");
+    const head = checkpointHead(cwd);
+    if (head === undefined) return "unsafe";
+    if (checkpoint.baseHead !== null) strictGit(cwd, "cat-file", "-e", `${checkpoint.baseHead}^{commit}`);
+    if (head === checkpoint.baseHead) return "pending";
+    if (!head) return "unsafe";
+    const parents = strictGit(cwd, "rev-list", "--parents", "-n", "1", head).split(/\s+/);
+    const direct = checkpoint.baseHead === null ? parents.length === 1 : parents.length === 2 && parents[1] === checkpoint.baseHead;
+    return direct && status === "" ? "verified" : "unsafe";
+  } catch { return "unsafe"; }
+}
+
+function verifiedCommit(cwd: string, checkpoint: NonNullable<Snapshot["commitCheckpoint"]>): boolean {
+  return commitProof(cwd, checkpoint) === "verified";
 }
 
 function gitLine(cwd: string, ...args: string[]): string {
@@ -1373,9 +1476,12 @@ function rescan(
   cwd: string,
   snapshot: Snapshot,
   path: string,
-  work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number; sqlSaveVerified?: boolean },
+  work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number; sqlSaveVerified?: boolean; commitVerified?: boolean },
 ): Snapshot {
   const scanPath = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const commitVerified = snapshot.state === "committing" && snapshot.commitCheckpoint
+    ? verifiedCommit(cwd, snapshot.commitCheckpoint)
+    : false;
   const scanned = scan({
     projectRoot: cwd,
     path: scanPath,
@@ -1383,8 +1489,9 @@ function rescan(
     sessionOutcome: work.sessionOutcome,
     retriesUsed: work.retriesUsed,
     ...(work.sqlSaveVerified ? { sqlSaveVerified: true } : {}),
+    commitVerified,
   });
-  const phasePath = FROZEN_PHASE.has(snapshot.state) ? snapshot.phasePath ?? scanned.phasePath : scanned.phasePath;
+  const phasePath = retainedPhase(snapshot, scanned.phasePath);
   return {
     ...snapshot,
     subject: scanned.subject,
@@ -1395,6 +1502,11 @@ function rescan(
     reviewFacts: scanned.reviewFacts,
     iterateCyclesOnPhase: phasePath === snapshot.phasePath ? snapshot.iterateCyclesOnPhase : 0,
   };
+}
+
+function retainedPhase(snapshot: Snapshot, scannedPhase: string | null): string | null {
+  if (snapshot.commitCheckpoint) return snapshot.phasePath;
+  return FROZEN_PHASE.has(snapshot.state) ? snapshot.phasePath ?? scannedPhase : scannedPhase;
 }
 
 /** Map a machine skill to the nested skill name, including build-hard and howto-only docs. */
@@ -1465,6 +1577,7 @@ function persist(cwd: string, snapshot: Snapshot): void {
     planPath: snapshot.planPath,
     phasePath: snapshot.phasePath,
     saveAttemptId: snapshot.saveAttemptId ?? null,
+    commitCheckpoint: snapshot.commitCheckpoint ?? null,
     loopCount: snapshot.loopCount,
     iterateCyclesOnPhase: snapshot.iterateCyclesOnPhase,
     maxLoops: snapshot.maxLoops,

@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair } from "../loop.js";
+import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair, type LoopDeps } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 const judge = vi.mocked(runJev);
@@ -74,21 +74,9 @@ function stampDifficulty(cwd: string, n: number, value: string): void {
   writeFileSync(abs, readFileSync(abs, "utf8").replace(/^---\n/, `---\ndifficulty: ${value}\n`));
 }
 function workDeps(
-  runStep: (opts: {
-    cwd: string;
-    skill: NestedSkill;
-    planOrPhasePath: string;
-    difficulty?: string;
-    onActivity?: (event: ActivityEvent) => void;
-  }) => Promise<RunStepResult>,
-  choose: (opts: {
-    cwd: string;
-    subject: string;
-    legal: readonly Choice[];
-    context?: string;
-    onActivity?: (event: ActivityEvent) => void;
-  }) => Promise<ChooseResult> = async () => ({ status: "blocked", reason: "choose not expected" }),
-  classifyRepair: (_input: { cwd: string; sessionText: string }) => Promise<{ lift: "light" | "medium" | "heavy"; reason: string; diagnosis: string }> = async () => ({
+  runStep: LoopDeps["runStep"],
+  choose: LoopDeps["choose"] = async () => ({ status: "blocked", reason: "choose not expected" }),
+  classifyRepair: LoopDeps["classifyRepair"] = async () => ({
     lift: "heavy",
     reason: "test default: heavy lift",
     diagnosis: "test diagnosis",
@@ -1432,6 +1420,7 @@ describe("resume", () => {
       ".context/workflow/buck-loop.json": JSON.stringify({
         version: 1, state: "committing", subject: SUBJECT, planPath: PLAN,
         saveAttemptId: first.attemptId, phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+        commitCheckpoint: { targetPath: `.context/${SUBJECT}/phase-1-p1.md`, baseHead: null },
         loopCount: 4, iterateCyclesOnPhase: 0, maxLoops: 12, lastChoice: null, history: [],
       }),
     });
@@ -2094,3 +2083,253 @@ describe("prepareCommitCheckpoint phase-scope staging", () => {
   });
 });
 
+describe("commit checkpoint identity recovery", () => {
+  const FIRST = `.context/${SUBJECT}/phase-1-p1.md`;
+  const SECOND = `.context/${SUBJECT}/phase-2-p2.md`;
+
+  function checkpointFixture(state: "committing" | "blocked" = "blocked") {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "baseline"]);
+    const baseHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    mutatePhase(cwd, FIRST, "completed");
+    writeProjection(cwd, {
+      version: 1, state, subject: SUBJECT, planPath: PLAN, phasePath: FIRST,
+      commitCheckpoint: { targetPath: FIRST, baseHead },
+      loopCount: 1, maxLoops: 12, iterateCyclesOnPhase: 0, lastChoice: null,
+      history: [{ from: "saving", to: "committing", at: NOW, why: "saved" },
+        ...(state === "blocked" ? [{ from: "committing" as const, to: "blocked" as const, at: NOW, why: "failed" }] : [])],
+    });
+    git(cwd, ["add", ".context"]);
+    return { cwd, baseHead };
+  }
+
+  it.each(["committing", "blocked"] as const)("resumes %s at the retained checkpoint before any phase 2 work", async (state) => {
+    const { cwd, baseHead } = checkpointFixture(state);
+    const calls: string[] = [];
+    const deps = workDeps(async (opts) => {
+      calls.push(`${opts.skill}:${opts.planOrPhasePath}`);
+      if (opts.skill === "b-commit") {
+        expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+        git(cwd, ["commit", "-qm", "phase one"]);
+        return { ok: true, text: "committed" };
+      }
+      return { ok: false, text: "stop at phase two" };
+    });
+    await handleLoop({ cwd, command: "resume", deps });
+    expect(calls[0]).toBe(`b-commit:${FIRST}`);
+    expect(calls[1]).toBe(`b-build:${SECOND}`);
+    expect(calls.filter((call) => call.startsWith("b-commit"))).toEqual([`b-commit:${FIRST}`]);
+    expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+  });
+
+  it("recognizes a crash-completed checkpoint without a duplicate commit child", async () => {
+    const { cwd } = checkpointFixture("committing");
+    git(cwd, ["commit", "-qm", "phase one"]);
+    const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    const deps = workDeps(async () => ({ ok: false, text: "stop next build" }));
+    await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep.mock.calls[0][0].planOrPhasePath).toBe(SECOND);
+    expect(deps.runStep.mock.calls.every(([opts]) => opts.skill !== "b-commit")).toBe(true);
+    expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim()).toBe(head);
+  });
+
+  it.each(["dirty", "diverged"] as const)("holds %s advanced HEAD without another commit effect", async (scenario) => {
+    const { cwd, baseHead } = checkpointFixture();
+    git(cwd, ["commit", "-qm", "phase one"]);
+    writeTree(cwd, { ".context/late.md": "late" });
+    if (scenario === "diverged") {
+      git(cwd, ["add", ".context/late.md"]);
+      git(cwd, ["commit", "-qm", "second commit"]);
+    }
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+    expect(readProjection(cwd)?.phasePath).toBe(FIRST);
+    if (scenario === "dirty") {
+      rmSync(join(cwd, ".context/late.md"));
+      await handleLoop({ cwd, command: "resume", deps });
+      expect(deps.runStep.mock.calls[0][0].planOrPhasePath).toBe(SECOND);
+      expect(deps.runStep.mock.calls.every(([opts]) => opts.skill !== "b-commit")).toBe(true);
+    }
+  });
+
+  it.each(["committing", "blocked"] as const)("holds legacy %s without inventing a checkpoint", async (state) => {
+    const { cwd } = checkpointFixture(state);
+    writeProjection(cwd, { ...readProjection(cwd)!, commitCheckpoint: null });
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toContain("manual recovery");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+  });
+
+  it.each(["failure", "no commit"] as const)("retains immutable identity after child %s through its bounded retry", async (scenario) => {
+    const { cwd, baseHead } = checkpointFixture();
+    const deps = workDeps(async () => ({ ok: scenario === "no commit", text: scenario }),
+      async ({ legal }) => {
+        const retry = legal.find((choice) => choice.kind === "retry");
+        return retry ? { status: "accepted", accepted: { choice: retry, reason: "retry once" } } : { status: "blocked", reason: "no advance" };
+      });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(result.state).toBe("blocked");
+    expect(deps.runStep.mock.calls.every(([opts]) => opts.planOrPhasePath === FIRST && opts.skill === "b-commit")).toBe(true);
+    expect(deps.runStep.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+    expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim()).toBe(baseHead);
+  });
+
+  it("never invokes a second child when a failed child already committed and left dirt", async () => {
+    const { cwd, baseHead } = checkpointFixture();
+    const deps = workDeps(async () => {
+      git(cwd, ["commit", "-qm", "phase one"]);
+      writeTree(cwd, { ".context/late.md": "late" });
+      return { ok: false, text: "failure after commit" };
+    });
+    expect((await handleLoop({ cwd, command: "resume", deps })).state).toBe("blocked");
+    expect(deps.runStep).toHaveBeenCalledTimes(1);
+    expect(execFileSync("git", ["rev-list", "--count", `${baseHead}..HEAD`], { cwd, encoding: "utf8" }).trim()).toBe("1");
+    expect(readProjection(cwd)?.phasePath).toBe(FIRST);
+  });
+
+  it("preserves target and unrelated bytes/index through initial guard refusal", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "baseline"]);
+    const baseHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    const land = landingWork();
+    const targets: string[] = [];
+    const deps = workDeps(async (opts) => {
+      const result = await land(opts);
+      if (opts.skill === "b-save") writeTree(cwd, { "unrelated.txt": "preserve me" });
+      return result;
+    });
+    expect((await handleLoop({ cwd, command: "start", path: PLAN, deps: {
+      ...deps,
+      onSnapshot: (snapshot) => {
+        if (snapshot.state === "committing") targets.push(snapshot.phasePath!);
+      },
+    } })).state).toBe("blocked");
+    expect(targets.every((target) => target === FIRST)).toBe(true);
+    expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+    expect(deps.runStep.mock.calls.some(([opts]) => opts.planOrPhasePath === SECOND)).toBe(false);
+    expect(readFileSync(join(cwd, "unrelated.txt"), "utf8")).toBe("preserve me");
+    expect(execFileSync("git", ["diff", "--cached", "--name-only"], { cwd, encoding: "utf8" })).not.toContain("unrelated.txt");
+  });
+
+  it.skipIf(!process.env.SQL_MEMORY_TEST_URL).each(["valid", "stale"] as const)("binds marker-backed recovery to a %s SQL receipt", async (kind) => {
+    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
+    const { cwd, baseHead } = checkpointFixture();
+    const attempt = prepareSaveAttempt(cwd, SUBJECT, true, FIRST);
+    if ("error" in attempt) throw new Error(attempt.error);
+    writeReceipt(cwd, attempt, { kind: "no-fact", ids: [] });
+    completeSaveAttempt(cwd, attempt);
+    writeProjection(cwd, { ...readProjection(cwd)!, saveAttemptId: kind === "valid" ? attempt.attemptId : crypto.randomUUID() });
+    git(cwd, ["add", ".context"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-commit") {
+        expect(opts.planOrPhasePath).toBe(FIRST);
+        git(cwd, ["commit", "-qm", "SQL checkpoint"]);
+        return { ok: true, text: "committed" };
+      }
+      return { ok: false, text: "stop at phase two" };
+    });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    if (kind === "stale") {
+      expect(result.state).toBe("blocked");
+      expect(result.reason).toContain("does not match");
+      expect(deps.runStep).not.toHaveBeenCalled();
+      expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+    } else {
+      expect(deps.runStep.mock.calls[0][0].skill).toBe("b-commit");
+      expect(deps.runStep.mock.calls.filter(([opts]) => opts.skill === "b-commit")).toHaveLength(1);
+      expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+    }
+  });
+
+  it.each(["lost target", "invalid hash", "unknown base", "broken HEAD", "conflicting target"] as const)("holds %s without launching a worker", async (problem) => {
+    const { cwd } = checkpointFixture();
+    const saved = readProjection(cwd)!;
+    if (problem === "lost target") rmSync(join(cwd, FIRST));
+    if (problem === "invalid hash") writeProjection(cwd, { ...saved, commitCheckpoint: { targetPath: FIRST, baseHead: "a".repeat(41) } });
+    if (problem === "unknown base") writeProjection(cwd, { ...saved, commitCheckpoint: { targetPath: FIRST, baseHead: "a".repeat(40) } });
+    if (problem === "broken HEAD") writeFileSync(join(cwd, ".git/HEAD"), "invalid HEAD\n");
+    if (problem === "conflicting target") writeProjection(cwd, { ...saved, commitCheckpoint: { targetPath: SECOND, baseHead: saved.commitCheckpoint!.baseHead } });
+    const deps = workDeps(async () => ({ ok: false, text: "unexpected" }));
+    expect((await handleLoop({ cwd, command: "resume", deps })).state).toBe("blocked");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    if (problem !== "invalid hash" && problem !== "conflicting target") expect(readProjection(cwd)?.phasePath).toBe(FIRST);
+  });
+
+  it("reports pending, verified, and unsafe Git evidence with the retained target", async () => {
+    const { cwd, baseHead } = checkpointFixture();
+    const pending = await handleLoop({ cwd, command: "status" });
+    expect(pending.reason).toContain(FIRST);
+    expect(pending.reason).toContain(baseHead);
+    git(cwd, ["commit", "-qm", "phase one"]);
+    expect((await handleLoop({ cwd, command: "status" })).reason).toContain("Existing commit verified");
+    writeTree(cwd, { ".context/late.md": "late" });
+    expect((await handleLoop({ cwd, command: "status" })).reason).toContain("No new commit is authorized");
+  });
+
+  it("advances only after each real commit and finishes with one commit per phase", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "baseline"]);
+    const baseHead = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    const land = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" && opts.planOrPhasePath === SECOND) {
+        expect(execFileSync("git", ["rev-list", "--count", `${baseHead}..HEAD`], { cwd, encoding: "utf8" }).trim()).toBe("1");
+      }
+      return land(opts);
+    });
+    expect((await handleLoop({ cwd, command: "start", path: PLAN, deps })).state).toBe("done");
+    expect(deps.runStep.mock.calls.filter(([opts]) => opts.skill === "b-commit").map(([opts]) => opts.planOrPhasePath)).toEqual([FIRST, SECOND]);
+    expect(execFileSync("git", ["rev-list", "--count", `${baseHead}..HEAD`], { cwd, encoding: "utf8" }).trim()).toBe("2");
+    expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+  });
+
+  it("holds the literal legacy phase-two drift and permits only explicit manual recovery", async () => {
+    const { cwd, baseHead } = checkpointFixture();
+    writeProjection(cwd, { ...readProjection(cwd)!, phasePath: SECOND, commitCheckpoint: null });
+    const deps = workDeps(landingWork());
+    expect((await handleLoop({ cwd, command: "resume", deps })).state).toBe("blocked");
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(readProjection(cwd)?.phasePath).toBe(SECOND);
+    await handleLoop({ cwd, command: "stop" });
+    git(cwd, ["commit", "-qm", "manual reviewed phase one"]);
+    expect((await handleLoop({ cwd, command: "start", path: SECOND, deps })).state).toBe("done");
+    expect(deps.runStep.mock.calls[0][0].planOrPhasePath).toBe(SECOND);
+    expect(execFileSync("git", ["rev-list", "--count", `${baseHead}..HEAD`], { cwd, encoding: "utf8" }).trim()).toBe("2");
+  });
+
+  it.each(["committing", "blocked"] as const)("stops %s with manual checkpoint recovery before replacing the run", async (state) => {
+    const { cwd, baseHead } = checkpointFixture(state);
+    const stopped = await handleLoop({ cwd, command: "stop" });
+    expect(stopped.state).toBe("aborted");
+    expect(stopped.reason).toContain(FIRST);
+    expect(stopped.reason).toContain(baseHead);
+    expect(stopped.reason).toContain("complete the retained commit manually");
+    expect(stopped.reason).not.toContain("/buck-loop --resume");
+    expect(stopped.reason).not.toContain(`/buck-loop ${FIRST}`);
+    expect(readProjection(cwd)?.commitCheckpoint).toEqual({ targetPath: FIRST, baseHead });
+    expect(readProjection(cwd)?.phasePath).toBe(FIRST);
+    const deps = workDeps(landingWork());
+    expect(await handleLoop({ cwd, command: "status" })).toEqual(stopped);
+    expect(await handleLoop({ cwd, command: "resume", deps })).toEqual(stopped);
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim()).toBe(baseHead);
+    git(cwd, ["commit", "-qm", "resolve pending checkpoint before rollback"]);
+    expect(execFileSync("git", ["rev-parse", "HEAD^"], { cwd, encoding: "utf8" }).trim()).toBe(baseHead);
+    expect((await handleLoop({ cwd, command: "start", path: SECOND, deps })).state).toBe("done");
+    expect(deps.runStep.mock.calls.every(([opts]) => opts.planOrPhasePath === SECOND)).toBe(true);
+    expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+  });
+});

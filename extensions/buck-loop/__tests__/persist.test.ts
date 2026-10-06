@@ -38,6 +38,8 @@ function projection(overrides: Partial<Projection> = {}): Projection {
     subject: SUBJECT,
     planPath: `.context/${SUBJECT}/plan-demo.md`,
     phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+    saveAttemptId: null,
+    commitCheckpoint: null,
     loopCount: 3,
     iterateCyclesOnPhase: 1,
     maxLoops: 12,

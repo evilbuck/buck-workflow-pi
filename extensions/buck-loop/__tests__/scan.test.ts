@@ -858,7 +858,7 @@ depends_on: []
     }
   });
 
-  it("confirms a committing session when the working tree is clean", () => {
+  it("does not confirm a committing session from a clean tree alone", () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     git(root, ["add", "-A"]);
@@ -869,7 +869,7 @@ depends_on: []
       state: "committing",
       sessionOutcome: "ok",
     });
-    expect(result.workFacts.postcondition).toBe("confirmed");
+    expect(result.workFacts.postcondition).toBe("ambiguous");
   });
   
   it("does not confirm a commit when git status cannot be observed", () => {
@@ -900,6 +900,38 @@ depends_on: []
 });
 
 describe("scan: contract", () => {
+  it("requires explicit verified Git evidence before confirming a commit", () => {
+    const root = repo();
+    phased(root, [
+      { n: 1, status: "completed" },
+      { n: 2, status: "pending" },
+    ]);
+    git(root, ["add", "-A"]);
+    git(root, ["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base"]);
+    phased(root, [
+      { n: 1, status: "completed" },
+      { n: 2, status: "pending" },
+    ]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    const ordinary = scan({
+      projectRoot: root,
+      path: phase,
+      state: "committing",
+      sessionOutcome: "ok",
+      retriesUsed: 0,
+    });
+    expect(ordinary.workFacts.postcondition).toBe("ambiguous");
+
+    const verified = scan({
+      projectRoot: root,
+      path: phase,
+      state: "committing",
+      sessionOutcome: "ok",
+      retriesUsed: 0,
+      commitVerified: true,
+    });
+    expect(verified.workFacts.postcondition).toBe("confirmed");
+  });
   it("does not import b-flow or xstate", () => {
     const src = readFileSync(new URL("../scan.ts", import.meta.url), "utf8");
     expect(src).not.toMatch(/from ["'][^"']*b-flow/);

@@ -10,12 +10,12 @@
  * The projection is gitignored via `.git/info/exclude` so it is never
  * committed. No XState snapshot lives here.
  */
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
-import type { AcceptedChoice, Choice, LoopState, Snapshot, TransitionRecord } from "./types.js";
+import type { AcceptedChoice, Choice, CommitCheckpoint, LoopState, Snapshot, TransitionRecord } from "./types.js";
 import { unphasedBlockReason } from "./machine.js";
 
 export const PROJECTION_RELPATH = ".context/workflow/buck-loop.json";
@@ -54,6 +54,7 @@ export type Projection = {
   planPath: string;
   phasePath: string | null;
   saveAttemptId?: string | null;
+  commitCheckpoint?: Snapshot["commitCheckpoint"];
   loopCount: number;
   iterateCyclesOnPhase: number;
   maxLoops: number;
@@ -159,20 +160,66 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
   }
   const scanned = scan({
     projectRoot: root,
-    path: pathOverride ?? resumePath(root, projection),
+    path: projection.commitCheckpoint?.targetPath ?? pathOverride ?? resumePath(root, projection),
     state: projection.state,
   });
-  const closeoutHold = reconcileCloseout(projection, scanned);
-  if (closeoutHold) return closeoutHold;
-  const kept = keepCompletedProjectedPhase(root, projection, scanned);
-  if (kept) return kept;
-  const iterateCyclesOnPhase =
-    scanned.phasePath === projection.phasePath ? projection.iterateCyclesOnPhase : 0;
+  return reconcileCheckpointOrArtifacts(root, projection, scanned);
+}
+
+function reconcileCheckpointOrArtifacts(root: string, projection: Projection, scanned: ScanResult): Snapshot {
+  return reconcileCommit(root, projection, scanned) ??
+    reconcileCloseout(projection, scanned) ??
+    keepCompletedProjectedPhase(root, projection, scanned) ??
+    reconcileScanned(projection, scanned);
+}
+
+function reconcileScanned(projection: Projection, scanned: ScanResult): Snapshot {
   return fromScan(scanned, {
     state: staleBuildingComplete(projection, scanned) ? "done" : projection.state,
     ...counters(projection),
-    iterateCyclesOnPhase,
+    iterateCyclesOnPhase: scanned.phasePath === projection.phasePath ? projection.iterateCyclesOnPhase : 0,
   });
+}
+
+function interruptedCommit(projection: Projection): boolean {
+  return projection.state === "committing" ||
+    (projection.state === "blocked" && projection.history.at(-1)?.from === "committing");
+}
+
+function reconcileCommit(root: string, projection: Projection, scanned: ScanResult): Snapshot | null {
+  if (!needsCommitRecovery(projection)) return null;
+  const owned = projection.commitCheckpoint ? checkpointOwned(root, projection, scanned) : false;
+  const why = owned ? "interrupted commit checkpoint; explicit resume required" : "missing or inconsistent commit checkpoint; manual recovery required";
+  return fromScan(scanned, {
+    ...counters(projection),
+    subject: projection.subject,
+    planPath: projection.planPath,
+    phasePath: projection.phasePath,
+    state: "blocked",
+    planFacts: owned ? scanned.planFacts : { kind: "missing", reason: why },
+    history: [...projection.history, { from: "committing", to: "blocked", at: projection.history.at(-1)?.at ?? new Date().toISOString(), why }],
+  });
+}
+
+function needsCommitRecovery(projection: Projection): boolean {
+  if (projection.commitCheckpoint) return true;
+  return !isUnphasedCloseoutProjection(projection) && interruptedCommit(projection);
+}
+
+function checkpointOwned(root: string, projection: Projection, scanned: ScanResult): boolean {
+  const checkpoint = projection.commitCheckpoint!;
+  const prefix = `.context/${projection.subject}/`;
+  const paths = [projection.planPath, checkpoint.targetPath];
+  const canonical = paths.every((path) => path.startsWith(prefix) && path === join(".context", projection.subject, path.slice(prefix.length)) && !path.slice(prefix.length).includes("/"));
+  return canonical && canonicalDiskPaths(root, paths) &&
+    scanned.subject === projection.subject && scanned.planPath === projection.planPath;
+}
+
+function canonicalDiskPaths(root: string, paths: string[]): boolean {
+  try {
+    const realRoot = realpathSync(root);
+    return paths.every((path) => realpathSync(resolve(root, path)) === resolve(realRoot, path));
+  } catch { return false; }
 }
 
 /** Only terminal closeout attempts bypass ordinary blocked-work recovery. */
@@ -233,7 +280,7 @@ function resumePath(root: string, projection: Projection): string {
 
 function counters(projection: Projection): Pick<
   Snapshot,
-  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId"
+  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId" | "commitCheckpoint"
 > {
   return {
     loopCount: projection.loopCount,
@@ -242,6 +289,7 @@ function counters(projection: Projection): Pick<
     lastChoice: projection.lastChoice,
     history: projection.history,
     saveAttemptId: projection.saveAttemptId ?? null,
+    commitCheckpoint: projection.commitCheckpoint ?? null,
   };
 }
 
@@ -283,7 +331,6 @@ function blankSnapshot(state: LoopState): Snapshot {
     history: [],
   };
 }
-
 function normalizeProjection(raw: unknown): Projection | null {
   const o = asObject(raw);
   if (!o || o.version !== PROJECTION_VERSION) return null;
@@ -291,9 +338,40 @@ function normalizeProjection(raw: unknown): Projection | null {
   const counts = countFields(o);
   const lastChoice = asLastChoice(o.lastChoice);
   const history = asHistory(o.history);
-  if (!identity || !counts || lastChoice === undefined || history === null) return null;
-  if (o.saveAttemptId !== undefined && o.saveAttemptId !== null && typeof o.saveAttemptId !== "string") return null;
-  return { version: PROJECTION_VERSION, ...identity, ...counts, lastChoice, history, saveAttemptId: o.saveAttemptId as string | null | undefined };
+  const checkpoint = asCommitCheckpoint(o.commitCheckpoint, identity);
+  if (!identity || !counts || lastChoice === undefined || history === null || checkpoint === undefined) return null;
+  if (!validSaveAttemptId(o.saveAttemptId)) return null;
+  return {
+    version: PROJECTION_VERSION,
+    ...identity,
+    ...counts,
+    lastChoice,
+    history,
+    saveAttemptId: o.saveAttemptId as string | null | undefined,
+    commitCheckpoint: checkpoint,
+  };
+}
+
+function validSaveAttemptId(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function asCommitCheckpoint(raw: unknown, identity: {
+  state: LoopState;
+  subject: string;
+  planPath: string;
+  phasePath: string | null;
+} | null): CommitCheckpoint | null | undefined {
+  if (raw === undefined || raw === null) return null;
+  const value = asObject(raw);
+  if (!value || !identity || typeof value.targetPath !== "string") return undefined;
+  if (value.targetPath !== (identity.phasePath ?? identity.planPath)) return undefined;
+  if (!validCommitHead(value.baseHead)) return undefined;
+  return { targetPath: value.targetPath, baseHead: value.baseHead as string | null };
+}
+
+function validCommitHead(value: unknown): boolean {
+  return value === null || (typeof value === "string" && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(value));
 }
 
 function identityFields(o: Record<string, unknown>): {
