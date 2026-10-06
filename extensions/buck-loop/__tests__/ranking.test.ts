@@ -126,12 +126,84 @@ describe("parseIterateArtifacts", () => {
     });
   });
 
-  it.each(["### 1.\n- **Problem**: Defect.", "### 1. Title\n", "### 1. Title\n- **Problem**:   "])(
-    "rejects a finding missing a title or non-empty Problem: %s",
-    (body) => {
-      expect(parseIterateArtifacts([{ path: "iterate-demo.md", text: `## Critical Issues\n${body}\n` }]).kind).toBe("scan-defect");
-    },
-  );
+  it("accepts **Label:** format (colon inside bold)", () => {
+    const text = `## Critical Issues
+### 1. Drifted format
+- **Files:** \`src/a.ts:10-20\`, \`src/b.ts\`
+- **Problem:** Colon inside bold.
+- **Proposed fix:** Fix it.
+`;
+    expect(parseIterateArtifacts([{ path: "iterate-demo.md", text }])).toEqual({
+      kind: "issues",
+      issues: [{ id: "critical:1", severity: "critical", title: "Drifted format", file: "src/a.ts", problem: "Colon inside bold.", fix: "Fix it." }],
+    });
+  });
+
+  it("extracts first path from multi-path Files field", () => {
+    const text = `## Critical Issues
+### 1. Multi-file issue
+- **Files:** \`manifest.json:3-17\`, \`BarWidget.qml:28-78\`; repository inventories contain neither.
+- **Problem:** Multiple files affected.
+`;
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text }]);
+    expect(result.kind).toBe("issues");
+    if (result.kind === "issues") {
+      expect(result.issues[0].file).toBe("manifest.json");
+    }
+  });
+
+  it("extracts title and body when standard format drifted", () => {
+    const text = `## Critical Issues
+### 1. Resolution instead of fix
+- **Files:** src/a.ts
+- **Resolution:** Fixed the issue.
+`;
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text }]);
+    expect(result.kind).toBe("issues");
+    if (result.kind === "issues") {
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].title).toBe("Resolution instead of fix");
+      expect(result.issues[0].problem).toContain("Resolution:");
+    }
+  });
+
+  it("emits synthetic issue for non-empty section with no headings", () => {
+    const text = `## Critical Issues
+Some prose without proper heading structure.
+Multiple lines of text.
+`;
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text }]);
+    expect(result.kind).toBe("issues");
+    if (result.kind === "issues") {
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].id).toBe("critical:synthetic-1");
+      expect(result.issues[0].title).toBe("Unparseable finding");
+      expect(result.issues[0].problem).toContain("Some prose");
+    }
+  });
+
+  it("rejects a finding with no title", () => {
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text: `## Critical Issues\n### 1.\n- **Problem**: Defect.\n` }]);
+    expect(result.kind).toBe("scan-defect");
+  });
+
+  it("accepts a finding with just a title", () => {
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text: `## Critical Issues\n### 1. Title\n` }]);
+    expect(result.kind).toBe("issues");
+    if (result.kind === "issues") {
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].title).toBe("Title");
+    }
+  });
+
+  it("accepts a finding with title and empty problem", () => {
+    const result = parseIterateArtifacts([{ path: "iterate-demo.md", text: `## Critical Issues\n### 1. Title\n- **Problem**:   \n` }]);
+    expect(result.kind).toBe("issues");
+    if (result.kind === "issues") {
+      expect(result.issues).toHaveLength(1);
+      expect(result.issues[0].title).toBe("Title");
+    }
+  });
 
   it.each(["## Recommended Workflow", "# Next steps"])("ends issue sections at %s", (heading) => {
     const text = `${fixture}${heading}

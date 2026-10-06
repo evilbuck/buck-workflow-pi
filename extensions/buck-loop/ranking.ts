@@ -46,29 +46,83 @@ export function readIssueFile(root: string, relativePath: string, maxBytes = 64 
 
 function parseIssues(text: string): ReviewIssue[] {
   const issues: ReviewIssue[] = [];
+  let syntheticCounter = 0;
+  
   for (const [heading, sectionEnd, severity] of sectionRanges(text)) {
     const section = text.slice(heading, sectionEnd);
     const headings = [...section.matchAll(/^###[ \t]+(\d+)\.[ \t]*(.*?)[ \t]*$/gm)];
+    
+    // If section has no parseable headings, emit a synthetic issue
+    if (headings.length === 0 && section.trim().length > 0) {
+      syntheticCounter++;
+      issues.push({
+        id: `${severity}:synthetic-${syntheticCounter}`,
+        severity,
+        title: "Unparseable finding",
+        file: "",
+        problem: section.trim().slice(0, 500),
+        fix: "",
+      });
+      continue;
+    }
+    
     for (let i = 0; i < headings.length; i++) {
       const bodyStart = headings[i].index! + headings[i][0].length;
       const bodyEnd = headings[i + 1]?.index ?? section.length;
       const body = section.slice(bodyStart, bodyEnd);
       const title = headings[i][2].trim();
-      const file = bullet(body, "File");
-      const problem = bullet(body, "Problem");
+      if (!title) continue;
+      
+      const fileRaw = bullet(body, "File") ?? bullet(body, "Files");
+      const file = extractFirstPath(fileRaw);
+      const problemBullet = bullet(body, "Problem");
+      
+      // Use Problem bullet if present, otherwise check if body has meaningful text
+      // (not just metadata bullets like File/Fix)
+      const bodyWithoutMetadata = body
+        .split("\n")
+        .filter(line => !line.match(/^- \*\*(File|Files|Fix|Proposed fix|Suggested approach)[\*:]/i))
+        .join("\n")
+        .trim();
+      
+      // If there's a Problem bullet, use it
+      // Else if body has non-metadata content, use that
+      // Else if body is completely empty, use the title
+      // Else (body has only metadata), skip
+      const problem = problemBullet 
+        ?? (bodyWithoutMetadata || null) 
+        ?? (body.trim() === "" ? title : null);
+      if (!problem) continue;
+      
       const fix = bullet(body, severity === "critical" ? "Proposed fix" : "Suggested approach");
-      if (!title || !problem) continue;
+      
       issues.push({
         id: `${severity}:${Number(headings[i][1])}`,
         severity,
         title,
-        file: file?.replace(/^`|`$/g, "") ?? "",
+        file,
         problem,
         fix: fix ?? "",
       });
     }
   }
   return issues;
+}
+
+/** Extracts the first path-like token from a Files field, preferring backtick-wrapped paths. */
+function extractFirstPath(filesField: string | null): string {
+  if (!filesField) return "";
+  // Find first backtick-wrapped token that looks like a path (contains / or .)
+  const backtickMatch = filesField.match(/`([^`]+)`/);
+  if (backtickMatch) {
+    const path = backtickMatch[1].replace(/:\d+(-\d+)?$/, "");
+    if (path.includes("/") || path.includes(".")) return path;
+  }
+  // Fallback: first token that looks like a path
+  const cleaned = filesField.replace(/`/g, "");
+  const firstToken = cleaned.split(/[,\s;]/)[0].trim();
+  const path = firstToken.replace(/:\d+(-\d+)?$/, "");
+  return (path.includes("/") || path.includes(".")) ? path : "";
 }
 
 function duplicateIssueId(issues: readonly ReviewIssue[]): ReviewIssue["id"] | undefined {
@@ -94,8 +148,9 @@ function sectionRanges(text: string): Array<[number, number, "critical" | "warni
 }
 
 function bullet(body: string, label: string): string | null {
-  const match = body.match(new RegExp(`^- \\*\\*${label}\\*\\*: (.+)$`, "m"));
-  return match?.[1]?.trim() || null;
+  // Accept both **Label**: (colon outside bold) and **Label:** (colon inside bold)
+  const match = body.match(new RegExp(`^- \\*\\*${label}(:\\*\\*|\\*\\*:) (.+)$`, "m"));
+  return match?.[2]?.trim() || null;
 }
 
 export type WaterlineRating = {
