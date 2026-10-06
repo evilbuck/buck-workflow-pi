@@ -1147,16 +1147,27 @@ describe("in-process rank effect", () => {
 
   it("ranks in-process: no nested session, no choose, and no counter moves for the rank call", async () => {
     const { cwd, deps } = rankedRun(rankingByTitle(["Critical defect"]));
-    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    let atRank: { loopCount: number; iterateCyclesOnPhase: number } | undefined;
+    const result = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: {
+        ...deps,
+        onSnapshot: (snapshot) => {
+          if (snapshot.state === "ranking" && !atRank) {
+            atRank = { loopCount: snapshot.loopCount, iterateCyclesOnPhase: snapshot.iterateCyclesOnPhase };
+          }
+        },
+      },
+    });
     expect(result.state, result.reason).toBe("done");
+    expect(atRank).toEqual({ loopCount: 1, iterateCyclesOnPhase: 0 });
 
     const beforeRank = readProjection(cwd);
     expect(beforeRank).not.toBeNull();
-    // The rank transition is a supervisor hop, not a build loop or an iterate cycle.
     const rankHop = beforeRank!.history.find((entry) => entry.to === "ranking");
     expect(rankHop?.from).toBe("reviewing");
     expect(beforeRank!.loopCount).toBe(1);
-    expect(beforeRank!.iterateCyclesOnPhase).toBe(0);
+    expect(beforeRank!.iterateCyclesOnPhase).toBe(1);
 
     const rankHistory = readProjection(cwd)!.history;
     const rankIndex = rankHistory.findIndex((entry) => entry.to === "ranking");
@@ -2331,5 +2342,50 @@ describe("commit checkpoint identity recovery", () => {
     expect((await handleLoop({ cwd, command: "start", path: SECOND, deps })).state).toBe("done");
     expect(deps.runStep.mock.calls.every(([opts]) => opts.planOrPhasePath === SECOND)).toBe(true);
     expect(readProjection(cwd)?.commitCheckpoint).toBeNull();
+  });
+
+  it("repairs a failed commit pin and still commits that phase before the next one", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "baseline"]);
+    let probes = 0;
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: {
+        ...deps,
+        probeCommitHead: () => {
+          probes += 1;
+          return probes === 1 ? undefined : execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+        },
+      },
+    });
+    expect(result.state, result.reason).toBe("done");
+    expect(probes).toBeGreaterThan(1);
+    expect(deps.runStep.mock.calls.filter(([opts]) => opts.skill === "b-commit").map(([opts]) => opts.planOrPhasePath)).toEqual([FIRST, SECOND]);
+  });
+
+  it("does not continue a failed commit repair into the next phase", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    git(cwd, ["add", "."]);
+    git(cwd, ["commit", "-qm", "baseline"]);
+    const deps = workDeps(landingWork());
+    const blocked = await handleLoop({
+      cwd, command: "start", path: PLAN,
+      deps: { ...deps, confirmContinue: async () => true, probeCommitHead: () => undefined },
+    });
+    expect(blocked.state).toBe("blocked");
+    expect(blocked.reason).toContain("resume retries repair");
+    expect(deps.runStep.mock.calls.some(([opts]) => opts.skill === "b-commit" || opts.planOrPhasePath === SECOND)).toBe(false);
+    expect(readProjection(cwd)?.history.at(-1)?.from).toBe("repairing");
+
+    const resumed = workDeps(landingWork());
+    const again = await handleLoop({ cwd, command: "resume", deps: resumed });
+    const calls = resumed.runStep.mock.calls.map(([opts]) => `${opts.skill}:${opts.planOrPhasePath}`);
+    expect(calls[0]).toBe(`b-commit:${FIRST}`);
+    expect(calls.indexOf(`b-build:${SECOND}`)).toBeGreaterThan(0);
+    expect(again.reason ?? "").not.toContain("select the next phase");
   });
 });

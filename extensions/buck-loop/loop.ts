@@ -106,6 +106,7 @@ const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "documenting",
   "saving",
   "committing",
+  "repairing",
 ]);
 
 /** Public commands the slash-command layer may send. */
@@ -160,6 +161,8 @@ export type LoopDeps = {
   confirmDirty: (paths: string[]) => Promise<boolean>;
   /** Yes keeps a run going instead of landing in `blocked`. No keeps the machine stop. */
   confirmContinue: (reason: string) => Promise<boolean>;
+  /** Git baseline for a commit pin. Tests inject a failing probe; production reads HEAD. */
+  probeCommitHead?: (cwd: string) => string | null | undefined;
   /** Diagnosed lift of an ambiguous postcondition. Light and medium continue; heavy is handed to the operator. */
   classifyRepair: (input: { cwd: string; snapshot: Snapshot; why: string; sessionText: string }) => Promise<RepairPlan>;
   /** Ids from the live host registry, the same list `/buck-models` offers. */
@@ -260,18 +263,24 @@ function stoppedStatus(cwd: string, projection: Projection, last: TransitionReco
 
 function recoveryFor(cwd: string, projection: Projection, from: LoopState | undefined): string {
   const target = projection.phasePath ?? projection.planPath;
-  if (projection.commitCheckpoint || from === "committing" || projection.state === "committing") {
-    return commitRecoveryGuidance(cwd, projection);
-  }
+  const owesCommit = Boolean(projection.commitCheckpoint)
+    || from === "committing" || from === "repairing"
+    || projection.state === "committing" || projection.state === "repairing";
+  if (owesCommit) return commitRecoveryGuidance(cwd, projection, from);
   if (projection.state === "blocked") {
     return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
   }
   return `To continue, run /buck-loop ${target}.`;
 }
 
-function commitRecoveryGuidance(cwd: string, projection: Projection): string {
+function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopState | undefined): string {
   const checkpoint = projection.commitCheckpoint;
-  if (!checkpoint) return "Commit identity is missing; manual recovery required. Inspect HEAD and staged changes, complete only the reviewed checkpoint, then explicitly select the next phase; do not blindly resume.";
+  if (!checkpoint) {
+    const repairing = from === "repairing" || projection.state === "repairing" || projection.history.at(-1)?.from === "repairing";
+    return repairing
+      ? "Commit checkpoint could not be pinned. /buck-loop --resume retries repair of this same phase, then b-commit. It does not start the next phase."
+      : "Commit identity is missing; manual recovery required. Inspect HEAD and staged changes, complete only the reviewed checkpoint, then explicitly select the next phase; do not blindly resume.";
+  }
   const identity = `Retained commit checkpoint ${checkpoint.targetPath}, baseline ${checkpoint.baseHead ?? "unborn"}.`;
   if (resume({ projectRoot: cwd }).planFacts.kind === "missing") return `${identity} Inconsistent ownership; manual recovery required.`;
   if (projection.state === "aborted") return `${identity} An aborted run will not continue this checkpoint. Inspect HEAD and staged changes, verify or complete the retained commit manually, then explicitly start the next phase; do not start a new run before resolving this checkpoint.`;
@@ -441,7 +450,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     if (stopped) return stopped;
     const wasSaving = snapshot.state === "saving";
     let step = takeStep(snapshot, lastFail, deps.now());
-    step = prepareCommitTransition(cwd, snapshot, step, deps.now());
+    step = prepareCommitTransition(cwd, snapshot, step, deps.now(), deps.probeCommitHead);
     snapshot = step.snapshot;
     const preparationFailure = persistSaveTransition(cwd, snapshot, step.transition, wasSaving);
     if (preparationFailure) return preparationFailure;
@@ -471,19 +480,67 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
 
 type SupervisorStep = { snapshot: Snapshot; transition: Transition; halt: LoopResult | null };
 
-function prepareCommitTransition(cwd: string, previous: Snapshot, step: SupervisorStep, at: string): SupervisorStep {
+function prepareCommitTransition(
+  cwd: string,
+  previous: Snapshot,
+  step: SupervisorStep,
+  at: string,
+  probe?: LoopDeps["probeCommitHead"],
+): SupervisorStep {
   if (verifiedCommitAdvance(previous, step.transition)) {
     const scanned = scan({ projectRoot: cwd, path: previous.planPath!, state: step.transition.to });
     return { ...step, snapshot: { ...step.snapshot, phasePath: scanned.phasePath, commitCheckpoint: null } };
   }
   if (step.transition.to !== "committing" || step.snapshot.commitCheckpoint) return step;
+  const pinned = pinCommitCheckpoint(cwd, previous, step, probe);
+  return pinned ?? redirectToCommitRepair(previous, at);
+}
+
+function pinCommitCheckpoint(
+  cwd: string,
+  previous: Snapshot,
+  step: SupervisorStep,
+  probe: LoopDeps["probeCommitHead"],
+): SupervisorStep | null {
   const targetPath = step.snapshot.phasePath ?? step.snapshot.planPath;
-  const baseHead = previous.state !== "committing" && targetPath ? checkpointHead(cwd) : undefined;
+  if (!targetPath || previous.state === "committing" || previous.state === "repairing") return null;
+  const baseHead = probe ? probe(cwd) : checkpointHead(cwd);
+  if (baseHead === undefined) return null;
+  return { ...step, snapshot: { ...step.snapshot, commitCheckpoint: { targetPath, baseHead } } };
+}
+
+function redirectToCommitRepair(previous: Snapshot, at: string): SupervisorStep {
+  const why = "commit checkpoint could not be pinned; repairing before b-commit";
+  const transition: Transition = { to: "repairing", effect: { kind: "repair" }, why };
+  return { snapshot: withTransition(previous, transition, at), transition, halt: null };
+}
+
+const REPAIR_FAILED = "commit repair could not establish a safe checkpoint; resume retries repair, not the next phase";
+
+function runCommitRepair(
+  cwd: string,
+  snapshot: Snapshot,
+  at: string,
+  probe?: LoopDeps["probeCommitHead"],
+): EffectResult {
+  const targetPath = snapshot.phasePath ?? snapshot.planPath;
+  const baseHead = targetPath ? (probe ? probe(cwd) : checkpointHead(cwd)) : undefined;
   if (targetPath && baseHead !== undefined) {
-    return { ...step, snapshot: { ...step.snapshot, commitCheckpoint: { targetPath, baseHead } } };
+    return {
+      snapshot: {
+        ...snapshot,
+        commitCheckpoint: { targetPath, baseHead },
+        workFacts: { sessionOutcome: "ok", retriesUsed: 0, postcondition: "pending" },
+      },
+      lastFail: null,
+      halt: null,
+    };
   }
-  const reason = "cannot establish a safe commit checkpoint target or Git baseline; manual recovery required";
-  return { ...step, snapshot: block(step.snapshot, reason, at), halt: { state: "blocked", reason } };
+  const blocked = block({
+    ...snapshot,
+    workFacts: { sessionOutcome: "failed", retriesUsed: 1, postcondition: "pending" },
+  }, REPAIR_FAILED, at);
+  return { snapshot: blocked, lastFail: REPAIR_FAILED, halt: { state: "blocked", reason: REPAIR_FAILED }, mandatoryStop: true };
 }
 
 function verifiedCommitAdvance(previous: Snapshot, transition: Transition): boolean {
@@ -559,6 +616,9 @@ async function runEffect(
   }
   if (transition.effect.kind === "rank") {
     return carryReport(await runRank(cwd, snapshot, path, deps), sessionText);
+  }
+  if (transition.effect.kind === "repair") {
+    return carryReport(runCommitRepair(cwd, snapshot, deps.now(), deps.probeCommitHead), sessionText);
   }
   if (transition.effect.kind !== "run-skill") return carryReport({ snapshot, lastFail: null, halt: null }, sessionText);
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
@@ -876,22 +936,26 @@ async function continueChoice(
 ): Promise<EffectResult> {
   const prepared = prepareCommitTransition(cwd, snapshot, {
     snapshot: withTransition(snapshot, transition, deps.now()), transition, halt: null,
-  }, deps.now());
+  }, deps.now(), deps.probeCommitHead);
   const nextSnapshot = prepared.snapshot;
+  const preparedTransition = prepared.transition;
   if (prepared.halt) {
     persistIfPossible(cwd, nextSnapshot);
     return { snapshot: nextSnapshot, lastFail: prepared.halt.reason, halt: prepared.halt };
   }
   deps.onSnapshot?.(nextSnapshot);
-  const savePreparation = prepareProjectedSave(cwd, transition, nextSnapshot, snapshot.state === "saving");
+  const savePreparation = prepareProjectedSave(cwd, preparedTransition, nextSnapshot, snapshot.state === "saving");
   if (savePreparation) {
     const blocked = block(nextSnapshot, savePreparation, deps.now());
     persistIfPossible(cwd, blocked);
     return { snapshot: blocked, lastFail: savePreparation, halt: { state: "blocked", reason: savePreparation } };
   }
   persistIfPossible(cwd, nextSnapshot);
-  if (transition.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
-  const ran = await executeSkill(cwd, nextSnapshot, path, transition.effect.skill, deps, handoff);
+  if (preparedTransition.effect.kind === "repair") {
+    return runCommitRepair(cwd, nextSnapshot, deps.now(), deps.probeCommitHead);
+  }
+  if (preparedTransition.effect.kind !== "run-skill") return { snapshot: nextSnapshot, lastFail: null, halt: null };
+  const ran = await executeSkill(cwd, nextSnapshot, path, preparedTransition.effect.skill, deps, handoff);
   return { snapshot: ran.snapshot, lastFail: ran.failedText, halt: null, sessionText: ran.sessionText };
 }
 
@@ -1145,6 +1209,7 @@ function progressLabel(state: LoopState, target: string): string {
     case "documenting": return "Documenting " + name;
     case "saving": return "Saving session state";
     case "committing": return "Committing completed work";
+    case "repairing": return "Repairing the commit checkpoint for " + name;
     default: return "Running " + name;
   }
 }

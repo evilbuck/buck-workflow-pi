@@ -754,6 +754,23 @@ describe("operator-owned edges", () => {
     expect(userConfirmed(snap({ state: "blocked" })).to).toBe("resolving");
   });
 
+  it("USER_CONFIRMED repairs a failed commit instead of resolving", () => {
+    const failed = snap({
+      state: "blocked",
+      history: [{ from: "repairing", to: "blocked", at: "2026-10-06", why: "pin failed" }],
+    });
+    expect(userConfirmed(failed)).toEqual({
+      to: "repairing",
+      effect: { kind: "none" },
+      why: "USER_CONFIRMED: repair the failed commit, then b-commit",
+    });
+    expect(next(snap({ state: "repairing" })).effect).toEqual({ kind: "repair" });
+    expect(next(snap({
+      state: "repairing",
+      commitCheckpoint: { targetPath: PHASE_PATH, baseHead: "a".repeat(40) },
+    }))).toMatchObject({ to: "committing", effect: { kind: "run-skill", skill: "commit" } });
+  });
+
   it("STOP aborts from any loop state", () => {
     expect(stopFrom("building").to).toBe("aborted");
     expect(stopFrom("idle").to).toBe("aborted");
@@ -1338,7 +1355,7 @@ describe("legacy rule truth table", () => {
 });
 
 describe("declarative operator graph", () => {
-  it.each(["idle", "resolving", "ranking", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
+  it.each(["idle", "resolving", "ranking", "repairing", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
     expect(buckMachine.edge(state, "aborted").manual).toBe(true);
     expect(buckMachine.restore(state).available({...snap({state}), sqlMemoryConfigured: false})).not.toContain("aborted");
     expect(stopFrom(state)).toEqual({to: "aborted", effect: {kind: "none"}, why: `STOP requested by operator from ${state}`});

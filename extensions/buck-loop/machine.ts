@@ -84,6 +84,13 @@ function completedBlockedWork(s: Snapshot): boolean {
   return (previous === "building" || previous === "iterating") && postconditionConfirmed(s);
 }
 
+/** A failed pin or commit still owes this phase. Resume repairs it; it does not resolve onward. */
+function commitRepairOwed(s: Snapshot): boolean {
+  if (s.commitCheckpoint) return false;
+  const previous = s.history.at(-1)?.from;
+  return previous === "repairing" || previous === "committing";
+}
+
 function postconditionMissing(s: Snapshot): boolean {
   return sessionOk(s) && s.workFacts.postcondition !== "ambiguous" && s.workFacts.postcondition !== "confirmed";
 }
@@ -462,6 +469,26 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
         { name: "done", guard: (s) => postconditionConfirmed(s) && commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
       ],
     },
+    repairing: {
+      targets: [
+        {
+          name: "committing",
+          guard: (s) => s.commitCheckpoint != null,
+          effect: () => runSkill("commit", "checkpoint repaired; committing"),
+        },
+        {
+          name: "repairing",
+          guard: (s) => s.commitCheckpoint == null && s.workFacts.sessionOutcome === "pending",
+          effect: () => ({ effect: { kind: "repair" } as const, why: "commit failed; repairing the checkpoint before b-commit" }),
+        },
+        {
+          name: "blocked",
+          guard: (s) => s.commitCheckpoint == null && s.workFacts.sessionOutcome !== "pending",
+          effect: () => blocked("commit repair could not establish a safe checkpoint; resume retries repair, not the next phase"),
+        },
+        { ...STOP, effect: () => none("STOP requested by operator from repairing") },
+      ],
+    },
     blocked: {
       targets: [
         {
@@ -469,6 +496,12 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
           manual: true,
           guard: (s) => s.commitCheckpoint !== null && s.commitCheckpoint !== undefined,
           effect: () => none("USER_CONFIRMED: resume the retained commit checkpoint"),
+        },
+        {
+          name: "repairing",
+          manual: true,
+          guard: commitRepairOwed,
+          effect: () => none("USER_CONFIRMED: repair the failed commit, then b-commit"),
         },
         {
           name: "reviewing", manual: true, guard: completedBlockedWork,
@@ -565,7 +598,7 @@ export function start(): Transition {
 }
 
 export function userConfirmed(s: Snapshot): Transition {
-  const to = s.commitCheckpoint ? "committing" : completedBlockedWork(s) ? "reviewing" : "resolving";
+  const to = s.commitCheckpoint ? "committing" : commitRepairOwed(s) ? "repairing" : completedBlockedWork(s) ? "reviewing" : "resolving";
   if (s.state !== "blocked") throw new IllegalTransitionError(s.state, to, "not-a-target");
   return take(buckMachine.restore(s.state), to, facts(s));
 }

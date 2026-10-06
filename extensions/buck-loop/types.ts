@@ -29,6 +29,7 @@
  * - `documenting` — nested session is updating living docs (`b-docs` / `b-howto`).
  * - `saving` — nested session is writing session memory (`b-save`).
  * - `committing` — nested session is creating a git commit (`b-commit`).
+ * - `repairing` — in-process repair of a failed commit pin, then `b-commit`. Not a nested skill.
  * - `blocked` — cannot continue safely; waiting for the operator.
  * - `done` — every phase completed; the run is finished.
  * - `aborted` — the operator typed `/buck-loop --stop`.
@@ -43,6 +44,7 @@ export type LoopState =
   | "documenting"
   | "saving"
   | "committing"
+  | "repairing"
   | "blocked"
   | "done"
   | "aborted";
@@ -51,7 +53,7 @@ export type LoopState =
  * States whose stay is filled by one nested coding session (a child agent
  * that runs a skill). `ranking` performs an in-process judgment, not a skill.
  */
-export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "blocked" | "done" | "aborted">;
+export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "repairing" | "blocked" | "done" | "aborted">;
 
 
 /**
@@ -243,6 +245,7 @@ export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "comm
  * - `run-skill` — spawn a nested coding session for this skill.
  * - `choose` — ask a model to pick from `legal` (already closed by the machine).
  * - `rank` — rank review issues in-process using the judgment API.
+ * - `repair` — re-pin the current phase's commit checkpoint, then the machine enters `committing`.
  * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
  *
  * Work and choice are separate variants so execution code cannot smuggle a
@@ -253,6 +256,7 @@ export type Effect =
   | { kind: "run-skill"; skill: WorkSkill }
   | { kind: "choose"; legal: readonly Choice[] }
   | { kind: "rank" }
+  | { kind: "repair" }
   | { kind: "await-operator"; reason: string };
 
 /** One edge of the state graph: target state, the effect to perform, and why. */

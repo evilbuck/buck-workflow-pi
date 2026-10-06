@@ -32,6 +32,7 @@ const LOOP_STATES: Record<LoopState, true> = {
   documenting: true,
   saving: true,
   committing: true,
+  repairing: true,
   blocked: true,
   done: true,
   aborted: true,
@@ -347,7 +348,7 @@ function normalizeProjection(raw: unknown): Projection | null {
     ...counts,
     lastChoice,
     history,
-    saveAttemptId: o.saveAttemptId as string | null | undefined,
+    saveAttemptId: (o.saveAttemptId ?? null) as string | null,
     commitCheckpoint: checkpoint,
   };
 }
