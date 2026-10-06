@@ -63,6 +63,39 @@ function execGit(args: readonly string[]): string {
   }
 }
 
+// Model prompt and fallbackDraft already truncate to 8k chars. Cap the
+// captured patch so a large staged set cannot ENOBUFS execFileSync's
+// default 1 MiB maxBuffer (or the extension's JSON capture).
+const DIFF_CHAR_LIMIT = 8000;
+const DIFF_MAX_BUFFER = 64 * 1024;
+
+function truncateDiff(diff: string): string {
+  if (diff.length <= DIFF_CHAR_LIMIT) return diff;
+  return diff.slice(0, DIFF_CHAR_LIMIT) + "\n... (truncated)";
+}
+
+function gatherStagedDiff(): string {
+  try {
+    return truncateDiff(
+      execFileSync("git", ["diff", "--cached"], {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "pipe"],
+        maxBuffer: DIFF_MAX_BUFFER,
+      }),
+    );
+  } catch (e: unknown) {
+    const err = e as NodeJS.ErrnoException & { stdout?: string; stderr?: Buffer };
+    if (err.code === "ENOBUFS") {
+      const stdout = typeof err.stdout === "string" ? err.stdout : "";
+      if (stdout.length > 0) return truncateDiff(stdout);
+      const stat = execGit(["diff", "--cached", "--shortstat"]).trim();
+      const names = execGit(["diff", "--cached", "--name-status"]).trim();
+      return [`# staged patch exceeded ${DIFF_MAX_BUFFER} byte buffer`, stat, names].join("\n");
+    }
+    die(`git diff --cached failed: ${err.stderr?.toString().trim() || err.message}`, 1);
+  }
+}
+
 // ---------- draft parsing ----------
 
 // Parse a draft-commit.md file into { title, body }.
@@ -182,8 +215,8 @@ if (protectedBranches[currentBranch] && !force) {
   console.log(JSON.stringify(payload));
   process.exit(2);
 }
-// 6. Gather diff
-const diff = execGit(["diff", "--cached"]);
+// 6. Gather diff (capped — unbounded `git diff --cached` ENOBUFSs)
+const diff = gatherStagedDiff();
 
 // 7. Output
 const output: PreflightOutput = {

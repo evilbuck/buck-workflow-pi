@@ -467,7 +467,7 @@ Best fit for this idea:
 4. Persist stdout/stderr/session file path in orchestration state.
 5. Kill worker on abort/timeout.
 
-This mirrors the existing Pi subagent example and the `b-grill-auto` RPC-worker pattern, but the worker is task-oriented rather than Q&A-oriented.
+This mirrors the existing Pi subagent example and an RPC-worker pattern, but the worker is task-oriented rather than Q&A-oriented.
 
 ### Loop shape over chunks
 

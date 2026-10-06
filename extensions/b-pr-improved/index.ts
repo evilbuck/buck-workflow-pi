@@ -9,7 +9,7 @@
  * conflict resolution and PR-description synthesis — then pushes and creates the PR.
  *
  * Unlike the deprecated b-flow (xstate orchestration), this is a single
- * self-contained command, closer in spirit to b-grill-auto. The deterministic
+ * self-contained command. The deterministic
  * core (cache / fetch / rebase / conflict-detect / push / gh) always works;
  * the AI steps degrade gracefully if no model is available.
  *
