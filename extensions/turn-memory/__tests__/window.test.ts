@@ -65,4 +65,18 @@ describe("selectTurnMemoryWindow", () => {
       completed("e", "six", "f"),
     ])?.id).toBe(other?.id);
   });
+
+  it("does not open another window from one prompt after a consumed trio", () => {
+    const first = [completed("1", "one", "a"), completed("2", "two", "b"), completed("3", "three", "c")];
+    const selected = selectTurnMemoryWindow(first);
+    const consumed = { type: "custom", customType: "turn-memory-consumed", data: { windowId: selected?.id } };
+    expect(selectTurnMemoryWindow([...first, consumed, completed("4", "four", "d")])).toBeNull();
+    expect(selectTurnMemoryWindow([
+      ...first,
+      consumed,
+      completed("4", "four", "d"),
+      completed("5", "five", "e"),
+      completed("6", "six", "f"),
+    ])?.id).toBe(JSON.stringify(["4", "5", "6"]));
+  });
 });

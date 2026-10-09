@@ -33,15 +33,33 @@ function readTick(value: unknown): PromptTick | null {
   };
 }
 
+function consumedMarker(entry: unknown): { windowId?: string } | null {
+  if (!entry || typeof entry !== "object" || !("type" in entry) || !("customType" in entry) || !("data" in entry)) return null;
+  if (entry.type !== "custom" || entry.customType !== CONSUMED_TYPE || !entry.data || typeof entry.data !== "object") return null;
+  return "windowId" in entry.data && typeof entry.data.windowId === "string" ? { windowId: entry.data.windowId } : {};
+}
+
 function consumedWindowIds(entries: unknown[]): Set<string> {
   const consumed = new Set<string>();
-  for (const entryValue of entries) {
-    const entry = object(entryValue);
-    if (entry?.type !== "custom" || entry.customType !== CONSUMED_TYPE) continue;
-    const data = object(entry.data);
-    if (data && typeof data.windowId === "string") consumed.add(data.windowId);
+  for (const entry of entries) {
+    const marker = consumedMarker(entry);
+    if (marker?.windowId) consumed.add(marker.windowId);
   }
   return consumed;
+}
+
+function consumedIdentities(entries: unknown[]): Set<string> {
+  const identities = new Set<string>();
+  for (const windowId of consumedWindowIds(entries)) {
+    try {
+      const parsed: unknown = JSON.parse(windowId);
+      if (!Array.isArray(parsed)) continue;
+      for (const identity of parsed) if (typeof identity === "string") identities.add(identity);
+    } catch {
+      // A non-JSON marker still blocks that exact window id.
+    }
+  }
+  return identities;
 }
 
 function redactAssignment(text: string, key: string): string {
@@ -72,10 +90,10 @@ export function selectTurnMemoryWindow(
   }
   if (ticks.length < 3) return null;
 
-  const latest = ticks.slice(-3);
+  const latest = ticks.filter((tick) => !consumedIdentities(entries).has(tick.identity)).slice(-3);
+  if (latest.length < 3) return null;
   const id = JSON.stringify(latest.map((tick) => tick.identity));
   if (consumedWindowIds(entries).has(id)) return null;
-
   const maxCharacters = options.maxCharacters ?? 12_000;
   const text = redact(latest.map((tick) => `User: ${tick.userPrompt}\nAssistant: ${tick.assistantText}`).join("\n\n"));
   return { id, text: text.slice(0, Math.max(0, maxCharacters)) };

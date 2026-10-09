@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in-progress
 phase: 3
 order: 3
 plan: plan-sql-memory-turn-hook.md
@@ -14,8 +14,8 @@ from_plan_steps: [4, 5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Hook observes session_start and agent_end only, skips willContinue, and does not initiate turns."
-  - "[ ] Loading with SQL_MEMORY_URL unset does not load pg; writer import is lazy and enabled-path behavior delegates to capture."
+  - "[x] Hook observes session_start and agent_end only, skips willContinue, and does not initiate turns."
+  - "[x] Loading with SQL_MEMORY_URL unset does not load pg; writer import is lazy and enabled-path behavior delegates to capture."
   - "[ ] Package includes hooks and OMP lists the hook exactly once."
 completed_at: null
 completed_by: null
