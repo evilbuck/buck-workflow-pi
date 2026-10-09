@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-sql-memory-turn-hook.md
@@ -13,10 +13,10 @@ from_plan_steps: [6, 7]
 depends_on: [3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Docs distinguish the opt-out hook from ordinary ungated remember and /b-save."
-  - "[ ] How-to covers status, env/settings opt-out, re-enable, and Eat observes zero writes across three prompts while opted out."
-  - "[ ] Guardrails pass; live SQL write proof is reported only if SQL_MEMORY_URL is available."
-completed_at: null
+  - "[x] Docs distinguish the opt-out hook from ordinary ungated remember and /b-save."
+  - "[x] How-to covers status, env/settings opt-out, re-enable, and Eat observes zero writes across three prompts while opted out."
+  - "[x] Guardrails pass; live SQL write proof is reported only if SQL_MEMORY_URL is available."
+completed_at: 2026-10-08
 completed_by: null
 ---
 
