@@ -1,5 +1,9 @@
 # Backlog
 
+## Worktree recap
+
+- [ ] [Add /worktrees-active-recap](items/worktrees-active-recap.md) — medium; deterministic unmerged-worktree report — see `.context/2026-10-06.worktrees-active-recap/plan-worktrees-active-recap.md`
+
 ## Review Severity Ranking Phases (2026-10-03)
 
 Overview: [`plan-review-severity-ranking-phases.md`](../2026-10-03.review-severity-ranking/plan-review-severity-ranking-phases.md).
@@ -10,8 +14,10 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 ### Upcoming Phases
 
 - [x] Phase 2: Jev Ranking Core and Audit Trail — hard, `/b-build-hard`, `orchestrate` — [phase-2-jev-ranking-core.md](../2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md) — done 2026-10-04; review Pass, iterate defects resolved (134 tests)
-- [ ] Phase 3: Machine Edges and the Rank Effect Handler — hard, `/b-build-hard`, `orchestrate` — [phase-3-machine-loop-routing.md](../2026-10-03.review-severity-ranking/phase-3-machine-loop-routing.md)
-- [ ] Phase 4: State Diagram and Doc Sentence — easy, `/b-build`, `orchestrate` — [phase-4-docs.md](../2026-10-03.review-severity-ranking/phase-4-docs.md)
+- [x] Phase 3: Machine Edges and the Rank Effect Handler — hard, `/b-build-hard`, `orchestrate` — [phase-3-machine-loop-routing.md](../2026-10-03.review-severity-ranking/phase-3-machine-loop-routing.md) — done; landed in master via PR #58 (`00763a0`)
+- [x] Phase 4: State Diagram and Doc Sentence — easy, `/b-build`, `orchestrate` — [phase-4-docs.md](../2026-10-03.review-severity-ranking/phase-4-docs.md) — done; docs commit `584d8b4`
+
+All four phases complete; subject closed verified 2026-10-08 reconciliation.
 
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
