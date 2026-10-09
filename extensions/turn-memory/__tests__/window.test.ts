@@ -71,10 +71,13 @@ describe("selectTurnMemoryWindow", () => {
       completed("a", 'password: "correct horse battery"', "noted"),
       completed("b", 'SQL_MEMORY_URL="postgres://user:pass@host/db"', "noted"),
       completed("c", "connect with postgres://user:pass@host/db now", "noted"),
+      completed("d", "bearerless token url https://secret-token@host/path", "noted"),
     ]);
     expect(selected?.text).not.toContain("correct horse battery");
     expect(selected?.text).not.toContain("user:pass");
+    expect(selected?.text).not.toContain("secret-token");
     expect(selected?.text).toContain("postgres://[REDACTED]@host/db");
+    expect(selected?.text).toContain("https://[REDACTED]@host/path");
   });
 
   it("does not open another window from one prompt after a consumed trio", () => {

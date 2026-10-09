@@ -73,7 +73,7 @@ function redactAssignment(text: string, key: string): string {
 function redact(text: string): string {
   const withoutBearer = text.replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]");
   const withoutUri = withoutBearer.replace(
-    /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]*:[^\s/@]+@/gi,
+    /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:?#]*(?::[^\s/@:?#]*)?@/gi,
     "$1[REDACTED]@",
   );
   const withoutUrl = redactAssignment(withoutUri, "SQL_MEMORY_URL");
