@@ -7,5 +7,5 @@ lifecycle_last_transition: close-verified
 
 # SQL memory turn hook
 
-- [plan-sql-memory-turn-hook.md](plan-sql-memory-turn-hook.md) — `active`
+- [plan-sql-memory-turn-hook.md](plan-sql-memory-turn-hook.md) — `completed`
 

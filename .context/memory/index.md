@@ -1,4 +1,4 @@
-- 2026-10-09 — [PR #62 CodeRabbit redaction fix](fix-pr-62-2026-10-09.md) — active (quoted-secret and URI user-info credential leak reproduced and fixed in 85f296e; guardrails pass; awaiting independent re-review)
+- 2026-10-09 — [PR #62 CodeRabbit redaction fix](fix-pr-62-2026-10-09.md) — active (quoted-secret and URI user-info credential leak reproduced and fixed in 85f296e; Wooderson confirmed the fix in review 5473481394; residual index-label and newline nits fixed in loop 2; awaiting settlement review)
 - 2026-10-06 — [PR #60 commit repair and CI fixes](fix-pr-60-2026-10-06.md) — active (review_pending after 30-minute poll ending 16:25:51Z; fix a80712e on tip 89d33ec; no independent settlement review)
 - 2026-10-05 — [PR #58 CI and Wooderson fixes](fix-pr-58-2026-10-05.md) — completed (native Jev-validated corrections pushed as 7096ea6; SQL fixtures and shared CRLF lifecycle fixed; real rollback/mutation smoke and required checks pass; Wooderson re-review 5418155480 settles loop 1; five GitHub checks green; final closeout recorded locally)
 
