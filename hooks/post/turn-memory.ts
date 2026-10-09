@@ -29,13 +29,28 @@ export function turnMemoryStatus(cwd: string, env: NodeJS.ProcessEnv = process.e
   return "turn-memory: on";
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object") return null;
+  return value as Record<string, unknown>;
+}
+
 function contentText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content.flatMap((block) => {
-    if (!block || typeof block !== "object" || !("type" in block) || !("text" in block)) return [];
-    return block.type === "text" && typeof block.text === "string" ? [block.text] : [];
+    const record = asRecord(block);
+    return record?.type === "text" && typeof record.text === "string" ? [record.text] : [];
   }).join("\n");
+}
+
+function readPrompt(message: unknown): { role: string; text: string; timestamp: number } | null {
+  const record = asRecord(message);
+  if (!record || (record.role !== "user" && record.role !== "assistant")) return null;
+  return {
+    role: String(record.role),
+    text: contentText(record.content),
+    timestamp: typeof record.timestamp === "number" ? record.timestamp : 0,
+  };
 }
 
 function promptPair(messages: unknown[]): { user: string; assistant: string; timestamp: number } | null {
@@ -43,12 +58,13 @@ function promptPair(messages: unknown[]): { user: string; assistant: string; tim
   let assistant = "";
   let timestamp = 0;
   for (const message of messages) {
-    if (!message || typeof message !== "object" || !("role" in message) || !("content" in message)) continue;
-    if (message.role === "user") {
-      user = contentText(message.content);
-      timestamp = "timestamp" in message && typeof message.timestamp === "number" ? message.timestamp : timestamp;
-    } else if (message.role === "assistant") {
-      assistant = contentText(message.content);
+    const read = readPrompt(message);
+    if (!read) continue;
+    if (read.role === "user") {
+      user = read.text;
+      timestamp = read.timestamp || timestamp;
+    } else {
+      assistant = read.text;
     }
   }
   if (!user && !assistant) return null;
@@ -60,12 +76,15 @@ export function tickIdentity(sessionFile: string | undefined, user: string, assi
   return `${sessionFile ?? "no-session"}:${timestamp}:${digest}`;
 }
 
+function tickIdentityOf(entry: unknown): string | null {
+  const record = asRecord(entry);
+  if (!record || record.type !== "custom" || record.customType !== TICK) return null;
+  const data = asRecord(record.data);
+  return data && typeof data.identity === "string" ? data.identity : null;
+}
+
 function existingTick(entries: unknown[], identity: string): boolean {
-  return entries.some((entry) => {
-    if (!entry || typeof entry !== "object" || !("type" in entry) || !("customType" in entry) || !("data" in entry)) return false;
-    if (entry.type !== "custom" || entry.customType !== TICK || !entry.data || typeof entry.data !== "object") return false;
-    return "identity" in entry.data && entry.data.identity === identity;
-  });
+  return entries.some((entry) => tickIdentityOf(entry) === identity);
 }
 
 function continues(event: object): boolean {

@@ -33,17 +33,18 @@ function readTick(value: unknown): PromptTick | null {
   };
 }
 
-function consumedMarker(entry: unknown): { windowId?: string } | null {
-  if (!entry || typeof entry !== "object" || !("type" in entry) || !("customType" in entry) || !("data" in entry)) return null;
-  if (entry.type !== "custom" || entry.customType !== CONSUMED_TYPE || !entry.data || typeof entry.data !== "object") return null;
-  return "windowId" in entry.data && typeof entry.data.windowId === "string" ? { windowId: entry.data.windowId } : {};
+function consumedWindowId(entry: unknown): string | null {
+  const record = object(entry);
+  if (!record || record.type !== "custom" || record.customType !== CONSUMED_TYPE) return null;
+  const data = object(record.data);
+  return data && typeof data.windowId === "string" ? data.windowId : null;
 }
 
 function consumedWindowIds(entries: unknown[]): Set<string> {
   const consumed = new Set<string>();
   for (const entry of entries) {
-    const marker = consumedMarker(entry);
-    if (marker?.windowId) consumed.add(marker.windowId);
+    const windowId = consumedWindowId(entry);
+    if (windowId) consumed.add(windowId);
   }
   return consumed;
 }
