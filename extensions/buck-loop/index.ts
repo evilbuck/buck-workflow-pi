@@ -141,10 +141,11 @@ function initialLabel(parsed: Extract<ParsedArgs, { ok: true; command: LoopComma
  * main agent can read it on the next turn.
  *
  * `pi.sendMessage` is a host API: it appends a custom chat item, it is
- * not `console.log`. Options:
- * - `triggerTurn: true` — ask the parent agent to start a new turn.
- * - `deliverAs: "nextTurn"` — deliver as the next user-visible turn,
- *   not as a silent system note.
+ * not `console.log`. `triggerTurn: true` with the default `deliverAs`
+ * ("steer") starts a parent turn when idle and steers into the live turn
+ * when streaming. `deliverAs: "nextTurn"` would NOT work here: the host
+ * short-circuits on it and ignores `triggerTurn`, holding the failure in
+ * memory until the operator types something.
  *
  * If the host refuses the message (session gone, API mismatch), we toast
  * instead of throwing — the loop has already recorded the durable failure.
@@ -158,7 +159,7 @@ function returnFailureToAgent(pi: ExtensionAPI, ui: BuckLoopUI, failure: AgentCa
         display: true,
         details: failure,
       },
-      { triggerTurn: true, deliverAs: "nextTurn" },
+      { triggerTurn: true },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

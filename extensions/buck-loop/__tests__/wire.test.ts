@@ -279,7 +279,9 @@ describe("wireBuckLoop", () => {
         details: failure,
         content: expect.stringContaining("provider unavailable"),
       }),
-      { triggerTurn: true, deliverAs: "nextTurn" },
+      // `deliverAs: "nextTurn"` would make the host ignore `triggerTurn`
+      // and hold the failure in memory until the operator types something.
+      { triggerTurn: true },
     );
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("canonical b-build prompt");
     expect(sendMessage.mock.calls[0]?.[0].content).toContain("buck-loop-work-123");
