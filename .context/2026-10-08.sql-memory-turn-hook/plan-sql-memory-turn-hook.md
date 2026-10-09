@@ -6,7 +6,7 @@ topics: [omp-hooks, sql-memory, turn-capture, opt-out]
 research: []
 iterations: []
 memory: []
-sql_memory_ids: ["01a11e81-2273-7281-bcf6-71658669c1a9"]
+sql_memory_ids: ["01a11e81-2273-7281-bcf6-71658669c1a9", "01a11e87-5bfc-7e6c-8285-a8d22ed9d5f2"]
 ---
 
 # Plan: SQL memory turn hook

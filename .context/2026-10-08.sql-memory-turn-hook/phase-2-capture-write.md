@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-sql-memory-turn-hook.md
@@ -14,10 +14,10 @@ from_plan_steps: [3, 7]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] A consumed marker is persisted before judgment/extraction/write and replay causes no second attempt."
-  - "[ ] Only Jev yes >= 0.70 plus a valid one-sentence fact reaches remember; all failure/timeout/secret paths skip safely."
-  - "[ ] Successful write delegates subject, phase, category, and cwd to the existing remember writer."
-completed_at: null
+  - "[x] A consumed marker is persisted before judgment/extraction/write and replay causes no second attempt."
+  - "[x] Only Jev yes >= 0.70 plus a valid one-sentence fact reaches remember; all failure/timeout/secret paths skip safely."
+  - "[x] Successful write delegates subject, phase, category, and cwd to the existing remember writer."
+completed_at: 2026-10-08
 completed_by: null
 ---
 
