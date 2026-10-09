@@ -24,7 +24,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Enablement and Window | completed | medium | none | [phase-1-enable-window.md](phase-1-enable-window.md) |
 | 2: Capture and Durable Write | completed | hard | none | [phase-2-capture-write.md](phase-2-capture-write.md) |
-| 3: OMP Hook and Package Surface | in-progress | hard | none | [phase-3-hook-package.md](phase-3-hook-package.md) |
+| 3: OMP Hook and Package Surface | completed | hard | none | [phase-3-hook-package.md](phase-3-hook-package.md) |
 | 4: Documentation and Live Proof | completed | easy | none | [phase-4-docs-proof.md](phase-4-docs-proof.md) |
 
 ## Dependency Matrix

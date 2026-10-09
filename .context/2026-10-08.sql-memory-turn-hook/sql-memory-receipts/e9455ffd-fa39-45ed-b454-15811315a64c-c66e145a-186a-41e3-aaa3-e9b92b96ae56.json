@@ -1,0 +1,13 @@
+{
+  "attemptId": "c66e145a-186a-41e3-aaa3-e9b92b96ae56",
+  "runId": "e9455ffd-fa39-45ed-b454-15811315a64c",
+  "subject": "2026-10-08.sql-memory-turn-hook",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "phase": ".context/2026-10-08.sql-memory-turn-hook/phase-3-hook-package.md",
+  "kind": "rows",
+  "ids": ["01a11ea8-fcf8-737c-a262-88b071c091c8"],
+  "probed": true,
+  "completed": true,
+  "mode": "portable",
+  "verification": "remember returned the internally read-back active same-project row; subject close-verified succeeded with no blockers"
+}

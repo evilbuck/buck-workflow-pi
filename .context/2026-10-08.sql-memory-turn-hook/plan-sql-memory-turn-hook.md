@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-10-08
 subject: 2026-10-08.sql-memory-turn-hook
 topics: [omp-hooks, sql-memory, turn-capture, opt-out]
 research: []
 iterations: []
 memory: []
-sql_memory_ids: ["01a11e81-2273-7281-bcf6-71658669c1a9", "01a11e87-5bfc-7e6c-8285-a8d22ed9d5f2", "01a11e8d-c3a4-7400-8f8b-5243bf4eb42e"]
+sql_memory_ids: ["01a11e81-2273-7281-bcf6-71658669c1a9", "01a11e87-5bfc-7e6c-8285-a8d22ed9d5f2", "01a11e8d-c3a4-7400-8f8b-5243bf4eb42e", "01a11ea8-fcf8-737c-a262-88b071c091c8"]
 ---
 
 # Plan: SQL memory turn hook
@@ -136,13 +136,13 @@ Trust boundary: the hook reads prompt text and writes the shared SQL store as th
 
 ## Acceptance criteria
 
-- [ ] With `SQL_MEMORY_URL` set and no opt-out, the hook is on. With the URL unset, or `BUCK_TURN_MEMORY=0`, or `buckTurnMemory.enabled: false`, it is off. Env overrides settings. `BUCK_TURN_MEMORY=1` does not enable a missing URL.
-- [ ] Three completed `agent_end` events (no `willContinue`) produce one capture attempt. `willContinue: true` does not tick. A reload that replays the same entries does not attempt a second write.
-- [ ] Jev yes `>= 0.70` and a one-sentence extraction call `rememberSqlMemory` with `subject: "turn-memory"`, `phase` equal to the window id, and `category` `project`. Jev unavailable, below threshold, empty extraction, or a secret-bearing body does not call it.
-- [ ] The handler never calls `sendUserMessage` or a turn-triggering `sendMessage`. A thrown or hung dependency does not escape the handler.
-- [ ] Importing the hook factory with `SQL_MEMORY_URL` unset does not load `pg`.
-- [ ] `docs/sql-memory.md` no longer claims there is no auto-writer. The how-to off switch is the documented opt-out, and its **Eat** matches the enablement tests.
-- [ ] `/extensions` in an OMP session that loads this package lists `hooks/post/turn-memory.ts` once.
+- [x] With `SQL_MEMORY_URL` set and no opt-out, the hook is on. With the URL unset, or `BUCK_TURN_MEMORY=0`, or `buckTurnMemory.enabled: false`, it is off. Env overrides settings. `BUCK_TURN_MEMORY=1` does not enable a missing URL.
+- [x] Three completed `agent_end` events (no `willContinue`) produce one capture attempt. `willContinue: true` does not tick. A reload that replays the same entries does not attempt a second write.
+- [x] Jev yes `>= 0.70` and a one-sentence extraction call `rememberSqlMemory` with `subject: "turn-memory"`, `phase` equal to the window id, and `category` `project`. Jev unavailable, below threshold, empty extraction, or a secret-bearing body does not call it.
+- [x] The handler never calls `sendUserMessage` or a turn-triggering `sendMessage`. A thrown or hung dependency does not escape the handler.
+- [x] Importing the hook factory with `SQL_MEMORY_URL` unset does not load `pg`.
+- [x] `docs/sql-memory.md` no longer claims there is no auto-writer. The how-to off switch is the documented opt-out, and its **Eat** matches the enablement tests.
+- [x] `/extensions` in an OMP session that loads this package lists `hooks/post/turn-memory.ts` once.
 
 ## Verification
 
