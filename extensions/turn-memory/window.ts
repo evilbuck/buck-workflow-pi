@@ -65,16 +65,20 @@ function consumedIdentities(entries: unknown[]): Set<string> {
 
 function redactAssignment(text: string, key: string): string {
   return text.replace(
-    new RegExp(String.raw`\b${key}\b\s*["']?\s*[:=]\s*["']?[^\s,"'}]+`, "gi"),
+    new RegExp(String.raw`\b${key}\b\s*["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,"'}]+)`, "gi"),
     `${key}=[REDACTED]`,
   );
 }
 
 function redact(text: string): string {
   const withoutBearer = text.replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]");
-  const withoutUrl = redactAssignment(withoutBearer, "SQL_MEMORY_URL");
+  const withoutUri = withoutBearer.replace(
+    /\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]*:[^\s/@]+@/gi,
+    "$1[REDACTED]@",
+  );
+  const withoutUrl = redactAssignment(withoutUri, "SQL_MEMORY_URL");
   return withoutUrl.replace(
-    /\b(api[_-]?key|secret|token|password)\b\s*["']?\s*[:=]\s*["']?[^\s,"'}]+/gi,
+    /\b(api[_-]?key|secret|token|password)\b\s*["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,"'}]+)/gi,
     "$1=[REDACTED]",
   );
 }

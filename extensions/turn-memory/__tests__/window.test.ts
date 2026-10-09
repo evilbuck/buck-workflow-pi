@@ -66,6 +66,17 @@ describe("selectTurnMemoryWindow", () => {
     ])?.id).toBe(other?.id);
   });
 
+  it("redacts whole quoted secret values and URI user-info credentials", () => {
+    const selected = selectTurnMemoryWindow([
+      completed("a", 'password: "correct horse battery"', "noted"),
+      completed("b", 'SQL_MEMORY_URL="postgres://user:pass@host/db"', "noted"),
+      completed("c", "connect with postgres://user:pass@host/db now", "noted"),
+    ]);
+    expect(selected?.text).not.toContain("correct horse battery");
+    expect(selected?.text).not.toContain("user:pass");
+    expect(selected?.text).toContain("postgres://[REDACTED]@host/db");
+  });
+
   it("does not open another window from one prompt after a consumed trio", () => {
     const first = [completed("1", "one", "a"), completed("2", "two", "b"), completed("3", "three", "c")];
     const selected = selectTurnMemoryWindow(first);
