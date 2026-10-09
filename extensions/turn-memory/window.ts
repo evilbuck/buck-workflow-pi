@@ -91,7 +91,8 @@ export function selectTurnMemoryWindow(
   }
   if (ticks.length < 3) return null;
 
-  const latest = ticks.filter((tick) => !consumedIdentities(entries).has(tick.identity)).slice(-3);
+  const consumed = consumedIdentities(entries);
+  const latest = ticks.filter((tick) => !consumed.has(tick.identity)).slice(-3);
   if (latest.length < 3) return null;
   const id = JSON.stringify(latest.map((tick) => tick.identity));
   if (consumedWindowIds(entries).has(id)) return null;

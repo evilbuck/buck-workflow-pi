@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { readdirSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createTurnMemoryHook, turnMemoryStatus } from "../../../hooks/post/turn-memory.js";
+import { createTurnMemoryHook, resetTurnMemoryPool, turnMemoryPool, turnMemoryStatus } from "../../../hooks/post/turn-memory.js";
 
 const require = createRequire(import.meta.url);
 const originalUrl = process.env.SQL_MEMORY_URL;
@@ -112,5 +112,22 @@ describe("turn-memory hook", () => {
     expect(pkg.files).toContain("hooks");
     expect(files).toEqual(["turn-memory.ts"]);
     expect(index).not.toContain("turn-memory");
+  });
+});
+
+describe("turnMemoryPool", () => {
+  it("reuses one lazy getter for the same URL", () => {
+    resetTurnMemoryPool();
+    const create = vi.fn((url: string) => {
+      const pool = { url };
+      return () => pool;
+    });
+    const first = turnMemoryPool("postgres://one", create);
+    const second = turnMemoryPool("postgres://one", create);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(first()).toBe(second());
+    turnMemoryPool("postgres://two", create);
+    expect(create).toHaveBeenCalledTimes(2);
+    resetTurnMemoryPool();
   });
 });

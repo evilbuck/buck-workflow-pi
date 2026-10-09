@@ -5,6 +5,7 @@
  * and ~/.pi/agent/settings.json are the wrong catalog under OMP.
  */
 import { createAgentSession, SessionManager } from "@mariozechner/pi-coding-agent";
+import { bindAbort, createCancellableSession } from "./model-session-cancel.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
@@ -613,12 +614,15 @@ export class EmptyModelResponseError extends Error {
   }
 }
 
+
+
 export async function runOmpModelSession(opts: {
   cwd: string;
   tools: string[];
   prompt: string;
   modelOverride?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
   onActivity?: (event: ActivityEvent) => void;
   /** Sampling temperature; injected per-request via the agent's streamFn. */
   temperature?: number;
@@ -656,8 +660,7 @@ export async function runOmpModelSession(opts: {
   };
   if (modelOverride) sessionOpts.modelPattern = modelOverride;
   if (opts.customTools) sessionOpts.customTools = opts.customTools;
-  const created = await createAgentSession(sessionOpts);
-  const session = created.session;
+  const session = await createCancellableSession(opts.signal, () => createAgentSession(sessionOpts));
   if (opts.temperature !== undefined) {
     const originalStream = session.agent.streamFn;
     session.agent.streamFn = (...args) => {
@@ -673,6 +676,9 @@ export async function runOmpModelSession(opts: {
     };
     unsubscribe = session.subscribe(bridge);
   }
+  const unbindAbort = bindAbort(opts.signal, () => {
+    void session.abort();
+  });
   const timer = setTimeout(() => {
     void session.abort();
   }, timeoutMs);
@@ -688,6 +694,7 @@ export async function runOmpModelSession(opts: {
     if (!text) throw new EmptyModelResponseError(messages);
     return text;
   } finally {
+    unbindAbort();
     if (unsubscribe) unsubscribe();
     clearTimeout(timer);
     session.dispose();

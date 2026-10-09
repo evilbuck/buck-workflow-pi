@@ -91,6 +91,18 @@ function continues(event: object): boolean {
   return "willContinue" in event && event.willContinue === true;
 }
 
+type PoolGetter = () => unknown;
+let cachedPool: { url: string; get: PoolGetter } | null = null;
+
+export function turnMemoryPool(url: string, create: (connectionString: string) => PoolGetter): PoolGetter {
+  if (!cachedPool || cachedPool.url !== url) cachedPool = { url, get: create(url) };
+  return cachedPool.get;
+}
+
+export function resetTurnMemoryPool(): void {
+  cachedPool = null;
+}
+
 async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): Promise<string> {
   const url = process.env.SQL_MEMORY_URL;
   if (!url) throw new Error("SQL_MEMORY_URL is unset");
@@ -99,7 +111,7 @@ async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): P
     import("../../extensions/sql-memory/db.js"),
     import("../../extensions/sql-memory/remember.js"),
   ]);
-  return rememberSqlMemory({ pool: createLazyPool(url)(), ...input });
+  return rememberSqlMemory({ pool: turnMemoryPool(url, createLazyPool)(), ...input });
 }
 
 function defaultJudge(text: string): Promise<unknown> {
@@ -126,6 +138,7 @@ function defaultExtract(text: string, signal: AbortSignal, cwd: string): Promise
     prompt: `Return one sentence stating one durable fact from this window, or an empty string. Do not include secrets.\n\n${text}`,
     timeoutMs: 8_000,
     thinkingLevel: "off",
+    signal,
   });
 }
 
