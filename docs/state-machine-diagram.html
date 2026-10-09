@@ -150,7 +150,8 @@ const nodes = [
   { id: 'documenting', label: 'documenting', cat: 'wrap', desc: 'Nested session updates living docs (b-docs / b-howto) because review flagged documentation or how-to impact.' },
   { id: 'saving', label: 'saving', cat: 'wrap', desc: 'Nested session writes session memory (b-save) to .context/memory.' },
   { id: 'committing', label: 'committing', cat: 'wrap', desc: 'Nested session creates the git commit (b-commit). Then: next phase → building, or all phases complete → done.' },
-  { id: 'blocked', label: 'blocked', cat: 'halt', desc: 'Cannot continue safely (missing plan, limits exceeded, failed twice, scan defect). Waiting for the operator; USER_CONFIRMED resumes at resolving.' },
+  { id: 'repairing', label: 'repairing', cat: 'wrap', desc: 'In-process repair of a failed commit pin. Re-probes Git for the current phase, then transitions to committing (b-commit). A failed repair blocks; resume retries repair and does not start the next phase.' },
+  { id: 'blocked', label: 'blocked', cat: 'halt', desc: 'Cannot continue safely (missing plan, limits exceeded, failed twice, scan defect). Waiting for the operator. USER_CONFIRMED resumes at resolving, or at repairing when a commit pin failed.' },
   { id: 'done', label: 'done', cat: 'done', desc: 'Every phase completed; the run is finished. Terminal.' },
   { id: 'aborted', label: 'aborted', cat: 'stop', desc: 'The operator typed /buck-loop --stop (from any state). Terminal.' },
 ];
@@ -183,7 +184,11 @@ const edges = [
   e('committing', 'building', 'next phase', 'cycle', 'commit confirmed and plan still phased-incomplete: build the next incomplete phase.'),
   e('committing', 'done', 'all phases complete', 'flow', 'phased-complete (or unphased single cycle) after commit.'),
   // recovery
-  e('blocked', 'resolving', 'USER_CONFIRMED', 'resume', 'operator reviewed the blocker and resumed the loop.'),
+  e('repairing', 'committing', 'checkpoint pinned', 'flow', 'Git baseline re-probed for the same phase; run b-commit.'),
+  e('repairing', 'blocked', 'pin failed', 'halt', 'Repair could not establish a safe checkpoint. Resume retries repair, not the next phase.'),
+  self('repairing', 'repair', 'Re-probe Git and pin the current phase before b-commit.'),
+  e('blocked', 'repairing', 'USER_CONFIRMED', 'resume', 'operator resumed a failed commit repair; fix the pin, then b-commit.'),
+  e('blocked', 'resolving', 'USER_CONFIRMED', 'resume', 'operator reviewed a non-commit blocker and resumed the loop.'),
   // retry self-loops
   self('building', 'run / retry', 'No session yet, or failed once → run the skill again (1 retry ceiling).'),
   self('iterating', 'run / retry', 'Same retry semantics while iterate cycles remain.'),
@@ -199,7 +204,7 @@ const edges = [
   e('saving', 'blocked', 'limits', 'halt', 'Loop limit or missing postcondition.'),
   e('committing', 'blocked', 'limits / plan gone', 'halt', 'Loop limit with phases remaining, or plan vanished while committing.'),
   // stop fan-in (unlabeled — the legend explains the STOP→aborted pattern)
-  ...['idle','resolving','building','iterating','reviewing','ranking','documenting','saving','committing','blocked']
+  ...['idle','resolving','building','iterating','reviewing','ranking','documenting','saving','committing','repairing','blocked']
     .map(s => e(s, 'aborted', s === 'idle' ? 'STOP' : '', 'stop', `Operator typed /buck-loop --stop while ${s === 'idle' ? 'idle' : `in ${s}`}.`)),
 ];
 

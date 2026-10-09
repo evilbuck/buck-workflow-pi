@@ -263,7 +263,7 @@ describe("next: confirmed postconditions advance deterministically", () => {
 });
 
 describe("next: ambiguous postconditions defer to a closed choice", () => {
-  it.each(POSTCONDITION_STATES)("stays in %s and offers retry|advance in file mode", (state) => {
+  it.each(POSTCONDITION_STATES.filter((state) => state !== "committing"))("stays in %s and offers retry|advance in file mode", (state) => {
     const sqlUrl = process.env.SQL_MEMORY_URL;
     delete process.env.SQL_MEMORY_URL;
     try {
@@ -276,6 +276,14 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
     } finally {
       if (sqlUrl !== undefined) process.env.SQL_MEMORY_URL = sqlUrl;
     }
+  });
+  it("blocks ambiguous committing outcomes without model-selected advance", () => {
+    const snapshot = workSnap("committing", { sessionOutcome: "ok", postcondition: "ambiguous" });
+    expect(next(snapshot)).toMatchObject({
+      to: "blocked",
+      effect: { kind: "await-operator" },
+    });
+    expect(legalChoices("committing", snapshot)).toEqual([]);
   });
 
   it("never offers advance on an unverified SQL save", () => {
@@ -705,23 +713,10 @@ describe("applyChoice", () => {
     expect(() => applyChoice({ kind: "block" }, s)).toThrow(BuckMachineError);
   });
 
-  it("advances from committing per plan facts", () => {
-    expect(
-      applyChoice(
-        { kind: "advance" },
-        workSnap("committing", { postcondition: "ambiguous" }, { planFacts: { kind: "phased-complete" }, phasePath: null }),
-      ).to,
-    ).toBe("done");
-    expect(applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" })).to).toBe("building");
-  });
-
-  it.each([false, true])("choice advance requires unphased close eligibility %s", (closeEligible) => {
-    const t = applyChoice({ kind: "advance" }, workSnap("committing", { postcondition: "ambiguous" }, {
-      phasePath: null,
-      planFacts: { kind: "unphased", closeEligible, openAcceptanceLines: closeEligible ? [] : ["- [ ] Observed evidence"] },
-    }));
-    expect(t.to).toBe(closeEligible ? "done" : "blocked");
-    if (!closeEligible) expect(t.why).toContain("Observed evidence");
+  it("does not allow an ambiguous commit to advance by choice", () => {
+    const snapshot = workSnap("committing", { postcondition: "ambiguous" });
+    expect(() => applyChoice({ kind: "advance" }, snapshot)).toThrow(BuckMachineError);
+    expect(() => applyChoice({ kind: "retry" }, snapshot)).toThrow(BuckMachineError);
   });
 
   it("rejects choices outside the current legal set — no model string transitions state", () => {
@@ -757,6 +752,23 @@ describe("operator-owned edges", () => {
 
   it("USER_CONFIRMED moves blocked → resolving", () => {
     expect(userConfirmed(snap({ state: "blocked" })).to).toBe("resolving");
+  });
+
+  it("USER_CONFIRMED repairs a failed commit instead of resolving", () => {
+    const failed = snap({
+      state: "blocked",
+      history: [{ from: "repairing", to: "blocked", at: "2026-10-06", why: "pin failed" }],
+    });
+    expect(userConfirmed(failed)).toEqual({
+      to: "repairing",
+      effect: { kind: "none" },
+      why: "USER_CONFIRMED: repair the failed commit, then b-commit",
+    });
+    expect(next(snap({ state: "repairing" })).effect).toEqual({ kind: "repair" });
+    expect(next(snap({
+      state: "repairing",
+      commitCheckpoint: { targetPath: PHASE_PATH, baseHead: "a".repeat(40) },
+    }))).toMatchObject({ to: "committing", effect: { kind: "run-skill", skill: "commit" } });
   });
 
   it("STOP aborts from any loop state", () => {
@@ -1270,7 +1282,7 @@ const LEGACY_ROWS = [
   {
     "id": "committing-next-phase",
     "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
-    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"next incomplete phase"},
+    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"verified commit; next incomplete phase"},
   },
   {
     "id": "committing-unphased-done",
@@ -1291,36 +1303,6 @@ const LEGACY_ROWS = [
     "id": "committing-confirmed-loop-limit",
     "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
     "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
-  },
-  {
-    "id": "committing-choice-retry",
-    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"retry"},
-    "expected": {"to":"committing","effect":{"kind":"run-skill","skill":"commit"},"why":"accepted choice: retry the session"},
-  },
-  {
-    "id": "committing-choice-advance-next-phase",
-    "overrides": {"state":"committing","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"advance"},
-    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"next incomplete phase"},
-  },
-  {
-    "id": "committing-choice-advance-unphased",
-    "overrides": {"state":"committing","planFacts":{"kind":"unphased","closeEligible":true},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"advance"},
-    "expected": {"to":"done","effect":{"kind":"none"},"why":"unphased plan completed its single cycle"},
-  },
-  {
-    "id": "committing-choice-advance-complete",
-    "overrides": {"state":"committing","planFacts":{"kind":"phased-complete"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"advance"},
-    "expected": {"to":"done","effect":{"kind":"none"},"why":"no phases remain"},
-  },
-  {
-    "id": "committing-choice-advance-missing",
-    "overrides": {"state":"committing","planFacts":{"kind":"missing","reason":"fixture missing"},"workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"advance"},
-    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"plan vanished while committing: fixture missing"},"why":"plan vanished while committing: fixture missing"},
   },
   {
     "id": "committing-postcondition-ambiguous-loop-limit",
@@ -1373,7 +1355,7 @@ describe("legacy rule truth table", () => {
 });
 
 describe("declarative operator graph", () => {
-  it.each(["idle", "resolving", "ranking", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
+  it.each(["idle", "resolving", "ranking", "repairing", ...WORK_STATES, "blocked"] as const)("%s exposes STOP only as a manual edge", (state) => {
     expect(buckMachine.edge(state, "aborted").manual).toBe(true);
     expect(buckMachine.restore(state).available({...snap({state}), sqlMemoryConfigured: false})).not.toContain("aborted");
     expect(stopFrom(state)).toEqual({to: "aborted", effect: {kind: "none"}, why: `STOP requested by operator from ${state}`});

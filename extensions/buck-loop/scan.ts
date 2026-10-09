@@ -36,6 +36,8 @@ export type ScanOptions = {
   sessionOutcome?: WorkFacts["sessionOutcome"];
   retriesUsed?: number;
   sqlSaveVerified?: boolean;
+  /** Supervisor-verified one-commit successor of the persisted checkpoint baseline. */
+  commitVerified?: boolean;
 };
 
 export type ScanResult = {
@@ -73,6 +75,7 @@ type PostCtx = {
   complete: boolean;
   reviewFacts: ReviewFacts;
   sqlSaveVerified: boolean;
+  commitVerified: boolean;
 };
 
 const PENDING_WORK: WorkFacts = {
@@ -488,7 +491,7 @@ const POSTCONDITION: Partial<Record<LoopState, PostFn>> = {
   documenting: (ctx) =>
     currentReviewExpectsNoDocs(ctx.reviewFacts) || ctx.changed?.some(isDocPath) ? "confirmed" : "ambiguous",
   saving: savePostcondition,
-  committing: (ctx) => (ctx.changed !== null && ctx.changed.length === 0 ? "confirmed" : "ambiguous"),
+  committing: (ctx) => (ctx.changed !== null && ctx.changed.length === 0 && ctx.commitVerified ? "confirmed" : "ambiguous"),
   reviewing: () => "confirmed",
 };
 
@@ -524,6 +527,7 @@ function scanCompletedWork(root: string, resolved: Resolved, opts: ScanOptions, 
     complete: resolved.planFacts.kind === "phased-complete",
     reviewFacts,
     sqlSaveVerified: opts.sqlSaveVerified ?? false,
+    commitVerified: opts.commitVerified ?? false,
   });
 }
 

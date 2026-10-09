@@ -68,7 +68,7 @@ function retryExhausted(s: Snapshot): boolean {
 }
 
 function ambiguousChoiceOpen(s: Snapshot): boolean {
-  return postconditionAmbiguous(s) && canRunWork(s) && !retryExhausted(s);
+  return s.state !== "committing" && postconditionAmbiguous(s) && canRunWork(s) && !retryExhausted(s);
 }
 
 function postconditionAmbiguous(s: Snapshot): boolean {
@@ -82,6 +82,13 @@ function postconditionConfirmed(s: Snapshot): boolean {
 function completedBlockedWork(s: Snapshot): boolean {
   const previous = s.history.at(-1)?.from;
   return (previous === "building" || previous === "iterating") && postconditionConfirmed(s);
+}
+
+/** A failed pin or commit still owes this phase. Resume repairs it; it does not resolve onward. */
+function commitRepairOwed(s: Snapshot): boolean {
+  if (s.commitCheckpoint) return false;
+  const previous = s.history.at(-1)?.from;
+  return previous === "repairing" || previous === "committing";
 }
 
 function postconditionMissing(s: Snapshot): boolean {
@@ -259,7 +266,10 @@ function reviewBlockReason(s: Snapshot): string | null {
 }
 
 function commitBlockReason(s: Snapshot): string | null {
-  if (!postconditionConfirmed(s) && !ambiguousChoiceOpen(s)) return null;
+  if (sessionOk(s) && s.workFacts.postcondition === "ambiguous") {
+    return "commit outcome is ambiguous; inspect the retained checkpoint, HEAD, and working tree before retrying";
+  }
+  if (!postconditionConfirmed(s)) return null;
   if (s.planFacts.kind === "unphased" && !s.planFacts.closeEligible) return unphasedBlockReason(s);
   if (s.planFacts.kind === "missing") return `plan vanished while committing: ${s.planFacts.reason}`;
   if (postconditionConfirmed(s) && s.planFacts.kind === "phased-incomplete" && limitsExceeded(s)) return loopLimitReason(s);
@@ -304,7 +314,7 @@ function workEdges(state: WorkState) {
 const STOP = { name: "aborted", manual: true } as const;
 
 function confirmedOrAmbiguous(s: Snapshot): boolean {
-  return (postconditionConfirmed(s) && canRunWork(s)) || ambiguousChoiceOpen(s);
+  return (postconditionConfirmed(s) && canRunWork(s)) || (s.state !== "committing" && ambiguousChoiceOpen(s));
 }
 
 function reviewRoute(s: Snapshot, predicate: (s: Snapshot) => boolean): boolean {
@@ -453,20 +463,52 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
         ...workEdges("committing"),
         {
           name: "building",
-          guard: (s) => confirmedOrAmbiguous(s) && s.planFacts.kind === "phased-incomplete",
-          effect: () => runSkill("build", "next incomplete phase"),
+          guard: (s) => postconditionConfirmed(s) && canRunWork(s) && s.planFacts.kind === "phased-incomplete",
+          effect: () => runSkill("build", "verified commit; next incomplete phase"),
         },
-        { name: "done", guard: (s) => commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
+        { name: "done", guard: (s) => postconditionConfirmed(s) && commitDoneReason(s) !== null, effect: (s) => none(commitDoneReason(s)!) },
+      ],
+    },
+    repairing: {
+      targets: [
+        {
+          name: "committing",
+          guard: (s) => s.commitCheckpoint != null,
+          effect: () => runSkill("commit", "checkpoint repaired; committing"),
+        },
+        {
+          name: "repairing",
+          guard: (s) => s.commitCheckpoint == null && s.workFacts.sessionOutcome === "pending",
+          effect: () => ({ effect: { kind: "repair" } as const, why: "commit failed; repairing the checkpoint before b-commit" }),
+        },
+        {
+          name: "blocked",
+          guard: (s) => s.commitCheckpoint == null && s.workFacts.sessionOutcome !== "pending",
+          effect: () => blocked("commit repair could not establish a safe checkpoint; resume retries repair, not the next phase"),
+        },
+        { ...STOP, effect: () => none("STOP requested by operator from repairing") },
       ],
     },
     blocked: {
       targets: [
         {
+          name: "committing",
+          manual: true,
+          guard: (s) => s.commitCheckpoint !== null && s.commitCheckpoint !== undefined,
+          effect: () => none("USER_CONFIRMED: resume the retained commit checkpoint"),
+        },
+        {
+          name: "repairing",
+          manual: true,
+          guard: commitRepairOwed,
+          effect: () => none("USER_CONFIRMED: repair the failed commit, then b-commit"),
+        },
+        {
           name: "reviewing", manual: true, guard: completedBlockedWork,
           effect: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
         },
         {
-          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s),
+          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s) && !s.commitCheckpoint,
           effect: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
         },
         { ...STOP, effect: () => none("STOP requested by operator from blocked") },
@@ -556,7 +598,7 @@ export function start(): Transition {
 }
 
 export function userConfirmed(s: Snapshot): Transition {
-  const to = completedBlockedWork(s) ? "reviewing" : "resolving";
+  const to = s.commitCheckpoint ? "committing" : commitRepairOwed(s) ? "repairing" : completedBlockedWork(s) ? "reviewing" : "resolving";
   if (s.state !== "blocked") throw new IllegalTransitionError(s.state, to, "not-a-target");
   return take(buckMachine.restore(s.state), to, facts(s));
 }

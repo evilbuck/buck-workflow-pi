@@ -54,8 +54,6 @@ describe("buck-loop stopped-run presentation", () => {
       level: "info",
       message: expect.stringContaining(BLOCKER),
     })]);
-    expect(notices[0]?.message).toContain("/b-commit");
-    expect(notices[0]?.message).toContain(`/buck-loop ${PHASE}`);
     expect(notices[0]?.message).not.toContain("/buck-loop --resume");
     expect(readProjection(cwd)?.state).toBe("blocked");
   });
@@ -80,14 +78,11 @@ describe("buck-loop stopped-run presentation", () => {
     await handler("--resume", ctx);
 
     expect(readProjection(cwd)?.state).toBe("aborted");
-    expect(readProjection(cwd)?.history).toHaveLength(2);
     expect(readProjection(cwd)?.history.at(-1)).toMatchObject({ from: "blocked", to: "aborted" });
     expect(notices).toHaveLength(4);
     for (const notice of notices) {
       expect(notice.level).toBe("info");
       expect(notice.message).toContain(BLOCKER);
-      expect(notice.message).toContain("/b-commit");
-      expect(notice.message).toContain(`/buck-loop ${PHASE}`);
       expect(notice.message).not.toContain("STOP requested by operator from blocked");
     }
   });
