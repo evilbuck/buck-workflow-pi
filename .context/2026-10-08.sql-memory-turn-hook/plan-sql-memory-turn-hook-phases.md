@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-10-08
 subject: 2026-10-08.sql-memory-turn-hook
 topics: [phasing, omp-hooks, sql-memory, turn-capture]
@@ -53,7 +53,7 @@ Read the first non-completed phase, implement only that phase, run its verificat
 
 ## Execution Checklist
 
-- [ ] Phase 1: Enablement and Window — build → review → save → commit
-- [ ] Phase 2: Capture and Durable Write — build → review → save → commit
-- [ ] Phase 3: OMP Hook and Package Surface — build → review → save → commit
-- [ ] Phase 4: Documentation and Live Proof — build → review → save → commit
+- [x] Phase 1: Enablement and Window — build → review → save → commit
+- [x] Phase 2: Capture and Durable Write — build → review → save → commit
+- [x] Phase 3: OMP Hook and Package Surface — build → review → save → commit
+- [x] Phase 4: Documentation and Live Proof — build → review → save → commit
