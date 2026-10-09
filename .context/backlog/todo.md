@@ -1,6 +1,13 @@
 # Backlog
 
+## SQL memory turn hook
+
+- [ ] [Opt-out SQL memory turn hook](items/sql-memory-turn-hook.md) — medium; package `agent_end` hook, on when `SQL_MEMORY_URL` is set — see `.context/2026-10-08.sql-memory-turn-hook/plan-sql-memory-turn-hook.md`
+- [ ] [Phase 1: Enablement and Window](items/phase-1-sql-memory-turn-hook.md) — medium, `/b-build` — [phase-1-enable-window.md](../2026-10-08.sql-memory-turn-hook/phase-1-enable-window.md)
+
 ## Worktree recap
+
+
 
 - [ ] [Add /worktrees-active-recap](items/worktrees-active-recap.md) — medium; deterministic unmerged-worktree report — see `.context/2026-10-06.worktrees-active-recap/plan-worktrees-active-recap.md`
 
