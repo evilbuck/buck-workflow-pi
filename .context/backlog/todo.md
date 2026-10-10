@@ -1,6 +1,9 @@
 # Backlog
 
+
 ## Worktree recap
+
+
 
 - [ ] [Add /worktrees-active-recap](items/worktrees-active-recap.md) — medium; deterministic unmerged-worktree report — see `.context/2026-10-06.worktrees-active-recap/plan-worktrees-active-recap.md`
 

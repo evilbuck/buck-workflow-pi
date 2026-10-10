@@ -190,7 +190,7 @@ OMP's `omp-plugins` provider (`packages/coding-agent/src/discovery/omp-plugins.t
 | `tools/` | `Tool` items | `tools/<name>.{ts,js}` |
 | `.mcp.json` / `mcp.json` | MCP server config | JSON manifest of `mcpServers` |
 
-Auto-discovery supplements the explicit `omp` manifest arrays. This package declares `extensions`, `commands`, and `skills`, and keeps the root sibling directories aligned with those entries for directory-based installs.
+Auto-discovery supplements the explicit `omp` manifest arrays. This package declares `extensions`, `commands`, `skills`, and `hooks`, and keeps the root sibling directories aligned with those entries for directory-based installs. `hooks/post/turn-memory.ts` is the only post hook. It is not also registered from `extensions/index.ts`. The installed `agent_end` payload has `messages` and no source field, so an extension-triggered loop that emits `agent_end` is counted; this hook does not call `sendUserMessage` or `sendMessage`.
 
 ## Loading in Each Environment
 

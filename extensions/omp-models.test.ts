@@ -222,6 +222,35 @@ describe("runOmpModelSession", () => {
 
     expect(observed).toEqual([{ temperature: 0.4 }]);
   });
+
+  it("does not prompt when the caller aborts during session creation", async () => {
+    const controller = new AbortController();
+    const prompt = vi.fn(async () => undefined);
+    const dispose = vi.fn(async () => undefined);
+    createAgentSessionMock.mockImplementation(async () => {
+      controller.abort();
+      return {
+        session: {
+          agent: { streamFn: vi.fn() },
+          prompt,
+          messages: [{ role: "assistant", content: "late" }],
+          subscribe: () => () => undefined,
+          abort: async () => undefined,
+          dispose,
+        },
+      };
+    });
+
+    await expect(runOmpModelSession({
+      cwd: tmp(),
+      prompt: "extract",
+      tools: [],
+      timeoutMs: 1_000,
+      signal: controller.signal,
+    })).rejects.toThrow("aborted");
+    expect(prompt).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledOnce();
+  });
 });
 
 

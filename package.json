@@ -11,6 +11,7 @@
     "prompts",
     "commands",
     "extensions",
+    "hooks",
     "scripts",
     "docs",
     "README.md",
