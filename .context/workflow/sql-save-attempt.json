@@ -1,8 +1,8 @@
 {
-  "attemptId": "0730bceb-956d-4251-9801-8424cb810509",
-  "runId": "495ba247-6090-46ad-ad04-025a7b1339bf",
-  "subject": "2026-10-03.review-severity-ranking",
+  "attemptId": "c8ba4a6d-c06e-48b1-a708-a062cd95d55d",
+  "runId": "f0c44f46-c9cc-40b6-8e3a-512cdb7e71d3",
+  "subject": "2026-10-10.durable-storage-adapters",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md",
-  "receiptRel": ".context/2026-10-03.review-severity-ranking/sql-memory-receipts/495ba247-6090-46ad-ad04-025a7b1339bf-0730bceb-956d-4251-9801-8424cb810509.json"
+  "phase": ".context/2026-10-10.durable-storage-adapters/phase-1-contract-config-identity.md",
+  "receiptRel": ".context/2026-10-10.durable-storage-adapters/sql-memory-receipts/f0c44f46-c9cc-40b6-8e3a-512cdb7e71d3-c8ba4a6d-c06e-48b1-a708-a062cd95d55d.json"
 }
