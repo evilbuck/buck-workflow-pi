@@ -102,3 +102,4 @@
 - [x] [Heal commands/ mirror drift](2026-09/commands-mirror-drift.md) — done 2026-09-18 — all-symlink contract, zero exceptions; drift test `scripts/commands-mirror.test.ts` (2026-09-18.good-ideas plan)
 - [x] [Phase 3: Recall Patterns and Docs](2026-09/phase-3-recall-patterns-docs.md) — done 2026-09-28 — live-verified recall/supersede/embedding docs; three iterate rounds closed
 - [Add decision closure across Buck Workflow](2026-09/decision-closure-protocol.md) — done 2026-09-30 — six-phase combined sequence (chooser stall verification, shared protocol, grills, plan/phase, build/review, narrative/proof) complete and verified.
+- [Phase 1: Contract, Config, Identity & A-4](2026-10/phase-1-storage-adapter-contract-config-identity.md) — done 2026-10-10 — contract/config/identity/visibility/capability modules under `skills/_shared/storage/`, shared conformance suite, persistence inventory, A-4 validated on OMP/Node 22/Bun; iterate closed identity-collision defect.
