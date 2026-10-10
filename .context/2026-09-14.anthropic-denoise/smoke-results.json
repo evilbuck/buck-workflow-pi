@@ -1,0 +1,1191 @@
+{
+  "cases": {
+    "cause": "Why did this API call get HTTP 429? The server response says Retry-After: 30. Answer the question.",
+    "verification": "Summarize completed work using only these facts: src/cache.ts now expires stale entries; six cache unit tests passed; the integration suite failed to start because Redis is unavailable. No deployment was attempted.",
+    "blocked": "Report deployment status using only these facts: preflight failed before any changes because credentials are missing. The release was not deployed. The operator must authenticate the deploy CLI before retrying.",
+    "depth": "Explain optimistic versus pessimistic database locking in about 250 words. Include an example race, retry behavior, and when to choose each. I want the tradeoffs, not just a recommendation.",
+    "format": "Return only valid JSON with keys status and verification. Facts: work is completed; unit tests passed; integration tests were not run. verification must be an object containing unit and integration strings."
+  },
+  "initial": [
+    {
+      "model_alias": "opus",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "You hit a rate limit: HTTP 429 means the server rejected the request because you exceeded its allowed request rate (or quota) for that endpoint. `Retry-After: 30` is the server telling you to wait 30 seconds before retrying.\n\nWhat to do: sleep 30 seconds, then retry \u2014 ideally with exponential backoff and jitter in case the limit is still in effect. If 429s are frequent, reduce concurrency or check whether the limit is per-key, per-IP, or per-endpoint; response headers like `X-RateLimit-Limit`/`X-RateLimit-Remaining`/`X-RateLimit-Reset` (if present) will tell you which budget you exhausted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 18,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001008,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 229,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1261,
+          "webSearchRequests": 0,
+          "costUSD": 0.018345,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "`src/cache.ts` now expires stale entries.\n\n- Verification: six cache unit tests passed.\n- The integration suite failed to start because Redis is unavailable.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001006,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 67,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1294,
+          "webSearchRequests": 0,
+          "costUSD": 0.014625,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment is blocked: preflight failed because credentials are missing, so no changes were made and the release was not deployed. Authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 11,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000983,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 56,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1285,
+          "webSearchRequests": 0,
+          "costUSD": 0.014259999999999998,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "**Pessimistic locking** takes the lock before reading: `SELECT ... FOR UPDATE` holds the row until commit, so conflicting transactions block. **Optimistic locking** takes no lock; it reads a version (or timestamp) column, then writes with `UPDATE ... WHERE id = ? AND version = ?`. If zero rows match, someone else won and the transaction aborts.\n\n**The race.** Inventory is 10. Transactions A and B both read 10, both compute 9, both write 9. Two units sold, one decremented \u2014 a lost update. Pessimistic locking prevents it because B blocks at the `SELECT` until A commits, then reads 9. Optimistic locking detects it: B's `UPDATE` matches no rows because A bumped the version, so B fails.\n\n**Retry behavior.** This is the sharpest difference. Pessimistic conflicts resolve by waiting \u2014 callers see latency, not errors, and the failure mode is lock timeouts or deadlocks needing deadlock-retry logic anyway. Optimistic conflicts resolve by failing and retrying the whole read-modify-write in application code, with backoff. Retries are only safe if the work is idempotent and cheap to redo; a retry loop around an expensive transaction, or one with side effects like sending email, is a trap.\n\n**Tradeoffs.** Optimistic wins under low contention: no lock overhead, no blocking, no deadlocks, and it works across request boundaries where a transaction can't stay open (a user editing a form for five minutes). It degrades badly under high contention \u2014 retry storms, wasted work, possible starvation of slow writers.\n\nPessimistic wins on hot rows, long critical sections, and multi-row invariants where a retry would be expensive or hard to make correct. Its costs are held locks, reduced concurrency, deadlock risk, and the need for consistent lock ordering.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 728,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1289,
+          "webSearchRequests": 0,
+          "costUSD": 0.031100000000000003,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 108,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "format",
+      "exit_code": 0,
+      "response": "```json\n{\n  \"status\": \"completed\",\n  \"verification\": {\n    \"unit\": \"passed\",\n    \"integration\": \"not run\"\n  }\n}\n```",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 11,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000984,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 49,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1284,
+          "webSearchRequests": 0,
+          "costUSD": 0.014075,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "HTTP 429 means you've hit rate limiting \u2014 you're sending requests faster than the API allows. `Retry-After: 30` tells you to wait 30 seconds before retrying.\n\nCommon causes: too many requests in a short window, exceeding a per-minute/hour quota, or concurrent request limits. To fix: implement backoff (wait the specified 30s, then retry) and consider adding client-side throttling to stay under the limit going forward.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000998,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 145,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1329,
+          "webSearchRequests": 0,
+          "costUSD": 0.00677,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "Fixed stale cache entries not expiring in `src/cache.ts`.\n\n- Verification: 6 cache unit tests passed.\n- Integration suite could not run \u2014 Redis is unavailable.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 16,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001016,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 76,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1362,
+          "webSearchRequests": 0,
+          "costUSD": 0.006212,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment blocked: preflight failed due to missing credentials, before any changes were made. The release was not deployed. Authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 12,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000988,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 55,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1353,
+          "webSearchRequests": 0,
+          "costUSD": 0.005966,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "Both solve the same problem \u2014 two transactions modifying the same row \u2014 but differ in when they detect the conflict.\n\n**Pessimistic locking** acquires a lock (e.g., `SELECT ... FOR UPDATE`) before reading/modifying, blocking other transactions until release.\n\n- Example race: Two users edit account balance 100. With pessimistic locking, user A's `SELECT FOR UPDATE` locks the row; user B's same query blocks until A commits, avoiding lost updates entirely.\n- Retry behavior: usually none needed \u2014 conflicts are prevented, not detected after the fact. But you get blocking/waiting, and possible deadlocks if lock order varies.\n- Tradeoffs: guarantees correctness under contention, but hurts throughput/latency (lock hold time, connection pool pressure) and doesn't scale well across distributed systems or long-running transactions (e.g., a user leaving a form open).\n\n**Optimistic locking** uses a version/timestamp column. Reads are unlocked; on write, you check the version hasn't changed (`UPDATE ... WHERE id=? AND version=?`) and increment it.\n\n- Example race: Same balance-100 scenario \u2014 both A and B read version 1. A updates to version 2 successfully. B's update (still targeting version 1) affects 0 rows, signaling conflict.\n- Retry behavior: application must detect the 0-row update, re-fetch, reapply logic, and retry \u2014 adds complexity and requires idempotent/retry-safe logic.\n- Tradeoffs: better throughput under low contention and works well distributed/stateless, but wastes work on retries under high contention and pushes conflict-handling complexity into app code.\n\n**Choose pessimistic** for high-contention hotspots or when retry logic is impractical (e.g., financial transfers needing strict serialization). **Choose optimistic** for low-contention, high-read workloads or distributed/microservice architectures where holding locks is costly or impossible.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 648,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1357,
+          "webSearchRequests": 0,
+          "costUSD": 0.011911999999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "format",
+      "exit_code": 0,
+      "response": "{\"status\": \"completed\", \"verification\": {\"unit\": \"passed\", \"integration\": \"not run\"}}",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 11,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000984,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 33,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1352,
+          "webSearchRequests": 0,
+          "costUSD": 0.005742,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    }
+  ],
+  "intermediate": [
+    {
+      "model_alias": "opus",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "429 means you exceeded the server's rate limit \u2014 too many requests in the allowed window. `Retry-After: 30` tells you to wait 30 seconds before retrying.\n\nTo fix it: back off for the full 30 seconds, then retry, ideally with exponential backoff and jitter if repeats occur. If you're hitting this regularly, reduce request concurrency or batch calls rather than retrying harder. Check the response body or headers like `X-RateLimit-Limit`/`X-RateLimit-Remaining` for the actual quota.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 13,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000983,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 176,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1309,
+          "webSearchRequests": 0,
+          "costUSD": 0.0175,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "Stale cache entries now expire in `src/cache.ts`.\n\n- Verification: six cache unit tests passed.\n- The integration suite failed to start because Redis is unavailable, so those tests are unverified.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 80,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1342,
+          "webSearchRequests": 0,
+          "costUSD": 0.015430000000000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment is blocked: preflight failed because credentials are missing, so no changes were made and the release was not deployed. Authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 13,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000993,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 56,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1333,
+          "webSearchRequests": 0,
+          "costUSD": 0.01474,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "**Pessimistic locking** assumes conflict is likely, so it acquires a lock before reading data others might change (`SELECT ... FOR UPDATE`). Other transactions block until the lock releases. **Optimistic locking** assumes conflict is rare: read freely, but carry a version number or timestamp, and verify at write time that nothing changed.\n\n**Example race.** Two clerks load order #42 with `qty = 10`. Both compute `qty - 1`. Without protection, both write `9`; one decrement is lost.\n\nPessimistic: clerk A's `SELECT ... FOR UPDATE` holds the row; B blocks until A commits, then reads `9` and writes `8`. Correct, but B waited.\n\nOptimistic: both read `(qty=10, version=7)`. A commits `UPDATE ... SET qty=9, version=8 WHERE id=42 AND version=7` \u2014 one row affected. B's identical update matches zero rows, because the version moved. B's transaction fails.\n\n**Retry behavior.** Pessimistic locking rarely retries; it waits. Its failure modes are lock timeouts and deadlocks, which the database detects and aborts. Optimistic locking pushes recovery to the application: on a version mismatch, re-read current state, recompute, and retry \u2014 typically with bounded attempts and jittered backoff. Critically, the retried operation must be recomputed from fresh data, not replayed blindly, and side effects (emails, charges) must stay outside the retry loop or be idempotent.\n\n**Tradeoffs.** Pessimistic gives predictable latency under high contention and simple application code, at the cost of held locks, reduced concurrency, deadlock risk, and poor behavior across long or user-interactive transactions. Optimistic maximizes throughput under low contention and holds no locks, but wastes work on conflict, degrades badly as contention rises (retry storms), and complicates application logic.\n\nChoose pessimistic for short, hot, high-contention writes like inventory counters or ledger balances; optimistic for low-conflict edits, long think-time forms, and distributed or stateless services.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 760,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1337,
+          "webSearchRequests": 0,
+          "costUSD": 0.03238,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 64,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "format",
+      "exit_code": 0,
+      "response": "```json\n{\n  \"status\": \"completed\",\n  \"verification\": {\n    \"unit\": \"passed\",\n    \"integration\": \"not run\"\n  }\n}\n```",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 12,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000989,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 49,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1332,
+          "webSearchRequests": 0,
+          "costUSD": 0.014555,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "HTTP 429 means \"Too Many Requests\" \u2014 the client hit the server's rate limit. `Retry-After: 30` tells you to wait 30 seconds before retrying the call.\n\nTo fix it: add a delay/backoff (respecting `Retry-After`) before retrying, and check if your call volume/frequency exceeds the API's documented rate limits \u2014 you may need to throttle requests, batch them, or request a higher quota.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000988,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 139,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1377,
+          "webSearchRequests": 0,
+          "costUSD": 0.006902,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "Fixed stale cache entry expiration in `src/cache.ts`.\n\n- Verification: all 6 cache unit tests passed.\n- Integration suite failed to start \u2014 Redis is unavailable.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 12,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000996,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 77,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1410,
+          "webSearchRequests": 0,
+          "costUSD": 0.006414,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment blocked: preflight failed because credentials are missing, before any changes were made. The release was not deployed. Authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 10,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000978,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 55,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1401,
+          "webSearchRequests": 0,
+          "costUSD": 0.006157999999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "# Optimistic vs. Pessimistic Locking\n\n**Pessimistic locking** acquires a lock (e.g., `SELECT ... FOR UPDATE`) before touching a row, blocking other transactions until it's released. **Optimistic locking** doesn't lock anything upfront; instead, it checks a version/timestamp column at write time and rejects the write if the row changed since it was read.\n\n**Example race:** Two users edit the same inventory row (`quantity = 10`), both intending to decrement it.\n- *Pessimistic:* User A's `SELECT FOR UPDATE` locks the row; User B's transaction blocks until A commits, then B reads the updated value and proceeds safely.\n- *Optimistic:* Both read `quantity=10, version=1`. A writes first, setting `version=2`. B's `UPDATE ... WHERE version=1` matches zero rows \u2014 B detects the conflict and must retry (re-read, reapply logic, resubmit).\n\n**Retry behavior:** Optimistic locking pushes retry logic to the application \u2014 you need explicit conflict detection and a retry loop, which adds code complexity but keeps the database unblocked. Pessimistic locking has no \"retry\" per se; contention shows up as waiting (or deadlocks/timeouts), and the database handles serialization for you.\n\n**Tradeoffs:**\n- **Pessimistic:** Simpler correctness reasoning, no lost-update bugs, but risks deadlocks, reduces concurrency/throughput, and holds resources (locks, connections) longer \u2014 bad for long transactions or high contention.\n- **Optimistic:** Scales better under low-to-moderate contention and avoids blocking, but wastes work on conflicts, requires retry handling everywhere writes happen, and degrades badly (thrashing retries) under high contention.\n\nChoose pessimistic when conflicts are frequent or correctness-critical with cheap retries (e.g., financial transfers); choose optimistic when reads vastly outnumber conflicting writes (e.g., typical web CRUD, collaborative editing with rare overlaps).",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 693,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1405,
+          "webSearchRequests": 0,
+          "costUSD": 0.012554,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "format",
+      "exit_code": 0,
+      "response": "```json\n{\"status\": \"completed\", \"verification\": {\"unit\": \"passed\", \"integration\": \"not run\"}}\n```",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 13,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000994,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 38,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1400,
+          "webSearchRequests": 0,
+          "costUSD": 0.005984,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    }
+  ],
+  "final": [
+    {
+      "model_alias": "opus",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "You hit a rate limit \u2014 429 means you sent more requests than the endpoint's quota allows for the current window. `Retry-After: 30` is the server telling you to wait 30 seconds before retrying.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 14,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000988,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 67,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1313,
+          "webSearchRequests": 0,
+          "costUSD": 0.014815,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "Stale cache entries now expire in `src/cache.ts`.\n\n- Six cache unit tests passed.\n- The integration suite failed to start \u2014 Redis is unavailable, so those tests are unverified.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 77,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1346,
+          "webSearchRequests": 0,
+          "costUSD": 0.015394999999999999,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment is blocked: preflight failed because credentials are missing, so no changes were made and the release was not deployed. Authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 11,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000983,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 56,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1337,
+          "webSearchRequests": 0,
+          "costUSD": 0.01478,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "**Pessimistic locking** takes the lock before reading: `SELECT ... FOR UPDATE` holds a row lock until commit, so concurrent writers block. **Optimistic locking** takes no lock; it reads a version marker, then makes the write conditional on that marker being unchanged: `UPDATE accounts SET balance = 80, version = 6 WHERE id = 1 AND version = 5`. If zero rows update, someone else won, and the transaction must retry.\n\n**The race.** Two requests withdraw $20 from a $100 balance. Both read 100, both compute 80, both write 80. Final balance is 80 instead of 60 \u2014 one withdrawal vanished. Pessimistic locking prevents this by making the second reader wait at `FOR UPDATE`. Optimistic locking lets both proceed but rejects the second write on the version mismatch.\n\n**Retry behavior.** This is the core asymmetry. Pessimistic locking pays its cost up front in waiting; failure modes are lock timeouts and deadlocks (which the database resolves by killing a victim, so you still need retries). Optimistic locking pays its cost after the fact: the loser re-reads, recomputes, and retries. Under high contention that work is discarded repeatedly, and throughput can collapse \u2014 retries make contention worse. Add bounded attempts and backoff.\n\n**Choosing.** Optimistic wins when conflicts are rare, transactions are long or span user think-time (holding a lock across a web form is untenable), or the work is cheap to redo. Pessimistic wins when contention is high, retries are expensive or non-idempotent (external side effects), or you need multi-row invariants held stable.\n\nThe real tradeoff: pessimistic trades throughput and deadlock risk for predictable latency; optimistic trades predictability for concurrency, and degrades sharply exactly when the data is hottest.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 636,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1341,
+          "webSearchRequests": 0,
+          "costUSD": 0.02932,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 19,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "opus",
+      "case": "format",
+      "exit_code": 0,
+      "response": "{\"status\":\"completed\",\"verification\":{\"unit\":\"passed\",\"integration\":\"not run\"}}",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 11,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000984,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-opus-5": {
+          "inputTokens": 2,
+          "outputTokens": 31,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1336,
+          "webSearchRequests": 0,
+          "costUSD": 0.014145000000000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-opus-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "cause",
+      "exit_code": 0,
+      "response": "HTTP 429 means you're being rate-limited \u2014 you've exceeded the number of requests the server allows in a given time window. `Retry-After: 30` tells you the server wants you to wait 30 seconds before retrying.\n\nCommon causes: too many requests in a short period, exceeding a per-minute/hour quota, or concurrent request limits on the API key/account. Fix by backing off for 30s and implementing retry-with-backoff, or reducing request frequency/batching calls if this happens often.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 918,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001003,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 160,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1381,
+          "webSearchRequests": 0,
+          "costUSD": 0.007128000000000001,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "verification",
+      "exit_code": 0,
+      "response": "Fixed stale cache entries not expiring in `src/cache.ts`.\n\n- Verification: all 6 cache unit tests passed.\n- Integration suite failed to start \u2014 Redis is unavailable.\n- No deployment was attempted.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 78,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1414,
+          "webSearchRequests": 0,
+          "costUSD": 0.0064399999999999995,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "blocked",
+      "exit_code": 0,
+      "response": "Deployment blocked: preflight failed before any changes because credentials are missing. The release was not deployed.\n\nNext step: authenticate the deploy CLI, then retry.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 928,
+          "outputTokens": 12,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000988,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 56,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1405,
+          "webSearchRequests": 0,
+          "costUSD": 0.006184,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "depth",
+      "exit_code": 0,
+      "response": "Both solve the same problem \u2014 two transactions modifying the same row \u2014 but differ in when they detect conflict.\n\n**Pessimistic locking** acquires a lock (`SELECT ... FOR UPDATE`) before reading/modifying, blocking other transactions until release.\n\n**Optimistic locking** reads without locking, then checks a version/timestamp column at write time (`UPDATE ... WHERE id=? AND version=?`); if no rows match, someone else won, and the caller retries.\n\n**Example race:** two users edit the same inventory count (qty=10) concurrently, each decrementing by 1.\n- *Pessimistic:* second transaction blocks on the row lock until the first commits, then reads the updated qty=9 and decrements to 8. Correct, serialized, but the second user waits.\n- *Optimistic:* both read qty=10/version=1. Both attempt `UPDATE ... WHERE version=1`. First succeeds (qty=9, version=2); second affects 0 rows, fails, and must retry \u2014 re-reading qty=9 and reapplying its decrement to 8.\n\n**Retry behavior:** pessimistic locking has no application-level retry \u2014 waiting *is* the mechanism, with risk of deadlock if lock ordering isn't consistent. Optimistic locking pushes retry logic to the application (loop-and-recheck), so it needs idempotent retry handling and a cap on attempts to avoid livelock under heavy contention.\n\n**Tradeoffs:**\n- Pessimistic: guarantees no wasted work, simpler reasoning, but hurts throughput/latency under contention and risks deadlocks and lock-held-during-network-call bugs.\n- Optimistic: better throughput when conflicts are rare, no lock-hold latency, but wastes work on conflict, adds retry complexity, and degrades badly (thrashing) under high contention.\n\nRule of thumb: optimistic for low-contention, read-heavy workloads; pessimistic for high-contention, short critical sections where retry cost exceeds wait cost.",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 936,
+          "outputTokens": 17,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.001021,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 671,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1409,
+          "webSearchRequests": 0,
+          "costUSD": 0.01235,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    },
+    {
+      "model_alias": "sonnet",
+      "case": "format",
+      "exit_code": 0,
+      "response": "{\"status\": \"completed\", \"verification\": {\"unit\": \"passed\", \"integration\": \"not run\"}}",
+      "is_error": false,
+      "model_usage": {
+        "claude-haiku-4-5-20251001": {
+          "inputTokens": 929,
+          "outputTokens": 12,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 0,
+          "webSearchRequests": 0,
+          "costUSD": 0.000989,
+          "contextWindow": 200000,
+          "maxOutputTokens": 32000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-haiku-4-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        },
+        "claude-sonnet-5": {
+          "inputTokens": 2,
+          "outputTokens": 33,
+          "cacheReadInputTokens": 0,
+          "cacheCreationInputTokens": 1404,
+          "webSearchRequests": 0,
+          "costUSD": 0.00595,
+          "contextWindow": 1000000,
+          "maxOutputTokens": 64000,
+          "thinkingTokens": 0,
+          "canonicalModel": "claude-sonnet-5",
+          "provider": "firstParty",
+          "costBasis": "list"
+        }
+      },
+      "stderr": "Warning: no stdin data received in 3s, proceeding without it. If piping from a slow command, redirect stdin explicitly: < /dev/null to skip, or wait longer.\n",
+      "raw_if_no_result": null
+    }
+  ],
+  "limitations": [
+    "One sample per model/case per revision; not a statistical benchmark or before/after comparison with original skill.",
+    "Sonnet still added unrequested remediation to the final simple causal answer.",
+    "Depth checks assess requested detail, not technical correctness of generated locking explanations.",
+    "Tool-free safe-mode CLI with exported system prompt; does not verify automatic skill routing or long-session adherence."
+  ]
+}
