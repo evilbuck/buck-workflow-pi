@@ -1030,16 +1030,25 @@ async function executeSkill(
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
-  const stamp = skill === "build" && result.ok
-    ? await stampBuiltAcceptance(cwd, planOrPhasePath, result.text, deps)
-    : null;
   const finished = finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
     planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
   }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
-  const gap = skill === "build" && finished.snapshot.workFacts.postcondition !== "confirmed"
-    ? describeAcceptanceGap(stamp) ?? null
-    : null;
-  return { ...finished, snapshot: { ...finished.snapshot, acceptanceGap: gap } };
+  return attachBuildAcceptance(cwd, skill, planOrPhasePath, result, finished, deps);
+}
+
+/** Stamp build acceptance and attach any remaining gap to the finished snapshot. */
+async function attachBuildAcceptance(
+  cwd: string,
+  skill: WorkSkill,
+  planOrPhasePath: string,
+  result: { ok: boolean; text: string },
+  finished: { snapshot: Snapshot; failedText: string | null; sessionText: string },
+  deps: LoopDeps,
+): Promise<{ snapshot: Snapshot; failedText: string | null; sessionText: string }> {
+  if (skill !== "build" || !result.ok) return finished;
+  const stamp = await stampBuiltAcceptance(cwd, planOrPhasePath, result.text, deps);
+  if (finished.snapshot.workFacts.postcondition === "confirmed") return finished;
+  return { ...finished, snapshot: { ...finished.snapshot, acceptanceGap: describeAcceptanceGap(stamp) ?? null } };
 }
 
 /** Tick acceptance boxes the build proved; never throws, never unticks. */

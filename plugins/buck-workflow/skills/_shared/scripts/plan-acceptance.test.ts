@@ -74,6 +74,22 @@ describe("tickCriteria", () => {
     expect(next).toBe("---\r\nstatus: active\r\n---\r\n## Acceptance criteria\r\n- [x] a\r\n- [ ] b\r\n");
   });
 
+
+  it("ticks inline flow-sequence criteria on the key line", () => {
+    const text = '---\nacceptance_criteria: ["[ ] a, b and c", "[ ] d", "[x] e"]\n---\n';
+    const next = tickCriteria(text, ["[ ] a, b and c", "[ ] d"]);
+    expect(frontmatterAcceptanceCriteria(next)).toEqual(["[x] a, b and c", "[x] d", "[x] e"]);
+    expect(next).toContain('acceptance_criteria: ["[x] a, b and c", "[x] d", "[x] e"]');
+  });
+
+  it("ticks frontmatter list items through a CRLF round trip", () => {
+    const text = phase('  - "[ ] one"\n  - "[ ] two"', "\r\n");
+    const next = tickCriteria(text, ["[ ] one"]);
+    expect(next).toContain("\r\n");
+    expect(openCriteria(next)).toEqual(["[ ] two"]);
+    expect(next).toContain('  - "[x] one"');
+  });
+
   it("does not touch boxes outside the acceptance region", () => {
     const text = "---\nstatus: active\n---\n## Acceptance criteria\n- [ ] a\n## Notes\n- [ ] a\n";
     expect(tickCriteria(text, ["- [ ] a"])).toBe("---\nstatus: active\n---\n## Acceptance criteria\n- [x] a\n## Notes\n- [ ] a\n");

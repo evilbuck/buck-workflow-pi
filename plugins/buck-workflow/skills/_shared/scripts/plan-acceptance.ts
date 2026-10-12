@@ -138,6 +138,13 @@ export function tickCriteria(text: string, toTick: readonly string[]): string {
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
   const lines = normalizeNewlines(text).split("\n");
   const { source } = fileAcceptanceCriteria(text);
+  if (source === "frontmatter") {
+    const key = acceptanceKeyLine(lines);
+    if (key >= 0 && inlineFlowRest(lines[key]) !== null) {
+      lines[key] = tickInlineFlowLine(lines[key], wanted);
+      return lines.join(eol);
+    }
+  }
   const [start, end] = source === "frontmatter" ? frontmatterRegion(lines) : bodyRegion(lines);
   for (let i = start; i < end; i++) {
     const match = lines[i].match(/^(\s*(?:-\s+)?["']?(?:[-*]\s+)?)\[ \](.*)$/);
@@ -149,12 +156,31 @@ export function tickCriteria(text: string, toTick: readonly string[]): string {
   return lines.join(eol);
 }
 
-function frontmatterRegion(lines: string[]): [number, number] {
-  if (lines[0] !== "---") return [0, 0];
+/** Tick unchecked boxes inside `acceptance_criteria: ["[ ] a", ...]`. */
+function tickInlineFlowLine(line: string, wanted: Set<string>): string {
+  return line.replace(/(["'])\[ \]\s*(.*?)\1/g, (full, quote: string, text: string) => {
+    if (!wanted.has(text.trim())) return full;
+    return `${quote}[x] ${text.trim()}${quote}`;
+  });
+}
+
+function inlineFlowRest(line: string): string | null {
+  const rest = line.replace(/^acceptance_criteria\s*:/, "").replace(/\s+#.*$/, "").trim();
+  return rest.startsWith("[") ? rest : null;
+}
+
+function acceptanceKeyLine(lines: string[]): number {
+  if (lines[0] !== "---") return -1;
   const close = lines.indexOf("---", 1);
   const end = close < 0 ? lines.length : close;
-  const key = lines.findIndex((line, i) => i > 0 && i < end && /^acceptance_criteria\s*:/.test(line));
+  return lines.findIndex((line, i) => i > 0 && i < end && /^acceptance_criteria\s*:/.test(line));
+}
+
+function frontmatterRegion(lines: string[]): [number, number] {
+  const key = acceptanceKeyLine(lines);
   if (key < 0) return [0, 0];
+  const close = lines.indexOf("---", 1);
+  const end = close < 0 ? lines.length : close;
   let stop = key + 1;
   while (stop < end && (lines[stop].trim() === "" || /^\s*(#|-\s)/.test(lines[stop]))) stop++;
   return [key + 1, stop];
