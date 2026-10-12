@@ -2462,3 +2462,53 @@ describe("acceptance stamp ordering", () => {
     expect(firstAfterBuild?.workFacts.postcondition).toBe("confirmed");
   });
 });
+
+describe("in-cycle unstaged guard: claimed restage, original reason, recovery hint", () => {
+  function statusOf(cwd: string): string {
+    return execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd, encoding: "utf8" });
+  }
+
+  function buildLeaving(cwd: string, ok: boolean) {
+    // A light repair retries once, so a still-open phase ends in the machine's
+    // retry-exhausted stop: the same non-mandatory path the operator hit.
+    return workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/claimed.ts": "export const v = 1;\n" });
+        git(cwd, ["add", "src/claimed.ts"]);
+        writeTree(cwd, { "src/claimed.ts": "export const v = 2;\n", "src/stray.ts": "export const s = 1;\n" });
+        return { ok, text: ok ? "work done but phase left open" : "boom" };
+      }
+      return landingWork()(opts);
+    }, undefined, async () => ({ lift: "light", reason: "test light lift", diagnosis: "retry" }));
+  }
+
+  it("restages a file the child staged then edited (AM) after a successful session; a never-staged file still blocks", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = buildLeaving(cwd, true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    const status = statusOf(cwd);
+    expect(status).toContain("A  src/claimed.ts");
+    expect(status).toContain("?? src/stray.ts");
+    // Original stop is kept, the unstaged note is appended, and the hint names only the blocking file.
+    expect(result.reason).toMatch(/^postcondition still ambiguous after one retry/);
+    expect(result.reason).toContain("nested skill also left unstaged non-.context changes: ?? src/stray.ts");
+    expect(result.reason).toContain("git add -- src/stray.ts");
+    expect(result.reason).toContain("/buck-loop --resume");
+    expect(result.reason).not.toContain("src/claimed.ts");
+    expect(readProjection(cwd)?.history.at(-1)?.why).toBe(result.reason);
+  });
+
+  it("does not restage after a failed session", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: buildLeaving(cwd, false) });
+
+    expect(result.state).toBe("blocked");
+    expect(statusOf(cwd)).toContain("AM src/claimed.ts");
+    expect(result.reason).toContain("AM src/claimed.ts");
+    expect(result.reason).toContain("git add -- src/claimed.ts src/stray.ts");
+  });
+});

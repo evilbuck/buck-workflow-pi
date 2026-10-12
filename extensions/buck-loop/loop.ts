@@ -1024,6 +1024,7 @@ async function executeSkill(
   }
   const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps, handoff, opened.directive);
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
+  restageClaimedFiles(cwd, skill, result.ok);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
   const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity, result.sqlFailure);
@@ -1499,12 +1500,42 @@ function porcelainPaths(line: string): string[] {
   return line.slice(3).split(" -> ").map((p) => p.replace(/^"|"$/g, "")).filter(Boolean);
 }
 
+/**
+ * Keep the original stop and append the unstaged files plus a recovery hint,
+ * so the operator sees both why the loop stopped and how to resume.
+ */
+export function unstagedBlockReason(original: string, unstaged: readonly string[]): string {
+  const paths = unstaged.flatMap((line) => porcelainPaths(line).slice(-1));
+  return `${original}; nested skill also left unstaged non-.context changes: ${unstaged.join(", ")}. `
+    + `Recovery: review with \`git diff -- ${paths.join(" ")}\`; if they belong to this phase, `
+    + `\`git add -- ${paths.join(" ")}\` and run /buck-loop --resume (or stash the ones that do not).`;
+}
+
+/**
+ * After a successful nested session, restage files the child already staged
+ * and then edited again (`MM`, `AM`, `RM`): the child claimed them. Untracked
+ * and never-staged files are left alone, so the in-cycle guard still blocks them.
+ */
+export function restageClaimedFiles(cwd: string, skill: WorkSkill, ok: boolean): string[] {
+  if (!ok || skill === "commit") return [];
+  const claimed = nonContextStatus(cwd)
+    .filter((line) => line[0] !== " " && line[0] !== "?" && line[1] === "M")
+    .flatMap((line) => porcelainPaths(line).slice(-1));
+  if (claimed.length === 0) return [];
+  try {
+    execFileSync("git", ["-C", cwd, "add", "--", ...claimed], { stdio: ["pipe", "pipe", "pipe"], timeout: 10_000 });
+  } catch {
+    return [];
+  }
+  return claimed;
+}
+
 function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {
   const last = snapshot.history.at(-1);
   if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
     const unstaged = unstagedNonContextStatus(cwd);
     if (unstaged.length > 0) {
-      const reason = "nested skill left unstaged non-.context changes: " + unstaged.join(", ");
+      const reason = unstagedBlockReason(result.reason, unstaged);
       // Amend the existing in-cycle → blocked transition instead of appending a
       // second blocked → blocked hop: permitsBlockedStagedResume requires the
       // latest transition to start in an in-cycle state, so an extra hop here
