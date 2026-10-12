@@ -1,3 +1,5 @@
+import type { TextLifecycleIntent } from "../scripts/subject-lifecycle.js";
+
 export const STORAGE_ADAPTERS = ["repo-files", "external-files", "sqlite", "postgres"] as const;
 export type StorageAdapter = (typeof STORAGE_ADAPTERS)[number];
 export type ArtifactKind =
@@ -45,14 +47,29 @@ export interface ScopedCorrection {
   predecessorRevision: string;
   replacement: ArtifactRevision | null;
   idempotencyKey: string;
+  publishedRevisionIds?: readonly string[];
 }
 
 export interface LifecycleTransition {
+  projectId: string;
+  branchId: string;
   subjectId: string;
-  fromRevision: string;
-  expectedState: string;
-  nextState: string;
+  fromRevision: string | null;
+  expectedState: "missing" | "draft" | "active" | "completed";
+  intent: TextLifecycleIntent;
   evidence: readonly string[];
+  publishedRevisionIds?: readonly string[];
+}
+
+export interface LifecycleRecord {
+  projectId: string;
+  branchId: string;
+  subjectId: string;
+  revision: string;
+  state: "missing" | "draft" | "active" | "completed";
+  evidence: readonly string[];
+  provenance: "canonical" | "legacy" | "malformed" | "missing";
+  effectiveState: "missing" | "draft" | "active" | "completed";
 }
 
 export interface RunReceipt {
@@ -63,6 +80,12 @@ export interface RunReceipt {
   attemptId: string;
   status: "attempted" | "complete";
   artifactRevisions: readonly string[];
+  kind?: "rows" | "no-fact";
+  /** Attempted: required duties. Complete: caller-attested successful duties.
+   * Completion must cover every duty persisted in the attempt, including no-fact saves.
+   * Callers attest only after the metadata operation succeeds; storage does not execute it.
+   */
+  metadataDuties?: readonly string[];
 }
 
 export interface CheckpointSeal {
@@ -80,6 +103,7 @@ export interface StorageStore {
   writeBatch(revisions: readonly ArtifactRevision[]): Promise<readonly ArtifactRevision[]>;
   correct(correction: ScopedCorrection): Promise<ArtifactRevision | null>;
   transition(transition: LifecycleTransition): Promise<string>;
+  inspectLifecycle(projectId: string, branchId: string, subjectId: string, publishedRevisionIds?: readonly string[]): Promise<LifecycleRecord | null>;
   writeReceipt(receipt: RunReceipt): Promise<void>;
   readReceipt(projectId: string, runId: string): Promise<RunReceipt | null>;
   sealCheckpoint(checkpoint: CheckpointSeal): Promise<string>;

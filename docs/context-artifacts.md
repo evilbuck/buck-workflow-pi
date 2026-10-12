@@ -21,13 +21,10 @@ JSON remains the source of truth for machine-owned state:
 
 ## Shared durable-storage contract
 
-`skills/_shared/storage/` defines a backend-neutral contract and its config,
-identity, visibility, capability, and conformance helpers. It does **not** yet
-provide production adapters or redirect existing Buck readers/writers. The
-adapter names accepted by the schema are `repo-files`, `external-files`,
-`sqlite`, and `postgres`; accepting a selection is not proof that an adapter
-is connected. Existing persistence behavior, including the separate
-[SQL-memory path](sql-memory.md), remains unchanged.
+`skills/_shared/storage/` provides the backend-neutral contract, four adapters,
+and domain policies. Adapters are `repo-files`, `external-files`, `sqlite`, and
+`postgres`. Existing Buck readers/writers are not yet redirected to this store;
+the separate [SQL-memory path](sql-memory.md) remains until consumer cutover.
 
 ### Operations and module boundaries
 
@@ -40,14 +37,44 @@ Markdown; attachments can carry binary bytes.
 
 `conformance.ts` is a Vitest-only helper, not a production runtime dependency.
 `defineStorageConformance()` accepts a backend factory with a disposable store
-implementing read/list/write-batch/correct/transition. Its shared cases cover
-exact byte round-trip, stale-batch rollback, visibility filtering before the
-result limit, branch-local correction, evidence-required completion, and
-stale lifecycle refusal. The throwaway SQLite fixture in
-`skills/_shared/scripts/storage-conformance.test.ts` exercises this boundary;
-it is not the production SQLite adapter. Receipt, checkpoint, search, and
-export/import operations have typed signatures but are not covered by that
-fixture suite.
+implementing artifact lookup, conditional writes, corrections, lifecycle, and
+receipts. Shared cases run against both file adapters, on-disk and in-memory
+SQLite, and disposable PostgreSQL. They cover exact bytes, stale-batch rollback,
+visibility before ranking/page/body loading, retained published revisions,
+inherited branch corrections/tombstones, lifecycle refusal and discovery, and
+same-scope receipt readback. Checkpoint publication proof remains separate.
+
+`domain.ts` uses the text authority in `subject-lifecycle.ts` for both filesystem
+and stored lifecycle operations. `transition()` accepts initialize, activate,
+close-verified, or reopen (with a nonblank reason), bound to the visible index
+revision and expected state. A transition writes a versioned subject-index
+artifact, not an independent state row; published close evidence and private
+reopen overlays therefore use the same view as plans and discovery. Legacy
+effective-state and malformed-provenance rules are preserved. PostgreSQL
+artifact writers and lifecycle transitions acquire sorted subject locks before
+reading evidence and hold them through commit.
+
+Corrections authorize the predecessor through the supplied published revision
+set plus the branch overlay, then conditionally write only that branch's
+pointer. Replays preserve idempotency/history. Receipt completion loads the
+attempt's exact revisions, checks body hashes and project/branch/worktree/run
+scope, and requires successful metadata duties; branch knowledge is reusable
+across runs, but another run's private revision cannot complete the save.
+`RunReceipt.metadataDuties` on an `attempted` receipt declares the required
+metadata work. On a `complete` receipt it attests operations the caller has
+successfully performed. Completion must cover every persisted attempt duty,
+including no-fact saves; attempted updates cannot shrink or replace that set.
+PostgreSQL receipt writers hold a transaction advisory lock keyed by project
+and run before reading the attempt, including when no receipt row exists yet.
+Concurrent initialization therefore cannot replace the winning requirement
+set; updates validate the committed predecessor and cannot downgrade completion.
+The adapter checks the attestation, not the external metadata operations.
+Readback/probe alone is not proof of backlog, phase-status, or draft-commit work.
+
+Discovery resolves lifecycle from the full branch-overlay/published visibility
+view before applying subject, kind, or logical-name result filters. Completed
+subjects and links targeting them remain excluded even when a filter omits
+their index or legacy completion evidence.
 
 ### Configuration resolution
 
@@ -102,14 +129,25 @@ relative logical name; absolute paths, empty or traversal components,
 backslashes, and NULs are refused. Run-scoped keys require both valid worktree
 and run IDs.
 
-`visibility.ts` first requires an exact project match. Knowledge revisions are
-visible when owned by the current branch or explicitly present in the supplied
-published-revision set. Run-scoped revisions require exact branch, worktree,
-and run matches even if marked published. The helper does not establish Git
-publication evidence or implement overlay ordering, ranking, or pagination;
-consumers must establish publication evidence and filter before exposing
-bodies or applying limits. This is a retrieval invariant, not file/DB-operator
-access control, and is not yet enforced by existing production callers.
+`visibility.ts` first requires an exact project match. Ordinary lookup unions
+current-branch pointers with exact immutable published revisions, then overlays
+by logical identity before ranking, LIMIT, pagination, or body loading. Selected
+bodies are loaded by immutable revision, never a mutable current pointer.
+Advancing a private draft does not remove its predecessor from the published
+view. File projections reconcile only within the querying branch's private
+scope, so another branch cannot retrieve direct edits through a published ID.
+
+`domain.ts` exposes `lookupKnowledge()` as the ordinary store-backed knowledge
+read surface: `list()` without text, `search()` with text. Both apply the
+visibility rules above. Do not add unrestricted knowledge SQL to this surface.
+The legacy `sql_memory` recall path remains separate until consumer cutover;
+it does not provide the branch-overlay guarantees.
+
+Worktree-private revisions require that worktree; run-private revisions require
+exact branch, worktree, and run even if supplied as published. Callers must
+establish the trusted published-revision set using publication proof (separate
+from lookup). This is a retrieval invariant, not file/DB-operator access control;
+existing production callers await their store cutover.
 
 ### SQLite runtime boundary
 

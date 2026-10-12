@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { MigrationClient, MigrationPool } from "../../../extensions/sql-memory/migrations.js";
-import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
-import { cloneRevision, keyId, validateRevision, visible } from "./adapter-utils.js";
+import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
+import { overlayPublishedRevisions } from "./visibility.js";
+import { cloneRevision, keyId, searchableText, validateRevision } from "./adapter-utils.js";
+import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdentity, assertReceiptReadback, correctionDecision, correctionQuery, inspectStoredLifecycle, lifecycleRevision, receiptRevisionReadable, selectPage, tombstoneRevision, type KeyedPageItem, type StoredCorrection } from "./domain.js";
 import { applyMigrations } from "../../../extensions/sql-memory/migrations.js";
 
 type Row = Record<string, unknown> & {
@@ -9,6 +11,29 @@ type Row = Record<string, unknown> & {
   worktree_id: string; run_id: string; revision: string; bytes: Buffer; sha256: string;
   author: string; source: string; created_at: Date | string; links: ArtifactKey[] | string;
 };
+
+function listParameters(query: ArtifactQuery): unknown[] {
+  return [
+    query.projectId, query.branchId, query.publishedRevisionIds, query.runId || "", query.worktreeId || "",
+    query.subjectId === undefined ? null : query.subjectId,
+    query.kind === undefined ? null : query.kind,
+    query.logicalNamePrefix === undefined ? null : query.logicalNamePrefix,
+  ];
+}
+
+const LIST_ARTIFACTS_SQL = `SELECT r.project_id, r.subject_id, r.kind, r.logical_name, r.branch_id, r.worktree_id, r.run_id, r.revision, r.source, r.created_at, COALESCE(s.search_text, '') AS search_text
+  FROM artifact_revisions r
+  LEFT JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision)
+  LEFT JOIN artifact_search_text s ON s.project_id = r.project_id AND s.revision = r.revision
+  WHERE r.project_id=$1
+    AND ($6::text IS NULL OR r.subject_id=$6)
+    AND ($7::text IS NULL OR r.kind=$7)
+    AND ($8::text IS NULL OR left(r.logical_name,length($8))=$8)
+    AND (
+      (p.branch_id=$2 AND ((p.run_id='' AND (p.worktree_id='' OR p.worktree_id=$5)) OR (p.run_id=$4 AND p.worktree_id=$5 AND $4<>'' AND $5<>'')))
+      OR (r.branch_id<>$2 AND r.run_id='' AND r.worktree_id='' AND r.revision=ANY($3::text[]))
+    )
+  ORDER BY r.created_at,r.revision`;
 
 export class PostgresStorageStore implements StorageStore {
   readonly #pool: MigrationPool;
@@ -20,41 +45,27 @@ export class PostgresStorageStore implements StorageStore {
     const values = this.#keyValues(key);
     const sql = `SELECT r.* FROM artifact_revisions r ${revision === undefined ? "JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision)" : ""} WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7 ${revision === undefined ? "" : "AND revision=$8"}`;
     const result = await this.#pool.query(sql, revision === undefined ? values : [...values, revision]);
-    return result.rows[0] ? this.#decode(result.rows[0] as Row) : null;
+    const row = result.rows[0] as Row | undefined;
+    if (!row || (revision === undefined && row.source === "tombstone")) return null;
+    return this.#decode(row);
   }
 
   async list(query: ArtifactQuery): Promise<readonly ArtifactRevision[]> {
-    const result = await this.#pool.query("SELECT r.* FROM artifact_revisions r JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) WHERE r.project_id=$1 ORDER BY r.created_at,r.revision", [query.projectId]);
-    const visibleRows = result.rows.map((row) => this.#decode(row as Row)).filter((item) => (query.subjectId === undefined || item.key.subjectId === query.subjectId)
-      && (query.kind === undefined || item.key.kind === query.kind)
-      && (query.logicalNamePrefix === undefined || item.key.logicalName.startsWith(query.logicalNamePrefix)) && visible(item, query));
-    return query.limit === undefined ? visibleRows : visibleRows.slice(0, query.limit);
+    return this.#loadPage(selectPage(await this.#metadata(query), query));
   }
 
   async search(query: ArtifactQuery & { text: string }): Promise<readonly ArtifactRevision[]> {
-    const words = query.text.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
-    const ranked = (await this.list({ ...query, limit: undefined, cursor: undefined })).map((item) => {
-      const text = new TextDecoder().decode(item.bytes).toLocaleLowerCase();
-      return { item, score: words.reduce((score, word) => score + Number(text.includes(word)), 0) };
-    }).filter((row) => row.score > 0).sort((a, b) => b.score - a.score || a.item.key.logicalName.localeCompare(b.item.key.logicalName));
-    return ranked.slice(0, query.limit).map((row) => row.item);
+    return this.#loadPage(selectPage(await this.#metadata(query), query));
   }
 
   async writeBatch(revisions: readonly ArtifactRevision[]): Promise<readonly ArtifactRevision[]> {
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
+      await this.#lockSubjects(client, revisions.map((item) => item.key));
       const lockKeys = [...new Set(revisions.map((revision) => keyId(revision.key)))].sort();
       for (const key of lockKeys) await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
-      for (const revision of revisions) {
-        validateRevision(revision);
-        const ids = this.#keyValues(revision.key);
-        const pointer = await client.query("SELECT revision FROM artifact_pointers WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7 FOR UPDATE", ids);
-        const current = (pointer.rows[0] as { revision: string } | undefined)?.revision ?? null;
-        if (revision.expectedRevision !== undefined && revision.expectedRevision !== current) throw new Error(`stale revision rejected for ${revision.key.logicalName}`);
-        await client.query("INSERT INTO artifact_revisions(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision,bytes,sha256,author,source,created_at,links) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)", [...ids, revision.revision, Buffer.from(revision.bytes), revision.sha256, revision.author, revision.source, revision.createdAt, JSON.stringify(revision.links)]);
-        await client.query("INSERT INTO artifact_pointers(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id) DO UPDATE SET revision=EXCLUDED.revision", [...ids, revision.revision]);
-      }
+      for (const revision of revisions) await this.#insertRevision(client, revision);
       await client.query("COMMIT");
       return revisions.map(cloneRevision);
     } catch (error) {
@@ -67,22 +78,11 @@ export class PostgresStorageStore implements StorageStore {
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
+      await this.#lockSubjects(client, [correction.key]);
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [keyId(correction.key)]);
-      const ids = this.#keyValues(correction.key);
-      const pointer = await client.query("SELECT revision FROM artifact_pointers WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7 FOR UPDATE", ids);
-      if ((pointer.rows[0] as { revision: string } | undefined)?.revision !== correction.predecessorRevision) throw new Error("stale correction rejected");
-      if (!correction.replacement) {
-        await client.query("DELETE FROM artifact_pointers WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7", ids);
-        await client.query("COMMIT");
-        return null;
-      }
-      const item = correction.replacement;
-      validateRevision(item);
-      if (keyId(item.key) !== keyId(correction.key)) throw new Error("correction cannot change artifact scope");
-      await client.query("INSERT INTO artifact_revisions(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision,bytes,sha256,author,source,created_at,links) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)", [...ids, item.revision, Buffer.from(item.bytes), item.sha256, item.author, item.source, item.createdAt, JSON.stringify(item.links)]);
-      await client.query("UPDATE artifact_pointers SET revision=$8 WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7", [...ids, item.revision]);
+      const result = await this.#correctLocked(client, correction);
       await client.query("COMMIT");
-      return cloneRevision(item);
+      return result;
     } catch (error) { await this.#rollback(client); throw error; }
     finally { client.release(); }
   }
@@ -91,37 +91,123 @@ export class PostgresStorageStore implements StorageStore {
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await client.query("SELECT revision,state FROM artifact_lifecycle WHERE subject_id=$1 FOR UPDATE", [input.subjectId]);
-      const current = result.rows[0] as { revision: string; state: string } | undefined;
-      if (current && (current.revision !== input.fromRevision || current.state !== input.expectedState)) throw new Error("stale lifecycle transition refused");
-      if (!current && input.expectedState !== "active") throw new Error("initial lifecycle state must be active");
-      if (input.nextState === "completed" && input.evidence.length === 0) throw new Error("completion requires evidence");
-      const revision = randomUUID();
-      await client.query("INSERT INTO artifact_lifecycle(subject_id,revision,state,evidence) VALUES($1,$2,$3,$4::jsonb) ON CONFLICT(subject_id) DO UPDATE SET revision=EXCLUDED.revision,state=EXCLUDED.state,evidence=EXCLUDED.evidence", [input.subjectId, revision, input.nextState, JSON.stringify(input.evidence)]);
+      await this.#lockSubjects(client, [{ projectId: input.projectId, subjectId: input.subjectId, branchId: input.branchId, kind: "subject-index", logicalName: "index.md" }]);
+      const item = lifecycleRevision(await this.#evidenceBodies(client, input), input);
+      await this.#insertRevision(client, item);
       await client.query("COMMIT");
-      return revision;
+      return item.revision;
     } catch (error) { await this.#rollback(client); throw error; }
     finally { client.release(); }
+  }
+
+  async inspectLifecycle(projectId: string, branchId: string, subjectId: string, publishedRevisionIds: readonly string[] = []): Promise<LifecycleRecord | null> {
+    return inspectStoredLifecycle(await this.list({ projectId, branchId, subjectId, publishedRevisionIds }), projectId, branchId, subjectId);
   }
 
   async writeReceipt(receipt: RunReceipt): Promise<void> {
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
-      const result = await client.query("SELECT attempt_id,status FROM artifact_runs WHERE project_id=$1 AND run_id=$2 FOR UPDATE", [receipt.projectId, receipt.runId]);
-      const current = result.rows[0] as { attempt_id: string; status: string } | undefined;
-      if (current && (current.attempt_id !== receipt.attemptId || current.status === "complete")) throw new Error("receipt attempt mismatch or already complete");
-      if (receipt.status === "complete" && (!current || current.attempt_id !== receipt.attemptId)) throw new Error("complete receipt requires matching attempted receipt");
-      await client.query("INSERT INTO artifact_runs(project_id,run_id,branch_id,worktree_id,attempt_id,status,artifact_revisions) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(project_id,run_id) DO UPDATE SET status=EXCLUDED.status,artifact_revisions=EXCLUDED.artifact_revisions", [receipt.projectId, receipt.runId, receipt.branchId, receipt.worktreeId, receipt.attemptId, receipt.status, JSON.stringify(receipt.artifactRevisions)]);
+      await this.#persistReceipt(client, receipt);
       await client.query("COMMIT");
     } catch (error) { await this.#rollback(client); throw error; }
     finally { client.release(); }
   }
 
+  async #persistReceipt(client: MigrationClient, receipt: RunReceipt): Promise<void> {
+    const current = await this.#lockedAttempt(client, receipt);
+    assertReceiptIdentity(current, receipt);
+    assertReceiptComplete(current, receipt, await this.#readableRevisions(client, receipt));
+    await this.#insertReceipt(client, receipt);
+    const stored = await client.query("SELECT status,attempt_id,branch_id FROM artifact_runs WHERE project_id=$1 AND run_id=$2", [receipt.projectId, receipt.runId]);
+    const row = stored.rows[0] as { status: RunReceipt["status"]; attempt_id: string; branch_id: string };
+    assertReceiptReadback({ status: row.status, attemptId: row.attempt_id, branchId: row.branch_id }, receipt);
+  }
+
+  async #lockedAttempt(client: MigrationClient, receipt: RunReceipt): Promise<RunReceipt | null> {
+    // An absent row cannot be locked by FOR UPDATE. Serialize initialization
+    // and updates by the receipt's unique project/run identity through commit.
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [JSON.stringify(["receipt", receipt.projectId, receipt.runId])]);
+    const result = await client.query("SELECT r.branch_id,r.worktree_id,r.attempt_id,r.status,r.artifact_revisions,d.receipt_kind,d.metadata_duties FROM artifact_runs r LEFT JOIN artifact_run_duties d USING(project_id,run_id) WHERE r.project_id=$1 AND r.run_id=$2 FOR UPDATE OF r", [receipt.projectId, receipt.runId]);
+    return decodeReceipt(result.rows[0] as ReceiptRow | undefined, receipt.projectId, receipt.runId);
+  }
+
+  async #insertReceipt(client: MigrationClient, receipt: RunReceipt): Promise<void> {
+    await client.query("INSERT INTO artifact_runs(project_id,run_id,branch_id,worktree_id,attempt_id,status,artifact_revisions) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb) ON CONFLICT(project_id,run_id) DO UPDATE SET status=EXCLUDED.status,artifact_revisions=EXCLUDED.artifact_revisions", [receipt.projectId, receipt.runId, receipt.branchId, receipt.worktreeId, receipt.attemptId, receipt.status, JSON.stringify(receipt.artifactRevisions)]);
+    await client.query("INSERT INTO artifact_run_duties(project_id,run_id,receipt_kind,metadata_duties) VALUES($1,$2,$3,$4::jsonb) ON CONFLICT(project_id,run_id) DO UPDATE SET receipt_kind=EXCLUDED.receipt_kind,metadata_duties=EXCLUDED.metadata_duties", [receipt.projectId, receipt.runId, receipt.kind ?? "rows", JSON.stringify(receipt.metadataDuties ?? [])]);
+  }
+
   async readReceipt(projectId: string, runId: string): Promise<RunReceipt | null> {
-    const result = await this.#pool.query("SELECT * FROM artifact_runs WHERE project_id=$1 AND run_id=$2", [projectId, runId]);
-    const row = result.rows[0] as { branch_id: string; worktree_id: string; attempt_id: string; status: string; artifact_revisions: string[] } | undefined;
-    return row ? { projectId, runId, branchId: row.branch_id, worktreeId: row.worktree_id, attemptId: row.attempt_id, status: row.status as RunReceipt["status"], artifactRevisions: row.artifact_revisions } : null;
+    const result = await this.#pool.query("SELECT r.branch_id,r.worktree_id,r.attempt_id,r.status,r.artifact_revisions,d.receipt_kind,d.metadata_duties FROM artifact_runs r LEFT JOIN artifact_run_duties d USING(project_id,run_id) WHERE r.project_id=$1 AND r.run_id=$2", [projectId, runId]);
+    return decodeReceipt(result.rows[0] as ReceiptRow | undefined, projectId, runId);
+  }
+
+  async #metadata(query: ArtifactQuery, client: Pick<MigrationClient, "query"> = this.#pool): Promise<KeyedPageItem[]> {
+    const result = await client.query(LIST_ARTIFACTS_SQL, listParameters(query));
+    return overlayPublishedRevisions(result.rows.map((row) => this.#pageItem(row as Row)), query.branchId);
+  }
+
+  #pageItem(row: Row): KeyedPageItem {
+    return { key: { projectId: row.project_id, subjectId: row.subject_id, kind: row.kind as ArtifactKey["kind"], logicalName: row.logical_name, branchId: row.branch_id, ...(row.worktree_id ? { worktreeId: row.worktree_id } : {}), ...(row.run_id ? { runId: row.run_id } : {}) }, revision: row.revision, createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at), logicalName: row.logical_name, source: row.source, searchText: String(row.search_text ?? "") };
+  }
+
+  async #loadPage(page: readonly KeyedPageItem[]): Promise<ArtifactRevision[]> {
+    const loaded: ArtifactRevision[] = [];
+    for (const item of page) {
+      const revision = await this.read(item.key, item.revision);
+      if (!revision) throw new Error("uncertain persistence blocks save");
+      loaded.push(revision);
+    }
+    return loaded;
+  }
+
+  async #insertRevision(client: MigrationClient, revision: ArtifactRevision): Promise<void> {
+    validateRevision(revision);
+    const ids = this.#keyValues(revision.key);
+    const pointer = await client.query("SELECT revision FROM artifact_pointers WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7 FOR UPDATE", ids);
+    const current = (pointer.rows[0] as { revision: string } | undefined)?.revision ?? null;
+    if (revision.expectedRevision !== undefined && revision.expectedRevision !== current) throw new Error(`stale revision rejected for ${revision.key.logicalName}`);
+    await client.query("INSERT INTO artifact_revisions(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision,bytes,sha256,author,source,created_at,links) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb)", [...ids, revision.revision, Buffer.from(revision.bytes), revision.sha256, revision.author, revision.source, revision.createdAt, JSON.stringify(revision.links)]);
+    await client.query("INSERT INTO artifact_search_text(project_id,revision,search_text) VALUES($1,$2,$3)", [revision.key.projectId, revision.revision, searchableText(revision.bytes)]);
+    await client.query("INSERT INTO artifact_pointers(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id) DO UPDATE SET revision=EXCLUDED.revision", [...ids, revision.revision]);
+  }
+
+  async #correctLocked(client: MigrationClient, correction: ScopedCorrection): Promise<ArtifactRevision | null> {
+    const query = correctionQuery(correction);
+    const existing = await client.query("SELECT predecessor_revision,result_revision,replacement_sha256 FROM artifact_corrections WHERE project_id=$1 AND branch_id=$2 AND artifact_key=$3 AND idempotency_key=$4", [query.projectId, query.branchId, keyId(correction.key), correction.idempotencyKey]);
+    const row = existing.rows[0] as { predecessor_revision: string; result_revision: string | null; replacement_sha256: string | null } | undefined;
+    const stored: StoredCorrection | null = row ? { predecessorRevision: row.predecessor_revision, resultRevision: row.result_revision, replacementSha256: row.replacement_sha256 } : null;
+    if (correctionDecision(stored, correction) === "replay") return stored?.resultRevision ? this.#readStored(correction.key, stored.resultRevision) : null;
+    const expected = assertCorrectionPredecessor(await this.#metadata(query, client), correction);
+    const item = { ...(correction.replacement ?? tombstoneRevision(correction.key, correction.predecessorRevision)), expectedRevision: expected };
+    await this.#insertRevision(client, item);
+    await client.query("INSERT INTO artifact_corrections(project_id,branch_id,artifact_key,idempotency_key,predecessor_revision,result_revision,replacement_sha256) VALUES($1,$2,$3,$4,$5,$6,$7)", [query.projectId, query.branchId, keyId(correction.key), correction.idempotencyKey, correction.predecessorRevision, correction.replacement ? item.revision : null, correction.replacement?.sha256 ?? null]);
+    return correction.replacement ? cloneRevision(item) : null;
+  }
+
+  async #readStored(key: ArtifactKey, revision: string): Promise<ArtifactRevision> {
+    const result = await this.#pool.query("SELECT * FROM artifact_revisions WHERE project_id=$1 AND subject_id=$2 AND kind=$3 AND logical_name=$4 AND branch_id=$5 AND worktree_id=$6 AND run_id=$7 AND revision=$8", [...this.#keyValues(key), revision]);
+    const row = result.rows[0] as Row | undefined;
+    if (!row) throw new Error("uncertain persistence blocks save");
+    return this.#decode(row);
+  }
+
+  async #evidenceBodies(client: MigrationClient, input: LifecycleTransition): Promise<ArtifactRevision[]> {
+    const query: ArtifactQuery = { projectId: input.projectId, branchId: input.branchId, subjectId: input.subjectId, publishedRevisionIds: input.publishedRevisionIds ?? [] };
+    const bodies = [];
+    for (const item of selectPage(await this.#metadata(query, client), {})) {
+      const result = await client.query("SELECT * FROM artifact_revisions WHERE project_id=$1 AND revision=$2 AND branch_id=$3", [item.key.projectId, item.revision, item.key.branchId ?? ""]);
+      const row = result.rows[0] as Row | undefined;
+      if (!row) throw new Error("uncertain persistence blocks save");
+      bodies.push(this.#decode(row));
+    }
+    return bodies;
+  }
+
+  async #readableRevisions(client: MigrationClient, receipt: RunReceipt): Promise<Set<string>> {
+    if (receipt.artifactRevisions.length === 0) return new Set();
+    const result = await client.query("SELECT * FROM artifact_revisions WHERE project_id=$1 AND branch_id=$2 AND revision = ANY($3::text[])", [receipt.projectId, receipt.branchId, receipt.artifactRevisions]);
+    return new Set(result.rows.map((row) => this.#decode(row as Row)).filter((item) => receiptRevisionReadable(item, receipt)).map((item) => item.revision));
   }
 
   async sealCheckpoint(checkpoint: CheckpointSeal): Promise<string> {
@@ -181,6 +267,13 @@ export class PostgresStorageStore implements StorageStore {
     return { key: { projectId: row.project_id, subjectId: row.subject_id, kind: row.kind as ArtifactKey["kind"], logicalName: row.logical_name, branchId: row.branch_id, ...(row.worktree_id ? { worktreeId: row.worktree_id } : {}), ...(row.run_id ? { runId: row.run_id } : {}) }, revision: row.revision, bytes: new Uint8Array(row.bytes), sha256: row.sha256, author: row.author, source: row.source, createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at, links: typeof row.links === "string" ? JSON.parse(row.links) as ArtifactKey[] : row.links };
   }
 
+  async #lockSubjects(client: MigrationClient, keys: readonly ArtifactKey[]): Promise<void> {
+    // Writers and lifecycle intents serialize before selecting current evidence,
+    // including initialization when no pointer or lifecycle row exists yet.
+    const locks = [...new Set(keys.map((key) => JSON.stringify(["subject", key.projectId, key.subjectId])))].sort();
+    for (const lock of locks) await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [lock]);
+  }
+
   async #rollback(client: MigrationClient): Promise<void> {
     try { await client.query("ROLLBACK"); } catch { /* Preserve the original operation failure. */ }
   }
@@ -221,4 +314,12 @@ export function mapMemoryImport(record: MemoryImportRecord): ArtifactRevision & 
     expectedRevision: null,
     metadata: { category: record.category, supersededBy: record.supersededBy, ranks: record.ranks },
   };
+}
+
+type ReceiptRow = { branch_id: string; worktree_id: string; attempt_id: string; status: RunReceipt["status"]; artifact_revisions: string[] | string; receipt_kind: RunReceipt["kind"] | null; metadata_duties: string[] | string | null };
+
+function decodeReceipt(row: ReceiptRow | undefined, projectId: string, runId: string): RunReceipt | null {
+  if (!row) return null;
+  const duties = row.metadata_duties == null ? undefined : typeof row.metadata_duties === "string" ? JSON.parse(row.metadata_duties) as string[] : row.metadata_duties;
+  return { projectId, runId, branchId: row.branch_id, worktreeId: row.worktree_id, attemptId: row.attempt_id, status: row.status, artifactRevisions: typeof row.artifact_revisions === "string" ? JSON.parse(row.artifact_revisions) as string[] : row.artifact_revisions, ...(row.receipt_kind ? { kind: row.receipt_kind, metadataDuties: duties } : {}) };
 }

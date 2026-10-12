@@ -18,6 +18,11 @@ export function visible(revision: ArtifactRevision, query: { projectId: string; 
   return isRevisionVisible(revision, { ...query, publishedRevisionIds: new Set(query.publishedRevisionIds) });
 }
 
+export function searchableText(bytes: Uint8Array): string {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).toLocaleLowerCase(); }
+  catch { return ""; }
+}
+
 export function validateRevision(revision: ArtifactRevision): void {
   if (!revision.key.branchId) throw new Error("artifact revision requires a branch identity");
   if (revisionHash(revision.bytes) !== revision.sha256) throw new Error("artifact revision sha256 does not match its bytes");

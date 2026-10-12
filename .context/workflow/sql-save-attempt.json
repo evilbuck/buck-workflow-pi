@@ -1,8 +1,8 @@
 {
-  "attemptId": "32826ce6-314c-4845-8d54-c802e3632803",
-  "runId": "3b76f8d2-f2af-4d7a-937b-6d2977f467d4",
+  "attemptId": "bf5fa447-1caa-4281-9317-136c8af8944d",
+  "runId": "623c86b5-ee9f-4836-9314-906a332afbe6",
   "subject": "2026-10-10.durable-storage-adapters",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-10-10.durable-storage-adapters/phase-2-four-adapters.md",
-  "receiptRel": ".context/2026-10-10.durable-storage-adapters/sql-memory-receipts/3b76f8d2-f2af-4d7a-937b-6d2977f467d4-32826ce6-314c-4845-8d54-c802e3632803.json"
+  "phase": ".context/2026-10-10.durable-storage-adapters/phase-3-domain-semantics.md",
+  "receiptRel": ".context/2026-10-10.durable-storage-adapters/sql-memory-receipts/623c86b5-ee9f-4836-9314-906a332afbe6-bf5fa447-1caa-4281-9317-136c8af8944d.json"
 }

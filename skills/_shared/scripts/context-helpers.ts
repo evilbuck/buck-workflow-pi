@@ -413,6 +413,12 @@ export function readSubjectStatus(folder: string): SubjectFolder["status"] {
   return inspection.effectiveState === "missing" ? null : inspection.effectiveState;
 }
 
+export function completedSubjectIds(states: ReadonlyMap<string, string | null | undefined>): ReadonlySet<string> {
+  const completed = new Set<string>();
+  for (const [id, state] of states) if (state === "completed") completed.add(id);
+  return completed;
+}
+
 export function listSubjectFolders(root: string): SubjectFolder[] {
   const contextDir = join(root, ".context");
   let names: string[] = [];
