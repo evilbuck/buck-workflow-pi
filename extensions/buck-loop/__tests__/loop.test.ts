@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair, type LoopDeps } from "../loop.js";
+import { handleLoop, parsePorcelainZ, prepareCommitCheckpoint, productionClassifyRepair, shellQuote, unstagedBlockReason, type LoopDeps } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 const judge = vi.mocked(runJev);
@@ -2460,5 +2460,98 @@ describe("acceptance stamp ordering", () => {
     const snaps = deps.onSnapshot.mock.calls.map(([snap]) => snap);
     const firstAfterBuild = snaps.find((snap) => snap.state === "building" && snap.workFacts.sessionOutcome === "ok");
     expect(firstAfterBuild?.workFacts.postcondition).toBe("confirmed");
+  });
+});
+
+describe("in-cycle unstaged guard: claimed restage, original reason, recovery hint", () => {
+  function statusOf(cwd: string): string {
+    return execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], { cwd, encoding: "utf8" });
+  }
+
+  function buildLeaving(cwd: string, ok: boolean) {
+    // A light repair retries once, so a still-open phase ends in the machine's
+    // retry-exhausted stop: the same non-mandatory path the operator hit.
+    return workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/claimed.ts": "export const v = 1;\n" });
+        git(cwd, ["add", "src/claimed.ts"]);
+        writeTree(cwd, { "src/claimed.ts": "export const v = 2;\n", "src/stray.ts": "export const s = 1;\n" });
+        return { ok, text: ok ? "work done but phase left open" : "boom" };
+      }
+      return landingWork()(opts);
+    }, undefined, async () => ({ lift: "light", reason: "test light lift", diagnosis: "retry" }));
+  }
+
+  it("restages a file the child staged then edited (AM) after a successful session; a never-staged file still blocks", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = buildLeaving(cwd, true);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    const status = statusOf(cwd);
+    expect(status).toContain("A  src/claimed.ts");
+    expect(status).toContain("?? src/stray.ts");
+    // Original stop is kept, the unstaged note is appended, and the hint names only the blocking file.
+    expect(result.reason).toMatch(/^postcondition still ambiguous after one retry/);
+    expect(result.reason).toContain("nested skill also left unstaged non-.context changes: ?? src/stray.ts");
+    expect(result.reason).toContain("git add -- src/stray.ts");
+    expect(result.reason).toContain("/buck-loop --resume");
+    expect(result.reason).not.toContain("src/claimed.ts");
+    expect(readProjection(cwd)?.history.at(-1)?.why).toBe(result.reason);
+  });
+
+  it("does not restage after a failed session", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: buildLeaving(cwd, false) });
+
+    expect(result.state).toBe("blocked");
+    expect(statusOf(cwd)).toContain("AM src/claimed.ts");
+    expect(result.reason).toContain("AM src/claimed.ts");
+    expect(result.reason).toContain("git add -- src/claimed.ts src/stray.ts");
+  });
+});
+
+describe("unstaged guard path handling", () => {
+  it("parses -z status verbatim, including renames, spaces, quotes, and non-ASCII", () => {
+    expect(parsePorcelainZ('AM a b.ts\0?? c"d.ts\0?? é.ts\0R  new name.ts\0old name.ts\0')).toEqual([
+      "AM a b.ts", '?? c"d.ts', "?? é.ts", "R  old name.ts -> new name.ts",
+    ]);
+  });
+
+  it("shell-quotes unsafe paths and leaves plain ones bare", () => {
+    expect(shellQuote("src/a.ts")).toBe("src/a.ts");
+    expect(shellQuote("a b.ts")).toBe("'a b.ts'");
+    expect(shellQuote("x;rm -rf ~")).toBe("'x;rm -rf ~'");
+    expect(shellQuote("it's.ts")).toBe("'it'\\''s.ts'");
+  });
+
+  it("reviews tracked paths with git diff and untracked paths with cat", () => {
+    const reason = unstagedBlockReason("stop", [" M src/tracked.ts", "?? new file.ts"]);
+    expect(reason).toContain("`git diff -- src/tracked.ts`");
+    expect(reason).toContain("`cat -- 'new file.ts'` (untracked)");
+    expect(reason).toContain("`git add -- src/tracked.ts 'new file.ts'`");
+  });
+
+  it("restages a claimed file whose name needs quoting", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/a b é.ts": "export const v = 1;\n" });
+        git(cwd, ["add", "src/a b é.ts"]);
+        writeTree(cwd, { "src/a b é.ts": "export const v = 2;\n", "src/x y.ts": "1\n" });
+        return { ok: true, text: "left open" };
+      }
+      return landingWork()(opts);
+    }, undefined, async () => ({ lift: "light", reason: "light", diagnosis: "retry" }));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    const z = execFileSync("git", ["status", "--porcelain", "-z", "--untracked-files=all"], { cwd, encoding: "utf8" });
+    expect(z).toContain("A  src/a b é.ts\0");
+    expect(result.reason).toContain("`cat -- 'src/x y.ts'` (untracked)");
+    expect(result.reason).not.toContain("a b é");
   });
 });

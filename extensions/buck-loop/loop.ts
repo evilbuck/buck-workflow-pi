@@ -1024,6 +1024,7 @@ async function executeSkill(
   }
   const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps, handoff, opened.directive);
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
+  restageClaimedFiles(cwd, skill, result.ok);
   recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
   const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity, result.sqlFailure);
@@ -1330,9 +1331,42 @@ async function recoverBlocked(
 }
 
 function nonContextStatus(cwd: string): string[] {
-  return gitOutput(cwd, "status", "--porcelain", "--untracked-files=all")
-    .split("\n")
-    .filter((line) => line.length >= 4 && !isContextStatus(line));
+  return statusLinesZ(cwd).filter((line) => line.length >= 4 && !isContextStatus(line));
+}
+
+/**
+ * `git status --porcelain -z`, rebuilt as `XY path` / `XY orig -> path` lines
+ * with verbatim paths (no C-style quoting), so spaces, quotes, and
+ * non-ASCII names survive into `git add` and the recovery hint.
+ */
+export function parsePorcelainZ(raw: string): string[] {
+  const fields = raw.split("\0");
+  const lines: string[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const entry = fields[i];
+    if (entry.length < 4) continue;
+    const xy = entry.slice(0, 2);
+    const path = entry.slice(3);
+    if (/[RC]/.test(xy)) {
+      lines.push(`${xy} ${fields[i + 1] ?? ""} -> ${path}`);
+      i += 1;
+    } else {
+      lines.push(`${xy} ${path}`);
+    }
+  }
+  return lines;
+}
+
+function statusLinesZ(cwd: string): string[] {
+  try {
+    return parsePorcelainZ(execFileSync("git", ["-C", cwd, "status", "--porcelain", "-z", "--untracked-files=all"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function isContextStatus(line: string): boolean {
@@ -1496,7 +1530,48 @@ function isRelativePhasePath(path: unknown): path is string {
 
 function porcelainPaths(line: string): string[] {
   if (line.length < 4) return [];
-  return line.slice(3).split(" -> ").map((p) => p.replace(/^"|"$/g, "")).filter(Boolean);
+  return line.slice(3).split(" -> ").filter(Boolean);
+}
+
+/**
+ * Keep the original stop and append the unstaged files plus a recovery hint,
+ * so the operator sees both why the loop stopped and how to resume.
+ */
+export function unstagedBlockReason(original: string, unstaged: readonly string[]): string {
+  const pathsOf = (lines: readonly string[]) => lines.flatMap((line) => porcelainPaths(line).slice(-1)).map(shellQuote).join(" ");
+  const untracked = unstaged.filter((line) => line.startsWith("??"));
+  const tracked = unstaged.filter((line) => !line.startsWith("??"));
+  const review = [
+    ...(tracked.length > 0 ? [`\`git diff -- ${pathsOf(tracked)}\``] : []),
+    ...(untracked.length > 0 ? [`\`cat -- ${pathsOf(untracked)}\` (untracked)`] : []),
+  ].join(" and ");
+  return `${original}; nested skill also left unstaged non-.context changes: ${unstaged.join(", ")}. `
+    + `Recovery: review with ${review}; if they belong to this phase, `
+    + `\`git add -- ${pathsOf(unstaged)}\` and run /buck-loop --resume (or stash the ones that do not).`;
+}
+
+/** POSIX single-quote a path unless it is plainly safe. */
+export function shellQuote(path: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(path) ? path : `'${path.replace(/'/g, "'\\''")}'`;
+}
+
+/**
+ * After a successful nested session, restage files the child already staged
+ * and then edited again (`MM`, `AM`, `RM`): the child claimed them. Untracked
+ * and never-staged files are left alone, so the in-cycle guard still blocks them.
+ */
+export function restageClaimedFiles(cwd: string, skill: WorkSkill, ok: boolean): string[] {
+  if (!ok || skill === "commit") return [];
+  const claimed = nonContextStatus(cwd)
+    .filter((line) => line[0] !== " " && line[0] !== "?" && line[1] === "M")
+    .flatMap((line) => porcelainPaths(line).slice(-1));
+  if (claimed.length === 0) return [];
+  try {
+    execFileSync("git", ["-C", cwd, "add", "--", ...claimed], { stdio: ["pipe", "pipe", "pipe"], timeout: 10_000 });
+  } catch {
+    return [];
+  }
+  return claimed;
 }
 
 function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {
@@ -1504,7 +1579,7 @@ function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): 
   if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
     const unstaged = unstagedNonContextStatus(cwd);
     if (unstaged.length > 0) {
-      const reason = "nested skill left unstaged non-.context changes: " + unstaged.join(", ");
+      const reason = unstagedBlockReason(result.reason, unstaged);
       // Amend the existing in-cycle → blocked transition instead of appending a
       // second blocked → blocked hop: permitsBlockedStagedResume requires the
       // latest transition to start in an in-cycle state, so an extra hop here
