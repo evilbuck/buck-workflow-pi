@@ -240,11 +240,16 @@ function postconditionBlockReason(state: WorkState, s: Snapshot): string | null 
     if (retryExhausted(s) && limitsExceeded(s)) {
       throw new BuckMachineError("AMBIGUOUS_ROUTE", state, ["blocked"]);
     }
-    if (retryExhausted(s)) return "postcondition still ambiguous after one retry; refusing another spin";
-    if (limitsExceeded(s)) return "postcondition ambiguous and no legal choice remains (limits exceeded)";
+    if (retryExhausted(s)) return `postcondition still ambiguous after one retry; refusing another spin${gapSuffix(s)}`;
+    if (limitsExceeded(s)) return `postcondition ambiguous and no legal choice remains (limits exceeded)${gapSuffix(s)}`;
   }
   if (postconditionMissing(s)) return `${state} session finished but postcondition is ${s.workFacts.postcondition} (scan defect)`;
   return null;
+}
+
+/** Names the unchecked criteria (and a jev failure) so the stop is actionable. */
+function gapSuffix(s: Snapshot): string {
+  return s.acceptanceGap ? ` (${s.acceptanceGap})` : "";
 }
 
 function reviewPriority(s: Snapshot): boolean {

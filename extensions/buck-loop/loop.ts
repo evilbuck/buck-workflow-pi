@@ -56,6 +56,7 @@ import { scan, unfinishedIterates } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
+import { describeAcceptanceGap, stampAcceptance, type AcceptanceJudge } from "./acceptance-stamp.js";
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
@@ -167,7 +168,15 @@ export type LoopDeps = {
   classifyRepair: (input: { cwd: string; snapshot: Snapshot; why: string; sessionText: string }) => Promise<RepairPlan>;
   /** Ids from the live host registry, the same list `/buck-models` offers. */
   availableIds?: () => Promise<ReadonlySet<string>>;
+  /**
+   * Loop-owned acceptance judgment after a build session. The nested child has
+   * no `jev` tool, so the supervisor ticks boxes. Defaults to TypeSafe `runJev`.
+   */
+  judgeAcceptance?: AcceptanceJudge;
 };
+
+const defaultJudgeAcceptance: AcceptanceJudge = (state, questions) =>
+  runJev(createTypeSafeEvaluator(), { state, questions });
 
 type EffectResult = {
   snapshot: Snapshot;
@@ -185,7 +194,10 @@ type EffectResult = {
  */
 export const productionClassifyRepair: LoopDeps["classifyRepair"] = async ({ cwd, snapshot, why, sessionText }) => {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
-  const diagnosis = diagnoseAmbiguity({ abs, sessionText, why, ...iterateEvidence(cwd, snapshot) });
+  const diagnosis = diagnoseAmbiguity({
+    abs, sessionText, why, ...iterateEvidence(cwd, snapshot),
+    ...(snapshot.acceptanceGap ? { acceptanceGap: snapshot.acceptanceGap } : {}),
+  });
   return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
     cwd, subject: snapshot.subject ?? "unknown",
   });
@@ -1018,9 +1030,31 @@ async function executeSkill(
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
-  return finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
+  const stamp = skill === "build" && result.ok
+    ? await stampBuiltAcceptance(cwd, planOrPhasePath, result.text, deps)
+    : null;
+  const finished = finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
     planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
   }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
+  const gap = skill === "build" && finished.snapshot.workFacts.postcondition !== "confirmed"
+    ? describeAcceptanceGap(stamp) ?? null
+    : null;
+  return { ...finished, snapshot: { ...finished.snapshot, acceptanceGap: gap } };
+}
+
+/** Tick acceptance boxes the build proved; never throws, never unticks. */
+async function stampBuiltAcceptance(cwd: string, planOrPhasePath: string, sessionText: string, deps: LoopDeps) {
+  try {
+    const stamp = await stampAcceptance(resolve(cwd, planOrPhasePath), sessionText, deps.judgeAcceptance ?? defaultJudgeAcceptance);
+    if (stamp.ticked.length > 0) {
+      deps.onActivity({ kind: "toolEnd", tool: "acceptance", ok: true, message: `ticked ${stamp.ticked.length} acceptance criteria` });
+    }
+    if (stamp.unavailable) deps.onWarning(`acceptance stamp: ${stamp.unavailable}`);
+    return stamp;
+  } catch (error) {
+    deps.onWarning(`acceptance stamp failed: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
 }
 
 /** Rescan after a nested session, closing a single finished iterate artifact first. */
