@@ -35,6 +35,11 @@ export type AcceptanceStamp = {
   unavailable?: string;
 };
 
+/**
+ * Keep the tail of the report: b-build loop mode puts `## Acceptance evidence`
+ * last, so a long report still sends the evidence. Reordering the report
+ * sections in the skill would need this slice revisited.
+ */
 const EVIDENCE_LIMIT = 12_000;
 
 export async function stampAcceptance(abs: string, sessionText: string, judge: AcceptanceJudge): Promise<AcceptanceStamp> {

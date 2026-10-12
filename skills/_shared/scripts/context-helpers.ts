@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join, relative } from "node:path";
 import { inspectSubjectLifecycle } from "./subject-lifecycle.js";
+import { isCheckedCriterion } from "./plan-acceptance.js";
 
 // ---------- frontmatter parse (moved from import-context-memory.ts) ----------
 
@@ -535,7 +536,7 @@ export function parsePhaseSummaryTable(text: string): PhaseRow[] {
 export function phaseCriteriaAllChecked(frontmatter: Record<string, unknown>): boolean {
   const criteria = frontmatter.acceptance_criteria;
   if (!Array.isArray(criteria) || criteria.length === 0) return false;
-  return criteria.every((entry) => String(entry).trimStart().startsWith("[x]"));
+  return criteria.every((entry) => isCheckedCriterion(String(entry)));
 }
 
 export function userGoalState(text: string): "present" | "waived" | "missing" {

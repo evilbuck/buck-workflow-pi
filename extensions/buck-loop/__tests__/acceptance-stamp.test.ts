@@ -47,13 +47,13 @@ describe("loop-owned acceptance stamp", () => {
   });
 
   it.each([
-    ["throws", async () => { throw new Error("network down"); }, "jev unavailable: network down"],
-    ["returns an error", async () => ({ details: { error: true, message: "TypeSafe API key is unavailable." } }), "jev unavailable: TypeSafe API key is unavailable."],
-    ["returns nothing", async () => undefined, "jev unavailable: no answers returned"],
-  ] as const)("keeps every box open and reports why when jev %s", async (_label, judge, reason) => {
+    ["throws", (async () => { throw new Error("network down"); }) as AcceptanceJudge, "jev unavailable: network down"],
+    ["returns an error", (async () => ({ details: { error: true, message: "TypeSafe API key is unavailable." } })) as AcceptanceJudge, "jev unavailable: TypeSafe API key is unavailable."],
+    ["returns nothing", (async () => undefined) as AcceptanceJudge, "jev unavailable: no answers returned"],
+  ] as Array<[string, AcceptanceJudge, string]>)("keeps every box open and reports why when jev %s", async (_label, judge, reason) => {
     const { abs } = setup();
     const before = readFileSync(abs, "utf8");
-    const stamp = await stampAcceptance(abs, "evidence", judge as AcceptanceJudge);
+    const stamp = await stampAcceptance(abs, "evidence", judge);
     expect(stamp.unavailable).toBe(reason);
     expect(stamp.ticked).toEqual([]);
     expect(readFileSync(abs, "utf8")).toBe(before);

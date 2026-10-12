@@ -276,3 +276,11 @@ describe("planMemoryRefStyle", () => {
     expect(planMemoryRefStyle("# Plan\n\nNo refs\n")).toBe("none");
   });
 });
+
+describe("phaseCriteriaAllChecked shares the guard's checkbox rule", () => {
+  it("accepts [X] like the loop guard", async () => {
+    const { phaseCriteriaAllChecked } = await import("./context-helpers.js");
+    expect(phaseCriteriaAllChecked({ acceptance_criteria: ["[x] a", "[X] b"] })).toBe(true);
+    expect(phaseCriteriaAllChecked({ acceptance_criteria: ["[x] a", "[ ] b"] })).toBe(false);
+  });
+});
