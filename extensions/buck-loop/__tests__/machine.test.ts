@@ -299,6 +299,17 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
     }
   });
 
+  it("names the unchecked acceptance criteria and jev failure in the retry-exhausted stop", () => {
+    const gap = 'jev unavailable: TypeSafe API key is unavailable.; unchecked acceptance: "[ ] live query works"';
+    const t = next(workSnap("building", { postcondition: "ambiguous", retriesUsed: 1 }, { acceptanceGap: gap }));
+    expect(t.to).toBe("blocked");
+    expect(t.effect).toMatchObject({ kind: "await-operator" });
+    const reason = (t.effect as { reason: string }).reason;
+    expect(reason).toContain("postcondition still ambiguous after one retry");
+    expect(reason).toContain("jev unavailable");
+    expect(reason).toContain('"[ ] live query works"');
+  });
+
   it.each(POSTCONDITION_STATES)("blocks a second ambiguous %s retry without asking", (state) => {
     const t = next(workSnap(state, { postcondition: "ambiguous", retriesUsed: 1 }));
     expect(t.to).toBe("blocked");

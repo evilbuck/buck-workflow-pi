@@ -189,6 +189,9 @@ function loadSkill(skill: NestedSkill): string {
 /** Skill body first, then a hard boundary: the child may not choose the next loop state. */
 function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: string, handoff?: string, directive?: string): string {
   const hardVariant = skill === "b-build-hard" ? "\nThis is the hard variant of b-build.\n" : "";
+  const loopMode = skill === "b-build" || skill === "b-build-hard"
+    ? "\nLoop mode applies (see the skill's Loop Mode section): do not tick acceptance boxes, write lifecycle status, edit the phases overview, run /b-save or /b-commit, or wait for approval. End with an `## Acceptance evidence` section; the supervisor stamps acceptance from it.\n"
+    : "";
   const checkpointInstruction = skill === "b-commit"
     ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n"
     : "\nBefore returning, stage only files you created or modified for this assignment. Never stage pre-existing or unrelated changes. Report a failure if your files cannot be staged.\n";
@@ -196,7 +199,7 @@ function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: strin
     ? `\nThe previous attempt left this assignment incomplete. Diagnosis:\n${handoff}\nFinish that diagnosed gap in this run. Do not stop after a partial checkpoint unless a required operator input is actually missing.\n`
     : "";
   const assigned = directive ? `\nSupervisor directive:\n${directive}\n` : "";
-  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${checkpointInstruction}${repair}${assigned}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
+  return `${skillBody}\n\n---\n\nYou are executing nested work for the exact plan or phase path: ${planOrPhasePath}.\n${hardVariant}${loopMode}${checkpointInstruction}${repair}${assigned}You have no authority to choose the next loop state. Complete only the assigned work and report the result to the supervisor.`;
 }
 
 function errorText(error: unknown): string {

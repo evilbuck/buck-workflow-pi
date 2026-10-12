@@ -8,29 +8,17 @@
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { scan } from "./scan.js";
-import { planAcceptanceCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
+import {
+  frontmatterAcceptanceCriteria,
+  isCheckedCriterion,
+  planAcceptanceCriteria,
+} from "../../skills/_shared/scripts/plan-acceptance.js";
 
 const PHASE_FILE_RE = /^phase-(\d+)-.+\.md$/;
 
-/** `null` when the key is absent. `[]` when the key is present and empty. */
+/** `null` when the key is absent. `[]` when the key is present and empty. Shared parser. */
 export function acceptanceCriteria(text: string): string[] | null {
-  const body = frontmatterBody(text);
-  if (body === null) return null;
-  const lines = body.split("\n");
-  const index = lines.findIndex((line) => /^acceptance_criteria:/.test(line));
-  if (index < 0) return null;
-  const rest = lines[index].slice("acceptance_criteria:".length).trim();
-  if (rest.startsWith("[")) return inlineItems(rest);
-  const items: string[] = [];
-  for (let i = index + 1; i < lines.length; i++) {
-    const item = lines[i].match(/^\s*-\s+(.*)$/);
-    if (!item) {
-      if (lines[i].trim() === "") continue;
-      break;
-    }
-    items.push(unquote(item[1].trim()));
-  }
-  return items;
+  return frontmatterAcceptanceCriteria(text);
 }
 
 /** Boxes win when the list is non-empty. Otherwise `status: completed` decides. */
@@ -89,7 +77,7 @@ function writeUnphasedPlanStatus(abs: string, today: string): boolean {
   const text = readFileSync(abs, "utf8");
   const fm = frontmatterSpan(text);
   const criteria = planAcceptanceCriteria(text);
-  if (criteria.length === 0 || criteria.some((line) => !/^\s*[-*]\s+\[x\]/.test(line))) return false;
+  if (criteria.length === 0 || criteria.some((line) => !isCheckedCriterion(line))) return false;
   if (!fm) return false;
   if (frontmatterStatus(text) === "completed") return false;
   const updated = /^status:/m.test(fm.body)
@@ -103,7 +91,7 @@ function writeUnphasedPlanStatus(abs: string, today: string): boolean {
 }
 
 function criteriaAllChecked(criteria: string[] | null): boolean {
-  return criteria !== null && criteria.length > 0 && criteria.every((entry) => entry.trimStart().startsWith("[x]"));
+  return criteria !== null && criteria.length > 0 && criteria.every(isCheckedCriterion);
 }
 
 function writeCompletedStatus(abs: string, today: string): boolean {
@@ -168,14 +156,3 @@ function frontmatterStatus(text: string): string | null {
   return line ? line.slice("status:".length).trim() : null;
 }
 
-function inlineItems(rest: string): string[] {
-  if (rest === "[]") return [];
-  const inner = rest.endsWith("]") ? rest.slice(1, -1) : rest.slice(1);
-  return inner.split(",").map((part) => unquote(part.trim())).filter((part) => part.length > 0);
-}
-
-function unquote(value: string): string {
-  const quote = value[0];
-  if ((quote === "\"" || quote === "'") && value.endsWith(quote) && value.length >= 2) return value.slice(1, -1);
-  return value;
-}

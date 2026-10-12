@@ -11,6 +11,7 @@ import { basename, join, resolve } from "node:path";
 import { unfinishedIterates, readStatus } from "./scan.js";
 import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
+import { frontmatterAcceptanceCriteria, isCheckedCriterion, openCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 
 const LIFTS = ["light", "medium", "heavy"] as const;
@@ -25,26 +26,23 @@ export type AmbiguityEvidence = {
   why: string;
   /** An iterating miss is about artifacts, not the phase; supplied by the caller. */
   iterateReport?: string;
+  /** Why the supervisor's acceptance stamp left boxes open (e.g. jev unavailable). */
+  acceptanceGap?: string;
 };
 
+/** Frontmatter criteria through the shared parser, so repair reads what the guard reads. */
 export function acceptanceCriteria(abs: string): string[] {
-  const front = frontmatter(abs);
-  const lines = front.split("\n");
-  const start = lines.findIndex((line) => line.trim() === "acceptance_criteria:");
-  if (start < 0) return [];
-  const items: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^\S/.test(line)) break;
-    const item = line.match(/^\s+-\s+(.*)$/)?.[1]?.trim();
-    if (item) items.push(item.replace(/^["']|["']$/g, ""));
+  try {
+    return frontmatterAcceptanceCriteria(readFileSync(abs, "utf8")) ?? [];
+  } catch {
+    return [];
   }
-  return items;
 }
 
 /** All boxes checked, but the scanner only confirms `status: completed`. */
 export function repairCheckedPhase(abs: string, at: string): boolean {
   const items = acceptanceCriteria(abs);
-  if (items.length === 0 || items.some((item) => !item.startsWith("[x]"))) return false;
+  if (items.length === 0 || items.some((item) => !isCheckedCriterion(item))) return false;
   const text = readFileSync(abs, "utf8");
   const fm = frontmatterSpan(text);
   if (!fm) return false;
@@ -103,8 +101,9 @@ export function closeSingleUnfinishedIterate(subjectDir: string, at: string): bo
 export function explainAmbiguity(abs: string | null): string {
   if (!abs) return "postcondition is ambiguous because the expected artifact did not land";
   const status = frontmatter(abs).match(/^status:\s*(.+)$/m)?.[1]?.trim() ?? "missing";
-  const open = acceptanceCriteria(abs).filter((item) => !item.startsWith("[x]"));
-  const checkpoint = section(readFileSync(abs, "utf8"), "Execution checkpoint");
+  const text = readFileSync(abs, "utf8");
+  const open = openCriteria(text);
+  const checkpoint = section(text, "Execution checkpoint");
   const unchecked = open.length > 0 ? ` Unchecked: ${open.join("; ")}.` : "";
   const why = checkpoint ? ` ${firstSentence(checkpoint)}` : "";
   const headline = status === "completed" ? `phase status is ${status}.` : `phase status is ${status}, not completed.`;
@@ -121,6 +120,7 @@ export function diagnoseAmbiguity(evidence: AmbiguityEvidence): string {
     `Child report: ${child}`,
     ...(evidence.iterateReport ? [`Iterate artifacts: ${evidence.iterateReport}`] : []),
     `Disk: ${disk}`,
+    ...(evidence.acceptanceGap ? [`Acceptance stamp: ${evidence.acceptanceGap}`] : []),
     "Judge the remaining work from the child report and disk evidence. Unchecked boxes name the gap; they are not a separate cause.",
   ].join("\n");
 }

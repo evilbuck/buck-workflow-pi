@@ -219,6 +219,11 @@ export interface Snapshot {
   saveAttemptId?: string | null;
   workFacts: WorkFacts;
   reviewFacts: ReviewFacts;
+  /**
+   * Open acceptance criteria (verbatim) and any judge failure left by the
+   * loop-owned acceptance stamp after a build. Diagnostic for stop messages.
+   */
+  acceptanceGap?: string | null;
   /** Completed supervisor iterations. */
   loopCount: number;
   /** Operator-configured ceiling; a loop at the maximum blocks before further work. */

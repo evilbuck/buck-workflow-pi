@@ -114,7 +114,8 @@ describe("subject lifecycle intents", () => {
 
   it.each([
     ["active", "- [x] Verified", false],
-    ["completed", "- [X] Not verified", false],
+    ["completed", "- [X] Verified", true],
+    ["completed", "- [ ] Not verified", false],
     ["completed", "- [x] Verified\n## Other\n- [ ] Out of scope", true],
     ["completed", "", true],
   ])("honors body boundaries for %s / %s", (status, criteria, ok) => {
