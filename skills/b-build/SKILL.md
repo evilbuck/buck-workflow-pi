@@ -279,6 +279,16 @@ An OMP execution session may resume mid-phase. If a phase file is already `statu
 5. **Scope to the active phase only** — implement only the current phase's steps and acceptance criteria, not the entire plan.
 6. **After completing the phase**, note which phase was finished and suggest the next step (queue next phase, run `/b-review`, or `/b-save`).
 
+### Loop Mode (nested under `/buck-loop`)
+
+You are in loop mode when the assignment ends with "You are executing nested work for the exact plan or phase path" and "You have no authority to choose the next loop state". In loop mode the supervisor owns all bookkeeping, and these rules override the rest of this skill:
+
+- **Do not** write `status`, `completed_at`, or any lifecycle field on the plan or phase file, and do not edit the phases overview table. The supervisor syncs them.
+- **Do not** tick acceptance boxes and do not call `jev` (it is not in your tool list). After you return, the supervisor runs the Acceptance wrap-up itself: it asks Jev one `noul` per open criterion against your report and ticks `[x]` at `noul >= 0.7`.
+- **Do not** run `/b-save` or `/b-commit`, and do not wait for user approval or confirmation. Make reasonable, recorded choices; the loop runs review, save, and commit as separate steps.
+- **Do** end your report with an `## Acceptance evidence` section: one bullet per acceptance criterion, quoting the criterion verbatim, followed by the exact commands you ran and their results that prove it (or "not done" with the reason). This report is the only evidence the stamp sees; a criterion without direct evidence stays open and the loop will stop on it.
+- Still write the draft commit message and run verification as described in **Closeout**.
+
 ### Phase State Updates (Required)
 
 When working on a phased plan with discrete phase files:
@@ -344,7 +354,7 @@ When `/b-build` is running inside an OMP execution session, preserve durable sta
 ## Closeout
 
 1. **Verification** — confirm the changes work. For code-touching work, the project's deterministic check contract (`/b-guardrails-check`) is the closeout gate; an ad-hoc `npx vitest run` / `npx playwright test` is the TDD inner-loop proof, not the closeout proof. Keep those commands as the inner-loop examples in `### 2. Red Phase` / `### 3. Green Phase` — the contract is what closes the implementation. Docs-only sessions skip the contract with one line of explanation.
-2. **Acceptance wrap-up** — this is the only writer of `[ ]` → `[x]`, and it runs before you yield a completed build.
+2. **Acceptance wrap-up** — this is the only writer of `[ ]` → `[x]`, and it runs before you yield a completed build. In loop mode skip this step: write the `## Acceptance evidence` section instead and the supervisor runs this wrap-up (see **Loop Mode**).
    - Collect still-open criteria. Phased: unchecked `acceptance_criteria` items on the active phase file. Unphased: unchecked lines under the plan's `## Acceptance criteria`. Skip a file with no list. Do not invent one. If none are open, do not call Jev.
    - Otherwise make one `jev` tool call. One `noul` per open criterion, same `state`. Do not pass a model override. Question ids are not sent to the model, so the criterion text goes in `instructions`.
    - `state`: `{ "evidence": "<commands and results you actually ran>", "criteria": ["<open line 1>", "<open line 2>"] }`.
