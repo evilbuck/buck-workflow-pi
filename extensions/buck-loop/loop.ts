@@ -1331,9 +1331,42 @@ async function recoverBlocked(
 }
 
 function nonContextStatus(cwd: string): string[] {
-  return gitOutput(cwd, "status", "--porcelain", "--untracked-files=all")
-    .split("\n")
-    .filter((line) => line.length >= 4 && !isContextStatus(line));
+  return statusLinesZ(cwd).filter((line) => line.length >= 4 && !isContextStatus(line));
+}
+
+/**
+ * `git status --porcelain -z`, rebuilt as `XY path` / `XY orig -> path` lines
+ * with verbatim paths (no C-style quoting), so spaces, quotes, and
+ * non-ASCII names survive into `git add` and the recovery hint.
+ */
+export function parsePorcelainZ(raw: string): string[] {
+  const fields = raw.split("\0");
+  const lines: string[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const entry = fields[i];
+    if (entry.length < 4) continue;
+    const xy = entry.slice(0, 2);
+    const path = entry.slice(3);
+    if (/[RC]/.test(xy)) {
+      lines.push(`${xy} ${fields[i + 1] ?? ""} -> ${path}`);
+      i += 1;
+    } else {
+      lines.push(`${xy} ${path}`);
+    }
+  }
+  return lines;
+}
+
+function statusLinesZ(cwd: string): string[] {
+  try {
+    return parsePorcelainZ(execFileSync("git", ["-C", cwd, "status", "--porcelain", "-z", "--untracked-files=all"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      stdio: ["pipe", "pipe", "pipe"],
+    }));
+  } catch {
+    return [];
+  }
 }
 
 function isContextStatus(line: string): boolean {
@@ -1497,7 +1530,7 @@ function isRelativePhasePath(path: unknown): path is string {
 
 function porcelainPaths(line: string): string[] {
   if (line.length < 4) return [];
-  return line.slice(3).split(" -> ").map((p) => p.replace(/^"|"$/g, "")).filter(Boolean);
+  return line.slice(3).split(" -> ").filter(Boolean);
 }
 
 /**
@@ -1505,10 +1538,21 @@ function porcelainPaths(line: string): string[] {
  * so the operator sees both why the loop stopped and how to resume.
  */
 export function unstagedBlockReason(original: string, unstaged: readonly string[]): string {
-  const paths = unstaged.flatMap((line) => porcelainPaths(line).slice(-1));
+  const pathsOf = (lines: readonly string[]) => lines.flatMap((line) => porcelainPaths(line).slice(-1)).map(shellQuote).join(" ");
+  const untracked = unstaged.filter((line) => line.startsWith("??"));
+  const tracked = unstaged.filter((line) => !line.startsWith("??"));
+  const review = [
+    ...(tracked.length > 0 ? [`\`git diff -- ${pathsOf(tracked)}\``] : []),
+    ...(untracked.length > 0 ? [`\`cat -- ${pathsOf(untracked)}\` (untracked)`] : []),
+  ].join(" and ");
   return `${original}; nested skill also left unstaged non-.context changes: ${unstaged.join(", ")}. `
-    + `Recovery: review with \`git diff -- ${paths.join(" ")}\`; if they belong to this phase, `
-    + `\`git add -- ${paths.join(" ")}\` and run /buck-loop --resume (or stash the ones that do not).`;
+    + `Recovery: review with ${review}; if they belong to this phase, `
+    + `\`git add -- ${pathsOf(unstaged)}\` and run /buck-loop --resume (or stash the ones that do not).`;
+}
+
+/** POSIX single-quote a path unless it is plainly safe. */
+export function shellQuote(path: string): string {
+  return /^[A-Za-z0-9_./:@%+=,-]+$/.test(path) ? path : `'${path.replace(/'/g, "'\\''")}'`;
 }
 
 /**

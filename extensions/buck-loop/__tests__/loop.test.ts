@@ -8,7 +8,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
-import { handleLoop, prepareCommitCheckpoint, productionClassifyRepair, type LoopDeps } from "../loop.js";
+import { handleLoop, parsePorcelainZ, prepareCommitCheckpoint, productionClassifyRepair, shellQuote, unstagedBlockReason, type LoopDeps } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 const judge = vi.mocked(runJev);
@@ -2510,5 +2510,48 @@ describe("in-cycle unstaged guard: claimed restage, original reason, recovery hi
     expect(statusOf(cwd)).toContain("AM src/claimed.ts");
     expect(result.reason).toContain("AM src/claimed.ts");
     expect(result.reason).toContain("git add -- src/claimed.ts src/stray.ts");
+  });
+});
+
+describe("unstaged guard path handling", () => {
+  it("parses -z status verbatim, including renames, spaces, quotes, and non-ASCII", () => {
+    expect(parsePorcelainZ('AM a b.ts\0?? c"d.ts\0?? é.ts\0R  new name.ts\0old name.ts\0')).toEqual([
+      "AM a b.ts", '?? c"d.ts', "?? é.ts", "R  old name.ts -> new name.ts",
+    ]);
+  });
+
+  it("shell-quotes unsafe paths and leaves plain ones bare", () => {
+    expect(shellQuote("src/a.ts")).toBe("src/a.ts");
+    expect(shellQuote("a b.ts")).toBe("'a b.ts'");
+    expect(shellQuote("x;rm -rf ~")).toBe("'x;rm -rf ~'");
+    expect(shellQuote("it's.ts")).toBe("'it'\\''s.ts'");
+  });
+
+  it("reviews tracked paths with git diff and untracked paths with cat", () => {
+    const reason = unstagedBlockReason("stop", [" M src/tracked.ts", "?? new file.ts"]);
+    expect(reason).toContain("`git diff -- src/tracked.ts`");
+    expect(reason).toContain("`cat -- 'new file.ts'` (untracked)");
+    expect(reason).toContain("`git add -- src/tracked.ts 'new file.ts'`");
+  });
+
+  it("restages a claimed file whose name needs quoting", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build") {
+        writeTree(cwd, { "src/a b é.ts": "export const v = 1;\n" });
+        git(cwd, ["add", "src/a b é.ts"]);
+        writeTree(cwd, { "src/a b é.ts": "export const v = 2;\n", "src/x y.ts": "1\n" });
+        return { ok: true, text: "left open" };
+      }
+      return landingWork()(opts);
+    }, undefined, async () => ({ lift: "light", reason: "light", diagnosis: "retry" }));
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    const z = execFileSync("git", ["status", "--porcelain", "-z", "--untracked-files=all"], { cwd, encoding: "utf8" });
+    expect(z).toContain("A  src/a b é.ts\0");
+    expect(result.reason).toContain("`cat -- 'src/x y.ts'` (untracked)");
+    expect(result.reason).not.toContain("a b é");
   });
 });
