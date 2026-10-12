@@ -56,7 +56,7 @@ import { scan, unfinishedIterates } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
-import { describeAcceptanceGap, stampAcceptance, type AcceptanceJudge } from "./acceptance-stamp.js";
+import { describeAcceptanceGap, stampAcceptance, type AcceptanceJudge, type AcceptanceStamp } from "./acceptance-stamp.js";
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
@@ -1030,24 +1030,33 @@ async function executeSkill(
   if (saveCheck.status === "block") {
     return { snapshot: block(snapshot, saveCheck.reason, deps.now()), failedText: saveCheck.reason, sessionText: result.text };
   }
+  // Stamp before the landed-work scan so its sync and rescan see the ticked boxes.
+  const stamp = await stampBuildAcceptance(cwd, skill, planOrPhasePath, result, deps);
   const finished = finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
     planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
   }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
-  return attachBuildAcceptance(cwd, skill, planOrPhasePath, result, finished, deps);
+  return attachAcceptanceGap(skill, finished, stamp);
 }
 
-/** Stamp build acceptance and attach any remaining gap to the finished snapshot. */
-async function attachBuildAcceptance(
+/** Loop-owned stamp after a successful build; other skills skip it. */
+async function stampBuildAcceptance(
   cwd: string,
   skill: WorkSkill,
   planOrPhasePath: string,
   result: { ok: boolean; text: string },
-  finished: { snapshot: Snapshot; failedText: string | null; sessionText: string },
   deps: LoopDeps,
-): Promise<{ snapshot: Snapshot; failedText: string | null; sessionText: string }> {
-  if (skill !== "build" || !result.ok) return finished;
-  const stamp = await stampBuiltAcceptance(cwd, planOrPhasePath, result.text, deps);
-  if (finished.snapshot.workFacts.postcondition === "confirmed") return finished;
+): Promise<AcceptanceStamp | null> {
+  if (skill !== "build" || !result.ok) return null;
+  return stampBuiltAcceptance(cwd, planOrPhasePath, result.text, deps);
+}
+
+/** Name the remaining acceptance gap on a build the post-stamp scan still finds ambiguous. */
+function attachAcceptanceGap(
+  skill: WorkSkill,
+  finished: { snapshot: Snapshot; failedText: string | null; sessionText: string },
+  stamp: AcceptanceStamp | null,
+): { snapshot: Snapshot; failedText: string | null; sessionText: string } {
+  if (skill !== "build" || finished.snapshot.workFacts.postcondition === "confirmed") return finished;
   return { ...finished, snapshot: { ...finished.snapshot, acceptanceGap: describeAcceptanceGap(stamp) ?? null } };
 }
 

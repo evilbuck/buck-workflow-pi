@@ -2438,3 +2438,27 @@ describe("loop-owned acceptance bookkeeping (nested build has no jev tool)", () 
     expect(seen).toContain('"[ ] tests pass"');
   });
 });
+
+describe("acceptance stamp ordering", () => {
+  it("syncs and rescans after the stamp so the first build confirms without repair or retry", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = join(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
+    writeFileSync(phase, readFileSync(phase, "utf8").replace(/^---\n# Phase/m, 'acceptance_criteria:\n  - "[ ] tests pass"\n---\n# Phase'));
+    const rest = landingWork();
+    const runStep = async (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty?: string }) =>
+      opts.skill === "b-build" || opts.skill === "b-build-hard" ? { ok: true, text: "npm test -> 12 passed" } : rest(opts);
+    const judgeAcceptance = vi.fn(async () => ({ details: { answers: { criterion_1: { type: "noul", noul: 0.95 } } } }));
+    const deps = { ...workDeps(runStep), judgeAcceptance, onSnapshot: vi.fn((_snap: Parameters<NonNullable<LoopDeps["onSnapshot"]>>[0]) => undefined) };
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    const skills = deps.runStep.mock.calls.map(([opts]) => opts.skill);
+    expect(skills.slice(0, 2)).toEqual(["b-build", "b-review"]);
+    expect(deps.choose).not.toHaveBeenCalled();
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+    expect(readFileSync(phase, "utf8")).toMatch(/^status: completed$/m);
+    const snaps = deps.onSnapshot.mock.calls.map(([snap]) => snap);
+    const firstAfterBuild = snaps.find((snap) => snap.state === "building" && snap.workFacts.sessionOutcome === "ok");
+    expect(firstAfterBuild?.workFacts.postcondition).toBe("confirmed");
+  });
+});
