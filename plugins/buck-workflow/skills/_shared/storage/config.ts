@@ -85,7 +85,8 @@ function parseProject(key: string, value: unknown, originsSeen: Set<string>): Pr
 
 function storageWithDefaults(storage: StorageSelection): StorageSelection {
   if (storage.adapter === "external-files" && storage.root === undefined) {
-    return { ...storage, root: join(homedir(), ".config", "buck-workflow", "{project}", ".context") };
+    const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
+    return { ...storage, root: join(base, "buck-workflow", "{project}", ".context") };
   }
   if (storage.adapter === "sqlite" && storage.database === undefined) {
     return { ...storage, database: join(homedir(), ".config", "buck-workflow", "state.sqlite") };

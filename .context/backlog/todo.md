@@ -6,7 +6,7 @@ Overview: [`plan-durable-storage-adapters-phases.md`](../2026-10-10.durable-stor
 Chain: 1 → 2 → 3 → 4 → 5 and 3 → 6 → 7 → 8 (5 ∥ 6 possible; sequential default).
 
 
-- [ ] [Phase 2: Four Storage Adapters](items/phase-2-storage-adapter-four-adapters.md) — hard, `/b-build-hard` — SQLite slice gated on A-4
+
 - [ ] [Phase 3: Domain Semantics](items/phase-3-storage-adapter-domain-semantics.md) — hard, `/b-build-hard`
 - [ ] [Phase 4: Native Tool, CLI & Skill Cutover](items/phase-4-storage-adapter-native-access.md) — hard, `/b-build-hard`
 - [ ] [Phase 5: Remaining Durable Consumers](items/phase-5-storage-adapter-remaining-consumers.md) — medium, `/b-build`

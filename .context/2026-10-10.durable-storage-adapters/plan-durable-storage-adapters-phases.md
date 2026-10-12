@@ -26,7 +26,7 @@ format: discrete
 | Phase | Status | Difficulty | File |
 |-------|--------|------------|------|
 | 1: Contract, Config, Identity & A-4 | completed | hard | [phase-1-contract-config-identity.md](phase-1-contract-config-identity.md) |
-| 2: Four Storage Adapters | pending | hard | [phase-2-four-adapters.md](phase-2-four-adapters.md) |
+| 2: Four Storage Adapters | completed | hard | [phase-2-four-adapters.md](phase-2-four-adapters.md) |
 | 3: Domain Semantics | pending | hard | [phase-3-domain-semantics.md](phase-3-domain-semantics.md) |
 | 4: Native Tool, CLI & Skill Cutover | pending | hard | [phase-4-native-access.md](phase-4-native-access.md) |
 | 5: Remaining Durable Consumers | pending | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
@@ -82,7 +82,7 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Contract, Config, Identity & A-4 — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Contract, Config, Identity & A-4 — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-10, 065b776)
 - [ ] Phase 2: Four Storage Adapters — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 3: Domain Semantics — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Native Tool, CLI & Skill Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit

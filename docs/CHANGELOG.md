@@ -12,6 +12,9 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **File storage serializes overlapping operations and preserves projection recovery.** Unsafe artifact/namespace identities are refused before committing. A post-commit projection failure reports the committed generation explicitly and leaves an atomic recovery journal, preventing unfinished projections from becoming false direct-file edits.
+- **Additive PostgreSQL migrations reject unknown computed expressions.** Literal defaults, built-in casts, required key/reference/check forms, and the reviewed timestamp default remain supported. Migration 003 adds project-scoped branch incarnation/ref/lineage records without changing applied migration checksums.
+
 - **Buck-loop uses one iteration lifecycle rule throughout review routing.** Scanning, ambiguity diagnosis, artifact closing, and severity ranking agree on completed and below-waterline work, including CRLF artifacts. Retired artifacts cannot spuriously block a new review as multiple unfinished findings.
 - **SQL save directives emit the canonical subject once.** The redundant field is removed without changing receipt provenance or verification.
 - **Buck-loop SQL saves preserve the real failure boundary.** The save tool exposes object-rooted arguments without weakening operation validation, derives provenance from the child worktree, and uses `remember`'s internal source-key reuse/readback. Unresolved tool failures now block with a sanitized diagnostic rather than generic completion ambiguity; verified completed receipts still win over late errors.

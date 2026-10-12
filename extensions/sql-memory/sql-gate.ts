@@ -307,18 +307,82 @@ export function checkSqlStatement(sql: string): SqlGateResult {
 
 // Autonomous migrations admit a deliberately small grammar. Procedural SQL,
 // computed expressions, and unparsed forms require exact-file acknowledgment.
-const SIMPLE_TYPE = "(?:INT|INTEGER|BIGINT|TEXT|UUID|BOOLEAN|NUMERIC|TIMESTAMPTZ)";
+const SIMPLE_TYPE = "(?:INT|INTEGER|BIGINT|TEXT|UUID|BOOLEAN|NUMERIC|TIMESTAMPTZ|JSONB|BYTEA)";
 const COLUMN = `[A-Z_][A-Z_0-9]* ${SIMPLE_TYPE}(?: NOT NULL)?(?: PRIMARY KEY)?`;
 const ADDITIVE_STATEMENTS = [
   /^CREATE EXTENSION IF NOT EXISTS VECTOR$/,
   new RegExp(`^CREATE TABLE IF NOT EXISTS [A-Z_][A-Z_0-9]* \\( ${COLUMN}(?: , ${COLUMN})* \\)$`),
   new RegExp(`^ALTER TABLE [A-Z_][A-Z_0-9]* ADD COLUMN (?:IF NOT EXISTS )?${COLUMN}$`),
-  /^CREATE INDEX IF NOT EXISTS [A-Z_][A-Z_0-9]* ON [A-Z_][A-Z_0-9]* \( [A-Z_][A-Z_0-9]* \)$/,
+  /^CREATE INDEX IF NOT EXISTS [A-Z_][A-Z_0-9]* ON [A-Z_][A-Z_0-9]* \( [A-Z_][A-Z_0-9]*(?: , [A-Z_][A-Z_0-9]*)* \)$/,
 ];
 
 export function containsDestructiveMigration(sql: string): boolean {
   const tokens = tokenize(sql, true);
-  if (!tokens || tokens.some((token) => token.kind !== "word" && !["(", ")", ",", ";"].includes(token.value))) return true;
-  const statements = tokens.map((token) => token.value).join(" ").replace(/ ;$/, "").split(" ; ");
-  return statements.some((statement) => !ADDITIVE_STATEMENTS.some((pattern) => pattern.test(statement)));
+  if (!tokens) return true;
+  const statements: Token[][] = [];
+  let statement: Token[] = [];
+  for (const token of tokens) {
+    if (token.value === ";") {
+      if (statement.length === 0) return true;
+      statements.push(statement);
+      statement = [];
+    } else statement.push(token);
+  }
+  if (statement.length > 0) statements.push(statement);
+  if (statements.length === 0) return true;
+  return statements.some((parts) => {
+    if (isAdditiveCreateTable(parts)) return false;
+    if (parts.some((token) => token.kind !== "word" && !["(", ")", ","].includes(token.value))) return true;
+    const text = parts.map((token) => token.value).join(" ");
+    return !ADDITIVE_STATEMENTS.some((pattern) => pattern.test(text));
+  });
 }
+
+function isAdditiveCreateTable(tokens: readonly Token[]): boolean {
+  if (!isCreateTableHeader(tokens)) return false;
+  const definitions: Token[][] = [];
+  let definition: Token[] = [];
+  let depth = 0;
+  for (const token of tokens.slice(7, -1)) {
+    if (token.value === "," && depth === 0) {
+      definitions.push(definition);
+      definition = [];
+    } else {
+      depth += token.value === "(" ? 1 : token.value === ")" ? -1 : 0;
+      if (depth < 0) return false;
+      definition.push(token);
+    }
+  }
+  definitions.push(definition);
+  return depth === 0 && definitions.every(isAdditiveTableDefinition);
+}
+
+const IDENTIFIER = "[A-Z_][A-Z_0-9]*";
+const IDENTIFIERS = `${IDENTIFIER}(?: , ${IDENTIFIER})*`;
+const KEY_COLUMNS = `\\( ${IDENTIFIERS} \\)`;
+const REFERENCE = `REFERENCES ${IDENTIFIER} ${KEY_COLUMNS}`;
+// Literal contents never become grammar tokens. Only casts to built-in types
+// and the reviewed timestamp default are admitted; unknown calls fail closed.
+const DEFAULT_VALUE = `(?:LITERAL(?: : : ${SIMPLE_TYPE})?|TRUE|FALSE|NULL|NOW \\( \\))`;
+const COLUMN_CONSTRAINT = `(?:NOT NULL|PRIMARY KEY|UNIQUE|DEFAULT ${DEFAULT_VALUE}|${REFERENCE}|CHECK \\( ${IDENTIFIER} IN \\( LITERAL(?: , LITERAL)* \\) \\))`;
+const TABLE_DEFINITIONS = [
+  new RegExp(`^${IDENTIFIER} ${SIMPLE_TYPE}(?: ${COLUMN_CONSTRAINT})*$`),
+  new RegExp(`^(?:PRIMARY KEY|UNIQUE) ${KEY_COLUMNS}$`),
+  new RegExp(`^FOREIGN KEY ${KEY_COLUMNS} ${REFERENCE}$`),
+];
+
+function isAdditiveTableDefinition(tokens: readonly Token[]): boolean {
+  if (tokens.some((token) => token.kind === "dollar")) return false;
+  const text = tokens.map((token) => token.kind === "literal" ? "LITERAL" : token.value).join(" ");
+  return TABLE_DEFINITIONS.some((pattern) => pattern.test(text));
+}
+function isCreateTableHeader(tokens: readonly Token[]): boolean {
+  return tokens.length >= 8 && matchesCreateTablePrefix(tokens)
+    && tokens[5]?.kind === "word" && tokens[6]?.value === "(" && tokens.at(-1)?.value === ")";
+}
+
+function matchesCreateTablePrefix(tokens: readonly Token[]): boolean {
+  const expected = ["CREATE", "TABLE", "IF", "NOT", "EXISTS"];
+  return expected.every((value, index) => tokens[index]?.value === value);
+}
+
