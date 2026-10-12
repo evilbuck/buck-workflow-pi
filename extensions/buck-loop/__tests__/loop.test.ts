@@ -1767,7 +1767,7 @@ describe("configured SQL memory recall contract", () => {
   });
 
   it("still runs the child when recall succeeds with zero rows", async () => {
-    process.env.SQL_MEMORY_URL = "postgres://unused";
+    process.env.SQL_MEMORY_URL = "postgres://127.0.0.1:1/unused";
     const cwd = repo();
     phased(cwd, ["pending"]);
     recallResult.current = {
@@ -2387,5 +2387,54 @@ describe("commit checkpoint identity recovery", () => {
     expect(calls[0]).toBe(`b-commit:${FIRST}`);
     expect(calls.indexOf(`b-build:${SECOND}`)).toBeGreaterThan(0);
     expect(again.reason ?? "").not.toContain("select the next phase");
+  });
+});
+
+describe("loop-owned acceptance bookkeeping (nested build has no jev tool)", () => {
+  const PHASE1 = `.context/${SUBJECT}/phase-1-p1.md`;
+
+  function withCriteria(cwd: string): void {
+    phased(cwd, ["pending"]);
+    const abs = join(cwd, PHASE1);
+    writeFileSync(abs, readFileSync(abs, "utf8").replace(/^---\n# Phase/m, 'acceptance_criteria:\n  - "[ ] tests pass"\n---\n# Phase'));
+  }
+
+  /** Build does the work but, like the real nested child, never ticks a box. */
+  function buildWithoutBookkeeping() {
+    const rest = landingWork();
+    return async (opts: { cwd: string; skill: NestedSkill; planOrPhasePath: string; difficulty?: string }) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") {
+        return { ok: true, text: "## Acceptance evidence\n- \"[ ] tests pass\": npm test -> 12 passed" };
+      }
+      return rest(opts);
+    };
+  }
+
+  it("ticks the box from session evidence so building confirms and review runs", async () => {
+    const cwd = repo();
+    withCriteria(cwd);
+    const judgeAcceptance = vi.fn(async () => ({ details: { answers: { criterion_1: { type: "noul", noul: 0.92 } } } }));
+    const deps = { ...workDeps(buildWithoutBookkeeping()), judgeAcceptance };
+    await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(judgeAcceptance).toHaveBeenCalledTimes(1);
+    expect(readFileSync(join(cwd, PHASE1), "utf8")).toContain('"[x] tests pass"');
+    const skills = deps.runStep.mock.calls.map(([opts]) => opts.skill);
+    expect(skills).toContain("b-review");
+    expect(deps.classifyRepair).not.toHaveBeenCalled();
+  });
+
+  it("names the open criterion and jev failure when the stamp cannot run", async () => {
+    const cwd = repo();
+    withCriteria(cwd);
+    const judgeAcceptance = vi.fn(async () => ({ details: { error: true, message: "TypeSafe API key is unavailable." } }));
+    const deps = { ...workDeps(buildWithoutBookkeeping()), judgeAcceptance };
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+
+    expect(result.state).toBe("blocked");
+    expect(readFileSync(join(cwd, PHASE1), "utf8")).toContain('"[ ] tests pass"');
+    const seen = deps.classifyRepair.mock.calls[0]?.[0].snapshot.acceptanceGap;
+    expect(seen).toContain("jev unavailable: TypeSafe API key is unavailable.");
+    expect(seen).toContain('"[ ] tests pass"');
   });
 });
