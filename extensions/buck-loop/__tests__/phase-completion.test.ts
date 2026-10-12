@@ -29,7 +29,7 @@ describe("unphased checked acceptance synchronization", () => {
     expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(text);
   });
 
-  it.each(["- [ ] Open", "- [X] Uppercase", ""])("leaves unverified or empty list unchanged: %s", (criteria) => {
+  it.each(["- [ ] Open", "- [x] Done\n- [ ] Open", ""])("leaves unverified or empty list unchanged: %s", (criteria) => {
     const cwd = repo();
     const text = `---\nstatus: active\n---\n## Acceptance criteria\n${criteria}\n`;
     writeTree(cwd, { [PLAN]: text });
@@ -46,9 +46,16 @@ describe("unphased checked acceptance synchronization", () => {
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(true);
   });
 
-  it("rejects uppercase boxes even when plan status is completed", () => {
+  it("accepts uppercase boxes as checked (shared tolerant parser)", () => {
     const cwd = repo();
-    writeTree(cwd, { [PLAN]: "---\nstatus: completed\n---\n## Acceptance criteria\n- [X] Unverified\n" });
+    writeTree(cwd, { [PLAN]: "---\nstatus: completed\n---\n## Acceptance criteria\n- [X] Verified\n" });
+    const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
+    expect(facts.kind === "unphased" && facts.closeEligible).toBe(true);
+  });
+
+  it("still rejects an open box when plan status is completed", () => {
+    const cwd = repo();
+    writeTree(cwd, { [PLAN]: "---\nstatus: completed\n---\n## Acceptance criteria\n- [ ] Unverified\n" });
     const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(false);
   });

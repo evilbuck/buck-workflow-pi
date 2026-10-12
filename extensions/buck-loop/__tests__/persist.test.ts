@@ -106,7 +106,7 @@ describe("projection round-trip", () => {
 describe("resume reconciliation", () => {
   it.each(["done", "blocked"] as const)("refreshes open acceptance blockers on %s resume", (state) => {
     const root = repo();
-    writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}\n## Acceptance criteria\n- [X] Observed evidence\n` });
+    writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}\n## Acceptance criteria\n- [ ] Observed evidence\n` });
     writeProjection(root, projection({
       state, phasePath: null,
       history: [{ from: "committing", to: state, at: "2026-09-18T00:00:00Z", why: "unphased plan remains open" }],
@@ -114,7 +114,7 @@ describe("resume reconciliation", () => {
     const snapshot = resume({ projectRoot: root });
     expect(snapshot.state).toBe("blocked");
     expect(snapshot.history.at(-1)?.why).toContain("unphased plan remains open");
-    expect(snapshot.history.at(-1)?.why).toContain("- [X] Observed evidence");
+    expect(snapshot.history.at(-1)?.why).toContain("- [ ] Observed evidence");
   });
 
   it.each(["\n## Acceptance criteria\n- [ ] Implementation not yet verified\n", ""])(
