@@ -129,8 +129,19 @@ function attachUnownedPhase(
   return true;
 }
 
+function textFrontmatter(files: ReadonlyMap<string, string>, name: string): Record<string, unknown> {
+  const text = files.get(name);
+  if (text === undefined) return {};
+  try {
+    const { yaml } = splitFrontmatter(text);
+    return yaml === null ? {} : parseSimpleYaml(yaml);
+  } catch {
+    return {};
+  }
+}
+
 function assignPhaseOwnership(
-  subjectDir: string,
+  files: ReadonlyMap<string, string>,
   phases: string[],
   plans: string[],
   phasesByPlan: Map<string, string[]>,
@@ -138,7 +149,7 @@ function assignPhaseOwnership(
 ): boolean {
   let ambiguous = false;
   for (const phase of phases) {
-    const data = frontmatter(join(subjectDir, phase));
+    const data = textFrontmatter(files, phase);
     const hasOwner = Object.prototype.hasOwnProperty.call(data, "plan");
     if (!hasOwner) {
       if (attachUnownedPhase(phase, plans, phasesByPlan, blockers)) ambiguous = true;
@@ -161,7 +172,7 @@ function assignPhaseOwnership(
 }
 
 function collectPlanBlockers(
-  subjectDir: string,
+  files: ReadonlyMap<string, string>,
   plans: string[],
   phasesByPlan: Map<string, string[]>,
   blockers: string[],
@@ -169,35 +180,34 @@ function collectPlanBlockers(
   for (const plan of plans) {
     const owned = phasesByPlan.get(plan) ?? [];
     if (owned.length === 0) {
-      collectUnphasedBlockers(subjectDir, plan, blockers);
+      collectUnphasedBlockers(files, plan, blockers);
       continue;
     }
     for (const phase of owned) {
-      if (frontmatter(join(subjectDir, phase)).status !== "completed") {
-        blockers.push(`${phase}: phase is not completed`);
-      }
+      if (textFrontmatter(files, phase).status !== "completed") blockers.push(`${phase}: phase is not completed`);
     }
   }
 }
 
-function collectUnphasedBlockers(subjectDir: string, plan: string, blockers: string[]): void {
-  const text = readFileSync(join(subjectDir, plan), "utf8");
-  const data = frontmatter(join(subjectDir, plan));
+function collectUnphasedBlockers(files: ReadonlyMap<string, string>, plan: string, blockers: string[]): void {
+  const text = files.get(plan) ?? "";
+  const data = textFrontmatter(files, plan);
   if (data.status !== "completed") blockers.push(`${plan}: unphased plan remains open`);
   if (unphasedCloseout(text).openAcceptanceLines.length > 0) blockers.push(`${plan}: open acceptance box`);
 }
 
-function verifyClose(subjectDir: string): Verification {
-  const names = markdownFiles(subjectDir);
+export function verifyCloseTexts(files: ReadonlyMap<string, string>): Verification {
+  const names = [...files.keys()].sort();
   const plans = names.filter((name) => /^plan-.*\.md$/.test(name) && !/-phases\.md$/.test(name));
   const phases = names.filter((name) => /^phase-\d+-.+\.md$/.test(name));
   const blockers: string[] = [];
   const phasesByPlan = new Map(plans.map((plan) => [plan, [] as string[]]));
-  const ambiguous = assignPhaseOwnership(subjectDir, phases, plans, phasesByPlan, blockers);
-  collectPlanBlockers(subjectDir, plans, phasesByPlan, blockers);
+  const ambiguous = assignPhaseOwnership(files, phases, plans, phasesByPlan, blockers);
+  collectPlanBlockers(files, plans, phasesByPlan, blockers);
   if (plans.length === 0) blockers.push("no plan provides closeout evidence");
   return { verified: blockers.length === 0, ambiguous, blockers };
 }
+
 
 function lifecycleProvenance(
   metadata: { canonical: boolean; malformed: boolean },
@@ -208,12 +218,23 @@ function lifecycleProvenance(
   return state === "missing" ? "missing" : "legacy";
 }
 
+export function provenanceFromIndexText(text: string): SubjectLifecycleInspection["provenance"] {
+  return lifecycleProvenance(canonicalMetadata(text), rawState(text));
+}
+
 export function inspectSubjectLifecycle(subjectDir: string): SubjectLifecycleInspection {
   const dir = resolve(subjectDir);
-  const text = readIndex(dir);
+  return inspectSubjectLifecycleTexts(readIndex(dir), subjectFiles(dir), dir);
+}
+
+function subjectFiles(subjectDir: string): Map<string, string> {
+  return new Map(markdownFiles(subjectDir).map((name) => [name, readFileSync(join(subjectDir, name), "utf8")]));
+}
+
+export function inspectSubjectLifecycleTexts(text: string, files: ReadonlyMap<string, string>, subjectDir = ""): SubjectLifecycleInspection {
   const state = rawState(text);
   const metadata = canonicalMetadata(text);
-  const verification = verifyClose(dir);
+  const verification = verifyCloseTexts(files);
   const legacyVerifiedClosed = !metadata.canonical
     && !metadata.malformed
     && (state === "active" || state === "draft")
@@ -221,7 +242,7 @@ export function inspectSubjectLifecycle(subjectDir: string): SubjectLifecycleIns
   const verifiedClosed = state === "completed" || legacyVerifiedClosed;
   const effectiveState = verifiedClosed ? "completed" : state;
   return {
-    subjectDir: dir,
+    subjectDir,
     state,
     effectiveState,
     canonical: metadata.canonical,
@@ -292,90 +313,70 @@ function atomicWrite(subjectDir: string, text: string): void {
   renameSync(temp, path);
 }
 
-function refusal(inspection: SubjectLifecycleInspection, code: SubjectLifecycleResult["code"]): SubjectLifecycleResult {
-  return {
-    ...inspection,
-    ok: false,
-    code,
-    changed: false,
-    previousState: inspection.state,
-    resultingState: inspection.state,
-  };
-}
+export type TextLifecycleIntent =
+  | { kind: "initialize" | "activate" | "close-verified" }
+  | { kind: "reopen"; reason: string };
 
-function applied(previous: SubjectLifecycleInspection, resultingState: SubjectLifecycleState, changed: boolean): SubjectLifecycleResult {
-  const next = inspectSubjectLifecycle(previous.subjectDir);
-  return {
-    ...next,
-    ok: true,
-    code: "applied",
-    changed,
-    previousState: previous.state,
-    resultingState,
-  };
-}
-
-function persist(previous: SubjectLifecycleInspection, state: SubjectLifecycleState, transition: SubjectLifecycleIntent["kind"], reason?: string): SubjectLifecycleResult {
-  const current = readIndex(previous.subjectDir);
-  const { yaml } = splitFrontmatter(current);
-  const existingReason = yaml === null ? undefined : parseSimpleYaml(yaml).lifecycle_reopen_reason;
-  const fields: Record<string, string | number | undefined> = {
-    status: state,
+export function applySubjectLifecycleTexts(text: string, files: ReadonlyMap<string, string>, intent: TextLifecycleIntent): string {
+  const inspection = inspectSubjectLifecycleTexts(text, files);
+  if (inspection.provenance === "malformed") throw new Error("malformed lifecycle provenance refused");
+  if (!assertTextIntent(inspection, files, intent)) return text;
+  return updateLifecycleText(text, {
+    status: STATE_BY_TRANSITION[intent.kind],
     lifecycle_schema: 1,
-    lifecycle_revision: previous.revision + 1,
-    lifecycle_last_transition: transition,
-    lifecycle_reopen_reason: reason ?? (typeof existingReason === "string" ? existingReason : undefined),
-  };
-  atomicWrite(previous.subjectDir, updateLifecycleText(current, fields));
-  return applied(previous, state, true);
+    lifecycle_revision: inspection.revision + 1,
+    lifecycle_last_transition: intent.kind,
+    lifecycle_reopen_reason: reopenReason(text, intent),
+  });
 }
 
-function initializeSubject(inspection: SubjectLifecycleInspection): SubjectLifecycleResult {
-  if (inspection.canonical && inspection.state === "draft") return applied(inspection, "draft", false);
-  if (inspection.state !== "missing") return refusal(inspection, "invalid-transition");
-  return persist(inspection, "draft", "initialize");
-}
-
-function activateSubject(inspection: SubjectLifecycleInspection): SubjectLifecycleResult {
-  if (inspection.canonical && inspection.state === "active") return applied(inspection, "active", false);
-  if (inspection.effectiveState === "completed") return refusal(inspection, "invalid-transition");
-  if (inspection.state !== "draft" && inspection.state !== "active") {
-    return refusal(inspection, "invalid-transition");
+function assertTextIntent(inspection: SubjectLifecycleInspection, files: ReadonlyMap<string, string>, intent: TextLifecycleIntent): boolean {
+  if (intent.kind === "initialize") {
+    if (inspection.canonical && inspection.state === "draft") return false;
+    if (inspection.state !== "missing") throw new Error("invalid lifecycle transition");
+    return true;
   }
-  return persist(inspection, "active", "activate");
+  if (intent.kind === "activate") {
+    if (inspection.canonical && inspection.state === "active") return false;
+    if (inspection.effectiveState === "completed") throw new Error("invalid lifecycle transition");
+    if (inspection.state === "missing") throw new Error("invalid lifecycle transition");
+    return true;
+  }
+  return assertCloseOrReopen(inspection, files, intent);
 }
 
-function closeSubject(inspection: SubjectLifecycleInspection): SubjectLifecycleResult {
-  if (inspection.canonical && inspection.state === "completed") return applied(inspection, "completed", false);
-  if (!inspection.canonical && inspection.state === "completed") {
-    return persist(inspection, "completed", "close-verified");
+function assertCloseOrReopen(inspection: SubjectLifecycleInspection, files: ReadonlyMap<string, string>, intent: TextLifecycleIntent): boolean {
+  if (intent.kind === "reopen") {
+    if (!inspection.canonical || inspection.state !== "completed" || !intent.reason?.trim()) throw new Error("invalid lifecycle transition: reopen requires a reason");
+    return true;
   }
-  const verification = verifyClose(inspection.subjectDir);
-  const checked = { ...inspection, blockers: verification.blockers };
-  if (verification.ambiguous) return refusal(checked, "legacy-ambiguous");
-  if (!verification.verified) return refusal(checked, "not-verified");
-  if (inspection.state !== "active" && inspection.state !== "completed") {
-    return refusal(checked, "invalid-transition");
-  }
-  return persist(inspection, "completed", "close-verified");
+  if (intent.kind !== "close-verified") throw new Error("invalid lifecycle intent");
+  if (inspection.state === "completed") return !inspection.canonical;
+  const verification = verifyCloseTexts(files);
+  if (verification.ambiguous) throw new Error("ambiguous lifecycle evidence refused");
+  if (!verification.verified) throw new Error("completion requires evidence");
+  if (inspection.state !== "active") throw new Error("invalid lifecycle transition");
+  return true;
 }
 
-function reopenSubject(inspection: SubjectLifecycleInspection, reason: string): SubjectLifecycleResult {
-  const normalizedReason = reason.trim();
-  if (!normalizedReason) return refusal(inspection, "invalid-transition");
-  if (!inspection.canonical) return refusal(inspection, "invalid-transition");
-  if (inspection.state !== "completed") return refusal(inspection, "invalid-transition");
-  return persist(inspection, "active", "reopen", normalizedReason);
+function reopenReason(text: string, intent: TextLifecycleIntent): string | undefined {
+  if (intent.kind === "reopen") return intent.reason.trim();
+  const { yaml } = splitFrontmatter(text);
+  const reason = yaml === null ? undefined : parseSimpleYaml(yaml).lifecycle_reopen_reason;
+  return typeof reason === "string" ? reason : undefined;
 }
 
 export function applySubjectLifecycleIntent(intent: SubjectLifecycleIntent): SubjectLifecycleResult {
   const inspection = inspectSubjectLifecycle(intent.subjectDir);
-  if (inspection.provenance === "malformed") return refusal(inspection, "legacy-ambiguous");
-  switch (intent.kind) {
-    case "initialize": return initializeSubject(inspection);
-    case "activate": return activateSubject(inspection);
-    case "close-verified": return closeSubject(inspection);
-    case "reopen": return reopenSubject(inspection, intent.reason);
+  try {
+    const current = readIndex(intent.subjectDir);
+    const next = applySubjectLifecycleTexts(current, subjectFiles(intent.subjectDir), intent);
+    if (next !== current) atomicWrite(intent.subjectDir, next);
+    return { ...inspectSubjectLifecycle(intent.subjectDir), ok: true, code: "applied", changed: next !== current, previousState: inspection.state, resultingState: STATE_BY_TRANSITION[intent.kind] };
+  } catch (error) {
+    const message = (error as Error).message;
+    const code = /malformed|ambiguous/.test(message) ? "legacy-ambiguous" : /evidence/.test(message) ? "not-verified" : "invalid-transition";
+    return { ...inspection, ok: false, code, changed: false, previousState: inspection.state, resultingState: inspection.state };
   }
 }
 

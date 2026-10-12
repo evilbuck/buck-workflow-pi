@@ -2,8 +2,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile, type FileHandle } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
-import { cloneRevision, keyId, validateRevision, visible } from "./adapter-utils.js";
+import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
+import { cloneRevision, keyId, searchableText, validateRevision, visible } from "./adapter-utils.js";
+import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdentity, assertReceiptReadback, correctionDecision, correctionQuery, inspectStoredLifecycle, lifecycleRevision, receiptRevisionReadable, selectPage, tombstoneRevision, TOMBSTONE_SOURCE, type KeyedPageItem, type StoredCorrection } from "./domain.js";
+import { overlayPublishedRevisions } from "./visibility.js";
 import { validateArtifactKey } from "./identity.js";
 
 interface ManifestRecord {
@@ -15,6 +17,7 @@ interface ManifestRecord {
   createdAt: string;
   links: readonly ArtifactKey[];
   blob: string;
+  searchText?: string;
 }
 
 interface Manifest {
@@ -22,6 +25,8 @@ interface Manifest {
   current: Record<string, string>;
   revisions: Record<string, ManifestRecord>;
   lifecycle: Record<string, { revision: string; state: string; evidence: readonly string[] }>;
+  lifecycleScope: Record<string, { revision: string; state: string; evidence: readonly string[]; provenance: LifecycleRecord["provenance"] }>;
+  corrections: Record<string, StoredCorrection>;
   receipts: Record<string, RunReceipt>;
   checkpoints: Record<string, CheckpointSeal & { id: string; boundCommit?: string }>;
 }
@@ -31,7 +36,24 @@ interface ProjectionStamp {
   owners: Record<string, string>;
 }
 
-const EMPTY: Manifest = { generation: 0, current: {}, revisions: {}, lifecycle: {}, receipts: {}, checkpoints: {} };
+const EMPTY: Manifest = { generation: 0, current: {}, revisions: {}, lifecycle: {}, lifecycleScope: {}, corrections: {}, receipts: {}, checkpoints: {} };
+
+
+function correctionStorageKey(correction: ScopedCorrection): string {
+  return `${correction.key.projectId}\0${correction.key.branchId ?? ""}\0${keyId(correction.key)}\0${correction.idempotencyKey}`;
+}
+
+function listedItem(record: ManifestRecord, revision: string): KeyedPageItem {
+  return { key: record.key, revision, createdAt: record.createdAt, logicalName: record.key.logicalName, source: record.source, searchText: record.searchText ?? "" };
+}
+
+function matchesListQuery(record: ManifestRecord, revision: string, query: ArtifactQuery): boolean {
+  if (record.key.projectId !== query.projectId) return false;
+  if (query.subjectId !== undefined && record.key.subjectId !== query.subjectId) return false;
+  if (query.kind !== undefined && record.key.kind !== query.kind) return false;
+  if (query.logicalNamePrefix !== undefined && !record.key.logicalName.startsWith(query.logicalNamePrefix)) return false;
+  return visible({ ...record, revision, bytes: new Uint8Array() } as ArtifactRevision, query);
+}
 
 export interface FileStoreOptions {
   root: string;
@@ -70,6 +92,7 @@ export class FileStorageStore implements StorageStore {
     if (!revisionId) return null;
     const record = manifest.revisions[this.#recordId(id, revisionId)];
     if (!record) return null;
+    if (revision === undefined && record.source === TOMBSTONE_SOURCE) return null;
     const bytes = new Uint8Array(await readFile(this.#blobPath(record.blob)));
     if (revision !== undefined) return this.#materialize(record, revisionId, bytes);
     return this.#readCurrent(key, id, revisionId, record, bytes);
@@ -105,36 +128,20 @@ export class FileStorageStore implements StorageStore {
   }
 
   async list(query: ArtifactQuery): Promise<readonly ArtifactRevision[]> {
-    const manifest = await this.#load();
-    const candidates = Object.entries(manifest.current).flatMap(([id, revisionId]) => {
-      const record = manifest.revisions[this.#recordId(id, revisionId)];
-      if (!record) return [];
-      const item = { ...record, revision: revisionId };
-      const visibilityRecord = { ...item, bytes: new Uint8Array() } as ArtifactRevision;
-      if (item.key.projectId !== query.projectId || (query.subjectId !== undefined && item.key.subjectId !== query.subjectId)
-        || (query.kind !== undefined && item.key.kind !== query.kind)
-        || (query.logicalNamePrefix !== undefined && !item.key.logicalName.startsWith(query.logicalNamePrefix))
-        || !visible(visibilityRecord, query)) return [];
-      return [item];
-    }).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.revision.localeCompare(b.revision));
-    const limited = query.limit === undefined ? candidates : candidates.slice(0, query.limit);
-    const results: ArtifactRevision[] = [];
-    for (const item of limited) {
-      const latest = await this.read(item.key);
-      if (latest) results.push(latest);
-    }
-    return results;
+    return this.#queryPage(query);
   }
 
   async search(query: ArtifactQuery & { text: string }): Promise<readonly ArtifactRevision[]> {
-    const terms = query.text.toLocaleLowerCase().split(/\s+/u).filter(Boolean);
-    const records = await this.list({ ...query, limit: undefined, cursor: undefined });
-    const ranked = records.map((item) => {
-      const text = new TextDecoder().decode(item.bytes).toLocaleLowerCase();
-      const score = terms.reduce((sum, term) => sum + (text.includes(term) ? 1 : 0), 0);
-      return { item, score };
-    }).filter(({ score }) => score > 0).sort((a, b) => b.score - a.score || a.item.key.logicalName.localeCompare(b.item.key.logicalName));
-    return ranked.slice(0, query.limit).map(({ item }) => item);
+    return this.#queryPage(query);
+  }
+
+  async #queryPage(query: ArtifactQuery & { text?: string }): Promise<ArtifactRevision[]> {
+    const manifest = await this.#load();
+    for (const [id, revision] of Object.entries(manifest.current)) {
+      const record = manifest.revisions[this.#recordId(id, revision)];
+      if (record?.key.branchId === query.branchId && matchesListQuery(record, revision, query)) await this.read(record.key);
+    }
+    return this.#loadPage(selectPage(this.#pageItems(await this.#load(), query), query));
   }
 
   async writeBatch(revisions: readonly ArtifactRevision[]): Promise<readonly ArtifactRevision[]> {
@@ -145,44 +152,100 @@ export class FileStorageStore implements StorageStore {
   }
 
   async correct(correction: ScopedCorrection): Promise<ArtifactRevision | null> {
+    return this.#mutate((manifest) => this.#applyCorrection(manifest, correction));
+  }
+
+  async #applyCorrection(manifest: Manifest, correction: ScopedCorrection): Promise<ArtifactRevision | null> {
+    const storedKey = correctionStorageKey(correction);
+    const existing = manifest.corrections[storedKey] ?? null;
+    if (correctionDecision(existing, correction) === "replay") return this.#replayCorrection(manifest, correction, existing!);
+    const expected = assertCorrectionPredecessor(this.#pageItems(manifest, correctionQuery(correction)), correction);
+    const item = correction.replacement ?? tombstoneRevision(correction.key, correction.predecessorRevision);
+    await this.#stageRevision(manifest, { ...item, expectedRevision: expected });
+    manifest.corrections[storedKey] = { predecessorRevision: correction.predecessorRevision, resultRevision: correction.replacement ? item.revision : null, replacementSha256: correction.replacement?.sha256 ?? null };
+    return correction.replacement ? cloneRevision(item) : null;
+  }
+
+
+  async #replayCorrection(manifest: Manifest, correction: ScopedCorrection, stored: StoredCorrection): Promise<ArtifactRevision | null> {
+    if (!stored.resultRevision) return null;
+    const record = manifest.revisions[this.#recordId(keyId(correction.key), stored.resultRevision)];
+    if (!record) throw new Error("uncertain persistence blocks save");
+    return this.#materialize(record, stored.resultRevision, new Uint8Array(await readFile(this.#blobPath(record.blob))));
+  }
+
+
+  async transition(input: LifecycleTransition): Promise<string> {
+    await this.#queryPage({ projectId: input.projectId, branchId: input.branchId, subjectId: input.subjectId, publishedRevisionIds: input.publishedRevisionIds ?? [] });
     return this.#mutate(async (manifest) => {
-      const id = keyId(correction.key);
-      if (manifest.current[id] !== correction.predecessorRevision) throw new Error("stale correction rejected");
-      if (!correction.replacement) {
-        delete manifest.current[id];
-        return null;
-      }
-      if (keyId(correction.replacement.key) !== id) throw new Error("correction cannot change artifact scope");
-      await this.#stageRevision(manifest, correction.replacement);
-      return cloneRevision(correction.replacement);
+      const items = await this.#evidenceBodies(manifest, input);
+      const item = lifecycleRevision(items, input);
+      await this.#stageRevision(manifest, item);
+      return item.revision;
     });
   }
 
-  async transition(transition: LifecycleTransition): Promise<string> {
-    return this.#mutate((manifest) => {
-      const current = manifest.lifecycle[transition.subjectId];
-      if (current && (current.revision !== transition.fromRevision || current.state !== transition.expectedState)) throw new Error("stale lifecycle transition refused");
-      if (transition.nextState === "completed" && transition.evidence.length === 0) throw new Error("completion requires evidence");
-      if (!current && transition.expectedState !== "active") throw new Error("initial lifecycle state must be active");
-      const revision = randomUUID();
-      manifest.lifecycle[transition.subjectId] = { revision, state: transition.nextState, evidence: [...transition.evidence] };
-      return revision;
-    });
+  async inspectLifecycle(projectId: string, branchId: string, subjectId: string, publishedRevisionIds: readonly string[] = []): Promise<LifecycleRecord | null> {
+    return inspectStoredLifecycle(await this.list({ projectId, branchId, subjectId, publishedRevisionIds }), projectId, branchId, subjectId);
   }
 
   async writeReceipt(receipt: RunReceipt): Promise<void> {
-    await this.#mutate((manifest) => {
-      const key = `${receipt.projectId}\0${receipt.runId}`;
-      const current = manifest.receipts[key];
-      if (current && (current.attemptId !== receipt.attemptId || current.status === "complete")) throw new Error("receipt attempt mismatch or already complete");
-      if (receipt.status === "complete" && (!current || current.attemptId !== receipt.attemptId)) throw new Error("complete receipt requires matching attempted receipt");
-      manifest.receipts[key] = { ...receipt, artifactRevisions: [...receipt.artifactRevisions] };
-    });
+    await this.#mutate(async (manifest) => { await this.#persistReceipt(manifest, receipt); });
+  }
+
+  async #persistReceipt(manifest: Manifest, receipt: RunReceipt): Promise<void> {
+    const key = `${receipt.projectId}\0${receipt.runId}`;
+    const current = manifest.receipts[key] ?? null;
+    assertReceiptIdentity(current, receipt);
+    assertReceiptComplete(current, receipt, await this.#readableRevisionIds(manifest, receipt));
+    const stored = { ...receipt, artifactRevisions: [...receipt.artifactRevisions], metadataDuties: receipt.metadataDuties ? [...receipt.metadataDuties] : undefined };
+    manifest.receipts[key] = stored;
+    assertReceiptReadback(stored, receipt);
   }
 
   async readReceipt(projectId: string, runId: string): Promise<RunReceipt | null> {
     const receipt = (await this.#load()).receipts[`${projectId}\0${runId}`];
-    return receipt ? { ...receipt, artifactRevisions: [...receipt.artifactRevisions] } : null;
+    return receipt ? { ...receipt, artifactRevisions: [...receipt.artifactRevisions], metadataDuties: receipt.metadataDuties ? [...receipt.metadataDuties] : undefined } : null;
+  }
+
+  #pageItems(manifest: Manifest, query: ArtifactQuery): KeyedPageItem[] {
+    const records = [];
+    for (const record of Object.values(manifest.revisions)) {
+      const revision = record.revision;
+      const current = manifest.current[keyId(record.key)] === revision;
+      if ((current || (record.key.branchId !== query.branchId && query.publishedRevisionIds.includes(revision))) && matchesListQuery(record, revision, query)) records.push(listedItem(record, revision));
+    }
+    return overlayPublishedRevisions(records, query.branchId);
+  }
+
+  async #loadPage(page: readonly KeyedPageItem[]): Promise<ArtifactRevision[]> {
+    const results: ArtifactRevision[] = [];
+    for (const item of page) {
+      const loaded = await this.read(item.key, item.revision);
+      if (loaded) results.push(loaded);
+    }
+    return results;
+  }
+
+  async #evidenceBodies(manifest: Manifest, input: LifecycleTransition): Promise<ArtifactRevision[]> {
+    const query: ArtifactQuery = { projectId: input.projectId, branchId: input.branchId, subjectId: input.subjectId, publishedRevisionIds: input.publishedRevisionIds ?? [] };
+    const bodies: ArtifactRevision[] = [];
+    for (const item of selectPage(this.#pageItems(manifest, query), {})) {
+      const record = manifest.revisions[this.#recordId(keyId(item.key), item.revision)];
+      if (!record) throw new Error("uncertain persistence blocks save");
+      bodies.push(this.#materialize(record, item.revision, new Uint8Array(await readFile(this.#blobPath(record.blob)))));
+    }
+    return bodies;
+  }
+
+  async #readableRevisionIds(manifest: Manifest, receipt: RunReceipt): Promise<Set<string>> {
+    const readable = new Set<string>();
+    for (const record of Object.values(manifest.revisions)) {
+      if (!receipt.artifactRevisions.includes(record.revision)) continue;
+      const item = this.#materialize(record, record.revision, new Uint8Array(await readFile(this.#blobPath(record.blob))));
+      if (receiptRevisionReadable(item, receipt)) readable.add(record.revision);
+    }
+    return readable;
   }
 
   async sealCheckpoint(checkpoint: CheckpointSeal): Promise<string> {
@@ -246,13 +309,15 @@ export class FileStorageStore implements StorageStore {
     }
 
     if (!this.#touched.includes(id)) this.#touched.push(id);
-    manifest.revisions[recordId] = { key: { ...item.key }, revision: item.revision, sha256: item.sha256, author: item.author, source: item.source, createdAt: item.createdAt, links: item.links.map((link) => ({ ...link })), blob };
+    manifest.revisions[recordId] = { key: { ...item.key }, revision: item.revision, sha256: item.sha256, author: item.author, source: item.source, createdAt: item.createdAt, links: item.links.map((link) => ({ ...link })), blob, searchText: searchableText(item.bytes) };
     manifest.current[id] = item.revision;
   }
 
   async #load(): Promise<Manifest> {
-    try { return JSON.parse(await readFile(join(this.#root, "manifest.json"), "utf8")) as Manifest; }
-    catch (error) {
+    try {
+      const parsed = JSON.parse(await readFile(join(this.#root, "manifest.json"), "utf8")) as Partial<Manifest>;
+      return { ...structuredClone(EMPTY), ...parsed, lifecycleScope: parsed.lifecycleScope ?? {}, corrections: parsed.corrections ?? {} };
+    } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return structuredClone(EMPTY);
       throw error;
     }
@@ -323,7 +388,7 @@ export class FileStorageStore implements StorageStore {
       const revisionId = manifest.current[id];
       if (!revisionId) continue;
       const record = manifest.revisions[this.#recordId(id, revisionId)];
-      if (!record) continue;
+      if (!record || record.source === TOMBSTONE_SOURCE) continue;
       const bytes = new Uint8Array(await readFile(this.#blobPath(record.blob)));
       await this.#projectRecord(record, bytes);
       stamp.projected[id] = { revision: revisionId, sha256: record.sha256 };

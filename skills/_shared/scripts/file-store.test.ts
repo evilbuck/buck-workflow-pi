@@ -137,6 +137,28 @@ describe("file storage adapter", () => {
     expect(reconciled?.source).toBe("direct-file-edit");
   });
 
+  it.each(["repo-files", "external-files"])("keeps %s direct edits private while retaining the exact published bytes", async (adapter) => {
+    const root = await mkdtemp(join(tmpdir(), "buck-edit-visibility-"));
+    roots.push(root);
+    const store = adapter === "repo-files"
+      ? new RepoFilesStorageStore({ contextRoot: join(root, "context"), manifestRoot: join(root, "state") })
+      : new ExternalFilesStorageStore({ projectKey: "p", root: join(root, "context") });
+    const key: ArtifactKey = { projectId: "p", subjectId: "s", kind: "memory", logicalName: "note.md", branchId: "main" };
+    const first = revision(key, new TextEncoder().encode("published needle"), null);
+    await store.writeBatch([first]);
+    await writeFile(join(root, "context", ...(adapter === "external-files" ? ["main"] : []), "note.md"), "PRIVATE needle edit");
+    const query = { projectId: "p", branchId: "branch-b", publishedRevisionIds: [first.revision], limit: 1 };
+    const published = await store.search({ ...query, text: "needle" });
+    expect(published.map((item) => item.revision)).toEqual([first.revision]);
+    expect(new TextDecoder().decode(published[0]!.bytes)).toBe("published needle");
+    const privateView = await store.search({ ...query, branchId: "main", text: "needle" });
+    expect(new TextDecoder().decode(privateView[0]!.bytes)).toBe("PRIVATE needle edit");
+    expect(privateView[0]!.source).toBe("direct-file-edit");
+    const retained = await store.list(query);
+    expect(retained.map((item) => item.revision)).toEqual([first.revision]);
+    expect(new TextDecoder().decode(retained[0]!.bytes)).toBe("published needle");
+  });
+
   it("does not expose another branch's pointer in ordinary listing", async () => {
     const { store } = await fixture();
     const shared: ArtifactKey = { projectId: "p", subjectId: "s", kind: "memory", logicalName: "note.md", branchId: "branch-b" };

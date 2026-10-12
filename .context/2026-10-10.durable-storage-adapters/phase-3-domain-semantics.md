@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-durable-storage-adapters.md
@@ -17,14 +17,16 @@ from_plan_steps: [3]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Subject lifecycle inspection/transitions run storage-neutrally through the store API; adapter reads + conditional writes; evidence verification before close and malformed-provenance refusal preserved on every backend."
-  - "[ ] Memory correction/idempotency: scoped corrections affect only the owning branch view; a correction on branch A never invalidates branch B's published predecessor; global supersession impossible."
-  - "[ ] Save batches/attempts: attempted run/project/branch/revision identities must match; no-fact saves remain meaningful; receipt complete only after required metadata duties succeed; same-scope readback verified."
-  - "[ ] Links/backlog/index discovery use the current-branch-overlay + published-baseline view; completed subjects stay excluded per lifecycle authority."
-  - "[ ] Ordinary knowledge lookup applies visibility BEFORE body loading, ranking, LIMIT, and pagination on every backend — proven by fixture with high-scoring private candidates paginated out."
-  - "[ ] Copy-on-write branch views: current-branch revision overlays baseline; drafts never overwrite the published baseline."
-completed_at: null
+  - "[x] Subject lifecycle inspection/transitions run storage-neutrally through the store API; adapter reads + conditional writes; evidence verification before close and malformed-provenance refusal preserved on every backend."
+  - "[x] Memory correction/idempotency: scoped corrections affect only the owning branch view; a correction on branch A never invalidates branch B's published predecessor; global supersession impossible."
+  - "[x] Save batches/attempts: attempted run/project/branch/revision identities must match; no-fact saves remain meaningful; receipt complete only after required metadata duties succeed; same-scope readback verified."
+  - "[x] Links/backlog/index discovery use the current-branch-overlay + published-baseline view; completed subjects stay excluded per lifecycle authority."
+  - "[x] Ordinary knowledge lookup applies visibility BEFORE body loading, ranking, LIMIT, and pagination on every backend — proven by fixture with high-scoring private candidates paginated out."
+  - "[x] Copy-on-write branch views: current-branch revision overlays baseline; drafts never overwrite the published baseline."
+completed_at: 2026-10-12
 completed_by: null
+sql_memory_ids:
+  - 01a1322c-4fb7-7841-a266-5ac7e8fb8f0a
 ---
 
 # Phase 3: Domain Semantics
