@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import type { ArtifactKey, ArtifactRevision, StorageStore } from "./contract.js";
 
@@ -20,6 +21,20 @@ export function defineStorageConformance(backend: ConformanceBackend): void {
       } finally {
         instance.dispose();
       }
+    });
+
+    it("round-trips exact binary bytes and the declared hash", async () => {
+      const instance = await backend.create();
+      try {
+        const key: ArtifactKey = { projectId: "fixture-project", subjectId: "fixture-subject", kind: "attachment", logicalName: "asset.bin", branchId: "branch-a" };
+        const bytes = Uint8Array.from([0, 255, 10, 0, 1]);
+        const item: ArtifactRevision = { key, revision: "bin-1", bytes, sha256: "7c59c5007eb69855ab4815d63c651125fb22aa7cad8c2c4fda9fb0ff8711b04c", author: "fixture", source: "conformance", createdAt: "2026-01-01T00:00:00.000Z", links: [], expectedRevision: null };
+        await instance.store.writeBatch([item]);
+        const read = await instance.store.read(key);
+        expect(read?.bytes).toEqual(bytes);
+        expect(read?.sha256).toBe("7c59c5007eb69855ab4815d63c651125fb22aa7cad8c2c4fda9fb0ff8711b04c");
+        expect(read?.revision).toBe("bin-1");
+      } finally { instance.dispose(); }
     });
 
     it("filters private revisions before applying the visible result limit", async () => {
@@ -60,5 +75,6 @@ export function defineStorageConformance(backend: ConformanceBackend): void {
 }
 
 function revision(key: ArtifactKey, id: string, body: string, expectedRevision: string | null): ArtifactRevision {
-  return { key, revision: id, bytes: new TextEncoder().encode(body), sha256: "fixture-hash", author: "fixture", source: "conformance", createdAt: "2026-01-01T00:00:00.000Z", links: [], expectedRevision };
+  const bytes = new TextEncoder().encode(body);
+  return { key, revision: id, bytes, sha256: createHash("sha256").update(bytes).digest("hex"), author: "fixture", source: "conformance", createdAt: "2026-01-01T00:00:00.000Z", links: [], expectedRevision };
 }
