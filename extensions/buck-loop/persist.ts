@@ -10,13 +10,12 @@
  * The projection is gitignored via `.git/info/exclude` so it is never
  * committed. No XState snapshot lives here.
  */
-import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
-import { consumerKey, resumeScope, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { consumerKey, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { loadStorageConfigSync } from "../../skills/_shared/storage/config.js";
-import { revisionHash } from "../../skills/_shared/storage/adapter-utils.js";
+import { readPinnedScopeSync } from "../../skills/_shared/scripts/workflow-state.js";
 import { SQLiteStorageStore } from "../../skills/_shared/storage/sqlite-store.js";
 import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
@@ -135,69 +134,24 @@ export function readProjection(projectRoot: string): Projection | null {
 }
 
 function mirrorResume(projectRoot: string, bytes: Uint8Array): void {
-  const store = openResumeStore();
-  if (store) {
-    try {
-      const scope = resumeScope(projectKey(projectRoot), branchKey(projectRoot), worktreeKey(projectRoot));
-      const key = consumerKey(scope, "checkpoint", "buck-loop", "workflow/buck-loop.json");
-      void store.writeBatch([{
-        key, revision: createHash("sha256").update(`${Date.now()}:${bytes.length}:${scope.worktreeId}`).digest("hex"),
-        bytes, sha256: revisionHash(bytes), author: "buck-loop", source: "buck-loop", createdAt: new Date().toISOString(), links: [],
-      }]);
-      void store.writeReceipt({
-        projectId: scope.projectId, branchId: scope.branchId, worktreeId: scope.worktreeId, runId: scope.runId,
-        attemptId: scope.runId, status: "attempted", artifactRevisions: [],
-      });
-    } finally { store.close(); }
-    return;
-  }
   scheduleConfiguredRetain({
     kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
-    bytes, worktreeId: worktreeKey(projectRoot), source: "buck-loop",
+    bytes, cwd: projectRoot, source: "buck-loop",
   });
 }
 
 function mirroredResume(projectRoot: string): string | null {
-  const store = openResumeStore();
-  if (!store) return null;
+  const selection = loadStorageConfigSync();
+  if (selection.storage.adapter !== "sqlite" || !selection.storage.database) return null;
+  const scope = readPinnedScopeSync(projectRoot);
+  if (!scope) return null;
+  const store = SQLiteStorageStore.openSync(selection.storage.database);
   try {
-    const scope = resumeScope(projectKey(projectRoot), branchKey(projectRoot), worktreeKey(projectRoot));
     const found = store.readSync(consumerKey(scope, "checkpoint", "buck-loop", "workflow/buck-loop.json"));
     return found ? new TextDecoder().decode(found.bytes) : null;
   } finally { store.close(); }
 }
 
-function openResumeStore(): SQLiteStorageStore | null {
-  try {
-    const selection = loadStorageConfigSync();
-    if (selection.storage.adapter !== "sqlite" || !selection.storage.database) return null;
-    return SQLiteStorageStore.openSync(selection.storage.database);
-  } catch {
-    return null;
-  }
-}
-
-function projectKey(projectRoot: string): string {
-  try {
-    const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    return createHash("sha256").update(common || resolve(projectRoot)).digest("hex").slice(0, 32);
-  } catch {
-    return createHash("sha256").update(resolve(projectRoot)).digest("hex").slice(0, 32);
-  }
-}
-
-function branchKey(projectRoot: string): string {
-  try {
-    const ref = execFileSync("git", ["symbolic-ref", "--short", "HEAD"], { cwd: projectRoot, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    return ref || "detached";
-  } catch {
-    return "detached";
-  }
-}
-
-function worktreeKey(projectRoot: string): string {
-  return `wt-${createHash("sha256").update(resolve(projectRoot)).digest("hex").slice(0, 24)}`;
-}
 
 /**
  * Rebuild a {@link Snapshot} for `--resume`.

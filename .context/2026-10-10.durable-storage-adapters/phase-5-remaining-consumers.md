@@ -1,5 +1,5 @@
 ---
-status: completed
+status: in-progress
 phase: 5
 order: 5
 plan: plan-durable-storage-adapters.md
@@ -23,13 +23,13 @@ from_plan_steps: [5]
 depends_on: [4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[x] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
-  - "[x] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
-  - "[x] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
-  - "[x] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
-  - "[x] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
-  - "[x] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
-completed_at: 2026-10-13
+  - "[ ] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
+  - "[ ] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
+  - "[ ] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
+  - "[ ] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
+  - "[ ] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
+  - "[ ] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
+completed_at: null
 completed_by: null
 ---
 

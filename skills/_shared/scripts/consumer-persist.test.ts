@@ -7,6 +7,7 @@ import {
   retainPresentationPackage, scheduleConfiguredRetain, listVisiblePlans, type ConsumerScope,
 } from "../storage/consumers.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
+import { resolveTrustedContext } from "./workflow-state.js";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -113,14 +114,16 @@ describe("configured-store retains from synchronous writers", () => {
       bytes, worktreeId: "/repo/worktree-a",
     });
     expect(runId).toBeTruthy();
+    const context = await resolveTrustedContext(process.cwd());
+    expect(runId).toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
-      const readScope = { projectId: "configured-project", branchId: "configured-branch", worktreeId: "/repo/worktree-a", runId: runId!, publishedRevisionIds: [] };
+      const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
       await expect(readConsumer(store, readScope, "attribution", "token-attribution", "rows/entry-7.json")).resolves.toMatchObject({ bytes });
-      await expect(store.readReceipt("configured-project", runId!)).resolves.toMatchObject({
-        attemptId: runId, worktreeId: "/repo/worktree-a", artifactRevisions: [expect.any(String)],
+      await expect(store.readReceipt(context.projectId, runId!)).resolves.toMatchObject({
+        attemptId: runId, worktreeId: context.worktreeId, artifactRevisions: [expect.any(String)],
       });
-      const otherWorktree = { ...readScope, worktreeId: "/repo/worktree-b", runId: `${runId}-other` };
+      const otherWorktree = { ...readScope, worktreeId: "worktree-other", runId: `${runId}-other` };
       await expect(readConsumer(store, otherWorktree, "attribution", "token-attribution", "rows/entry-7.json")).resolves.toBeNull();
     } finally {
       store.close();
@@ -154,13 +157,15 @@ describe("configured-store retains from synchronous writers", () => {
     });
     const runId = await flushConfiguredRetains().then(() => retained);
     expect(runId).toBeTruthy();
+    const context = await resolveTrustedContext(process.cwd());
+    expect(runId).toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
-      const readScope = { projectId: "configured-project", branchId: "configured-branch", worktreeId: "/repo/worktree-a", runId: runId!, publishedRevisionIds: [] };
+      const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
       await expect(readConsumer(store, readScope, "audit", "memory-import", "manifest.json")).resolves.toMatchObject({
         key: { logicalName: "manifest.json" },
       });
-      await expect(store.readReceipt("configured-project", runId!)).resolves.toMatchObject({ attemptId: runId, status: "attempted" });
+      await expect(store.readReceipt(context.projectId, runId!)).resolves.toMatchObject({ attemptId: runId, status: "attempted" });
     } finally {
       store.close();
     }

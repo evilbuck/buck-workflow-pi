@@ -4,12 +4,8 @@ import { readdir, readFile } from "node:fs/promises";
 import { withConfiguredStore } from "../scripts/workflow-state.js";
 import { createRunId } from "./identity.js";
 import { revisionHash } from "./adapter-utils.js";
-import { loadStorageConfigSync, type ResolvedStorageConfig } from "./config.js";
 import type { ArtifactKind, ArtifactKey, ArtifactRevision, RunReceipt, StorageStore } from "./contract.js";
 import { assertReceiptReadback } from "./domain.js";
-import { ExternalFilesStorageStore } from "./file-store.js";
-import type { MigrationPool } from "./migrations.js";
-import { SQLiteStorageStore } from "./sqlite-store.js";
 
 /** Kinds that stay invisible after branch merge. Knowledge kinds omit run identity. */
 const RUN_PRIVATE: ReadonlySet<ArtifactKind> = new Set(["run-state", "checkpoint", "activity", "audit", "receipt", "attribution"]);
@@ -128,26 +124,23 @@ export async function retainConfiguredArtifact(write: {
   subjectId: string;
   logicalName: string;
   bytes: Uint8Array;
-  worktreeId: string;
+  worktreeId?: string;
   author?: string;
   source?: string;
+  cwd?: string;
 }): Promise<string | null> {
-  const selection = loadStorageConfigSync();
-  if (selection.storage.adapter === "repo-files") return null;
-  const opened = await openConfiguredRetainStore(selection);
-  try {
-    const runId = randomUUID();
-    await commitConsumerBatch(opened.store, {
-      projectId: selection.projectKey ?? "configured-project",
-      branchId: "configured-branch",
-      worktreeId: write.worktreeId,
-      runId,
-      publishedRevisionIds: [],
-    }, [write], { attemptId: runId, status: "attempted" });
-    return runId;
-  } finally {
-    await opened.close();
-  }
+  return withConfiguredStore(write.cwd ?? process.cwd(), async (store, context) => {
+    if (context.selection?.storage.adapter === "repo-files") return null;
+    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree run is not bound");
+    await commitConsumerBatch(store, {
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: context.worktreeId,
+      runId: context.runId,
+      publishedRevisionIds: context.publishedRevisionIds,
+    }, [write], { attemptId: context.runId, status: "attempted" });
+    return context.runId;
+  });
 }
 
 let retainTail: Promise<void> = Promise.resolve();
@@ -176,15 +169,16 @@ const KIND_BY_FILENAME: ReadonlyArray<readonly [RegExp, ArtifactKind]> = [
 /** Classify a `.context`-relative path into its artifact kind, subject, and logical name. */
 export function classifyContextPath(path: string): { kind: ArtifactKind; subjectId: string; logicalName: string } {
   const rel = path.replace(/^\.context\//u, "");
-  if (rel.startsWith("memory/")) return { kind: "memory", subjectId: "memory", logicalName: rel };
-  if (rel.startsWith("backlog/")) return { kind: "backlog", subjectId: "backlog", logicalName: rel };
+  if (rel.startsWith("memory/")) return { kind: "memory", subjectId: "memory", logicalName: rel.slice("memory/".length) };
+  if (rel.startsWith("backlog/")) return { kind: "backlog", subjectId: "backlog", logicalName: rel.slice("backlog/".length) };
   const segments = rel.split("/");
   if (segments.length === 1) return { kind: "audit", subjectId: "save-apply", logicalName: rel };
   const subjectId = segments[0]!;
+  const logicalName = segments.slice(1).join("/");
   const name = segments.at(-1)!;
-  if (name === "index.md") return { kind: "subject-index", subjectId, logicalName: rel };
+  if (name === "index.md") return { kind: "subject-index", subjectId, logicalName };
   const matched = KIND_BY_FILENAME.find(([pattern]) => pattern.test(name));
-  return matched ? { kind: matched[1], subjectId, logicalName: rel } : { kind: "audit", subjectId, logicalName: rel };
+  return matched ? { kind: matched[1], subjectId, logicalName } : { kind: "audit", subjectId, logicalName };
 }
 
 export async function flushConfiguredRetains(): Promise<void> {
@@ -195,31 +189,6 @@ export async function flushConfiguredRetains(): Promise<void> {
   if (failures.length > 1) throw new AggregateError(failures, "One or more configured artifact retains failed");
 }
 
-async function openConfiguredRetainStore(selection: ResolvedStorageConfig): Promise<{ store: StorageStore; close: () => Promise<void> | void }> {
-  const storage = selection.storage;
-  if (storage.adapter === "sqlite") {
-    if (!storage.database) throw new Error("SQLite storage requires a database path");
-    const store = SQLiteStorageStore.openSync(storage.database);
-    return { store, close: () => store.close() };
-  }
-  if (storage.adapter === "postgres") {
-    // Dynamic: PostgresStorageStore eagerly imports pg; consumers must not pay that cost on file/sqlite runs.
-    const { PostgresStorageStore } = await import("./postgres-store.js");
-    const { createLazyPool } = await import("./db.js");
-    const envName = storage.connection_env;
-    if (!envName) throw new Error("PostgreSQL storage requires connection_env");
-    const url = process.env[envName];
-    if (!url) throw new Error(`PostgreSQL connection env ${envName} is unset`);
-    const pool = createLazyPool(url)() as MigrationPool & { end(): Promise<void> };
-    const store = new PostgresStorageStore(pool);
-    await store.migrate();
-    return { store, close: () => pool.end() };
-  }
-  return {
-    store: new ExternalFilesStorageStore({ projectKey: selection.projectKey ?? "configured-project" }),
-    close: () => {},
-  };
-}
 
 export interface PresentationRetainOptions {
   slug?: string;

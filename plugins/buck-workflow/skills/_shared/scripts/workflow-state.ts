@@ -5,7 +5,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { ArtifactKey, ArtifactKind, ArtifactQuery, ArtifactRevision, RunReceipt, StorageStore } from "../storage/contract.js";
-import { loadStorageConfig, type ResolvedStorageConfig } from "../storage/config.js";
+import { loadStorageConfig, loadStorageConfigSync, type ResolvedStorageConfig } from "../storage/config.js";
 import { revisionHash } from "../storage/adapter-utils.js";
 import { assertReceiptReadback, discoverStoredContext, lookupKnowledge } from "../storage/domain.js";
 import { ExternalFilesStorageStore, RepoFilesStorageStore } from "../storage/file-store.js";
@@ -168,7 +168,7 @@ async function bindPrivate(projectId: string, cwd: string, path: string): Promis
   file.projects[projectId] = project;
   await writeIdentity(path, file);
   const workspace = createPrivateWorkspaceIdentity({ projectId, workspaceNonce: existing.nonce, worktreeId: existing.worktreeId, runId: existing.runId });
-  return { projectId, branchId: workspace.branchId, worktreeId: workspace.worktreeId, publishedRevisionIds: [] };
+  return { projectId, branchId: workspace.branchId, worktreeId: workspace.worktreeId, runId: existing.runId, publishedRevisionIds: [] };
 }
 export async function resolveTrustedContext(cwd: string, options: { origin?: string; identityPath?: string; configPath?: string; git?: GitRunner } = {}): Promise<TrustedWorkflowContext> {
   const git = options.git ?? defaultGit;
@@ -186,6 +186,28 @@ export async function resolveTrustedContext(cwd: string, options: { origin?: str
     return { ...workspace, branchId, selection: config, manifestRoot: join(dirname(path), "projects", project.projectId, "repo-manifest") };
   });
 }
+
+/** Read an already-bound workspace scope. Does not invent identity. */
+export function readPinnedScopeSync(cwd: string): { projectId: string; branchId: string; worktreeId: string; runId: string; publishedRevisionIds: readonly string[] } | null {
+  const git = (args: string[]): string | null => {
+    try { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+    catch { return null; }
+  };
+  const origin = git(["config", "--get", "remote.origin.url"]) ?? undefined;
+  const common = git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  let config: ResolvedStorageConfig;
+  try { config = loadStorageConfigSync({ origin }); }
+  catch { return null; }
+  const project = resolveProjectIdentity({ configuredKey: config.projectKey, origin, gitCommonDir: common ?? resolve(cwd) });
+  const record = readIdentity(identityPath()).projects[project.projectId];
+  const workspace = record?.workspaces?.[resolve(cwd)];
+  if (!record || !workspace?.worktreeId || !workspace.runId) return null;
+  const ref = git(["symbolic-ref", "--quiet", "HEAD"]);
+  const branch = ref ? record.branches.find((item) => item.ref === ref) : undefined;
+  const branchId = branch?.branchId ?? createPrivateWorkspaceIdentity({ projectId: project.projectId, workspaceNonce: workspace.nonce, worktreeId: workspace.worktreeId, runId: workspace.runId }).branchId;
+  return { projectId: project.projectId, branchId, worktreeId: workspace.worktreeId, runId: workspace.runId, publishedRevisionIds: [] };
+}
+
 
 function requireContext(context: TrustedWorkflowContext): void {
   if (!context.projectId || !context.branchId || !Array.isArray(context.publishedRevisionIds)) throw new Error("Trusted workflow context is incomplete");
