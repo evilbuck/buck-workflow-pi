@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runApply } from "./save-apply.js";
 import { prepareSaveAttempt, saveSqlFacts } from "../../../extensions/buck-loop/sql-save.js";
-import { createLazyPool } from "../../../extensions/sql-memory/db.js";
+import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
 const LEGACY = "- 2026-05-08 | `example-2026-05-08.md` | domains: [tooling, orchestration] | topics: [example, rpc, pi-extension] | status: completed\n";
@@ -558,18 +558,13 @@ Prior body.
   });
 });
 
-describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("disposable SQL-mode apply", () => {
-  it("persists a fact and metadata without a phantom Markdown memory or cross-reference", async () => {
+describe("durable-save apply", () => {
+  it("persists revision ids in cross-references without a phantom Markdown memory", async () => {
     const root = fixture();
-    const url = process.env.SQL_MEMORY_TEST_URL!;
     const oldUrl = process.env.SQL_MEMORY_URL;
-    const pool = createLazyPool(url)();
-    const project = `https://example.test/improved-save-${crypto.randomUUID()}.git`;
-    process.env.SQL_MEMORY_URL = url;
+    process.env.SQL_MEMORY_URL = "postgres://example.invalid/unused";
     execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["remote", "add", "origin", project], { cwd: root });
-    execFileSync("git", ["config", "user.email", "improved-save@example.test"], { cwd: root });
-    const query = async (sql: string, values: unknown[]) => (await pool.query(sql, values)).rows;
+    execFileSync("git", ["remote", "add", "origin", "https://example.test/improved-save.git"], { cwd: root });
     try {
       const planPath = ".context/2026-08-26.save/plan-x.md";
       const specPath = ".context/2026-08-26.save/spec-x.md";
@@ -578,7 +573,11 @@ describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("disposable SQL-mode apply", (
       write(root, specPath, legacy);
       const prepared = prepareSaveAttempt(root, "2026-08-26.save");
       if ("error" in prepared) throw new Error(prepared.error);
-      const ids = await saveSqlFacts(root, prepared, ["It's stored in SQL."], query);
+      const store = new FileStorageStore({ root: join(root, "store") });
+      const ids = await saveSqlFacts(root, prepared, ["It's stored in the workflow store."], {
+        store,
+        context: { projectId: "fixture-project", branchId: "branch-a", publishedRevisionIds: [] },
+      });
       const payload = basePayload({
         sql_receipt: { path: prepared.receiptRel, ids },
         crossrefs: [planPath, specPath].map((path) => ({ path, key: "sql_memory_ids", value: ids[0] })),
@@ -595,11 +594,8 @@ describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("disposable SQL-mode apply", (
       }
       expect(existsSync(join(root, payload.memory.path))).toBe(false);
       expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(LEGACY);
-      expect(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8")).not.toContain("It's stored in SQL.");
+      expect(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8")).not.toContain("It's stored in the workflow store.");
     } finally {
-      await query("DELETE FROM memories WHERE id IN (SELECT m.id FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1)", [project]);
-      await query("DELETE FROM projects WHERE origin_url = $1", [project]);
-      await pool.end();
       rmSync(root, { recursive: true, force: true });
       if (oldUrl === undefined) delete process.env.SQL_MEMORY_URL;
       else process.env.SQL_MEMORY_URL = oldUrl;

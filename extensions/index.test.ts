@@ -128,10 +128,10 @@ describe("interactive host adapter", () => {
       skill: "b-build",
       stage: "build",
       commandText: "/b-build phase-4",
-      subjectArtifacts: [".context/2026-09-22.demo/index.md", ".context/2026-09-22.demo/plan-demo.md"],
+      subjectArtifacts: expect.arrayContaining([expect.stringMatching(/^workflow-artifact:/)]),
       conversationTail: "plan the cutover",
     });
-    expect(seen[0]?.conversationTail).not.toContain("do-not-send");
+    expect(seen[0]?.subjectArtifacts).toHaveLength(2);
     expect(setModel).toHaveBeenCalledTimes(1);
     expect(setThinkingLevel).toHaveBeenCalledWith("high");
 

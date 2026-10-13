@@ -5,6 +5,8 @@ description: Run a live Q&A exploration session about architecture, codebase str
 
 # arch-qa: Architecture Q&A Exploration
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 Run a live Q&A session that combines codebase exploration and web research, building a durable discussion document in the background as the conversation progresses.
 
 ## When to Use
@@ -175,3 +177,4 @@ A session is well-executed when:
 - The Architecture section reflects everything learned, readable without the Q&A
 - Any backlog items or action items discovered are filed
 - The doc is committed or ready to commit
+

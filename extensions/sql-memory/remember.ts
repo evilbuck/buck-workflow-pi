@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveRememberIdentity, type SqlGitRunner } from "./identity.js";
-import type { MigrationPool } from "./migrations.js";
+import type { MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
 export class RememberCategoryError extends Error {
   readonly fix: string;

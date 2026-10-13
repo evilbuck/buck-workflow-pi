@@ -289,7 +289,7 @@ Follow these links for full context:
 - Read spec's `plans:` array → verify coverage
 
 ## Behavior Rules
-Before reviewing, do not call `sql_memory`. The Buck-loop supervisor already ran project recall and included it in the supervisor directive. A failed or denied `sql_memory` call fails the whole stage, including a query that uses a column the schema does not have (`content`, `project_id`, `origin`, `branch`). Use the directive and the phase file. If the directive says shared memory is unavailable, continue from the repository files.
+Before reviewing, do not call `sql_memory` or construct SQL. The Buck-loop supervisor already ran project recall and included it in the supervisor directive. Use the directive and the phase file. If the directive says recall failed, that is not an empty result.
 
 - Stay read-only unless writing an iteration artifact.
 - Prioritize correctness over style.

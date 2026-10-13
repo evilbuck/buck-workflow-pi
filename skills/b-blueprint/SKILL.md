@@ -55,6 +55,8 @@ find .context/ -name "spec-*.md" | sort
 - Do not modify source artifacts
 - Coexists with b-present output in the same `presentations/` directory
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Blueprint Section Layout
 
 The blueprint is a **single scrolling page** with these sections, each visually distinct:
@@ -403,3 +405,4 @@ Read `references/blueprint-template.html` for the complete HTML/CSS boilerplate.
 - Do NOT include full file contents in code snippets — show the relevant change only
 - Do NOT generate diagrams for trivial single-file changes
 - Do NOT make the blueprint a replacement for b-present — different purposes
+

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { checkSqlStatement } from "./sql-gate.js";
+import { checkSqlStatement } from "../../skills/_shared/storage/sql-gate.js";
 
-import { checkSqlForRole } from "./sql-gate.js";
+import { checkSqlForRole } from "../../skills/_shared/storage/sql-gate.js";
 
 describe("stage SQL policy", () => {
   it.each([

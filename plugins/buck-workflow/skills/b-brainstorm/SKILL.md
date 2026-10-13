@@ -15,6 +15,8 @@ Interview the user one question at a time to understand what they want to build,
 - Maintain sidecar state inside the subject folder (`brainstorm-state-<slug>.json`).
 - Do not modify source files outside `.context/`.
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Core Behavior
 
 **Scope**: Stay subject-local by default. Only create backlog entries when the user explicitly asks to add items to the backlog.
@@ -141,3 +143,4 @@ Ready for your next input, or let me know if you'd like to:
 - Edit the draft manually
 - Formalize with /b-plan
 ```
+

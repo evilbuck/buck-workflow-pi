@@ -23,8 +23,43 @@ JSON remains the source of truth for machine-owned state:
 
 `skills/_shared/storage/` provides the backend-neutral contract, four adapters,
 and domain policies. Adapters are `repo-files`, `external-files`, `sqlite`, and
-`postgres`. Existing Buck readers/writers are not yet redirected to this store;
-the separate [SQL-memory path](sql-memory.md) remains until consumer cutover.
+`postgres`. Native `workflow_state` and the shared CLI are the model-facing
+access surface. The plan-artifact bridge, interactive subject picker, and
+supervisor recall/save address artifacts by token. Remaining Buck consumers
+are not all redirected; that sweep is separate work. `sql_memory` is not
+registered. `external-files`, `sqlite`, and `postgres` do not materialize a
+canonical `.context` mirror.
+
+### Native and portable access
+
+`extensions/workflow-state/` registers `workflow_state`. Portable callers use
+`bun skills/_shared/scripts/workflow-state-cli.ts`. Operations are `read`,
+`list`, `search`, `write`, `correct`, `discover`, `inspect-lifecycle`,
+`transition`, `read-receipt`, and `write-receipt`. `inspect` and `recover`
+name a branch and retain evidence; restricted stages cannot call them.
+`migrate` is CLI-only.
+
+The trusted runtime binds project and visibility from the checkout and machine
+config. Callers cannot pass `projectId`, `branchId`, `publishedRevisionIds`,
+`worktreeId`, or `runId`. Address an artifact by
+`{ subjectId, kind, logicalName, revision? }` or a `workflow-artifact:` token.
+A repo-files `.context/<subject>/<logicalName>` path is an optional editable
+projection, not an input.
+
+Roles are `read`, `write`, `save`, and `admin`. Restricted children receive a
+baked role and `workflow_state`, never `sql_memory`. In `/buck-loop`,
+`SQL_MEMORY_URL` only gates whether save requires a verified store receipt.
+The supervisor does not open that variable as a pool.
+
+Repo-files immutable manifests and revision blobs live under the machine
+identity registry,
+`${XDG_CONFIG_HOME:-~/.config}/buck-workflow/projects/<project-id>/repo-manifest`,
+beside `branch-identity.json`. Only editable bodies belong in `.context/`.
+
+`workflow_exec` is the Linux command boundary: Bubblewrap, fail closed, no
+host-shell fallback. Git metadata is read-only inside that command boundary
+except the commit checkpoint stage. Host file tools do not yet enforce that
+rule. See [ADR 0004](adr/0004-workflow-state-trusted-access.md).
 
 ### Operations and module boundaries
 
@@ -140,14 +175,14 @@ scope, so another branch cannot retrieve direct edits through a published ID.
 `domain.ts` exposes `lookupKnowledge()` as the ordinary store-backed knowledge
 read surface: `list()` without text, `search()` with text. Both apply the
 visibility rules above. Do not add unrestricted knowledge SQL to this surface.
-The legacy `sql_memory` recall path remains separate until consumer cutover;
-it does not provide the branch-overlay guarantees.
+Supervisor recall uses this surface. The removed `sql_memory` tool does not.
 
 Worktree-private revisions require that worktree; run-private revisions require
 exact branch, worktree, and run even if supplied as published. Callers must
 establish the trusted published-revision set using publication proof (separate
-from lookup). This is a retrieval invariant, not file/DB-operator access control;
-existing production callers await their store cutover.
+from lookup). This is a retrieval invariant, not file/DB-operator access control.
+Publication pointer loading is still empty; callers cannot supply
+`publishedRevisionIds`. Remaining durable consumers are not all on this surface.
 
 ### SQLite runtime boundary
 

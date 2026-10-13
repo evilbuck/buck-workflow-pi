@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { applyMigrations, type MigrationPool } from "./migrations.js";
+import { applyMigrations, type MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
 describe("applyMigrations", () => {
   it("applies migrations by version and records checksums, then no-ops", async () => {

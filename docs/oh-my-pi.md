@@ -108,9 +108,9 @@ Project identity is the Git `origin` URL when available, otherwise the absolute 
 
 The extension uses `attribution` when that table is absent or has the expected plugin schema; otherwise it uses `buck_token_attribution`. It does not alter OMP-owned stats tables. `/tokens` reports the current project by branch and provider/model; if another extension already owns that command, Buck registers `/token-use`. See [Inspect project token use](howto/inspect-project-token-use.md).
 
-### `sql-memory` (bundled with buck-workflow, env-gated)
+### `workflow-state` (bundled with buck-workflow)
 
-`extensions/sql-memory/` registers the `sql_memory` tool only when `SQL_MEMORY_URL` is set. `extensions/index.ts` calls `wire()`; an unset variable registers nothing and does not load `pg`. The pool is created on the first tool call, so an unreachable database does not stop extension load.
+`extensions/workflow-state/` registers native `workflow_state` on every load. Callers address artifacts by token or subject/kind/logical name and cannot pass project or visibility scope. `extensions/sql-memory/` `wire()` does not register `sql_memory`. See [ADR 0004](adr/0004-workflow-state-trusted-access.md).
 
 ## Settings
 
