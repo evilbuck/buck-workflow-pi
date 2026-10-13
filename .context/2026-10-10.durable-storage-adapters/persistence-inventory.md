@@ -66,4 +66,45 @@ Census extended 2026-10-10 beyond filesystem-call discovery: instruction-defined
 
 Canonical retention: session artifacts, retained presentation packages, copied source snapshots/manifests, Buck-owned run/evidence/import/attribution rows. Optional exports: preview/editor/site files materialized from an explicitly selected retained revision; generated indexes/design-token blocks are rebuildable projections. Excluded authority: living application/code docs, installation/preferences/secrets, external tracker/vault state and host sessions. A skill's “disposable generated output” describes its editable preview, not permission to discard a package retained under this plan.
 
+## Phase 5 reconciliation (2026-10-13)
+
+Every census row is reconciled below: migrated onto the storage contract this phase, or explicitly excluded/projection by design. "Store-backed" means bytes land on the configured adapter through `commitConsumerBatch`/`scheduleConfiguredRetain` in `skills/_shared/storage/consumers.ts` with a receipt-bearing run; "projection" means the file/write stays the repo-files projection the loop's readers use while the store holds the sealed copy.
+
+| Census row | Disposition | Evidence |
+|---|---|---|
+| `.context/<subject>/{plan,research,spec,phase,review,iterate,index}.md` | store-backed (save-apply seal classifies each artifact kind; loop review/phase/ranking writers retain per write) | `save-apply.ts` sealAppliedBytes; `loop.ts` persistReviewArtifact; `phase-completion.ts` retains; `ranking.ts` default writer retains |
+| `.context/memory/*.md`, `.context/backlog/**` | store-backed (seal) + recall through `workflow_state` visibility (Phase 4) | save-apply seal; `recall-project-memories.md` |
+| `.context/workflow/**` (run state, receipts, drafts, checkpoints) | sqlite fast-path mirror kept for synchronous resume reads; non-sqlite adapters retain via `scheduleConfiguredRetain`; save drafts/receipts went through `saveSqlFacts`/`write-receipt` in Phases 3–4 | `persist.ts` mirrorResume; `sql-save.ts` |
+| `.context/**/sql-memory-receipts/**` | store-backed (attempt receipts on the same adapter; Phase 3 rules) | `commitConsumerBatch`; `workflow_state write-receipt` |
+| `extensions/sql-memory/`, `migrations/` | admin/migration surface stays CLI-only (Phase 4 decision); model-facing raw SQL removed from the loop | Phase 4 file, criterion 4 |
+| `extensions/buck-loop/{scan,persist,loop,...}` resume/checkpoint/activity | store-backed: resume bookmark (above), activity log retained on close, transition/repair audits retained per write | `persist.ts`; `activity-log.ts` close; `choice.ts` writeAudit; `ambiguity.ts` askRepairLift |
+| `extensions/b-save-improved/`, `save-preflight/save-apply` | both save pipelines on one contract: `saveSqlFacts` (SQL mode, Phase 3–4) and file-mode seal (this phase) | `save-apply.ts` sealAppliedBytes |
+| `skills/_shared/scripts/{subject-lifecycle,context-helpers,plan-acceptance}` | store-backed through Phase 3 domain ports; lifecycle authority unchanged | Phase 3 file |
+| `extensions/plan-artifact.ts` | store-backed via `workflow_state write` (Phase 4 bridge) | Phase 4 file |
+| `hooks/post/turn-memory.ts`, `extensions/turn-memory/` | store-backed (configured store; host session journal untouched) | first-pass note; `turn-memory.ts` |
+| `extensions/token-attribution/` | store-backed rows + receipts; host `messages`/stats rows untouched | `db.ts` insert retain; db.test.ts |
+| `extensions/code-review-iteration/{run-state,report,loop}.ts` | store-backed: `state.json` run-state retain; review/fixer markdown+json, commands.jsonl audit retains; final report review-kind retain; immutable-refusal and execution policy unchanged | `run-state.ts`; `report.ts`; run-state.test.ts |
+| `b-memory-import` manifests | store-backed audit retain beside the file | `import-context-memory.ts` saveManifest |
+| `docs/plans/src/lib/plans/` | migrated (SqlPlanSource reads visible plan artifacts through the store; fake SQL stub removed) — first pass | phase notes |
+| `extensions/index.ts`, package/install discovery | config/identity registration unchanged (Phases 1–4); installer ships `consumers.ts` (added to SHIPPED_STORAGE_FILES) | `scripts/install.mjs` |
+| `extensions/b-commit-improved/index.ts` draft commit | projection: repo-files path retained for the file-mode fallback writer; logical identity via subject tokens (Phase 4) | Phase 4 |
+| `activity-log,ambiguity,choice,phase-completion,ranking` transition audits/rankings | store-backed per write (see buck-loop row) | this phase |
+| `buck-loop/sql-save.ts` receipt projection | projection + authoritative adapter receipts (Phase 3–4) | `sql-save.ts` |
+| `skills/fix-pr/scripts/fetch-feedback.ts` | excluded: transient run input, process-lifetime | census row unchanged |
+| code-review runtime under Git common-dir | projection: run/fixer runtime stays on disk (resume reads it); store holds the retained copies above; immutable pass semantics preserved | run-state.ts |
+| OMP model settings / hooks install / omp-models | excluded: configuration and install state | census rows unchanged |
+| `context-helpers` generated indexes | projection: rebuildable, regenerated from authoritative artifacts | census note |
+| b-auto-fix, b-pr preflight cache | excluded: run-private transient / local cache | census rows unchanged |
+| render-design-tokens generated blocks | projection: rebuildable docs generation | census row unchanged |
+| fix-pr-feedback temp dir | excluded: process-lifetime temp | census row unchanged |
+| presentations packages + sources + manifest | store-backed: `retainPresentationPackage` retains exact bytes (binary intact, symlink refusal) via `b-present` Step 6b; on-disk package remains the served export | consumers.ts; b-present SKILL Step 6b; consumer-persist tests |
+| `.context` intake/research/capture/grill/design-brief sidecars | store-backed when saved through save-apply seal (classified kinds) or workflow_state writes (Phase 4 skill sweep); interview progress sidecars remain run-private until saved | classifyContextPath |
+| draft-commit/transition-audits/ranking/eval/guardrails/build evidence | store-backed for transition/ranking/review evidence (this phase); remaining run-scratch evidence retains on next save | this phase |
+| living docs (`docs/`, ADRs, CONTEXT.md), generated UX/styleguide | excluded: repository code documentation | census row unchanged |
+| CODE-REVIEW.md, pinned PR inputs, thought-dump user source | excluded/pinned user-owned inputs | census rows unchanged |
+| external vault/tracker-owned knowledge | excluded external authority | census row unchanged |
+| `.context/grill-model.txt`, `guardrails.json`, `.env`, installer targets | excluded: config/secrets/install state | census rows unchanged |
+
+Known follow-ups owned by later phases: cross-worktree async resume reads under postgres/external-files (Phase 6 recovery tooling), legacy-data import of historical audits (Phase 7 cutover), end-to-end per-adapter exercise (Phase 8).
+
 The table closes the currently identified persistence families using the parent affected-file list, earlier code-wide filesystem census and this instruction census. It is not a claim that arbitrary user-selected destinations or future code are discoverable from a regex. Re-run both code-call and instruction-boundary discovery at each consumer cutover; check each family's concrete behavior above before declaring migration complete. No consumer was migrated in Phase 1.

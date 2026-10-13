@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-durable-storage-adapters.md
@@ -23,13 +23,13 @@ from_plan_steps: [5]
 depends_on: [4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
-  - "[ ] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
-  - "[ ] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
-  - "[ ] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
-  - "[ ] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
-  - "[ ] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
-completed_at: null
+  - "[x] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
+  - "[x] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
+  - "[x] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
+  - "[x] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
+  - "[x] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
+  - "[x] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
+completed_at: 2026-10-13
 completed_by: null
 ---
 
@@ -56,6 +56,53 @@ Parent User Goal: choose durable storage, resume reliably, branch-private unmerg
 - Focused scenarios per state kind: presentation attachment round-trip, retained pass audit, hook memory write, attribution/import cursor — read back exact IDs/revisions.
 - Two-worktree fixture: concurrent runs never share mutable resume pointers.
 - `npm run guardrails:check` passes.
+
+## Repair Checkpoint (2026-10-13, first build pass)
+
+Landed: consumer contract (`skills/_shared/storage/consumers.ts`) with same-store
+batch + attempt receipt; `saveSqlFacts` receipt via injected store or
+`workflow_state write-receipt`; b-save-improved on the same function;
+turn-memory through the configured store (host session entries untouched);
+plan-site SQL stub replaced by `SqlPlanSource` reading visible plan artifacts;
+SQLite mirrors for resume bookmark, review `state.json`, import manifests, and
+Buck attribution rows (host `messages` rows never written). 30 focused tests
+pass.
+
+Remaining gaps — do not tick boxes until these land:
+
+1. File-mode `save-apply` still writes `.context` directly; route it through
+   the consumer batch helper.
+2. Review pass artifacts other than `state.json` (pass reports, fixer/command
+   evidence) are not yet on the store.
+3. Presentation/retained-package writers are not on the batch helper.
+4. Postgres attribution/import sync callers are not on the shared batch path.
+5. Persistence-inventory reconciliation against the Phase-1 census (every row
+   migrated or explicitly excluded) is incomplete.
+
+## Repair Checkpoint (2026-10-13, second build pass — gaps closed)
+
+All five first-pass gaps landed; see `implementation-notes-phase-5.md` for the
+full record. Summary:
+
+1. File-mode `save-apply` seals every applied byte plus one attempt receipt on
+   the configured store (`sealAppliedBytes` via `withConfiguredStore`); seal
+   failure fails the apply.
+2. Review pass `review.json/md`, `fixer.json/md`, `commands.jsonl`, final
+   reports, and `state.json` retain on the configured store; immutable-refusal
+   semantics preserved.
+3. `retainPresentationPackage` + `b-present` Step 6b script retain exact
+   package bytes (binary intact, symlink refusal).
+4. `mirrorSqliteArtifact` removed; attribution rows, import manifests, loop
+   audits/activity/resume, and ranking writes retain through the configured
+   adapter (sqlite/postgres/external-files) with receipts.
+5. `persistence-inventory.md` § Phase 5 reconciliation records every census
+   row as migrated, projection, or excluded-by-design.
+
+Verification: `env -u SQL_MEMORY_URL npm test` 1931 passed / 0 failed; bun
+suites pass; bundle parity restored (consumers.ts + drifted first-pass files
+shipped); guardrails re-run after the pre-existing `authorizeCheckoutPath`
+complexity regression (introduced by 202ca5d, ungated) was refactored under
+threshold with behavior-preserving gates.
 
 ## Per-Phase Execution Loop
 

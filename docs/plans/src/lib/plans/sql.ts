@@ -1,43 +1,59 @@
-import type { PlanDocument, PlanSource, PlanSubject } from './types.js';
+import { toPlanDocument, type PlanDocument, type PlanSource, type PlanSubject } from './types.js';
 
-// Future SQL source for plan markdown stored in the database.
-//
-// The memories schema (migrations/001_initial_schema.sql) has no plan-document
-// table yet, so this class is intentionally a typed stub: it implements the
-// PlanSource contract, reports whether it is configured, and fails closed with
-// a message that names the missing piece. When the table lands, fill in the
-// three methods with `pg` queries against SQL_MEMORY_URL and no page needs to
-// change — see createPlanSource() in index.ts.
-//
-// Expected row shape (proposal, not yet migrated):
-//   plan_documents(subject text, slug text, title text,
-//                  body text, frontmatter jsonb, updated_at timestamptz)
+export interface StoredPlan {
+  subjectId: string;
+  logicalName: string;
+  bytes: Uint8Array;
+}
 
-const MISSING = (method: string) =>
-  `SqlPlanSource.${method} is not implemented: no plan-document table exists yet. ` +
-  `Serve from FilesystemPlanSource (PLAN_SOURCE=fs) until the migration lands.`;
+export type PlanLoader = () => Promise<readonly StoredPlan[]>;
 
+async function defaultLoader(): Promise<readonly StoredPlan[]> {
+  const [{ withConfiguredStore }, { listVisiblePlans }] = await Promise.all([
+    import('../../../../../skills/_shared/scripts/workflow-state.js'),
+    import('../../../../../skills/_shared/storage/consumers.js'),
+  ]);
+  return withConfiguredStore(process.cwd(), async (store, context) => {
+    if (!context.worktreeId) throw new Error('plan reader requires a trusted worktree identity');
+    const visible = await listVisiblePlans(store, {
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: context.worktreeId,
+      runId: context.runId ?? context.worktreeId,
+      publishedRevisionIds: context.publishedRevisionIds,
+    });
+    return visible.map((item) => ({ subjectId: item.key.subjectId, logicalName: item.key.logicalName, bytes: item.bytes }));
+  });
+}
+
+/** Adapter-backed plan reader. The old SQL stub is not a source of truth. */
 export class SqlPlanSource implements PlanSource {
   readonly kind = 'sql';
-  private readonly connectionString: string | undefined;
-
-  constructor(connectionString?: string) {
-    this.connectionString = connectionString ?? process.env.SQL_MEMORY_URL;
-  }
-
-  isConfigured(): boolean {
-    return Boolean(this.connectionString);
-  }
+  constructor(private readonly load: PlanLoader = defaultLoader) {}
 
   async listSubjects(): Promise<PlanSubject[]> {
-    throw new Error(MISSING('listSubjects'));
+    const grouped = new Map<string, Set<string>>();
+    for (const item of await this.load()) {
+      const files = grouped.get(item.subjectId) ?? new Set<string>();
+      files.add(item.logicalName);
+      grouped.set(item.subjectId, files);
+    }
+    return [...grouped.entries()].map(([name, files]) => ({
+      name,
+      status: null,
+      documents: [...files].sort((left, right) => left.localeCompare(right)),
+    })).sort((left, right) => right.name.localeCompare(left.name));
   }
 
-  async listDocuments(_subject: string): Promise<PlanDocument[]> {
-    throw new Error(MISSING('listDocuments'));
+  async listDocuments(subject: string): Promise<PlanDocument[]> {
+    return (await this.load())
+      .filter((item) => item.subjectId === subject)
+      .map((item) => toPlanDocument(subject, item.logicalName, new TextDecoder().decode(item.bytes)))
+      .sort((left, right) => left.file.localeCompare(right.file));
   }
 
-  async getDocument(_subject: string, _slug: string): Promise<PlanDocument | null> {
-    throw new Error(MISSING('getDocument'));
+  async getDocument(subject: string, slug: string): Promise<PlanDocument | null> {
+    const documents = await this.listDocuments(subject);
+    return documents.find((item) => item.slug === slug) ?? null;
   }
 }

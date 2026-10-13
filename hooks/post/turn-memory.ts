@@ -24,7 +24,6 @@ interface TickData {
 }
 
 export function turnMemoryStatus(cwd: string, env: NodeJS.ProcessEnv = process.env, home?: string): string {
-  if (!env.SQL_MEMORY_URL) return "turn-memory: off (no SQL_MEMORY_URL)";
   if (!isTurnMemoryEnabled(cwd, env, home ? { home } : {})) return "turn-memory: off (opt-out)";
   return "turn-memory: on";
 }
@@ -104,14 +103,24 @@ export function resetTurnMemoryPool(): void {
 }
 
 async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): Promise<string> {
-  const url = process.env.SQL_MEMORY_URL;
-  if (!url) throw new Error("SQL_MEMORY_URL is unset");
-  // Static import would load pg from db.ts at factory load, even when SQL_MEMORY_URL is unset.
-  const [{ createLazyPool }, { rememberSqlMemory }] = await Promise.all([
-    import("../../extensions/sql-memory/db.js"),
-    import("../../extensions/sql-memory/remember.js"),
+  const [{ withConfiguredStore }, { commitConsumerBatch }] = await Promise.all([
+    import("../../skills/_shared/scripts/workflow-state.js"),
+    import("../../skills/_shared/storage/consumers.js"),
   ]);
-  return rememberSqlMemory({ pool: turnMemoryPool(url, createLazyPool)(), ...input });
+  return withConfiguredStore(input.cwd, async (store, context) => {
+    if (!context.worktreeId) throw new Error("turn-memory requires a trusted worktree identity");
+    const committed = await commitConsumerBatch(store, {
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: context.worktreeId,
+      runId: context.runId ?? context.worktreeId,
+      publishedRevisionIds: context.publishedRevisionIds,
+    }, [
+      { kind: "memory", subjectId: input.subject, logicalName: `turn-memory/${input.phase}.md`, bytes: new TextEncoder().encode(input.body), source: "turn-memory" },
+      { kind: "activity", subjectId: "turn-memory", logicalName: `dedupe/${input.phase}.json`, bytes: new TextEncoder().encode(input.phase), source: "turn-memory-dedupe" },
+    ], { attemptId: input.phase, status: "attempted", kind: "rows" });
+    return committed.revisions[0] ?? "";
+  });
 }
 
 function defaultJudge(text: string): Promise<unknown> {

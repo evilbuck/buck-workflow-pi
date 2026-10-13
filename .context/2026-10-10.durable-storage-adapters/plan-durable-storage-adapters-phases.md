@@ -38,7 +38,7 @@ other branches." This overview sequences the parent plan into eight phases.
 | 2: Four Storage Adapters | completed | hard | [phase-2-four-adapters.md](phase-2-four-adapters.md) |
 | 3: Domain Semantics | completed | hard | [phase-3-domain-semantics.md](phase-3-domain-semantics.md) |
 | 4: Native Tool, CLI & Skill Cutover | completed | hard | [phase-4-native-access.md](phase-4-native-access.md) |
-| 5: Remaining Durable Consumers | pending | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
+| 5: Remaining Durable Consumers | completed | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
 | 6: Publication, Reconciliation & Recovery | pending | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
 | 7: Existing-Data Cutover | pending | hard | [phase-7-data-cutover.md](phase-7-data-cutover.md) |
 | 8: End-to-End Proof, Docs & Packaging | pending | easy | [phase-8-proof-docs-package.md](phase-8-proof-docs-package.md) |

@@ -9,6 +9,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { unfinishedIterates, readStatus } from "./scan.js";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
 import { frontmatterAcceptanceCriteria, isCheckedCriterion, openCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
@@ -155,10 +156,16 @@ export async function askRepairLift(diagnosis: string, audit?: { cwd: string; su
   if (audit) {
     const directory = join(audit.cwd, ".context", audit.subject, "transition-audits");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, `${Date.now()}-repair-lift-${randomUUID()}.json`), `${JSON.stringify({
+    const name = `${Date.now()}-repair-lift-${randomUUID()}.json`;
+    const body = `${JSON.stringify({
       source: "repair-lift", context: diagnosis, raw, lift: plan.lift,
       accepted: lift !== null, reason,
-    }, null, 2)}\n`);
+    }, null, 2)}\n`;
+    await writeFile(join(directory, name), body);
+    scheduleConfiguredRetain({
+      kind: "audit", subjectId: audit.subject, logicalName: `${audit.subject}/transition-audits/${name}`,
+      bytes: new TextEncoder().encode(body), worktreeId: audit.cwd, source: "buck-loop",
+    });
   }
   return plan;
 }

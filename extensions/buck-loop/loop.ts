@@ -28,6 +28,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { basename, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import {
   askRepairLift,
   changedLoopExtensionFiles,
@@ -1651,7 +1652,13 @@ function persistReviewArtifact(
   const authoritative = changedArtifact ?? text;
   if (!authoritative.trim()) return;
   const stamp = at.replace(/[:.]/g, "-");
-  writeFileSync(join(dir, `review-zz-buck-loop-${stamp}.md`), authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`);
+  const name = `review-zz-buck-loop-${stamp}.md`;
+  const body = authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`;
+  writeFileSync(join(dir, name), body);
+  scheduleConfiguredRetain({
+    kind: "review", subjectId: snapshot.subject, logicalName: `${snapshot.subject}/${name}`,
+    bytes: new TextEncoder().encode(body), worktreeId: cwd, source: "buck-loop",
+  });
 }
 
 function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapshot["planFacts"]["kind"]): boolean {
