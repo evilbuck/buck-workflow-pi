@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
+import { mkdirSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import type { DatabaseSync, SQLInputValue } from "node:sqlite";
 import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
@@ -82,6 +83,15 @@ export class SQLiteStorageStore implements StorageStore {
     database.exec(`PRAGMA busy_timeout = ${Math.max(0, options.busyTimeoutMs ?? 5_000)}`);
     return new SQLiteStorageStore(database);
   }
+  static openSync(path: string, options: { busyTimeoutMs?: number } = {}): SQLiteStorageStore {
+    const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: new (path: string) => DatabaseSync };
+    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
+    const database = new DatabaseSync(path);
+    if (path !== ":memory:") database.exec("PRAGMA journal_mode = WAL");
+    database.exec(`PRAGMA busy_timeout = ${Math.max(0, options.busyTimeoutMs ?? 5_000)}`);
+    return new SQLiteStorageStore(database);
+  }
+
 
   close(): void { this.#database.close(); }
 
@@ -97,6 +107,13 @@ export class SQLiteStorageStore implements StorageStore {
     if (!row || (revision === undefined && String(row.source) === "tombstone")) return null;
     return this.#decode(row);
   }
+  readSync(key: ArtifactKey): ArtifactRevision | null {
+    const ids = this.#keyValues(key);
+    const row = this.#database.prepare("SELECT r.* FROM artifact_revisions r JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) WHERE project_id=? AND subject_id=? AND kind=? AND logical_name=? AND branch_id=? AND worktree_id=? AND run_id=?").get(...ids) as Row | undefined;
+    if (!row || String(row.source) === "tombstone") return null;
+    return this.#decode(row);
+  }
+
 
   async list(query: ArtifactQuery): Promise<readonly ArtifactRevision[]> {
     return this.#loadPage(selectPage(this.#metadata(query), query));

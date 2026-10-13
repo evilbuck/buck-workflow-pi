@@ -121,16 +121,17 @@ export function resolveStorageConfig(config: StorageConfig, origin: string | und
   };
 }
 
-export async function loadStorageConfig(options: { configPath?: string; origin?: string } = {}): Promise<ResolvedStorageConfig> {
+export function loadStorageConfigSync(options: { configPath?: string; origin?: string } = {}): ResolvedStorageConfig {
   const configPath = options.configPath ?? process.env.BUCK_WORKFLOW_CONFIG ?? machineConfigPath();
-  let source: string;
   try {
-    source = readFileSync(configPath, "utf8");
+    return resolveStorageConfig(parseStorageConfig(readFileSync(configPath, "utf8")), options.origin, { configPath });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT" && options.configPath === undefined && process.env.BUCK_WORKFLOW_CONFIG === undefined) {
       return resolveStorageConfig({ version: 1, storage: { adapter: "repo-files" }, projects: {} }, options.origin, { configPath });
     }
     throw new Error(`Cannot read Buck Workflow storage config at ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
   }
-  return resolveStorageConfig(parseStorageConfig(source), options.origin, { configPath });
+}
+export async function loadStorageConfig(options: { configPath?: string; origin?: string } = {}): Promise<ResolvedStorageConfig> {
+  return loadStorageConfigSync(options);
 }

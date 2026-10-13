@@ -9,6 +9,7 @@
 
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { flushConfiguredRetains, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import type { CommandRecord } from "./policy.js";
 import type { ValidatedFinding } from "./findings.js";
 
@@ -112,12 +113,17 @@ export function createRun(commonDir: string, state: Omit<RunState, "schema_versi
 }
 
 /** Atomic write: serialize to a sibling temp file, then rename over. */
-export function saveState(runDir: string, state: RunState): void {
+export function saveState(runDir: string, state: RunState): Promise<string | null> {
   state.updated_at = new Date().toISOString();
+  const body = `${JSON.stringify(state, null, 2)}\n`;
   const target = join(runDir, "state.json");
   const tmp = join(runDir, "state.json.tmp");
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf-8");
+  writeFileSync(tmp, body, "utf-8");
   renameSync(tmp, target);
+  return scheduleConfiguredRetain({
+    kind: "run-state", subjectId: "code-review", logicalName: "state.json",
+    bytes: new TextEncoder().encode(body), worktreeId: runDir, source: "code-review-iteration",
+  });
 }
 
 export function loadState(runDir: string): RunState {
@@ -200,28 +206,48 @@ function writeImmutable(path: string, content: string): void {
   writeFileSync(path, content, "utf-8");
 }
 
-export function writePassReview(runDir: string, pass: number, record: PassReviewRecord): void {
-  const dir = passDirFor(runDir, pass);
-  mkdirSync(dir, { recursive: true });
-  writeImmutable(join(dir, "review.json"), `${JSON.stringify(record, null, 2)}\n`);
+function retainPassArtifact(runDir: string, pass: number, file: string, bytes: Uint8Array): Promise<string | null> {
+  return scheduleConfiguredRetain({
+    kind: "audit", subjectId: "code-review", logicalName: `passes/${String(pass).padStart(2, "0")}/${file}`,
+    bytes, worktreeId: runDir, source: "code-review-iteration",
+  });
 }
 
-export function writePassReviewMarkdown(runDir: string, pass: number, markdown: string): void {
+export function writePassReview(runDir: string, pass: number, record: PassReviewRecord): Promise<string | null> {
+  const body = `${JSON.stringify(record, null, 2)}\n`;
+  const dir = passDirFor(runDir, pass);
+  mkdirSync(dir, { recursive: true });
+  writeImmutable(join(dir, "review.json"), body);
+  return retainPassArtifact(runDir, pass, "review.json", new TextEncoder().encode(body));
+}
+
+export function writePassReviewMarkdown(runDir: string, pass: number, markdown: string): Promise<string | null> {
   writeImmutable(join(passDirFor(runDir, pass), "review.md"), markdown);
+  return retainPassArtifact(runDir, pass, "review.md", new TextEncoder().encode(markdown));
 }
 
-export function writePassFixer(runDir: string, pass: number, record: PassFixerRecord, markdown: string): void {
+export function writePassFixer(runDir: string, pass: number, record: PassFixerRecord, markdown: string): Promise<Array<string | null>> {
   const dir = passDirFor(runDir, pass);
   mkdirSync(dir, { recursive: true });
-  writeImmutable(join(dir, "fixer.json"), `${JSON.stringify(record, null, 2)}\n`);
-  writeImmutable(join(dir, "fixer.md"), `${markdown}\n`);
+  const json = `${JSON.stringify(record, null, 2)}\n`;
+  const text = `${markdown}\n`;
+  writeImmutable(join(dir, "fixer.json"), json);
+  writeImmutable(join(dir, "fixer.md"), text);
+  return Promise.all([
+    retainPassArtifact(runDir, pass, "fixer.json", new TextEncoder().encode(json)),
+    retainPassArtifact(runDir, pass, "fixer.md", new TextEncoder().encode(text)),
+  ]);
 }
 
-export function appendCommandRecord(runDir: string, pass: number, record: CommandRecord): void {
+export function appendCommandRecord(runDir: string, pass: number, record: CommandRecord): Promise<string | null> {
   const dir = passDirFor(runDir, pass);
   mkdirSync(dir, { recursive: true });
   appendFileSync(join(dir, "commands.jsonl"), `${JSON.stringify(record)}\n`, "utf-8");
+  const bytes = new TextEncoder().encode(readFileSync(join(dir, "commands.jsonl"), "utf8"));
+  return retainPassArtifact(runDir, pass, "commands.jsonl", bytes);
 }
+
+export { flushConfiguredRetains };
 
 export function readCommandRecords(runDir: string, pass: number): CommandRecord[] {
   const target = join(passDirFor(runDir, pass), "commands.jsonl");

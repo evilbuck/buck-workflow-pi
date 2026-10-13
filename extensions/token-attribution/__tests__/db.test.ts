@@ -1,9 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AttributionDatabase, type AttributionRecord } from "../db.js";
+import { flushConfiguredRetains } from "../../../skills/_shared/storage/consumers.js";
+import { SQLiteStorageStore } from "../../../skills/_shared/storage/sqlite-store.js";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -96,6 +98,51 @@ describe("AttributionDatabase", () => {
     const inspect = new DatabaseSync(path, { readOnly: true });
     expect(inspect.prepare("SELECT COUNT(*) AS count FROM buck_token_attribution").get()).toEqual({ count: 1 });
     expect(inspect.prepare("PRAGMA table_info(attribution)").all()).toHaveLength(1);
+    inspect.close();
+  });
+});
+
+describe("attribution retention on the configured store", () => {
+  const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+
+  afterEach(() => {
+    if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+    else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+  });
+
+  it("retains each inserted Buck-owned row with a receipt while host tables stay untouched", async () => {
+    const path = tempDb();
+    const storeRoot = mkdtempSync(join(tmpdir(), "attribution-retain-"));
+    roots.push(storeRoot);
+    const database = join(storeRoot, "state.sqlite");
+    const configPath = join(storeRoot, "config.yaml");
+    writeFileSync(configPath, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${database}\n`);
+    process.env.BUCK_WORKFLOW_CONFIG = configPath;
+
+    const seed = new DatabaseSync(path);
+    seed.exec("CREATE TABLE messages (id TEXT PRIMARY KEY, payload TEXT); INSERT INTO messages VALUES ('kept', 'omp');");
+    seed.close();
+    const ledger = new AttributionDatabase(path);
+    expect(ledger.insert(record())).toBe(true);
+    await flushConfiguredRetains();
+    ledger.close();
+
+    const store = SQLiteStorageStore.openSync(database);
+    try {
+      const probe = new DatabaseSync(database, { readOnly: true });
+      const rows = probe.prepare("SELECT logical_name, run_id FROM artifact_revisions WHERE subject_id='token-attribution' AND kind='attribution'").all() as Array<{ logical_name: string; run_id: string }>;
+      probe.close();
+      expect(rows.map((row) => row.logical_name)).toContain("rows/entry-1.json");
+      await expect(store.readReceipt("configured-project", rows[0]!.run_id)).resolves.toMatchObject({
+        attemptId: rows[0]!.run_id,
+        worktreeId: "/repo/a",
+        status: "attempted",
+      });
+    } finally {
+      store.close();
+    }
+    const inspect = new DatabaseSync(path, { readOnly: true });
+    expect(inspect.prepare("SELECT * FROM messages").all()).toEqual([{ id: "kept", payload: "omp" }]);
     inspect.close();
   });
 });

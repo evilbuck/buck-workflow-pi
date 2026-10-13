@@ -225,6 +225,13 @@ function bytesOf(request: { body?: string; bytesBase64?: string }): Uint8Array {
   if (request.bytesBase64 !== undefined) return new Uint8Array(Buffer.from(request.bytesBase64, "base64"));
   throw new Error("write requires body or bytesBase64");
 }
+export async function withConfiguredStore<T>(cwd: string, run: (store: StorageStore, context: TrustedWorkflowContext) => Promise<T>, options: { origin?: string; identityPath?: string; configPath?: string; git?: GitRunner } = {}): Promise<T> {
+  const context = await resolveTrustedContext(cwd, options);
+  if (!context.selection || !context.manifestRoot) throw new Error("Trusted workflow context is incomplete");
+  const opened = await openStore(cwd, context.selection, context.projectId, context.manifestRoot);
+  try { return await run(opened.store, context); }
+  finally { opened.close(); }
+}
 async function openStore(cwd: string, selection: ResolvedStorageConfig, projectKey: string, manifestRoot: string): Promise<{ store: StorageStore; close: () => void }> {
   const storage = selection.storage;
   if (storage.adapter === "repo-files") {

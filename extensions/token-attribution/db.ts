@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 
 const PRIMARY_TABLE = "attribution";
 const FALLBACK_TABLE = "buck_token_attribution";
@@ -134,6 +135,13 @@ export class AttributionDatabase {
       record.cacheReadTokens, record.cacheWriteTokens, record.reasoningTokens,
       record.totalTokens, record.costUsd, record.costSource,
     );
+    if (result.changes === 1) {
+      scheduleConfiguredRetain({
+        kind: "attribution", subjectId: "token-attribution",
+        logicalName: `rows/${encodeURIComponent(record.entryKey)}.json`,
+        bytes: new TextEncoder().encode(JSON.stringify(record)), worktreeId: record.worktreeRoot,
+      });
+    }
     return result.changes === 1;
   }
 
