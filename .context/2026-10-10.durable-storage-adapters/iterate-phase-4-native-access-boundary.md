@@ -1,12 +1,12 @@
 ---
-status: below-waterline
+status: completed
 date: 2026-10-12
 updated: 2026-10-12
 subject: 2026-10-10.durable-storage-adapters
 topics: [review, iteration, native-access, confinement, project-binding]
 informs: []
 addresses: phase-4-native-access.md
-completed: null
+completed: 2026-10-12
 from_review: b-review
 ---
 
