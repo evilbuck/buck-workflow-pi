@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
+import { classifyContextPath, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 
 export type ReviewIssue = {
   id: `critical:${number}` | `warning:${number}`;
@@ -189,6 +190,11 @@ export async function rankIssues(options: {
   const write = deps.writeFile ?? ((path, contents) => {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, contents, "utf8");
+    const classified = classifyContextPath(relative(process.cwd(), path));
+    scheduleConfiguredRetain({
+      kind: classified.kind, subjectId: classified.subjectId, logicalName: classified.logicalName,
+      bytes: new TextEncoder().encode(contents), worktreeId: process.cwd(), source: "buck-loop",
+    });
   });
   const ranked: RankedIssue[] = [];
 

@@ -136,7 +136,31 @@ async function saveRows(cwd: string, attempt: SaveAttempt, facts: SaveFact[], de
   const ids: string[] = [];
   for (const [index, fact] of facts.entries()) ids.push(await saveOne(cwd, attempt, deps, fact, index + 1));
   writeReceipt(cwd, attempt, { kind: "rows", ids });
+  await persistAttemptOnStore(cwd, attempt, deps, ids);
   return ids;
+}
+
+async function persistAttemptOnStore(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, ids: string[]): Promise<void> {
+  if (deps.store && deps.context) {
+    await deps.store.writeReceipt({
+      projectId: deps.context.projectId,
+      branchId: deps.context.branchId,
+      worktreeId: deps.context.worktreeId ?? `worktree:${attempt.runId}`,
+      runId: deps.context.runId ?? attempt.runId,
+      attemptId: attempt.attemptId,
+      status: "attempted",
+      artifactRevisions: ids,
+      kind: ids.length === 0 ? "no-fact" : "rows",
+    });
+    return;
+  }
+  await callStore(cwd, deps, {
+    operation: "write-receipt",
+    attemptId: attempt.attemptId,
+    status: "attempted",
+    artifactRevisions: ids,
+    kind: ids.length === 0 ? "no-fact" : "rows",
+  });
 }
 
 async function saveOne(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, fact: SaveFact, seq: number): Promise<string> {
@@ -180,6 +204,7 @@ async function saveNoFacts(cwd: string, attempt: SaveAttempt, deps: SaveStoreDep
   const probed = await probeStore(cwd, deps);
   if (probed.status !== "verified") throw new Error(probed.status === "block" ? probed.reason : "SQL save requires connectivity");
   writeReceipt(cwd, attempt, { kind: "no-fact", ids: [] });
+  await persistAttemptOnStore(cwd, attempt, deps, []);
   return [];
 }
 

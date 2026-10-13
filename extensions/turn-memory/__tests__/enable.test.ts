@@ -26,11 +26,11 @@ function settings(cwd: string, scope: ".pi" | ".omp", key: unknown): void {
 }
 
 describe("isTurnMemoryEnabled", () => {
-  it("requires a SQL URL and defaults on when one exists", () => {
+  it("does not require SQL_MEMORY_URL for configured-adapter capture", () => {
     const home = root();
-    expect(isTurnMemoryEnabled(root(), {}, { home })).toBe(false);
+    expect(isTurnMemoryEnabled(root(), {}, { home })).toBe(true);
     expect(isTurnMemoryEnabled(root(), { SQL_MEMORY_URL: "postgres://db" }, { home })).toBe(true);
-    expect(isTurnMemoryEnabled(root(), { SQL_MEMORY_URL: "", BUCK_TURN_MEMORY: "1" }, { home })).toBe(false);
+    expect(isTurnMemoryEnabled(root(), { SQL_MEMORY_URL: "", BUCK_TURN_MEMORY: "1" }, { home })).toBe(true);
   });
 
   it.each([["0", false], ["false", false], ["1", true], ["true", true]])(
@@ -38,7 +38,7 @@ describe("isTurnMemoryEnabled", () => {
     (value, expected) => {
       const cwd = root();
       settings(cwd, ".pi", { enabled: !expected });
-      expect(isTurnMemoryEnabled(cwd, { SQL_MEMORY_URL: "postgres://db", BUCK_TURN_MEMORY: value })).toBe(expected);
+      expect(isTurnMemoryEnabled(cwd, { BUCK_TURN_MEMORY: value })).toBe(expected);
     },
   );
 

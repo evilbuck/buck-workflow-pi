@@ -2,6 +2,7 @@ import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync,
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { finished } from "node:stream/promises";
 import type { ActivityEvent } from "../extension-activity.js";
 import type { LoopCommand, LoopProgress } from "./loop.js";
@@ -172,7 +173,14 @@ export function createBuckLoopActivityLog(options: CreateBuckLoopActivityLogOpti
     close: () => {
       if (closing) return closing;
       closed = true;
-      closing = finished(stream).catch(disable);
+      closing = finished(stream).then(() => {
+        try {
+          if (existsSync(path)) scheduleConfiguredRetain({
+            kind: "activity", subjectId: "buck-loop", logicalName: ACTIVITY_LOG_RELPATH.replace(/^\.context\//u, ""),
+            bytes: new TextEncoder().encode(readFileSync(path, "utf8")), worktreeId: root, source: "buck-loop",
+          });
+        } catch { /* retention must never break loop shutdown */ }
+      }).catch(disable);
       stream.end();
       return closing;
     },

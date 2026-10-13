@@ -42,13 +42,13 @@ function session() {
 }
 
 describe("turn-memory hook", () => {
-  it("names the off reason and does not load pg when SQL is unset", async () => {
+  it("does not require SQL_MEMORY_URL or load pg for configured-store status", async () => {
     delete process.env.SQL_MEMORY_URL;
     const before = new Set(Object.keys(require.cache));
     const hook = await import("../../../hooks/post/turn-memory.js");
     const added = Object.keys(require.cache).filter((key) => !before.has(key) && /\/pg\//.test(key));
     expect(added).toEqual([]);
-    expect(turnMemoryStatus("/repo", {})).toBe("turn-memory: off (no SQL_MEMORY_URL)");
+    expect(turnMemoryStatus("/repo", {})).toBe("turn-memory: on");
     expect(typeof hook.default).toBe("function");
   });
 
