@@ -34,7 +34,7 @@ import { randomUUID } from "node:crypto";
 import { workflowStateTool } from "../workflow-state/index.js";
 import { confinedFileTools } from "../workflow-state/confined-fs.js";
 import { workflowExecutionTool } from "../workflow-state/execution.js";
-import type { WorkflowRole } from "../../skills/_shared/scripts/workflow-state.js";
+import { resolveTrustedContext, type WorkflowRole } from "../../skills/_shared/scripts/workflow-state.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -149,10 +149,13 @@ const toolsBySkill: Record<NestedSkill, string[]> = {
   "b-commit": ["read"],
 };
 
-/** Objects actually delivered to a restricted child. File tools override the host SDK tools. */
-export function restrictedChildTools(cwd: string, skill: NestedSkill) {
+/** Objects actually delivered to a restricted child. File tools override the host SDK tools.
+ * Project/branch/worktree binding is resolved once here and is not re-read from child-writable Git metadata.
+ */
+export async function restrictedChildTools(cwd: string, skill: NestedSkill) {
+  const context = await resolveTrustedContext(cwd);
   return [
-    workflowStateTool({ cwd, role: workflowRoleBySkill[skill] }),
+    workflowStateTool({ cwd, role: workflowRoleBySkill[skill], context }),
     workflowExecutionTool(cwd, skill === "b-commit"),
     ...confinedFileTools(cwd, toolsBySkill[skill]),
   ];
@@ -459,7 +462,7 @@ async function runOneSession(
       agentId: agent.id,
       sessionManager: SessionManager.inMemory(opts.cwd),
       allowRestrictedCustomTools: true,
-      customTools: restrictedChildTools(opts.cwd, opts.skill),
+      customTools: await restrictedChildTools(opts.cwd, opts.skill),
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;

@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -104,24 +105,24 @@ interface BranchRecord { branchId: string; ref: string; incarnation: string; ini
 interface AttemptBinding { runId: string; branchId: string; attemptId: string }
 interface WorkspaceRecord { nonce: string; worktreeId: string; runId: string; attempts?: AttemptBinding[] }
 interface IdentityFile { projects: Record<string, { branches: BranchRecord[]; workspaces?: Record<string, WorkspaceRecord> }> }
-async function readIdentity(path: string): Promise<IdentityFile> {
-  try { return JSON.parse(await readFile(path, "utf8")) as IdentityFile; }
+function readIdentity(path: string): IdentityFile {
+  try { return JSON.parse(readFileSync(path, "utf8")) as IdentityFile; }
   catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return { projects: {} }; throw error; }
 }
-async function writeIdentity(path: string, file: IdentityFile): Promise<void> {
-  await mkdir(dirname(path), { recursive: true });
+function writeIdentity(path: string, file: IdentityFile): void {
+  mkdirSync(dirname(path), { recursive: true });
   const temporary = `${path}.${randomUUID()}.tmp`;
-  await writeFile(temporary, JSON.stringify(file));
-  await rename(temporary, path);
+  writeFileSync(temporary, JSON.stringify(file));
+  renameSync(temporary, path);
 }
 // Atomic replacement protects crash consistency; this lock protects the whole RMW.
 // Abandoned locks fail closed rather than risk stealing a live owner's lock.
-async function identityTransaction<T>(path: string, operation: () => Promise<T>): Promise<T> {
-  await mkdir(dirname(path), { recursive: true });
+async function identityTransaction<T>(path: string, operation: () => T | Promise<T>): Promise<T> {
+  mkdirSync(dirname(path), { recursive: true });
   const lock = `${path}.lock`;
   const deadline = Date.now() + 10_000;
   for (;;) {
-    try { await mkdir(lock); break; }
+    try { mkdirSync(lock); break; }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       if (Date.now() >= deadline) throw new Error("identity lock timeout; concurrent or abandoned writer");
@@ -131,7 +132,7 @@ async function identityTransaction<T>(path: string, operation: () => Promise<T>)
     }
   }
   try { return await operation(); }
-  finally { await rm(lock, { recursive: true }); }
+  finally { rmSync(lock, { recursive: true }); }
 }
 async function bindBranch(projectId: string, ref: string, tip: string, cwd: string, path: string, git: GitRunner): Promise<string> {
   const file = await readIdentity(path);

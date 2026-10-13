@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseDocument } from "yaml";
@@ -125,7 +125,7 @@ export async function loadStorageConfig(options: { configPath?: string; origin?:
   const configPath = options.configPath ?? process.env.BUCK_WORKFLOW_CONFIG ?? machineConfigPath();
   let source: string;
   try {
-    source = await readFile(configPath, "utf8");
+    source = readFileSync(configPath, "utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT" && options.configPath === undefined && process.env.BUCK_WORKFLOW_CONFIG === undefined) {
       return resolveStorageConfig({ version: 1, storage: { adapter: "repo-files" }, projects: {} }, options.origin, { configPath });

@@ -12,13 +12,15 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
   const actual = await vi.importActual<typeof PiCodingAgent>("@mariozechner/pi-coding-agent");
   return { ...actual, createAgentSession: createAgentSessionMock };
 });
-import { runStep } from "../buck-loop/run-step.js";
+import { restrictedChildTools, runStep } from "../buck-loop/run-step.js";
 
 const PRIVATE = "PRIVATE OTHER BRANCH BODY";
 const roots: string[] = [];
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
   createAgentSessionMock.mockReset();
+  delete process.env.XDG_CONFIG_HOME;
+  delete process.env.BUCK_WORKFLOW_CONFIG;
 });
 
 function temp(prefix: string): string {
@@ -75,6 +77,7 @@ describe("delivered restricted file tools", () => {
     symlinkSync(storeFile!, join(cwd, "leak"));
     symlinkSync(machine, join(cwd, "escape"));
     createAgentSessionMock.mockResolvedValue({ session: { prompt: vi.fn().mockResolvedValue(undefined), messages: [{ role: "assistant", content: "done" }], getContextUsage: () => undefined, subscribe: () => () => {}, abort: vi.fn(), dispose: vi.fn() } });
+    process.env.XDG_CONFIG_HOME = join(root, "xdg");
     await runStep({ select: vi.fn(async () => ({ ok: true as const, id: "provider/picked", thinking: "off" as const })), cwd, skill: "b-review", planOrPhasePath: "plan.md" });
     const tools = createAgentSessionMock.mock.calls[0]![0].customTools as Tool[];
     const tool = (name: string) => tools.find((item) => item.name === name)!;
@@ -142,10 +145,11 @@ describe("native receipt run binding", () => {
       expect(secondComplete.runId).toBe(second.runId);
       expect(await call({ operation: "read-receipt" })).toMatchObject({ attemptId: "attempt-2", runId: second.runId, branchId: first.branchId });
       git(cwd, ["checkout", "-qb", "other"]);
-      const foreign = await outcome(tool, { operation: "read-receipt" });
-      expect(foreign).not.toContain(first.branchId);
+      expect(await call({ operation: "read-receipt" })).toMatchObject({ attemptId: "attempt-2", runId: second.runId, branchId: first.branchId });
+      const fresh = workflowStateTool({ cwd, role: "save" });
+      const foreign = await outcome(fresh, { operation: "read-receipt" });
       expect(foreign).not.toContain(first.runId);
-      const resumedForeign = await call({ operation: "write-receipt", attemptId: "attempt-1", status: "attempted", ...receipt });
+      const resumedForeign = JSON.parse(await outcome(fresh, { operation: "write-receipt", attemptId: "attempt-1", status: "attempted", ...receipt })) as { runId: string };
       expect(resumedForeign.runId).not.toBe(first.runId);
       git(cwd, ["checkout", "-q", "topic"]);
       expect(await call({ operation: "read-receipt" })).toMatchObject({ attemptId: "attempt-2", runId: second.runId });
@@ -164,5 +168,73 @@ describe("native receipt run binding", () => {
       if (previousHome === undefined) delete process.env.XDG_CONFIG_HOME;
       else process.env.XDG_CONFIG_HOME = previousHome;
     }
+  });
+});
+
+describe("trusted child boundary", () => {
+  it("rejects dangling and intermediate symlink writes and still creates checkout files", async () => {
+    const root = temp("confined-write-");
+    const cwd = join(root, "checkout");
+    const outside = join(root, "outside");
+    mkdirSync(cwd);
+    mkdirSync(outside);
+    git(cwd, ["init", "-q", "-b", "topic"]);
+    process.env.XDG_CONFIG_HOME = join(root, "xdg");
+    const absent = join(outside, "sink.txt");
+    symlinkSync(absent, join(cwd, "dangling"));
+    symlinkSync(outside, join(cwd, "linked-dir"));
+    const tools = await restrictedChildTools(cwd, "b-review");
+    const write = tools.find((tool) => tool.name === "write") as Tool;
+    const edit = tools.find((tool) => tool.name === "edit") as Tool;
+    expect(await outcome(write, { path: "dangling", content: "outside write via dangling symlink" })).toMatch(/outside the checkout/);
+    expect(await outcome(write, { path: "linked-dir/pwned.txt", content: "outside write via directory symlink" })).toMatch(/outside the checkout/);
+    expect(existsSync(absent)).toBe(false);
+    expect(existsSync(join(outside, "pwned.txt"))).toBe(false);
+    expect(await outcome(write, { path: "notes/new.txt", content: "inside write\n" })).toMatch(/Successfully wrote/);
+    expect(readFileSync(join(cwd, "notes/new.txt"), "utf8")).toBe("inside write\n");
+    expect(await outcome(edit, { path: "notes/new.txt", edits: [{ oldText: "inside write", newText: "inside edit" }] })).not.toMatch(/outside the checkout/);
+    expect(readFileSync(join(cwd, "notes/new.txt"), "utf8")).toContain("inside edit");
+  });
+  it("keeps Git metadata read-only and the pinned project binding after an origin rewrite", async () => {
+    const root = temp("confined-bind-");
+    const xdg = join(root, "xdg");
+    const store = join(root, "store");
+    mkdirSync(join(xdg, "buck-workflow"), { recursive: true });
+    mkdirSync(store);
+    writeFileSync(join(xdg, "buck-workflow", "config.yaml"), `version: 1\nstorage:\n  adapter: external-files\n  root: ${store}\n`);
+    process.env.XDG_CONFIG_HOME = xdg;
+    process.env.BUCK_WORKFLOW_CONFIG = join(xdg, "buck-workflow", "config.yaml");
+    const project = (name: string, origin: string) => {
+      const cwd = join(root, name);
+      mkdirSync(cwd);
+      git(cwd, ["init", "-q", "-b", "topic"]);
+      git(cwd, ["config", "user.email", "fixture@example.test"]);
+      git(cwd, ["config", "user.name", "fixture"]);
+      writeFileSync(join(cwd, "src.ts"), `${name}\n`);
+      git(cwd, ["add", "src.ts"]);
+      git(cwd, ["commit", "-qm", "init"]);
+      git(cwd, ["remote", "add", "origin", origin]);
+      return cwd;
+    };
+    const a = project("a", "https://example.test/a.git");
+    const b = project("b", "https://example.test/b.git");
+    const contextB = await resolveTrustedContext(b);
+    await executeWorkflowState({ cwd: b, context: contextB, role: "write", request: { operation: "write", ref: { subjectId: "private", kind: "memory", logicalName: "fact.md" }, body: "PRIVATE PROJECT B" } });
+    const tools = await restrictedChildTools(a, "b-review");
+    const write = tools.find((tool) => tool.name === "write") as Tool;
+    const state = tools.find((tool) => tool.name === "workflow_state") as Tool;
+    expect(await outcome(write, { path: ".git/config", content: "[remote \"origin\"]\n\turl = https://example.test/b.git\n" })).toMatch(/outside the checkout/);
+    expect(readFileSync(join(a, ".git/config"), "utf8")).toContain("https://example.test/a.git");
+    git(a, ["config", "remote.origin.url", "https://example.test/b.git"]);
+    const read = await outcome(state, { operation: "read", subjectId: "private", kind: "memory", logicalName: "fact.md" });
+    expect(read).not.toContain("PRIVATE PROJECT B");
+    const linked = join(root, "linked");
+    git(a, ["config", "remote.origin.url", "https://example.test/a.git"]);
+    git(a, ["worktree", "add", "-q", linked, "HEAD"]);
+    const worktreeTools = await restrictedChildTools(linked, "b-iterate");
+    const worktreeWrite = worktreeTools.find((tool) => tool.name === "write") as Tool;
+    expect(await outcome(worktreeWrite, { path: ".git", content: "gitdir: /tmp/elsewhere\n" })).toMatch(/outside the checkout/);
+    expect(readFileSync(join(linked, ".git"), "utf8")).toContain("gitdir:");
+    expect(await outcome(worktreeWrite, { path: "src.ts", content: "worktree source\n" })).toMatch(/Successfully wrote/);
   });
 });

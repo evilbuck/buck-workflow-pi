@@ -61,6 +61,9 @@ function selectOnce(id = "provider/picked", thinking: "off" | "low" | "medium" |
 }
 beforeEach(() => {
   delete process.env.SQL_MEMORY_URL;
+  const configHome = mkdtempSync(join(tmpdir(), "buck-loop-xdg-"));
+  dirs.push(configHome);
+  process.env.XDG_CONFIG_HOME = configHome;
 });
 afterEach(() => {
   createAgentSessionMock.mockReset();
@@ -69,6 +72,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   cleanupRepos();
   delete process.env.SQL_MEMORY_URL;
+  delete process.env.XDG_CONFIG_HOME;
 });
 describe("runStep", () => {
   it("samples current child context through compaction and unavailable usage", async () => {
