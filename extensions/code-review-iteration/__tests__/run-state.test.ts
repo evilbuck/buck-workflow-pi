@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { readConsumer } from "../../../skills/_shared/storage/consumers.js";
+import { SQLiteStorageStore } from "../../../skills/_shared/storage/sqlite-store.js";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -246,6 +248,56 @@ describe("pass artifacts", () => {
       expect(readCommandRecords(dir, 2)).toEqual([]);
     } finally {
       rmSync(common, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("pass artifact retention on the configured store", () => {
+  const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+
+  afterEach(() => {
+    if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+    else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+  });
+
+  it("retains immutable pass bytes and state through one storage contract without loosening overwrite refusal", async () => {
+    const common = mkdtempSync(join(tmpdir(), "cr-state-"));
+    const configRoot = mkdtempSync(join(tmpdir(), "cr-retain-"));
+    const database = join(configRoot, "state.sqlite");
+    writeFileSync(join(configRoot, "config.yaml"), `version: 1\nstorage:\n  adapter: sqlite\n  database: ${database}\n`);
+    process.env.BUCK_WORKFLOW_CONFIG = join(configRoot, "config.yaml");
+    try {
+      const { dir } = createRun(common, makeState());
+      const reviewBody = {
+        persona: "balanced",
+        requested_model: "zai/glm-5.3",
+        requested_temperature: 0.2,
+        thinking_level: "high",
+        reviewed_head: "a".repeat(40),
+        findings: [],
+        errors: [],
+      };
+      const runId = await writePassReview(dir, 1, reviewBody);
+      expect(runId).toBeTruthy();
+      const markdownRunId = await writePassReviewMarkdown(dir, 1, "# Pass 01 review\n");
+      expect(markdownRunId).toBeTruthy();
+      const store = SQLiteStorageStore.openSync(database);
+      try {
+        const scope = { projectId: "configured-project", branchId: "configured-branch", worktreeId: dir, runId: runId!, publishedRevisionIds: [] };
+        const retained = await readConsumer(store, scope, "audit", "code-review", "passes/01/review.json");
+        expect(new TextDecoder().decode(retained!.bytes)).toBe(`${JSON.stringify(reviewBody, null, 2)}\n`);
+        await expect(store.readReceipt("configured-project", runId!)).resolves.toMatchObject({
+          attemptId: runId, worktreeId: dir, status: "attempted",
+        });
+        const stranger = { ...scope, runId: `${runId}-stranger` };
+        await expect(readConsumer(store, stranger, "audit", "code-review", "passes/01/review.json")).resolves.toBeNull();
+      } finally {
+        store.close();
+      }
+      expect(() => writePassReview(dir, 1, { ...reviewBody, persona: "x" })).toThrow(/immutable/);
+    } finally {
+      rmSync(common, { recursive: true, force: true });
+      rmSync(configRoot, { recursive: true, force: true });
     }
   });
 });

@@ -87,26 +87,20 @@ function absolutePath(root: string, requested: string): string {
 function authorizeCheckoutPath(root: string, requested: string, mutate: boolean): void {
   const absolute = absolutePath(root, requested);
   const existing = deepestExisting(absolute);
-  if (lstatSync(existing).isSymbolicLink()) {
-    let real: string;
-    try { real = realpathSync(existing); }
-    catch { throw new Error(OUTSIDE); }
-    if (mutate || !inside(root, real)) throw new Error(OUTSIDE);
+  const real = resolvedExisting(existing);
+  if (lstatSync(existing).isSymbolicLink() && mutate) throw new Error(OUTSIDE);
+  if (!inside(root, real)) throw new Error(OUTSIDE);
+  if (existing !== absolute) {
     const suffix = relative(existing, absolute);
     if (!safeSuffix(suffix) || !inside(root, resolve(real, suffix))) throw new Error(OUTSIDE);
-    return;
   }
-  let real: string;
-  try { real = realpathSync(existing); }
-  catch { throw new Error(OUTSIDE); }
-  if (!inside(root, real)) throw new Error(OUTSIDE);
-  if (existing === absolute) {
-    if (mutate) rejectGitMetadata(absolute);
-    return;
-  }
-  const suffix = relative(existing, absolute);
-  if (!safeSuffix(suffix) || !inside(root, resolve(real, suffix))) throw new Error(OUTSIDE);
   if (mutate) rejectGitMetadata(absolute);
+}
+
+/** realpath of the deepest existing ancestor; an unresolvable path is outside. */
+function resolvedExisting(existing: string): string {
+  try { return realpathSync(existing); }
+  catch { throw new Error(OUTSIDE); }
 }
 
 function safeSuffix(suffix: string): boolean {

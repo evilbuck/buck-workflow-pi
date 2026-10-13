@@ -7,6 +7,8 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { basename } from "node:path";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import type { PassFixerRecord, PassReviewRecord, RunState } from "./run-state.js";
 import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../skills/_shared/scripts/subject-lifecycle.js";
 
@@ -154,6 +156,15 @@ export function resolveReportSubject(contextDir: string, today = new Date()): Re
 
 export function writeFinalReport(subjectDir: string, runId: string, markdown: string): string {
   const path = `${subjectDir}/review-iteration-${runId}.md`;
-  writeFileSync(path, `${markdown}\n`, "utf-8");
+  const body = `${markdown}\n`;
+  writeFileSync(path, body, "utf-8");
+  scheduleConfiguredRetain({
+    kind: "review",
+    subjectId: basename(subjectDir),
+    logicalName: `review-iteration-${runId}.md`,
+    bytes: new TextEncoder().encode(body),
+    worktreeId: subjectDir,
+    source: "code-review-iteration",
+  });
   return path;
 }
