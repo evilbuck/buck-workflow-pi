@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
-import type { MigrationClient, MigrationPool } from "../../../extensions/sql-memory/migrations.js";
+import type { MigrationClient, MigrationPool } from "./migrations.js";
 import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
 import { overlayPublishedRevisions } from "./visibility.js";
 import { cloneRevision, keyId, searchableText, validateRevision } from "./adapter-utils.js";
 import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdentity, assertReceiptReadback, correctionDecision, correctionQuery, inspectStoredLifecycle, lifecycleRevision, receiptRevisionReadable, selectPage, tombstoneRevision, type KeyedPageItem, type StoredCorrection } from "./domain.js";
-import { applyMigrations } from "../../../extensions/sql-memory/migrations.js";
+import { applyMigrations } from "./migrations.js";
 
 type Row = Record<string, unknown> & {
   project_id: string; subject_id: string; kind: string; logical_name: string; branch_id: string;

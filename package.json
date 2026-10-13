@@ -12,6 +12,7 @@
     "commands",
     "extensions",
     "hooks",
+    "migrations",
     "scripts",
     "docs",
     "README.md",

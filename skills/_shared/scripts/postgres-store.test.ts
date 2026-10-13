@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
 import { afterAll, describe, expect, it } from "vitest";
-import type { MigrationPool } from "../../../extensions/sql-memory/migrations.js";
+import type { MigrationPool } from "../storage/migrations.js";
 import type { ArtifactKey, ArtifactRevision, RunReceipt } from "../storage/contract.js";
 import { defineStorageConformance, type ConformanceBackend } from "../storage/conformance.js";
 import { PostgresStorageStore } from "../storage/postgres-store.js";

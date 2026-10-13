@@ -1,25 +1,29 @@
 /**
- * SQL-mode save receipts for the Buck-loop supervisor.
+ * Save receipts for the Buck-loop supervisor.
  *
- * The supervisor generates the attempt id before `b-save` starts, then
- * read-backs the receipt's memory ids before `saving` can become `committing`.
- * The database URL is never written to the attempt file or the receipt.
+ * The supervisor generates the attempt id before `b-save` starts. Fact writes
+ * go through `workflow_state`; receipt ids are the revision ids that write
+ * returns. There is no follow-up memories SELECT. The database URL is never
+ * written to the attempt file or the receipt.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { createLazyPool } from "../sql-memory/db.js";
-import { checkSqlForRole } from "../sql-memory/sql-gate.js";
-import { sqlMemoryRows, sqlMemorySaveTransaction, type SqlMemoryActivitySink } from "../sql-memory/index.js";
+import type { SqlMemoryActivitySink } from "../sql-memory/index.js";
+import type { ArtifactKind } from "../../skills/_shared/storage/contract.js";
+import type { StorageStore } from "../../skills/_shared/storage/contract.js";
+import {
+  executeWorkflowState,
+  resolveTrustedContext,
+  type ArtifactRef,
+  type TrustedWorkflowContext,
+  type WorkflowRequest,
+} from "../../skills/_shared/scripts/workflow-state.js";
 import { redactRemoteCredentials } from "../token-attribution/git-identity.js";
 
 const ATTEMPT_REL = ".context/workflow/sql-save-attempt.json";
 const SECRET_KEY = /password|connection|database_url|sql_memory_url|^url$/i;
-const READBACK_SQL = `SELECT m.id::text AS id
-  FROM memories m
-  JOIN projects p ON p.id = m.project
-  WHERE p.origin_url = $1 AND m.id = $2 AND m.invalid_at IS NULL`;
 
 export interface SaveAttempt {
   attemptId: string;
@@ -47,12 +51,18 @@ export type SaveCheck =
   | { status: "unverified" }
   | { status: "block"; reason: string };
 
-export type SqlQuery = ((sql: string, values: unknown[]) => Promise<Array<Record<string, unknown>>>) & {
-  transaction?: <T>(work: (query: SqlQuery) => Promise<T>) => Promise<T>;
-};
+export interface SaveStoreDeps {
+  cwd?: string;
+  store?: StorageStore;
+  context?: TrustedWorkflowContext;
+  identityPath?: string;
+  configPath?: string;
+  onActivity?: SqlMemoryActivitySink;
+}
+
 export type SaveFact = string | { body: string; supersedes?: string };
 
-/** True when the process was given a SQL memory target. The URL itself is not persisted. */
+/** True when the process was given a durable-save target. The URL itself is not persisted or queried. */
 export function sqlMode(): boolean {
   return Boolean(process.env.SQL_MEMORY_URL);
 }
@@ -89,7 +99,7 @@ export function saveDirective(attempt: SaveAttempt): string {
     "Connectivity probe succeeded.",
     "Do not write .context/memory files or the memory index.",
     "Do not record the database URL, password, or connection string in any file.",
-    "Use sql_memory op remember with body, the exact subject above, and phase; include previousId for a correction. The tool derives provenance, reuses the source key, and verifies the active same-project id internally. Do not issue raw memory INSERT/UPDATE or a separate read-back SELECT. Write a rows receipt only from ids returned by successful remember calls. Use kind no-fact with ids [] only when this session has no reusable fact.",
+    "Use workflow_state write for a memory artifact with the exact subject above; use correct with previousId as predecessorRevision. The tool binds project and branch. Do not call sql_memory, construct SQL, or issue a separate read-back SELECT. Write a rows receipt only from revision ids returned by successful writes. Use kind no-fact with ids [] only when this session has no reusable fact.",
     "After all metadata duties succeed, set completed: true on the receipt; persistence alone is not stage completion.",
   ].join("\n");
 }
@@ -107,148 +117,85 @@ export function writeReceipt(cwd: string, attempt: SaveAttempt, body: Pick<SaveR
   writeJson(cwd, attempt.receiptRel, receipt);
 }
 
-/** Persist reusable facts before applying filesystem metadata. Retries reuse source keys. */
-export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
-  if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query));
-  const url = process.env.SQL_MEMORY_URL;
-  if (!url) throw new Error("SQL_MEMORY_URL is not set");
-  const pool = createLazyPool(url)();
-  const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, "save", onActivity);
-  saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work, onActivity);
+/** Persist reusable facts before applying filesystem metadata. Retries reuse the attempt receipt. */
+export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], deps: SaveStoreDeps = {}, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
+  if (!sqlMode()) throw new Error("SQL_MEMORY_URL is not set");
+  const reused = savedIds(cwd, attempt, facts);
+  if (reused) return reused;
   try {
-    return await saveFactsWithQuery(cwd, attempt, facts, saveQuery);
-  } finally {
-    await pool.end();
+    const ids = facts.length === 0 ? await saveNoFacts(cwd, attempt, deps) : await saveRows(cwd, attempt, facts, deps);
+    note(onActivity ?? deps.onActivity, true, facts.length === 0 ? "Memory wrote · no-fact" : "Memory wrote");
+    return ids;
+  } catch (error) {
+    note(onActivity ?? deps.onActivity, false, "Memory failed");
+    throw error;
   }
 }
 
-function guardedQuery(query: SqlQuery): SqlQuery {
-  const guarded: SqlQuery = (sql, values) => {
-    const gate = checkSqlForRole(sql, "save");
-    if (!gate.allowed) throw new Error(`SQL save policy denied statement: ${gate.reason}`);
-    return query(sql, values);
-  };
-  if (query.transaction) guarded.transaction = (work) => query.transaction!((inside) => work(guardedQuery(inside)));
-  return guarded;
-}
-
-async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query: SqlQuery): Promise<string[]> {
-  if (facts.length === 0) return saveNoFacts(cwd, attempt, query);
-  const email = git(cwd, "config", "user.email");
-  if (!email) throw new Error("SQL save requires git user.email");
-  const branch = git(cwd, "branch", "--show-current");
-  const sha = git(cwd, "rev-parse", "HEAD");
-  const provenance = branch && sha ? [branch, sha] : [null, null];
-  await query("INSERT INTO users (email) VALUES ($1) ON CONFLICT (email) DO NOTHING", [email]);
-  await query(
-    "INSERT INTO projects (origin_url, name) VALUES ($1, $2) ON CONFLICT (origin_url) DO NOTHING",
-    [attempt.project, attempt.subject],
-  );
-  const projectRows = await query("SELECT id FROM projects WHERE origin_url = $1", [attempt.project]);
-  const projectId = projectRows[0]?.id;
-  if (typeof projectId !== "string") throw new Error("SQL save could not resolve project id");
+async function saveRows(cwd: string, attempt: SaveAttempt, facts: SaveFact[], deps: SaveStoreDeps): Promise<string[]> {
   const ids: string[] = [];
-  for (const [index, fact] of facts.entries()) {
-    ids.push(await storeCorrectedFact(attempt, query, { email, projectId, provenance }, fact, index + 1));
-  }
-  for (const id of ids) {
-    const rows = await query(READBACK_SQL, [attempt.project, id]);
-    if (rows.length !== 1) throw new Error(`SQL save row was not readable for this project: ${id}`);
-  }
+  for (const [index, fact] of facts.entries()) ids.push(await saveOne(cwd, attempt, deps, fact, index + 1));
   writeReceipt(cwd, attempt, { kind: "rows", ids });
   return ids;
 }
 
-async function storeCorrectedFact(
-  attempt: SaveAttempt,
-  query: SqlQuery,
-  identity: { email: string; projectId: string; provenance: (string | null)[] },
-  fact: SaveFact,
-  seq: number,
-): Promise<string> {
+async function saveOne(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, fact: SaveFact, seq: number): Promise<string> {
   const body = typeof fact === "string" ? fact : fact.body;
   const supersedes = typeof fact === "string" ? undefined : fact.supersedes;
-  if (!supersedes) return storeFact(attempt, query, identity, body, seq);
-  if (!query.transaction) throw new Error("SQL correction requires a gated transaction");
-  return query.transaction(async (inside) => {
-    const claimed = await inside(
-      "UPDATE memories SET invalid_at = now() WHERE id = $1 AND project = $2 AND invalid_at IS NULL RETURNING id::text AS id",
-      [supersedes, identity.projectId],
-    );
-    if (claimed.length !== 1) {
-      const old = await inside(
-        "SELECT m.superseded_by::text AS successor FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1 AND m.id = $2",
-        [attempt.project, supersedes],
-      );
-      if (old.length !== 1) throw new Error("SQL correction target is not in this project");
-      const existing = await findSourceFact(attempt, inside, seq);
-      if (existing && old[0]?.successor === existing) return existing;
-      throw new Error("SQL correction target was superseded by another memory");
-    }
-    const id = await storeFact(attempt, inside, identity, body, seq);
-    const updated = await inside(
-      "UPDATE memories SET superseded_by = $1 WHERE id = $2 AND project = $3 AND invalid_at IS NOT NULL AND superseded_by IS NULL RETURNING id::text AS id",
-      [id, supersedes, identity.projectId],
-    );
-    if (updated.length !== 1) throw new Error("SQL correction target could not be invalidated");
-    return id;
-  });
+  return supersedes ? correctFact(cwd, attempt, deps, body, supersedes, seq) : writeFact(cwd, attempt, deps, body, seq);
 }
 
-async function saveNoFacts(cwd: string, attempt: SaveAttempt, query: SqlQuery): Promise<string[]> {
-  const probed = await probeSql(query);
+async function writeFact(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, body: string, seq: number): Promise<string> {
+  const ref: ArtifactRef = { subjectId: attempt.subject, kind: "memory", logicalName: factName(attempt, seq) };
+  try {
+    const written = await callStore(cwd, deps, {
+      operation: "write", ref, body, expectedRevision: null,
+      author: git(cwd, "config", "user.email") ?? "workflow-state",
+      source: attempt.phase ?? "b-save",
+    });
+    const revision = revisionOf(written);
+    if (!revision) throw new Error("SQL save did not return a memory id");
+    return revision;
+  } catch (error) {
+    if (!/stale revision/i.test(errorMessage(error))) throw error;
+    const existing = revisionOf(await callStore(cwd, deps, { operation: "read", ref }));
+    if (!existing) throw error;
+    return existing;
+  }
+}
+
+async function correctFact(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, body: string, supersedes: string, seq: number): Promise<string> {
+  const listed = await callStore(cwd, deps, { operation: "list", kind: "memory" });
+  const ref = refOf(Array.isArray(listed) ? listed.find((item) => revisionOf(item) === supersedes) : undefined);
+  if (!ref) throw new Error("SQL correction target is not in this project");
+  const corrected = await callStore(cwd, deps, {
+    operation: "correct", ref, predecessorRevision: supersedes, body, idempotencyKey: `${attempt.runId}:${seq}`,
+  });
+  const revision = revisionOf(corrected);
+  if (!revision) throw new Error("SQL save did not return a memory id");
+  return revision;
+}
+
+async function saveNoFacts(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps): Promise<string[]> {
+  const probed = await probeStore(cwd, deps);
   if (probed.status !== "verified") throw new Error(probed.status === "block" ? probed.reason : "SQL save requires connectivity");
   writeReceipt(cwd, attempt, { kind: "no-fact", ids: [] });
   return [];
 }
 
-async function storeFact(
-  attempt: SaveAttempt,
-  query: SqlQuery,
-  identity: { email: string; projectId: string; provenance: (string | null)[] },
-  body: string,
-  seq: number,
-): Promise<string> {
-  const sourceKey = `${attempt.subject}:${attempt.runId}:${seq}`;
-  const context = JSON.stringify({ source_key: sourceKey, subject: attempt.subject, phase: attempt.phase, source: "b-save-improved" });
-  const existing = await findSourceFact(attempt, query, seq);
-  const rows = existing ? [{ id: existing }] : await query(
-    "INSERT INTO memories (author, project, branch_name, commit_sha, body, context, category, seq) VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, $8) RETURNING id::text AS id",
-    [identity.email, identity.projectId, ...identity.provenance, body, context, "project", seq],
-  );
-  const id = rows[0]?.id;
-  if (typeof id !== "string") throw new Error("SQL save did not return a memory id");
-  return id;
+export async function probeSql(deps: SaveStoreDeps = {}, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
+  const check = await probeStore(deps.cwd ?? process.cwd(), deps);
+  if (check.status === "block") note(onActivity ?? deps.onActivity, false, "Memory failed");
+  return check;
 }
 
-async function findSourceFact(attempt: SaveAttempt, query: SqlQuery, seq: number): Promise<string | null> {
-  const rows = await query(
-    "SELECT m.id::text AS id FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1 AND m.invalid_at IS NULL AND m.context @> $2::jsonb LIMIT 1",
-    [attempt.project, JSON.stringify({ source_key: `${attempt.subject}:${attempt.runId}:${seq}` })],
-  );
-  return typeof rows[0]?.id === "string" ? rows[0].id : null;
-}
-
-export async function probeSql(query: SqlQuery = (sql, values) => defaultQuery(sql, values, onActivity), onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
-  if (!sqlMode()) return { status: "skip" };
-  try {
-    await guardedQuery(query)("SELECT id FROM projects LIMIT 1", []);
-    return { status: "verified" };
-  } catch (error) {
-    return { status: "block", reason: `SQL save connectivity probe failed: ${errorMessage(error)}` };
-  }
-}
-
-/** Confirm the current attempt's receipt against same-project active rows. */
-export async function verifySqlSave(cwd: string, subject: string | null, query: SqlQuery = (sql, values) => defaultQuery(sql, values, onActivity), requireComplete = true, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
+/** Confirm the current attempt's receipt against visible store revisions. */
+export async function verifySqlSave(cwd: string, subject: string | null, deps: SaveStoreDeps = {}, requireComplete = true, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
   if (!sqlMode()) return { status: "skip" };
   if (!subject) return { status: "block", reason: "SQL save has no subject; refusing to commit." };
   const attempt = readAttempt(cwd);
-  if (!matchesProjectedAttempt(attempt, subject, expectedAttemptId)) {
-    return expectedAttemptId !== undefined
-      ? { status: "block", reason: "SQL save attempt does not match the projected transition." }
-      : { status: "unverified" };
-  }
+  const projected = projectedAttemptCheck(attempt, subject, expectedAttemptId);
+  if (projected) return projected;
   const projectCheck = verifyAttemptProject(cwd, attempt);
   if (projectCheck.status !== "verified") return projectCheck;
   const receipt = readReceipt(cwd, attempt);
@@ -256,8 +203,11 @@ export async function verifySqlSave(cwd: string, subject: string | null, query: 
   const shape = receiptShape(receipt, attempt);
   if (shape.status !== "verified") return shape;
   if (requireComplete && receipt.completed !== true) return { status: "unverified" };
-  return confirmReceipt(receipt, attempt, guardedQuery(query));
+  const check = await confirmReceipt(cwd, receipt, attempt, deps);
+  if (check.status === "block") note(onActivity, false, "Memory failed");
+  return check;
 }
+
 function verifyAttemptProject(cwd: string, attempt: SaveAttempt): SaveCheck {
   const current = projectOrigin(cwd);
   return current && current === attempt.project
@@ -265,11 +215,17 @@ function verifyAttemptProject(cwd: string, attempt: SaveAttempt): SaveCheck {
     : { status: "block", reason: "SQL save receipt project does not match the current Git project." };
 }
 
+function projectedAttemptCheck(attempt: SaveAttempt | null, subject: string, expectedId?: string | null): SaveCheck | null {
+  if (matchesProjectedAttempt(attempt, subject, expectedId)) return null;
+  return expectedId !== undefined
+    ? { status: "block", reason: "SQL save attempt does not match the projected transition." }
+    : { status: "unverified" };
+}
+
 function matchesProjectedAttempt(attempt: SaveAttempt | null, subject: string, expectedId?: string | null): attempt is SaveAttempt {
   return attempt !== null && attempt.subject === subject
     && (expectedId === undefined || attempt.attemptId === expectedId);
 }
-
 
 /** Resume may retry an unverified save. It must not commit one. Outages always block. */
 export function resumeSaveDecision(state: string, check: SaveCheck): "continue" | "block" {
@@ -303,26 +259,81 @@ function receiptShape(value: unknown, attempt: SaveAttempt): SaveCheck {
   return receipt.ids.length > 0 ? { status: "verified" } : { status: "unverified" };
 }
 
-async function confirmReceipt(receipt: SaveReceipt, attempt: SaveAttempt, query: SqlQuery): Promise<SaveCheck> {
-  if (receipt.kind === "no-fact") return probeSql(query);
+async function confirmReceipt(cwd: string, receipt: SaveReceipt, attempt: SaveAttempt, deps: SaveStoreDeps): Promise<SaveCheck> {
+  if (receipt.kind === "no-fact") return probeStore(cwd, deps);
   try {
-    const missing = await missingIds(receipt, attempt.project, query);
-    if (missing.length > 0) {
-      return { status: "block", reason: `SQL save receipt ids were not readable for this project: ${missing.join(", ")}` };
-    }
+    const listed = await callStore(cwd, deps, { operation: "list", subjectId: attempt.subject, kind: "memory" });
+    const visible = listedRevisions(listed);
+    const missing = receipt.ids.filter((id) => !visible.has(id));
+    if (missing.length > 0) return { status: "block", reason: `SQL save receipt ids were not readable for this project: ${missing.join(", ")}` };
     return { status: "verified" };
   } catch (error) {
-    return { status: "block", reason: `SQL save read-back failed: ${errorMessage(error)}` };
+    return { status: "block", reason: `SQL save receipt check failed: ${errorMessage(error)}` };
   }
 }
 
-async function missingIds(receipt: SaveReceipt, project: string, query: SqlQuery): Promise<string[]> {
-  const missing: string[] = [];
-  for (const id of receipt.ids) {
-    const rows = await query(READBACK_SQL, [project, id]);
-    if (rows.length === 0) missing.push(id);
+async function probeStore(cwd: string, deps: SaveStoreDeps): Promise<SaveCheck> {
+  if (!sqlMode()) return { status: "skip" };
+  try {
+    await callStore(cwd, deps, { operation: "list", limit: 1 });
+    return { status: "verified" };
+  } catch (error) {
+    return { status: "block", reason: `SQL save connectivity probe failed: ${errorMessage(error)}` };
   }
-  return missing;
+}
+
+async function callStore(cwd: string, deps: SaveStoreDeps, request: WorkflowRequest): Promise<unknown> {
+  const context = deps.context ?? await resolveTrustedContext(cwd, {
+    ...(deps.identityPath ? { identityPath: deps.identityPath } : {}),
+    ...(deps.configPath ? { configPath: deps.configPath } : {}),
+  });
+  return executeWorkflowState({
+    cwd,
+    request,
+    context,
+    role: "save",
+    ...(deps.store ? { store: deps.store } : {}),
+    ...(deps.configPath ? { configPath: deps.configPath } : {}),
+    ...(deps.identityPath ? { identityPath: deps.identityPath } : {}),
+  });
+}
+
+function savedIds(cwd: string, attempt: SaveAttempt, facts: SaveFact[]): string[] | null {
+  const receipt = readReceipt(cwd, attempt);
+  if (!receipt || !sameAttempt(receipt, attempt)) return null;
+  if (facts.length === 0) return receipt.kind === "no-fact" ? [] : null;
+  return receipt.kind === "rows" && receipt.ids.length === facts.length ? receipt.ids : null;
+}
+
+function factName(attempt: SaveAttempt, seq: number): string {
+  const digest = createHash("sha256").update(`${attempt.subject}:${attempt.runId}:${seq}`).digest("hex").slice(0, 32);
+  return `memory/${digest}.md`;
+}
+
+
+function revisionOf(value: unknown): string | null {
+  if (!value || typeof value !== "object" || !("revision" in value)) return null;
+  const revision = value.revision;
+  return typeof revision === "string" && revision.length > 0 ? revision : null;
+}
+
+function listedRevisions(value: unknown): Set<string> {
+  if (!Array.isArray(value)) return new Set();
+  return new Set(value.flatMap((item) => {
+    const revision = revisionOf(item);
+    return revision ? [revision] : [];
+  }));
+}
+
+function refOf(value: unknown): ArtifactRef | null {
+  if (!value || typeof value !== "object") return null;
+  if (!("subjectId" in value) || !("kind" in value) || !("logicalName" in value)) return null;
+  if (typeof value.subjectId !== "string" || typeof value.kind !== "string" || typeof value.logicalName !== "string") return null;
+  return { subjectId: value.subjectId, kind: value.kind as ArtifactKind, logicalName: value.logicalName };
+}
+
+function note(sink: SqlMemoryActivitySink | undefined, ok: boolean, message: string): void {
+  sink?.({ kind: "toolEnd", tool: "workflow_state", ok, message });
 }
 
 function sameAttempt(value: SaveReceipt, attempt: SaveAttempt): boolean {
@@ -374,7 +385,6 @@ function hasSecretKey(value: unknown): boolean {
   return Object.keys(value).some((key) => SECRET_KEY.test(key));
 }
 
-
 function safeSubject(subject: string): boolean {
   return /^[\w.-]+$/.test(subject);
 }
@@ -419,17 +429,6 @@ function contained(cwd: string, rel: string): string | null {
   const root = resolve(cwd);
   const full = resolve(root, rel);
   return full === root || full.startsWith(`${root}/`) ? full : null;
-}
-
-async function defaultQuery(sql: string, values: unknown[], onActivity?: SqlMemoryActivitySink): Promise<Array<Record<string, unknown>>> {
-  const url = process.env.SQL_MEMORY_URL;
-  if (!url) throw new Error("SQL_MEMORY_URL is not set");
-  const pool = createLazyPool(url)();
-  try {
-    return await sqlMemoryRows(pool, sql, values, "save", onActivity);
-  } finally {
-    if ("end" in pool && typeof pool.end === "function") await pool.end();
-  }
 }
 
 function errorMessage(error: unknown): string {

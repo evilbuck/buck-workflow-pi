@@ -76,13 +76,13 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
 | `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
-| `sql_memory` (env-gated tool) | Extension tool | Extension tool | `extensions/sql-memory/`; registered only when `SQL_MEMORY_URL` is set |
+| `workflow_state` (native tool) | Extension tool | Extension tool | `extensions/workflow-state/`; always registered. `sql_memory` is not registered |
 
 Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and the env-gated `sql_memory` tool.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and native `workflow_state`. `sql_memory` is not registered.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; auto grilling is `/skill:b-grill --mode auto`. See `docs/extension-loading.md` for the loading truth table.
 
@@ -539,9 +539,9 @@ Its default export composes every wired subsystem:
    fresh-Reviewer passes (`extensions/code-review-iteration/`). Reviewer work
    runs in disposable detached worktrees and reproduction crosses the
    policy-bounded `review_exec` tool.
-11. **`sql_memory`** — Shared PostgreSQL memory tool
-   (`extensions/sql-memory/`). Registered only when `SQL_MEMORY_URL` is set;
-   the client loads on first use, not at startup.
+11. **`workflow_state`** — Typed artifact access
+   (`extensions/workflow-state/`). Always registered. `extensions/sql-memory/`
+   remains loaded but does not register a model-facing tool.
 
 The four `*-improved` / `b-kamal-release` commands report progress through
 the shared `extensions/extension-activity.ts` helper and fall back to their

@@ -5,6 +5,8 @@ description: Summarize the current session in one scan-friendly page (<500 words
 
 # b-recap: Session Recap
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 Provide a concise, evidence-grounded summary of the current session in one scan-friendly page.
 
 `/b-recap` is an orientation tool: run it mid-session or when returning to an in-progress session to understand what was requested, what was built, what changed, and where things stand. It is **read-only** and produces chat output only. It does not replace `/b-save`, which remains the authoritative command for persisting durable session artifacts.
@@ -130,3 +132,4 @@ Use this exact Markdown layout:
 - **Latest User Request**: <Substantive request prior to /b-recap>
 - **Current State**: <Current status, next recommended action>
 ```
+

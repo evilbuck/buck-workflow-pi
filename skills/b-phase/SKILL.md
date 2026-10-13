@@ -5,6 +5,8 @@ description: Analyze a plan and break it into sequential phases if it is too lar
 
 # b-phase: Plan Phasing Skill
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 Break large plans into sequential, independently-verifiable phases. Each phase should be completable in one agent session.
 
 ## When to Phase a Plan
@@ -452,3 +454,4 @@ Any b-* command can pick up where work left off:
 4. Execute
 
 This works even with zero conversation history — a cold-start agent gets full context from the phase file.
+

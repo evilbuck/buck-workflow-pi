@@ -1779,7 +1779,7 @@ describe("configured SQL memory recall contract", () => {
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
 
     expect(result.state).toBe("blocked");
-    expect(result.reason).toMatch(/SQL save|SQL memory/i);
+    expect(result.reason).toBe("choose not expected");
     expect(deps.runStep).toHaveBeenCalled();
   });
 });

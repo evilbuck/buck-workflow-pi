@@ -1,15 +1,15 @@
 /**
- * Guard-path coverage for the SQL save stage. The database-backed flows are
- * covered in `sql-save.test.ts`; this file pins the refusals that must hold
- * before any connection is attempted, because each one silently corrupts the
- * save stage if it lets a bad attempt through.
+ * Guard-path coverage for the save stage. Store-backed writes are covered in
+ * `sql-save-store.test.ts`; this file pins the refusals that must hold before
+ * a fact is treated as saved.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { SqlQuery } from "../sql-save.js";
+import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
+import type { TrustedWorkflowContext } from "../../../skills/_shared/scripts/workflow-state.js";
 import {
   completeSaveAttempt,
   prepareSaveAttempt,
@@ -25,7 +25,7 @@ const PROJECT = "git@example.test:buck/workflow.git";
 const URL = "postgres://example.invalid/guard-test";
 const ID = "11111111-1111-4111-8111-111111111111";
 
-const emptyQuery: SqlQuery = async () => [];
+const context: TrustedWorkflowContext = { projectId: "fixture-project", branchId: "branch-a", publishedRevisionIds: [] };
 
 function repo(withRemote = true): string {
   const cwd = mkdtempSync(join(tmpdir(), "sql-guards-"));
@@ -124,12 +124,12 @@ describe("completeSaveAttempt", () => {
 describe("verifySqlSave guards", () => {
   it("skips entirely outside SQL mode", async () => {
     delete process.env.SQL_MEMORY_URL;
-    expect(await verifySqlSave(repo(), SUBJECT, emptyQuery)).toEqual({ status: "skip" });
+    expect(await verifySqlSave(repo(), SUBJECT)).toEqual({ status: "skip" });
   });
 
   it("blocks when SQL mode has no subject", async () => {
     process.env.SQL_MEMORY_URL = URL;
-    const result = await verifySqlSave(repo(), null, emptyQuery);
+    const result = await verifySqlSave(repo(), null);
     expect(result.status).toBe("block");
     expect(result.status === "block" && result.reason).toContain("no subject");
   });
@@ -140,7 +140,7 @@ describe("verifySqlSave guards", () => {
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
     writeReceipt(cwd, prepared, { kind: "rows", ids: [ID] });
-    const result = await verifySqlSave(cwd, SUBJECT, emptyQuery, true, "not-the-projected-attempt");
+    const result = await verifySqlSave(cwd, SUBJECT, {}, true, "not-the-projected-attempt");
     expect(result.status).toBe("block");
   });
 
@@ -150,31 +150,31 @@ describe("verifySqlSave guards", () => {
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
     writeReceipt(cwd, prepared, { kind: "rows", ids: [ID] });
-    const result = await verifySqlSave(cwd, SUBJECT, emptyQuery, true, prepared.attemptId);
+    const result = await verifySqlSave(cwd, SUBJECT, {}, true, prepared.attemptId);
     expect(result).toEqual({ status: "unverified" });
   });
 
-  it("verifies a completed receipt whose ids read back in this project", async () => {
+  it("verifies a completed receipt whose revision is visible in this project", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
+    const store = new FileStorageStore({ root: join(cwd, "store") });
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
-    writeReceipt(cwd, prepared, { kind: "rows", ids: [ID] });
+    await saveSqlFacts(cwd, prepared, ["visible fact"], { store, context });
     completeSaveAttempt(cwd, prepared);
-    const result = await verifySqlSave(cwd, SUBJECT, async () => [{ id: ID }], true, prepared.attemptId);
+    const result = await verifySqlSave(cwd, SUBJECT, { store, context }, true, prepared.attemptId);
     expect(result.status).toBe("verified");
   });
 
-  it("blocks when a receipt id cannot be read back for this project", async () => {
+  it("blocks when a receipt id is not visible for this project", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
+    const store = new FileStorageStore({ root: join(cwd, "store") });
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
     writeReceipt(cwd, prepared, { kind: "rows", ids: [ID] });
     completeSaveAttempt(cwd, prepared);
-    // An empty read-back means the id is not active in this project, so the
-    // receipt must not be treated as save-stage proof.
-    const result = await verifySqlSave(cwd, SUBJECT, async () => [], true, prepared.attemptId);
+    const result = await verifySqlSave(cwd, SUBJECT, { store, context }, true, prepared.attemptId);
     expect(result.status).toBe("block");
     expect(result.status === "block" && result.reason).toContain(ID);
   });
@@ -182,48 +182,47 @@ describe("verifySqlSave guards", () => {
 
 describe("resumeSaveDecision", () => {
   it("blocks a saving resume only on an outright block, and always blocks at commit", () => {
-    // An unverified saving stage is recoverable: resume re-runs the save.
     expect(resumeSaveDecision("saving", { status: "verified" })).toBe("continue");
     expect(resumeSaveDecision("saving", { status: "skip" })).toBe("continue");
     expect(resumeSaveDecision("saving", { status: "unverified" })).toBe("continue");
     expect(resumeSaveDecision("saving", { status: "block", reason: "down" })).toBe("block");
-    // Commit is the point of no return, so anything short of proof blocks it.
     expect(resumeSaveDecision("committing", { status: "unverified" })).toBe("block");
     expect(resumeSaveDecision("committing", { status: "block", reason: "down" })).toBe("block");
   });
 });
 
-describe("saveSqlFacts with an injected query", () => {
+describe("saveSqlFacts store failures", () => {
   it("writes a no-fact receipt when the session has no reusable fact", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
-    const ids = await saveSqlFacts(cwd, prepared, [], emptyQuery);
+    const ids = await saveSqlFacts(cwd, prepared, [], { store: new FileStorageStore({ root: join(cwd, "store") }), context });
     expect(ids).toEqual([]);
     const receipt = JSON.parse(readFileSync(join(cwd, prepared.receiptRel), "utf8"));
     expect(receipt.kind).toBe("no-fact");
     expect(receipt.ids).toEqual([]);
   });
 
-  it("refuses to write a fact when the project id cannot be resolved", async () => {
+  it("does not persist a receipt when the store write fails", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
-    // Without a project row the save must stop rather than store a fact that
-    // no project can own.
-    await expect(saveSqlFacts(cwd, prepared, ["a fact"], emptyQuery)).rejects.toThrow(/project id/);
+    const store = new FileStorageStore({ root: join(cwd, "store") });
+    store.writeBatch = async () => { throw new Error("project identity is missing"); };
+    await expect(saveSqlFacts(cwd, prepared, ["a fact"], { store, context })).rejects.toThrow(/project identity/);
+    expect(existsSync(join(cwd, prepared.receiptRel))).toBe(false);
   });
 
-  it("does not persist a receipt when the fact insert returns no id", async () => {
+  it("does not persist a receipt when the write returns no revision", async () => {
     process.env.SQL_MEMORY_URL = URL;
     const cwd = repo();
     const prepared = prepareSaveAttempt(cwd, SUBJECT);
     if ("error" in prepared) throw new Error(prepared.error);
-    const query: SqlQuery = async (sql) =>
-      /SELECT id FROM projects/.test(sql) ? [{ id: "project-id" }] : [];
-    await expect(saveSqlFacts(cwd, prepared, ["a fact"], query)).rejects.toThrow("SQL save did not return a memory id");
+    const store = new FileStorageStore({ root: join(cwd, "store") });
+    store.writeBatch = async () => { throw new Error("SQL save did not return a memory id"); };
+    await expect(saveSqlFacts(cwd, prepared, ["a fact"], { store, context })).rejects.toThrow("SQL save did not return a memory id");
     expect(existsSync(join(cwd, prepared.receiptRel))).toBe(false);
   });
 });

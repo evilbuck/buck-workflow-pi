@@ -4,6 +4,7 @@ import { join } from "node:path";
 import buckWorkflowExtension from "./index.js";
 import { wire, findPlanExit, slugFromPlanUrl, withFrontmatter } from "./plan-artifact.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { executeWorkflowState, resolveTrustedContext } from "../skills/_shared/scripts/workflow-state.js";
 
 const TEST_ROOT = join("/tmp", "plan-artifact-test-" + process.pid);
 
@@ -189,6 +190,9 @@ describe("wire (integration)", () => {
     expect(indexContent).toContain("[plan-widget.md](plan-widget.md)");
     expect(pi.appendEntry).toHaveBeenCalledTimes(1);
     expect(pi.appendEntry).toHaveBeenCalledWith("plan-artifact", expect.objectContaining({ exitId: "e2" }));
+    const marker = vi.mocked(pi.appendEntry).mock.calls[0]![1] as { target: string };
+    const context = await resolveTrustedContext(cwd);
+    expect(await executeWorkflowState({ cwd, context, role: "read", request: { operation: "read", token: marker.target } })).toMatchObject({ text: written });
     expect(ctx.ui.notify).toHaveBeenCalledTimes(1);
 
     // Second turn_end with the marker entry present → no duplicate write.

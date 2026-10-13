@@ -29,10 +29,10 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
-import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../skills/_shared/scripts/subject-lifecycle.js";
+import { executeWorkflowState, resolveTrustedContext } from "../skills/_shared/scripts/workflow-state.js";
 
 const MARKER_TYPE = "plan-artifact";
 
@@ -221,70 +221,45 @@ function readNonemptyPlan(path: string): string | null {
     return null;
   }
 }
-
-function selectSubjectDirectory(cwd: string, date: string, slug: string): { subject: string; subjectDir: string } {
-  const baseSubject = `${date}.${slug}`;
-  let subject = baseSubject;
-  let subjectDir = join(cwd, ".context", subject);
-  for (let suffix = 2; existsSync(subjectDir); suffix++) {
-    const inspection = inspectSubjectLifecycle(subjectDir);
-    if (inspection.provenance !== "malformed" && inspection.effectiveState !== "completed") break;
-    subject = `${baseSubject}-${suffix}`;
-    subjectDir = join(cwd, ".context", subject);
+async function openSubject(cwd: string, date: string, slug: string): Promise<string> {
+  const context = await resolveTrustedContext(cwd);
+  const base = `${date}.${slug}`;
+  for (let suffix = 1; suffix < 100; suffix += 1) {
+    const subjectId = suffix === 1 ? base : `${base}-${suffix}`;
+    const lifecycle = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { provenance?: string; effectiveState?: string; state?: string; revision?: string } | null;
+    if (lifecycle?.provenance === "malformed") continue;
+    if (lifecycle && lifecycle.effectiveState === "completed") continue;
+    if (!lifecycle) {
+      const written = await executeWorkflowState({
+        cwd, context, role: "write",
+        request: { operation: "write", ref: { subjectId, kind: "subject-index", logicalName: `${subjectId}/index.md` }, body: indexBody(date, subjectId, slug) },
+      }) as { revision: string };
+      await executeWorkflowState({ cwd, context, role: "save", request: { operation: "transition", subjectId, fromRevision: written.revision, expectedState: "missing", intent: { kind: "initialize" }, evidence: [] } });
+      const draft = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { revision: string };
+      await executeWorkflowState({ cwd, context, role: "save", request: { operation: "transition", subjectId, fromRevision: draft.revision, expectedState: "draft", intent: { kind: "activate" }, evidence: [] } });
+    }
+    return subjectId;
   }
-  return { subject, subjectDir };
+  throw new Error("could not allocate a subject id");
 }
-
-function ensureSubjectIndex(subjectDir: string, date: string, subject: string, slug: string): void {
-  const indexPath = join(subjectDir, "index.md");
-  if (existsSync(indexPath)) return;
-  const indexContent = [
-    "---",
-    `date: ${date}`,
-    `subject: ${subject}`,
-    "title: Plan from OMP plan mode",
-    "---",
-    "",
-    `# ${slug}`,
-    "",
-    "Persisted from OMP plan mode.",
-    "",
-    `- [plan-${slug}.md](plan-${slug}.md) — \`active\``,
-    "",
-  ].join("\n");
-  writeFileSync(indexPath, indexContent);
+function indexBody(date: string, subject: string, slug: string): string {
+  return ["---", `date: ${date}`, `subject: ${subject}`, "title: Plan from OMP plan mode", "---", "", `# ${slug}`, "", "Persisted from OMP plan mode.", "", `- [plan-${slug}.md](plan-${slug}.md) — \`active\``, ""].join("\n");
 }
-
-function activateSubject(subjectDir: string): boolean {
-  let lifecycle = inspectSubjectLifecycle(subjectDir);
-  if (lifecycle.state === "missing") {
-    const initialized = applySubjectLifecycleIntent({ kind: "initialize", subjectDir });
-    if (!initialized.ok) return false;
-    lifecycle = inspectSubjectLifecycle(subjectDir);
-  }
-  const needsActivation = lifecycle.state === "draft"
-    || (lifecycle.state === "active" && !lifecycle.canonical);
-  if (needsActivation) {
-    return applySubjectLifecycleIntent({ kind: "activate", subjectDir }).ok;
-  }
-  return lifecycle.state === "active";
-}
-
-function persistPlanExit(pi: ExtensionAPI, ctx: PlanArtifactContext, exit: PlanExit): void {
+async function persistPlanExit(pi: ExtensionAPI, ctx: PlanArtifactContext, exit: PlanExit): Promise<void> {
   const planAbs = resolvePlanDiskPath(exit.planFilePath, ctx);
   if (!planAbs) return;
   const content = readNonemptyPlan(planAbs);
   if (content === null) return;
   const date = new Date().toISOString().slice(0, 10);
   const slug = slugFromPlanUrl(exit.planFilePath);
-  const { subject, subjectDir } = selectSubjectDirectory(ctx.cwd, date, slug);
-  mkdirSync(subjectDir, { recursive: true });
-  ensureSubjectIndex(subjectDir, date, subject, slug);
-  if (!activateSubject(subjectDir)) return;
-  const target = join(subjectDir, `plan-${slug}.md`);
-  writeFileSync(target, withFrontmatter(content, { date, subject, planUrl: exit.planFilePath }));
-  pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target, subject });
-  if (ctx.hasUI) ctx.ui.notify(`plan-artifact: ${relative(ctx.cwd, target)}`, "info");
+  const subject = await openSubject(ctx.cwd, date, slug);
+  const context = await resolveTrustedContext(ctx.cwd);
+  const written = await executeWorkflowState({
+    cwd: ctx.cwd, context, role: "write",
+    request: { operation: "write", ref: { subjectId: subject, kind: "plan", logicalName: `${subject}/plan-${slug}.md` }, body: withFrontmatter(content, { date, subject, planUrl: exit.planFilePath }) },
+  }) as { token: string };
+  pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target: written.token, subject });
+  if (ctx.hasUI) ctx.ui.notify(`plan-artifact: ${subject}/plan-${slug}.md`, "info");
 }
 
 export function wire(pi: ExtensionAPI): void {
@@ -295,7 +270,7 @@ export function wire(pi: ExtensionAPI): void {
       if (!exit) return;
       if (exitWasPersisted(entries, exit.exitId)) return;
       if (!isPlanArtifactEnabled(ctx.cwd)) return;
-      persistPlanExit(pi, ctx, exit);
+      await persistPlanExit(pi, ctx, exit);
     } catch {
       // never break the session on persistence failures
     }

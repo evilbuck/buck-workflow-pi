@@ -5,6 +5,8 @@ description: Interview the user relentlessly about a plan while challenging it a
 
 # b-grill-with-docs: Grilling with Domain Docs + Complexity Tracking
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 Extends `b-grill` (user mode) with domain-awareness from project documentation (CONTEXT.md, ADRs). Grills the user while keeping the project's documented language, decisions, and architecture honest.
 
 ## Core Behavior
@@ -239,3 +241,4 @@ future revision of `b-grill-me` adds fields like `complexity:` per
 domain, this mapping must be updated to use the new field. Treat
 the frontmatter schema in `b-grill-me/SKILL.md` § Session File as
 the source of truth for what the auto-derive can read.
+

@@ -1,10 +1,13 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
 import type { RunStepResult } from "../run-step.js";
 
-vi.mock("../../sql-memory/db.js", () => ({
+vi.mock("../../../skills/_shared/storage/db.js", () => ({
   createLazyPool: () => () => ({
     async query() { return { rows: [{ ready: 1 }] }; },
     async connect() { return { async query() { return { rows: [{ ready: 1 }] }; }, release() {} }; },
@@ -19,11 +22,19 @@ vi.mock("../project-memory.js", async () => ({
 const SUBJECT = "2026-09-18.demo";
 const PLAN = `.context/${SUBJECT}/plan-demo.md`;
 const originalUrl = process.env.SQL_MEMORY_URL;
-beforeEach(() => { process.env.SQL_MEMORY_URL = "postgres://test.invalid/save-client"; });
+const originalConfig = process.env.BUCK_WORKFLOW_CONFIG;
+beforeEach(() => {
+  process.env.SQL_MEMORY_URL = "postgres://test.invalid/save-client";
+  const config = join(mkdtempSync(join(tmpdir(), "save-client-config-")), "config.yaml");
+  writeFileSync(config, "version: 1\nstorage:\n  adapter: repo-files\n");
+  process.env.BUCK_WORKFLOW_CONFIG = config;
+});
 afterEach(() => {
   cleanupRepos();
   if (originalUrl === undefined) delete process.env.SQL_MEMORY_URL;
   else process.env.SQL_MEMORY_URL = originalUrl;
+  if (originalConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+  else process.env.BUCK_WORKFLOW_CONFIG = originalConfig;
 });
 
 function fixture(): string {

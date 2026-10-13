@@ -1,4 +1,3 @@
-import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
 /**
  * Nested work session: spawn a **child** coding agent to run one Buck skill.
  *
@@ -19,9 +18,9 @@ import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
  *
  * - `disableExtensionDiscovery: true` — the child cannot see `/buck-loop`,
  *   so it cannot recurse.
- * - `restrictToolNames: true` plus a per-skill allowlist — the child only
- *   gets the tools that skill needs (review has `bash`, so it also gets
- *   `edit` to refine `iterate-*.md`; commit cannot `write` files).
+ * - `restrictToolNames: true` plus a per-skill allowlist — file tools are confined
+ *   to the checkout, and command execution is isolated workflow_exec, not a host shell.
+ *   Only commit has writable Git metadata.
  * - `enableMCP: false` / `enableLsp: false` — no extra plugins.
  * - `SessionManager.inMemory` — the child's transcript is not written to
  *   the operator's session history on disk.
@@ -32,9 +31,10 @@ import { formatSqlMemoryNotice } from "../sql-memory/notice.js";
  */
 import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { randomUUID } from "node:crypto";
-import { createLazyPool } from "../sql-memory/db.js";
-import { sqlMemoryTool } from "../sql-memory/index.js";
-import type { MigrationPool } from "../sql-memory/migrations.js";
+import { workflowStateTool } from "../workflow-state/index.js";
+import { confinedFileTools } from "../workflow-state/confined-fs.js";
+import { workflowExecutionTool } from "../workflow-state/execution.js";
+import type { WorkflowRole } from "../../skills/_shared/scripts/workflow-state.js";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,26 +137,36 @@ const skillPaths: Record<NestedSkill, string> = {
   "b-commit": "git-commit/SKILL.md",
 };
 
-/** Host tool names the child may call. Names match the coding-agent tool registry. */
+/** Host file tools are replaced by confined checkout tools. No host shell. */
 const toolsBySkill: Record<NestedSkill, string[]> = {
-  "b-build": ["read", "edit", "write", "grep", "bash"],
-  "b-build-hard": ["read", "edit", "write", "grep", "bash"],
-  "b-review": ["read", "edit", "write", "grep", "find", "ls", "bash"],
-  "b-iterate": ["read", "edit", "write", "grep", "bash"],
-  "b-docs": ["read", "edit", "write", "grep", "bash"],
-  "b-howto": ["read", "edit", "write", "grep", "bash"],
-  "b-save": ["read", "edit", "write", "grep", "bash"],
-  "b-commit": ["read", "bash"],
+  "b-build": ["read", "edit", "write", "grep"],
+  "b-build-hard": ["read", "edit", "write", "grep"],
+  "b-review": ["read", "edit", "write", "grep", "find", "ls"],
+  "b-iterate": ["read", "edit", "write", "grep"],
+  "b-docs": ["read", "edit", "write", "grep"],
+  "b-howto": ["read", "edit", "write", "grep"],
+  "b-save": ["read", "edit", "write", "grep"],
+  "b-commit": ["read"],
 };
 
-const sqlRoleBySkill: Partial<Record<NestedSkill, "recall" | "save">> = {
-  "b-build": "recall",
-  "b-build-hard": "recall",
-  "b-review": "recall",
-  "b-iterate": "recall",
-  "b-docs": "recall",
-  "b-howto": "recall",
+/** Objects actually delivered to a restricted child. File tools override the host SDK tools. */
+export function restrictedChildTools(cwd: string, skill: NestedSkill) {
+  return [
+    workflowStateTool({ cwd, role: workflowRoleBySkill[skill] }),
+    workflowExecutionTool(cwd, skill === "b-commit"),
+    ...confinedFileTools(cwd, toolsBySkill[skill]),
+  ];
+}
+
+const workflowRoleBySkill: Record<NestedSkill, WorkflowRole> = {
+  "b-build": "write",
+  "b-build-hard": "write",
+  "b-review": "write",
+  "b-iterate": "write",
+  "b-docs": "write",
+  "b-howto": "write",
   "b-save": "save",
+  "b-commit": "write",
 };
 
 /**
@@ -194,7 +204,7 @@ function promptFor(skill: NestedSkill, skillBody: string, planOrPhasePath: strin
     : "";
   const checkpointInstruction = skill === "b-commit"
     ? "\nThe operator invoked /buck-loop on a non-protected branch. Commit only the staged loop checkpoint. Do not use force and do not commit if the branch is protected.\n"
-    : "\nBefore returning, stage only files you created or modified for this assignment. Never stage pre-existing or unrelated changes. Report a failure if your files cannot be staged.\n";
+    : "\nExecution boundary: file tools are confined to this checkout and refuse symlink escapes. Use workflow_exec instead of bash for tests/smokes. It cannot access machine configuration, stores, credentials or the network; use native workflow_state for durable artifacts, never the CLI in this child. Git metadata is read-only; do not stage. Report the exact files you created or modified; the supervisor stages the declared checkpoint. Never claim a command passed without execution evidence.\n";
   const repair = handoff
     ? `\nThe previous attempt left this assignment incomplete. Diagnosis:\n${handoff}\nFinish that diagnosed gap in this run. Do not stop after a partial checkpoint unless a required operator input is actually missing.\n`
     : "";
@@ -420,14 +430,9 @@ async function runOneSession(
   let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let outcome: RunStepResult;
-  let sqlNoticePending = false;
-  // Keep pre-execute validation and executor failures until a successful SQL call.
-  // Receipt verification remains the supervisor's authority for durable success.
-  let unresolvedSqlFailure: string | undefined;
-  let teardownSqlFailed = false;
-  const sqlUrl = process.env.SQL_MEMORY_URL;
-  const role = sqlRoleBySkill[opts.skill];
-  const pool = sqlUrl && role ? createLazyPool(sqlUrl)() : undefined;
+  let unresolvedStateFailure: string | undefined;
+  const role = workflowRoleBySkill[opts.skill];
+  const allowed = [...toolsBySkill[opts.skill], "workflow_state", "workflow_exec"];
   try {
     const sessionOpts: Parameters<typeof createAgentSession>[0] & {
       agentDir?: string;
@@ -445,26 +450,16 @@ async function runOneSession(
       agentDir: ompAgentDir(),
       modelPattern: picked.id,
       thinkingLevel: picked.thinking as NonNullable<NonNullable<Parameters<typeof createAgentSession>[0]>["thinkingLevel"]>,
-      tools: toolsBySkill[opts.skill],
-      toolNames: [...toolsBySkill[opts.skill], ...(pool ? ["sql_memory"] : [])],
+      tools: allowed,
+      toolNames: allowed,
       restrictToolNames: true,
       disableExtensionDiscovery: true,
       enableMCP: false,
       enableLsp: false,
       agentId: agent.id,
       sessionManager: SessionManager.inMemory(opts.cwd),
-      ...(pool && role ? {
-        allowRestrictedCustomTools: true,
-        customTools: [sqlMemoryTool(pool, role, (result) => {
-          if (result.notice) {
-            sqlNoticePending = true;
-            opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: result.kind === "success", message: result.notice });
-          }
-          if (role !== "save") return;
-          if (result.kind === "work") unresolvedSqlFailure = result.notice ?? formatSqlMemoryNotice({ op: result.op, error: errorText(result.error) });
-          else if (result.kind === "success") unresolvedSqlFailure = undefined;
-        }, opts.cwd)],
-      } : {}),
+      allowRestrictedCustomTools: true,
+      customTools: restrictedChildTools(opts.cwd, opts.skill),
     };
     const created = await createAgentSession(sessionOpts);
     session = created.session as SessionHandle;
@@ -483,15 +478,10 @@ async function runOneSession(
       opts.onSessionEvent?.(event, picked.id);
       opts.onContextUsage?.(session!.getContextUsage());
       const normalized = normalizeActivityEvent(event);
-      if (role === "save" && normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && !normalized.ok && !sqlNoticePending) {
+      if (role === "save" && normalized?.kind === "toolEnd" && normalized.tool === "workflow_state" && !normalized.ok) {
         const failed = event as { result?: { content?: Array<{ type?: string; text?: string }> } };
-        const message = failed.result?.content?.find(item => item.type === "text")?.text ?? "SQL tool call failed";
-        unresolvedSqlFailure = formatSqlMemoryNotice({ op: "sql", error: message });
-        normalized.message = unresolvedSqlFailure;
-      }
-      if (normalized?.kind === "toolEnd" && normalized.tool === "sql_memory" && sqlNoticePending) {
-        sqlNoticePending = false;
-        return;
+        unresolvedStateFailure = failed.result?.content?.find(item => item.type === "text")?.text ?? "workflow_state call failed";
+        normalized.message = unresolvedStateFailure;
       }
       if (normalized) opts.onActivity?.(normalized);
     });
@@ -529,20 +519,12 @@ async function runOneSession(
     }
     // A completed agent session remains successful; only failed outcomes carry cleanup details.
   };
-  if (unresolvedSqlFailure) outcome.sqlFailure = unresolvedSqlFailure;
+  if (unresolvedStateFailure) outcome.sqlFailure = unresolvedStateFailure;
   try { unsubscribe?.(); } catch (error) { recordCleanupError(error, "unsubscribeError"); }
   try { await session?.dispose?.(); } catch (error) { recordCleanupError(error, "disposeError"); }
-  try { await (pool as MigrationPool & { end?: () => Promise<void> } | undefined)?.end?.(); }
-  catch (error) {
-    teardownSqlFailed = true;
-    recordCleanupError(error, "poolEndError");
-    // Surface teardown noise to the supervisor's activity stream for visibility, but do
-    // not promote it to a stage failure — the agent's durable work already landed.
-    opts.onActivity?.({ kind: "toolEnd", tool: "sql_memory", ok: false, message: formatSqlMemoryNotice({ op: "sql", error: errorText(error) }) });
-  }
   return {
     retain: outcome.ok,
-    blockRetry: unresolvedSqlFailure !== undefined || teardownSqlFailed,
+    blockRetry: unresolvedStateFailure !== undefined,
     result: outcome,
   };
 }

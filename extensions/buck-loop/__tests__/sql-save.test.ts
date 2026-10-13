@@ -3,19 +3,18 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import type { SqlQuery } from "../sql-save.js";
+import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
+import type { StorageStore } from "../../../skills/_shared/storage/contract.js";
+import type { TrustedWorkflowContext } from "../../../skills/_shared/scripts/workflow-state.js";
 import {
   completeSaveAttempt,
   prepareSaveAttempt,
-  saveSqlFacts,
   probeSql,
-  saveDirective,
   resumeSaveDecision,
+  saveDirective,
   verifySqlSave,
   writeReceipt,
 } from "../sql-save.js";
-import { createLazyPool } from "../../sql-memory/db.js";
-import { sqlMemorySaveTransaction } from "../../sql-memory/index.js";
 
 const SUBJECT = "2026-09-29.sql-save";
 const PROJECT = "git@example.test:buck/workflow.git";
@@ -34,7 +33,11 @@ function attempt(cwd: string, phase: string | null = null) {
   return prepared;
 }
 
-const emptyQuery: SqlQuery = async () => [];
+const context: TrustedWorkflowContext = { projectId: "fixture-project", branchId: "branch-a", publishedRevisionIds: [] };
+function failingStore(message: string): StorageStore {
+  const fail = async () => { throw new Error(message); };
+  return { read: fail, list: fail, search: fail, writeBatch: fail, correct: fail, transition: fail, inspectLifecycle: async () => null, writeReceipt: fail, readReceipt: async () => null, sealCheckpoint: fail, bindCheckpoint: fail, reconcile: fail, exportArtifacts: async function* () {}, importArtifacts: fail };
+}
 
 describe("SQL save receipts", () => {
   const previous = process.env.SQL_MEMORY_URL;
@@ -52,7 +55,7 @@ describe("SQL save receipts", () => {
     const first = attempt(cwd);
     writeReceipt(cwd, first, { kind: "rows", ids: ["11111111-1111-4111-8111-111111111111"] });
     const second = attempt(cwd);
-    const stale = await verifySqlSave(cwd, SUBJECT, emptyQuery);
+    const stale = await verifySqlSave(cwd, SUBJECT);
     expect(stale).toEqual({ status: "unverified" });
     expect(second.attemptId).not.toBe(first.attemptId);
     const text = readFileSync(join(cwd, ".context/workflow/sql-save-attempt.json"), "utf8");
@@ -66,7 +69,7 @@ describe("SQL save receipts", () => {
     const current = attempt(cwd);
     writeReceipt(cwd, current, { kind: "no-fact", ids: [] });
     execFileSync("git", ["remote", "set-url", "origin", "git@example.test:org/new.git"], { cwd });
-    await expect(verifySqlSave(cwd, SUBJECT, async () => [{ ok: 1 }])).resolves.toEqual({
+    await expect(verifySqlSave(cwd, SUBJECT)).resolves.toEqual({
       status: "block",
       reason: "SQL save receipt project does not match the current Git project.",
     });
@@ -80,7 +83,7 @@ describe("SQL save receipts", () => {
     const second = attempt(cwd);
     expect(second.attemptId).not.toBe(first.attemptId);
     expect(second.runId).not.toBe(first.runId);
-    expect(await verifySqlSave(cwd, SUBJECT, async () => [])).toEqual({ status: "unverified" });
+    expect(await verifySqlSave(cwd, SUBJECT)).toEqual({ status: "unverified" });
     expect(prepareSaveAttempt(cwd, SUBJECT, true)).toEqual(second);
   });
   it("keeps phase provenance stable on retry but rotates a new phase's source key", () => {
@@ -115,23 +118,22 @@ describe("SQL save receipts", () => {
     const body = JSON.parse(readFileSync(file, "utf8")) as { database_url?: string };
     body.database_url = URL;
     writeFileSync(file, JSON.stringify(body));
-    await expect(verifySqlSave(cwd, SUBJECT, emptyQuery)).resolves.toEqual({
+    await expect(verifySqlSave(cwd, SUBJECT)).resolves.toEqual({
       status: "block",
       reason: "SQL save receipt recorded a database URL or secret.",
     });
   });
 
-  it("verifies listed ids and blocks a missing row", async () => {
+  it("blocks a completed receipt whose revision is not visible", async () => {
     process.env.SQL_MEMORY_URL = URL;
     cwd = repo();
+    const store = new FileStorageStore({ root: join(cwd, "store") });
     const current = attempt(cwd);
     const id = "22222222-2222-4222-8222-222222222222";
     writeReceipt(cwd, current, { kind: "rows", ids: [id] });
-    const found: SqlQuery = async (_sql, values) => values[1] === id ? [{ id }] : [];
-    expect(await verifySqlSave(cwd, SUBJECT, found)).toEqual({ status: "unverified" });
+    expect(await verifySqlSave(cwd, SUBJECT, { store, context })).toEqual({ status: "unverified" });
     completeSaveAttempt(cwd, current);
-    await expect(verifySqlSave(cwd, SUBJECT, found)).resolves.toEqual({ status: "verified" });
-    await expect(verifySqlSave(cwd, SUBJECT, emptyQuery)).resolves.toEqual({
+    await expect(verifySqlSave(cwd, SUBJECT, { store, context })).resolves.toEqual({
       status: "block",
       reason: `SQL save receipt ids were not readable for this project: ${id}`,
     });
@@ -141,34 +143,20 @@ describe("SQL save receipts", () => {
     process.env.SQL_MEMORY_URL = URL;
     cwd = repo();
     const current = attempt(cwd);
+    const store = new FileStorageStore({ root: join(cwd, "store") });
     writeReceipt(cwd, current, { kind: "no-fact", ids: [] });
-    const ok: SqlQuery = async () => [{ ok: 1 }];
-    const down: SqlQuery = async () => { throw new Error("connection refused"); };
-    expect(await verifySqlSave(cwd, SUBJECT, ok)).toEqual({ status: "unverified" });
+    expect(await verifySqlSave(cwd, SUBJECT, { store, context })).toEqual({ status: "unverified" });
     completeSaveAttempt(cwd, current);
-    await expect(verifySqlSave(cwd, SUBJECT, ok)).resolves.toEqual({ status: "verified" });
-    await expect(verifySqlSave(cwd, SUBJECT, down)).resolves.toEqual({
+    await expect(verifySqlSave(cwd, SUBJECT, { store, context })).resolves.toEqual({ status: "verified" });
+    const down = failingStore("connection refused");
+    await expect(verifySqlSave(cwd, SUBJECT, { store: down, context })).resolves.toEqual({
       status: "block",
       reason: "SQL save connectivity probe failed: connection refused",
     });
-    await expect(probeSql(down)).resolves.toEqual({
+    await expect(probeSql({ store: down, context })).resolves.toEqual({
       status: "block",
       reason: "SQL save connectivity probe failed: connection refused",
     });
-  });
-
-  it("does not issue a rows receipt when read-back cannot see the inserted row", async () => {
-    process.env.SQL_MEMORY_URL = URL;
-    cwd = repo();
-    execFileSync("git", ["config", "user.email", "save@example.test"], { cwd });
-    const current = attempt(cwd);
-    const missingReadback: SqlQuery = async (sql) => {
-      if (sql.startsWith("SELECT id FROM projects")) return [{ id: "11111111-1111-4111-8111-111111111111" }];
-      if (sql.startsWith("INSERT INTO memories")) return [{ id: "22222222-2222-4222-8222-222222222222" }];
-      return [];
-    };
-    await expect(saveSqlFacts(cwd, current, ["test fact"], missingReadback)).rejects.toThrow("not readable");
-    expect(await verifySqlSave(cwd, SUBJECT, missingReadback)).toEqual({ status: "unverified" });
   });
 
   it("refuses to commit an unverified save and retries a missing receipt", () => {
@@ -178,72 +166,9 @@ describe("SQL save receipts", () => {
     expect(resumeSaveDecision("committing", { status: "verified" })).toBe("continue");
   });
 
-  it("does not query when SQL memory is unset", async () => {
+  it("does not open the store when SQL memory is unset", async () => {
     delete process.env.SQL_MEMORY_URL;
     cwd = repo();
-    const queried: SqlQuery = async () => { throw new Error("should not query"); };
-    await expect(verifySqlSave(cwd, SUBJECT, queried)).resolves.toEqual({ status: "skip" });
-  });
-});
-
-describe.skipIf(!process.env.SQL_MEMORY_TEST_URL)("disposable SQL save integration", () => {
-  it("stores apostrophes, reuses a source key, and verifies no-fact saves", async () => {
-    const cwd = repo();
-    const oldUrl = process.env.SQL_MEMORY_URL;
-    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
-    const pool = createLazyPool(process.env.SQL_MEMORY_TEST_URL!)();
-    const query: SqlQuery = async (sql, values) => (await pool.query(sql, values)).rows;
-    query.transaction = (work) => sqlMemorySaveTransaction(pool, work);
-    const project = `https://example.test/sql-save-${crypto.randomUUID()}.git`;
-    execFileSync("git", ["remote", "set-url", "origin", project], { cwd });
-    execFileSync("git", ["config", "user.email", "sql-save-test@example.test"], { cwd });
-    try {
-      const first = attempt(cwd, `.context/${SUBJECT}/phase-1-save.md`);
-      const ids = await saveSqlFacts(cwd, first, ["It's a durable decision."], query);
-      expect(ids).toHaveLength(1);
-      expect(await saveSqlFacts(cwd, first, ["It's a durable decision."], query)).toEqual(ids);
-      completeSaveAttempt(cwd, first);
-      expect(await verifySqlSave(cwd, SUBJECT, query)).toEqual({ status: "verified" });
-      const row = await query("SELECT body, context FROM memories WHERE id = $1", ids);
-      expect(row[0]?.body).toBe("It's a durable decision.");
-      expect(row[0]?.context).toMatchObject({ phase: `.context/${SUBJECT}/phase-1-save.md` });
-      const correction = attempt(cwd, `.context/${SUBJECT}/phase-2-correct.md`);
-      const corrected = await saveSqlFacts(cwd, correction, [{ body: "It's a corrected decision.", supersedes: ids[0] }], query);
-      expect(corrected[0]).not.toBe(ids[0]);
-      const predecessor = await query("SELECT invalid_at, superseded_by::text AS successor FROM memories WHERE id = $1", ids);
-      expect(predecessor[0]?.invalid_at).not.toBeNull();
-      expect(predecessor[0]?.successor).toBe(corrected[0]);
-      expect((await query("SELECT context FROM memories WHERE id = $1", corrected))[0]?.context)
-        .toMatchObject({ phase: `.context/${SUBJECT}/phase-2-correct.md` });
-      expect(await saveSqlFacts(cwd, correction, [{ body: "It's a corrected decision.", supersedes: ids[0] }], query)).toEqual(corrected);
-      completeSaveAttempt(cwd, correction);
-      expect(await verifySqlSave(cwd, SUBJECT, query)).toEqual({ status: "verified" });
-      const rejected = attempt(cwd);
-      await expect(saveSqlFacts(cwd, rejected, [{ body: "Unwanted successor", supersedes: ids[0] }], query))
-        .rejects.toThrow("superseded by another memory");
-      const orphans = await query("SELECT id FROM memories WHERE project = (SELECT id FROM projects WHERE origin_url = $1) AND body = $2", [project, "Unwanted successor"]);
-      expect(orphans).toEqual([]);
-      const failedUpdate = attempt(cwd);
-      const failing: SqlQuery = query;
-      failing.transaction = (work) => sqlMemorySaveTransaction(pool, async (inside) => work((sql, values) => {
-        if (sql.startsWith("UPDATE memories SET invalid_at")) throw new Error("injected update failure");
-        return inside(sql, values);
-      }));
-      await expect(saveSqlFacts(cwd, failedUpdate, [{ body: "Rolled-back successor", supersedes: corrected[0] }], failing))
-        .rejects.toThrow("injected update failure");
-      expect(await query("SELECT id FROM memories WHERE project = (SELECT id FROM projects WHERE origin_url = $1) AND body = $2", [project, "Rolled-back successor"])).toEqual([]);
-      expect((await query("SELECT invalid_at FROM memories WHERE id = $1", [corrected[0]]))[0]?.invalid_at).toBeNull();
-      const second = attempt(cwd);
-      expect(await saveSqlFacts(cwd, second, [], query)).toEqual([]);
-      completeSaveAttempt(cwd, second);
-      expect(await verifySqlSave(cwd, SUBJECT, query)).toEqual({ status: "verified" });
-    } finally {
-      await query("DELETE FROM memories WHERE id IN (SELECT m.id FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1)", [project]);
-      await query("DELETE FROM projects WHERE origin_url = $1", [project]);
-      await pool.end();
-      rmSync(cwd, { recursive: true, force: true });
-      if (oldUrl === undefined) delete process.env.SQL_MEMORY_URL;
-      else process.env.SQL_MEMORY_URL = oldUrl;
-    }
+    await expect(verifySqlSave(cwd, SUBJECT, { store: failingStore("should not query"), context })).resolves.toEqual({ status: "skip" });
   });
 });

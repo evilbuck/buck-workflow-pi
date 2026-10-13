@@ -6,11 +6,20 @@ topics: [phasing, storage-adapters, configuration, branch-isolation, sqlite, pos
 source_plan: plan-durable-storage-adapters.md
 phases: 8
 format: discrete
+sql_memory_ids:
+  - 01a132bf-ba55-7008-acbb-78c3429e4d98
 ---
 
 # Phased Plan: Configurable durable workflow storage
 
 > Derived from [plan-durable-storage-adapters.md](plan-durable-storage-adapters.md)
+
+## User Goal
+
+Users can choose durable storage per project, resume reliably, and keep unmerged
+work invisible on other branches. The parent user goal is:
+"users can choose durable storage per project and keep unmerged work invisible on
+other branches." This overview sequences the parent plan into eight phases.
 
 ## Overview
 
@@ -28,7 +37,7 @@ format: discrete
 | 1: Contract, Config, Identity & A-4 | completed | hard | [phase-1-contract-config-identity.md](phase-1-contract-config-identity.md) |
 | 2: Four Storage Adapters | completed | hard | [phase-2-four-adapters.md](phase-2-four-adapters.md) |
 | 3: Domain Semantics | completed | hard | [phase-3-domain-semantics.md](phase-3-domain-semantics.md) |
-| 4: Native Tool, CLI & Skill Cutover | pending | hard | [phase-4-native-access.md](phase-4-native-access.md) |
+| 4: Native Tool, CLI & Skill Cutover | completed | hard | [phase-4-native-access.md](phase-4-native-access.md) |
 | 5: Remaining Durable Consumers | pending | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
 | 6: Publication, Reconciliation & Recovery | pending | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
 | 7: Existing-Data Cutover | pending | hard | [phase-7-data-cutover.md](phase-7-data-cutover.md) |

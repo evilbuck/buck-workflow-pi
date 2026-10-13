@@ -113,6 +113,32 @@ export const HARNESSES = [
   },
 ];
 
+/** Files a harness skills link must be able to resolve. `--verify` fails if any are absent. */
+export const SHIPPED_STORAGE_FILES = [
+  "skills/_shared/scripts/workflow-state.ts",
+  "skills/_shared/scripts/workflow-state-cli.ts",
+  "skills/_shared/storage/adapter-utils.ts",
+  "skills/_shared/storage/db.ts",
+  "skills/_shared/storage/migrations.ts",
+  "skills/_shared/storage/sql-gate.ts",
+  "skills/_shared/storage/config.ts",
+  "skills/_shared/storage/conformance.ts",
+  "skills/_shared/storage/contract.ts",
+  "skills/_shared/storage/domain.ts",
+  "skills/_shared/storage/file-store.ts",
+  "skills/_shared/storage/identity.ts",
+  "skills/_shared/storage/postgres-store.ts",
+  "skills/_shared/storage/sqlite-capability.ts",
+  "skills/_shared/storage/sqlite-runtime-smoke.ts",
+  "skills/_shared/storage/sqlite-store.ts",
+  "skills/_shared/storage/visibility.ts",
+];
+
+export function shippedStorageFiles(source = REPO_ROOT) {
+  const missing = SHIPPED_STORAGE_FILES.filter((rel) => !existsSync(join(source, rel)));
+  return { files: SHIPPED_STORAGE_FILES, missing };
+}
+
 // ---------------------------------------------------------------------------
 // Path helpers
 // ---------------------------------------------------------------------------
@@ -708,6 +734,15 @@ function printVerifyVerdict(report) {
  * @returns {number} exit code
  */
 export function runVerify(args, home, source) {
+  const shipped = shippedStorageFiles(source);
+  console.log("Shipped storage:");
+  for (const rel of shipped.files) console.log(`  ${shipped.missing.includes(rel) ? "MISSING" : "ok"} ${rel}`);
+  if (shipped.missing.length > 0) {
+    console.error(`\nMissing shipped storage files: ${shipped.missing.length}`);
+    return 1;
+  }
+  console.log(`\nOK — ${shipped.files.length} storage files are in this checkout.`);
+
   const report = verifySurfaces({ source, home, harnessIds: args.harnessIds });
 
   if (report.results.length === 0) {

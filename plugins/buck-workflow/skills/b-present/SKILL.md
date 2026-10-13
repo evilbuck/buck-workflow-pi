@@ -46,6 +46,8 @@ find .context/ -name "research-*.md" | sort
 - Do not write outside the package directory
 - Packages are disposable generated output — not intended for hand-editing
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Output Structure
 
 ```
@@ -291,3 +293,4 @@ Presentation package generated:
 Preview: http://localhost:<port>/
 Source: <source-file(s)>
 ```
+

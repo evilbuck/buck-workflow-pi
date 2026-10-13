@@ -1114,7 +1114,7 @@ function closeIterateAfterSession(
 
 async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {
   if (skill !== "save" || !sqlMode()) return {};
-  const probe = await probeSql(undefined, onActivity);
+  const probe = await probeSql({ cwd }, onActivity);
   if (probe.status === "block") return { block: probe.reason };
   if (!snapshot.subject) return { block: "SQL save has no subject; refusing to save." };
   const prepared = prepareSaveAttempt(cwd, snapshot.subject, true, snapshot.phasePath);

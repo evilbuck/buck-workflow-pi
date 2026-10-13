@@ -436,10 +436,10 @@ function buildScribePrompt(digest: string, preflight: Record<string, unknown>): 
     "- backlog.complete_inferred: [{ slug, outcome, evidence }] for likely-done items without an explicit session statement",
     "- backlog.new_items: [{ slug, title, priority, related, body }]",
     "- retain_facts: string[] of self-contained facts including artifact paths",
-    "- supersedes_id: optional prior memory UUID only for an explicit correction to a known same-project row; never guess an ID",
+    "- supersedes_id: optional prior workflow_state revision id only for an explicit correction; never guess an ID",
     "- memory.body headings (omit a section only when empty): ## User Goal, ## What happened, ## Decision, ## What shipped, ## Verification, ## Leftover, ## Related",
     process.env.SQL_MEMORY_URL
-      ? "- SQL_MEMORY_URL is set: still return memory JSON for the auditor, but the apply step will not write .context/memory files or copy the body into the subject index. Do not invent a second body store."
+      ? "- SQL_MEMORY_URL is set: write the reusable fact through workflow_state. The receipt ids are the returned revision ids. Do not issue a read-back SELECT. Still return memory JSON for the auditor; apply will not write .context/memory files."
       : "- file mode: the apply step writes the memory file and index entry",
     "- artifacts: subject-folder filenames and .context/memory paths only — not implementation source",
     "- related: other memory filenames, not source paths",
@@ -732,7 +732,7 @@ async function runBSaveImproved(
       const facts = reusable.length > 0
         ? [{ body: `# ${scribe.memory.title}\n\n${scribe.memory.body}\n\n## Reusable facts\n\n${reusable.map((fact) => `- ${fact}`).join("\n")}`, supersedes: scribe.supersedes_id }]
         : [];
-      const ids = await saveSqlFacts(ctx.cwd, attempt, facts, undefined, activity.ingest);
+      const ids = await saveSqlFacts(ctx.cwd, attempt, facts, { onActivity: activity.ingest });
       payload.sql_receipt = { path: attempt.receiptRel, ids };
       const plans = preflight.plans;
       const refs = Array.isArray(plans) ? plans : [];
