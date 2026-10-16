@@ -30,14 +30,15 @@ steps, then **Eat** — the check that it worked.
 10. [Export an orphan scope](export-orphan-scope.md)
 11. [Rebind an orphan scope](rebind-orphan-scope.md)
 
-## Storage migration
+## Storage configuration and recovery
 
-1. [Export a storage snapshot](export-storage-snapshot.md)
-2. [Import a storage snapshot](import-storage-snapshot.md)
-3. [Switch storage backend](switch-storage-backend.md)
-4. [Resume a storage cutover](resume-storage-cutover.md)
-5. [Roll back a storage cutover](rollback-storage-cutover.md)
-6. [Quarantine legacy memory](quarantine-legacy-memory.md)
+1. [Configure a storage backend](configure-storage-backend.md)
+2. [Export a storage snapshot](export-storage-snapshot.md)
+3. [Import a storage snapshot](import-storage-snapshot.md)
+4. [Switch storage backend](switch-storage-backend.md)
+5. [Resume a storage cutover](resume-storage-cutover.md)
+6. [Roll back a storage cutover](rollback-storage-cutover.md)
+7. [Quarantine legacy memory](quarantine-legacy-memory.md)
 
 ## Why
 
