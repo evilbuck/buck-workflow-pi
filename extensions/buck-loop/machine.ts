@@ -5,7 +5,7 @@
  * in `loop.ts` is the only effect interpreter.
  */
 import { defineMachine, IllegalTransitionError, type MachineInstance } from "../state_machine/index.js";
-import type { Choice, DocsVerdict, LoopState, RankingFacts, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
+import type { Choice, DiagnoseOrigin, DocsVerdict, LoopState, RankingFacts, Snapshot, Transition, WorkSkill, WorkState } from "./types.js";
 
 /** Six iterate cycles on one phase is the hard ceiling before blocking. */
 export const MAX_ITERATE_CYCLES_PER_PHASE = 6;
@@ -41,6 +41,65 @@ function canRunIterate(s: Snapshot): boolean {
 
 function blocked(reason: string): BuckOutput {
   return { effect: { kind: "await-operator", reason }, why: reason };
+}
+
+/** Operator-visible prefix. Resume treats this as terminal: it does not rebuild. */
+export const DIAGNOSE_MISS = "diagnose did not land the scanner proof; resume will not rebuild this phase";
+
+const DIAGNOSE_ORIGINS: readonly DiagnoseOrigin[] = ["building", "iterating", "documenting", "saving"];
+
+export function isDiagnoseOrigin(state: LoopState | undefined): state is DiagnoseOrigin {
+  return state !== undefined && (DIAGNOSE_ORIGINS as readonly string[]).includes(state);
+}
+
+/** Optional edge: Jev refused the continuation, and one diagnose-and-fix is still legal. */
+function jevHaltOpen(s: Snapshot): boolean {
+  return s.repairLift === "heavy"
+    && (s.diagnoseAttempts ?? 0) < 1
+    && canRunWork(s)
+    && postconditionAmbiguous(s)
+    && isDiagnoseOrigin(s.state);
+}
+
+const DIAGNOSE_WHY = "Jev halted the guarded continuation; diagnosing and fixing the scanner proof";
+
+function diagnoseLanded(origin: DiagnoseOrigin, s: Snapshot): boolean {
+  return s.diagnoseOrigin === origin && sessionOk(s) && postconditionConfirmed(s) && canRunWork(s);
+}
+
+function diagnoseBlocked(s: Snapshot): boolean {
+  if (s.workFacts.sessionOutcome === "pending") return false;
+  return !DIAGNOSE_ORIGINS.some((origin) => diagnoseLanded(origin, s));
+}
+
+function diagnoseMissReason(s: Snapshot): string {
+  const flat = (s.diagnoseHandoff ?? "").replace(/\s+/g, " ").trim();
+  const detail = flat.length > 1200 ? `${flat.slice(0, 1200)}…` : flat;
+  return detail ? `${DIAGNOSE_MISS} ${detail}` : DIAGNOSE_MISS;
+}
+
+/** A saved heavy-lift block that has not yet been diagnosed. Commit repair still wins. */
+export function heavyLiftResume(s: Snapshot): boolean {
+  if (diagnoseSpent(s) || commitRepairWins(s)) return false;
+  return stampedHeavyOrigin(s) || historyHeavyOrigin(s);
+}
+
+function diagnoseSpent(s: Snapshot): boolean {
+  return (s.diagnoseAttempts ?? 0) >= 1;
+}
+
+function commitRepairWins(s: Snapshot): boolean {
+  return Boolean(s.commitCheckpoint) || commitRepairOwed(s);
+}
+
+function stampedHeavyOrigin(s: Snapshot): boolean {
+  return s.repairLift === "heavy" && isDiagnoseOrigin(s.diagnoseOrigin ?? undefined);
+}
+
+function historyHeavyOrigin(s: Snapshot): boolean {
+  const previous = s.history.at(-1);
+  if (!previous) return false;
+  return previous.why.startsWith("heavy lift:") && isDiagnoseOrigin(previous.from);
 }
 
 function runSkill(skill: WorkSkill, why: string): BuckOutput {
@@ -282,6 +341,7 @@ function commitBlockReason(s: Snapshot): string | null {
 }
 
 function blockReason(state: WorkState, s: Snapshot): string | null {
+  if (jevHaltOpen(s)) return null;
   const session = sessionBlockReason(state, s);
   if (session !== null) return session;
   if (state === "reviewing") return reviewBlockReason(s);
@@ -293,6 +353,7 @@ function blockReason(state: WorkState, s: Snapshot): string | null {
 }
 
 function rerunReason(state: WorkState, s: Snapshot): string | null {
+  if (jevHaltOpen(s)) return null;
   const canRun = state === "iterating" ? canRunIterate(s) : canRunWork(s);
   if (sessionPending(s) && canRun) return `${state} session has not run yet`;
   if (sessionFailed(s) && !retryExhausted(s) && canRun) return `${state} session failed; retrying once`;
@@ -308,6 +369,11 @@ function workEdges(state: WorkState) {
       effect: (s: BuckFacts) => runSkill(WORK_SKILL[state], rerunReason(state, s)!),
     },
     {
+      name: "diagnosing" as const,
+      guard: (s: BuckFacts) => jevHaltOpen(s),
+      effect: () => ({ effect: { kind: "diagnose" } as const, why: DIAGNOSE_WHY }),
+    },
+    {
       name: "blocked" as const,
       guard: (s: BuckFacts) => blockReason(state, s) !== null,
       effect: (s: BuckFacts) => blocked(blockReason(state, s)!),
@@ -319,6 +385,7 @@ function workEdges(state: WorkState) {
 const STOP = { name: "aborted", manual: true } as const;
 
 function confirmedOrAmbiguous(s: Snapshot): boolean {
+  if (jevHaltOpen(s)) return false;
   return (postconditionConfirmed(s) && canRunWork(s)) || (s.state !== "committing" && ambiguousChoiceOpen(s));
 }
 
@@ -458,7 +525,7 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
         ...workEdges("saving"),
         {
           name: "committing",
-          guard: (s) => (postconditionConfirmed(s) && canRunWork(s)) || (ambiguousChoiceOpen(s) && !s.sqlMemoryConfigured),
+          guard: (s) => !jevHaltOpen(s) && ((postconditionConfirmed(s) && canRunWork(s)) || (ambiguousChoiceOpen(s) && !s.sqlMemoryConfigured)),
           effect: () => runSkill("commit", "session state saved; committing"),
         },
       ],
@@ -494,6 +561,36 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
         { ...STOP, effect: () => none("STOP requested by operator from repairing") },
       ],
     },
+    diagnosing: {
+      targets: [
+        {
+          name: "diagnosing",
+          guard: (s) => s.workFacts.sessionOutcome === "pending",
+          effect: () => ({ effect: { kind: "diagnose" } as const, why: DIAGNOSE_WHY }),
+        },
+        {
+          name: "reviewing",
+          guard: (s) => diagnoseLanded("building", s) || diagnoseLanded("iterating", s),
+          effect: () => runSkill("review", "scanner proof landed; reviewing the phase"),
+        },
+        {
+          name: "saving",
+          guard: (s) => diagnoseLanded("documenting", s),
+          effect: () => runSkill("save", "scanner proof landed; saving"),
+        },
+        {
+          name: "committing",
+          guard: (s) => diagnoseLanded("saving", s),
+          effect: () => runSkill("commit", "scanner proof landed; committing"),
+        },
+        {
+          name: "blocked",
+          guard: diagnoseBlocked,
+          effect: (s) => blocked(diagnoseMissReason(s)),
+        },
+        { ...STOP, effect: () => none("STOP requested by operator from diagnosing") },
+      ],
+    },
     blocked: {
       targets: [
         {
@@ -513,7 +610,13 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
           effect: () => none("USER_CONFIRMED: completed blocked work; reviewing its phase"),
         },
         {
-          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s) && !s.commitCheckpoint,
+          name: "diagnosing",
+          manual: true,
+          guard: heavyLiftResume,
+          effect: () => none("USER_CONFIRMED: diagnose the guarded halt instead of rebuilding"),
+        },
+        {
+          name: "resolving", manual: true, guard: (s) => !completedBlockedWork(s) && !s.commitCheckpoint && !heavyLiftResume(s),
           effect: () => none("USER_CONFIRMED: operator resumed a blocked loop"),
         },
         { ...STOP, effect: () => none("STOP requested by operator from blocked") },
@@ -538,6 +641,7 @@ function take(instance: MachineInstance<LoopState, BuckFacts, BuckOutput>, to: L
 }
 
 function decisionOpen(s: Snapshot): boolean {
+  if (jevHaltOpen(s)) return false;
   if (s.state === "reviewing") return reviewRoute(s, reviewUnparseable);
   if (s.state === "ranking") return docsUnresolved(s) && canRunWork(s);
   if (!Object.hasOwn(WORK_SKILL, s.state)) return false;
@@ -603,7 +707,11 @@ export function start(): Transition {
 }
 
 export function userConfirmed(s: Snapshot): Transition {
-  const to = s.commitCheckpoint ? "committing" : commitRepairOwed(s) ? "repairing" : completedBlockedWork(s) ? "reviewing" : "resolving";
+  const to = s.commitCheckpoint ? "committing"
+    : commitRepairOwed(s) ? "repairing"
+    : heavyLiftResume(s) ? "diagnosing"
+    : completedBlockedWork(s) ? "reviewing"
+    : "resolving";
   if (s.state !== "blocked") throw new IllegalTransitionError(s.state, to, "not-a-target");
   return take(buckMachine.restore(s.state), to, facts(s));
 }

@@ -12,6 +12,7 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **Buck-loop diagnosis survives interruptions and applies once per halt.** Heavy save halts enter diagnosing in file mode as well as SQL mode. The diagnosing bookmark is persisted before its child starts; landed proof releases the attempt allowance for a later independent halt, while a missed proof still blocks without rebuilding.
 - **Buck-loop uses one iteration lifecycle rule throughout review routing.** Scanning, ambiguity diagnosis, artifact closing, and severity ranking agree on completed and below-waterline work, including CRLF artifacts. Retired artifacts cannot spuriously block a new review as multiple unfinished findings.
 - **SQL save directives emit the canonical subject once.** The redundant field is removed without changing receipt provenance or verification.
 - **Buck-loop SQL saves preserve the real failure boundary.** The save tool exposes object-rooted arguments without weakening operation validation, derives provenance from the child worktree, and uses `remember`'s internal source-key reuse/readback. Unresolved tool failures now block with a sanitized diagnostic rather than generic completion ambiguity; verified completed receipts still win over late errors.

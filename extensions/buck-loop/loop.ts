@@ -13,6 +13,7 @@
  * 4. Perform the effect:
  *    - `run-skill` → spawn a nested coding session (`run-step.ts`).
  *    - `choose` → ask a model for one legal action (`choice.ts`).
+ *    - `diagnose` → hand a Jev halt to a nested diagnose-and-fix session.
  *    - `await-operator` → halt and wait for the human.
  *    - `none` → nothing to do this tick.
  * 5. Rescan disk. Artifacts win over whatever the child *said* it did.
@@ -50,7 +51,7 @@ import {
   type Projection,
 } from "./persist.js";
 import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
-import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
+import { runStep as defaultRunStep, runDiagnoseStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan, unfinishedIterates } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
@@ -60,13 +61,14 @@ import { describeAcceptanceGap, stampAcceptance, type AcceptanceJudge, type Acce
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
-import { applyChoice, next, start, stopFrom, userConfirmed } from "./machine.js";
+import { applyChoice, DIAGNOSE_MISS, heavyLiftResume, isDiagnoseOrigin, next, start, stopFrom, userConfirmed } from "./machine.js";
 import { applySubjectLifecycleIntent } from "../../skills/_shared/scripts/subject-lifecycle.js";
 import type {
   AcceptedChoice,
   Choice,
   DocsVerdict,
   LoopState,
+  DiagnoseOrigin,
   RankingFacts,
   Snapshot,
   Transition,
@@ -108,6 +110,7 @@ const FROZEN_PHASE: ReadonlySet<LoopState> = new Set([
   "saving",
   "committing",
   "repairing",
+  "diagnosing",
 ]);
 
 /** Public commands the slash-command layer may send. */
@@ -125,7 +128,7 @@ type RankQuestion = { type: string; instructions: string; criteria?: Record<stri
 /** Live progress event for the chat widget (`onProgress`). */
 export type LoopProgress = {
   state: LoopState;
-  operation: "run-skill" | "choose" | "rank";
+  operation: "run-skill" | "choose" | "rank" | "diagnose";
   label: string;
   target: string;
 };
@@ -164,8 +167,18 @@ export type LoopDeps = {
   confirmContinue: (reason: string) => Promise<boolean>;
   /** Git baseline for a commit pin. Tests inject a failing probe; production reads HEAD. */
   probeCommitHead?: (cwd: string) => string | null | undefined;
-  /** Diagnosed lift of an ambiguous postcondition. Light and medium continue; heavy is handed to the operator. */
+  /** Diagnosed lift of an ambiguous postcondition. Light and medium continue; heavy enters diagnosing. */
   classifyRepair: (input: { cwd: string; snapshot: Snapshot; why: string; sessionText: string }) => Promise<RepairPlan>;
+  /** Nested diagnose-and-fix session for a Jev halt. Tests inject this; production calls {@link runDiagnoseStep}. */
+  diagnoseFix: (input: {
+    cwd: string;
+    planOrPhasePath: string;
+    handoff: string;
+    onActivity?: LoopDeps["onActivity"];
+    onSessionEvent?: LoopDeps["onSessionEvent"];
+    onContextUsage?: LoopDeps["onContextUsage"];
+    availableIds?: LoopDeps["availableIds"];
+  }) => Promise<RunStepResult>;
   /** Ids from the live host registry, the same list `/buck-models` offers. */
   availableIds?: () => Promise<ReadonlySet<string>>;
   /**
@@ -214,6 +227,7 @@ const DEFAULT_DEPS: LoopDeps = {
   confirmDirty: async () => false,
   confirmContinue: async () => false,
   classifyRepair: productionClassifyRepair,
+  diagnoseFix: runDiagnoseStep,
 };
 
 /**
@@ -279,10 +293,27 @@ function recoveryFor(cwd: string, projection: Projection, from: LoopState | unde
     || from === "committing" || from === "repairing"
     || projection.state === "committing" || projection.state === "repairing";
   if (owesCommit) return commitRecoveryGuidance(cwd, projection, from);
-  if (projection.state === "blocked") {
-    return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
-  }
+  if (projection.state === "blocked") return blockedRecovery(projection);
   return `To continue, run /buck-loop ${target}.`;
+}
+
+function blockedRecovery(projection: Projection): string {
+  const why = projection.history.at(-1)?.why ?? "";
+  if (why.startsWith(DIAGNOSE_MISS)) {
+    return "Diagnose-and-fix did not land the scanner proof. Resume will not rebuild this phase. Fix the store the scanner reads, then start that phase explicitly.";
+  }
+  if (why.startsWith("heavy lift:") && (projection.diagnoseAttempts ?? 0) < 1) {
+    return "Resume diagnoses and fixes this halt. It does not rebuild the phase.";
+  }
+  if (why.startsWith(LOOP_EXTENSION_RESTART)) {
+    const spent = (projection.diagnoseAttempts ?? 0) >= 1;
+    return `Restart OMP to load the repaired extension, then /buck-loop --resume. ${
+      spent
+        ? "The interrupted diagnosis is spent: resume rechecks the scanner and continues or reports the specific gap, and it does not rebuild the phase."
+        : "Resume continues the halted phase; it does not rebuild it."
+    }`;
+  }
+  return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
 }
 
 function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopState | undefined): string {
@@ -363,7 +394,7 @@ async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   let snapshot = resume({ projectRoot: cwd });
   const closeout = repairUnphasedCloseout(cwd, projection, snapshot, cleanBeforeSync, deps.now());
   if (closeout) return closeout;
-  snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
+  snapshot = await confirmBlockedResume(cwd, projection, snapshot, deps.now(), deps);
   const checked = await checkedResume(cwd, snapshot, deps.now(), deps.onActivity);
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
@@ -425,26 +456,112 @@ function idleOrUnreadableProjection(cwd: string): LoopResult {
   return { state: "idle", reason: "no projection to resume" };
 
 }
-function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
+async function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string, deps: LoopDeps): Promise<Snapshot> {
   if (snapshot.state !== "blocked") return snapshot;
   if (legacyCommitRecovery(projection)) return snapshot;
-  if (
-    snapshot.planFacts.kind === "missing" ||
-    snapshot.planPath !== projection.planPath ||
-    snapshot.phasePath !== projection.phasePath ||
-    (isUnphasedCloseoutProjection(projection) && snapshot.planFacts.kind === "unphased" && !snapshot.planFacts.closeEligible)
-  ) {
-    persistIfPossible(cwd, snapshot);
-    return snapshot;
-  }
-  const confirmed = withTransition(snapshot, userConfirmed(snapshot), at);
+  const restarted = await prepareRestartDiagnoseResume(cwd, projection, snapshot, at, deps);
+  if (restarted) return restarted;
+  if (holdBlockedResume(cwd, projection, snapshot)) return snapshot;
+  const prepared = prepareDiagnoseResume(snapshot);
+  const confirmed = withTransition(prepared, userConfirmed(prepared), at);
   persistIfPossible(cwd, confirmed);
   return confirmed;
+}
+
+function restartDiagnoseOrigin(projection: Projection, snapshot: Snapshot): DiagnoseOrigin | null {
+  const why = snapshot.history.at(-1)?.why ?? "";
+  if (!why.startsWith(LOOP_EXTENSION_RESTART)) return null;
+  if (snapshot.repairLift !== "heavy" || snapshot.planFacts.kind === "missing") return null;
+  if (snapshot.planPath !== projection.planPath) return null;
+  return snapshot.diagnoseOrigin ?? null;
+}
+
+/** After code reload, settle the spent diagnosis from scanner proof without another child. */
+async function prepareRestartDiagnoseResume(
+  cwd: string,
+  projection: Projection,
+  snapshot: Snapshot,
+  at: string,
+  deps: LoopDeps,
+): Promise<Snapshot | null> {
+  const origin = restartDiagnoseOrigin(projection, snapshot);
+  if (!origin) return null;
+  const projectedPhase = projection.phasePath;
+  // A rescan does not spend another child attempt.
+  const spent = {
+    ...rescanAsOrigin(cwd, {
+      ...snapshot,
+      phasePath: projectedPhase ?? snapshot.phasePath,
+      diagnoseOrigin: origin,
+    }, snapshot.planPath ?? "", "ok", await diagnosedSqlSave(cwd, snapshot, deps)),
+    diagnoseAttempts: Math.max(snapshot.diagnoseAttempts ?? 0, 1),
+  };
+  if (spent.workFacts.postcondition === "confirmed") {
+    const moved = withTransition(spent, {
+      to: "diagnosing",
+      effect: { kind: "none" },
+      why: "resume after the extension restart; the scanner proof landed",
+    }, at);
+    // A state crossing resets work facts; the landed rescan is the fact this
+    // resume exists to keep, so it is restored after the transition.
+    const resumed: Snapshot = { ...moved, workFacts: spent.workFacts };
+    persistIfPossible(cwd, resumed);
+    return resumed;
+  }
+  const blocked = block(spent, `${DIAGNOSE_MISS} ${spent.diagnoseHandoff ?? LOOP_EXTENSION_RESTART}`, at);
+  persistIfPossible(cwd, blocked);
+  return blocked;
+}
+
+function holdBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot): boolean {
+  if (resumeIdentityMismatch(projection, snapshot) || diagnoseMissWhy(snapshot)) {
+    persistIfPossible(cwd, snapshot);
+    return true;
+  }
+  return false;
+}
+
+function resumeIdentityMismatch(projection: Projection, snapshot: Snapshot): boolean {
+  if (snapshot.planFacts.kind === "missing") return true;
+  if (snapshot.planPath !== projection.planPath) return true;
+  if (snapshot.phasePath !== projection.phasePath) return true;
+  return unphasedCloseoutHold(projection, snapshot);
+}
+
+function unphasedCloseoutHold(projection: Projection, snapshot: Snapshot): boolean {
+  if (!isUnphasedCloseoutProjection(projection)) return false;
+  if (snapshot.planFacts.kind !== "unphased") return false;
+  return snapshot.planFacts.closeEligible !== true;
+}
+
+function diagnoseMissWhy(snapshot: Snapshot): boolean {
+  const why = snapshot.history.at(-1)?.why ?? "";
+  return why.startsWith(DIAGNOSE_MISS);
 }
 
 function legacyCommitRecovery(projection: Projection): boolean {
   if (projection.commitCheckpoint) return false;
   return projection.state === "committing" || projection.history.at(-1)?.from === "committing";
+}
+
+function prepareDiagnoseResume(snapshot: Snapshot): Snapshot {
+  const origin = diagnoseResumeOrigin(snapshot);
+  if (!origin) return snapshot;
+  const previous = snapshot.history.at(-1);
+  return {
+    ...snapshot,
+    repairLift: "heavy",
+    diagnoseOrigin: origin,
+    diagnoseHandoff: snapshot.diagnoseHandoff ?? previous?.why ?? "heavy lift",
+    diagnoseAttempts: snapshot.diagnoseAttempts ?? 0,
+  };
+}
+
+function diagnoseResumeOrigin(snapshot: Snapshot): DiagnoseOrigin | null {
+  if (!heavyLiftResume(snapshot)) return null;
+  if (snapshot.diagnoseOrigin) return snapshot.diagnoseOrigin;
+  const from = snapshot.history.at(-1)?.from;
+  return isDiagnoseOrigin(from) ? from : null;
 }
 
 
@@ -463,7 +580,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     const wasSaving = snapshot.state === "saving";
     let step = takeStep(snapshot, lastFail, deps.now());
     step = prepareCommitTransition(cwd, snapshot, step, deps.now(), deps.probeCommitHead);
-    snapshot = step.snapshot;
+    snapshot = clearDepartedDiagnosis(snapshot, step.snapshot);
     const preparationFailure = persistSaveTransition(cwd, snapshot, step.transition, wasSaving);
     if (preparationFailure) return preparationFailure;
     if (step.halt) {
@@ -491,6 +608,13 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
 }
 
 type SupervisorStep = { snapshot: Snapshot; transition: Transition; halt: LoopResult | null };
+
+/** Retire a landed halt's allowance; a blocked miss keeps its spent attempt. */
+function clearDepartedDiagnosis(previous: Snapshot, next: Snapshot): Snapshot {
+  if (previous.state !== "diagnosing") return next;
+  if (next.state !== "reviewing" && next.state !== "saving" && next.state !== "committing") return next;
+  return { ...next, repairLift: null, diagnoseOrigin: null, diagnoseHandoff: null, diagnoseAttempts: 0 };
+}
 
 function prepareCommitTransition(
   cwd: string,
@@ -631,6 +755,9 @@ async function runEffect(
   }
   if (transition.effect.kind === "repair") {
     return carryReport(runCommitRepair(cwd, snapshot, deps.now(), deps.probeCommitHead), sessionText);
+  }
+  if (transition.effect.kind === "diagnose") {
+    return carryReport(await executeDiagnose(cwd, snapshot, path, deps), sessionText);
   }
   if (transition.effect.kind !== "run-skill") return carryReport({ snapshot, lastFail: null, halt: null }, sessionText);
   const ran = await executeSkill(cwd, snapshot, path, transition.effect.skill, deps);
@@ -828,8 +955,174 @@ async function resolveAmbiguity(
     persistIfPossible(cwd, blocked);
     return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
   }
-  if (plan.lift === "heavy") return stopForOperator(cwd, snapshot, plan, abs, deps);
+  if (plan.lift === "heavy") return enterDiagnose(cwd, snapshot, path, plan, abs, deps);
   return retryRepair(cwd, snapshot, path, plan, deps);
+}
+
+async function enterDiagnose(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  plan: RepairPlan,
+  abs: string | null,
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  if (!isDiagnoseOrigin(snapshot.state) || (snapshot.diagnoseAttempts ?? 0) >= 1) {
+    return stopForOperator(cwd, snapshot, plan, abs, deps);
+  }
+  const stamped = stampHeavy(snapshot, plan, abs);
+  const step = takeStep(stamped, null, deps.now());
+  if (step.halt || step.transition.effect.kind !== "diagnose") {
+    const reason = step.halt?.reason ?? "diagnose edge missing after a Jev halt";
+    const blocked = block(stamped, reason, deps.now());
+    persistIfPossible(cwd, blocked);
+    return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
+  }
+  // The diagnose child is the halt's single attempt. Persist the stamped
+  // diagnosing snapshot before it starts, so a crash mid-child resumes into
+  // the same diagnosis instead of reclassifying the origin ambiguity and
+  // spending a second attempt or rebuilding the phase.
+  persistIfPossible(cwd, step.snapshot);
+  return executeDiagnose(cwd, step.snapshot, path, deps);
+}
+
+function stampHeavy(snapshot: Snapshot, plan: RepairPlan, abs: string | null): Snapshot {
+  const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
+  const origin = snapshot.state;
+  if (!isDiagnoseOrigin(origin)) return snapshot;
+  return {
+    ...snapshot,
+    repairLift: "heavy",
+    diagnoseOrigin: origin,
+    diagnoseHandoff: `heavy lift: ${plan.reason}. ${plan.diagnosis} ${disk}`,
+    diagnoseAttempts: snapshot.diagnoseAttempts ?? 0,
+  };
+}
+
+async function executeDiagnose(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  deps: LoopDeps,
+): Promise<EffectResult> {
+  const planOrPhasePath = snapshot.phasePath ?? snapshot.planPath ?? path;
+  const handoff = snapshot.diagnoseHandoff ?? "Jev halted the guarded continuation";
+  emitProgress(deps, {
+    state: "diagnosing",
+    operation: "diagnose",
+    label: "Diagnosing guarded halt",
+    target: planOrPhasePath,
+  });
+  const before = loopExtensionFiles(cwd);
+  const result = await callDiagnose(cwd, planOrPhasePath, handoff, snapshot, deps);
+  const changed = changedLoopExtensionFiles(cwd, before);
+  if (changed.length > 0) return stopForExtensionRestart(cwd, snapshot, changed, deps);
+  return finishDiagnose(cwd, snapshot, path, result, handoff, deps, await diagnosedSqlSave(cwd, snapshot, deps));
+}
+
+/** Only the save stage's verified receipt can satisfy a SQL saving diagnosis. */
+async function diagnosedSqlSave(cwd: string, snapshot: Snapshot, deps: LoopDeps): Promise<boolean> {
+  if (snapshot.diagnoseOrigin !== "saving" || !sqlMode()) return false;
+  const check = await verifySqlSave(cwd, snapshot.subject, undefined, true, snapshot.saveAttemptId, deps.onActivity);
+  return check.status === "verified";
+}
+
+function finishDiagnose(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  result: RunStepResult,
+  handoff: string,
+  deps: LoopDeps,
+  sqlSaveVerified = false,
+): EffectResult {
+  const outcome = result.ok ? "ok" : "failed";
+  const scanned = rescanAsOrigin(cwd, snapshot, path, outcome, sqlSaveVerified);
+  if (result.ok && scanned.workFacts.postcondition === "confirmed") {
+    return { snapshot: scanned, lastFail: null, halt: null, sessionText: result.text };
+  }
+  return diagnoseMiss(cwd, scanned, result.text, handoff, deps);
+}
+
+/** Keep the child failure alongside the handoff without changing the resume hold prefix. */
+function diagnoseMiss(
+  cwd: string,
+  scanned: Snapshot,
+  text: string,
+  handoff: string,
+  deps: LoopDeps,
+): EffectResult {
+  const detail = text.trim() && !handoff.includes(text.trim()) ? ` Child session: ${text.trim()}` : "";
+  const reason = `${DIAGNOSE_MISS} ${handoff}${detail}`;
+  const attempts = scanned.diagnoseAttempts ?? 0;
+  const missed: Snapshot = { ...scanned, diagnoseAttempts: Math.max(attempts, 1), repairLift: null };
+  const blocked = block(missed, reason, deps.now());
+  persistIfPossible(cwd, blocked);
+  return {
+    snapshot: blocked,
+    lastFail: text,
+    halt: { state: "blocked", reason },
+    mandatoryStop: true,
+    sessionText: text,
+  };
+}
+
+async function callDiagnose(
+  cwd: string,
+  planOrPhasePath: string,
+  handoff: string,
+  snapshot: Snapshot,
+  deps: LoopDeps,
+): Promise<RunStepResult> {
+  try {
+    const result = await deps.diagnoseFix({
+      cwd,
+      planOrPhasePath,
+      handoff,
+      onActivity: deps.onActivity,
+      onSessionEvent: deps.onSessionEvent,
+      onContextUsage: deps.onContextUsage,
+      availableIds: deps.availableIds,
+    });
+    if (result.failure) {
+      emitFailure(deps, enrichFailure(snapshot, "diagnose", "diagnose", result.failure));
+    }
+    return result;
+  } catch (error) {
+    // A thrown nested call must reach both the failure sink and the saved blocker.
+    const failure = { prompt: null, agent: null, error: serializeCallError(error) };
+    emitFailure(deps, enrichFailure(snapshot, "diagnose", "diagnose", failure));
+    return { ok: false, text: failure.error.message, failure };
+  }
+}
+
+function rescanAsOrigin(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  sessionOutcome: Snapshot["workFacts"]["sessionOutcome"],
+  sqlSaveVerified = false,
+): Snapshot {
+  const origin: DiagnoseOrigin = snapshot.diagnoseOrigin ?? "building";
+  const scanned = scan({
+    projectRoot: cwd,
+    path: snapshot.phasePath ?? snapshot.planPath ?? path,
+    state: origin,
+    sessionOutcome,
+    retriesUsed: 0,
+    sqlSaveVerified,
+  });
+  return {
+    ...snapshot,
+    subject: scanned.subject,
+    planPath: scanned.planPath,
+    phasePath: snapshot.phasePath ?? scanned.phasePath,
+    planFacts: scanned.planFacts,
+    workFacts: scanned.workFacts,
+    reviewFacts: scanned.reviewFacts,
+    diagnoseAttempts: (snapshot.diagnoseAttempts ?? 0) + 1,
+    repairLift: null,
+  };
 }
 
 async function retryRepair(
@@ -865,6 +1158,7 @@ function stopForOperator(
 
 const LOOP_EXTENSION_RESTART = "Restart OMP before continuing:";
 
+/** A child that changed loaded code spent its attempt; restart only rescans its proof. */
 function stopForExtensionRestart(
   cwd: string,
   snapshot: Snapshot,
@@ -874,7 +1168,10 @@ function stopForExtensionRestart(
   const reason = `${LOOP_EXTENSION_RESTART} repaired the buck-loop extension, and this session is still running the previous code. Changed: ${changed.join(", ")}`;
   restartRequired.set(cwd, reason);
   deps.onWarning(reason);
-  const blocked = block(snapshot, reason, deps.now());
+  const interrupted = snapshot.repairLift === "heavy" && isDiagnoseOrigin(snapshot.diagnoseOrigin ?? undefined)
+    ? { ...snapshot, diagnoseAttempts: Math.max(snapshot.diagnoseAttempts ?? 0, 1) }
+    : snapshot;
+  const blocked = block(interrupted, reason, deps.now());
   persistIfPossible(cwd, blocked);
   return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
 }
@@ -1770,6 +2067,7 @@ function persist(cwd: string, snapshot: Snapshot): void {
     phasePath: snapshot.phasePath,
     saveAttemptId: snapshot.saveAttemptId ?? null,
     commitCheckpoint: snapshot.commitCheckpoint ?? null,
+    ...diagnoseBookmark(snapshot),
     loopCount: snapshot.loopCount,
     iterateCyclesOnPhase: snapshot.iterateCyclesOnPhase,
     maxLoops: snapshot.maxLoops,
@@ -1779,6 +2077,14 @@ function persist(cwd: string, snapshot: Snapshot): void {
   writeProjection(cwd, projection);
 }
 
+function diagnoseBookmark(snapshot: Snapshot): Pick<Projection, "repairLift" | "diagnoseOrigin" | "diagnoseHandoff" | "diagnoseAttempts"> {
+  return {
+    repairLift: snapshot.repairLift ?? null,
+    diagnoseOrigin: snapshot.diagnoseOrigin ?? null,
+    diagnoseHandoff: snapshot.diagnoseHandoff ?? null,
+    diagnoseAttempts: snapshot.diagnoseAttempts ?? 0,
+  };
+}
 function isTerminal(state: LoopState): boolean {
   return state === "done" || state === "blocked" || state === "aborted";
 }

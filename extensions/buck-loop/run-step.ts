@@ -229,6 +229,10 @@ export async function runStep(opts: {
   handoff?: string;
   /** Supervisor contract for this run, such as a SQL save attempt. Not a repair diagnosis. */
   directive?: string;
+  /** Replaces the skill body. Used by the diagnose-and-fix session. */
+  assignment?: string;
+  /** Failure-record role when the assignment is not the skill itself. */
+  role?: string;
   onActivity?: (event: ActivityEvent) => void;
   onSessionEvent?: (event: unknown, model: string) => void;
   onContextUsage?: (usage: ContextUsage | undefined) => void;
@@ -236,19 +240,23 @@ export async function runStep(opts: {
   availableIds?: () => Promise<ReadonlySet<string>>;
   select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
 }): Promise<RunStepResult> {
-  let skillBody: string;
-  try {
-    skillBody = loadSkill(opts.skill);
-  } catch (error) {
-    return {
-      ok: false,
-      text: errorText(error),
-      failure: { prompt: null, agent: null, error: serializeCallError(error) },
-    };
-  }
-
-  const prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath, opts.handoff, opts.directive);
   const stage = STAGE_BY_SKILL[opts.skill];
+  let prompt: string;
+  if (opts.assignment) {
+    prompt = opts.assignment;
+  } else {
+    let skillBody: string;
+    try {
+      skillBody = loadSkill(opts.skill);
+    } catch (error) {
+      return {
+        ok: false,
+        text: errorText(error),
+        failure: { prompt: null, agent: null, error: serializeCallError(error) },
+      };
+    }
+    prompt = promptFor(opts.skill, skillBody, opts.planOrPhasePath, opts.handoff, opts.directive);
+  }
   const body = planBody(opts.cwd, opts.planOrPhasePath);
   const excluded: string[] = [];
   let last: RunStepResult = {
@@ -273,14 +281,14 @@ export async function runStep(opts: {
       ...(opts.difficulty === undefined ? {} : { difficulty: opts.difficulty }),
       exclude: [...excluded],
     });
-    if (!picked.ok) return stopResult(prompt, opts.skill, stage, withLast(picked.message, last));
+    if (!picked.ok) return stopResult(prompt, opts.role ?? opts.skill, stage, withLast(picked.message, last));
     if (excluded.includes(picked.id)) {
-      return stopResult(prompt, opts.skill, stage, withLast(`buckModels stage "${stage}" repeated failed model "${picked.id}"`, last));
+      return stopResult(prompt, opts.role ?? opts.skill, stage, withLast(`buckModels stage "${stage}" repeated failed model "${picked.id}"`, last));
     }
     const agent: CallAgent = {
       kind: "work-session",
       id: "buck-loop-work-" + randomUUID(),
-      role: opts.skill,
+      role: opts.role ?? opts.skill,
       model: picked.id,
     };
     const ran = await runOneSession(opts, prompt, agent, picked);
@@ -289,15 +297,56 @@ export async function runStep(opts: {
     excluded.push(picked.id);
     last = ran.result;
   }
-  return stopResult(prompt, opts.skill, stage, `buckModels stage "${stage}" exhausted model attempts; last: ${last.text}`);
+  return stopResult(prompt, opts.role ?? opts.skill, stage, `buckModels stage "${stage}" exhausted model attempts; last: ${last.text}`);
 }
 
+/** Instructions for the optional diagnose-and-fix transition. The child does not choose the next state. */
+export function diagnosePrompt(planOrPhasePath: string, handoff: string): string {
+  return [
+    "A guarded loop transition was refused. Diagnose that failure and fix it.",
+    "Do not rebuild the assigned phase from scratch. Do not start the next phase.",
+    "Do not only mark the phase file completed. The scanner ignores that file when it reads another store.",
+    "Find the store the scanner actually reads. If that store still has the phase pending and no completed receipt, write the missing proof there, or fix the scanner/adapter mismatch, so a rescan can confirm.",
+    "Stop when the scanner's postcondition can confirm, or when a required operator input is actually missing.",
+    "You have no authority to choose the next loop state.",
+    "",
+    `Assigned path: ${planOrPhasePath}`,
+    "",
+    "Halt:",
+    handoff,
+  ].join("\n");
+}
+
+/** Nested fix session for a Jev halt. Uses the iterate model stage and edit tools, not the iterate skill. */
+export function runDiagnoseStep(opts: {
+  cwd: string;
+  planOrPhasePath: string;
+  handoff: string;
+  onActivity?: (event: ActivityEvent) => void;
+  onSessionEvent?: (event: unknown, model: string) => void;
+  onContextUsage?: (usage: ContextUsage | undefined) => void;
+  availableIds?: () => Promise<ReadonlySet<string>>;
+  select?: (input: WorkModelSelectInput) => Promise<BuckStageModelChoice>;
+}): Promise<RunStepResult> {
+  return runStep({
+    cwd: opts.cwd,
+    skill: "b-iterate",
+    role: "diagnose",
+    planOrPhasePath: opts.planOrPhasePath,
+    assignment: diagnosePrompt(opts.planOrPhasePath, opts.handoff),
+    onActivity: opts.onActivity,
+    onSessionEvent: opts.onSessionEvent,
+    onContextUsage: opts.onContextUsage,
+    availableIds: opts.availableIds,
+    select: opts.select,
+  });
+}
 function withLast(message: string, last: RunStepResult): string {
   if (last.text.includes("was not attempted")) return message;
   return `${message}; last session: ${last.text}`;
 }
 
-function stopResult(prompt: string, skill: NestedSkill, stage: BuckStageKey, message: string): RunStepResult {
+function stopResult(prompt: string, skill: string, stage: BuckStageKey, message: string): RunStepResult {
   const named = message.includes(`"${stage}"`) ? message : `${message} (stage "${stage}")`;
   return {
     ok: false,

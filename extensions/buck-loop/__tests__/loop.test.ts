@@ -12,7 +12,7 @@ import { handleLoop, parsePorcelainZ, prepareCommitCheckpoint, productionClassif
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 const judge = vi.mocked(runJev);
-import { readProjection, writeProjection } from "../persist.js";
+import { readProjection, writeProjection, type Projection } from "../persist.js";
 import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../../skills/_shared/scripts/subject-lifecycle.js";
 import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
 import type { ChooseResult } from "../choice.js";
@@ -87,6 +87,7 @@ function workDeps(
     runStep: vi.fn(runStep),
     choose: vi.fn(choose),
     classifyRepair: vi.fn(classifyRepair),
+    diagnoseFix: vi.fn(async () => ({ ok: true, text: "diagnose held" })),
     ask: vi.fn(ask),
     now: () => NOW,
   };
@@ -246,7 +247,7 @@ describe("unphased closeout resume", () => {
     const cwd = fixture(state, "- [x] Observed evidence");
     const deps = workDeps(async () => ({ ok: false, text: "unexpected work" }));
     const result = await handleLoop({ cwd, command: "resume", deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(deps.runStep).not.toHaveBeenCalled();
     expect(readFileSync(join(cwd, PLAN), "utf8")).toContain("status: completed");
     expect(inspectSubjectLifecycle(join(cwd, ".context", SUBJECT)).state).toBe("completed");
@@ -584,7 +585,7 @@ describe("happy path", () => {
       return landingWork()(opts);
     });
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-docs");
   });
 
@@ -690,7 +691,7 @@ describe("happy path", () => {
     });
     const deps = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-docs");
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
   });
@@ -794,7 +795,7 @@ describe("failure and choice", () => {
     vi.mocked(runJev).mockReset();
   });
 
-  it("audits an illegal ambiguity lift and hands it to the operator without retry", async () => {
+  it("audits an illegal ambiguity lift and diagnoses it instead of stopping", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     vi.mocked(runJev).mockResolvedValueOnce({
@@ -803,10 +804,14 @@ describe("failure and choice", () => {
     const deps = workDeps(async () => ({ ok: true, text: "Missing disposable database." }));
     const result = await handleLoop({
       cwd, command: "start", path: PLAN,
-      deps: { runStep: deps.runStep, choose: deps.choose, now: deps.now },
+      deps: { runStep: deps.runStep, choose: deps.choose, now: deps.now, diagnoseFix: deps.diagnoseFix },
     });
     expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
     expect(deps.runStep).toHaveBeenCalledTimes(1);
+    expect(deps.diagnoseFix).toHaveBeenCalledWith(expect.objectContaining({
+      handoff: expect.stringContaining("Missing disposable database."),
+    }));
     const audits = readdirSync(join(cwd, `.context/${SUBJECT}/transition-audits`));
     const audit = JSON.parse(readFileSync(join(cwd, `.context/${SUBJECT}/transition-audits`, audits[0]!), "utf8"));
     expect(audit).toMatchObject({ source: "repair-lift", accepted: false, lift: "heavy" });
@@ -905,7 +910,59 @@ describe("failure and choice", () => {
     expect(deps.runStep).toHaveBeenCalledTimes(2);
   });
 
-  it("stops an ambiguous build that needs the operator", async () => {
+  it("continues when a diagnose session changes only test files", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return landingWork()(opts);
+    });
+    deps.diagnoseFix.mockImplementation(async () => {
+      writeTree(cwd, {
+        "extensions/buck-loop/__tests__/fixtures.ts": "export const fixed = true;\n",
+        "extensions/buck-loop/index.test.ts": "import { test } from \"vitest\";\ntest(\"fixed\", () => {});\n",
+      });
+      git(cwd, ["add", "extensions/buck-loop/__tests__/fixtures.ts", "extensions/buck-loop/index.test.ts"]);
+      mutatePhase(cwd, phase, "completed");
+      return { ok: true, text: "wrote the scanner proof" };
+    });
+    const warnings: string[] = [];
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, onWarning: (message) => warnings.push(message) } });
+    expect(result.reason).not.toMatch(/Restart OMP/);
+    expect(warnings.join("\n")).not.toMatch(/Restart OMP/);
+    expect(result.state, result.reason).toBe("done");
+    for (const command of ["resume", "start"] as const) {
+      const again = await handleLoop({ cwd, command, path: PLAN, deps });
+      expect(JSON.stringify(again)).not.toMatch(/Restart OMP/);
+    }
+  });
+
+  it("still stops when a diagnose session also touches a runtime extension file", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return landingWork()(opts);
+    });
+    deps.diagnoseFix.mockImplementation(async () => {
+      writeTree(cwd, {
+        "extensions/buck-loop/__tests__/fixtures.ts": "export const fixed = true;\n",
+        "extensions/buck-loop/touched.ts": "export const touched = true;\n",
+      });
+      return { ok: true, text: "repaired extension" };
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/Restart OMP before continuing/);
+    expect(result.reason).toContain("extensions/buck-loop/touched.ts");
+    for (const command of ["resume", "start"] as const) {
+      const again = await handleLoop({ cwd, command, path: PLAN, deps: { ...deps, confirmDirty: async () => true } });
+      expect(again).toEqual({ state: "blocked", reason: result.reason });
+    }
+  });
+
+  it("diagnoses an ambiguous build that Jev classifies as heavy", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const phase = join(cwd, `.context/${SUBJECT}/phase-1-p1.md`);
@@ -926,11 +983,345 @@ describe("failure and choice", () => {
     expect(builds).toBe(1);
     expect(deps.choose).not.toHaveBeenCalled();
     expect(confirmContinue).not.toHaveBeenCalled();
+    expect(deps.diagnoseFix).toHaveBeenCalledWith(expect.objectContaining({
+      handoff: expect.stringContaining("phase status is pending, not completed"),
+    }));
+    expect(deps.diagnoseFix).toHaveBeenCalledWith(expect.objectContaining({
+      handoff: expect.stringContaining("[ ] Live SELECT against disposable DB"),
+    }));
+    expect(deps.diagnoseFix).toHaveBeenCalledWith(expect.objectContaining({
+      handoff: expect.stringContaining("Disposable target has not been supplied."),
+    }));
     expect(result.state).toBe("blocked");
-    expect(result.reason).toMatch(/heavy lift/i);
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
     expect(result.reason).toContain("phase status is pending, not completed");
-    expect(result.reason).toContain("[ ] Live SELECT against disposable DB");
-    expect(result.reason).toContain("Disposable target has not been supplied.");
+  });
+
+  it("reviews the phase when diagnose lands the scanner proof", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return landingWork()(opts);
+    });
+    deps.diagnoseFix.mockImplementation(async () => {
+      mutatePhase(cwd, phase, "completed");
+      return { ok: true, text: "wrote the scanner proof" };
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(deps.diagnoseFix).toHaveBeenCalled();
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-review");
+    expect(result.state).toBe("done");
+  });
+
+  it("resumes a heavy-lift block into diagnose and does not rebuild", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeProjection(cwd, {
+      version: 1,
+      state: "blocked",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+      loopCount: 1,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{ from: "building", to: "blocked", at: NOW, why: "heavy lift: Jev classified the repair as heavy. phase status is pending" }],
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "unexpected rebuild" }));
+    const first = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    expect(first.reason).toMatch(/diagnose did not land the scanner proof/i);
+    const again = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    expect(again.state).toBe("blocked");
+    const status = await handleLoop({ cwd, command: "status", deps });
+    expect(status.reason).toMatch(/will not rebuild/i);
+  });
+
+  it("diagnoses each heavy halt in the same run, not only the first", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending", "pending"]);
+    const land = landingWork();
+    const deps = workDeps(async (opts) => {
+      // Every build session returns ok without landing its phase, so each phase
+      // halts heavy and each halt needs its own single diagnosis.
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held without a proof" };
+      return land(opts);
+    });
+    const diagnosed: string[] = [];
+    deps.diagnoseFix.mockImplementation(async () => {
+      // The child fixes the store the scanner reads: whichever phase the saved
+      // run is halted on.
+      const halted = readProjection(cwd);
+      diagnosed.push(halted?.phasePath ?? "no phase");
+      mutatePhase(cwd, halted!.phasePath!, "completed");
+      return { ok: true, text: "wrote the scanner proof" };
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state, result.reason).toBe("done");
+    expect(diagnosed).toEqual([`.context/${SUBJECT}/phase-1-p1.md`, `.context/${SUBJECT}/phase-2-p2.md`]);
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists the diagnosing bookmark before the child runs", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const land = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return land(opts);
+    });
+    const insideChild: (Projection | null)[] = [];
+    deps.diagnoseFix.mockImplementation(async () => {
+      insideChild.push(readProjection(cwd));
+      return { ok: true, text: "diagnose held" };
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
+    expect(insideChild).toHaveLength(1);
+    expect(insideChild[0]).toMatchObject({
+      state: "diagnosing",
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseAttempts: 0,
+    });
+    expect(insideChild[0]?.history.at(-1)).toMatchObject({ from: "building", to: "diagnosing" });
+  });
+
+  it("resumes a persisted diagnosing bookmark into the child without rebuilding", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeProjection(cwd, {
+      version: 1,
+      state: "diagnosing",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "heavy lift: Jev classified the repair as heavy. phase status is pending",
+      diagnoseAttempts: 0,
+      loopCount: 1,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{ from: "building", to: "diagnosing", at: NOW, why: "Jev halted the guarded continuation; diagnosing and fixing the scanner proof" }],
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "unexpected rebuild" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    expect(deps.diagnoseFix).toHaveBeenCalledWith(expect.objectContaining({
+      handoff: expect.stringContaining("heavy lift:"),
+    }));
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
+    const again = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    expect(again.state).toBe("blocked");
+    const status = await handleLoop({ cwd, command: "status", deps });
+    expect(status.reason).toMatch(/will not rebuild/i);
+  });
+
+  it("records an interrupted diagnosis as spent so a fresh process cannot re-diagnose it", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const land = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return land(opts);
+    });
+    deps.diagnoseFix.mockImplementation(async () => {
+      writeTree(cwd, { "extensions/buck-loop/touched.ts": "export const touched = true;\n" });
+      return { ok: true, text: "repaired the extension" };
+    });
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/Restart OMP before continuing/);
+    expect(readProjection(cwd)).toMatchObject({
+      state: "blocked",
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseAttempts: 1,
+    });
+    const status = await handleLoop({ cwd, command: "status", deps });
+    expect(status.reason).toMatch(/Restart OMP before continuing/);
+    expect(status.reason).toMatch(/does not rebuild/i);
+  });
+
+  it("resumes an interrupted diagnosis from the rescanned proof, not by rebuilding or re-diagnosing", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const phase = `.context/${SUBJECT}/phase-1-p1.md`;
+    // The child landed the proof, then repaired the extension it was running on.
+    mutatePhase(cwd, phase, "completed");
+    writeProjection(cwd, {
+      version: 1,
+      state: "blocked",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: phase,
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "heavy lift: Jev classified the repair as heavy. phase status is pending",
+      diagnoseAttempts: 1,
+      loopCount: 1,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{
+        from: "diagnosing",
+        to: "blocked",
+        at: NOW,
+        why: "Restart OMP before continuing: repaired the buck-loop extension, and this session is still running the previous code. Changed: extensions/buck-loop/touched.ts",
+      }],
+    });
+    const land = landingWork();
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "unexpected rebuild" };
+      return land(opts);
+    });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.diagnoseFix).not.toHaveBeenCalled();
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).not.toContain("b-build");
+    expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-review");
+    expect(result.state).toBe("done");
+  });
+
+  it("holds an interrupted diagnosis whose proof never landed, without rebuilding or re-diagnosing", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    writeProjection(cwd, {
+      version: 1,
+      state: "blocked",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "heavy lift: Jev classified the repair as heavy. phase status is pending",
+      diagnoseAttempts: 1,
+      loopCount: 1,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{
+        from: "diagnosing",
+        to: "blocked",
+        at: NOW,
+        why: "Restart OMP before continuing: repaired the buck-loop extension, and this session is still running the previous code. Changed: extensions/buck-loop/touched.ts",
+      }],
+    });
+    const deps = workDeps(async () => ({ ok: true, text: "unexpected rebuild" }));
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.diagnoseFix).not.toHaveBeenCalled();
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
+    expect(readProjection(cwd)?.diagnoseAttempts).toBe(1);
+    const again = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.runStep).not.toHaveBeenCalled();
+    expect(again.state).toBe("blocked");
+  });
+
+  it("reports a thrown diagnose session as a structured failure and keeps the error in the blocker", async () => {
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const deps = workDeps(async (opts) => {
+      if (opts.skill === "b-build" || opts.skill === "b-build-hard") return { ok: true, text: "held" };
+      return landingWork()(opts);
+    });
+    deps.diagnoseFix.mockImplementation(async () => { throw new Error("diagnose session could not start"); });
+    const onFailure = vi.fn();
+    const result = await handleLoop({ cwd, command: "start", path: PLAN, deps: { ...deps, onFailure } });
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
+    expect(result.reason).toContain("diagnose session could not start");
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({
+      state: "diagnosing",
+      operation: "diagnose",
+      error: expect.objectContaining({ message: "diagnose session could not start" }),
+    }));
+    expect(readProjection(cwd)).toMatchObject({ diagnoseAttempts: 1 });
+  });
+
+  it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("lets a SQL saving diagnosis land on a verified receipt", async () => {
+    process.env.SQL_MEMORY_URL = process.env.SQL_MEMORY_TEST_URL;
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const attempt = prepareSaveAttempt(cwd, SUBJECT, true, null);
+    if ("error" in attempt) throw new Error(attempt.error);
+    writeReceipt(cwd, attempt, { kind: "no-fact", ids: [] });
+    completeSaveAttempt(cwd, attempt);
+    // No projected phase: the run stays in `diagnosing` so the child runs, and
+    // only the receipt can turn this saving halt into a landed proof.
+    writeProjection(cwd, {
+      version: 1,
+      state: "diagnosing",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: null,
+      saveAttemptId: attempt.attemptId,
+      repairLift: "heavy",
+      diagnoseOrigin: "saving",
+      diagnoseHandoff: "heavy lift: Jev classified the repair as heavy. the SQL save receipt was missing",
+      diagnoseAttempts: 0,
+      loopCount: 4,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{ from: "saving", to: "diagnosing", at: NOW, why: "Jev halted the guarded continuation; diagnosing and fixing the scanner proof" }],
+    });
+    const deps = workDeps(landingWork());
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
+    expect(skills).toContain("b-commit");
+    expect(result.state, result.reason).toBe("done");
+  });
+
+  it("does not let a SQL saving diagnosis land on a file-mode claim", async () => {
+    process.env.SQL_MEMORY_URL = "postgres://127.0.0.1:1/unused";
+    const cwd = repo();
+    phased(cwd, ["pending"]);
+    const attempt = prepareSaveAttempt(cwd, SUBJECT, true, null);
+    if ("error" in attempt) throw new Error(attempt.error);
+    writeProjection(cwd, {
+      version: 1,
+      state: "diagnosing",
+      subject: SUBJECT,
+      planPath: PLAN,
+      phasePath: null,
+      saveAttemptId: attempt.attemptId,
+      repairLift: "heavy",
+      diagnoseOrigin: "saving",
+      diagnoseHandoff: "heavy lift: Jev classified the repair as heavy. the SQL save receipt is missing",
+      diagnoseAttempts: 0,
+      loopCount: 4,
+      maxLoops: 12,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [{ from: "saving", to: "diagnosing", at: NOW, why: "Jev halted the guarded continuation; diagnosing and fixing the scanner proof" }],
+    });
+    // The child reports success and writes a `.context/memory/` claim. Under SQL
+    // memory that store is not the save the scanner reads, so the halt stays.
+    const deps = workDeps(async () => ({ ok: true, text: "claimed the save landed" }));
+    deps.diagnoseFix.mockImplementation(async () => {
+      writeTree(cwd, { ".context/memory/claim.md": "# Claim\n" });
+      git(cwd, ["add", "-f", ".context/memory/claim.md"]);
+      return { ok: true, text: "claimed the save landed" };
+    });
+    const result = await handleLoop({ cwd, command: "resume", deps });
+    expect(deps.diagnoseFix).toHaveBeenCalledTimes(1);
+    expect(result.state).toBe("blocked");
+    expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
+    expect(deps.runStep).not.toHaveBeenCalled();
   });
 
   it("hands the child report to the lift call and the diagnosis to the automatic retry", async () => {
@@ -969,7 +1360,7 @@ describe("failure and choice", () => {
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
     expect(readFileSync(phase, "utf8")).toMatch(/^status: completed$/m);
     expect(deps.classifyRepair).not.toHaveBeenCalled();
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
   });
 
   it("retries a first review failure after a confirmed build", async () => {
@@ -1053,7 +1444,7 @@ describe("failure and choice", () => {
       return landingWork()(opts);
     }, choose);
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(readProjection(cwd)?.lastChoice).toEqual({ choice: { kind: "save" }, reason: "treat as clean" });
     expect(deps.runStep.mock.calls.map((call) => call[0].skill)).toContain("b-save");
   });
@@ -1392,7 +1783,7 @@ describe("resume", () => {
     });
     const deps = workDeps(async () => ({ ok: true, text: "nope" }));
     const result = await handleLoop({ cwd, command: "resume", deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(deps.runStep).not.toHaveBeenCalled();
   });
   it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("commits a verified interrupted SQL save without running save again", async () => {
@@ -1484,7 +1875,7 @@ describe("resume", () => {
     expect(blocked.state).toBe("blocked");
     const deps = workDeps(landingWork());
     const result = await handleLoop({ cwd, command: "resume", deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(deps.runStep).toHaveBeenCalled();
   });
 
@@ -1836,7 +2227,7 @@ describe("single unfinished iterate artifact closeout", () => {
     expect(text.endsWith(ITERATE_BODY)).toBe(true);
     const skills = deps.runStep.mock.calls.map((call) => call[0].skill);
     expect(skills.lastIndexOf("b-iterate")).toBeLessThan(skills.lastIndexOf("b-review"));
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
   });
 
   it("closes the artifact for an unphased open plan without touching the plan", async () => {
@@ -1973,7 +2364,7 @@ describe("single unfinished iterate artifact closeout", () => {
     expect(readFileSync(first, "utf8")).toMatch(/^status: completed$/m);
     expect(readFileSync(second, "utf8")).toMatch(/^status: completed$/m);
     expect(deps.classifyRepair).toHaveBeenCalledTimes(1);
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
   });
 
   it("closes the new artifact a later review writes, leaving the earlier one alone", async () => {
@@ -1992,7 +2383,7 @@ describe("single unfinished iterate artifact closeout", () => {
       return landing({ ...opts, difficulty: "standard" });
     });
     const result = await handleLoop({ cwd, command: "start", path: PLAN, deps });
-    expect(result.state).toBe("done");
+    expect(result.state, result.reason).toBe("done");
     expect(reviews).toBe(3);
     expect(deps.classifyRepair).not.toHaveBeenCalled();
     expect(readFileSync(iteratePath(cwd, "iterate-x.md"), "utf8")).toMatch(/^status: completed$/m);

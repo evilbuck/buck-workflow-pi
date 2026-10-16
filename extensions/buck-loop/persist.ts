@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { phaseFileDone } from "./phase-completion.js";
 import { scan, type ScanResult } from "./scan.js";
-import type { AcceptedChoice, Choice, CommitCheckpoint, LoopState, Snapshot, TransitionRecord } from "./types.js";
+import type { AcceptedChoice, Choice, CommitCheckpoint, DiagnoseOrigin, LoopState, Snapshot, TransitionRecord } from "./types.js";
 import { unphasedBlockReason } from "./machine.js";
 
 export const PROJECTION_RELPATH = ".context/workflow/buck-loop.json";
@@ -33,6 +33,7 @@ const LOOP_STATES: Record<LoopState, true> = {
   saving: true,
   committing: true,
   repairing: true,
+  diagnosing: true,
   blocked: true,
   done: true,
   aborted: true,
@@ -56,6 +57,10 @@ export type Projection = {
   phasePath: string | null;
   saveAttemptId?: string | null;
   commitCheckpoint?: Snapshot["commitCheckpoint"];
+  repairLift?: Snapshot["repairLift"];
+  diagnoseOrigin?: Snapshot["diagnoseOrigin"];
+  diagnoseHandoff?: Snapshot["diagnoseHandoff"];
+  diagnoseAttempts?: number;
   loopCount: number;
   iterateCyclesOnPhase: number;
   maxLoops: number;
@@ -279,10 +284,12 @@ function resumePath(root: string, projection: Projection): string {
   return join(".context", projection.subject);
 }
 
-function counters(projection: Projection): Pick<
+type ResumeCounters = Pick<
   Snapshot,
-  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId" | "commitCheckpoint"
-> {
+  "loopCount" | "maxLoops" | "iterateCyclesOnPhase" | "lastChoice" | "history" | "saveAttemptId" | "commitCheckpoint" | "repairLift" | "diagnoseOrigin" | "diagnoseHandoff" | "diagnoseAttempts"
+>;
+
+function counters(projection: Projection): ResumeCounters {
   return {
     loopCount: projection.loopCount,
     maxLoops: projection.maxLoops,
@@ -291,6 +298,18 @@ function counters(projection: Projection): Pick<
     history: projection.history,
     saveAttemptId: projection.saveAttemptId ?? null,
     commitCheckpoint: projection.commitCheckpoint ?? null,
+    ...diagnoseCounters(projection),
+  };
+}
+
+type DiagnoseCounters = Pick<Snapshot, "repairLift" | "diagnoseOrigin" | "diagnoseHandoff" | "diagnoseAttempts">;
+
+function diagnoseCounters(projection: Projection): DiagnoseCounters {
+  return {
+    repairLift: projection.repairLift ?? null,
+    diagnoseOrigin: projection.diagnoseOrigin ?? null,
+    diagnoseHandoff: projection.diagnoseHandoff ?? null,
+    diagnoseAttempts: projection.diagnoseAttempts ?? 0,
   };
 }
 
@@ -340,8 +359,10 @@ function normalizeProjection(raw: unknown): Projection | null {
   const lastChoice = asLastChoice(o.lastChoice);
   const history = asHistory(o.history);
   const checkpoint = asCommitCheckpoint(o.commitCheckpoint, identity);
+  const diagnose = diagnoseFields(o);
   if (!identity || !counts || lastChoice === undefined || history === null || checkpoint === undefined) return null;
   if (!validSaveAttemptId(o.saveAttemptId)) return null;
+  if (!diagnose) return null;
   return {
     version: PROJECTION_VERSION,
     ...identity,
@@ -350,7 +371,51 @@ function normalizeProjection(raw: unknown): Projection | null {
     history,
     saveAttemptId: (o.saveAttemptId ?? null) as string | null,
     commitCheckpoint: checkpoint,
+    ...diagnose,
   };
+}
+
+/**
+ * Diagnose-and-fix bookmark fields.
+ *
+ * Absent (a bookmark written before diagnosing existed) and explicit `null`
+ * are both tolerated. A present value outside the closed set is a corrupted
+ * projection and fails the whole read: normalizing `diagnoseAttempts` down to
+ * `0` would re-open a halt whose one attempt is already spent, and dropping
+ * `diagnoseOrigin` would lose the work state diagnosing returns to.
+ *
+ * `diagnoseHandoff` is advisory text only, so an unusable value is dropped
+ * rather than failing the read — losing the text cannot grant the diagnosing
+ * edge or invent a checkpoint.
+ */
+function diagnoseFields(o: Record<string, unknown>): Partial<Projection> | null {
+  const repairLift = o.repairLift;
+  if (!validRepairLift(repairLift)) return null;
+  const origin = o.diagnoseOrigin;
+  if (!validDiagnoseOrigin(origin)) return null;
+  const attempts = asDiagnoseAttempts(o.diagnoseAttempts);
+  if (attempts === null) return null;
+
+  const fields: Partial<Projection> = {};
+  if (repairLift === "heavy") fields.repairLift = "heavy";
+  if (origin != null) fields.diagnoseOrigin = origin as DiagnoseOrigin;
+  const handoff = asDiagnoseHandoff(o.diagnoseHandoff);
+  if (handoff !== null) fields.diagnoseHandoff = handoff;
+  if (o.diagnoseAttempts != null) fields.diagnoseAttempts = attempts;
+  return fields;
+}
+
+function validRepairLift(value: unknown): boolean {
+  return value == null || value === "heavy";
+}
+
+function validDiagnoseOrigin(value: unknown): boolean {
+  return value == null || asDiagnoseOrigin(value) !== null;
+}
+
+function asDiagnoseHandoff(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0 || value.length > 8000) return null;
+  return value;
 }
 
 function validSaveAttemptId(value: unknown): boolean {
@@ -409,6 +474,19 @@ function asLoopState(v: unknown): LoopState | null {
   return typeof v === "string" && Object.hasOwn(LOOP_STATES, v) ? (v as LoopState) : null;
 }
 
+function asDiagnoseOrigin(value: unknown): DiagnoseOrigin | null {
+  return value === "building" || value === "iterating" || value === "documenting" || value === "saving" ? value : null;
+}
+
+/**
+ * Attempts already spent on this halt. Absent (legacy) reads as `0`; a present
+ * non-integer or negative value is corruption and fails the whole read, so a
+ * spent diagnose is never read back as unspent.
+ */
+function asDiagnoseAttempts(value: unknown): number | null {
+  if (value === undefined || value === null) return 0;
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : null;
+}
 function asPhasePath(v: unknown): string | null | undefined {
   if (v === null) return null;
   if (typeof v === "string") return v;

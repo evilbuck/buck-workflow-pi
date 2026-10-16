@@ -2,7 +2,7 @@
  * Ambiguous postcondition gate. The scan only knows the expected artifact
  * did not land. The supervisor diagnoses that gap, then asks Jev how large a
  * continuation it is. Light and medium lifts continue automatically with the
- * diagnosis. A heavy lift is handed to the operator.
+ * diagnosis. A heavy lift is an optional diagnosing transition, not an operator stop.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -201,6 +201,7 @@ export function phaseAbs(cwd: string, phasePath: string | null): string | null {
 }
 
 /** Fingerprints the running extension before a retry; pre-existing dirt is not a new repair. */
+const TEST_BASENAME = /\.(?:test|spec)\.(?:ts|js|mjs|tsx|jsx)$/;
 export function loopExtensionFiles(cwd: string): Map<string, string> {
   const root = join(cwd, "extensions/buck-loop");
   const files = new Map<string, string>();
@@ -209,8 +210,11 @@ export function loopExtensionFiles(cwd: string): Map<string, string> {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const name = relative ? `${relative}/${entry.name}` : entry.name;
       const abs = join(dir, entry.name);
-      if (entry.isDirectory()) collect(abs, name);
-      else if (entry.isFile()) files.set(`extensions/buck-loop/${name}`, createHash("sha256").update(readFileSync(abs)).digest("hex"));
+      if (entry.isDirectory()) {
+        if (entry.name !== "__tests__") collect(abs, name);
+      } else if (entry.isFile() && !TEST_BASENAME.test(name)) {
+        files.set(`extensions/buck-loop/${name}`, createHash("sha256").update(readFileSync(abs)).digest("hex"));
+      }
     }
   }
   collect(root, "");
