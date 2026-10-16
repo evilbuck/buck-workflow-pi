@@ -84,20 +84,20 @@ describe("phases overview row synchronization", () => {
   // `b-phase` emits a singular `File` header; the row lookup is anchored on it.
   const OVERVIEW = "| Phase | Status | File |\n| --- | --- | --- |\n| 1 | pending | phase-1-demo.md |\n";
 
-  it("marks the matching row completed", () => {
+  it("marks the matching row completed", async () => {
     const cwd = repo();
     writeTree(cwd, {
       [PLAN]: "---\nstatus: active\n---\n# Plan\n",
       [`${SUBJECT}/plan-demo-phases.md`]: `---\nstatus: active\n---\n${OVERVIEW}`,
       [`${SUBJECT}/phase-1-demo.md`]: "---\nstatus: pending\nacceptance_criteria:\n  - \"[x] landed\"\n---\n# Phase 1\n",
     });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     const overview = readFileSync(join(cwd, SUBJECT, "plan-demo-phases.md"), "utf8");
     expect(overview).toContain("| 1 | completed | phase-1-demo.md |");
     expect(readFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), "utf8")).toMatch(/^status: completed$/m);
   });
 
-  it("pins the singular File header contract b-phase emits", () => {
+  it("pins the singular File header contract b-phase emits", async () => {
     // A plural or renamed header silently skips the row, leaving a permanently
     // stale status in a human-facing table. This test is the tripwire for a
     // b-phase header change, not an endorsement of a looser match.
@@ -108,13 +108,13 @@ describe("phases overview row synchronization", () => {
       [`${SUBJECT}/plan-demo-phases.md`]: `---\nstatus: active\n---\n${plural}`,
       [`${SUBJECT}/phase-1-demo.md`]: "---\nstatus: pending\nacceptance_criteria:\n  - \"[x] landed\"\n---\n# Phase 1\n",
     });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     // The phase file still completes; only the table row is left alone.
     expect(readFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), "utf8")).toMatch(/^status: completed$/m);
     expect(readFileSync(join(cwd, SUBJECT, "plan-demo-phases.md"), "utf8")).toContain("| 1 | pending |");
   });
 
-  it("leaves a table without the expected header alone", () => {
+  it("leaves a table without the expected header alone", async () => {
     const cwd = repo();
     const text = "---\nstatus: active\n---\n| Phase | Owner |\n| --- | --- |\n| 1 | someone |\n";
     writeTree(cwd, {
@@ -122,30 +122,30 @@ describe("phases overview row synchronization", () => {
       [`${SUBJECT}/plan-demo-phases.md`]: text,
       [`${SUBJECT}/phase-1-demo.md`]: "---\nstatus: pending\nacceptance_criteria:\n  - \"[x] landed\"\n---\n# Phase 1\n",
     });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     expect(readFileSync(join(cwd, SUBJECT, "plan-demo-phases.md"), "utf8")).toBe(text);
   });
 
-  it("ignores a non-phase file in the subject folder", () => {
+  it("ignores a non-phase file in the subject folder", async () => {
     const cwd = repo();
     const notes = join(cwd, SUBJECT, "notes.md");
     writeTree(cwd, { [PLAN]: "---\nstatus: active\n---\n# Plan\n" });
     writeTree(cwd, { [`${SUBJECT}/phase-1-demo.md`]: phaseMd(1, "pending", [], "plan-demo.md") });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     expect(readFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), "utf8")).toBe(phaseMd(1, "pending", [], "plan-demo.md"));
     expect(() => readFileSync(notes, "utf8")).toThrow();
   });
 
-  it("is idempotent across repeated runs", () => {
+  it("is idempotent across repeated runs", async () => {
     const cwd = repo();
     writeTree(cwd, {
       [PLAN]: "---\nstatus: active\n---\n# Plan\n",
       [`${SUBJECT}/phase-1-demo.md`]: "---\nstatus: pending\nacceptance_criteria:\n  - \"[x] landed\"\n---\n# Phase 1\n",
     });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     const first = readFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), "utf8");
     writeFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), first);
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-19");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-19");
     expect(readFileSync(join(cwd, SUBJECT, "phase-1-demo.md"), "utf8")).toBe(first);
   });
 });

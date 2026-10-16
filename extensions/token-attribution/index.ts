@@ -9,6 +9,7 @@ import {
   type GitRunner,
 } from "./git-identity.js";
 import { buildTokenReport } from "./report.js";
+import { flushConfiguredRetains } from "../../skills/_shared/storage/consumers.js";
 
 const IDENTITY_ENTRY = "buck.token-attribution.identity";
 
@@ -190,6 +191,7 @@ export async function scanSessionArtifacts(
   for (const file of await jsonlFiles(artifactRoot)) {
     let cursor = cursors.get(file) ?? { offset: 0, remainder: Buffer.alloc(0) };
     let handle;
+    let persistenceFailed = false;
     try {
       handle = await open(file, "r");
       const size = (await handle.stat()).size;
@@ -221,8 +223,9 @@ export async function scanSessionArtifacts(
         }
         if (!delivery) continue;
         try {
-          if (ledger.insertReconciled(delivery.record, delivery.fallbackEntryKey)) inserted += 1;
+          if (await ledger.insertReconciled(delivery.record, delivery.fallbackEntryKey)) inserted += 1;
         } catch (error) {
+          persistenceFailed = true;
           // Keep the failed line so the next scan retries it.
           cursor.remainder = Buffer.from(content.subarray(currentLineStart));
           cursors.set(file, cursor);
@@ -231,8 +234,8 @@ export async function scanSessionArtifacts(
       }
       cursor.remainder = Buffer.from(content.subarray(lineStart));
       cursors.set(file, cursor);
-    } catch {
-      // A disappearing or unreadable nested artifact can be retried next turn.
+    } catch (error) {
+      if (persistenceFailed) throw error;
     } finally {
       await handle?.close();
     }
@@ -241,6 +244,7 @@ export async function scanSessionArtifacts(
 }
 
 export interface TokenAttributionWireOptions {
+  /** Optional Buck-only SQLite export; never consulted for reads or deduplication. */
   databasePath?: string;
   gitRunner?: GitRunner;
 }
@@ -293,7 +297,7 @@ export function wire(pi: ExtensionAPI, options: TokenAttributionWireOptions = {}
       handler: async (args, ctx) => {
         try {
           const identity = await identityFor(ctx.cwd);
-          const report = buildTokenReport(database(), identity.projectKey, args);
+          const report = await buildTokenReport(database(), ctx.cwd, identity.projectKey, args);
           ctx.ui.notify(report, "info");
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
@@ -329,10 +333,12 @@ export function wire(pi: ExtensionAPI, options: TokenAttributionWireOptions = {}
         sessionId,
         identity,
       );
-      if (record) database().insert(record);
+      if (record) await database().insert(record);
       await scanNested(ctx, identity);
-    } catch {
-      // Attribution must never interrupt the assistant response.
+      await ledger?.flush();
+      await flushConfiguredRetains();
+    } catch (error) {
+      ctx.ui.notify(`Token attribution persistence failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
     }
   });
 
@@ -341,8 +347,19 @@ export function wire(pi: ExtensionAPI, options: TokenAttributionWireOptions = {}
       const identity = await identityFor(ctx.cwd);
       persistIdentity(identity);
       await scanNested(ctx, identity);
-    } catch {
-      // The next event can retry; the session identity entry remains a fallback.
+      await ledger?.flush();
+      await flushConfiguredRetains();
+    } catch (error) {
+      ctx.ui.notify(`Token attribution persistence failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
+    }
+  });
+
+  pi.on("session_shutdown", async (_event, ctx) => {
+    const results = await Promise.allSettled([ledger?.close(), flushConfiguredRetains()]);
+    for (const result of results) {
+      if (result.status !== "rejected") continue;
+      const error: unknown = result.reason;
+      ctx.ui.notify(`Token attribution persistence failed: ${error instanceof Error ? error.message : String(error)}`, "warning");
     }
   });
 

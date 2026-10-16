@@ -11,4 +11,10 @@ Run the isolated review→fix→re-review loop on the current git checkout and r
 5. When the command finishes, open `.context/<subject>/review-iteration-<run-id>.md`.
 6. **Eat:** the report file exists, lists every pass with the persona and effective model/thinking level, lists each finding with rating + hardness + reproduction status, and the final status line shows `clean`, `blocked`, `exhausted`, `cancelled`, or `failed`.
 
+Run/pass/command evidence is retained in the configured workflow store before
+completion is acknowledged. Local runtime and report paths are exports; rerun
+from the same owning checkout to resume retained evidence even if they were
+removed. A store failure refuses durable success rather than falling back to
+those files.
+
 If a non-clean run left runtime you no longer need, [prune it](prune-code-review-runtime.md).

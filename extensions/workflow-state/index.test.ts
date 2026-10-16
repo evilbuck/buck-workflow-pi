@@ -15,7 +15,7 @@ function fixture(): { cwd: string; store: RepoFilesStorageStore; context: Truste
   const manifest = join(cwd, ".context", "workflow", "storage");
   return {
     cwd,
-    store: new RepoFilesStorageStore({ root: manifest, contextRoot: join(cwd, ".context"), manifestRoot: manifest }),
+    store: new RepoFilesStorageStore({ contextRoot: join(cwd, ".context"), manifestRoot: manifest }),
     context: { projectId: "project-1", branchId: "branch-1", publishedRevisionIds: [] },
   };
 }

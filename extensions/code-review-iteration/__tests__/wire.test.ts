@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { readFileSync, writeFileSync, mkdirSync, rmSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync, mkdtempSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import { wire, parseArgs, reviewExecTool, readCheckContractCommands } from "../i
 import { loadCatalog } from "../catalog.js";
 import { loadPersonas } from "../prompts.js";
 import { parseExecPolicy, readOnlyGitCommands, checkContractCommands } from "../policy.js";
-import { runtimeRoot, branchKey } from "../run-state.js";
+import { runtimeRoot, createRun, saveState, listRuns } from "../run-state.js";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -105,16 +105,25 @@ describe("handler-level command runs", () => {
     writeFileSync(join(repo, "a.txt"), "a\n");
     git(["add", "-A"]);
     git(["commit", "-qm", "init"]);
-    const runs = join(runtimeRoot(join(repo, ".git")), branchKey("master"));
-    mkdirSync(join(runs, "20260916T000000-done"), { recursive: true });
-    writeFileSync(join(runs, "20260916T000000-done", "state.json"), JSON.stringify({ schema_version: 1, status: "clean" }));
-    mkdirSync(join(runs, "20260916T000001-live"), { recursive: true });
-    writeFileSync(join(runs, "20260916T000001-live", "state.json"), JSON.stringify({ schema_version: 1, status: "running" }));
+    const common = join(repo, ".git");
+    const head = git(["rev-parse", "HEAD"]);
+    const state = {
+      branch: "master", base_branch: "master", base_commit: head, start_head: head,
+      last_head: head, checkpoint_commit: null, pass: 0, persona: "balanced",
+      reviewer_model: null, fixer_model: null, requested_temperature: null,
+      min_blocking: "medium" as const, max_passes: 3, created_worktree: null,
+      worktree_fingerprint: "", started_at: "2026-09-16T00:00:00Z",
+      updated_at: "2026-09-16T00:00:00Z", terminal: null,
+    };
+    await createRun(common, { ...state, run_id: "20260916T000000-done", status: "clean" }, repo);
+    const live = await createRun(common, { ...state, run_id: "20260916T000001-live", status: "running" }, repo);
+    rmSync(runtimeRoot(common), { recursive: true, force: true });
     const refused = await handlerNotifications("--prune", repo);
     expect(refused.join("\n")).toMatch(/Refusing to prune 1 running/);
-    writeFileSync(join(runs, "20260916T000001-live", "state.json"), JSON.stringify({ schema_version: 1, status: "clean" }));
+    await saveState(live.dir, { ...live.state, status: "clean" });
     const pruned = await handlerNotifications("--prune", repo);
     expect(pruned.join("\n")).toMatch(/Pruned 2 code-review runtime artifact/);
+    expect(await listRuns(common, "master", repo)).toEqual([]);
   });
 
   it("runs the wired loop end to end far enough to fail outside a git checkout", async () => {

@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { ArtifactKey, ArtifactKind, ArtifactQuery, ArtifactRevision, RunReceipt, StorageStore } from "../storage/contract.js";
-import { loadStorageConfig, loadStorageConfigSync, type ResolvedStorageConfig } from "../storage/config.js";
+import { loadStorageConfig, type ResolvedStorageConfig } from "../storage/config.js";
 import { revisionHash } from "../storage/adapter-utils.js";
 import { assertReceiptReadback, discoverStoredContext, lookupKnowledge } from "../storage/domain.js";
 import { ExternalFilesStorageStore, RepoFilesStorageStore } from "../storage/file-store.js";
@@ -104,7 +104,7 @@ function identityPath(explicit?: string): string {
 }
 interface BranchRecord { branchId: string; ref: string; incarnation: string; initialTip: string; observedTip: string }
 interface AttemptBinding { runId: string; branchId: string; attemptId: string }
-interface WorkspaceRecord { nonce: string; worktreeId: string; runId: string; attempts?: AttemptBinding[] }
+interface WorkspaceRecord { nonce: string; worktreeId: string; runId: string; attempts?: AttemptBinding[]; consumerDestinations?: Record<string, string>; privateBranches?: Record<string, { branchId: string; initialTip?: string; observedTip?: string }> }
 interface IdentityFile { projects: Record<string, { branches: BranchRecord[]; workspaces?: Record<string, WorkspaceRecord> }> }
 function readIdentity(path: string): IdentityFile {
   try { return JSON.parse(readFileSync(path, "utf8")) as IdentityFile; }
@@ -140,15 +140,16 @@ async function bindBranch(projectId: string, ref: string, tip: string, cwd: stri
   const project = file.projects[projectId] ?? { branches: [] };
   const matches: BranchRecord[] = [];
   for (const record of project.branches.filter((item) => item.ref === ref)) {
-    const ancestor = git(cwd, ["merge-base", "--is-ancestor", record.initialTip, ref]);
-    if (ancestor.status === 0) matches.push(record);
-    else if (ancestor.status !== 1) throw new Error("Cannot prove branch continuity; refusing shared scope");
+    const status = record.observedTip === tip ? 0 : git(cwd, ["merge-base", "--is-ancestor", record.initialTip, ref]).status;
+    if (status === 0) matches.push(record);
+    else if (status !== 1) throw new Error("Cannot prove branch continuity; refusing shared scope");
   }
   if (matches.length > 1) throw new Error("Branch identity is ambiguous; refusing shared scope");
   if (matches[0]) {
-    matches[0].observedTip = tip;
-    file.projects[projectId] = project;
-    await writeIdentity(path, file);
+    if (matches[0].observedTip !== tip) {
+      matches[0].observedTip = tip;
+      writeIdentity(path, file);
+    }
     return matches[0].branchId;
   }
   const created = createBranchIdentity(ref, tip);
@@ -163,67 +164,108 @@ async function bindPrivate(projectId: string, cwd: string, path: string): Promis
   const workspaces = project.workspaces ?? {};
   const key = resolve(cwd);
   // runId here is only the private-workspace token. Receipt runs live in attempts.
-  const existing = workspaces[key] ?? { nonce: randomUUID(), worktreeId: createWorktreeId(), runId: createRunId() };
-  workspaces[key] = existing;
-  project.workspaces = workspaces;
-  file.projects[projectId] = project;
-  await writeIdentity(path, file);
+  let existing = workspaces[key];
+  if (!existing) {
+    existing = { nonce: randomUUID(), worktreeId: createWorktreeId(), runId: createRunId() };
+    workspaces[key] = existing;
+    project.workspaces = workspaces;
+    file.projects[projectId] = project;
+    writeIdentity(path, file);
+  }
   const workspace = createPrivateWorkspaceIdentity({ projectId, workspaceNonce: existing.nonce, worktreeId: existing.worktreeId, runId: existing.runId });
   return { projectId, branchId: workspace.branchId, worktreeId: workspace.worktreeId, runId: existing.runId, publishedRevisionIds: [] };
 }
+
+export class TrustedIdentityError extends Error {
+  override name = "TrustedIdentityError";
+}
+
+function observeCheckout(cwd: string, git: GitRunner): { common: GitResult; ref: GitResult; head: GitResult } {
+  const observed = git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir", "HEAD^{commit}", "--symbolic-full-name", "HEAD"]);
+  const lines = observed.stdout.split("\n");
+  if (observed.status === 0 && lines.length === 3 && lines[0] && /^[a-f0-9]{40,64}$/iu.test(lines[1]!)) {
+    return {
+      common: { status: 0, stdout: lines[0] },
+      head: { status: 0, stdout: lines[1]! },
+      ref: { status: lines[2] === "HEAD" ? 1 : 0, stdout: lines[2]! },
+    };
+  }
+  if (observed.status !== 0 && lines.length === 2 && lines[0] && lines[1] === "HEAD^{commit}") {
+    return {
+      common: { status: 0, stdout: lines[0] },
+      head: { status: observed.status, stdout: lines[1] },
+      ref: git(cwd, ["symbolic-ref", "--quiet", "HEAD"]),
+    };
+  }
+  // Unborn/no-Git observations require the individual command statuses.
+  return {
+    common: git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
+    ref: git(cwd, ["symbolic-ref", "--quiet", "HEAD"]),
+    head: git(cwd, ["rev-parse", "HEAD^{commit}"]),
+  };
+}
+
+function assertGitObservation(cwd: string, common: GitResult, ref: GitResult, head: GitResult): void {
+  if (common.status === 0) {
+    if (ref.status !== 0 && head.status !== 0) throw new TrustedIdentityError("Cannot resolve trusted identity from unreadable Git HEAD");
+  } else if (existsSync(join(cwd, ".git"))) {
+    throw new TrustedIdentityError("Cannot resolve trusted identity from a malformed Git checkout");
+  }
+}
+
+function bindUnbornBranch(cwd: string, path: string, git: GitRunner, context: TrustedWorkflowContext, ref: string, file: IdentityFile, workspace: WorkspaceRecord): string {
+  if (git(cwd, ["show-ref", "--verify", "--quiet", ref]).status !== 1) throw new TrustedIdentityError("Cannot prove unborn branch identity");
+  const bindings = workspace.privateBranches ?? {};
+  const previous = bindings[ref];
+  if (previous && previous.initialTip === undefined) return previous.branchId;
+  const privateScope = createPrivateWorkspaceIdentity({ projectId: context.projectId, workspaceNonce: `${workspace.nonce}\0${ref}\0${randomUUID()}`, worktreeId: workspace.worktreeId, runId: workspace.runId });
+  bindings[ref] = { branchId: privateScope.branchId };
+  workspace.privateBranches = bindings;
+  writeIdentity(path, file);
+  return privateScope.branchId;
+}
+
+async function bindWorkspaceBranch(cwd: string, path: string, git: GitRunner, context: TrustedWorkflowContext, ref: GitResult, head: GitResult): Promise<string> {
+  if (ref.status !== 0) return context.branchId;
+  const file = readIdentity(path);
+  const workspace = loadWorkspace(file, context.projectId, cwd, context.worktreeId!);
+  if (head.status !== 0) return bindUnbornBranch(cwd, path, git, context, ref.stdout, file, workspace);
+  const privateBranch = workspace.privateBranches?.[ref.stdout];
+  if (!privateBranch) return bindBranch(context.projectId, ref.stdout, head.stdout, cwd, path, git);
+  if (privateBranch.initialTip === undefined) {
+    privateBranch.initialTip = head.stdout;
+    privateBranch.observedTip = head.stdout;
+    writeIdentity(path, file);
+    return privateBranch.branchId;
+  }
+  const continuity = privateBranch.observedTip === head.stdout ? 0 : git(cwd, ["merge-base", "--is-ancestor", privateBranch.initialTip, head.stdout]).status;
+  if (continuity === 0) {
+    if (privateBranch.observedTip !== head.stdout) {
+      privateBranch.observedTip = head.stdout;
+      writeIdentity(path, file);
+    }
+    return privateBranch.branchId;
+  }
+  if (continuity !== 1) throw new TrustedIdentityError("Cannot prove private branch continuity");
+  delete workspace.privateBranches![ref.stdout];
+  writeIdentity(path, file);
+  return bindBranch(context.projectId, ref.stdout, head.stdout, cwd, path, git);
+}
 export async function resolveTrustedContext(cwd: string, options: { origin?: string; identityPath?: string; configPath?: string; git?: GitRunner } = {}): Promise<TrustedWorkflowContext> {
   const git = options.git ?? defaultGit;
+  const path = identityPath(options.identityPath);
   const remote = options.origin === undefined ? git(cwd, ["config", "--get", "remote.origin.url"]) : undefined;
   const origin = options.origin ?? (remote?.status === 0 ? remote.stdout : undefined);
-  const common = git(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  const { common, ref, head } = observeCheckout(cwd, git);
+  assertGitObservation(cwd, common, ref, head);
   const config = await loadStorageConfig({ origin, configPath: options.configPath });
   const project = resolveProjectIdentity({ configuredKey: config.projectKey, origin, gitCommonDir: common.status === 0 ? common.stdout : resolve(cwd) });
-  const ref = git(cwd, ["symbolic-ref", "--quiet", "HEAD"]);
-  const head = git(cwd, ["rev-parse", "HEAD"]);
-  const path = identityPath(options.identityPath);
   return identityTransaction(path, async () => {
     const workspace = await bindPrivate(project.projectId, cwd, path);
-    const branchId = ref.status !== 0 || head.status !== 0 ? workspace.branchId : await bindBranch(project.projectId, ref.stdout, head.stdout, cwd, path, git);
+    const branchId = await bindWorkspaceBranch(cwd, path, git, workspace, ref, head);
     return { ...workspace, branchId, selection: config, manifestRoot: join(dirname(path), "projects", project.projectId, "repo-manifest") };
   });
 }
-
-/** Read an already-bound workspace scope. Does not invent identity. */
-export function readPinnedScopeSync(cwd: string): { projectId: string; branchId: string; worktreeId: string; runId: string; publishedRevisionIds: readonly string[] } | null {
-  const origin = readPinnedGitValue(cwd, ["config", "--get", "remote.origin.url"]) ?? undefined;
-  const common = readPinnedGitValue(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-  let config: ResolvedStorageConfig;
-  try { config = loadStorageConfigSync({ origin }); }
-  catch { return null; }
-  const project = resolveProjectIdentity({ configuredKey: config.projectKey, origin, gitCommonDir: common ?? resolve(cwd) });
-  const record = readIdentity(identityPath()).projects[project.projectId];
-  const workspace = record?.workspaces?.[resolve(cwd)];
-  if (!record || !workspace?.worktreeId || !workspace.runId) return null;
-  const branchId = pinnedBranchId(
-    project.projectId,
-    workspace,
-    record.branches,
-    readPinnedGitValue(cwd, ["symbolic-ref", "--quiet", "HEAD"]),
-  );
-  return { projectId: project.projectId, branchId, worktreeId: workspace.worktreeId, runId: workspace.runId, publishedRevisionIds: [] };
-}
-
-function readPinnedGitValue(cwd: string, args: string[]): string | null {
-  try { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
-  catch { return null; }
-}
-
-function pinnedBranchId(projectId: string, workspace: WorkspaceRecord, branches: readonly BranchRecord[], ref: string | null): string {
-  const branch = ref ? branches.find((item) => item.ref === ref) : undefined;
-  if (branch) return branch.branchId;
-  return createPrivateWorkspaceIdentity({
-    projectId,
-    workspaceNonce: workspace.nonce,
-    worktreeId: workspace.worktreeId,
-    runId: workspace.runId,
-  }).branchId;
-}
-
 
 function requireContext(context: TrustedWorkflowContext): void {
   if (!context.projectId || !context.branchId || !Array.isArray(context.publishedRevisionIds)) throw new Error("Trusted workflow context is incomplete");
@@ -268,15 +310,47 @@ export async function withConfiguredStore<T>(cwd: string, run: (store: StorageSt
   if (!context.selection || !context.manifestRoot) throw new Error("Trusted workflow context is incomplete");
   const opened = await openStore(cwd, context.selection, context.projectId, context.manifestRoot);
   try { return await run(opened.store, context); }
-  finally { opened.close(); }
+  finally { await opened.close(); }
 }
-async function openStore(cwd: string, selection: ResolvedStorageConfig, projectKey: string, manifestRoot: string): Promise<{ store: StorageStore; close: () => void }> {
+
+/** Internal consumer seam: reopen only the destination already resolved by the caller. */
+export async function withBoundStore<T>(cwd: string, context: TrustedWorkflowContext, run: (store: StorageStore, context: TrustedWorkflowContext) => Promise<T>): Promise<T> {
+  if (!context.selection || !context.manifestRoot) throw new Error("Trusted workflow context is incomplete");
+  const opened = await openStore(cwd, context.selection, context.projectId, context.manifestRoot);
+  try { return await run(opened.store, context); }
+  finally { await opened.close(); }
+}
+
+export async function bindConsumerAttempt(context: TrustedWorkflowContext, cwd: string, attemptId: string): Promise<{ worktreeId: string; runId: string }> {
+  return bindAttemptRun(context, { operation: "write-receipt", attemptId, status: "attempted", artifactRevisions: [] }, { cwd, context, role: "save", request: { operation: "read-receipt" } });
+}
+
+/** A consumer workspace run cannot silently move to a different configured backend. */
+export async function resolveConsumerContext(cwd: string): Promise<TrustedWorkflowContext> {
+  const path = identityPath();
+  const context = await resolveTrustedContext(cwd, { identityPath: path });
+  if (!context.worktreeId || !context.selection) throw new Error("Consumer context is not bound");
+  const destination = JSON.stringify({ storage: context.selection.storage, manifestRoot: context.manifestRoot });
+  await identityTransaction(path, () => {
+    const file = readIdentity(path);
+    const workspace = loadWorkspace(file, context.projectId, cwd, context.worktreeId!);
+    const destinations = workspace.consumerDestinations ?? {};
+    const previous = destinations[context.branchId];
+    if (previous !== undefined && previous !== destination) throw new Error("Consumer destination changed during the bound workspace run");
+    if (previous === destination) return;
+    destinations[context.branchId] = destination;
+    workspace.consumerDestinations = destinations;
+    writeIdentity(path, file);
+  });
+  return context;
+}
+async function openStore(cwd: string, selection: ResolvedStorageConfig, projectKey: string, manifestRoot: string): Promise<{ store: StorageStore; close: () => void | Promise<void> }> {
   const storage = selection.storage;
   if (storage.adapter === "repo-files") {
     const contextRoot = join(cwd, ".context");
     // Editable bodies remain Git-portable; immutable authority stays machine-private.
     await mkdir(manifestRoot, { recursive: true });
-    return { store: new RepoFilesStorageStore({ root: manifestRoot, contextRoot, manifestRoot }), close: () => {} };
+    return { store: new RepoFilesStorageStore({ contextRoot, manifestRoot }), close: () => {} };
   }
   if (storage.adapter === "external-files") {
     return { store: new ExternalFilesStorageStore({ projectKey: selection.projectKey ?? projectKey, ...(storage.root ? { root: storage.root } : {}) }), close: () => {} };
@@ -329,10 +403,13 @@ async function importSubjectProjection(store: RepoFilesStorageStore, cwd: string
     if (!kind) continue;
     const key = bindRef(context, { subjectId, kind, logicalName: name });
     if (await store.read(key)) continue;
-    try {
-      const bytes = new Uint8Array(await readFile(join(cwd, ".context", subjectId, name)));
-      await store.writeBatch([{ key, revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "workflow-state", source: "projection-import", createdAt: new Date().toISOString(), links: [] }]);
-    } catch { /* absent projection is not an error */ }
+    let bytes: Uint8Array;
+    try { bytes = new Uint8Array(await readFile(join(cwd, ".context", subjectId, name))); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    await store.writeBatch([{ key, revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "workflow-state", source: "projection-import", createdAt: new Date().toISOString(), links: [], expectedRevision: null }]);
   }
 }
 async function writeEvidence(store: StorageStore, context: TrustedWorkflowContext, name: string, body: unknown): Promise<Record<string, unknown>> {
@@ -346,7 +423,7 @@ async function namedBranch(context: TrustedWorkflowContext, ref: string, cwd: st
   if (!ref.startsWith("refs/heads/")) throw new Error("inspect requires a named local branch ref");
   const tip = git(cwd, ["rev-parse", "--verify", ref]);
   if (tip.status !== 0 || !/^[a-f0-9]{40,64}$/i.test(tip.stdout)) throw new Error(`Cannot resolve named branch scope ${ref}`);
-  return identityTransaction(path, () => bindBranch(context.projectId, ref, tip.stdout, cwd, path, git));
+  return identityTransaction(path, () => bindWorkspaceBranch(cwd, path, git, context, { status: 0, stdout: ref }, tip));
 }
 
 export async function executeWorkflowState(options: WorkflowExecuteOptions): Promise<unknown> {
@@ -360,7 +437,7 @@ export async function executeWorkflowState(options: WorkflowExecuteOptions): Pro
       await importRepoProjection(opened.store, options.cwd, options.context);
     }
     return await dispatch(options, opened.store);
-  } finally { opened.close(); }
+  } finally { await opened.close(); }
 }
 const HANDLERS: Record<WorkflowRequest["operation"], (options: WorkflowExecuteOptions, store: StorageStore) => Promise<unknown>> = {
   read: (options, store) => readOne(store, options.context, refFrom(options.request as Extract<WorkflowRequest, { operation: "read" }>)),

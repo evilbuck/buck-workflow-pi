@@ -1,15 +1,15 @@
 # plans · readable `.context/` browser
 
-Astro static site that serves the markdown in `.context/{subject}/` folders so
-plans are easy to read. Markdown is sourced through a **`PlanSource` adapter**
-(`src/lib/plans/`), so filesystem and SQL-backed plan storage are interchangeable.
+Astro static site for visible workflow Markdown, sourced through the existing
+**`PlanSource` adapter** (`src/lib/plans/`). The configured repo-files,
+external-files, SQLite, or PostgreSQL service supplies canonical document bytes.
 
 ## Run
 
 ```bash
 cd docs/plans
 npm install
-npm run dev      # local preview with live .context/ reads
+npm run dev      # local preview using the configured workflow store
 npm run build    # static output in dist/
 npm run preview  # serve the built output
 ```
@@ -24,7 +24,7 @@ Pages call only three methods (`src/lib/plans/types.ts`):
 
 Implementations:
 
-| `sql.ts` | adapter-backed | Reads visible plan, phase, spec, research and subject-index artifacts through `workflow_state`. |
+| `sql.ts` | adapter-backed | Reads visible knowledge Markdown, including plan/phase/spec/research, review/iterate/brainstorm, subject indexes, and nested captures; excludes private execution records and binaries. |
 | `index.ts` | `createPlanSource()` | Always uses the configured workflow adapter; no filesystem or raw-SQL fallback. |
 
 All page entrypoints use `createPlanSource()`. Adapter-backed builds resolve the

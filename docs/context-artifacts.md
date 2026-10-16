@@ -1,10 +1,12 @@
 # Context Artifacts: Markdown Source, JSON Query Views
 
-Buck workflow uses a hybrid `.context/` model.
+Buck workflow stores narrative and machine-owned artifacts through the configured
+durable adapter. `.context/` is the repo-files editable projection; other adapters
+do not require it.
 
 ## Canonical sources
 
-Markdown remains the source of truth for narrative artifacts:
+Markdown is the canonical content format for narrative artifacts:
 
 - subject `index.md`
 - `research-*.md`
@@ -12,12 +14,12 @@ Markdown remains the source of truth for narrative artifacts:
 - memory files in `.context/memory/`
 - backlog item files in `.context/backlog/items/`
 
-JSON remains the source of truth for machine-owned state:
+JSON is the canonical content format for machine-owned state:
 
 - `.context/workflow/current-session.json`
 - other operational/session caches
 
-**Harness LTM is not a `.context/` source.** OMP `retain`/`recall`/`reflect` (Hindsight/mnemopi) mirror durable facts for agent recall. They do not replace markdown memory files or the generated JSON indexes. Bulk seed: `skills/b-memory-import`.
+**Harness LTM is not a workflow-storage source.** OMP `retain`/`recall`/`reflect` (Hindsight/mnemopi) provide agent recall. Mirrors accept only exact revisions with trusted publication proof, never unmerged private knowledge. They do not replace retained artifacts or generated JSON indexes. Bulk seed: `skills/b-memory-import`.
 
 ## Shared durable-storage contract
 
@@ -25,10 +27,11 @@ JSON remains the source of truth for machine-owned state:
 and domain policies. Adapters are `repo-files`, `external-files`, `sqlite`, and
 `postgres`. Native `workflow_state` and the shared CLI are the model-facing
 access surface. The plan-artifact bridge, interactive subject picker, and
-supervisor recall/save address artifacts by token. Remaining Buck consumers
-are not all redirected; that sweep is separate work. `sql_memory` is not
-registered. `external-files`, `sqlite`, and `postgres` do not materialize a
-canonical `.context` mirror.
+supervisor recall/save address artifacts by token. Loop/review state and evidence,
+save metadata, importer cursors, attribution rows, auto-fix/PR evidence, and the
+plan reader use the selected service. `sql_memory` is not registered.
+`external-files`, `sqlite`, and `postgres` do not require a canonical `.context`
+mirror; local reports and runtime directories are optional exports.
 
 ### Native and portable access
 
@@ -55,6 +58,14 @@ Repo-files immutable manifests and revision blobs live under the machine
 identity registry,
 `${XDG_CONFIG_HOME:-~/.config}/buck-workflow/projects/<project-id>/repo-manifest`,
 beside `branch-identity.json`. Only editable bodies belong in `.context/`.
+
+Consumers bind the actual owning checkout and configured destination before
+queued work. Retained private artifacts use a stable workspace run; separate
+receipt runs identify individual write/window/save attempts. Changing the
+destination within that bound branch run refuses rather than redirecting pending
+writes. Ordinary reads/resume use retained records, never local JSON or host
+attribution tables as a missing-record or service-outage fallback. Repo-files
+private projections stay beneath `repo-manifest/private`, not in the checkout.
 
 `workflow_exec` is the Linux command boundary: Bubblewrap, fail closed, no
 host-shell fallback. Git metadata is read-only inside that command boundary
@@ -154,10 +165,11 @@ Create and persist a branch identity once per observed incarnation of a
 canonical `refs/heads/...` ref and its initial commit tip. Do not regenerate it
 on each read/run or use a recycled branch name as identity. Worktree and run
 IDs are separate UUID-based identifiers. Detached, unborn, and no-Git callers
-must use an explicitly constructed private workspace identity with a
-workspace nonce, not a missing branch interpreted as global scope. Git
-discovery, incarnation persistence, and recovery/rebinding are consumer
-responsibilities, not implemented by these helpers.
+use an explicitly constructed private workspace identity with a workspace nonce,
+not a missing branch interpreted as global scope. The trusted runtime persists
+those bindings. An unborn ref keeps its private binding through the first
+commit and descendants; another ref or an unrelated rewrite cannot inherit it.
+Unreadable Git identity fails closed rather than appearing to be an idle run.
 
 Artifact keys use safe opaque project/subject/kind/scope IDs and a normalized
 relative logical name; absolute paths, empty or traversal components,
@@ -182,7 +194,9 @@ exact branch, worktree, and run even if supplied as published. Callers must
 establish the trusted published-revision set using publication proof (separate
 from lookup). This is a retrieval invariant, not file/DB-operator access control.
 Publication pointer loading is still empty; callers cannot supply
-`publishedRevisionIds`. Remaining durable consumers are not all on this surface.
+`publishedRevisionIds`. Until trusted publication proof is available, consumers
+withhold private knowledge from harness LTM rather than treating branch merge
+or a local export as publication evidence.
 
 ### SQLite runtime boundary
 

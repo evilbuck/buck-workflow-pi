@@ -1,51 +1,21 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { AttributionDatabase, type AttributionRecord } from "../db.js";
+import { describe, expect, it } from "vitest";
 import { buildTokenReport } from "../report.js";
+import { fixture, openLedger, record } from "./fixtures.js";
 
-const roots: string[] = [];
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
-});
-
-function setup(): AttributionDatabase {
-  const root = mkdtempSync(join(tmpdir(), "token-report-"));
-  roots.push(root);
-  const ledger = new AttributionDatabase(join(root, "stats.db"));
-  const base: AttributionRecord = {
-    recordedAt: "2026-09-23T10:00:00.000Z",
-    sessionFile: "/sessions/main.jsonl",
-    sessionId: "s1",
-    entryKey: "one",
-    projectKey: "git@example.test:repo.git",
-    branch: "main",
-    worktreeRoot: "/repo",
-    provider: "openai",
-    model: "gpt-5",
-    api: "openai-responses",
-    inputTokens: 100,
-    outputTokens: 50,
-    cacheReadTokens: 0,
-    cacheWriteTokens: 0,
-    reasoningTokens: 20,
-    totalTokens: 150,
-    costUsd: 0.01,
-    costSource: "usage",
-  };
-  ledger.insert(base);
-  ledger.insert({ ...base, entryKey: "two", branch: "feature/a", provider: "anthropic", model: "claude", totalTokens: 250, inputTokens: 200, outputTokens: 50, costUsd: 0.02 });
-  ledger.insert({ ...base, entryKey: "three", projectKey: "https://example.test/other.git", branch: "main", totalTokens: 999, costUsd: 0.5 });
-  return ledger;
+async function setup() {
+  const { root } = fixture();
+  const ledger = openLedger();
+  const base = record(root, { entryKey: "one", branch: "main", totalTokens: 150, costUsd: 0.01 });
+  await ledger.insert(base);
+  await ledger.insert({ ...base, entryKey: "two", branch: "feature/a", provider: "anthropic", model: "claude", totalTokens: 250, costUsd: 0.02 });
+  await ledger.insert({ ...base, entryKey: "three", projectKey: "https://example.test/other.git", branch: "main", totalTokens: 999, costUsd: 0.5 });
+  return { ledger, root };
 }
 
 describe("buildTokenReport", () => {
-  it("prints current-project totals grouped by branch and provider/model", () => {
-    const ledger = setup();
-    const text = buildTokenReport(ledger, "git@example.test:repo.git", "");
-    ledger.close();
-
+  it("prints current-project totals grouped by branch and provider/model", async () => {
+    const { ledger, root } = await setup();
+    const text = await buildTokenReport(ledger, root, "git@example.test:repo.git", "");
     expect(text).toContain("git@example.test:repo.git");
     expect(text).toContain("400 tokens");
     expect(text).toContain("Estimated cost: $0.0300");
@@ -55,30 +25,32 @@ describe("buildTokenReport", () => {
     expect(text).not.toContain("999");
   });
 
-  it("filters an exact current-project branch before considering project substrings", () => {
-    const ledger = setup();
-    const text = buildTokenReport(ledger, "git@example.test:repo.git", "feature/a");
-    ledger.close();
-
+  it("filters an exact current-project branch before considering project substrings", async () => {
+    const { ledger, root } = await setup();
+    const text = await buildTokenReport(ledger, root, "git@example.test:repo.git", "feature/a");
     expect(text).toContain("Branch: feature/a");
     expect(text).toContain("250 tokens");
     expect(text).not.toMatch(/main\s+150/);
   });
 
-  it("lists matching projects when the argument is not a current-project branch", () => {
-    const ledger = setup();
-    const text = buildTokenReport(ledger, "git@example.test:repo.git", "other");
-    ledger.close();
-
+  it("lists case-insensitive matching projects when the argument is not a current-project branch", async () => {
+    const { ledger, root } = await setup();
+    const text = await buildTokenReport(ledger, root, "git@example.test:repo.git", "OTHER");
     expect(text).toContain("https://example.test/other.git");
     expect(text).toContain("999");
   });
 
-  it("returns a one-line empty state", () => {
-    const root = mkdtempSync(join(tmpdir(), "token-report-empty-"));
-    roots.push(root);
-    const ledger = new AttributionDatabase(join(root, "stats.db"));
-    expect(buildTokenReport(ledger, "/tmp/no-repo", "")).toBe("No attributed turns yet.");
-    ledger.close();
+  it("preserves unavailable cost and literal project substring matching", async () => {
+    const { root } = fixture();
+    const ledger = openLedger();
+    await ledger.insert(record(root, { projectKey: "repo_%", costUsd: null, costSource: "none" }));
+    expect(await buildTokenReport(ledger, root, "repo_%", "")).toContain("Estimated cost: unavailable");
+    expect(await buildTokenReport(ledger, root, "repo_%", "_%")).toContain("repo_%");
+    expect(await buildTokenReport(ledger, root, "repo_%", "missing")).toBe("No attributed turns yet.");
+  });
+
+  it("returns a one-line empty state", async () => {
+    const { root } = fixture();
+    expect(await buildTokenReport(openLedger(), root, "no-repo", "")).toBe("No attributed turns yet.");
   });
 });

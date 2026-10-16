@@ -1,15 +1,16 @@
 ---
-status: active
+status: completed
 date: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-15
 subject: 2026-10-10.durable-storage-adapters
 topics: [review, iteration, storage-consumers]
 informs: []
 addresses: phase-5-remaining-consumers.md
-completed: null
+completed: 2026-10-15
 from_review: b-review
 related: [review-phase-5-final-2026-10-12.md, iterate-phase-5-review-recovery.md]
 ---
+superseded_by: iterate-phase-5-current-state-2026-10-15.md
 
 # Iteration: Phase 5 — current-source final review
 

@@ -1,0 +1,16 @@
+{
+  "slug": "prompt-to-skill-portability",
+  "title": "Convert Buck workflow prompts into portable skills",
+  "generated": "2026-05-12T12:14:00Z",
+  "sourceArtifacts": [
+    ".context/2026-05-12.prompt-to-skill-portability/plan-prompt-to-skill-portability.md",
+    ".context/2026-05-12.prompt-to-skill-portability/tasks.md"
+  ],
+  "pages": [
+    { "file": "index.html", "type": "overview", "title": "Overview" }
+  ],
+  "sources": [
+    "sources/plan-prompt-to-skill-portability.md",
+    "sources/tasks.md"
+  ]
+}

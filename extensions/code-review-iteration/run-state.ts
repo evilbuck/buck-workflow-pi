@@ -7,9 +7,11 @@
  * reviewed diff. Runtime survives worktree removal until an explicit prune.
  */
 
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
-import { flushConfiguredRetains, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { basename, join } from "node:path";
+import { commitConsumerBatch, consumerKey, flushConfiguredRetains, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
+import { createRunId } from "../../skills/_shared/storage/identity.js";
 import type { CommandRecord } from "./policy.js";
 import type { ValidatedFinding } from "./findings.js";
 
@@ -70,6 +72,7 @@ export interface RunState {
   started_at: string;
   updated_at: string;
   terminal: { reason: string; at: string } | null;
+  checkout_root?: string;
 }
 
 export class StateError extends Error {
@@ -103,43 +106,58 @@ export function passDirFor(runDir: string, pass: number): string {
   return join(runDir, "passes", String(pass).padStart(2, "0"));
 }
 
-export function createRun(commonDir: string, state: Omit<RunState, "schema_version">): { dir: string; state: RunState } {
+const runRoots = new Map<string, string>();
+
+function checkoutFor(runDir: string): string {
+  const cwd = runRoots.get(runDir);
+  if (!cwd) throw new StateError(`review run is not bound to a checkout: ${runDir}`);
+  return cwd;
+}
+
+export async function createRun(commonDir: string, state: Omit<RunState, "schema_version">, cwd: string): Promise<{ dir: string; state: RunState }> {
   const dir = runDirFor(commonDir, state.branch, state.run_id);
-  if (existsSync(dir)) throw new StateError(`run directory already exists: ${dir}`);
-  mkdirSync(join(dir, "passes"), { recursive: true });
-  const full: RunState = { ...state, schema_version: RUN_STATE_SCHEMA };
-  saveState(dir, full);
+  const full: RunState = { ...state, checkout_root: cwd, schema_version: RUN_STATE_SCHEMA };
+  runRoots.set(dir, cwd);
+  await saveState(dir, full, null);
   return { dir, state: full };
 }
 
-/** Atomic write: serialize to a sibling temp file, then rename over. */
-export function saveState(runDir: string, state: RunState): Promise<string | null> {
+/** Retain first, then atomically refresh the optional state export. */
+export async function saveState(runDir: string, state: RunState, expectedRevision?: string | null): Promise<string | null> {
   state.updated_at = new Date().toISOString();
   const body = `${JSON.stringify(state, null, 2)}\n`;
+  const cwd = checkoutFor(runDir);
+  const retained = await scheduleConfiguredRetain({
+    kind: "run-state", subjectId: "code-review", logicalName: `runs/${state.run_id}/state.json`,
+    bytes: new TextEncoder().encode(body), cwd, source: "code-review-iteration", expectedRevision,
+  });
+  mkdirSync(runDir, { recursive: true });
   const target = join(runDir, "state.json");
   const tmp = join(runDir, "state.json.tmp");
   writeFileSync(tmp, body, "utf-8");
   renameSync(tmp, target);
-  return scheduleConfiguredRetain({
-    kind: "run-state", subjectId: "code-review", logicalName: "state.json",
-    bytes: new TextEncoder().encode(body), worktreeId: runDir, source: "code-review-iteration",
+  return retained;
+}
+
+export async function loadState(runDir: string): Promise<RunState> {
+  const cwd = checkoutFor(runDir);
+  const context = await resolveConsumerContext(cwd);
+  return withBoundStore(cwd, context, async (store) => {
+    const key = consumerKey({ ...context, worktreeId: context.worktreeId!, runId: context.runId! }, "run-state", "code-review", `runs/${basename(runDir)}/state.json`);
+    const stored = await store.read(key);
+    if (!stored) throw new StateError(`no retained state in ${runDir}`);
+    return parseState(new TextDecoder().decode(stored.bytes), runDir);
   });
 }
 
-export function loadState(runDir: string): RunState {
-  const target = join(runDir, "state.json");
-  if (!existsSync(target)) throw new StateError(`no state.json in ${runDir}`);
+function parseState(body: string, runDir: string): RunState {
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(readFileSync(target, "utf-8"));
-  } catch (e: unknown) {
-    throw new StateError(`state.json is not valid JSON in ${runDir}: ${(e as Error).message}`);
-  }
+  try { parsed = JSON.parse(body); }
+  catch (error) { throw new StateError(`state.json is not valid JSON in ${runDir}: ${(error as Error).message}`); }
   if (typeof parsed !== "object" || parsed === null) throw new StateError(`state.json is not an object in ${runDir}`);
   const state = parsed as RunState;
-  if (state.schema_version !== RUN_STATE_SCHEMA) {
-    throw new StateError(`unsupported state schema_version ${String(state.schema_version)} in ${runDir}`);
-  }
+  if (state.schema_version !== RUN_STATE_SCHEMA) throw new StateError(`unsupported state schema_version ${String(state.schema_version)} in ${runDir}`);
+  if (state.run_id !== basename(runDir)) throw new StateError(`retained run identity mismatch in ${runDir}`);
   return state;
 }
 
@@ -149,28 +167,46 @@ export interface ListedRun {
 }
 
 /** All runs for a branch, newest run_id first (ids are timestamp-prefixed). */
-export function listRuns(commonDir: string, branch: string | null): ListedRun[] {
-  const branchDir = join(runtimeRoot(commonDir), branchKey(branch));
-  if (!existsSync(branchDir)) return [];
-  const runs: ListedRun[] = [];
-  for (const entry of readdirSync(branchDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const dir = join(branchDir, entry.name);
-    try {
-      runs.push({ dir, state: loadState(dir) });
-    } catch {
-      // unreadable run directories are preserved but never resumed
+export async function listRuns(commonDir: string, branch: string | null, cwd: string): Promise<ListedRun[]> {
+  const context = await resolveConsumerContext(cwd);
+  return withBoundStore(cwd, context, async (store) => {
+    const retained = await store.list({ ...context, worktreeId: context.worktreeId!, runId: context.runId!, subjectId: "code-review", kind: "run-state", logicalNamePrefix: "runs/" });
+    const runs: ListedRun[] = [];
+    for (const item of retained) {
+      if (!/^runs\/[^/]+\/state\.json$/u.test(item.key.logicalName)) continue;
+      const id = item.key.logicalName.split("/")[1]!;
+      const dir = runDirFor(commonDir, branch, id);
+      try {
+        const state = parseState(new TextDecoder().decode(item.bytes), dir);
+        if (state.branch !== branch) continue;
+        runRoots.set(dir, cwd);
+        runs.push({ dir, state });
+      } catch (error) {
+        if (!(error instanceof StateError)) throw error;
+        // Invalid retained state is preserved but cannot authorize resume.
+      }
     }
-  }
-  return runs.sort((a, b) => (a.state.run_id > b.state.run_id ? -1 : 1));
+    return runs.sort((a, b) => b.state.run_id.localeCompare(a.state.run_id));
+  });
 }
 
 /** Newest resumable (non-clean) run for the branch, or null. */
-export function findResumable(commonDir: string, branch: string | null): ListedRun | null {
-  for (const run of listRuns(commonDir, branch)) {
+export async function findResumable(commonDir: string, branch: string | null, cwd: string): Promise<ListedRun | null> {
+  for (const run of await listRuns(commonDir, branch, cwd)) {
     if ((RESUMABLE_STATUSES as readonly string[]).includes(run.state.status)) return run;
   }
   return null;
+}
+
+export async function pruneRetainedRun(cwd: string, runId: string): Promise<void> {
+  const context = await resolveConsumerContext(cwd);
+  await withBoundStore(cwd, context, async (store) => {
+    const artifacts = await store.list({ ...context, worktreeId: context.worktreeId!, runId: context.runId!, subjectId: "code-review" });
+    for (const item of artifacts) {
+      if (item.key.logicalName !== `runs/${runId}/state.json` && !item.key.logicalName.startsWith(`${runId}/passes/`)) continue;
+      await store.correct({ key: item.key, predecessorRevision: item.revision, replacement: null, idempotencyKey: `prune-review:${item.revision}` });
+    }
+  });
 }
 
 export interface ResumeCheck {
@@ -201,59 +237,80 @@ export function validateResume(state: RunState, current: {
   return { ok: true, reason: null };
 }
 
-function writeImmutable(path: string, content: string): void {
-  if (existsSync(path)) throw new StateError(`refusing to overwrite immutable artifact: ${path}`);
-  writeFileSync(path, content, "utf-8");
-}
-
 function retainPassArtifact(runDir: string, pass: number, file: string, bytes: Uint8Array): Promise<string | null> {
   return scheduleConfiguredRetain({
-    kind: "audit", subjectId: "code-review", logicalName: `passes/${String(pass).padStart(2, "0")}/${file}`,
-    bytes, worktreeId: runDir, source: "code-review-iteration",
+    kind: "audit", subjectId: "code-review", logicalName: `${basename(runDir)}/passes/${String(pass).padStart(2, "0")}/${file}`,
+    bytes, cwd: checkoutFor(runDir), source: "code-review-iteration",
+    expectedRevision: null,
   });
 }
 
-export function writePassReview(runDir: string, pass: number, record: PassReviewRecord): Promise<string | null> {
+export async function writePassReview(runDir: string, pass: number, record: PassReviewRecord): Promise<string | null> {
   const body = `${JSON.stringify(record, null, 2)}\n`;
+  const retained = await retainPassArtifact(runDir, pass, "review.json", new TextEncoder().encode(body));
   const dir = passDirFor(runDir, pass);
   mkdirSync(dir, { recursive: true });
-  writeImmutable(join(dir, "review.json"), body);
-  return retainPassArtifact(runDir, pass, "review.json", new TextEncoder().encode(body));
+  writeFileSync(join(dir, "review.json"), body, "utf-8");
+  return retained;
 }
 
-export function writePassReviewMarkdown(runDir: string, pass: number, markdown: string): Promise<string | null> {
-  writeImmutable(join(passDirFor(runDir, pass), "review.md"), markdown);
-  return retainPassArtifact(runDir, pass, "review.md", new TextEncoder().encode(markdown));
+export async function writePassReviewMarkdown(runDir: string, pass: number, markdown: string): Promise<string | null> {
+  const retained = await retainPassArtifact(runDir, pass, "review.md", new TextEncoder().encode(markdown));
+  const dir = passDirFor(runDir, pass);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "review.md"), markdown, "utf-8");
+  return retained;
 }
 
-export function writePassFixer(runDir: string, pass: number, record: PassFixerRecord, markdown: string): Promise<Array<string | null>> {
+export async function writePassFixer(runDir: string, pass: number, record: PassFixerRecord, markdown: string): Promise<Array<string | null>> {
   const dir = passDirFor(runDir, pass);
   mkdirSync(dir, { recursive: true });
   const json = `${JSON.stringify(record, null, 2)}\n`;
   const text = `${markdown}\n`;
-  writeImmutable(join(dir, "fixer.json"), json);
-  writeImmutable(join(dir, "fixer.md"), text);
-  return Promise.all([
+  const retained = await Promise.all([
     retainPassArtifact(runDir, pass, "fixer.json", new TextEncoder().encode(json)),
     retainPassArtifact(runDir, pass, "fixer.md", new TextEncoder().encode(text)),
   ]);
+  writeFileSync(join(dir, "fixer.json"), json, "utf-8");
+  writeFileSync(join(dir, "fixer.md"), text, "utf-8");
+  return retained;
 }
 
+let commandTail: Promise<void> = Promise.resolve();
+
 export function appendCommandRecord(runDir: string, pass: number, record: CommandRecord): Promise<string | null> {
-  const dir = passDirFor(runDir, pass);
-  mkdirSync(dir, { recursive: true });
-  appendFileSync(join(dir, "commands.jsonl"), `${JSON.stringify(record)}\n`, "utf-8");
-  const bytes = new TextEncoder().encode(readFileSync(join(dir, "commands.jsonl"), "utf8"));
-  return retainPassArtifact(runDir, pass, "commands.jsonl", bytes);
+  const cwd = checkoutFor(runDir);
+  const binding = resolveConsumerContext(cwd);
+  void binding.catch(() => undefined);
+  const retained = commandTail.then(async () => withBoundStore(cwd, await binding, async (store, context) => {
+    const scope = { ...context, worktreeId: context.worktreeId!, runId: context.runId! };
+    const logicalName = `${basename(runDir)}/passes/${String(pass).padStart(2, "0")}/commands.jsonl`;
+    const previous = await store.read(consumerKey(scope, "audit", "code-review", logicalName));
+    const body = `${previous ? new TextDecoder().decode(previous.bytes) : ""}${JSON.stringify(record)}\n`;
+    const receiptRun = createRunId();
+    await commitConsumerBatch(store, scope, [{ kind: "audit", subjectId: "code-review", logicalName, bytes: new TextEncoder().encode(body), expectedRevision: previous?.revision ?? null, source: "code-review-iteration" }], { attemptId: receiptRun, runId: receiptRun, status: "attempted" });
+    const dir = passDirFor(runDir, pass);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "commands.jsonl"), body, "utf-8");
+    return context.runId!;
+  }));
+  commandTail = retained.then(() => undefined, () => undefined);
+  return retained;
 }
 
 export { flushConfiguredRetains };
 
-export function readCommandRecords(runDir: string, pass: number): CommandRecord[] {
-  const target = join(passDirFor(runDir, pass), "commands.jsonl");
-  if (!existsSync(target)) return [];
-  return readFileSync(target, "utf-8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as CommandRecord);
+export async function readPassArtifact(runDir: string, pass: number, file: string): Promise<string | null> {
+  const cwd = checkoutFor(runDir);
+  const context = await resolveConsumerContext(cwd);
+  return withBoundStore(cwd, context, async (store) => {
+    const key = consumerKey({ ...context, worktreeId: context.worktreeId!, runId: context.runId! }, "audit", "code-review", `${basename(runDir)}/passes/${String(pass).padStart(2, "0")}/${file}`);
+    const stored = await store.read(key);
+    return stored ? new TextDecoder().decode(stored.bytes) : null;
+  });
+}
+
+export async function readCommandRecords(runDir: string, pass: number): Promise<CommandRecord[]> {
+  const body = await readPassArtifact(runDir, pass, "commands.jsonl");
+  return (body ?? "").split("\n").filter(Boolean).map((line) => JSON.parse(line) as CommandRecord);
 }

@@ -4,61 +4,59 @@ import { join } from "node:path";
 import { cleanupRepos, phaseMd, repo, writeTree } from "./fixtures.js";
 import { syncCheckedPhasesAt } from "../phase-completion.js";
 import { scan } from "../scan.js";
-import { flushConfiguredRetains } from "../../../skills/_shared/storage/consumers.js";
-import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const SUBJECT = ".context/2026-09-18.demo";
 const PLAN = `${SUBJECT}/plan-demo.md`;
 afterEach(cleanupRepos);
 
 describe("unphased checked acceptance synchronization", () => {
-  it("resolves subject input, preserves boxes, and keeps completion metadata stable", () => {
+  it("resolves subject input, preserves boxes, and keeps completion metadata stable", async () => {
     const cwd = repo();
     writeTree(cwd, { [PLAN]: "---\nstatus: active\n---\n## Acceptance criteria\n- [x] Verified\n## Other\n- [ ] Not acceptance\n" });
-    syncCheckedPhasesAt(cwd, SUBJECT, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, SUBJECT, "2026-09-18");
     const completed = readFileSync(join(cwd, PLAN), "utf8");
     expect(completed).toContain("status: completed\ncompleted_at: 2026-09-18");
     expect(completed).toContain("- [x] Verified\n## Other\n- [ ] Not acceptance");
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-19");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-19");
     expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(completed);
   });
 
-  it("does not complete a phased parent with checked body boxes", () => {
+  it("does not complete a phased parent with checked body boxes", async () => {
     const cwd = repo();
     const text = "---\nstatus: active\n---\n## Acceptance criteria\n- [x] Verified\n";
     writeTree(cwd, { [PLAN]: text, [`${SUBJECT}/phase-1-demo.md`]: phaseMd(1, "pending", [], "plan-demo.md") });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(text);
   });
 
-  it.each(["- [ ] Open", "- [x] Done\n- [ ] Open", ""])("leaves unverified or empty list unchanged: %s", (criteria) => {
+  it.each(["- [ ] Open", "- [x] Done\n- [ ] Open", ""])("leaves unverified or empty list unchanged: %s", async (criteria) => {
     const cwd = repo();
     const text = `---\nstatus: active\n---\n## Acceptance criteria\n${criteria}\n`;
     writeTree(cwd, { [PLAN]: text });
-    syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PLAN, "2026-09-18");
     expect(readFileSync(join(cwd, PLAN), "utf8")).toBe(text);
-    const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
+    const facts = (await scan({ projectRoot: cwd, path: PLAN })).planFacts;
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(false);
   });
 
-  it.each(["", "## Acceptance criteria\n"])("preserves status-only eligibility for missing or empty sections: %s", (body) => {
+  it.each(["", "## Acceptance criteria\n"])("preserves status-only eligibility for missing or empty sections: %s", async (body) => {
     const cwd = repo();
     writeTree(cwd, { [PLAN]: `---\nstatus: completed\n---\n${body}` });
-    const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
+    const facts = (await scan({ projectRoot: cwd, path: PLAN })).planFacts;
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(true);
   });
 
-  it("accepts uppercase boxes as checked (shared tolerant parser)", () => {
+  it("accepts uppercase boxes as checked (shared tolerant parser)", async () => {
     const cwd = repo();
     writeTree(cwd, { [PLAN]: "---\nstatus: completed\n---\n## Acceptance criteria\n- [X] Verified\n" });
-    const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
+    const facts = (await scan({ projectRoot: cwd, path: PLAN })).planFacts;
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(true);
   });
 
-  it("still rejects an open box when plan status is completed", () => {
+  it("still rejects an open box when plan status is completed", async () => {
     const cwd = repo();
     writeTree(cwd, { [PLAN]: "---\nstatus: completed\n---\n## Acceptance criteria\n- [ ] Unverified\n" });
-    const facts = scan({ projectRoot: cwd, path: PLAN }).planFacts;
+    const facts = (await scan({ projectRoot: cwd, path: PLAN })).planFacts;
     expect(facts.kind === "unphased" && facts.closeEligible).toBe(false);
   });
 });

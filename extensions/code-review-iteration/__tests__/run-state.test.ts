@@ -1,7 +1,7 @@
-import { DatabaseSync } from "node:sqlite";
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { readConsumer } from "../../../skills/_shared/storage/consumers.js";
 import { SQLiteStorageStore } from "../../../skills/_shared/storage/sqlite-store.js";
+import * as workflowState from "../../../skills/_shared/scripts/workflow-state.js";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +18,8 @@ import {
   writePassFixer,
   appendCommandRecord,
   readCommandRecords,
-  StateError,
+  readPassArtifact,
+  flushConfiguredRetains,
   type RunState,
 } from "../run-state.js";
 
@@ -58,75 +59,78 @@ describe("branchKey", () => {
 });
 
 describe("run lifecycle", () => {
-  it("creates a run, saves atomically, and loads it back", () => {
+  it("creates a run, saves atomically, and loads it back", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
-      const { dir, state } = createRun(common, makeState());
+      const { dir, state } = await createRun(common, makeState(), common);
       expect(dir).toContain(join("code-review-iteration", "feature_x", "20260912T150000-abc123"));
       expect(state.schema_version).toBe(1);
-      const loaded = loadState(dir);
+      const loaded = await loadState(dir);
       expect(loaded.run_id).toBe(state.run_id);
       state.status = "clean";
-      saveState(dir, state);
-      expect(loadState(dir).status).toBe("clean");
-      expect(loadState(dir).updated_at >= state.started_at).toBe(true);
+      await saveState(dir, state);
+      expect((await loadState(dir)).status).toBe("clean");
+      expect((await loadState(dir)).updated_at >= state.started_at).toBe(true);
     } finally {
       rmSync(common, { recursive: true, force: true });
     }
   });
 
-  it("refuses to create a run over an existing directory", () => {
+  it("refuses to replace an existing retained run even without its export directory", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
-      createRun(common, makeState());
-      expect(() => createRun(common, makeState())).toThrow(StateError);
+      const created = await createRun(common, makeState(), common);
+      rmSync(created.dir, { recursive: true, force: true });
+      await expect(createRun(common, makeState({ status: "clean" }), common)).rejects.toThrow();
+      await expect(flushConfiguredRetains()).rejects.toThrow();
+      expect((await loadState(created.dir)).status).toBe("running");
     } finally {
       rmSync(common, { recursive: true, force: true });
     }
   });
 
-  it("rejects corrupt or wrong-schema state visibly", () => {
+  it("ignores corrupt local exports and resumes retained state", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
-      const { dir } = createRun(common, makeState());
+      const { dir } = await createRun(common, makeState(), common);
       writeFileSync(join(dir, "state.json"), "{not json");
-      expect(() => loadState(dir)).toThrow(/not valid JSON/);
+      expect((await loadState(dir)).run_id).toBe("20260912T150000-abc123");
       writeFileSync(join(dir, "state.json"), '{"schema_version": 99}');
-      expect(() => loadState(dir)).toThrow(/schema_version/);
+      expect((await loadState(dir)).schema_version).toBe(1);
     } finally {
       rmSync(common, { recursive: true, force: true });
     }
   });
 
-  it("lists runs newest-first and finds the newest resumable run", () => {
+  it("lists runs newest-first and finds the newest resumable run", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
-      createRun(common, makeState({ run_id: "20260912T100000-old1", status: "blocked" }));
-      createRun(common, makeState({ run_id: "20260912T110000-old2", status: "clean" }));
-      const newest = createRun(common, makeState({ run_id: "20260912T120000-new", status: "running" }));
-      const runs = listRuns(common, "feature/x");
+      await createRun(common, makeState({ run_id: "20260912T100000-old1", status: "blocked" }), common);
+      await createRun(common, makeState({ run_id: "20260912T110000-old2", status: "clean" }), common);
+      const newest = await createRun(common, makeState({ run_id: "20260912T120000-new", status: "running" }), common);
+      const runs = await listRuns(common, "feature/x", common);
       expect(runs.map((r) => r.state.run_id)).toEqual(["20260912T120000-new", "20260912T110000-old2", "20260912T100000-old1"]);
-      const resumable = findResumable(common, "feature/x");
+      const resumable = await findResumable(common, "feature/x", common);
       expect(resumable?.dir).toBe(newest.dir);
       // newest goes clean → falls back to the older blocked run
-      saveState(newest.dir, { ...newest.state, status: "clean" });
-      const older = findResumable(common, "feature/x");
+      await saveState(newest.dir, { ...newest.state, status: "clean" });
+      const older = await findResumable(common, "feature/x", common);
       expect(older?.state.run_id).toBe("20260912T100000-old1");
-      saveState(older!.dir, { ...older!.state, status: "clean" });
-      expect(findResumable(common, "feature/x")).toBeNull();
+      await saveState(older!.dir, { ...older!.state, status: "clean" });
+      expect(await findResumable(common, "feature/x", common)).toBeNull();
     } finally {
       rmSync(common, { recursive: true, force: true });
     }
   });
 
-  it("preserves unreadable run directories without resuming them", () => {
+  it("preserves unreadable run directories without resuming them", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
       const branchDir = join(common, "code-review-iteration", "feature_x");
       mkdirSync(join(branchDir, "20260912T090000-junk"), { recursive: true });
       writeFileSync(join(branchDir, "20260912T090000-junk", "state.json"), "garbage");
-      createRun(common, makeState({ run_id: "20260912T100000-good", status: "failed" }));
-      const resumable = findResumable(common, "feature/x");
+      await createRun(common, makeState({ run_id: "20260912T100000-good", status: "failed" }), common);
+      const resumable = await findResumable(common, "feature/x", common);
       expect(resumable?.state.run_id).toBe("20260912T100000-good");
     } finally {
       rmSync(common, { recursive: true, force: true });
@@ -158,11 +162,11 @@ describe("validateResume", () => {
 });
 
 describe("pass artifacts", () => {
-  it("writes immutable pass artifacts and refuses overwrites", () => {
+  it("writes immutable pass artifacts and refuses overwrites", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
     try {
-      const { dir } = createRun(common, makeState());
-      writePassReview(dir, 1, {
+      const { dir } = await createRun(common, makeState(), common);
+      await writePassReview(dir, 1, {
         persona: "balanced",
         requested_model: "zai/glm-5.3",
         requested_temperature: 0.2,
@@ -171,8 +175,8 @@ describe("pass artifacts", () => {
         findings: [],
         errors: [],
       });
-      writePassReviewMarkdown(dir, 1, "# Pass 01 review\n");
-      expect(() => writePassReview(dir, 1, {
+      await writePassReviewMarkdown(dir, 1, "# Pass 01 review\n");
+      await expect(writePassReview(dir, 1, {
         persona: "x",
         requested_model: null,
         requested_temperature: null,
@@ -180,8 +184,8 @@ describe("pass artifacts", () => {
         reviewed_head: "",
         findings: [],
         errors: [],
-      })).toThrow(/immutable/);
-      writePassFixer(dir, 1, {
+      })).rejects.toThrow();
+      await writePassFixer(dir, 1, {
         model: "openai-codex/gpt-5.6-sol",
         requested_hardness: "hard",
         dispositions: [],
@@ -189,24 +193,42 @@ describe("pass artifacts", () => {
         checks: { command: "npm test", exit_code: 0, passed: true },
         checkpoint_commit: null,
       }, "# Pass 01 fixer\n");
-      expect(() => writePassFixer(dir, 1, {
+      await expect(writePassFixer(dir, 1, {
         model: null,
         requested_hardness: null,
         dispositions: [],
         changed_paths: [],
         checks: { command: "", exit_code: null, passed: false },
         checkpoint_commit: null,
-      }, "dup")).toThrow(/immutable/);
+      }, "dup")).rejects.toThrow();
+      await expect(flushConfiguredRetains()).rejects.toThrow();
+      expect(JSON.parse((await readPassArtifact(dir, 1, "review.json"))!).persona).toBe("balanced");
     } finally {
       rmSync(common, { recursive: true, force: true });
     }
   });
 
-  it("appends and reads command records as JSONL", () => {
+  it("retains concurrent command appends in order even when the JSONL export is removed", async () => {
     const common = mkdtempSync(join(tmpdir(), "cr-state-"));
+    const previous = process.env.BUCK_WORKFLOW_CONFIG;
+    const config = join(common, "storage.yaml");
+    writeFileSync(config, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(common, "records.sqlite")}\n`);
+    process.env.BUCK_WORKFLOW_CONFIG = config;
+    let store: SQLiteStorageStore | undefined;
     try {
-      const { dir } = createRun(common, makeState());
-      appendCommandRecord(dir, 1, {
+      const { dir } = await createRun(common, makeState(), common);
+      store = SQLiteStorageStore.openSync(join(common, "records.sqlite"));
+      vi.spyOn(workflowState, "withBoundStore").mockImplementation((_cwd, context, run) => run(store!, context));
+      const resolveContext = workflowState.resolveConsumerContext;
+      const ready = Promise.withResolvers<void>();
+      let bindings = 0;
+      vi.spyOn(workflowState, "resolveConsumerContext").mockImplementation(async cwd => {
+        const context = await resolveContext(cwd);
+        if (++bindings === 2) ready.resolve();
+        await ready.promise;
+        return context;
+      });
+      const first = appendCommandRecord(dir, 1, {
         command_id: "node-eval",
         argv: ["node", "-e", "1"],
         cwd: ".",
@@ -225,7 +247,7 @@ describe("pass artifacts", () => {
         denied_reason: null,
         network_exposed: false,
       });
-      appendCommandRecord(dir, 1, {
+      const second = appendCommandRecord(dir, 1, {
         command_id: "git-status",
         argv: ["git", "status"],
         cwd: ".",
@@ -244,10 +266,16 @@ describe("pass artifacts", () => {
         denied_reason: null,
         network_exposed: false,
       });
-      const records = readCommandRecords(dir, 1);
+      await Promise.all([first, second]);
+      rmSync(dir, { recursive: true, force: true });
+      const records = await readCommandRecords(dir, 1);
       expect(records.map((r) => r.command_id)).toEqual(["node-eval", "git-status"]);
-      expect(readCommandRecords(dir, 2)).toEqual([]);
+      expect(await readCommandRecords(dir, 2)).toEqual([]);
     } finally {
+      vi.restoreAllMocks();
+      store?.close();
+      if (previous === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previous;
       rmSync(common, { recursive: true, force: true });
     }
   });
@@ -268,7 +296,7 @@ describe("pass artifact retention on the configured store", () => {
     writeFileSync(join(configRoot, "config.yaml"), `version: 1\nstorage:\n  adapter: sqlite\n  database: ${database}\n`);
     process.env.BUCK_WORKFLOW_CONFIG = join(configRoot, "config.yaml");
     try {
-      const { dir } = createRun(common, makeState());
+      const { dir } = await createRun(common, makeState(), common);
       const reviewBody = {
         persona: "balanced",
         requested_model: "zai/glm-5.3",
@@ -284,22 +312,22 @@ describe("pass artifact retention on the configured store", () => {
       expect(markdownRunId).toBeTruthy();
       const store = SQLiteStorageStore.openSync(database);
       try {
-        const probe = new DatabaseSync(database, { readOnly: true });
-        const row = probe.prepare("SELECT project_id, branch_id, worktree_id, run_id FROM artifact_revisions WHERE logical_name=? AND run_id=?").get("passes/01/review.json", runId) as { project_id: string; branch_id: string; worktree_id: string; run_id: string } | undefined;
-        probe.close();
-        expect(row).toBeTruthy();
-        const scope = { projectId: row!.project_id, branchId: row!.branch_id, worktreeId: row!.worktree_id, runId: row!.run_id, publishedRevisionIds: [] };
-        const retained = await readConsumer(store, scope, "audit", "code-review", "passes/01/review.json");
+        const context = await workflowState.resolveConsumerContext(common);
+        const scope = { ...context, worktreeId: context.worktreeId!, runId: context.runId! };
+        const retained = await readConsumer(store, scope, "audit", "code-review", "20260912T150000-abc123/passes/01/review.json");
         expect(new TextDecoder().decode(retained!.bytes)).toBe(`${JSON.stringify(reviewBody, null, 2)}\n`);
-        await expect(store.readReceipt(row!.project_id, runId!)).resolves.toMatchObject({
-          attemptId: runId, worktreeId: row!.worktree_id, status: "attempted",
-        });
         const stranger = { ...scope, runId: `${runId}-stranger` };
-        await expect(readConsumer(store, stranger, "audit", "code-review", "passes/01/review.json")).resolves.toBeNull();
+        await expect(readConsumer(store, stranger, "audit", "code-review", "20260912T150000-abc123/passes/01/review.json")).resolves.toBeNull();
       } finally {
         store.close();
       }
-      expect(() => writePassReview(dir, 1, { ...reviewBody, persona: "x" })).toThrow(/immutable/);
+      await expect(writePassReview(dir, 1, { ...reviewBody, persona: "x" })).rejects.toThrow();
+      rmSync(dir, { recursive: true, force: true });
+      const resumed = await findResumable(common, "feature/x", common);
+      expect(resumed?.state.run_id).toBe("20260912T150000-abc123");
+      expect(await readPassArtifact(dir, 1, "review.json")).toBe(`${JSON.stringify(reviewBody, null, 2)}\n`);
+      await expect(writePassReview(dir, 1, { ...reviewBody, persona: "x" })).rejects.toThrow(/revision|conditional|conflict|stale/i);
+      await expect(flushConfiguredRetains()).rejects.toThrow();
     } finally {
       rmSync(common, { recursive: true, force: true });
       rmSync(configRoot, { recursive: true, force: true });

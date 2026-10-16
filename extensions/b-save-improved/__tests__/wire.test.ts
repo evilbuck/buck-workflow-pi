@@ -311,10 +311,14 @@ describe("assembleApplyPayload / buildRetainInstruction", () => {
     });
   });
 
-  it("names retain vs learn vs skip from the memory backend", () => {
-    expect(buildRetainInstruction({ backend: "hindsight" }, "m.md", "subj", ["f"])).toContain("Call the retain tool");
-    expect(buildRetainInstruction({ backend: "local" }, "m.md", "subj", [])).toContain("Call the learn tool");
-    expect(buildRetainInstruction({ backend: null }, "m.md", "subj", [])).toContain("No harness memory tool");
+  it("withholds facts from harness LTM without publication-proven adapter revisions", () => {
+    for (const backend of ["hindsight", "mnemopi", "local"]) {
+      const instruction = buildRetainInstruction({ backend }, "m.md", "subj", ["private branch fact"]);
+      expect(instruction).not.toContain("private branch fact");
+      expect(instruction).not.toContain("Call the retain tool");
+      expect(instruction).not.toContain("Call the learn tool");
+      expect(instruction).toContain("No publication-proven revisions");
+    }
   });
 
   it("classifies array content blocks and function-style tool calls", () => {
@@ -433,8 +437,9 @@ describe("golden parity: preflight + payload + apply", () => {
       const plan = readFileSync(join(subjectDir, "plan-feature.md"), "utf8");
       expect(plan).toContain(`memory: [../memory/golden-${today}.md]`);
 
-      // Re-run the same payload: nothing duplicates.
-      expect(apply(payload).errors).toEqual([]);
+      // A subsequent checkpoint uses fresh CAS anchors; semantic updates stay idempotent.
+      const refreshed: Record<string, unknown> = JSON.parse(execFileSync("bun", [PREFLIGHT, "--subject", "2026-08-26.golden"], { cwd: root, encoding: "utf8" }));
+      expect(apply({ ...payload, storage_snapshot: refreshed.storage_snapshot }).errors).toEqual([]);
       const memoryAgain = readFileSync(memoryPath, "utf8");
       expect(count(memoryAgain, /extensions\/a\.ts:42/g)).toBe(1);
       expect(count(memoryAgain, /^## Verification$/m)).toBe(1);

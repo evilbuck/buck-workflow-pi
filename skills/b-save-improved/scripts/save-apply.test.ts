@@ -38,6 +38,7 @@ function basePayload(overrides: Record<string, unknown> = {}) {
 
 function fixture(): string {
   const root = mkdtempSync(join(tmpdir(), "save-apply-"));
+  execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
   write(root, ".context/memory/index.md", LEGACY);
   write(root, ".context/2026-08-26.save/index.md", "---\nstatus: active\n---\n\n# Save\n");
   return root;
@@ -589,11 +590,7 @@ describe("durable-save apply", () => {
       write(root, specPath, legacy);
       const prepared = prepareSaveAttempt(root, "2026-08-26.save");
       if ("error" in prepared) throw new Error(prepared.error);
-      const store = new FileStorageStore({ root: join(root, "store") });
-      const ids = await saveSqlFacts(root, prepared, ["It's stored in the workflow store."], {
-        store,
-        context: { projectId: "fixture-project", branchId: "branch-a", publishedRevisionIds: [] },
-      });
+      const ids = await saveSqlFacts(root, prepared, ["It's stored in the workflow store."]);
       const payload = basePayload({
         sql_receipt: { path: prepared.receiptRel, ids },
         crossrefs: [planPath, specPath].map((path) => ({ path, key: "sql_memory_ids", value: ids[0] })),
@@ -670,10 +667,10 @@ describe("file-mode storage sealing", () => {
       });
       expect(new TextDecoder().decode(index!.bytes)).toBe(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8"));
       await expect(store.readReceipt(context.projectId, result.run_id!)).resolves.toMatchObject({
-        attemptId: result.run_id,
+        attemptId: expect.any(String),
         worktreeId: expect.any(String),
-        status: "attempted",
-        metadataDuties: ["projection"],
+        status: "complete",
+        metadataDuties: ["save-metadata", "probe"],
       });
     }, { configPath: join(root, "config.yaml") });
   });

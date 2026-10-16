@@ -171,3 +171,18 @@ remains open pending current-source adapter-authority work.
 - All five canonical/bundled source and test pairs checked in this assignment
   compare byte-identically. Phase 5 remains open; remaining criteria and
   end-to-end adapter scenarios have not been proven here.
+## Private save-fact LTM handoff repair (2026-10-16)
+
+- The standalone save extension previously forwarded scribe `retain_facts`
+  directly to unscoped `retain`/`learn`; the current scribe output does not
+  carry publication-proven adapter revisions.
+- `buildRetainInstruction()` now withholds all facts and directs the mainline to
+  skip LTM handoff until exact publication proof is available. It preserves
+  the existing no-Hindsight-HTTP and no-bulk-import rules.
+- The user-facing skill procedure now documents this fail-closed behavior.
+- RED: focused regression failed because the emitted retain instruction
+  included `private branch fact`. GREEN: `npx vitest run
+  extensions/b-save-improved/__tests__/wire.test.ts --reporter=verbose`
+  passed (22/22).
+- Other findings from `iterate-phase-5-current-state-2026-10-15.md` are not
+  resolved by this privacy repair.

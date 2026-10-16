@@ -193,7 +193,7 @@ export async function rankIssues(options: {
     const classified = classifyContextPath(relative(process.cwd(), path));
     scheduleConfiguredRetain({
       kind: classified.kind, subjectId: classified.subjectId, logicalName: classified.logicalName,
-      bytes: new TextEncoder().encode(contents), worktreeId: process.cwd(), source: "buck-loop",
+      bytes: new TextEncoder().encode(contents), cwd: process.cwd(), source: "buck-loop",
     });
   });
   const ranked: RankedIssue[] = [];

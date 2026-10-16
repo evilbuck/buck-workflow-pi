@@ -25,7 +25,7 @@ function git(...args: string[]): string {
 async function writeMemory(logicalName: string, body: string, category = "decision"): Promise<void> {
   const context = await resolveTrustedContext(cwd);
   const bytes = new TextEncoder().encode(`category: ${category}\n${body} memory\n`);
-  const store = new RepoFilesStorageStore({ root: context.manifestRoot!, manifestRoot: context.manifestRoot!, contextRoot: join(cwd, ".context") });
+  const store = new RepoFilesStorageStore({ manifestRoot: context.manifestRoot!, contextRoot: join(cwd, ".context") });
   await store.writeBatch([{
     key: { projectId: context.projectId, branchId: context.branchId, subjectId: "project-memory", kind: "memory", logicalName },
     revision: logicalName, bytes, sha256: revisionHash(bytes), author: "fixture", source: "fixture", createdAt: new Date().toISOString(), links: [],
@@ -164,7 +164,7 @@ describe("project memory recall", () => {
 
   it("corrects a recalled published predecessor without changing its owning branch", async () => {
     const context = await resolveTrustedContext(cwd);
-    const store = new RepoFilesStorageStore({ root: context.manifestRoot!, manifestRoot: context.manifestRoot!, contextRoot: join(cwd, ".context") });
+    const store = new RepoFilesStorageStore({ manifestRoot: context.manifestRoot!, contextRoot: join(cwd, ".context") });
     const ref = { subjectId: "published-subject", kind: "memory" as const, logicalName: "published/fact.md" };
     const owner = { ...context, branchId: "published-owner" };
     const published = await executeWorkflowState({ cwd, store, context: owner, role: "write", request: { operation: "write", ref, body: "published memory" } }) as { revision: string };

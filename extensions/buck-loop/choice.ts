@@ -202,8 +202,8 @@ async function writeAudit(opts: {
   }, null, 2)}\n`;
   await writeFile(join(directory, name), body);
   await scheduleConfiguredRetain({
-    kind: "audit", subjectId: opts.subject, logicalName: `${opts.subject}/transition-audits/${name}`,
-    bytes: new TextEncoder().encode(body), worktreeId: opts.cwd, source: "buck-loop",
+    kind: "audit", subjectId: opts.subject, logicalName: `transition-audits/${name}`,
+    bytes: new TextEncoder().encode(body), cwd: opts.cwd, source: "buck-loop",
   });
 }
 

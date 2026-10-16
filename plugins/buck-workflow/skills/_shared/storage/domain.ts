@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { keyId, revisionHash } from "./adapter-utils.js";
-import type { ArtifactKey, ArtifactQuery, ArtifactRevision, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
+import type { ArtifactKind, ArtifactKey, ArtifactQuery, ArtifactRevision, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
 import { completedSubjectIds } from "../scripts/context-helpers.js";
 import { applySubjectLifecycleTexts, inspectSubjectLifecycleTexts, provenanceFromIndexText } from "../scripts/subject-lifecycle.js";
 
@@ -38,14 +38,21 @@ export function tombstoneRevision(key: ArtifactKey, predecessor: string): Artifa
   };
 }
 
-export function evidenceFromBodies(records: readonly { logicalName: string; body: string }[]): { index: string; files: Map<string, string>; provenance: LifecycleRecord["provenance"] } {
+const LIFECYCLE_NAMES: Partial<Record<ArtifactKind, RegExp>> = {
+  "subject-index": /^index\.md$/u,
+  plan: /^plan-[^/\\]+\.md$/u,
+  phase: /^phase-\d+-[^/\\]+\.md$/u,
+};
+
+function evidenceFromBodies(records: readonly ArtifactRevision[]): { index: string; files: Map<string, string>; provenance: LifecycleRecord["provenance"] } {
   const files = new Map<string, string>();
   let index = "";
   for (const record of records) {
-    const name = record.logicalName.split(/[\\/]/u).at(-1) ?? record.logicalName;
-    if (name !== "index.md" && !/^plan-.*\.md$/.test(name) && !/^phase-\d+-.+\.md$/.test(name)) continue;
-    files.set(name, record.body);
-    if (name === "index.md") index = record.body;
+    const name = record.key.logicalName;
+    if (!LIFECYCLE_NAMES[record.key.kind]?.test(name)) continue;
+    const body = new TextDecoder().decode(record.bytes);
+    files.set(name, body);
+    if (name === "index.md") index = body;
   }
   return { index, files, provenance: provenanceFromIndexText(index) };
 }
@@ -65,9 +72,9 @@ export function correctionDecision(existing: StoredCorrection | null, correction
 }
 
 export function inspectStoredLifecycle(items: readonly ArtifactRevision[], projectId: string, branchId: string, subjectId: string): LifecycleRecord | null {
-  const index = items.find((item) => item.key.kind === "subject-index");
+  const index = items.find((item) => item.key.kind === "subject-index" && item.key.logicalName === "index.md");
   if (!index) return null;
-  const texts = evidenceFromBodies(items.map((item) => ({ logicalName: item.key.logicalName, body: new TextDecoder().decode(item.bytes) })));
+  const texts = evidenceFromBodies(items);
   const inspection = inspectSubjectLifecycleTexts(texts.index, texts.files);
   return { projectId, branchId, subjectId, revision: index.revision, state: inspection.state, effectiveState: inspection.effectiveState, provenance: inspection.provenance, evidence: items.map((item) => item.revision) };
 }
@@ -75,9 +82,9 @@ export function inspectStoredLifecycle(items: readonly ArtifactRevision[], proje
 export function lifecycleRevision(items: readonly ArtifactRevision[], input: LifecycleTransition): ArtifactRevision {
   const current = inspectStoredLifecycle(items, input.projectId, input.branchId, input.subjectId);
   assertLifecycleCurrent(current, input);
-  const texts = evidenceFromBodies(items.map((item) => ({ logicalName: item.key.logicalName, body: new TextDecoder().decode(item.bytes) })));
+  const texts = evidenceFromBodies(items);
   const text = applySubjectLifecycleTexts(texts.index, texts.files, input.intent);
-  const index = items.find((item) => item.key.kind === "subject-index");
+  const index = items.find((item) => item.key.kind === "subject-index" && item.key.logicalName === "index.md");
   const key: ArtifactKey = { projectId: input.projectId, branchId: input.branchId, subjectId: input.subjectId, kind: "subject-index", logicalName: index?.key.logicalName ?? "index.md" };
   const bytes = new TextEncoder().encode(text);
   return { key, revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "storage", source: "subject-lifecycle", createdAt: new Date().toISOString(), links: index?.links ?? [], expectedRevision: index?.key.branchId === input.branchId ? index.revision : null };

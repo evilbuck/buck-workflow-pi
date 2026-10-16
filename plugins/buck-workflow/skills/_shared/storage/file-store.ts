@@ -60,6 +60,7 @@ export interface FileStoreOptions {
   editableRoot?: string;
   lockTimeoutMs?: number;
   externalNamespace?: boolean;
+  subjectNamespace?: boolean;
   projectKey?: string;
 }
 
@@ -68,6 +69,7 @@ export class FileStorageStore implements StorageStore {
   readonly #editableRoot: string;
   readonly #timeout: number;
   readonly #externalNamespace: boolean;
+  readonly #subjectNamespace: boolean;
   #lock: FileHandle | undefined;
   #queue: Promise<void> = Promise.resolve();
   #touched: string[] = [];
@@ -77,6 +79,7 @@ export class FileStorageStore implements StorageStore {
     this.#editableRoot = resolve(options.editableRoot ?? options.root);
     this.#timeout = options.lockTimeoutMs ?? 10_000;
     this.#externalNamespace = options.externalNamespace ?? false;
+    this.#subjectNamespace = options.subjectNamespace ?? false;
   }
 
   async read(key: ArtifactKey, revision?: string): Promise<ArtifactRevision | null> {
@@ -344,9 +347,10 @@ export class FileStorageStore implements StorageStore {
 
   #editablePath(relative: string, key: ArtifactKey): string {
     if (relative.startsWith("/") || relative.split(/[\\/]/u).includes("..")) throw new Error("unsafe editable artifact path");
-    const namespace = this.#externalNamespace ? [key.branchId, key.worktreeId, key.runId].filter((part): part is string => part !== undefined).join("/") : "";
-    const path = resolve(this.#editableRoot, namespace, relative);
-    if (!path.startsWith(`${this.#editableRoot}/`)) throw new Error("editable artifact escapes its root");
+    const privateRun = key.runId !== undefined;
+    const root = privateRun && !this.#externalNamespace ? join(this.#root, "private") : this.#editableRoot;
+    const path = resolve(root, this.#editableRelative(key));
+    if (!path.startsWith(`${root}/`)) throw new Error("editable artifact escapes its root");
     return path;
   }
 
@@ -463,8 +467,10 @@ export class FileStorageStore implements StorageStore {
   }
 
   #editableRelative(key: ArtifactKey): string {
-    const namespace = this.#externalNamespace ? [key.branchId, key.worktreeId, key.runId].filter((part): part is string => part !== undefined).join("/") : "";
-    return namespace === "" ? key.logicalName : `${namespace}/${key.logicalName}`;
+    const scoped = this.#externalNamespace || key.runId !== undefined;
+    const parts = scoped ? [key.branchId, key.worktreeId, key.runId] : [];
+    if (this.#subjectNamespace || key.runId !== undefined) parts.push(key.subjectId);
+    return [...parts.filter((part): part is string => part !== undefined), key.logicalName].join("/");
   }
 
   async #loadStamp(): Promise<ProjectionStamp> {
@@ -539,8 +545,8 @@ export class FileStorageStore implements StorageStore {
 }
 
 export class RepoFilesStorageStore extends FileStorageStore {
-  constructor(options: Omit<FileStoreOptions, "externalNamespace" | "projectKey"> & { contextRoot: string; manifestRoot: string }) {
-    super({ root: options.manifestRoot, editableRoot: options.contextRoot, lockTimeoutMs: options.lockTimeoutMs });
+  constructor(options: { contextRoot: string; manifestRoot: string; lockTimeoutMs?: number }) {
+    super({ root: options.manifestRoot, editableRoot: options.contextRoot, subjectNamespace: true, lockTimeoutMs: options.lockTimeoutMs });
   }
 }
 
@@ -555,6 +561,6 @@ export class ExternalFilesStorageStore extends FileStorageStore {
     const base = process.env.XDG_CONFIG_HOME || join(homedir(), ".config");
     const template = options.root ?? join(base, "buck-workflow", "{project}", ".context");
     const root = template.replaceAll("{project}", storageProjectSegment(options.projectKey));
-    super({ root, editableRoot: root, externalNamespace: true, lockTimeoutMs: options.lockTimeoutMs, projectKey: options.projectKey });
+    super({ root, editableRoot: root, externalNamespace: true, subjectNamespace: true, lockTimeoutMs: options.lockTimeoutMs, projectKey: options.projectKey });
   }
 }

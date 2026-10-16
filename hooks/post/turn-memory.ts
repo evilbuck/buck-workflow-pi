@@ -6,6 +6,8 @@ import { captureTurnMemory } from "../../extensions/turn-memory/capture.js";
 import type { CaptureDeps } from "../../extensions/turn-memory/capture.js";
 import { isTurnMemoryEnabled } from "../../extensions/turn-memory/enable.js";
 import { selectTurnMemoryWindow } from "../../extensions/turn-memory/window.js";
+import { bindConsumerAttempt, resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
+import { commitConsumerBatch } from "../../skills/_shared/storage/consumers.js";
 
 const TICK = "turn-memory-tick";
 
@@ -92,22 +94,25 @@ function continues(event: object): boolean {
 
 
 async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): Promise<string> {
-  const [{ withConfiguredStore }, { commitConsumerBatch }] = await Promise.all([
-    import("../../skills/_shared/scripts/workflow-state.js"),
-    import("../../skills/_shared/storage/consumers.js"),
-  ]);
-  return withConfiguredStore(input.cwd, async (store, context) => {
+  const context = await resolveConsumerContext(input.cwd);
+  return withBoundStore(input.cwd, context, async (store) => {
     if (!context.worktreeId) throw new Error("turn-memory requires a trusted worktree identity");
+    const bound = await bindConsumerAttempt(context, input.cwd, input.phase);
+    const prior = await store.readReceipt(context.projectId, bound.runId);
+    if (prior?.status === "complete") return prior.artifactRevisions[0] ?? "";
     const committed = await commitConsumerBatch(store, {
       projectId: context.projectId,
       branchId: context.branchId,
       worktreeId: context.worktreeId,
-      runId: context.runId ?? context.worktreeId,
+      runId: bound.runId,
       publishedRevisionIds: context.publishedRevisionIds,
     }, [
       { kind: "memory", subjectId: input.subject, logicalName: `turn-memory/${input.phase}.md`, bytes: new TextEncoder().encode(input.body), source: "turn-memory" },
       { kind: "activity", subjectId: "turn-memory", logicalName: `dedupe/${input.phase}.json`, bytes: new TextEncoder().encode(input.phase), source: "turn-memory-dedupe" },
-    ], { attemptId: input.phase, status: "attempted", kind: "rows" });
+    ], { attemptId: input.phase, status: "attempted", kind: "rows", metadataDuties: ["readback"] });
+    await store.writeReceipt({ ...committed.receipt, status: "complete" });
+    const complete = await store.readReceipt(context.projectId, bound.runId);
+    if (complete?.status !== "complete") throw new Error("turn-memory receipt completion was not persisted");
     return committed.revisions[0] ?? "";
   });
 }

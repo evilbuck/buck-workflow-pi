@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { RepoFilesStorageStore } from "../storage/file-store.js";
-import { artifactToken, executeWorkflowState, parseArtifactToken, readPinnedScopeSync, resolveTrustedContext, type TrustedWorkflowContext } from "./workflow-state.js";
+import { artifactToken, executeWorkflowState, parseArtifactToken, resolveTrustedContext, type TrustedWorkflowContext } from "./workflow-state.js";
 
 const roots: string[] = [];
 const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
@@ -41,7 +41,7 @@ function context(over: Partial<TrustedWorkflowContext> = {}): TrustedWorkflowCon
 }
 function storeFor(cwd: string): RepoFilesStorageStore {
   const manifest = join(cwd, ".context", "workflow", "storage");
-  return new RepoFilesStorageStore({ root: manifest, contextRoot: join(cwd, ".context"), manifestRoot: manifest });
+  return new RepoFilesStorageStore({ contextRoot: join(cwd, ".context"), manifestRoot: manifest });
 }
 function config(dir: string, yaml: string): void {
   const path = join(dir, "config.yaml");
@@ -176,12 +176,12 @@ describe("portable executable access", () => {
     expect(new Set(contexts.map(item => item.branchId)).size).toBe(1);
     expect(new Set(contexts.map(item => item.worktreeId)).size).toBe(1);
     expect((await resolveTrustedContext(cwd, { identityPath: path, configPath })).branchId).toBe(contexts[0].branchId);
-    // Rendezvous before the identity transaction, then slow continuity probes:
-    // no lock can preserve all of these competing workspace registrations.
+    // Rendezvous all Git observers before the identity transaction:
+    // competing workspace registrations must not overwrite one another.
     const workspaces = Array.from({ length: 8 }, () => temp("wf-workspace-"));
     const barrier = join(home, "barrier");
     mkdirSync(barrier);
-    const racingCode = `import { execFileSync } from "node:child_process"; import { writeFileSync, readdirSync } from "node:fs"; import { resolveTrustedContext } from ${JSON.stringify(module)}; const git = (_cwd, args) => { if (args[0] === "rev-parse" && args[1] === "HEAD") { writeFileSync(${JSON.stringify(barrier)} + "/" + process.pid, "ready"); const deadline = Date.now() + 10000; while (readdirSync(${JSON.stringify(barrier)}).length < 8) { if (Date.now() > deadline) throw new Error("rendezvous timeout"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); } } if (args[0] === "merge-base") Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50); return { status: 0, stdout: execFileSync("git", args, {cwd: ${JSON.stringify(cwd)}, encoding: "utf8"}).trim() }; }; console.log(JSON.stringify(await resolveTrustedContext(process.cwd(), { ...${JSON.stringify({ identityPath: path, configPath })}, git })));`;
+    const racingCode = `import { execFileSync } from "node:child_process"; import { writeFileSync, readdirSync } from "node:fs"; import { resolveTrustedContext } from ${JSON.stringify(module)}; const git = (_cwd, args) => { if (args.includes("--git-common-dir")) { writeFileSync(${JSON.stringify(barrier)} + "/" + process.pid, "ready"); const deadline = Date.now() + 10000; while (readdirSync(${JSON.stringify(barrier)}).length < 8) { if (Date.now() > deadline) throw new Error("rendezvous timeout"); Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1); } } return { status: 0, stdout: execFileSync("git", args, {cwd: ${JSON.stringify(cwd)}, encoding: "utf8"}).trim() }; }; console.log(JSON.stringify(await resolveTrustedContext(process.cwd(), { ...${JSON.stringify({ identityPath: path, configPath })}, git })));`;
     await Promise.all(workspaces.map(workspace => execute("bun", ["-e", racingCode], { cwd: workspace })));
     const registry = JSON.parse(readFileSync(path, "utf8"));
     expect(Object.keys(registry.projects[contexts[0].projectId].workspaces).sort()).toEqual([cwd, ...workspaces].sort());
@@ -249,7 +249,7 @@ describe("repo-files machine authority", () => {
     const configPath = join(home, "config.yaml");
     writeFileSync(configPath, "version: 1\nstorage:\n  adapter: repo-files\nprojects: {}\n");
     const context = await resolveTrustedContext(cwd, { configPath, identityPath: join(home, "identity.json") });
-    const written = await executeWorkflowState({ cwd, context, role: "write", request: { operation: "write", ref: { subjectId: "subject", kind: "plan", logicalName: "subject/plan.md" }, body: "editable plan" } }) as { token: string };
+    const written = await executeWorkflowState({ cwd, context, role: "write", request: { operation: "write", ref: { subjectId: "subject", kind: "plan", logicalName: "plan.md" }, body: "editable plan" } }) as { token: string };
     expect(readFileSync(join(cwd, ".context", "subject", "plan.md"), "utf8")).toBe("editable plan");
     expect(existsSync(join(cwd, ".context", "workflow", "storage"))).toBe(false);
     expect(existsSync(join(context.manifestRoot!, "manifest.json"))).toBe(true);
@@ -278,26 +278,33 @@ describe("trusted context binding", () => {
     expect((await resolveTrustedContext(cwd, options)).branchId).not.toBe(first.branchId);
   });
 
-  it("reads an existing trusted worktree scope without inventing identity", async () => {
-    const cwd = repo();
-    const previousXdg = process.env.XDG_CONFIG_HOME;
-    const xdg = temp("wf-pinned-xdg-");
-    process.env.XDG_CONFIG_HOME = xdg;
-    config(temp("wf-pinned-config-"), "version: 1\nstorage:\n  adapter: repo-files\nprojects: {}\n");
-    try {
-      const context = await resolveTrustedContext(cwd, { configPath: process.env.BUCK_WORKFLOW_CONFIG });
-      expect(readPinnedScopeSync(cwd)).toEqual({
-        projectId: context.projectId,
-        branchId: context.branchId,
-        worktreeId: context.worktreeId,
-        runId: context.runId,
-        publishedRevisionIds: [],
-      });
-    } finally {
-      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
-      else process.env.XDG_CONFIG_HOME = previousXdg;
-    }
+  it("keeps unborn knowledge through the first commit but hides it from other refs and rewritten lineage", async () => {
+    const cwd = temp("wf-unborn-");
+    git(cwd, ["init", "-b", "topic"]);
+    git(cwd, ["config", "user.email", "wf@example.test"]);
+    git(cwd, ["config", "user.name", "wf"]);
+    config(temp("wf-unborn-config-"), "version: 1\nstorage:\n  adapter: repo-files\nprojects: {}\n");
+    const options = { identityPath: join(temp("wf-unborn-identity-"), "branch-identity.json") };
+    const first = await resolveTrustedContext(cwd, options);
+    const ref = { subjectId: "unborn-proof", kind: "plan" as const, logicalName: "plan-proof.md" };
+    await executeWorkflowState({ cwd, context: first, role: "write", request: { operation: "write", ref, body: "retained before the first commit", expectedRevision: null } });
+    const read = async () => executeWorkflowState({ cwd, context: await resolveTrustedContext(cwd, options), role: "read", request: { operation: "read", ref } });
+    writeFileSync(join(cwd, "seed"), "first\n");
+    git(cwd, ["add", "seed"]);
+    git(cwd, ["commit", "-m", "first"]);
+    expect(await read()).toMatchObject({ text: "retained before the first commit" });
+    git(cwd, ["checkout", "-b", "other"]);
+    expect(await read()).toBeNull();
+    git(cwd, ["checkout", "topic"]);
+    expect(await read()).toMatchObject({ text: "retained before the first commit" });
+    git(cwd, ["checkout", "--orphan", "replacement"]);
+    git(cwd, ["commit", "-m", "replacement"]);
+    const replacement = git(cwd, ["rev-parse", "HEAD"]);
+    git(cwd, ["checkout", "topic"]);
+    git(cwd, ["reset", "--hard", replacement]);
+    expect(await read()).toBeNull();
   });
+
   it("does not materialize canonical .context bodies for sqlite or external-files writes", async () => {
     const cwd = repo();
     const home = temp("wf-home-");

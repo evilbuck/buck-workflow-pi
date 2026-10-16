@@ -1,5 +1,5 @@
 ---
-status: in-progress
+status: completed
 phase: 5
 order: 5
 plan: plan-durable-storage-adapters.md
@@ -20,6 +20,8 @@ files:
   - skills/b-memory-import/
   - docs/plans/src/lib/plans/
 from_plan_steps: [5]
+sql_memory_ids:
+  - 01a142ea-44af-78b1-9b4f-afb0fc5a9503
 depends_on: [4]
 dependency_type: HARD
 acceptance_criteria:
@@ -29,7 +31,7 @@ acceptance_criteria:
   - "[x] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
   - "[x] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
   - "[x] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
-completed_at: null
+completed_at: 2026-10-16
 completed_by: null
 ---
 

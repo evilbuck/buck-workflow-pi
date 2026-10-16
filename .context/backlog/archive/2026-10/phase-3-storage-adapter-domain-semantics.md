@@ -1,10 +1,10 @@
 ---
 title: "Storage Adapters Phase 3: Domain Semantics"
-status: active
+status: completed
 priority: high
 created: 2026-10-10
-updated: 2026-10-10
-completed: null
+updated: 2026-10-12
+completed: 2026-10-12
 related:
   - .context/2026-10-10.durable-storage-adapters/phase-3-domain-semantics.md
   - .context/2026-10-10.durable-storage-adapters/plan-durable-storage-adapters-phases.md

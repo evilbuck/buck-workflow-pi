@@ -1,10 +1,11 @@
 #!/usr/bin/env bun
 // skills/b-memory-import/scripts/import-context-memory.ts
 //
-// Deterministic import of project `.context/memory/*.md` into OMP's Hindsight
-// bank. No model calls. Source of truth is the filesystem (not qmd).
+// Deterministic import of published project memory/backlog revisions into OMP's
+// Hindsight bank. The configured store owns source bytes and checkout-local
+// cursors; local Markdown and manifest files are non-authoritative exports.
 //
-// Usage (from any project root that has `.context/memory`):
+// Usage (from any project checkout, including one without `.context` exports):
 //   bun skills/b-memory-import/scripts/import-context-memory.ts --dry-run
 //   bun <path-to-buck-workflow>/skills/b-memory-import/scripts/import-context-memory.ts
 //
@@ -25,14 +26,15 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
-  readdirSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import { classifyContextPath, flushConfiguredRetains, scheduleConfiguredRetain } from "../../_shared/storage/consumers.js";
-import { withConfiguredStore } from "../../_shared/scripts/workflow-state.js";
-import type { ArtifactRevision } from "../../_shared/storage/contract.js";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import { commitConsumerBatch, readConsumer } from "../../_shared/storage/consumers.js";
+import type { ConsumerScope } from "../../_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore } from "../../_shared/scripts/workflow-state.js";
+import type { TrustedWorkflowContext } from "../../_shared/scripts/workflow-state.js";
+import type { ArtifactRevision, StorageStore } from "../../_shared/storage/contract.js";
+import { createRunId } from "../../_shared/storage/identity.js";
 import {
   extractTitle,
   parseSimpleYaml,
@@ -156,7 +158,7 @@ export interface BankScope {
 export interface SourceDir {
   /** Source dir relative to the project root, posix-style. e.g. ".context/memory" */
   rel: string;
-  /** Absolute path on disk. Resolved at parse time. */
+  /** Absolute export path, resolved at parse time; need not exist. */
   abs: string;
   /** Inferred from the rel path. */
   kind: SourceKind;
@@ -492,112 +494,83 @@ export function shouldSkipFileName(name: string): boolean {
   if (name.startsWith(".")) return true;
   return false;
 }
-/** Walk one source dir recursively and yield parsed files.
- *  `sourceDir.kind` discriminates how the file is framed downstream.
- *  Files without required frontmatter for their kind are skipped with
- *  a reason recorded in `parseWarnings`. */
+/** Parse only exact, publication-proven adapter revisions in the selected dirs. */
 export function listMemoryMarkdown(
   sourceDirs: SourceDir[],
   root: string,
-  parseWarnings?: string[],
-): MemoryFile[] {
-  const files: MemoryFile[] = [];
-  for (const sd of sourceDirs) {
-    if (!existsSync(sd.abs)) continue;
-    const walk = (dir: string) => {
-      let entries;
-      try {
-        entries = readdirSync(dir, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      for (const ent of entries) {
-        const abs = join(dir, ent.name);
-        if (ent.isDirectory()) {
-          if (ent.name === ".git" || ent.name === "node_modules") continue;
-          walk(abs);
-          continue;
-        }
-        if (!ent.isFile() || shouldSkipFileName(ent.name)) continue;
-        const text = readFileSync(abs, "utf-8");
-        const { frontmatter, body } = parseFrontmatter(text);
-        const rel = toPosix(relative(root, abs));
-        const st = statSync(abs);
-
-        const hasFrontmatter = Object.keys(frontmatter.raw).length > 0;
-        if (sd.kind === "memory" && !hasFrontmatter) {
-          parseWarnings?.push(`skip: no frontmatter in ${rel}`);
-          continue;
-        }
-        if (sd.kind === "backlog") {
-          if (!hasFrontmatter) {
-            parseWarnings?.push(`skip: backlog item ${rel} has no frontmatter`);
-            continue;
-          }
-          const r = frontmatter.raw;
-          if (typeof r.title !== "string" || typeof r.status !== "string") {
-            parseWarnings?.push(`skip: backlog item ${rel} missing required title/status`);
-            continue;
-          }
-        }
-
-        files.push({
-          absPath: abs,
-          relPath: rel,
-          sha256: sha256Hex(text),
-          bytes: st.size,
-          mtimeMs: st.mtimeMs,
-          frontmatter,
-          body,
-          title: extractTitle(body, basename(abs, ".md")),
-          kind: sd.kind,
-          sourceDir: sd.rel,
-        });
-      }
-    };
-    walk(sd.abs);
-  }
-  files.sort((a, b) => a.relPath.localeCompare(b.relPath));
-  return files;
-}
-
-export function filterPublishedImportFiles<T extends Pick<MemoryFile, "relPath" | "sha256"> & { kind: SourceKind }>(
-  files: readonly T[],
   revisions: readonly ArtifactRevision[],
   publishedRevisionIds: readonly string[],
-): T[] {
+  parseWarnings?: string[],
+): MemoryFile[] {
   const published = new Set(publishedRevisionIds);
-  const hashes = new Map<string, string>();
+  const files: MemoryFile[] = [];
   for (const revision of revisions) {
     if (!published.has(revision.revision)) continue;
     const key = revision.key;
-    hashes.set(`${key.kind}\0${key.subjectId}\0${key.logicalName}`, revision.sha256);
+    if (key.subjectId !== key.kind || (key.kind !== "memory" && key.kind !== "backlog")) continue;
+    const rel = `.context/${key.kind}/${key.logicalName}`;
+    const sd = sourceDirs.find((dir) => rel.startsWith(`${dir.rel}/`));
+    if (!sd || shouldSkipFileName(basename(rel))) continue;
+    if (rel.split("/").some((part) => part === ".git" || part === "node_modules")) continue;
+    const file = parseImportRevision(revision, sd, rel, root, parseWarnings);
+    if (file) files.push(file);
   }
-  return files.filter((file) => {
-    const artifact = classifyContextPath(file.relPath);
-    return hashes.get(`${artifact.kind}\0${artifact.subjectId}\0${artifact.logicalName}`) === file.sha256;
-  });
+  return files.sort((a, b) => a.relPath.localeCompare(b.relPath));
 }
 
-export function loadManifest(path: string): Manifest | null {
-  if (!existsSync(path)) return null;
-  try {
-    const data = JSON.parse(readFileSync(path, "utf-8")) as Manifest;
-    if (data?.version !== 1 || typeof data.files !== "object") return null;
-    return data;
-  } catch {
+function parseImportRevision(revision: ArtifactRevision, sourceDir: SourceDir, rel: string, root: string, warnings?: string[]): MemoryFile | null {
+  const text = new TextDecoder("utf-8", { fatal: true }).decode(revision.bytes);
+  const { frontmatter, body } = parseFrontmatter(text);
+  if (Object.keys(frontmatter.raw).length === 0) {
+    warnings?.push(sourceDir.kind === "memory" ? `skip: no frontmatter in ${rel}` : `skip: backlog item ${rel} has no frontmatter`);
     return null;
   }
+  if (sourceDir.kind === "backlog" && (typeof frontmatter.raw.title !== "string" || typeof frontmatter.raw.status !== "string")) {
+    warnings?.push(`skip: backlog item ${rel} missing required title/status`);
+    return null;
+  }
+  return {
+    absPath: join(root, rel), relPath: rel, sha256: revision.sha256,
+    bytes: revision.bytes.byteLength, mtimeMs: Date.parse(revision.createdAt),
+    frontmatter, body, title: extractTitle(body, basename(rel, ".md")),
+    kind: sourceDir.kind, sourceDir: sourceDir.rel,
+  };
 }
 
-export function saveManifest(path: string, manifest: Manifest): void {
-  mkdirSync(dirname(path), { recursive: true });
+function importerScope(context: TrustedWorkflowContext): ConsumerScope {
+  if (!context.worktreeId || !context.runId) throw new Error("Importer requires a trusted checkout/run identity");
+  return { ...context, worktreeId: context.worktreeId, runId: context.runId };
+}
+
+async function loadManifest(store: StorageStore, context: TrustedWorkflowContext): Promise<{ manifest: Manifest | null; revision: string | null }> {
+  const retained = await readConsumer(store, importerScope(context), "audit", "memory-import", "manifest.json");
+  if (!retained) return { manifest: null, revision: null };
+  const manifest = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(retained.bytes)) as Manifest;
+  if (manifest?.version !== 1 || !manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
+    throw new Error("Invalid retained importer manifest");
+  }
+  return { manifest, revision: retained.revision };
+}
+
+export async function saveManifest(
+  path: string,
+  manifest: Manifest,
+  cwd: string,
+  binding?: { context: TrustedWorkflowContext; expectedRevision: string | null },
+): Promise<string> {
+  const context = binding?.context ?? await resolveConsumerContext(cwd);
   const body = `${JSON.stringify(manifest, null, 2)}\n`;
-  writeFileSync(path, body, "utf-8");
-  scheduleConfiguredRetain({
-    kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
-    bytes: new TextEncoder().encode(body), worktreeId: path,
+  await withBoundStore(cwd, context, async (store) => {
+    const receiptRun = createRunId();
+    await commitConsumerBatch(store, importerScope(context), [{
+      kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
+      bytes: new TextEncoder().encode(body), expectedRevision: binding?.expectedRevision,
+    }], { attemptId: receiptRun, runId: receiptRun, status: "attempted" });
   });
+  // Export only after durable retention. It is never read to authorize a skip.
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, body, "utf-8");
+  return context.runId!;
 }
 
 // ---------- config ----------
@@ -779,22 +752,17 @@ export async function runImport(args: CliArgs): Promise<ImportResult> {
   const cfg = resolveConfig(args);
   const projectLabel = projectLabelFromRoot(args.root);
   const scope = computeBankScope(cfg.bankIdBase, cfg.scoping, projectLabel);
-  // Manifest lives in the first (canonical) source dir; back-compat single-dir
-  // users continue to find it where they expect: <root>/.context/memory/.
   const manifestPath = join(args.sourceDirs[0].abs, MANIFEST_NAME);
-  const existing = loadManifest(manifestPath);
-
   const parseWarnings: string[] = [];
-  const candidates = listMemoryMarkdown(args.sourceDirs, args.root, parseWarnings);
-  const files = await withConfiguredStore(args.root, async (store, context) => {
-    const publishedRevisionIds = context.publishedRevisionIds ?? [];
-    if (publishedRevisionIds.length === 0) return [];
-    const revisions = await store.list({
-      projectId: context.projectId,
-      branchId: context.branchId,
-      publishedRevisionIds,
+  // Capture checkout, workspace run, and destination before any external work.
+  const context = await resolveConsumerContext(args.root);
+  const { manifest: existing, revision: cursorRevision, files } = await withBoundStore(args.root, context, async (store) => {
+    const cursor = await loadManifest(store, context);
+    const publishedRevisionIds = context.publishedRevisionIds;
+    const revisions = publishedRevisionIds.length === 0 ? [] : await store.list({
+      projectId: context.projectId, branchId: context.branchId, publishedRevisionIds,
     });
-    return filterPublishedImportFiles(candidates, revisions, publishedRevisionIds);
+    return { ...cursor, files: listMemoryMarkdown(args.sourceDirs, args.root, revisions, publishedRevisionIds, parseWarnings) };
   });
   const { toImport, items, skipped } = planImport(
     files,
@@ -880,22 +848,22 @@ export async function runImport(args: CliArgs): Promise<ImportResult> {
     scoping: cfg.scoping,
     files: nextFiles,
   };
-  saveManifest(manifestPath, manifest);
+  await saveManifest(manifestPath, manifest, args.root, { context, expectedRevision: cursorRevision });
 
   if (baseResult.failed > 0) baseResult.code = 2;
   return baseResult;
 }
 
 function usage(): string {
-  return `import-context-memory.ts — push .context/{memory,backlog/items}/*.md into Hindsight
+  return `import-context-memory.ts — push published adapter memory/backlog revisions into Hindsight
 
 Usage:
   bun import-context-memory.ts [flags]
 
 Flags:
   --root <dir>          Project root (default: cwd)
-  --source-dirs <list>  Comma-separated source dirs under .context/, relative
-                        or absolute. Repeatable (greedy). Supported values:
+  --source-dirs <list>  Select logical source paths under .context/ (exports
+                        need not exist). Relative or absolute; repeatable.
                         .context/memory (kind=memory, default),
                         .context/backlog/items (kind=backlog).
                         Examples:
@@ -936,29 +904,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Helpful early-fail when no source dir exists on disk.
-  // First source dir must exist (others are optional). Old single-dir UX
-  // preserves the helpful "memory dir not found" message.
-  const first = args.sourceDirs[0];
-  try {
-    if (!statSync(first.abs).isDirectory()) throw new Error("not a directory");
-  } catch {
-    console.log(
-      JSON.stringify(
-        {
-          error: `source dir not found: ${first.abs}`,
-          hint: "pass --root, or run from a project with .context/memory",
-        },
-        null,
-        2,
-      ),
-    );
-    process.exit(1);
-  }
-
   try {
     const result = await runImport(args);
-    await flushConfiguredRetains();
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.code);
   } catch (e) {
