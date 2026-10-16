@@ -30,6 +30,15 @@ steps, then **Eat** — the check that it worked.
 10. [Export an orphan scope](export-orphan-scope.md)
 11. [Rebind an orphan scope](rebind-orphan-scope.md)
 
+## Storage migration
+
+1. [Export a storage snapshot](export-storage-snapshot.md)
+2. [Import a storage snapshot](import-storage-snapshot.md)
+3. [Switch storage backend](switch-storage-backend.md)
+4. [Resume a storage cutover](resume-storage-cutover.md)
+5. [Roll back a storage cutover](rollback-storage-cutover.md)
+6. [Quarantine legacy memory](quarantine-legacy-memory.md)
+
 ## Why
 
 - [Local-only isolated code-review loop](../adr/0001-local-only-isolated-code-review-loop.md)
@@ -37,3 +46,4 @@ steps, then **Eat** — the check that it worked.
 - [Checkpoint trusts durable artifacts](../adr/0003-checkpoint-trusts-durable-artifacts.md)
 - [Model access uses workflow_state](../adr/0004-workflow-state-trusted-access.md)
 - [Publication is a versioned integration view](../adr/0005-versioned-integration-view.md)
+- [Backend cutover is an offline verified switch](../adr/0006-offline-verified-storage-cutover.md)

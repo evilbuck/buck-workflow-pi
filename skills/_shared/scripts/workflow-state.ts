@@ -5,7 +5,7 @@ import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promise
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { ArtifactKey, ArtifactKind, ArtifactQuery, ArtifactRevision, RunReceipt, StorageStore } from "../storage/contract.js";
-import { loadStorageConfig, type ResolvedStorageConfig } from "../storage/config.js";
+import { loadStorageConfig, type ResolvedStorageConfig, type StorageSelection } from "../storage/config.js";
 import { revisionHash } from "../storage/adapter-utils.js";
 import { assertReceiptReadback, discoverStoredContext, lookupKnowledge } from "../storage/domain.js";
 import { ExternalFilesStorageStore, RepoFilesStorageStore } from "../storage/file-store.js";
@@ -349,13 +349,31 @@ export async function resolveConsumerContext(cwd: string): Promise<TrustedWorkfl
   });
   return context;
 }
-async function openStore(cwd: string, selection: ResolvedStorageConfig, projectKey: string, manifestRoot: string): Promise<{ store: StorageStore; close: () => void | Promise<void> }> {
+/** Explicit operator cutover only; ordinary consumers still refuse destination drift. */
+export async function rebindMigratedConsumers(projectId: string, from: StorageSelection, to: StorageSelection): Promise<void> {
+  const path = identityPath();
+  await identityTransaction(path, () => {
+    const file = readIdentity(path);
+    for (const workspace of Object.values(file.projects[projectId]?.workspaces ?? {})) {
+      for (const [branch, encoded] of Object.entries(workspace.consumerDestinations ?? {})) {
+        const destination = JSON.parse(encoded);
+        const current = JSON.stringify(destination.storage);
+        if (current === JSON.stringify(to)) continue;
+        if (current !== JSON.stringify(from)) throw new Error("Consumer is pinned to a third destination");
+        workspace.consumerDestinations![branch] = JSON.stringify({ ...destination, storage: to });
+      }
+    }
+    writeIdentity(path, file);
+  });
+}
+
+export async function openStore(cwd: string, selection: ResolvedStorageConfig, projectKey: string, manifestRoot: string, options: { readOnly?: boolean; migrationBranchId?: string } = {}): Promise<{ store: StorageStore; close: () => void | Promise<void> }> {
   const storage = selection.storage;
   if (storage.adapter === "repo-files") {
     const contextRoot = join(cwd, ".context");
     // Editable bodies remain Git-portable; immutable authority stays machine-private.
-    await mkdir(manifestRoot, { recursive: true });
-    return { store: new RepoFilesStorageStore({ contextRoot, manifestRoot }), close: () => {} };
+    if (!options.readOnly) await mkdir(manifestRoot, { recursive: true });
+    return { store: new RepoFilesStorageStore({ contextRoot, manifestRoot, migrationBranchId: options.migrationBranchId }), close: () => {} };
   }
   if (storage.adapter === "external-files") {
     return { store: new ExternalFilesStorageStore({ projectKey: selection.projectKey ?? projectKey, ...(storage.root ? { root: storage.root } : {}) }), close: () => {} };
@@ -363,18 +381,22 @@ async function openStore(cwd: string, selection: ResolvedStorageConfig, projectK
   if (storage.adapter === "sqlite") {
     if (!storage.database) throw new Error("SQLite storage requires a database path");
     const path = resolve(storage.database);
-    await mkdir(dirname(path), { recursive: true });
+    if (!options.readOnly) await mkdir(dirname(path), { recursive: true });
     // Driver stays inside SQLiteStorageStore.open; this module must not import node:sqlite.
-    const store = await SQLiteStorageStore.open(path);
+    const store = await SQLiteStorageStore.open(path, options);
     return { store, close: () => store.close() };
   }
+  return openPostgresStore(storage, options);
+}
+
+async function openPostgresStore(storage: StorageSelection, options: { readOnly?: boolean }): Promise<{ store: StorageStore; close: () => Promise<void> }> {
   const envName = storage.connection_env;
   if (!envName) throw new Error("PostgreSQL storage requires connection_env");
   const url = process.env[envName];
   if (!url) throw new Error(`PostgreSQL connection env ${envName} is unset`);
   const pool = createLazyPool(url)();
   const store = new PostgresStorageStore(pool);
-  await store.migrate();
+  if (!options.readOnly) await store.migrate();
   return { store, close: () => pool.end() };
 }
 

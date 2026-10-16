@@ -1,3 +1,4 @@
+import type { MigrationStore } from "./migration.js";
 import type { TextLifecycleIntent } from "../scripts/subject-lifecycle.js";
 import type { CheckpointRecord } from "./publication.js";
 
@@ -97,7 +98,7 @@ export interface CheckpointSeal {
   revisionSet: readonly { revision: string; sha256: string }[];
 }
 
-export interface StorageStore {
+export interface StorageStore extends MigrationStore {
   read(key: ArtifactKey, revision?: string): Promise<ArtifactRevision | null>;
   list(query: ArtifactQuery): Promise<readonly ArtifactRevision[]>;
   search(query: ArtifactQuery & { text: string }): Promise<readonly ArtifactRevision[]>;
@@ -115,6 +116,4 @@ export interface StorageStore {
   checkpointSnapshot(projectId: string, branchId: string): Promise<readonly ArtifactRevision[]>;
   correctionLineage(projectId: string): Promise<ReadonlyMap<string, string>>;
   reconcile(integrationTip: string, cwd: string, projectId: string): Promise<readonly string[]>;
-  exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision>;
-  importArtifacts(revisions: AsyncIterable<ArtifactRevision>): Promise<void>;
 }

@@ -1,9 +1,13 @@
 import pg from "pg";
 import type { MigrationPool } from "./migrations.js";
 
-export function createLazyPool(connectionString: string): () => MigrationPool {
-  let pool: MigrationPool | undefined;
-  return (): MigrationPool => {
+export interface DisposableMigrationPool extends MigrationPool {
+  end(): Promise<void>;
+}
+
+export function createLazyPool(connectionString: string): () => DisposableMigrationPool {
+  let pool: DisposableMigrationPool | undefined;
+  return (): DisposableMigrationPool => {
     if (!pool) {
       pool = new pg.Pool({ connectionString, max: 2, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 });
     }

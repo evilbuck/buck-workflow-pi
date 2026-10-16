@@ -12,6 +12,12 @@ bun skills/_shared/scripts/workflow-state-cli.ts <op> [--subject <id>] [--branch
 
 Operations: `read`, `list`, `search`, `write`, `correct`, `discover`, `inspect-lifecycle`, `transition`, `read-receipt`, `write-receipt`. Operator-only operations are `inspect`, `recover`, `publication-view`, `map-checkpoint`, `revoke-mapping`, and `resolve-publication`; restricted stages cannot call them. `inspect` selects a local branch ref. `migrate` is CLI-only administration.
 
+`doctor` and `migration-*` commands are CLI-only operator maintenance, not native
+model operations. They retain private snapshot/journal files outside Git;
+cutover/resume/rollback require all project writers stopped and `quiesced: true`.
+See `docs/howto/README.md#storage-migration`. Ordinary artifact access must never
+use an operator migration command as a storage fallback.
+
 Do not pass `projectId`, `branchId`, `publishedRevisionIds`, `worktreeId`, or `runId`. The trusted runtime binds project and visibility. Do not construct SQL. Do not call `sql_memory`. Do not copy canonical bodies into a hidden local file.
 
 Repo-files may project `.context/<subject>/<logicalName>`. That path is an optional editable view, not an input. Other adapters must not materialize a canonical `.context` mirror.

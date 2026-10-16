@@ -41,7 +41,8 @@ mirror; local reports and runtime directories are optional exports.
 `inspect-lifecycle`, `transition`, `read-receipt`, and `write-receipt`.
 Operator operations are `inspect`, `recover`, `publication-view`,
 `map-checkpoint`, `revoke-mapping`, and `resolve-publication`; restricted
-stages cannot call them. `migrate` is CLI-only.
+stages cannot call them. `migrate`, `doctor`, and `migration-*` are CLI-only
+operator maintenance, never model operations or a storage fallback.
 
 The trusted runtime binds project and visibility from the checkout and machine
 config. Callers cannot pass `projectId`, `branchId`, `publishedRevisionIds`,
@@ -77,7 +78,8 @@ rule. See [ADR 0004](adr/0004-workflow-state-trusted-access.md).
 
 `contract.ts` defines `StorageStore`: artifact read/list/search, write batches,
 scoped corrections, lifecycle transitions, run receipts, checkpoint
-seal/bind/reconcile, and streaming export/import. Revisions carry exact bytes,
+seal/bind/reconcile, and a versioned migration snapshot. The old current-view
+streaming export/import protocol is removed. Revisions carry exact bytes,
 a hash, author/source provenance, timestamps, typed links, and optional
 expected-revision concurrency preconditions. Content is not limited to
 Markdown; attachments can carry binary bytes.
@@ -244,6 +246,22 @@ files. Clean tracked bytes are not that import. An existing branch-owned
 projection still reconciles checkout bytes as direct edits; that path is
 branch-private and is not publication proof. Policy: [ADR 0005](adr/0005-versioned-integration-view.md).
 Operator sequences: [how-to index](howto/README.md).
+
+### Existing-data cutover
+
+`migration.ts` is the shared version-1 inventory for every adapter: retained
+revisions and bytes, pointers, links, corrections, receipt duties, lifecycle
+provenance, checkpoints, publication rows, attachments, search text, and import
+provenance. Export reads an immutable file generation or a read-only SQL
+transaction. It does not discover, reconcile, or adopt unretained editable
+files. Import stays invisible until one adapter transaction or generation
+installs the inventory into an empty project destination, or an exact replay.
+Known `memory-import` rows and original legacy JSON keep their metadata in a
+private recovery scope and lose ordinary pointers. A branch name is not
+publication evidence. Policy:
+[ADR 0006](adr/0006-offline-verified-storage-cutover.md). Narrative and private
+file exclusions: [`docs/sql-memory.md`](sql-memory.md). Sequences:
+[storage migration how-tos](howto/README.md#storage-migration).
 
 ### SQLite runtime boundary
 

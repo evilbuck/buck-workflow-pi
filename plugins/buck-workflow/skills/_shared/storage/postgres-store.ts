@@ -1,4 +1,5 @@
-import { createHash, randomUUID } from "node:crypto";
+import { MIGRATION_TABLES, assertEmptyOrReplay, emptySnapshot, legacySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationSnapshot, type MigrationTable } from "./migration.js";
+import { randomUUID } from "node:crypto";
 import type { MigrationClient, MigrationPool } from "./migrations.js";
 import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
 import { overlayPublishedRevisions } from "./visibility.js";
@@ -259,32 +260,49 @@ export class PostgresStorageStore implements StorageStore {
     return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
-  async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {
-    for (const item of await this.list({ ...query, limit: undefined, cursor: undefined })) yield item;
+  async #migrationSnapshot(client: MigrationClient, projectId: string): Promise<MigrationSnapshot> {
+    const snapshot = emptySnapshot(projectId);
+    for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+      const result = await client.query(migrationSelect(table, "$1", true), [projectId]);
+      snapshot.tables[table] = result.rows.map(normalizeRow);
+    }
+    return scopeSnapshot(snapshot);
   }
 
-  async importArtifacts(revisions: AsyncIterable<ArtifactRevision>): Promise<void> {
-    const batch: ArtifactRevision[] = [];
-    for await (const revision of revisions) batch.push(revision);
-    await this.writeBatch(batch);
+  async migrationSnapshot(projectId: string): Promise<MigrationSnapshot> {
+    const client = await this.#pool.connect();
+    try {
+      await client.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const snapshot = quarantineMappedLegacy(await this.#migrationSnapshot(client, projectId));
+      await client.query("COMMIT");
+      return snapshot;
+    } catch (error) { await this.#rollback(client); throw error; }
+    finally { client.release(); }
   }
 
-  async importMemoryRecords(records: readonly MemoryImportRecord[]): Promise<void> {
+  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+    validateSnapshot(snapshot);
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
-      for (const record of records) {
-        const mapped = mapMemoryImport(record);
-        const ids = this.#keyValues(mapped.key);
-        await client.query("INSERT INTO artifact_revisions(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision,bytes,sha256,author,source,created_at,links) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14::jsonb) ON CONFLICT(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) DO NOTHING", [...ids, mapped.revision, Buffer.from(mapped.bytes), mapped.sha256, mapped.author, mapped.source, mapped.createdAt, JSON.stringify(mapped.links)]);
-        await client.query("INSERT INTO artifact_pointers(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id) DO UPDATE SET revision=EXCLUDED.revision", [...ids, mapped.revision]);
-        await client.query("INSERT INTO artifact_import_provenance(source_id,destination_revision,source_metadata) VALUES($1,$2,$3::jsonb) ON CONFLICT(source_id) DO UPDATE SET destination_revision=EXCLUDED.destination_revision, source_metadata=EXCLUDED.source_metadata", [record.id, record.id, JSON.stringify(mapped.metadata)]);
+      await client.query(`LOCK TABLE ${Object.keys(MIGRATION_TABLES).join(",")} IN SHARE ROW EXCLUSIVE MODE`);
+      if (!assertEmptyOrReplay(await this.#migrationSnapshot(client, snapshot.projectId), snapshot)) {
+        for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+          const columns = MIGRATION_TABLES[table].split(" ");
+          for (const row of snapshot.tables[table]) await client.query(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(",")})`, sqlValues(table, row));
+        }
       }
       await client.query("COMMIT");
-    } catch (error) {
-      await this.#rollback(client);
-      throw error;
-    } finally { client.release(); }
+    } catch (error) { await this.#rollback(client); throw error; }
+    finally { client.release(); }
+  }
+
+
+  async importMemoryRecords(records: readonly MemoryImportRecord[]): Promise<void> {
+    if (!records.length) return;
+    const projectId = records[0]!.projectId;
+    if (records.some(record => record.projectId !== projectId)) throw new Error("Legacy import requires one explicit project");
+    await this.installSnapshot(legacySnapshot(projectId, records.map(record => ({ ...record }))));
   }
 
   async readMemoryImport(sourceId: string, projectId: string): Promise<MemoryImportView | null> {
@@ -333,22 +351,6 @@ export interface MemoryImportView {
   body: string;
 }
 
-export function mapMemoryImport(record: MemoryImportRecord): ArtifactRevision & { metadata: Pick<MemoryImportView, "category" | "supersededBy" | "ranks"> } {
-  const bytes = new TextEncoder().encode(record.body);
-  const key: ArtifactKey = { projectId: record.projectId, subjectId: "legacy-memory", kind: "memory", logicalName: `${record.id}.md`, branchId: record.branchId };
-  return {
-    key,
-    revision: record.id,
-    bytes,
-    sha256: createHash("sha256").update(bytes).digest("hex"),
-    author: record.author,
-    source: "memory-import",
-    createdAt: record.createdAt,
-    links: record.supersededBy === null ? [] : [{ ...key, logicalName: `${record.supersededBy}.md` }],
-    expectedRevision: null,
-    metadata: { category: record.category, supersededBy: record.supersededBy, ranks: record.ranks },
-  };
-}
 
 type ReceiptRow = { branch_id: string; worktree_id: string; attempt_id: string; status: RunReceipt["status"]; artifact_revisions: string[] | string; receipt_kind: RunReceipt["kind"] | null; metadata_duties: string[] | string | null };
 

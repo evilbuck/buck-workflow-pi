@@ -1,3 +1,4 @@
+import { assertEmptyOrReplay, emptySnapshot, quarantineMappedLegacy, revisionRow, rowRevision, rowKey, scopeSnapshot, validateSnapshot, type MigrationSnapshot } from "./migration.js";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile, type FileHandle } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -30,6 +31,8 @@ interface Manifest {
   corrections: Record<string, StoredCorrection>;
   receipts: Record<string, RunReceipt>;
   checkpoints: Record<string, CheckpointSeal & { id: string; boundCommit?: string }>;
+  migrationExtras?: Partial<MigrationSnapshot["tables"]>;
+  migrationImported?: Record<string, true>;
 }
 
 interface ProjectionStamp {
@@ -63,6 +66,7 @@ export interface FileStoreOptions {
   externalNamespace?: boolean;
   subjectNamespace?: boolean;
   projectKey?: string;
+  migrationBranchId?: string;
 }
 
 export class FileStorageStore implements StorageStore {
@@ -71,6 +75,7 @@ export class FileStorageStore implements StorageStore {
   readonly #timeout: number;
   readonly #externalNamespace: boolean;
   readonly #subjectNamespace: boolean;
+  readonly #migrationBranchId: string | undefined;
   #lock: FileHandle | undefined;
   #queue: Promise<void> = Promise.resolve();
   #touched: string[] = [];
@@ -81,6 +86,7 @@ export class FileStorageStore implements StorageStore {
     this.#timeout = options.lockTimeoutMs ?? 10_000;
     this.#externalNamespace = options.externalNamespace ?? false;
     this.#subjectNamespace = options.subjectNamespace ?? false;
+    this.#migrationBranchId = options.migrationBranchId;
   }
 
   async read(key: ArtifactKey, revision?: string): Promise<ArtifactRevision | null> {
@@ -323,15 +329,87 @@ export class FileStorageStore implements StorageStore {
     return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
-  async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {
-    for (const revision of await this.list({ ...query, limit: undefined, cursor: undefined })) yield revision;
+  /** Read the immutable generation only: no discovery, reconciliation, or projection. */
+  async migrationSnapshot(projectId: string): Promise<MigrationSnapshot> {
+    return quarantineMappedLegacy(await this.#snapshot(await this.#load(), projectId));
   }
 
-  async importArtifacts(revisions: AsyncIterable<ArtifactRevision>): Promise<void> {
-    const batch: ArtifactRevision[] = [];
-    for await (const revision of revisions) batch.push(revision);
-    await this.writeBatch(batch);
+  async #snapshot(manifest: Manifest, projectId: string): Promise<MigrationSnapshot> {
+    const snapshot = emptySnapshot(projectId);
+    for (const [table, rows] of Object.entries(manifest.migrationExtras ?? {})) snapshot.tables[table as keyof MigrationSnapshot["tables"]] = [...rows];
+    for (const record of Object.values(manifest.revisions)) {
+      if (record.key.projectId !== projectId) continue;
+      const bytes = new Uint8Array(await readFile(this.#blobPath(record.blob)));
+      snapshot.tables.artifact_revisions.push(revisionRow(this.#materialize(record, record.revision, bytes)));
+    }
+    for (const [id, revision] of Object.entries(manifest.current)) {
+      const record = manifest.revisions[this.#recordId(id, revision)];
+      if (!record || record.key.projectId !== projectId) continue;
+      const row = revisionRow(this.#materialize(record, revision, new Uint8Array()));
+      snapshot.tables.artifact_pointers.push(Object.fromEntries(["project_id", "subject_id", "kind", "logical_name", "branch_id", "worktree_id", "run_id", "revision"].map(k => [k, row[k]])));
+    }
+    for (const [id, correction] of Object.entries(manifest.corrections)) {
+      const [project, branch, artifactKey, ...idempotency] = id.split("\0");
+      // keyId is JSON, so it contains no literal NULs.
+      if (project === projectId) snapshot.tables.artifact_corrections.push({ project_id: project, branch_id: branch, artifact_key: artifactKey, idempotency_key: idempotency.join("\0"), predecessor_revision: correction.predecessorRevision, result_revision: correction.resultRevision, replacement_sha256: correction.replacementSha256 });
+    }
+    for (const receipt of Object.values(manifest.receipts)) {
+      if (receipt.projectId !== projectId) continue;
+      snapshot.tables.artifact_runs.push({ project_id: projectId, run_id: receipt.runId, branch_id: receipt.branchId, worktree_id: receipt.worktreeId, attempt_id: receipt.attemptId, status: receipt.status, artifact_revisions: receipt.artifactRevisions });
+      if (receipt.kind !== undefined || receipt.metadataDuties !== undefined) snapshot.tables.artifact_run_duties.push({ project_id: projectId, run_id: receipt.runId, receipt_kind: receipt.kind ?? "rows", metadata_duties: receipt.metadataDuties ?? [] });
+    }
+    for (const cp of Object.values(manifest.checkpoints)) if (cp.projectId === projectId) snapshot.tables.artifact_checkpoints.push({ id: cp.id, project_id: projectId, branch_id: cp.branchId, commit_sha: cp.commit, integration_tip: cp.integrationTip, revision_set: cp.revisionSet, bound_commit: cp.boundCommit ?? null });
+    for (const row of snapshot.tables.artifact_revisions) {
+      if (!manifest.migrationImported?.[`${projectId}\0${row.revision}`]) snapshot.tables.artifact_search_text.push({ project_id: projectId, revision: row.revision, search_text: searchableText(Buffer.from(String(row.bytes), "base64")) });
+    }
+    for (const [subject, value] of Object.entries(manifest.lifecycle)) snapshot.tables.artifact_lifecycle.push({ subject_id: subject, revision: value.revision, state: value.state, evidence: value.evidence });
+    for (const value of Object.values(manifest.lifecycleScope)) {
+      const record = snapshot.tables.artifact_revisions.find(row => row.revision === value.revision && row.kind === "subject-index");
+      if (record) snapshot.tables.artifact_lifecycle_scope.push({ project_id: projectId, branch_id: record.branch_id, subject_id: record.subject_id, revision: value.revision, state: value.state, evidence: value.evidence, provenance: value.provenance });
+    }
+    return scopeSnapshot(snapshot);
   }
+
+  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+    validateSnapshot(snapshot);
+    await this.#locked(async () => {
+      if (assertEmptyOrReplay(await this.#snapshot(await this.#load(), snapshot.projectId), snapshot)) return;
+      await this.#mutateLocked(async manifest => {
+        for (const row of snapshot.tables.artifact_revisions) await this.#stageRevision(manifest, rowRevision(row));
+        for (const row of snapshot.tables.artifact_revisions) delete manifest.current[keyId(rowKey(row))];
+        for (const row of snapshot.tables.artifact_pointers) manifest.current[keyId(rowKey(row))] = String(row.revision);
+        for (const row of snapshot.tables.artifact_corrections) manifest.corrections[`${row.project_id}\0${row.branch_id}\0${row.artifact_key}\0${row.idempotency_key}`] = { predecessorRevision: String(row.predecessor_revision), resultRevision: row.result_revision as string | null, replacementSha256: row.replacement_sha256 as string | null };
+        this.#installMigrationDomain(manifest, snapshot);
+        this.#installMigrationExtras(manifest, snapshot);
+        this.#touched = this.#migrationProjectionIds(snapshot);
+      });
+    });
+  }
+
+  #installMigrationDomain(manifest: Manifest, snapshot: MigrationSnapshot): void {
+    for (const row of snapshot.tables.artifact_runs) {
+      const duties = snapshot.tables.artifact_run_duties.find(d => d.run_id === row.run_id);
+      const receipt: RunReceipt = { projectId: String(row.project_id), branchId: String(row.branch_id), worktreeId: String(row.worktree_id), runId: String(row.run_id), attemptId: String(row.attempt_id), status: row.status as RunReceipt["status"], artifactRevisions: row.artifact_revisions as string[], kind: duties?.receipt_kind as RunReceipt["kind"], metadataDuties: duties?.metadata_duties as string[] };
+      manifest.receipts[`${receipt.projectId}\0${receipt.runId}`] = receipt;
+    }
+    for (const row of snapshot.tables.artifact_checkpoints) manifest.checkpoints[String(row.id)] = { id: String(row.id), projectId: String(row.project_id), branchId: String(row.branch_id), commit: String(row.commit_sha), integrationTip: String(row.integration_tip), revisionSet: row.revision_set as CheckpointSeal["revisionSet"], ...(row.bound_commit ? { boundCommit: String(row.bound_commit) } : {}) };
+  }
+
+  #installMigrationExtras(manifest: Manifest, snapshot: MigrationSnapshot): void {
+    const extras = manifest.migrationExtras ?? {};
+    for (const table of ["artifact_lifecycle", "artifact_lifecycle_scope", "artifact_publications", "artifact_attachments", "artifact_import_provenance", "artifact_search_text"] as const) extras[table] = [...(extras[table] ?? []), ...snapshot.tables[table]];
+    manifest.migrationExtras = extras;
+    manifest.migrationImported ??= {};
+    for (const row of snapshot.tables.artifact_revisions) manifest.migrationImported[`${snapshot.projectId}\0${row.revision}`] = true;
+  }
+
+  #migrationProjectionIds(snapshot: MigrationSnapshot): string[] {
+    const pointers = snapshot.tables.artifact_pointers;
+    if (this.#externalNamespace) return pointers.map(row => keyId(rowKey(row)));
+    if (!this.#migrationBranchId) return [];
+    return pointers.filter(row => row.branch_id === this.#migrationBranchId && !row.worktree_id && !row.run_id).map(row => keyId(rowKey(row)));
+  }
+
 
   #validateProjectionRevision(item: ArtifactRevision): void {
     validateRevision(item);
@@ -591,8 +669,8 @@ export class FileStorageStore implements StorageStore {
 }
 
 export class RepoFilesStorageStore extends FileStorageStore {
-  constructor(options: { contextRoot: string; manifestRoot: string; lockTimeoutMs?: number }) {
-    super({ root: options.manifestRoot, editableRoot: options.contextRoot, subjectNamespace: true, lockTimeoutMs: options.lockTimeoutMs });
+  constructor(options: { contextRoot: string; manifestRoot: string; lockTimeoutMs?: number; migrationBranchId?: string }) {
+    super({ root: options.manifestRoot, editableRoot: options.contextRoot, subjectNamespace: true, lockTimeoutMs: options.lockTimeoutMs, migrationBranchId: options.migrationBranchId });
   }
 }
 

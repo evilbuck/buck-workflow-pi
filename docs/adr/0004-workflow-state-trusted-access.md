@@ -18,3 +18,4 @@ Supervisor save writes and corrections go through `workflow_state`. A rows recei
 - Repo-files immutable manifests live under the machine identity registry at `${XDG_CONFIG_HOME:-~/.config}/buck-workflow/projects/<project-id>/repo-manifest`, beside `branch-identity.json`. Only editable bodies belong in `.context/`.
 - `workflow_exec` is the Linux command boundary (Bubblewrap, fail closed, no host-shell fallback). Git metadata is read-only inside that command boundary except the commit checkpoint stage. Host file tools do not yet enforce the same rule.
 - PostgreSQL administration is `bun skills/_shared/scripts/workflow-state-cli.ts migrate`. Operator token reads are [Read a workflow artifact by token](../howto/read-workflow-artifact-by-token.md).
+- Data movement between adapters is [ADR 0006](0006-offline-verified-storage-cutover.md), not `migrate` and not `SQL_MEMORY_URL`.

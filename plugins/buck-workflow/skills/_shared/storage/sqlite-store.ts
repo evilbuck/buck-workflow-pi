@@ -1,3 +1,4 @@
+import { MIGRATION_TABLES, assertEmptyOrReplay, emptySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationSnapshot, type MigrationTable } from "./migration.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -74,15 +75,15 @@ function publishedClause(revisions: readonly string[]): string {
 
 export class SQLiteStorageStore implements StorageStore {
   readonly #database: DatabaseSync;
-  private constructor(database: DatabaseSync) { this.#database = database; this.#database.exec(SCHEMA); }
+  private constructor(database: DatabaseSync, initialize = true) { this.#database = database; if (initialize) this.#database.exec(SCHEMA); }
 
-  static async open(path: string, options: { busyTimeoutMs?: number } = {}): Promise<SQLiteStorageStore> {
+  static async open(path: string, options: { busyTimeoutMs?: number; readOnly?: boolean } = {}): Promise<SQLiteStorageStore> {
     const { DatabaseSync } = await loadSQLiteModule();
-    if (path !== ":memory:") await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-    const database = new DatabaseSync(path) as DatabaseSync;
-    if (path !== ":memory:") database.exec("PRAGMA journal_mode = WAL");
+    if (path !== ":memory:" && !options.readOnly) await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+    const database = new DatabaseSync(path, { readOnly: options.readOnly ?? false }) as DatabaseSync;
+    if (path !== ":memory:" && !options.readOnly) database.exec("PRAGMA journal_mode = WAL");
     database.exec(`PRAGMA busy_timeout = ${Math.max(0, options.busyTimeoutMs ?? 5_000)}`);
-    return new SQLiteStorageStore(database);
+    return new SQLiteStorageStore(database, !options.readOnly);
   }
   static openSync(path: string, options: { busyTimeoutMs?: number } = {}): SQLiteStorageStore {
     const { DatabaseSync } = require("node:sqlite") as { DatabaseSync: new (path: string) => DatabaseSync };
@@ -306,15 +307,33 @@ export class SQLiteStorageStore implements StorageStore {
     return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
-  async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {
-    for (const item of await this.list({ ...query, limit: undefined, cursor: undefined })) yield item;
+  #migrationSnapshot(projectId: string): MigrationSnapshot {
+    const snapshot = emptySnapshot(projectId);
+    for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) snapshot.tables[table] = (this.#database.prepare(migrationSelect(table, "?")).all(projectId) as Row[]).map(normalizeRow);
+    return scopeSnapshot(snapshot);
   }
 
-  async importArtifacts(revisions: AsyncIterable<ArtifactRevision>): Promise<void> {
-    const batch: ArtifactRevision[] = [];
-    for await (const revision of revisions) batch.push(revision);
-    await this.writeBatch(batch);
+  async migrationSnapshot(projectId: string): Promise<MigrationSnapshot> {
+    this.#database.exec("BEGIN");
+    try { const snapshot = quarantineMappedLegacy(this.#migrationSnapshot(projectId)); this.#database.exec("COMMIT"); return snapshot; }
+    catch (error) { this.#database.exec("ROLLBACK"); throw error; }
   }
+
+  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+    validateSnapshot(snapshot);
+    this.#database.exec("BEGIN IMMEDIATE");
+    try {
+      if (!assertEmptyOrReplay(this.#migrationSnapshot(snapshot.projectId), snapshot)) {
+        for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+          const columns = MIGRATION_TABLES[table].split(" ");
+          const statement = this.#database.prepare(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${columns.map(() => "?").join(",")})`);
+          for (const row of snapshot.tables[table]) statement.run(...sqlValues(table, row) as SQLInputValue[]);
+        }
+      }
+      this.#database.exec("COMMIT");
+    } catch (error) { this.#database.exec("ROLLBACK"); throw error; }
+  }
+
 
 
   #keyValues(key: ArtifactKey): SQLInputValue[] { return [key.projectId, key.subjectId, key.kind, key.logicalName, key.branchId ?? "", key.worktreeId ?? "", key.runId ?? ""]; }
