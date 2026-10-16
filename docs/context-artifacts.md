@@ -148,12 +148,11 @@ selected file is an error. A matching project's storage selection replaces
 the machine selection, rather than merging its fields. There is no
 branch-level override or environment-driven adapter switch.
 
-Resolution supplies omitted external-file and SQLite locations as
-`~/.config/buck-workflow/{project}/.context` and
-`~/.config/buck-workflow/state.sqlite`, respectively. These state defaults use
-the home directory even when `XDG_CONFIG_HOME` changes the config-file lookup.
-The external-file `{project}` token remains a template in this layer; a
-consumer must substitute the resolved safe project identity.
+Resolution supplies omitted external-file and SQLite locations under
+`${XDG_CONFIG_HOME:-~/.config}/buck-workflow/`:
+`{project}/.context` for external files and `state.sqlite` for SQLite. The
+external-file `{project}` token remains a template in this layer; a consumer
+must substitute the resolved safe project identity.
 
 ### Identity and visibility invariants
 

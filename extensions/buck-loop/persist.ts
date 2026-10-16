@@ -6,12 +6,12 @@
  * disagreement (done versus incomplete, or a vanished subject) blocks.
  *
  * `.context/workflow/buck-loop.json` is an optional, gitignored export.
- * Missing rows and service failures never fall back to that local file.
+ * The retained bookmark uses a stable per-worktree run so resume can read it.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
-import { consumerKey, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { commitConsumerBatch, consumerKey } from "../../skills/_shared/storage/consumers.js";
 import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
 import { acceptanceCriteria, phaseIsDone } from "./phase-completion.js";
 import { scan, scanDocuments, readLoopDocuments, type ScanResult } from "./scan.js";
@@ -106,28 +106,43 @@ function prepareProjectionPath(projectRoot: string): void {
 
 /** Retain the bookmark before writing its optional local export. */
 export async function writeProjection(projectRoot: string, projection: Projection): Promise<void> {
+  const root = resolve(projectRoot);
   const body = `${JSON.stringify(projection, null, 2)}\n`;
-  await scheduleConfiguredRetain({
-    kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
-    bytes: new TextEncoder().encode(body), cwd: resolve(projectRoot), source: "buck-loop",
+  const context = await resolveConsumerContext(root);
+  if (!context.worktreeId) throw new Error("Trusted worktree identity is not bound");
+  const scope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId, runId: bookmarkRunId(context.worktreeId), publishedRevisionIds: [] };
+  await withBoundStore(root, context, async (store) => {
+    await commitConsumerBatch(store, scope, [{
+      kind: "checkpoint",
+      subjectId: "buck-loop",
+      logicalName: "workflow/buck-loop.json",
+      bytes: new TextEncoder().encode(body),
+      source: "buck-loop",
+    }], { attemptId: scope.runId, status: "attempted" });
   });
   prepareProjectionPath(projectRoot);
-  const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
+  const abs = join(root, PROJECTION_RELPATH);
   const temporary = `${abs}.${process.pid}.tmp`;
   mkdirSync(dirname(abs), { recursive: true });
   writeFileSync(temporary, body, "utf8");
   renameSync(temporary, abs);
 }
 
-/** Missing row is absent; invalid retained bytes are unreadable. Never read an export. */
+/** Missing row is absent; invalid retained bytes are unreadable. */
 async function readProjectionBody(projectRoot: string): Promise<string | null> {
   const root = resolve(projectRoot);
   const context = await resolveConsumerContext(root);
+  if (!context.worktreeId) return null;
+  const scope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId, runId: bookmarkRunId(context.worktreeId), publishedRevisionIds: [] };
   return withBoundStore(root, context, async (store) => {
-    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree/run identity is not bound");
-    const found = await store.read(consumerKey({ ...context, worktreeId: context.worktreeId, runId: context.runId }, "checkpoint", "buck-loop", "workflow/buck-loop.json"));
+    const found = await store.read(consumerKey(scope, "checkpoint", "buck-loop", "workflow/buck-loop.json"));
     return found ? new TextDecoder().decode(found.bytes) : null;
   });
+}
+function bookmarkRunId(worktreeId: string): string {
+  const id = worktreeId.replace(/^worktree-/i, "");
+  if (!/^[0-9a-f-]{36}$/i.test(id)) throw new Error("Trusted worktree identity is not a bookmark key");
+  return `run-${id}`;
 }
 
 export async function readProjection(projectRoot: string): Promise<Projection | null> {
