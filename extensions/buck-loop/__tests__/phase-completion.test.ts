@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { cleanupRepos, phaseMd, repo, writeTree } from "./fixtures.js";
 import { syncCheckedPhasesAt } from "../phase-completion.js";
 import { scan } from "../scan.js";
+import { flushConfiguredRetains } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const SUBJECT = ".context/2026-09-18.demo";
 const PLAN = `${SUBJECT}/plan-demo.md`;

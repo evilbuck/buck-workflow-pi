@@ -90,17 +90,6 @@ function continues(event: object): boolean {
   return "willContinue" in event && event.willContinue === true;
 }
 
-type PoolGetter = () => unknown;
-let cachedPool: { url: string; get: PoolGetter } | null = null;
-
-export function turnMemoryPool(url: string, create: (connectionString: string) => PoolGetter): PoolGetter {
-  if (!cachedPool || cachedPool.url !== url) cachedPool = { url, get: create(url) };
-  return cachedPool.get;
-}
-
-export function resetTurnMemoryPool(): void {
-  cachedPool = null;
-}
 
 async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): Promise<string> {
   const [{ withConfiguredStore }, { commitConsumerBatch }] = await Promise.all([

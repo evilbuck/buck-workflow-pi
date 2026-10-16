@@ -99,7 +99,8 @@ function defaultGit(cwd: string, args: string[]): GitResult {
 }
 function identityPath(explicit?: string): string {
   if (explicit) return explicit;
-  return join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "buck-workflow", "branch-identity.json");
+  const base = process.env.XDG_CONFIG_HOME || process.env.BUCK_VITEST_CONFIG_HOME || join(homedir(), ".config");
+  return join(base, "buck-workflow", "branch-identity.json");
 }
 interface BranchRecord { branchId: string; ref: string; incarnation: string; initialTip: string; observedTip: string }
 interface AttemptBinding { runId: string; branchId: string; attemptId: string }
@@ -189,12 +190,8 @@ export async function resolveTrustedContext(cwd: string, options: { origin?: str
 
 /** Read an already-bound workspace scope. Does not invent identity. */
 export function readPinnedScopeSync(cwd: string): { projectId: string; branchId: string; worktreeId: string; runId: string; publishedRevisionIds: readonly string[] } | null {
-  const git = (args: string[]): string | null => {
-    try { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
-    catch { return null; }
-  };
-  const origin = git(["config", "--get", "remote.origin.url"]) ?? undefined;
-  const common = git(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  const origin = readPinnedGitValue(cwd, ["config", "--get", "remote.origin.url"]) ?? undefined;
+  const common = readPinnedGitValue(cwd, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
   let config: ResolvedStorageConfig;
   try { config = loadStorageConfigSync({ origin }); }
   catch { return null; }
@@ -202,10 +199,29 @@ export function readPinnedScopeSync(cwd: string): { projectId: string; branchId:
   const record = readIdentity(identityPath()).projects[project.projectId];
   const workspace = record?.workspaces?.[resolve(cwd)];
   if (!record || !workspace?.worktreeId || !workspace.runId) return null;
-  const ref = git(["symbolic-ref", "--quiet", "HEAD"]);
-  const branch = ref ? record.branches.find((item) => item.ref === ref) : undefined;
-  const branchId = branch?.branchId ?? createPrivateWorkspaceIdentity({ projectId: project.projectId, workspaceNonce: workspace.nonce, worktreeId: workspace.worktreeId, runId: workspace.runId }).branchId;
+  const branchId = pinnedBranchId(
+    project.projectId,
+    workspace,
+    record.branches,
+    readPinnedGitValue(cwd, ["symbolic-ref", "--quiet", "HEAD"]),
+  );
   return { projectId: project.projectId, branchId, worktreeId: workspace.worktreeId, runId: workspace.runId, publishedRevisionIds: [] };
+}
+
+function readPinnedGitValue(cwd: string, args: string[]): string | null {
+  try { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
+  catch { return null; }
+}
+
+function pinnedBranchId(projectId: string, workspace: WorkspaceRecord, branches: readonly BranchRecord[], ref: string | null): string {
+  const branch = ref ? branches.find((item) => item.ref === ref) : undefined;
+  if (branch) return branch.branchId;
+  return createPrivateWorkspaceIdentity({
+    projectId,
+    workspaceNonce: workspace.nonce,
+    worktreeId: workspace.worktreeId,
+    runId: workspace.runId,
+  }).branchId;
 }
 
 
@@ -319,10 +335,6 @@ async function importSubjectProjection(store: RepoFilesStorageStore, cwd: string
     } catch { /* absent projection is not an error */ }
   }
 }
-function injectedRun(context: TrustedWorkflowContext): { worktreeId: string; runId: string } | undefined {
-  if (!context.worktreeId || !context.runId) return undefined;
-  return { worktreeId: context.worktreeId, runId: context.runId };
-}
 async function writeEvidence(store: StorageStore, context: TrustedWorkflowContext, name: string, body: unknown): Promise<Record<string, unknown>> {
   const bytes = new TextEncoder().encode(JSON.stringify(body));
   const ref = { subjectId: "workflow-evidence", kind: "audit" as const, logicalName: name };
@@ -399,7 +411,8 @@ async function replacementRevision(key: ArtifactKey, body: string, predecessor: 
 }
 async function writeReceipt(store: StorageStore, options: WorkflowExecuteOptions, request: Extract<WorkflowRequest, { operation: "write-receipt" }>): Promise<RunReceipt> {
   const context = options.context;
-  const run = injectedRun(context) ?? await bindAttemptRun(context, request, options);
+  const run = await receiptRun(context, request, options);
+  if (!run) throw new Error("receipt requires a trusted run identity");
   const receipt: RunReceipt = { projectId: context.projectId, branchId: context.branchId, ...run, attemptId: request.attemptId, status: request.status, artifactRevisions: request.artifactRevisions, ...(request.kind ? { kind: request.kind } : {}), ...(request.metadataDuties ? { metadataDuties: request.metadataDuties } : {}) };
   await store.writeReceipt(receipt);
   const stored = await store.readReceipt(context.projectId, run.runId);
@@ -410,7 +423,7 @@ async function writeReceipt(store: StorageStore, options: WorkflowExecuteOptions
 }
 async function readBoundReceipt(store: StorageStore, options: WorkflowExecuteOptions): Promise<RunReceipt | null> {
   const context = options.context;
-  const run = injectedRun(context) ?? await latestAttemptRun(context, options);
+  const run = await receiptRun(context, undefined, options);
   if (!run) return null;
   const stored = await store.readReceipt(context.projectId, run.runId);
   if (!stored) return null;
@@ -420,6 +433,14 @@ async function readBoundReceipt(store: StorageStore, options: WorkflowExecuteOpt
 function assertBoundReceipt(stored: RunReceipt, context: TrustedWorkflowContext, run: { worktreeId: string; runId: string }): void {
   if (stored.projectId === context.projectId && stored.branchId === context.branchId && stored.worktreeId === run.worktreeId && stored.runId === run.runId) return;
   throw new Error("receipt scope does not match the bound context");
+}
+async function receiptRun(context: TrustedWorkflowContext, request: Extract<WorkflowRequest, { operation: "write-receipt" }> | undefined, options: WorkflowExecuteOptions): Promise<{ worktreeId: string; runId: string } | undefined> {
+  try {
+    return request ? await bindAttemptRun(context, request, options) : await latestAttemptRun(context, options);
+  } catch (error) {
+    if (!context.worktreeId || !context.runId || !/trusted run identity/.test(error instanceof Error ? error.message : String(error))) throw error;
+    return { worktreeId: context.worktreeId, runId: context.runId };
+  }
 }
 async function bindAttemptRun(context: TrustedWorkflowContext, request: Extract<WorkflowRequest, { operation: "write-receipt" }>, options: WorkflowExecuteOptions): Promise<{ worktreeId: string; runId: string }> {
   if (!context.worktreeId) throw new Error("receipt requires a trusted run identity");

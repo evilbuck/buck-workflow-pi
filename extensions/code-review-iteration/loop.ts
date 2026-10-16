@@ -141,11 +141,11 @@ interface LoopContext {
   options: LoopOptions;
 }
 
-function terminalize(ctx: LoopContext, status: RunState["status"], reason: string): void {
+async function terminalize(ctx: LoopContext, status: RunState["status"], reason: string): Promise<void> {
   if (!ctx.state || !ctx.runDir) return;
   ctx.state.status = status;
   ctx.state.terminal = { reason, at: new Date().toISOString() };
-  saveState(ctx.runDir, ctx.state);
+  await saveState(ctx.runDir, ctx.state);
 }
 
 async function resolveRebaseConflictsWithFixer(
@@ -284,7 +284,7 @@ function commandRecorder(
     const seq = executedIds.length + 1;
     const record = await deps.execReviewCommand(worktreePath, request, seq);
     executedIds.push(record.evidence_id ?? `c${seq}`);
-    appendCommandRecord(ctx.runDir!, pass, record);
+    await appendCommandRecord(ctx.runDir!, pass, record);
     return record;
   };
 }
@@ -323,8 +323,8 @@ async function runSessionAndRecordReview(
   const output = parseReviewerOutput(raw, executedIds);
   if ("error" in output) return output;
   const review = reviewRecord(deps, ctx, reviewedHead, output.validation);
-  writePassReview(ctx.runDir!, pass, review);
-  writePassReviewMarkdown(ctx.runDir!, pass, renderPassReviewMarkdown(review, pass));
+  await writePassReview(ctx.runDir!, pass, review);
+  await writePassReviewMarkdown(ctx.runDir!, pass, renderPassReviewMarkdown(review, pass));
   return { review };
 }
 
@@ -541,7 +541,7 @@ async function tryResume(deps: LoopDeps, ctx: LoopContext): Promise<void> {
   ctx.state = resumable.state;
   ctx.state.status = "running";
   ctx.state.terminal = null;
-  saveState(ctx.runDir, ctx.state);
+  await saveState(ctx.runDir, ctx.state);
   deps.notify(`Resuming run ${resumable.state.run_id} at pass ${resumable.state.pass + 1}.`, "info");
 }
 
@@ -583,7 +583,7 @@ async function terminalResult(
   status: RunState["status"],
   reason: string,
 ): Promise<LoopResult> {
-  terminalize(ctx, status, reason);
+  await terminalize(ctx, status, reason);
   const reportPath = await writeTerminalReport(deps, ctx, resolveHead(ctx.cwd));
   if (status === "clean" && reportPath) {
     const rel = repoRelative(ctx.cwd, reportPath);
@@ -595,7 +595,7 @@ async function terminalResult(
     // stays resumable instead of failing its own fingerprint check.
     ctx.state.last_head = resolveHead(ctx.cwd);
     ctx.state.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
-    saveState(ctx.runDir, ctx.state);
+    await saveState(ctx.runDir, ctx.state);
   }
   return { status, runId: ctx.state?.run_id ?? "", reportPath };
 }
@@ -654,10 +654,10 @@ function seedResumePosition(deps: LoopDeps, ctx: LoopContext, runtime: MachineRu
   }
 }
 
-function persistPreparedPosition(ctx: LoopContext): void {
+async function persistPreparedPosition(ctx: LoopContext): Promise<void> {
   ctx.state!.last_head = resolveHead(ctx.cwd);
   ctx.state!.worktree_fingerprint = worktreeFingerprint(ctx.cwd);
-  saveState(ctx.runDir!, ctx.state!);
+  await saveState(ctx.runDir!, ctx.state!);
 }
 
 async function executeCatalogPreflight(
@@ -689,7 +689,7 @@ async function executeBasePreparation(
   }
   runtime.baseReady = true;
   runtime.baseError = undefined;
-  persistPreparedPosition(ctx);
+  await persistPreparedPosition(ctx);
   seedResumePosition(deps, ctx, runtime);
 }
 
@@ -712,7 +712,7 @@ async function executeReviewerPass(
   runtime.review = outcome.review;
   runtime.reviewError = undefined;
   state.last_head = outcome.review.reviewed_head;
-  saveState(ctx.runDir!, state);
+  await saveState(ctx.runDir!, state);
 }
 
 async function executeFixerPass(
@@ -729,13 +729,13 @@ async function executeFixerPass(
   const required = facts.review.hardness;
   deps.notify(`Fixer pass ${pass}: ${blocking.length} blocking finding(s), required hardness ${required}.`, "info");
   const fixer = await runFixerPass(deps, ctx, pass, blocking, required);
-  writePassFixer(
+  await writePassFixer(
     ctx.runDir!,
     pass,
     fixer,
     `# Pass ${String(pass).padStart(2, "0")} fixer\n\nModel ${fixer.model ?? "—"}; checks ${fixer.checks.passed ? "passed" : "FAILED"}; checkpoint ${fixer.checkpoint_commit ?? "none"}.\n`,
   );
-  saveState(ctx.runDir!, ctx.state!);
+  await saveState(ctx.runDir!, ctx.state!);
   runtime.fixer = fixer;
   if (fixer.checks.passed) {
     deps.notify(`Fixer pass ${pass} committed ${fixer.checkpoint_commit?.slice(0, 12) ?? "?"}; starting fresh review.`, "info");

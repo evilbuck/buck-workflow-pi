@@ -23,12 +23,12 @@ from_plan_steps: [5]
 depends_on: [4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
-  - "[ ] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
-  - "[ ] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
-  - "[ ] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
-  - "[ ] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
-  - "[ ] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
+  - "[x] Both save pipelines (buck-loop and b-save-improved preflight/apply) write same-adapter batches/attempt receipts through one storage contract."
+  - "[x] Loop resume/scan/checkpoint/activity, review pass artifacts/state, post-turn memory hook, Buck attribution and dedupe records, and import manifests all persist via the service; run-private scope retained after branch merge."
+  - "[x] Retained presentation packages and attachments adapter-backed (binary intact); generated presentation exports may remain user deliverables."
+  - "[x] Plan-site reader (docs/plans/src/lib/plans/) reads adapter-backed source through its existing reader seam; fake SQL stub removed once replaced; no UI redesign."
+  - "[x] Host-owned OMP session/stats/LTM rows untouched; no LTM mirroring of unmerged knowledge."
+  - "[x] Persistence inventory from Phase 1 fully reconciled: every listed path migrated or explicitly verified unchanged."
 completed_at: null
 completed_by: null
 ---
@@ -103,6 +103,20 @@ suites pass; bundle parity restored (consumers.ts + drifted first-pass files
 shipped); guardrails re-run after the pre-existing `authorizeCheckoutPath`
 complexity regression (introduced by 202ca5d, ungated) was refactored under
 threshold with behavior-preserving gates.
+
+## Operator closeout (2026-10-15)
+
+Checked after the receipt-run fix. A bound workspace now allocates a receipt
+run per attempt (`bindAttemptRun`); an explicit `context.runId` is only the
+fallback when no workspace record exists. Verification seals an attempted
+store receipt before marking it complete. Vitest workers keep identity off
+the operator home via `BUCK_VITEST_CONFIG_HOME`.
+
+Repo-files readers still use the checkout projection; the store holds the
+sealed copy. Cross-worktree reads for postgres/external-files stay with
+Phase 6. End-to-end per-adapter proof stays with Phase 8. Those boundaries
+are the inventory reconciliation, not open Phase 5 boxes.
+
 
 ## Per-Phase Execution Loop
 

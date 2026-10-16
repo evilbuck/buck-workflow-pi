@@ -5,6 +5,6 @@ feat(storage): migrate remaining durable consumers onto the storage contract
 
 ## Body
 
-Preserve configured-retain failures until an explicit drain observes them, even
-when a later queued retain succeeds. Add regression and retain-package CLI
-coverage; synchronize the canonical regression files into the release bundle.
+Route remaining durable consumers through the configured adapter and preserve
+receipt-backed retention. Replace the obsolete repo-files no-op expectation
+with manifest and receipt readback; synchronize the canonical bundle.

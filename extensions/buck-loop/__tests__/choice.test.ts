@@ -4,7 +4,8 @@
  * `block` is never offered. The smol role is not a model source.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as OmpModels from "../../omp-models.js";
 import { cleanupRepos, repo } from "./fixtures.js";
@@ -25,6 +26,8 @@ vi.mock("../../typed-output/evaluator.js", () => ({
 
 import { choose, type ChoiceModelSelect } from "../choice.js";
 
+const originalXdg = process.env.XDG_CONFIG_HOME;
+let xdgRoot: string;
 const subject = "2026-09-18.choice-test";
 const legal = [{ kind: "iterate" }, { kind: "document" }, { kind: "save" }] as const;
 
@@ -59,11 +62,18 @@ function jevSave(confidence = 0.91) {
 
 describe("choose", () => {
   beforeEach(() => {
+    xdgRoot = mkdtempSync(join(tmpdir(), "buck-loop-choice-xdg-"));
+    process.env.XDG_CONFIG_HOME = xdgRoot;
     runOmpModelSession.mockReset();
     evaluate.mockReset();
     evaluate.mockResolvedValue({ ok: false, failure: { code: "provider_unavailable", message: "down" } });
   });
-  afterEach(cleanupRepos);
+  afterEach(() => {
+    cleanupRepos();
+    rmSync(xdgRoot, { recursive: true, force: true });
+    if (originalXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = originalXdg;
+  });
 
 function field(value: unknown, key: string): unknown {
   if (!value || typeof value !== "object" || !(key in value)) return undefined;

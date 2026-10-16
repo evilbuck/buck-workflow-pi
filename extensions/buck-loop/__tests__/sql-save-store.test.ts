@@ -54,6 +54,12 @@ describe("supervisor save through the store", () => {
     expect(await saveSqlFacts(cwd, prepared, ["It's a durable decision."], { store, context })).toEqual(ids);
     completeSaveAttempt(cwd, prepared);
     expect(await verifySqlSave(cwd, SUBJECT, { store, context })).toEqual({ status: "verified" });
+    await expect(store.readReceipt(context.projectId, prepared.runId)).resolves.toMatchObject({
+      status: "complete",
+      attemptId: prepared.attemptId,
+      artifactRevisions: ids,
+      metadataDuties: ["save-metadata", "readback"],
+    });
   });
 
   it("corrects through the predecessor revision and rejects a stale second successor", async () => {

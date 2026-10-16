@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    setupFiles: ["scripts/vitest-identity-setup.ts"],
     include: ["extensions/**/*.test.ts", "scripts/**/*.test.mjs", "scripts/**/*.test.ts", "skills/**/scripts/**/*.test.ts"],
     exclude: [
       "node_modules",

@@ -24,23 +24,17 @@ Pages call only three methods (`src/lib/plans/types.ts`):
 
 Implementations:
 
-| File | Kind | State |
-|---|---|---|
-| `filesystem.ts` | `fs` | Live. Walks `PLAN_CONTEXT_DIR` (default: repo `.context/`). |
-| `sql.ts` | `sql` | Typed stub. Fails closed until a plan-document table exists. |
-| `index.ts` | `combined` | Union of both sources; SQL wins on slug collisions. |
+| `sql.ts` | adapter-backed | Reads visible plan, phase, spec, research and subject-index artifacts through `workflow_state`. |
+| `index.ts` | `createPlanSource()` | Always uses the configured workflow adapter; no filesystem or raw-SQL fallback. |
 
-Selection via `PLAN_SOURCE=fs|sql|combined` (default `fs`) through
-`createPlanSource()`. Index/subject pages currently instantiate
-`FilesystemPlanSource` directly at build time; switch them to
-`createPlanSource()` once the SQL table lands — no page redesign needed.
+All page entrypoints use `createPlanSource()`. Adapter-backed builds resolve the
+workflow checkout from `BUCK_WORKFLOW_ROOT`, defaulting to the checkout two
+levels above `docs/plans`; normal store visibility applies before document
+bytes are rendered. Set `BUCK_WORKFLOW_ROOT` when building from another
+working directory.
 
-## Adding the SQL source
-
-1. Add the migration (proposed row shape is documented in `sql.ts`).
-2. Fill in the three `SqlPlanSource` methods with `pg` queries against
-   `SQL_MEMORY_URL`.
-3. Set `PLAN_SOURCE=combined` to overlay database edits on committed files.
+The reader returns current-branch and published revisions only. It does not
+select a raw SQL database or union adapter results with filesystem documents.
 
 ## Hover previews
 

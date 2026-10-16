@@ -11,15 +11,19 @@ import {
   inspectSubjectLifecycle,
   type SubjectLifecycleResult,
 } from "../../_shared/scripts/subject-lifecycle.js";
+import { withConfiguredStore } from "../../_shared/scripts/workflow-state.js";
+import { classifyContextPath, commitConsumerBatch, type ConsumerWrite } from "../../_shared/storage/consumers.js";
+import { createRunId } from "../../_shared/storage/identity.js";
 declare const Bun: { stdin: { text(): Promise<string> } };
 
 type Applied = { path: string; action: "created" | "updated" | "moved" | "skipped"; reason: string };
-type Report = { applied: Applied[]; staged_inferred: unknown[]; errors: string[]; error?: string; lifecycle?: SubjectLifecycleResult };
+type Report = { applied: Applied[]; staged_inferred: unknown[]; errors: string[]; error?: string; lifecycle?: SubjectLifecycleResult; run_id?: string };
 type AnyRecord = Record<string, any>;
 
 const dryRun = process.argv.includes("--dry-run");
 const archiveInferred = process.argv.includes("--archive-inferred");
 const report: Report = { applied: [], staged_inferred: [], errors: [] };
+const pendingWrites = new Map<string, string>();
 function sqlMemoryMode(): boolean {
   return Boolean(process.env.SQL_MEMORY_URL);
 }
@@ -130,6 +134,7 @@ function mutate(path: string, content: string, reason: string): void {
   if (!dryRun) {
     mkdirSync(dirname(full), { recursive: true });
     writeFileSync(full, content);
+    pendingWrites.set(path, content);
   }
   record(path, action, reason);
 }
@@ -267,6 +272,7 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
     mkdirSync(dirname(destination), { recursive: true });
     writeFileSync(source, rewritten);
     renameSync(source, destination);
+    pendingWrites.set(archivePath, rewritten);
   }
   record(archivePath, "moved", `archive completed backlog item ${item.slug}`);
   const completedPath = ".context/backlog/archive/completed.md";
@@ -462,6 +468,7 @@ function applyLoose(payload: AnyRecord): void {
     if (!dryRun) {
       mkdirSync(dirname(destination), { recursive: true });
       renameSync(source, destination);
+      pendingWrites.set(join(payload.subject.path, basename(loose)), readFileSync(destination, "utf8"));
     }
     record(join(payload.subject.path, basename(loose)), "moved", `consolidate loose artifact ${loose}`);
   }
@@ -580,12 +587,49 @@ function failSchema(message: string): number {
   return 2;
 }
 
-export function runApply(payload: AnyRecord): number {
+/**
+ * File mode writes the `.context` projection, then seals the exact applied bytes
+ * plus one attempt receipt on the configured store — the same contract both save
+ * pipelines use. Uncertain persistence fails the apply instead of reporting success.
+ */
+async function sealAppliedBytes(payload: AnyRecord): Promise<void> {
+  const subjectIndexPath = join(payload.subject.path, "index.md");
+  const indexFull = containedContextPath(subjectIndexPath);
+  if (existsSync(indexFull)) pendingWrites.set(subjectIndexPath, readFileSync(indexFull, "utf8"));
+  if (pendingWrites.size === 0) return;
+  const writes: ConsumerWrite[] = [...pendingWrites.entries()].map(([path, content]) => {
+    const classified = classifyContextPath(path);
+    return {
+      kind: classified.kind,
+      subjectId: classified.subjectId,
+      logicalName: classified.logicalName,
+      bytes: new TextEncoder().encode(content),
+      source: "save-apply",
+    };
+  });
+  const attemptRun = createRunId();
+  await withConfiguredStore(cwd(), async (store, context) => {
+    if (!context.worktreeId) throw new Error("save-apply requires a trusted worktree identity");
+    await commitConsumerBatch(store, {
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: context.worktreeId,
+      runId: attemptRun,
+      publishedRevisionIds: context.publishedRevisionIds,
+    }, writes, { attemptId: attemptRun, status: "attempted", metadataDuties: ["projection"] });
+  });
+  report.run_id = attemptRun;
+  pendingWrites.clear();
+}
+
+export async function runApply(payload: AnyRecord): Promise<number> {
   report.applied = [];
   report.staged_inferred = [];
   report.errors = [];
   delete report.error;
   delete report.lifecycle;
+  delete report.run_id;
+  pendingWrites.clear();
   let invalid: string | null;
   try { invalid = required(payload); }
   catch (error) { invalid = error instanceof Error ? error.message : String(error); }
@@ -594,6 +638,7 @@ export function runApply(payload: AnyRecord): number {
   try {
     validatePayload(payload);
     applyAll(payload);
+    if (!dryRun) await sealAppliedBytes(payload);
   } catch (error) { report.errors.push(error instanceof Error ? error.message : String(error)); }
   console.log(JSON.stringify(report));
   return report.errors.length ? 1 : 0;
@@ -601,11 +646,12 @@ export function runApply(payload: AnyRecord): number {
 
 async function main(): Promise<number> {
   try {
-    return runApply(JSON.parse(await Bun.stdin.text()));
+    return await runApply(JSON.parse(await Bun.stdin.text()));
   } catch {
     return failSchema("invalid JSON payload");
   }
 }
+
 
 if (import.meta.main) {
   process.exitCode = await main();

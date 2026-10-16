@@ -123,6 +123,7 @@ export const SHIPPED_STORAGE_FILES = [
   "skills/_shared/storage/sql-gate.ts",
   "skills/_shared/storage/config.ts",
   "skills/_shared/storage/conformance.ts",
+  "skills/_shared/storage/consumers.ts",
   "skills/_shared/storage/contract.ts",
   "skills/_shared/storage/domain.ts",
   "skills/_shared/storage/file-store.ts",

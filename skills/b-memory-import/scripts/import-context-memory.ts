@@ -30,6 +30,9 @@ import {
   writeFileSync,
 } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { classifyContextPath, flushConfiguredRetains, scheduleConfiguredRetain } from "../../_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../_shared/scripts/workflow-state.js";
+import type { ArtifactRevision } from "../../_shared/storage/contract.js";
 import {
   extractTitle,
   parseSimpleYaml,
@@ -558,6 +561,24 @@ export function listMemoryMarkdown(
   return files;
 }
 
+export function filterPublishedImportFiles<T extends Pick<MemoryFile, "relPath" | "sha256"> & { kind: SourceKind }>(
+  files: readonly T[],
+  revisions: readonly ArtifactRevision[],
+  publishedRevisionIds: readonly string[],
+): T[] {
+  const published = new Set(publishedRevisionIds);
+  const hashes = new Map<string, string>();
+  for (const revision of revisions) {
+    if (!published.has(revision.revision)) continue;
+    const key = revision.key;
+    hashes.set(`${key.kind}\0${key.subjectId}\0${key.logicalName}`, revision.sha256);
+  }
+  return files.filter((file) => {
+    const artifact = classifyContextPath(file.relPath);
+    return hashes.get(`${artifact.kind}\0${artifact.subjectId}\0${artifact.logicalName}`) === file.sha256;
+  });
+}
+
 export function loadManifest(path: string): Manifest | null {
   if (!existsSync(path)) return null;
   try {
@@ -571,7 +592,12 @@ export function loadManifest(path: string): Manifest | null {
 
 export function saveManifest(path: string, manifest: Manifest): void {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(manifest, null, 2) + "\n", "utf-8");
+  const body = `${JSON.stringify(manifest, null, 2)}\n`;
+  writeFileSync(path, body, "utf-8");
+  scheduleConfiguredRetain({
+    kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
+    bytes: new TextEncoder().encode(body), worktreeId: path,
+  });
 }
 
 // ---------- config ----------
@@ -759,7 +785,17 @@ export async function runImport(args: CliArgs): Promise<ImportResult> {
   const existing = loadManifest(manifestPath);
 
   const parseWarnings: string[] = [];
-  const files = listMemoryMarkdown(args.sourceDirs, args.root, parseWarnings);
+  const candidates = listMemoryMarkdown(args.sourceDirs, args.root, parseWarnings);
+  const files = await withConfiguredStore(args.root, async (store, context) => {
+    const publishedRevisionIds = context.publishedRevisionIds ?? [];
+    if (publishedRevisionIds.length === 0) return [];
+    const revisions = await store.list({
+      projectId: context.projectId,
+      branchId: context.branchId,
+      publishedRevisionIds,
+    });
+    return filterPublishedImportFiles(candidates, revisions, publishedRevisionIds);
+  });
   const { toImport, items, skipped } = planImport(
     files,
     existing,
@@ -922,6 +958,7 @@ async function main(): Promise<void> {
 
   try {
     const result = await runImport(args);
+    await flushConfiguredRetains();
     console.log(JSON.stringify(result, null, 2));
     process.exit(result.code);
   } catch (e) {

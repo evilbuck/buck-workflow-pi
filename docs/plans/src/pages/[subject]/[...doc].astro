@@ -2,13 +2,13 @@
 import { Marked } from 'marked';
 import Base from '../../layouts/Base.astro';
 import LinkPreview from '../../components/LinkPreview.astro';
-import { FilesystemPlanSource } from '../../lib/plans/filesystem';
+import { createPlanSource } from '../../lib/plans';
 import { resolveDocHref, routeKey } from '../../lib/plans/links';
 import { synopsisOf } from '../../lib/plans/synopsis';
 import type { Synopsis } from '../../lib/plans/synopsis';
 
 export async function getStaticPaths() {
-  const source = new FilesystemPlanSource();
+  const source = createPlanSource();
   const subjects = await source.listSubjects();
   const linkPattern = /\[[^\]]*\]\(([^)\s]+)\)/g;
   const paths = [];

@@ -1,5 +1,5 @@
+import { resolve } from 'node:path';
 import { toPlanDocument, type PlanDocument, type PlanSource, type PlanSubject } from './types.js';
-
 export interface StoredPlan {
   subjectId: string;
   logicalName: string;
@@ -9,20 +9,20 @@ export interface StoredPlan {
 export type PlanLoader = () => Promise<readonly StoredPlan[]>;
 
 async function defaultLoader(): Promise<readonly StoredPlan[]> {
-  const [{ withConfiguredStore }, { listVisiblePlans }] = await Promise.all([
+  const [{ withConfiguredStore }] = await Promise.all([
     import('../../../../../skills/_shared/scripts/workflow-state.js'),
-    import('../../../../../skills/_shared/storage/consumers.js'),
   ]);
-  return withConfiguredStore(process.cwd(), async (store, context) => {
+  const root = process.env.BUCK_WORKFLOW_ROOT ?? resolve(process.cwd(), '../..');
+  return withConfiguredStore(root, async (store, context) => {
     if (!context.worktreeId) throw new Error('plan reader requires a trusted worktree identity');
-    const visible = await listVisiblePlans(store, {
+    const visible = await store.list({
       projectId: context.projectId,
       branchId: context.branchId,
-      worktreeId: context.worktreeId,
-      runId: context.runId ?? context.worktreeId,
       publishedRevisionIds: context.publishedRevisionIds,
     });
-    return visible.map((item) => ({ subjectId: item.key.subjectId, logicalName: item.key.logicalName, bytes: item.bytes }));
+    return visible
+      .filter((item) => ['plan', 'phase', 'spec', 'research', 'subject-index'].includes(item.key.kind))
+      .map((item) => ({ subjectId: item.key.subjectId, logicalName: item.key.logicalName, bytes: item.bytes }));
   });
 }
 
@@ -32,16 +32,19 @@ export class SqlPlanSource implements PlanSource {
   constructor(private readonly load: PlanLoader = defaultLoader) {}
 
   async listSubjects(): Promise<PlanSubject[]> {
-    const grouped = new Map<string, Set<string>>();
+    const grouped = new Map<string, { files: Set<string>; status: string | null }>();
     for (const item of await this.load()) {
-      const files = grouped.get(item.subjectId) ?? new Set<string>();
-      files.add(item.logicalName);
-      grouped.set(item.subjectId, files);
+      const subject = grouped.get(item.subjectId) ?? { files: new Set<string>(), status: null };
+      subject.files.add(item.logicalName);
+      if (item.logicalName === 'index.md') {
+        subject.status = toPlanDocument(item.subjectId, item.logicalName, new TextDecoder().decode(item.bytes)).frontmatter.status ?? null;
+      }
+      grouped.set(item.subjectId, subject);
     }
-    return [...grouped.entries()].map(([name, files]) => ({
+    return [...grouped.entries()].map(([name, value]) => ({
       name,
-      status: null,
-      documents: [...files].sort((left, right) => left.localeCompare(right)),
+      status: value.status,
+      documents: [...value.files].sort((left, right) => left.localeCompare(right)),
     })).sort((left, right) => right.name.localeCompare(left.name));
   }
 

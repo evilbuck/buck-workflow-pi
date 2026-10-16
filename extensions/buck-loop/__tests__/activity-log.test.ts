@@ -9,10 +9,12 @@ import {
 } from "../activity-log.js";
 
 const roots: string[] = [];
+const originalXdg = process.env.XDG_CONFIG_HOME;
 
 function root(git = false): string {
   const directory = mkdtempSync(join(tmpdir(), "buck-loop-activity-log-"));
   roots.push(directory);
+  process.env.XDG_CONFIG_HOME = join(directory, "xdg");
   if (git) execFileSync("git", ["init", "-q"], { cwd: directory });
   return directory;
 }
@@ -26,6 +28,8 @@ function records(directory: string): Array<Record<string, unknown>> {
 
 afterEach(() => {
   roots.splice(0).forEach((directory) => rmSync(directory, { recursive: true, force: true }));
+  if (originalXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+  else process.env.XDG_CONFIG_HOME = originalXdg;
 });
 
 describe("buck-loop activity log", () => {
@@ -145,5 +149,19 @@ describe("buck-loop activity log", () => {
     await log.flush();
     await log.close();
     expect(warnings).toEqual([expect.stringContaining("hygiene skipped")]);
+  });
+  it("rejects close when configured activity retention fails", async () => {
+    const directory = root();
+    const config = join(directory, "invalid-config.yaml");
+    writeFileSync(config, "not: [valid");
+    const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+    process.env.BUCK_WORKFLOW_CONFIG = config;
+    try {
+      const log = createBuckLoopActivityLog({ cwd: directory, command: "start", onWarning: () => undefined });
+      await expect(log.close()).rejects.toThrow();
+    } finally {
+      if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+    }
   });
 });
