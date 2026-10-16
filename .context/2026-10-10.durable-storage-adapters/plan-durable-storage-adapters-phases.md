@@ -9,6 +9,7 @@ format: discrete
 sql_memory_ids:
   - 01a132bf-ba55-7008-acbb-78c3429e4d98
   - 01a142ea-44af-78b1-9b4f-afb0fc5a9503
+  - 01a1434f-f7ff-7794-8d51-7809e00359c6
 ---
 
 # Phased Plan: Configurable durable workflow storage
@@ -40,7 +41,7 @@ other branches." This overview sequences the parent plan into eight phases.
 | 3: Domain Semantics | completed | hard | [phase-3-domain-semantics.md](phase-3-domain-semantics.md) |
 | 4: Native Tool, CLI & Skill Cutover | completed | hard | [phase-4-native-access.md](phase-4-native-access.md) |
 | 5: Remaining Durable Consumers | completed | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
-| 6: Publication, Reconciliation & Recovery | pending | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
+| 6: Publication, Reconciliation & Recovery | completed | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
 | 7: Existing-Data Cutover | pending | hard | [phase-7-data-cutover.md](phase-7-data-cutover.md) |
 | 8: End-to-End Proof, Docs & Packaging | pending | easy | [phase-8-proof-docs-package.md](phase-8-proof-docs-package.md) |
 

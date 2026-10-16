@@ -22,6 +22,13 @@ steps, then **Eat** — the check that it worked.
 2. [Install Bubblewrap for restricted stages](install-bubblewrap-for-restricted-stages.md)
 3. [Restore auto-fix evidence](restore-auto-fix-evidence.md)
 4. [Restore pinned PR evidence](restore-pinned-pr-evidence.md)
+5. [Enable checkpoint publication](enable-checkpoint-publication.md)
+6. [Inspect sealed checkpoints](inspect-sealed-checkpoints.md)
+7. [Map a rewritten checkpoint](map-rewritten-checkpoint.md)
+8. [Revoke a checkpoint mapping](revoke-checkpoint-mapping.md)
+9. [Resolve a publication conflict](resolve-publication-conflict.md)
+10. [Export an orphan scope](export-orphan-scope.md)
+11. [Rebind an orphan scope](rebind-orphan-scope.md)
 
 ## Why
 
@@ -29,3 +36,4 @@ steps, then **Eat** — the check that it worked.
 - [Observably invoked happy-path loop](../adr/0002-observably-invoked-happy-path-loop.md)
 - [Checkpoint trusts durable artifacts](../adr/0003-checkpoint-trusts-durable-artifacts.md)
 - [Model access uses workflow_state](../adr/0004-workflow-state-trusted-access.md)
+- [Publication is a versioned integration view](../adr/0005-versioned-integration-view.md)

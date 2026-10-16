@@ -523,6 +523,7 @@ describe("happy path", () => {
     expect(deps.choose).not.toHaveBeenCalled();
   });
 
+  // Four complete Git/storage workflows need an integration budget under coverage.
   it("uses difficulty only to select the hard build prompt skill", async () => {
     const cwd = repo();
     phased(cwd, ["pending", "pending", "pending", "pending"]);
@@ -542,7 +543,7 @@ describe("happy path", () => {
       ["b-build", undefined],
     ]);
     expect(builds.every((call) => !("modelPattern" in call))).toBe(true);
-  });
+  }, 30_000);
 
   it("records a named-stage profile stop on the loop block", async () => {
     const cwd = repo();

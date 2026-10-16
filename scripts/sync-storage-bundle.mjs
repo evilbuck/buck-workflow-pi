@@ -13,6 +13,7 @@ for (const path of [
   'skills/_shared/scripts/workflow-state.test.ts',
   'skills/_shared/scripts/consumer-persist.test.ts',
   'skills/_shared/scripts/file-store.test.ts',
+  'skills/_shared/scripts/storage-publication.test.ts',
   'skills/_shared/scripts/plan-source.test.ts',
   'migrations',
   'skills/_shared/scripts/postgres-store.test.ts',

@@ -7,7 +7,6 @@ Chain: 1 → 2 → 3 → 4 → 5 and 3 → 6 → 7 → 8 (5 ∥ 6 possible; sequ
 
 
 
-- [ ] [Phase 6: Publication, Reconciliation & Recovery](items/phase-6-storage-adapter-publication-recovery.md) — hard, `/b-build-hard`
 - [ ] [Phase 7: Existing-Data Cutover](items/phase-7-storage-adapter-data-cutover.md) — hard, `/b-build-hard`
 - [ ] [Phase 8: End-to-End Proof, Docs & Packaging](items/phase-8-storage-adapter-proof-docs-package.md) — easy, `/b-build`
 

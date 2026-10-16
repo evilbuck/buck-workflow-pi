@@ -202,6 +202,7 @@ export interface CommitCheckpoint {
   targetPath: string;
   /** Full HEAD object id before the commit, or null for verified unborn HEAD. */
   baseHead: string | null;
+  publicationSealId?: string;
 }
 
 export interface Snapshot {

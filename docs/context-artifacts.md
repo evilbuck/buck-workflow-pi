@@ -36,11 +36,12 @@ mirror; local reports and runtime directories are optional exports.
 ### Native and portable access
 
 `extensions/workflow-state/` registers `workflow_state`. Portable callers use
-`bun skills/_shared/scripts/workflow-state-cli.ts`. Operations are `read`,
-`list`, `search`, `write`, `correct`, `discover`, `inspect-lifecycle`,
-`transition`, `read-receipt`, and `write-receipt`. `inspect` and `recover`
-name a branch and retain evidence; restricted stages cannot call them.
-`migrate` is CLI-only.
+`bun skills/_shared/scripts/workflow-state-cli.ts`. Ordinary operations are
+`read`, `list`, `search`, `write`, `correct`, `discover`,
+`inspect-lifecycle`, `transition`, `read-receipt`, and `write-receipt`.
+Operator operations are `inspect`, `recover`, `publication-view`,
+`map-checkpoint`, `revoke-mapping`, and `resolve-publication`; restricted
+stages cannot call them. `migrate` is CLI-only.
 
 The trusted runtime binds project and visibility from the checkout and machine
 config. Callers cannot pass `projectId`, `branchId`, `publishedRevisionIds`,
@@ -133,7 +134,7 @@ not an embedded connection string.
 
 Projects are keyed by safe identifiers and require a non-empty `origins` list.
 Optional project keys are `integration_ref` (a full `refs/...` ref) and
-`storage`. Origin matching uses the canonical form shared with `identity.ts`;
+`storage`. That ref is the only automatic-publication switch. Origin matching uses the canonical form shared with `identity.ts`;
 duplicate normalized aliases fail as ambiguous. Configured URL origins reject
 userinfo, query, and fragment data rather than retaining credentials.
 
@@ -190,13 +191,59 @@ visibility rules above. Do not add unrestricted knowledge SQL to this surface.
 Supervisor recall uses this surface. The removed `sql_memory` tool does not.
 
 Worktree-private revisions require that worktree; run-private revisions require
-exact branch, worktree, and run even if supplied as published. Callers must
-establish the trusted published-revision set using publication proof (separate
-from lookup). This is a retrieval invariant, not file/DB-operator access control.
-Publication pointer loading is still empty; callers cannot supply
-`publishedRevisionIds`. Until trusted publication proof is available, consumers
-withhold private knowledge from harness LTM rather than treating branch merge
-or a local export as publication evidence.
+exact branch, worktree, and run even if supplied as published. Callers cannot
+pass `publishedRevisionIds`. When the project has an `integration_ref`, the
+runtime fills that set by reconciling the selected adapter before ordinary
+retrieval. Without that ref the published set stays empty. This is a retrieval
+invariant, not file/DB-operator access control. Harness LTM still accepts only
+revisions in that proven set; a merge, export, or local checkout is not
+publication evidence by itself.
+
+### Checkpoint publication and recovery
+
+`publication.ts` is the shared policy for every adapter. Domain terms are in
+[Durable storage](storage/CONTEXT.md). A sealed checkpoint freezes one branch
+snapshot's exact revision ids and hashes. `/buck-loop` seals before the commit
+stage and binds the resolved resulting OID only after Git verifies it. A failed
+bind leaves the seal private. The publication anchor is the bound OID, never
+creation HEAD. Proof is local `rev-parse` / `merge-base` only: exit 1 means not
+an ancestor; any other failure cannot prove. There is no network fetch and no
+implicit integration branch. The ledger is an immutable compare-and-swap
+revision in a runtime-private scope, not a tracked repository manifest.
+
+Ordinary lookup unions the current branch overlay with members of that
+integration view. Post-seal edits stay off the view until a later seal is
+proven. Rewritten or missing evidence removes visibility. Reverting integrated
+code does not delete a still-reachable published revision; artifact tombstones
+are explicit corrections.
+
+Independent publications of one logical artifact keep the last unambiguous
+reachable baseline and both candidates. Other artifacts still advance.
+Cross-branch supersession requires persisted artifact-correction ancestry.
+Same-branch sealed successors can advance by proven checkpoint order.
+`resolve-publication` selects one current candidate and applies only to that
+exact candidate set.
+
+Squash and rebase stay private until `map-checkpoint` attests the selected
+checkpoint, its full revision/hash set, a target reachable from the integration
+ref, and evidence other than patch-id. Subsets, duplicates, and
+cross-checkpoint mappings fail closed. `revoke-mapping` removes that
+checkpoint's mapping.
+
+`recover` lists retained named, workspace, and adapter scopes with provenance.
+Export or rebind runs only after one returned `scopeToken` is selected. Export
+returns immutable bytes. Rebind writes new branch-private revisions and refuses
+collisions. Deletion, rename, same-name recreation, detached HEAD, and unborn
+branches do not publish, destroy, or name-inherit private artifacts. Kinds
+`run-state`, `checkpoint`, `activity`, `audit`, `receipt`, and `attribution`
+stay private after merge.
+
+With publication configured, a repo-files projection that has no current-branch
+pointer imports only observable local index/worktree changes or new untracked
+files. Clean tracked bytes are not that import. An existing branch-owned
+projection still reconciles checkout bytes as direct edits; that path is
+branch-private and is not publication proof. Policy: [ADR 0005](adr/0005-versioned-integration-view.md).
+Operator sequences: [how-to index](howto/README.md).
 
 ### SQLite runtime boundary
 

@@ -29,7 +29,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
-import { TrustedIdentityError } from "../../skills/_shared/scripts/workflow-state.js";
+import { bindWorkflowCheckpoint, sealWorkflowCheckpoint, TrustedIdentityError } from "../../skills/_shared/scripts/workflow-state.js";
 import {
   askRepairLift,
   changedLoopExtensionFiles,
@@ -500,6 +500,7 @@ async function prepareCommitTransition(
   probe?: LoopDeps["probeCommitHead"],
 ): Promise<SupervisorStep> {
   if (verifiedCommitAdvance(previous, step.transition)) {
+    if (previous.commitCheckpoint?.publicationSealId) await bindWorkflowCheckpoint(cwd, previous.commitCheckpoint.publicationSealId);
     const scanned = ((await scan({ projectRoot: cwd, path: previous.planPath!, state: step.transition.to })));
     return { ...step, snapshot: { ...step.snapshot, phasePath: scanned.phasePath, commitCheckpoint: null } };
   }
@@ -1220,8 +1221,18 @@ async function prepareCommitEffect(cwd: string, snapshot: Snapshot, targetPath: 
   const checkpoint = snapshot.commitCheckpoint;
   if (!checkpoint || checkpoint.targetPath !== targetPath) throw new Error("missing or mismatched commit checkpoint; refusing to select a new target");
   const proof = commitProof(cwd, checkpoint);
-  if (proof === "verified") return true;
+  if (proof === "verified") {
+    if (checkpoint.publicationSealId) await bindWorkflowCheckpoint(cwd, checkpoint.publicationSealId);
+    return true;
+  }
   if (proof !== "pending") throw new Error("commit checkpoint history, dirt, or Git probe is unsafe; inspect before resuming");
+  if (!checkpoint.publicationSealId) {
+    const id = await sealWorkflowCheckpoint(cwd);
+    if (id) {
+      checkpoint.publicationSealId = id;
+      await persistIfPossible(cwd, snapshot);
+    }
+  }
   (await prepareCommitCheckpoint(cwd, checkpoint.targetPath));
   return false;
 }

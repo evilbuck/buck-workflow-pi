@@ -129,6 +129,7 @@ export const SHIPPED_STORAGE_FILES = [
   "skills/_shared/storage/file-store.ts",
   "skills/_shared/storage/identity.ts",
   "skills/_shared/storage/postgres-store.ts",
+  "skills/_shared/storage/publication.ts",
   "skills/_shared/storage/sqlite-capability.ts",
   "skills/_shared/storage/sqlite-runtime-smoke.ts",
   "skills/_shared/storage/sqlite-store.ts",

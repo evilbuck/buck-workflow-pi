@@ -373,12 +373,20 @@ function asCommitCheckpoint(raw: unknown, identity: {
   planPath: string;
   phasePath: string | null;
 } | null): CommitCheckpoint | null | undefined {
-  if (raw === undefined || raw === null) return null;
+  if (raw == null) return null;
   const value = asObject(raw);
   if (!value || !identity || typeof value.targetPath !== "string") return undefined;
   if (value.targetPath !== (identity.phasePath ?? identity.planPath)) return undefined;
   if (!validCommitHead(value.baseHead)) return undefined;
-  return { targetPath: value.targetPath, baseHead: value.baseHead as string | null };
+  const publication = publicationSealFields(value.publicationSealId);
+  if (!publication) return undefined;
+  return { targetPath: value.targetPath, baseHead: value.baseHead as string | null, ...publication };
+}
+
+function publicationSealFields(value: unknown): Pick<CommitCheckpoint, "publicationSealId"> | undefined {
+  if (value === undefined) return {};
+  if (typeof value !== "string" || value.length === 0) return undefined;
+  return { publicationSealId: value };
 }
 
 function validCommitHead(value: unknown): boolean {

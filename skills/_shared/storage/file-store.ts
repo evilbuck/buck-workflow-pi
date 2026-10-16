@@ -7,6 +7,7 @@ import { cloneRevision, keyId, searchableText, validateRevision, visible } from 
 import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdentity, assertReceiptReadback, correctionDecision, correctionQuery, inspectStoredLifecycle, lifecycleRevision, receiptRevisionReadable, selectPage, tombstoneRevision, TOMBSTONE_SOURCE, type KeyedPageItem, type StoredCorrection } from "./domain.js";
 import { overlayPublishedRevisions } from "./visibility.js";
 import { validateArtifactKey } from "./identity.js";
+import { checkpointBinding, reconcileStore, validateCheckpointSeal, type CheckpointRecord } from "./publication.js";
 
 interface ManifestRecord {
   key: ArtifactKey;
@@ -165,13 +166,13 @@ export class FileStorageStore implements StorageStore {
     const expected = assertCorrectionPredecessor(this.#pageItems(manifest, correctionQuery(correction)), correction);
     const item = correction.replacement ?? tombstoneRevision(correction.key, correction.predecessorRevision);
     await this.#stageRevision(manifest, { ...item, expectedRevision: expected });
-    manifest.corrections[storedKey] = { predecessorRevision: correction.predecessorRevision, resultRevision: correction.replacement ? item.revision : null, replacementSha256: correction.replacement?.sha256 ?? null };
+    manifest.corrections[storedKey] = { predecessorRevision: correction.predecessorRevision, resultRevision: item.revision, replacementSha256: correction.replacement?.sha256 ?? null };
     return correction.replacement ? cloneRevision(item) : null;
   }
 
 
   async #replayCorrection(manifest: Manifest, correction: ScopedCorrection, stored: StoredCorrection): Promise<ArtifactRevision | null> {
-    if (!stored.resultRevision) return null;
+    if (!stored.resultRevision || stored.replacementSha256 === null) return null;
     const record = manifest.revisions[this.#recordId(keyId(correction.key), stored.resultRevision)];
     if (!record) throw new Error("uncertain persistence blocks save");
     return this.#materialize(record, stored.resultRevision, new Uint8Array(await readFile(this.#blobPath(record.blob))));
@@ -253,6 +254,11 @@ export class FileStorageStore implements StorageStore {
 
   async sealCheckpoint(checkpoint: CheckpointSeal): Promise<string> {
     const current = await this.#load();
+    await validateCheckpointSeal(checkpoint, async (revision) => {
+      const record = Object.values(current.revisions).find((item) =>
+        item.revision === revision && item.key.projectId === checkpoint.projectId && item.key.branchId === checkpoint.branchId);
+      return record ? this.read(record.key, revision) : null;
+    });
     for (const [id, revisionId] of Object.entries(current.current)) {
       const record = current.revisions[this.#recordId(id, revisionId)];
       if (record) await this.read(record.key);
@@ -264,17 +270,57 @@ export class FileStorageStore implements StorageStore {
     });
   }
 
-  async bindCheckpoint(checkpointId: string, commit: string): Promise<void> {
+  async bindCheckpoint(checkpointId: string, commit: string, cwd: string): Promise<void> {
     await this.#mutate((manifest) => {
       const checkpoint = manifest.checkpoints[checkpointId];
-      if (!checkpoint || checkpoint.boundCommit) throw new Error("unknown or already-bound checkpoint");
-      if (!commit) throw new Error("checkpoint commit is required");
-      checkpoint.boundCommit = commit;
+      if (!checkpoint) throw new Error("unknown checkpoint");
+      checkpoint.boundCommit = checkpointBinding(cwd, checkpoint, commit);
     });
   }
 
-  async reconcile(_integrationTip: string): Promise<void> {
-    // Promotion requires Git ancestry evidence and belongs to the publication service.
+  async listCheckpoints(projectId: string): Promise<readonly CheckpointRecord[]> {
+    return Object.values((await this.#load()).checkpoints).filter(x => x.projectId === projectId);
+  }
+
+  async correctionLineage(projectId: string): Promise<ReadonlyMap<string, string>> {
+    const parents = new Map<string, string>();
+    for (const [key, record] of Object.entries((await this.#load()).corrections)) {
+      if (key.startsWith(`${projectId}\0`) && record.resultRevision) parents.set(record.resultRevision, record.predecessorRevision);
+    }
+    return parents;
+  }
+
+  async listScopes(projectId: string): Promise<readonly Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">[]> {
+    const scopes = new Map<string, Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">>();
+    for (const record of Object.values((await this.#load()).revisions)) {
+      if (record.key.projectId !== projectId) continue;
+      const { branchId, worktreeId, runId } = record.key;
+      const scope = { branchId, worktreeId, runId };
+      scopes.set(JSON.stringify(scope), scope);
+    }
+    return [...scopes.values()];
+  }
+
+  async checkpointSnapshot(projectId: string, branchId: string): Promise<readonly ArtifactRevision[]> {
+    const manifest = await this.#load();
+    const results: ArtifactRevision[] = [];
+    for (const [id, revision] of Object.entries(manifest.current)) {
+      const record = manifest.revisions[this.#recordId(id, revision)];
+      if (!record || record.key.projectId !== projectId || record.key.branchId !== branchId || record.key.worktreeId || record.key.runId) continue;
+      const current = await this.read(record.key);
+      const item = current ?? await this.read(record.key, revision);
+      if (item) results.push(item);
+    }
+    return results;
+  }
+
+  async readCheckpointRevision(projectId: string, branchId: string, revision: string): Promise<ArtifactRevision | null> {
+    const record = Object.values((await this.#load()).revisions).find(x => x.key.projectId === projectId && x.key.branchId === branchId && x.revision === revision);
+    return record ? this.read(record.key, revision) : null;
+  }
+
+  async reconcile(integrationTip: string, cwd: string, projectId: string): Promise<readonly string[]> {
+    return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
   async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {

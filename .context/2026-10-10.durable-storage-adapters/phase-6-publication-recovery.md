@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 6
 order: 6
 plan: plan-durable-storage-adapters.md
@@ -11,18 +11,34 @@ goal: "Implement sealed checkpoint binding, ancestry-proven publication, explici
 files:
   - skills/_shared/storage/
   - extensions/buck-loop/
+  - extensions/workflow-state/index.ts
+  - skills/_shared/scripts/workflow-state.ts
+  - skills/_shared/scripts/workflow-state-cli.ts
+  - skills/_shared/scripts/storage-publication.test.ts
+  - skills/_shared/scripts/file-store.test.ts
+  - skills/_shared/workflow-state-access.md
+  - plugins/buck-workflow/skills/_shared/storage/
+  - plugins/buck-workflow/skills/_shared/scripts/workflow-state.ts
+  - plugins/buck-workflow/skills/_shared/scripts/workflow-state-cli.ts
+  - plugins/buck-workflow/skills/_shared/scripts/storage-publication.test.ts
+  - plugins/buck-workflow/skills/_shared/scripts/file-store.test.ts
+  - plugins/buck-workflow/skills/_shared/workflow-state-access.md
+  - scripts/sync-storage-bundle.mjs
+  - scripts/install.mjs
 from_plan_steps: [6]
+sql_memory_ids:
+  - 01a1434f-f7ff-7794-8d51-7809e00359c6
 depends_on: [2, 3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Sealing freezes the exact immutable revision set + hashes; explicit in save/checkpoint flow; post-seal edits and branch drafts never auto-added."
-  - "[ ] Automatic promotion only on eligible source checkpoint AND `git merge-base --is-ancestor <anchor> <integration-tip>` success; exit 1 (not merged) distinguished from errors (cannot prove); no automatic network fetch."
-  - "[ ] Git fixtures pass: sealed v1 publishes after merge while v2 stays private; inherited/creation-HEAD anchors, old creation ancestor with unmerged body, branch rename/delete/recreate, detached/unborn, stale/missing refs, force-push, patch equivalence, and Git errors never count as proof."
-  - "[ ] Squash/rebase stay private until explicit verified mapping (project, exact snapshot hashes, target reachability, mapping evidence); patch-id alone rejected."
-  - "[ ] Publication is a versioned integration view: rewritten/revoked evidence removes visibility; revert of code never implicitly deletes knowledge; conflicting independent publications preserve both candidates and the last unambiguous baseline until explicit resolution."
-  - "[ ] Branch deletion/orphaning never promotes or destroys state; explicit recovery lists private orphan scopes with provenance; rebinding/export only after selection; new incarnations don't inherit old private artifacts by name."
-  - "[ ] Run projections, receipts, import cursors, pass audits, attribution/dedupe remain run/workspace-private after merge."
-completed_at: null
+  - "[x] Sealing freezes the exact immutable revision set + hashes; explicit in save/checkpoint flow; post-seal edits and branch drafts never auto-added."
+  - "[x] Automatic promotion only on eligible source checkpoint AND `git merge-base --is-ancestor <anchor> <integration-tip>` success; exit 1 (not merged) distinguished from errors (cannot prove); no automatic network fetch."
+  - "[x] Git fixtures pass: sealed v1 publishes after merge while v2 stays private; inherited/creation-HEAD anchors, old creation ancestor with unmerged body, branch rename/delete/recreate, detached/unborn, stale/missing refs, force-push, patch equivalence, and Git errors never count as proof."
+  - "[x] Squash/rebase stay private until explicit verified mapping (project, exact snapshot hashes, target reachability, mapping evidence); patch-id alone rejected."
+  - "[x] Publication is a versioned integration view: rewritten/revoked evidence removes visibility; revert of code never implicitly deletes knowledge; conflicting independent publications preserve both candidates and the last unambiguous baseline until explicit resolution."
+  - "[x] Branch deletion/orphaning never promotes or destroys state; explicit recovery lists private orphan scopes with provenance; rebinding/export only after selection; new incarnations don't inherit old private artifacts by name."
+  - "[x] Run projections, receipts, import cursors, pass audits, attribution/dedupe remain run/workspace-private after merge."
+completed_at: 2026-10-16
 completed_by: null
 ---
 
@@ -49,6 +65,23 @@ Parent User Goal: choose durable storage, resume reliably, branch-private unmerg
 - Full Git fixture matrix from the plan's Verification section (preserved merge/FF, squash/rebase mapping, edit-after-seal, inherited anchor, rename/delete/recreate, detached/unborn, stale/missing refs, force-push, overlapping conflict, code revert).
 - Two-project/two-worktree same-name fixture: default tools show no cross-branch leakage.
 - `npm run guardrails:check` passes.
+
+## Iteration verification (2026-10-16)
+
+Runtime seal/commit binding persists exact snapshots in the selected adapter.
+Ordinary configured retrieval reconciles bound OIDs and versioned proofs.
+Exact checkpoint mappings authorize rewritten history; revocation removes
+visibility. Independent logical-artifact conflicts retain their baseline;
+cross-branch supersession follows correction ancestry, not code ancestry.
+Operator-selected scope recovery retains deleted/workspace-private state.
+Canonical/bundled copies match; no network fetch or implicit promotion.
+
+Evidence: 125 publication/adapter tests across all four backends and actual
+configured conflict/resolution smoke on all four. Required durable v2 gates
+pass with 89.4% coverage against the unchanged 84% baseline. Lint/functional
+remain disabled by contract. Full record: implementation-notes-phase-6.md;
+exact verdict: guardrails-verdict.json.
+
 
 ## Per-Phase Execution Loop
 

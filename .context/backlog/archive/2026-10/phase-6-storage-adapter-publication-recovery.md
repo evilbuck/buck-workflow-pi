@@ -1,10 +1,10 @@
 ---
 title: "Storage Adapters Phase 6: Publication, Reconciliation & Recovery"
-status: active
+status: completed
 priority: high
 created: 2026-10-10
-updated: 2026-10-10
-completed: null
+updated: 2026-10-16
+completed: 2026-10-16
 related:
   - .context/2026-10-10.durable-storage-adapters/phase-6-publication-recovery.md
   - .context/2026-10-10.durable-storage-adapters/plan-durable-storage-adapters-phases.md
