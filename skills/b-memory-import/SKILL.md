@@ -9,6 +9,13 @@ triggers:
 
 Import publication-proven memory and backlog bytes from the configured workflow store into OMP Hindsight via HTTP retain. `.context/memory/` is the default logical source prefix, not a required local directory. Private branch drafts, subject receipts, and ambiguous legacy records are excluded before payload construction. No local-file union or outage fallback is permitted. Without trusted published-revision evidence, withhold imports; historical Markdown is not automatically migrated.
 
+Backend migration is a separate operator route: `workflow-state-cli.ts
+migration-import-legacy` retains original legacy JSON (including categories,
+ranks and successor links) in a private recovery scope without ordinary
+pointers. Do not feed those recovery records to Hindsight or infer publication
+from their old branch names. Use the [storage migration guides](../../docs/howto/README.md#storage-migration)
+for export/import, verified backend switching, and rollback.
+
 The deterministic Bun script uses no LLM or qmd. Configure `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, and `HINDSIGHT_SCOPING`, or `~/.omp/agent/config.yml` → `hindsight.*`.
 
 Default scoping matches OMP: `per-project-tagged` with tag `project:<git-root-basename>`.

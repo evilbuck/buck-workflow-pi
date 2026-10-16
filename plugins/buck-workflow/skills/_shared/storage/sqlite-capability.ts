@@ -1,5 +1,5 @@
 export interface SQLiteModule {
-  DatabaseSync: new (location: string) => unknown;
+  DatabaseSync: new (location: string, options?: { readOnly?: boolean }) => unknown;
 }
 
 export async function loadSQLiteModule(load: () => Promise<unknown> = () => import("node:sqlite")): Promise<SQLiteModule> {

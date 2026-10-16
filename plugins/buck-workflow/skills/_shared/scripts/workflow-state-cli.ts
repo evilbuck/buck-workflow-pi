@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { migrationCommand } from "./storage-migration-cli.js";
 import { resolve } from "node:path";
 import { createLazyPool } from "../storage/db.js";
 import { applyMigrations } from "../storage/migrations.js";
@@ -55,6 +56,10 @@ const argv = process.argv.slice(2);
 const operation = argv[0];
 if (!operation) fail("Usage: bun workflow-state-cli.ts <op> [--subject <id>] [--branch <ref>] [JSON]");
 if (operation === "migrate") await migrate();
+else if (operation === "doctor" || operation.startsWith("migration-")) {
+  try { console.log(JSON.stringify(await migrationCommand(operation, argv[1] ? JSON.parse(argv[1]) : {}, resolve(process.cwd())))); }
+  catch { console.error("Migration refused; inspect private configuration, inventory, and journal. No credential-bearing diagnostic is emitted."); process.exitCode = 1; }
+}
 else {
   const subjectFlag = flag(argv.slice(1), "--subject");
   const branchFlag = flag(subjectFlag.rest, "--branch");

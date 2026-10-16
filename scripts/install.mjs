@@ -117,6 +117,7 @@ export const HARNESSES = [
 export const SHIPPED_STORAGE_FILES = [
   "skills/_shared/scripts/workflow-state.ts",
   "skills/_shared/scripts/workflow-state-cli.ts",
+  "skills/_shared/scripts/storage-migration-cli.ts",
   "skills/_shared/storage/adapter-utils.ts",
   "skills/_shared/storage/db.ts",
   "skills/_shared/storage/migrations.ts",
@@ -125,6 +126,8 @@ export const SHIPPED_STORAGE_FILES = [
   "skills/_shared/storage/conformance.ts",
   "skills/_shared/storage/consumers.ts",
   "skills/_shared/storage/contract.ts",
+  "skills/_shared/storage/cutover.ts",
+  "skills/_shared/storage/migration.ts",
   "skills/_shared/storage/domain.ts",
   "skills/_shared/storage/file-store.ts",
   "skills/_shared/storage/identity.ts",
