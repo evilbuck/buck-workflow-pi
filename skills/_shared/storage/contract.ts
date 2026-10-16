@@ -1,4 +1,5 @@
 import type { TextLifecycleIntent } from "../scripts/subject-lifecycle.js";
+import type { CheckpointRecord } from "./publication.js";
 
 export const STORAGE_ADAPTERS = ["repo-files", "external-files", "sqlite", "postgres"] as const;
 export type StorageAdapter = (typeof STORAGE_ADAPTERS)[number];
@@ -107,8 +108,13 @@ export interface StorageStore {
   writeReceipt(receipt: RunReceipt): Promise<void>;
   readReceipt(projectId: string, runId: string): Promise<RunReceipt | null>;
   sealCheckpoint(checkpoint: CheckpointSeal): Promise<string>;
-  bindCheckpoint(checkpointId: string, commit: string): Promise<void>;
-  reconcile(integrationTip: string): Promise<void>;
+  bindCheckpoint(checkpointId: string, commit: string, cwd: string): Promise<void>;
+  listCheckpoints(projectId: string): Promise<readonly CheckpointRecord[]>;
+  readCheckpointRevision(projectId: string, branchId: string, revision: string): Promise<ArtifactRevision | null>;
+  listScopes(projectId: string): Promise<readonly Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">[]>;
+  checkpointSnapshot(projectId: string, branchId: string): Promise<readonly ArtifactRevision[]>;
+  correctionLineage(projectId: string): Promise<ReadonlyMap<string, string>>;
+  reconcile(integrationTip: string, cwd: string, projectId: string): Promise<readonly string[]>;
   exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision>;
   importArtifacts(revisions: AsyncIterable<ArtifactRevision>): Promise<void>;
 }

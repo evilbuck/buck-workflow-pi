@@ -29,6 +29,11 @@ const Params = Type.Object({
   expectedState: Type.Optional(Type.String()),
   intent: Type.Optional(Type.Unknown()),
   evidence: Type.Optional(Type.Array(Type.String())),
+  scopeToken: Type.Optional(Type.String()),
+  action: Type.Optional(Type.Union([Type.Literal("export"), Type.Literal("rebind")])),
+  checkpointId: Type.Optional(Type.String()),
+  targetCommit: Type.Optional(Type.String()),
+  revisionSet: Type.Optional(Type.Array(Type.Object({ revision: Type.String(), sha256: Type.String() }, { additionalProperties: false }))),
 }, { additionalProperties: false });
 
 export interface WorkflowStateToolDeps {

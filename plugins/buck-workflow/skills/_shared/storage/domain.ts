@@ -59,7 +59,9 @@ function evidenceFromBodies(records: readonly ArtifactRevision[]): { index: stri
 
 export interface StoredCorrection {
   predecessorRevision: string;
+  /** Exact immutable result, including tombstones; null only in legacy metadata. */
   resultRevision: string | null;
+  /** Null denotes deletion; public deletion/replay still returns null. */
   replacementSha256: string | null;
 }
 

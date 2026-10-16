@@ -211,6 +211,20 @@ describe("file storage adapter", () => {
     const manifest = JSON.parse(await readFile(join(root, "state", "manifest.json"), "utf8")) as { revisions: Record<string, { source: string }> };
     expect(Object.values(manifest.revisions).some((record) => record.source === "direct-file-edit")).toBe(true);
   });
+  it("refuses to seal a revision unless its scoped immutable hash matches", async () => {
+    const { store } = await fixture();
+    const key: ArtifactKey = { projectId: "p", subjectId: "s", kind: "plan", logicalName: "plan.md", branchId: "branch-a" };
+    const item = revision(key, new TextEncoder().encode("immutable v1"), null);
+    await store.writeBatch([item]);
+    await expect(store.sealCheckpoint({
+      projectId: "p", branchId: "branch-a", commit: "source", integrationTip: "baseline",
+      revisionSet: [{ revision: item.revision, sha256: "0".repeat(64) }],
+    })).rejects.toThrow(/hash-mismatched/);
+    await expect(store.sealCheckpoint({
+      projectId: "p", branchId: "branch-a", commit: "source", integrationTip: "baseline",
+      revisionSet: [{ revision: item.revision, sha256: item.sha256 }],
+    })).resolves.toEqual(expect.any(String));
+  });
 });
 
 describe("external file adapter", () => {

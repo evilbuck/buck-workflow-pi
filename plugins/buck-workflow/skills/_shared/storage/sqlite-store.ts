@@ -9,6 +9,7 @@ import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdenti
 import { overlayPublishedRevisions } from "./visibility.js";
 import { loadSQLiteModule } from "./sqlite-capability.js";
 
+import { checkpointBinding, reconcileStore, validateCheckpointSeal, type CheckpointRecord } from "./publication.js";
 const SCHEMA = `PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS artifact_revisions (
   project_id TEXT NOT NULL, subject_id TEXT NOT NULL, kind TEXT NOT NULL, logical_name TEXT NOT NULL,
@@ -209,11 +210,11 @@ export class SQLiteStorageStore implements StorageStore {
   #correctLocked(correction: ScopedCorrection): ArtifactRevision | null {
     const existing = this.#database.prepare("SELECT predecessor_revision,result_revision,replacement_sha256 FROM artifact_corrections WHERE project_id=? AND branch_id=? AND artifact_key=? AND idempotency_key=?").get(correction.key.projectId, correction.key.branchId ?? "", keyId(correction.key), correction.idempotencyKey) as Row | undefined;
     const stored: StoredCorrection | null = existing ? { predecessorRevision: String(existing.predecessor_revision), resultRevision: existing.result_revision == null ? null : String(existing.result_revision), replacementSha256: existing.replacement_sha256 == null ? null : String(existing.replacement_sha256) } : null;
-    if (correctionDecision(stored, correction) === "replay") return stored?.resultRevision ? this.#readStored(correction.key, stored.resultRevision) : null;
+    if (correctionDecision(stored, correction) === "replay") return stored?.resultRevision && stored.replacementSha256 !== null ? this.#readStored(correction.key, stored.resultRevision) : null;
     const expected = assertCorrectionPredecessor(this.#metadata(correctionQuery(correction)), correction);
     const item = { ...(correction.replacement ?? tombstoneRevision(correction.key, correction.predecessorRevision)), expectedRevision: expected };
     this.#insertRevision(item);
-    this.#database.prepare("INSERT INTO artifact_corrections VALUES (?,?,?,?,?,?,?)").run(correction.key.projectId, correction.key.branchId ?? "", keyId(correction.key), correction.idempotencyKey, correction.predecessorRevision, correction.replacement ? item.revision : null, correction.replacement?.sha256 ?? null);
+    this.#database.prepare("INSERT INTO artifact_corrections VALUES (?,?,?,?,?,?,?)").run(correction.key.projectId, correction.key.branchId ?? "", keyId(correction.key), correction.idempotencyKey, correction.predecessorRevision, item.revision, correction.replacement?.sha256 ?? null);
     return correction.replacement ? cloneRevision(item) : null;
   }
 
@@ -259,18 +260,50 @@ export class SQLiteStorageStore implements StorageStore {
   }
 
   async sealCheckpoint(checkpoint: CheckpointSeal): Promise<string> {
+    await validateCheckpointSeal(checkpoint, async (revision) => {
+      const row = this.#database.prepare("SELECT * FROM artifact_revisions WHERE project_id=? AND branch_id=? AND revision=?")
+        .get(checkpoint.projectId, checkpoint.branchId, revision) as Row | undefined;
+      return row ? this.#decode(row) : null;
+    });
     const id = randomUUID();
     this.#database.prepare("INSERT INTO artifact_checkpoints VALUES (?,?,?,?,?,?,NULL)").run(id, checkpoint.projectId, checkpoint.branchId, checkpoint.commit, checkpoint.integrationTip, JSON.stringify(checkpoint.revisionSet));
     return id;
   }
 
-  async bindCheckpoint(checkpointId: string, commit: string): Promise<void> {
-    const result = this.#database.prepare("UPDATE artifact_checkpoints SET bound_commit=? WHERE id=? AND bound_commit IS NULL").run(commit, checkpointId);
+  async bindCheckpoint(checkpointId: string, commit: string, cwd: string): Promise<void> {
+    const row = this.#database.prepare("SELECT * FROM artifact_checkpoints WHERE id=?").get(checkpointId) as Row | undefined;
+    if (!row) throw new Error("unknown checkpoint");
+    const bound = checkpointBinding(cwd, decodeCheckpoint(row), commit);
+    const result = this.#database.prepare("UPDATE artifact_checkpoints SET bound_commit=? WHERE id=? AND bound_commit IS NULL").run(bound, checkpointId);
     if (result.changes !== 1) throw new Error("unknown or already-bound checkpoint");
   }
 
-  async reconcile(_integrationTip: string): Promise<void> {
-    // Git proof and publication policy are implemented by the publication service.
+  async listCheckpoints(projectId: string): Promise<readonly CheckpointRecord[]> {
+    return (this.#database.prepare("SELECT * FROM artifact_checkpoints WHERE project_id=?").all(projectId) as Row[]).map(decodeCheckpoint);
+  }
+
+  async correctionLineage(projectId: string): Promise<ReadonlyMap<string, string>> {
+    const rows = this.#database.prepare("SELECT result_revision,predecessor_revision FROM artifact_corrections WHERE project_id=? AND result_revision IS NOT NULL").all(projectId) as Row[];
+    return new Map(rows.map(row => [String(row.result_revision), String(row.predecessor_revision)]));
+  }
+
+  async listScopes(projectId: string): Promise<readonly Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">[]> {
+    const rows = this.#database.prepare("SELECT DISTINCT branch_id,worktree_id,run_id FROM artifact_revisions WHERE project_id=?").all(projectId) as Row[];
+    return rows.map(row => ({ branchId: String(row.branch_id), ...(row.worktree_id ? { worktreeId: String(row.worktree_id), runId: String(row.run_id) } : {}) }));
+  }
+
+  async checkpointSnapshot(projectId: string, branchId: string): Promise<readonly ArtifactRevision[]> {
+    const rows = this.#database.prepare("SELECT r.* FROM artifact_revisions r JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) WHERE r.project_id=? AND r.branch_id=? AND r.worktree_id='' AND r.run_id=''").all(projectId, branchId) as Row[];
+    return rows.map(row => this.#decode(row));
+  }
+
+  async readCheckpointRevision(projectId: string, branchId: string, revision: string): Promise<ArtifactRevision | null> {
+    const row = this.#database.prepare("SELECT * FROM artifact_revisions WHERE project_id=? AND branch_id=? AND revision=?").get(projectId, branchId, revision) as Row | undefined;
+    return row ? this.#decode(row) : null;
+  }
+
+  async reconcile(integrationTip: string, cwd: string, projectId: string): Promise<readonly string[]> {
+    return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
   async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {
@@ -293,4 +326,8 @@ export class SQLiteStorageStore implements StorageStore {
 function decodeReceipt(row: Row | undefined, projectId: string, runId: string): RunReceipt | null {
   if (!row) return null;
   return { projectId, runId, branchId: String(row.branch_id), worktreeId: String(row.worktree_id), attemptId: String(row.attempt_id), status: String(row.status) as RunReceipt["status"], artifactRevisions: JSON.parse(String(row.artifact_revisions)) as string[], ...(row.receipt_kind ? { kind: String(row.receipt_kind) as RunReceipt["kind"], metadataDuties: JSON.parse(String(row.metadata_duties)) as string[] } : {}) };
+}
+
+function decodeCheckpoint(row: Row): CheckpointRecord {
+  return { id: String(row.id), projectId: String(row.project_id), branchId: String(row.branch_id), commit: String(row.commit_sha), integrationTip: String(row.integration_tip), revisionSet: JSON.parse(String(row.revision_set)), ...(row.bound_commit ? { boundCommit: String(row.bound_commit) } : {}) };
 }

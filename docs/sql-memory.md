@@ -40,7 +40,7 @@ as a PostgreSQL URL.
 
 ### Buck-loop child policy
 
-Restricted `/buck-loop` stages receive native `workflow_state` with a baked role. They do not receive `sql_memory`. Read-oriented stages cannot write, correct, transition, or inspect. The save stage can write, correct, and record receipts. No child stage receives `inspect`, `recover`, or `migrate`.
+Restricted `/buck-loop` stages receive native `workflow_state` with a baked role. They do not receive `sql_memory`. Read-oriented stages cannot write, correct, transition, or inspect. The save stage can write, correct, and record receipts. No child stage receives `inspect`, `recover`, `publication-view`, `map-checkpoint`, `revoke-mapping`, `resolve-publication`, or `migrate`.
 
 A rows receipt lists revision ids returned by successful `workflow_state` writes or corrections. A no-fact receipt uses `ids: []` only when the attempt has no reusable fact, after a connectivity probe. Do not issue a separate memory SELECT to invent receipt ids. `SQL_MEMORY_URL` must be set for the loop to require that receipt; the supervisor does not open it as a database pool.
 

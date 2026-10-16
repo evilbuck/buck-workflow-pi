@@ -5,6 +5,7 @@ import { overlayPublishedRevisions } from "./visibility.js";
 import { cloneRevision, keyId, searchableText, validateRevision } from "./adapter-utils.js";
 import { assertCorrectionPredecessor, assertReceiptComplete, assertReceiptIdentity, assertReceiptReadback, correctionDecision, correctionQuery, inspectStoredLifecycle, lifecycleRevision, receiptRevisionReadable, selectPage, tombstoneRevision, type KeyedPageItem, type StoredCorrection } from "./domain.js";
 import { applyMigrations } from "./migrations.js";
+import { checkpointBinding, reconcileStore, validateCheckpointSeal, type CheckpointRecord } from "./publication.js";
 
 type Row = Record<string, unknown> & {
   project_id: string; subject_id: string; kind: string; logical_name: string; branch_id: string;
@@ -177,11 +178,11 @@ export class PostgresStorageStore implements StorageStore {
     const existing = await client.query("SELECT predecessor_revision,result_revision,replacement_sha256 FROM artifact_corrections WHERE project_id=$1 AND branch_id=$2 AND artifact_key=$3 AND idempotency_key=$4", [query.projectId, query.branchId, keyId(correction.key), correction.idempotencyKey]);
     const row = existing.rows[0] as { predecessor_revision: string; result_revision: string | null; replacement_sha256: string | null } | undefined;
     const stored: StoredCorrection | null = row ? { predecessorRevision: row.predecessor_revision, resultRevision: row.result_revision, replacementSha256: row.replacement_sha256 } : null;
-    if (correctionDecision(stored, correction) === "replay") return stored?.resultRevision ? this.#readStored(correction.key, stored.resultRevision) : null;
+    if (correctionDecision(stored, correction) === "replay") return stored?.resultRevision && stored.replacementSha256 !== null ? this.#readStored(correction.key, stored.resultRevision) : null;
     const expected = assertCorrectionPredecessor(await this.#metadata(query, client), correction);
     const item = { ...(correction.replacement ?? tombstoneRevision(correction.key, correction.predecessorRevision)), expectedRevision: expected };
     await this.#insertRevision(client, item);
-    await client.query("INSERT INTO artifact_corrections(project_id,branch_id,artifact_key,idempotency_key,predecessor_revision,result_revision,replacement_sha256) VALUES($1,$2,$3,$4,$5,$6,$7)", [query.projectId, query.branchId, keyId(correction.key), correction.idempotencyKey, correction.predecessorRevision, correction.replacement ? item.revision : null, correction.replacement?.sha256 ?? null]);
+    await client.query("INSERT INTO artifact_corrections(project_id,branch_id,artifact_key,idempotency_key,predecessor_revision,result_revision,replacement_sha256) VALUES($1,$2,$3,$4,$5,$6,$7)", [query.projectId, query.branchId, keyId(correction.key), correction.idempotencyKey, correction.predecessorRevision, item.revision, correction.replacement?.sha256 ?? null]);
     return correction.replacement ? cloneRevision(item) : null;
   }
 
@@ -211,18 +212,51 @@ export class PostgresStorageStore implements StorageStore {
   }
 
   async sealCheckpoint(checkpoint: CheckpointSeal): Promise<string> {
+    await validateCheckpointSeal(checkpoint, async (revision) => {
+      const result = await this.#pool.query("SELECT * FROM artifact_revisions WHERE project_id=$1 AND branch_id=$2 AND revision=$3", [checkpoint.projectId, checkpoint.branchId, revision]);
+      const row = result.rows[0] as Row | undefined;
+      return row ? this.#decode(row) : null;
+    });
     const id = randomUUID();
     await this.#pool.query("INSERT INTO artifact_checkpoints(id,project_id,branch_id,commit_sha,integration_tip,revision_set) VALUES($1,$2,$3,$4,$5,$6::jsonb)", [id, checkpoint.projectId, checkpoint.branchId, checkpoint.commit, checkpoint.integrationTip, JSON.stringify(checkpoint.revisionSet)]);
     return id;
   }
 
-  async bindCheckpoint(checkpointId: string, commit: string): Promise<void> {
-    const result = await this.#pool.query("UPDATE artifact_checkpoints SET bound_commit=$1 WHERE id=$2 AND bound_commit IS NULL", [commit, checkpointId]);
+  async bindCheckpoint(checkpointId: string, commit: string, cwd: string): Promise<void> {
+    const selected = await this.#pool.query("SELECT * FROM artifact_checkpoints WHERE id=$1", [checkpointId]);
+    if (!selected.rows[0]) throw new Error("unknown checkpoint");
+    const bound = checkpointBinding(cwd, decodeCheckpoint(selected.rows[0]), commit);
+    const result = await this.#pool.query("UPDATE artifact_checkpoints SET bound_commit=$1 WHERE id=$2 AND bound_commit IS NULL", [bound, checkpointId]);
     if (result.rowCount !== 1) throw new Error("unknown or already-bound checkpoint");
   }
 
-  async reconcile(_integrationTip: string): Promise<void> {
-    // Git proof and publication policy are implemented by the publication service.
+  async listCheckpoints(projectId: string): Promise<readonly CheckpointRecord[]> {
+    const result = await this.#pool.query("SELECT * FROM artifact_checkpoints WHERE project_id=$1", [projectId]);
+    return result.rows.map(decodeCheckpoint);
+  }
+
+  async correctionLineage(projectId: string): Promise<ReadonlyMap<string, string>> {
+    const result = await this.#pool.query("SELECT result_revision,predecessor_revision FROM artifact_corrections WHERE project_id=$1 AND result_revision IS NOT NULL", [projectId]);
+    return new Map(result.rows.map(row => [String(row.result_revision), String(row.predecessor_revision)]));
+  }
+
+  async listScopes(projectId: string): Promise<readonly Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">[]> {
+    const result = await this.#pool.query("SELECT DISTINCT branch_id,worktree_id,run_id FROM artifact_revisions WHERE project_id=$1", [projectId]);
+    return result.rows.map(row => ({ branchId: String(row.branch_id), ...(row.worktree_id ? { worktreeId: String(row.worktree_id), runId: String(row.run_id) } : {}) }));
+  }
+
+  async checkpointSnapshot(projectId: string, branchId: string): Promise<readonly ArtifactRevision[]> {
+    const result = await this.#pool.query("SELECT r.* FROM artifact_revisions r JOIN artifact_pointers p USING(project_id,subject_id,kind,logical_name,branch_id,worktree_id,run_id,revision) WHERE r.project_id=$1 AND r.branch_id=$2 AND r.worktree_id='' AND r.run_id=''", [projectId, branchId]);
+    return result.rows.map(row => this.#decode(row as Row));
+  }
+
+  async readCheckpointRevision(projectId: string, branchId: string, revision: string): Promise<ArtifactRevision | null> {
+    const result = await this.#pool.query("SELECT * FROM artifact_revisions WHERE project_id=$1 AND branch_id=$2 AND revision=$3", [projectId, branchId, revision]);
+    return result.rows[0] ? this.#decode(result.rows[0] as Row) : null;
+  }
+
+  async reconcile(integrationTip: string, cwd: string, projectId: string): Promise<readonly string[]> {
+    return reconcileStore(this, cwd, projectId, integrationTip);
   }
 
   async *exportArtifacts(query: ArtifactQuery): AsyncIterable<ArtifactRevision> {
@@ -322,4 +356,9 @@ function decodeReceipt(row: ReceiptRow | undefined, projectId: string, runId: st
   if (!row) return null;
   const duties = row.metadata_duties == null ? undefined : typeof row.metadata_duties === "string" ? JSON.parse(row.metadata_duties) as string[] : row.metadata_duties;
   return { projectId, runId, branchId: row.branch_id, worktreeId: row.worktree_id, attemptId: row.attempt_id, status: row.status, artifactRevisions: typeof row.artifact_revisions === "string" ? JSON.parse(row.artifact_revisions) as string[] : row.artifact_revisions, ...(row.receipt_kind ? { kind: row.receipt_kind, metadataDuties: duties } : {}) };
+}
+
+function decodeCheckpoint(row: Record<string, unknown>): CheckpointRecord {
+  const revisionSet = typeof row.revision_set === "string" ? JSON.parse(row.revision_set) : row.revision_set;
+  return { id: String(row.id), projectId: String(row.project_id), branchId: String(row.branch_id), commit: String(row.commit_sha), integrationTip: String(row.integration_tip), revisionSet, ...(row.bound_commit ? { boundCommit: String(row.bound_commit) } : {}) };
 }

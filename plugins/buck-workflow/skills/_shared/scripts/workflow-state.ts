@@ -14,6 +14,7 @@ import { PostgresStorageStore } from "../storage/postgres-store.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
 import { createLazyPool } from "../storage/db.js";
 import type { TextLifecycleIntent } from "./subject-lifecycle.js";
+import { readPublicationLedger, recordRewriteMapping, revokeRewriteMapping, resolvePublicationConflict, resolveCommit, staysPrivateAfterMerge } from "../storage/publication.js";
 export type WorkflowRole = "read" | "write" | "save" | "admin";
 export interface ArtifactRef { subjectId: string; kind: ArtifactKind; logicalName: string; revision?: string }
 export interface TrustedWorkflowContext {
@@ -37,14 +38,18 @@ export type WorkflowRequest =
   | { operation: "read-receipt" }
   | { operation: "write-receipt"; attemptId: string; status: RunReceipt["status"]; artifactRevisions: readonly string[]; kind?: RunReceipt["kind"]; metadataDuties?: readonly string[] }
   | { operation: "inspect"; branchRef: string }
-  | { operation: "recover" };
+  | { operation: "recover"; scopeToken?: string; action?: "export" | "rebind" }
+  | { operation: "publication-view" }
+  | { operation: "revoke-mapping"; checkpointId: string }
+  | { operation: "map-checkpoint"; checkpointId: string; revisionSet: readonly { revision: string; sha256: string }[]; targetCommit: string; evidence: readonly string[] }
+  | { operation: "resolve-publication"; revision: string };
 
 const SCOPE_KEYS: Record<string, true> = { selection: true, manifestRoot: true, projectId: true, branchId: true, publishedRevisionIds: true, worktreeId: true, runId: true, project: true, visibility: true, published: true };
 const ROLE_OPS: Record<WorkflowRole, readonly WorkflowRequest["operation"][]> = {
   read: ["read", "list", "search", "discover", "inspect-lifecycle", "read-receipt"],
   write: ["read", "list", "search", "discover", "inspect-lifecycle", "read-receipt", "write"],
   save: ["read", "list", "search", "discover", "inspect-lifecycle", "read-receipt", "write", "correct", "transition", "write-receipt"],
-  admin: ["read", "list", "search", "discover", "inspect-lifecycle", "read-receipt", "write", "correct", "transition", "write-receipt", "inspect", "recover"],
+  admin: ["read", "list", "search", "discover", "inspect-lifecycle", "read-receipt", "write", "correct", "transition", "write-receipt", "inspect", "recover", "publication-view", "map-checkpoint", "revoke-mapping", "resolve-publication"],
 };
 export interface GitResult { status: number; stdout: string }
 export type GitRunner = (cwd: string, args: string[]) => GitResult;
@@ -309,7 +314,7 @@ export async function withConfiguredStore<T>(cwd: string, run: (store: StorageSt
   const context = await resolveTrustedContext(cwd, options);
   if (!context.selection || !context.manifestRoot) throw new Error("Trusted workflow context is incomplete");
   const opened = await openStore(cwd, context.selection, context.projectId, context.manifestRoot);
-  try { return await run(opened.store, context); }
+  try { return await run(opened.store, await publicationContext(opened.store, cwd, context)); }
   finally { await opened.close(); }
 }
 
@@ -317,7 +322,7 @@ export async function withConfiguredStore<T>(cwd: string, run: (store: StorageSt
 export async function withBoundStore<T>(cwd: string, context: TrustedWorkflowContext, run: (store: StorageStore, context: TrustedWorkflowContext) => Promise<T>): Promise<T> {
   if (!context.selection || !context.manifestRoot) throw new Error("Trusted workflow context is incomplete");
   const opened = await openStore(cwd, context.selection, context.projectId, context.manifestRoot);
-  try { return await run(opened.store, context); }
+  try { return await run(opened.store, await publicationContext(opened.store, cwd, context)); }
   finally { await opened.close(); }
 }
 
@@ -372,6 +377,37 @@ async function openStore(cwd: string, selection: ResolvedStorageConfig, projectK
   await store.migrate();
   return { store, close: () => pool.end() };
 }
+
+async function publicationContext(store: StorageStore, cwd: string, context: TrustedWorkflowContext): Promise<TrustedWorkflowContext> {
+  const ref = context.selection?.integrationRef;
+  return ref ? { ...context, publishedRevisionIds: await store.reconcile(ref, cwd, context.projectId) } : context;
+}
+
+/** Runtime-only checkpoint seam; seals the branch snapshot, never the published overlay. */
+export async function sealWorkflowCheckpoint(cwd: string): Promise<string | null> {
+  // Publication-disabled commits must not open an adapter or register identities.
+  const remote = defaultGit(cwd, ["config", "--get", "remote.origin.url"]);
+  const selection = await loadStorageConfig({ origin: remote.status === 0 ? remote.stdout : undefined });
+  if (!selection.integrationRef) return null;
+  return withConfiguredStore(cwd, async (store, context) => {
+    if (!context.selection?.integrationRef || context.branchId.startsWith("private-")) return null;
+    await importRepoProjection(store, cwd, context);
+    const commit = resolveCommit(cwd, "HEAD");
+    const integrationTip = resolveCommit(cwd, context.selection.integrationRef);
+    const items = await store.checkpointSnapshot(context.projectId, context.branchId);
+    return store.sealCheckpoint({ projectId: context.projectId, branchId: context.branchId, commit, integrationTip, revisionSet: items.map(({ revision, sha256 }) => ({ revision, sha256 })) });
+  });
+}
+
+export async function bindWorkflowCheckpoint(cwd: string, id: string): Promise<void> {
+  await withConfiguredStore(cwd, async (store, context) => {
+    const selected = (await store.listCheckpoints(context.projectId)).find(x => x.id === id && x.branchId === context.branchId);
+    if (!selected) throw new Error("checkpoint is not in the trusted branch scope");
+    const head = resolveCommit(cwd, "HEAD");
+    if (selected.boundCommit === head) return;
+    await store.bindCheckpoint(id, head, cwd);
+  });
+}
 const PROJECTION_KIND: ReadonlyArray<readonly [RegExp, ArtifactKind]> = [
   [/^index\.md$/u, "subject-index"],
   [/^plan-.+\.md$/u, "plan"],
@@ -403,6 +439,12 @@ async function importSubjectProjection(store: RepoFilesStorageStore, cwd: string
     if (!kind) continue;
     const key = bindRef(context, { subjectId, kind, logicalName: name });
     if (await store.read(key)) continue;
+    if (context.selection?.integrationRef) {
+      // A clean tracked body may have arrived from another branch after sealing.
+      // Only observable local edits can initialize an unpublished branch overlay.
+      const local = defaultGit(cwd, ["status", "--porcelain", "--untracked-files=all", "--", `.context/${subjectId}/${name}`]);
+      if (local.status !== 0 || !local.stdout) continue;
+    }
     let bytes: Uint8Array;
     try { bytes = new Uint8Array(await readFile(join(cwd, ".context", subjectId, name))); }
     catch (error) {
@@ -433,6 +475,8 @@ export async function executeWorkflowState(options: WorkflowExecuteOptions): Pro
   const trusted = options.store || options.context.selection ? options.context : await resolveTrustedContext(options.cwd, options);
   const opened = options.store ? { store: options.store, close: () => {} } : await openStore(options.cwd, trusted.selection!, options.context.projectId, trusted.manifestRoot!);
   try {
+    const context = await publicationContext(opened.store, options.cwd, trusted);
+    options = { ...options, context };
     if (options.request.operation === "list" || options.request.operation === "search" || options.request.operation === "discover" || options.request.operation === "inspect-lifecycle") {
       await importRepoProjection(opened.store, options.cwd, options.context);
     }
@@ -455,6 +499,28 @@ const HANDLERS: Record<WorkflowRequest["operation"], (options: WorkflowExecuteOp
   "write-receipt": (options, store) => writeReceipt(store, options, options.request as Extract<WorkflowRequest, { operation: "write-receipt" }>),
   inspect: (options, store) => inspectScope(store, options.context, (options.request as Extract<WorkflowRequest, { operation: "inspect" }>).branchRef, options),
   recover: (options, store) => recoverScopes(store, options.context, options),
+  "publication-view": async (options, store) => ({ ...(await readPublicationLedger(store, options.context.projectId)).value, checkpoints: await store.listCheckpoints(options.context.projectId) }),
+  "map-checkpoint": async (options, store) => {
+    const request = options.request as Extract<WorkflowRequest, { operation: "map-checkpoint" }>;
+    const ref = options.context.selection?.integrationRef;
+    if (!ref) throw new Error("mapping requires configured integration_ref");
+    await recordRewriteMapping(store, options.cwd, options.context.projectId, ref, { ...request, projectId: options.context.projectId });
+    return store.reconcile(ref, options.cwd, options.context.projectId);
+  },
+  "revoke-mapping": async (options, store) => {
+    const request = options.request as Extract<WorkflowRequest, { operation: "revoke-mapping" }>;
+    await revokeRewriteMapping(store, options.context.projectId, request.checkpointId);
+    const ref = options.context.selection?.integrationRef;
+    if (!ref) throw new Error("revocation requires configured integration_ref");
+    return store.reconcile(ref, options.cwd, options.context.projectId);
+  },
+  "resolve-publication": async (options, store) => {
+    const request = options.request as Extract<WorkflowRequest, { operation: "resolve-publication" }>;
+    await resolvePublicationConflict(store, options.context.projectId, request.revision);
+    const ref = options.context.selection?.integrationRef;
+    if (!ref) throw new Error("resolution requires configured integration_ref");
+    return store.reconcile(ref, options.cwd, options.context.projectId);
+  },
 };
 async function dispatch(options: WorkflowExecuteOptions, store: StorageStore): Promise<unknown> {
   return HANDLERS[options.request.operation](options, store);
@@ -558,8 +624,71 @@ async function inspectScope(store: StorageStore, context: TrustedWorkflowContext
   return { scope: { branchRef, branchId }, evidence, items: items.map((item, index) => view(item, index + 1)) };
 }
 async function recoverScopes(store: StorageStore, context: TrustedWorkflowContext, options: WorkflowExecuteOptions): Promise<unknown> {
-  const file = await readIdentity(identityPath(options.identityPath));
-  const scopes = (file.projects[context.projectId]?.branches ?? []).filter((record) => record.branchId !== context.branchId).map((record) => ({ branchRef: record.ref, branchId: record.branchId, initialTip: record.initialTip }));
-  const evidence = await writeEvidence(store, context, `recover/${Date.now()}.json`, { operation: "recover", scopes });
-  return { scopes, evidence };
+  const file = readIdentity(identityPath(options.identityPath));
+  const project = file.projects[context.projectId] ?? { branches: [] };
+  const checkpoints = await store.listCheckpoints(context.projectId);
+  const scopes = [
+    ...namedRecoveryScopes(project.branches, context, options),
+    ...workspaceRecoveryScopes(project.workspaces ?? {}, context),
+    ...storedRecoveryScopes(await store.listScopes(context.projectId), context),
+  ].map(scope => ({ ...scope, checkpointIds: checkpoints.filter(x => x.branchId === scope.branchId).map(x => x.id) }));
+  const request = options.request as Extract<WorkflowRequest, { operation: "recover" }>;
+  if (!request.scopeToken && !request.action) {
+    const evidence = await writeEvidence(store, context, `recover/${randomUUID()}.json`, { operation: "recover", scopes });
+    return { scopes, evidence };
+  }
+  const selected = scopes.find(x => x.scopeToken === request.scopeToken);
+  if (!selected || !request.action) throw new Error("recovery requires an explicitly selected scope and action");
+  return recoverSelected(store, context, selected, request.action);
+}
+
+async function recoverSelected(store: StorageStore, context: TrustedWorkflowContext, selected: RecoveryScope, action: "export" | "rebind"): Promise<unknown> {
+  const items = await store.list({ projectId: context.projectId, branchId: selected.branchId, publishedRevisionIds: [], worktreeId: selected.worktreeId, runId: selected.runId });
+  const evidence = await writeEvidence(store, context, `recover/${randomUUID()}.json`, { selected, action, revisions: items.map(x => x.revision) });
+  if (action === "export") return { selected, evidence, items: items.map(x => ({ ...view(x), bytesBase64: Buffer.from(x.bytes).toString("base64") })) };
+  if (action !== "rebind") throw new Error("unknown recovery action");
+  const copies = items.filter(x => !staysPrivateAfterMerge(x.key.kind)).map(x => ({ ...x, key: { ...x.key, branchId: context.branchId, worktreeId: undefined, runId: undefined }, revision: randomUUID(), expectedRevision: null, source: `recovered:${selected.scopeToken}:${x.revision}`, links: [...x.links, x.key] }));
+  await store.writeBatch(copies);
+  return { selected, evidence, items: copies.map(x => view(x)) };
+}
+
+interface RecoveryScope {
+  scopeToken: string;
+  branchRef: string;
+  branchId: string;
+  reason: string;
+  incarnation?: string;
+  initialTip?: string;
+  observedTip?: string;
+  worktreeId?: string;
+  runId?: string;
+}
+function namedRecoveryScopes(branches: BranchRecord[], context: TrustedWorkflowContext, options: WorkflowExecuteOptions): RecoveryScope[] {
+  const git = options.git ?? defaultGit;
+  return branches.filter(x => x.branchId !== context.branchId).map(record => {
+    const tip = git(options.cwd, ["rev-parse", "--verify", record.ref]);
+    const continuity = tip.status === 0 ? git(options.cwd, ["merge-base", "--is-ancestor", record.initialTip, tip.stdout]).status : 1;
+    return { scopeToken: record.branchId, branchRef: record.ref, branchId: record.branchId, incarnation: record.incarnation, initialTip: record.initialTip, observedTip: record.observedTip, reason: tip.status !== 0 ? "deleted-or-unprovable" : continuity === 0 ? "other-branch" : "recreated-or-unprovable" };
+  });
+}
+function workspaceRecoveryScopes(workspaces: Record<string, WorkspaceRecord>, context: TrustedWorkflowContext): RecoveryScope[] {
+  const scopes: RecoveryScope[] = [];
+  for (const workspace of Object.values(workspaces)) {
+    const detached = createPrivateWorkspaceIdentity({ projectId: context.projectId, workspaceNonce: workspace.nonce, worktreeId: workspace.worktreeId, runId: workspace.runId });
+    const branches = [{ branchId: detached.branchId, ref: "HEAD", initialTip: undefined as string | undefined }, ...Object.entries(workspace.privateBranches ?? {}).map(([ref, value]) => ({ ...value, ref }))];
+    for (const branch of branches.filter(x => x.branchId !== context.branchId)) {
+      scopes.push({ scopeToken: `${branch.branchId}:${workspace.worktreeId}`, branchId: branch.branchId, branchRef: branch.ref, initialTip: branch.initialTip, reason: branch.ref === "HEAD" ? "detached" : branch.initialTip ? "private-named" : "unborn", worktreeId: workspace.worktreeId, runId: workspace.runId });
+    }
+  }
+  return scopes;
+}
+
+function storedRecoveryScopes(scopes: readonly Pick<ArtifactKey, "branchId" | "worktreeId" | "runId">[], context: TrustedWorkflowContext): RecoveryScope[] {
+  return scopes.filter(scope => scope.branchId && scope.branchId !== "publication-authority" && scope.branchId !== context.branchId).map(scope => ({
+    ...scope,
+    branchId: scope.branchId!,
+    scopeToken: `stored:${Buffer.from(JSON.stringify(scope)).toString("base64url")}`,
+    branchRef: "",
+    reason: "retained-adapter-scope",
+  }));
 }

@@ -5,7 +5,7 @@ import { applyMigrations } from "../storage/migrations.js";
 import { executeWorkflowState, parseArtifactToken, resolveTrustedContext, type ArtifactRef, type WorkflowRequest, type WorkflowRole } from "./workflow-state.js";
 
 const SCOPE = ["projectId", "branchId", "publishedRevisionIds", "worktreeId", "runId", "project", "visibility"] as const;
-const SUBJECT_FREE: Record<string, true> = { discover: true, inspect: true, recover: true, migrate: true, list: true, search: true, "read-receipt": true, "write-receipt": true };
+const SUBJECT_FREE: Record<string, true> = { discover: true, inspect: true, recover: true, migrate: true, list: true, search: true, "read-receipt": true, "write-receipt": true, "publication-view": true, "map-checkpoint": true, "revoke-mapping": true, "resolve-publication": true };
 
 function fail(message: string): never {
   console.error(message);
@@ -30,7 +30,7 @@ function buildRequest(operation: string, subject: string | undefined, branchRef:
     if (!branchRef) fail("inspect requires --branch refs/heads/<name>");
     return { operation: "inspect", branchRef };
   }
-  if (operation === "recover") return { operation: "recover" };
+  if (operation === "recover") return { operation: "recover", ...input } as WorkflowRequest;
   const ref = refFor(subject, input);
   if (operation === "read") return { operation: "read", ...(typeof input.token === "string" ? { token: input.token } : {}), ...(ref ? { ref } : {}) };
   if (operation === "write" || operation === "correct") return { operation, ...input, ...(ref ? { ref } : {}) } as WorkflowRequest;
@@ -71,7 +71,7 @@ else {
     : context;
   // Operator-only executable: restricted children have no execution tool.
   // Ordinary mutations need save permissions, never cross-branch administration.
-  const role: WorkflowRole = operation === "inspect" || operation === "recover" ? "admin" : "save";
+  const role: WorkflowRole = ["inspect", "recover", "publication-view", "map-checkpoint", "revoke-mapping", "resolve-publication"].includes(operation) ? "admin" : "save";
   const value = await executeWorkflowState({ cwd, request: buildRequest(operation, subject, branchFlag.value, input), context: operationContext, role });
   if (value === null || value === undefined) process.exitCode = 1;
   console.log(JSON.stringify(value ?? null));
