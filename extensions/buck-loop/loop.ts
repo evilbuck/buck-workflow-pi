@@ -24,11 +24,12 @@
  */
 import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import { choose as defaultChoose, type ChooseResult } from "./choice.js";
 import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { TrustedIdentityError } from "../../skills/_shared/scripts/workflow-state.js";
 import {
   askRepairLift,
   changedLoopExtensionFiles,
@@ -53,7 +54,7 @@ import {
 import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
 import { runStep as defaultRunStep, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
-import { scan, unfinishedIterates } from "./scan.js";
+import { scan, readLoopDocuments } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
 import { runJev } from "../jev-tool/index.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
@@ -196,7 +197,7 @@ type EffectResult = {
 export const productionClassifyRepair: LoopDeps["classifyRepair"] = async ({ cwd, snapshot, why, sessionText }) => {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
   const diagnosis = diagnoseAmbiguity({
-    abs, sessionText, why, ...iterateEvidence(cwd, snapshot),
+    abs, sessionText, why, ...(await iterateEvidence(cwd, snapshot)),
     ...(snapshot.acceptanceGap ? { acceptanceGap: snapshot.acceptanceGap } : {}),
   });
   return askRepairLift(`${decisionContext(snapshot, why)}\n${diagnosis}`, {
@@ -222,9 +223,9 @@ const DEFAULT_DEPS: LoopDeps = {
  * Feed them to the lift judge itself, so a light/medium retry handoff and a
  * heavy operator stop name the same files.
  */
-function iterateEvidence(cwd: string, snapshot: Snapshot): { iterateReport?: string } {
+async function iterateEvidence(cwd: string, snapshot: Snapshot): Promise<{ iterateReport?: string }> {
   if (snapshot.state !== "iterating" || !snapshot.subject) return {};
-  return { iterateReport: unfinishedIterateReport(join(cwd, ".context", snapshot.subject)) };
+  return { iterateReport: (await unfinishedIterateReport(join(cwd, ".context", snapshot.subject))) };
 }
 
 /**
@@ -241,52 +242,57 @@ export async function handleLoop(opts: {
   path?: string;
   deps?: Partial<LoopDeps>;
 }): Promise<LoopResult> {
-  const cwd = resolve(opts.cwd);
-  const deps: LoopDeps = { ...DEFAULT_DEPS, ...opts.deps };
-  if (opts.command === "status") return statusOf(cwd);
-  if (opts.command === "stop") return stopRun(cwd, deps.now);
-  const restartReason = restartRequired.get(cwd);
-  if (restartReason) return { state: "blocked", reason: restartReason };
-  if (opts.command === "start") return startRun(cwd, opts.path, deps);
-  return resumeRun(cwd, deps);
+  try {
+    const cwd = resolve(opts.cwd);
+    const deps: LoopDeps = { ...DEFAULT_DEPS, ...opts.deps };
+    if (opts.command === "status") return await statusOf(cwd);
+    if (opts.command === "stop") return await stopRun(cwd, deps.now);
+    const restartReason = restartRequired.get(cwd);
+    if (restartReason) return { state: "blocked", reason: restartReason };
+    if (opts.command === "start") return await startRun(cwd, opts.path, deps);
+    return await resumeRun(cwd, deps);
+  } catch (error) {
+    if (error instanceof TrustedIdentityError) return { state: "blocked", reason: error.message };
+    throw error;
+  }
 }
 
 /** Read the saved run file. Missing → idle; unreadable → blocked. */
-export function statusOf(cwd: string): LoopResult {
-  const projectionFile = join(cwd, ".context/workflow/buck-loop.json");
-  const projection = readProjection(cwd);
-  if (!projection) return existsSync(projectionFile)
-    ? { state: "blocked", reason: "unreadable projection; repair it or start with an explicit plan path" }
-    : { state: "idle", reason: "no projection" };
+export async function statusOf(cwd: string): Promise<LoopResult> {
+  const projection = await readProjection(cwd);
+  if (!projection) {
+    const snapshot = await resume({ projectRoot: cwd });
+    return { state: snapshot.state, reason: snapshot.state === "idle" ? "no projection" : snapshot.planFacts.kind === "missing" ? snapshot.planFacts.reason : "unreadable projection" };
+  }
   const last = projection.history.at(-1);
   if (projection.state === "blocked") {
     const cause = lastWhy(projection) ?? "reason unavailable";
-    return { state: "blocked", reason: `${cause}. ${recoveryFor(cwd, projection, last?.from)}` };
+    return { state: "blocked", reason: `${cause}. ${(await recoveryFor(cwd, projection, last?.from))}` };
   }
-  if (projection.state === "aborted") return stoppedStatus(cwd, projection, last);
-  if (projection.state === "committing") return { state: "committing", reason: recoveryFor(cwd, projection, last?.from) };
+  if (projection.state === "aborted") return (await stoppedStatus(cwd, projection, last));
+  if (projection.state === "committing") return { state: "committing", reason: (await recoveryFor(cwd, projection, last?.from)) };
   return { state: projection.state, reason: lastWhy(projection) ?? `projection is ${projection.state}` };
 }
 
-function stoppedStatus(cwd: string, projection: Projection, last: TransitionRecord | undefined): LoopResult {
+async function stoppedStatus(cwd: string, projection: Projection, last: TransitionRecord | undefined): Promise<LoopResult> {
   const stoppedBlock = last?.from === "blocked" ? projection.history.at(-2) : undefined;
   const historical = stoppedBlock?.to === "blocked" ? ` Previous blocker (historical): ${stoppedBlock.why}.` : "";
-  return { state: "aborted", reason: `Run stopped.${historical} ${recoveryFor(cwd, projection, stoppedBlock?.from ?? last?.from)}` };
+  return { state: "aborted", reason: `Run stopped.${historical} ${(await recoveryFor(cwd, projection, stoppedBlock?.from ?? last?.from))}` };
 }
 
-function recoveryFor(cwd: string, projection: Projection, from: LoopState | undefined): string {
+async function recoveryFor(cwd: string, projection: Projection, from: LoopState | undefined): Promise<string> {
   const target = projection.phasePath ?? projection.planPath;
   const owesCommit = Boolean(projection.commitCheckpoint)
     || from === "committing" || from === "repairing"
     || projection.state === "committing" || projection.state === "repairing";
-  if (owesCommit) return commitRecoveryGuidance(cwd, projection, from);
+  if (owesCommit) return (await commitRecoveryGuidance(cwd, projection, from));
   if (projection.state === "blocked") {
     return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
   }
   return `To continue, run /buck-loop ${target}.`;
 }
 
-function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopState | undefined): string {
+async function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopState | undefined): Promise<string> {
   const checkpoint = projection.commitCheckpoint;
   if (!checkpoint) {
     const repairing = from === "repairing" || projection.state === "repairing" || projection.history.at(-1)?.from === "repairing";
@@ -295,7 +301,7 @@ function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopS
       : "Commit identity is missing; manual recovery required. Inspect HEAD and staged changes, complete only the reviewed checkpoint, then explicitly select the next phase; do not blindly resume.";
   }
   const identity = `Retained commit checkpoint ${checkpoint.targetPath}, baseline ${checkpoint.baseHead ?? "unborn"}.`;
-  if (resume({ projectRoot: cwd }).planFacts.kind === "missing") return `${identity} Inconsistent ownership; manual recovery required.`;
+  if (((await resume({ projectRoot: cwd }))).planFacts.kind === "missing") return `${identity} Inconsistent ownership; manual recovery required.`;
   if (projection.state === "aborted") return `${identity} An aborted run will not continue this checkpoint. Inspect HEAD and staged changes, verify or complete the retained commit manually, then explicitly start the next phase; do not start a new run before resolving this checkpoint.`;
   const proof = commitProof(cwd, checkpoint);
   if (proof === "unsafe") return `${identity} Git history, dirt, or proof is unsafe; inspect manually before resuming. No new commit is authorized.`;
@@ -303,21 +309,21 @@ function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopS
 }
 
 /** Mark the saved run aborted. No saved file → no-op idle. */
-function stopRun(cwd: string, now: () => string): LoopResult {
-  const projection = readProjection(cwd);
+async function stopRun(cwd: string, now: () => string): Promise<LoopResult> {
+  const projection = ((await readProjection(cwd)));
   if (!projection) return { state: "idle", reason: "no run to stop" };
-  if (projection.state === "aborted") return statusOf(cwd);
+  if (projection.state === "aborted") return ((await statusOf(cwd)));
   const t = stopFrom(projection.state);
-  const snapshot = resume({ projectRoot: cwd });
-  persist(cwd, withTransition({
+  const snapshot = ((await resume({ projectRoot: cwd })));
+  (await persist(cwd, withTransition({
     ...snapshot,
     state: projection.state,
     history: projection.history,
     subject: snapshot.subject ?? projection.subject,
     planPath: snapshot.planPath ?? projection.planPath,
     phasePath: snapshot.phasePath ?? projection.phasePath,
-  }, t, now()));
-  return statusOf(cwd);
+  }, t, now())));
+  return ((await statusOf(cwd)));
 }
 
 /** Scan the operator's path, persist `resolving`, then enter {@link drive}. */
@@ -326,8 +332,8 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
   if (refused) return refused;
   const target = path?.trim() ?? "";
   if (!target) return { state: "idle", reason: "path is required to start" };
-  syncCheckedPhasesAt(cwd, target, deps.now().slice(0, 10));
-  const scanned = scan({ projectRoot: cwd, path: target, state: "resolving" });
+  ((await syncCheckedPhasesAt(cwd, target, deps.now().slice(0, 10))));
+  const scanned = ((await scan({ projectRoot: cwd, path: target, state: "resolving" })));
   const snapshot: Snapshot = {
     state: "resolving",
     subject: scanned.subject,
@@ -342,7 +348,7 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
     lastChoice: null,
     history: [{ from: "idle", to: "resolving", at: deps.now(), why: start().why }],
   };
-  persistIfPossible(cwd, snapshot);
+  (await persistIfPossible(cwd, snapshot));
   return drive(cwd, snapshot, target, deps);
 }
 
@@ -353,24 +359,24 @@ async function startRun(cwd: string, path: string | undefined, deps: LoopDeps): 
 async function resumeRun(cwd: string, deps: LoopDeps): Promise<LoopResult> {
   const protectedBranch = refuseProtectedBranch(cwd, "resume");
   if (protectedBranch) return protectedBranch;
-  const projection = readProjection(cwd);
-  if (!projection) return idleOrUnreadableProjection(cwd);
-  if (projection.state === "aborted") return statusOf(cwd);
+  const projection = ((await readProjection(cwd)));
+  if (!projection) return statusOf(cwd);
+  if (projection.state === "aborted") return ((await statusOf(cwd)));
   const dirty = await refuseDirtyWorkspace(cwd, "resume", deps, projection);
   if (dirty) return dirty;
   const resumeTarget = resumePath(projection, projection.subject);
   const cleanBeforeSync = cleanCloseoutTree(cwd);
-  syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10));
-  let snapshot = resume({ projectRoot: cwd });
-  const closeout = repairUnphasedCloseout(cwd, projection, snapshot, cleanBeforeSync, deps.now());
+  ((await syncCheckedPhasesAt(cwd, resumeTarget, deps.now().slice(0, 10))));
+  let snapshot = ((await resume({ projectRoot: cwd })));
+  const closeout = (await repairUnphasedCloseout(cwd, projection, snapshot, cleanBeforeSync, deps.now()));
   if (closeout) return closeout;
-  snapshot = confirmBlockedResume(cwd, projection, snapshot, deps.now());
+  snapshot = (await confirmBlockedResume(cwd, projection, snapshot, deps.now()));
   const checked = await checkedResume(cwd, snapshot, deps.now(), deps.onActivity);
   if ("result" in checked) return checked.result;
   snapshot = checked.snapshot;
   if (snapshot.state === "committing" && snapshot.commitCheckpoint && verifiedCommit(cwd, snapshot.commitCheckpoint)) {
     const target = snapshot.commitCheckpoint.targetPath;
-    snapshot = rescan(cwd, snapshot, target, { sessionOutcome: "ok", retriesUsed: 0 });
+    snapshot = (await rescan(cwd, snapshot, target, { sessionOutcome: "ok", retriesUsed: 0 }));
   }
   const path = resumePath(snapshot, projection.subject);
   return drive(cwd, snapshot, path, deps);
@@ -384,27 +390,27 @@ function cleanCloseoutTree(cwd: string): boolean {
   }
 }
 
-function repairUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, clean: boolean, at: string): LoopResult | null {
+async function repairUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, clean: boolean, at: string): Promise<LoopResult | null> {
   if (snapshot.planFacts.kind !== "unphased") return null;
   if (!isUnphasedCloseoutProjection(projection)) return null;
-  if (!snapshot.planFacts.closeEligible) return haltIfTerminal(cwd, snapshot);
+  if (!snapshot.planFacts.closeEligible) return (await haltIfTerminal(cwd, snapshot));
   const committed = projection.history.some((entry) => entry.from === "committing" || entry.to === "committing");
-  return finishUnphasedCloseout(cwd, projection, snapshot, committed && clean, at);
+  return (await finishUnphasedCloseout(cwd, projection, snapshot, committed && clean, at));
 }
 
-function finishUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, verifiedCommit: boolean, at: string): LoopResult {
+async function finishUnphasedCloseout(cwd: string, projection: Projection, snapshot: Snapshot, verifiedCommit: boolean, at: string): Promise<LoopResult> {
   let reason = "unphased plan closeout requires committing history and a clean worktree";
   if (verifiedCommit) {
     const closed = applySubjectLifecycleIntent({ kind: "close-verified", subjectDir: join(cwd, ".context", projection.subject) });
     if (closed.ok) {
       const completed = withTransition(snapshot, { to: "done", effect: { kind: "none" }, why: "unphased plan verified closeout repaired" }, at);
-      persistIfPossible(cwd, completed);
+      (await persistIfPossible(cwd, completed));
       return { state: "done", reason: completed.history.at(-1)!.why };
     }
     reason = `unphased plan closeout refused: ${closed.blockers.join("; ")}`;
   }
   const held = block(snapshot, reason, at);
-  persistIfPossible(cwd, held);
+  (await persistIfPossible(cwd, held));
   return { state: "blocked", reason };
 }
 
@@ -415,18 +421,11 @@ function resumePath(snapshot: Pick<Snapshot, "phasePath" | "planPath">, subject:
 async function checkedResume(cwd: string, snapshot: Snapshot, at: string, onActivity: LoopDeps["onActivity"]): Promise<{ snapshot: Snapshot } | { result: LoopResult }> {
   const reconciled = await reconcileSqlSave(cwd, snapshot, at, onActivity);
   if (reconciled.state !== "blocked" || snapshot.state === "blocked") return { snapshot: reconciled };
-  persistIfPossible(cwd, reconciled);
+  (await persistIfPossible(cwd, reconciled));
   return { result: { state: "blocked", reason: reconciled.history.at(-1)?.why ?? "SQL save was not verified" } };
 }
 
-function idleOrUnreadableProjection(cwd: string): LoopResult {
-  if (existsSync(join(cwd, ".context/workflow/buck-loop.json"))) {
-    return { state: "blocked", reason: "unreadable projection" };
-  }
-  return { state: "idle", reason: "no projection to resume" };
-
-}
-function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Snapshot {
+async function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Snapshot, at: string): Promise<Snapshot> {
   if (snapshot.state !== "blocked") return snapshot;
   if (legacyCommitRecovery(projection)) return snapshot;
   if (
@@ -435,11 +434,11 @@ function confirmBlockedResume(cwd: string, projection: Projection, snapshot: Sna
     snapshot.phasePath !== projection.phasePath ||
     (isUnphasedCloseoutProjection(projection) && snapshot.planFacts.kind === "unphased" && !snapshot.planFacts.closeEligible)
   ) {
-    persistIfPossible(cwd, snapshot);
+    (await persistIfPossible(cwd, snapshot));
     return snapshot;
   }
   const confirmed = withTransition(snapshot, userConfirmed(snapshot), at);
-  persistIfPossible(cwd, confirmed);
+  (await persistIfPossible(cwd, confirmed));
   return confirmed;
 }
 
@@ -459,17 +458,17 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
   let lastReport = "";
   for (let tick = 0; tick < SAFETY_TICK_CEILING; tick += 1) {
     deps.onSnapshot?.(snapshot);
-    const stopped = haltIfTerminal(cwd, snapshot);
+    const stopped = (await haltIfTerminal(cwd, snapshot));
     if (stopped) return stopped;
     const wasSaving = snapshot.state === "saving";
     let step = takeStep(snapshot, lastFail, deps.now());
-    step = prepareCommitTransition(cwd, snapshot, step, deps.now(), deps.probeCommitHead);
+    step = (await prepareCommitTransition(cwd, snapshot, step, deps.now(), deps.probeCommitHead));
     snapshot = step.snapshot;
-    const preparationFailure = persistSaveTransition(cwd, snapshot, step.transition, wasSaving);
+    const preparationFailure = (await persistSaveTransition(cwd, snapshot, step.transition, wasSaving));
     if (preparationFailure) return preparationFailure;
     if (step.halt) {
       const recovered = await recoverBlocked(cwd, snapshot, step.halt, deps);
-      if (recovered.halt) return haltInCycleBlock(cwd, snapshot, recovered.halt);
+      if (recovered.halt) return (await haltInCycleBlock(cwd, snapshot, recovered.halt));
       snapshot = recovered.snapshot;
       continue;
     }
@@ -478,7 +477,7 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
     snapshot = ran.snapshot;
     lastFail = ran.lastFail ?? lastFail;
     lastReport = ran.sessionText;
-    persistIfPossible(cwd, snapshot);
+    (await persistIfPossible(cwd, snapshot));
     if (ran.halt) {
       const handled = await handleEffectHalt(cwd, snapshot, ran, deps);
       if (handled.result) return handled.result;
@@ -488,20 +487,20 @@ async function drive(cwd: string, initial: Snapshot, path: string, deps: LoopDep
   }
   const reason = `supervisor safety ceiling (${SAFETY_TICK_CEILING} ticks)`;
   snapshot = block(snapshot, reason, deps.now());
-  return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
+  return (await haltInCycleBlock(cwd, snapshot, { state: "blocked", reason }));
 }
 
 type SupervisorStep = { snapshot: Snapshot; transition: Transition; halt: LoopResult | null };
 
-function prepareCommitTransition(
+async function prepareCommitTransition(
   cwd: string,
   previous: Snapshot,
   step: SupervisorStep,
   at: string,
   probe?: LoopDeps["probeCommitHead"],
-): SupervisorStep {
+): Promise<SupervisorStep> {
   if (verifiedCommitAdvance(previous, step.transition)) {
-    const scanned = scan({ projectRoot: cwd, path: previous.planPath!, state: step.transition.to });
+    const scanned = ((await scan({ projectRoot: cwd, path: previous.planPath!, state: step.transition.to })));
     return { ...step, snapshot: { ...step.snapshot, phasePath: scanned.phasePath, commitCheckpoint: null } };
   }
   if (step.transition.to !== "committing" || step.snapshot.commitCheckpoint) return step;
@@ -564,20 +563,20 @@ function verifiedCommitAdvance(previous: Snapshot, transition: Transition): bool
 async function handleEffectHalt(cwd: string, snapshot: Snapshot, ran: EffectResult, deps: LoopDeps): Promise<{ snapshot: Snapshot; result: LoopResult | null }> {
   if (ran.mandatoryStop) return { snapshot, result: ran.halt };
   const recovered = await recoverBlocked(cwd, snapshot, ran.halt!, deps);
-  if (recovered.halt) return { snapshot, result: haltInCycleBlock(cwd, snapshot, recovered.halt) };
+  if (recovered.halt) return { snapshot, result: (await haltInCycleBlock(cwd, snapshot, recovered.halt)) };
   return { snapshot: recovered.snapshot, result: null };
 }
 
-function persistSaveTransition(cwd: string, snapshot: Snapshot, transition: Transition, retry: boolean): LoopResult | null {
+async function persistSaveTransition(cwd: string, snapshot: Snapshot, transition: Transition, retry: boolean): Promise<LoopResult | null> {
   const reason = prepareProjectedSave(cwd, transition, snapshot, retry);
-  if (reason) return haltInCycleBlock(cwd, snapshot, { state: "blocked", reason });
-  persistIfPossible(cwd, snapshot);
+  if (reason) return (await haltInCycleBlock(cwd, snapshot, { state: "blocked", reason }));
+  (await persistIfPossible(cwd, snapshot));
   return null;
 }
 
-function haltIfTerminal(cwd: string, snapshot: Snapshot): LoopResult | null {
+async function haltIfTerminal(cwd: string, snapshot: Snapshot): Promise<LoopResult | null> {
   if (!isTerminal(snapshot.state)) return null;
-  persistIfPossible(cwd, snapshot);
+  (await persistIfPossible(cwd, snapshot));
   return { state: snapshot.state, reason: lastWhyFromSnapshot(snapshot) };
 }
 
@@ -681,7 +680,7 @@ async function runRank(cwd: string, snapshot: Snapshot, path: string, deps: Loop
   }
   const verdict = await rankVerdict(cwd, snapshot, path, deps, snapshot.reviewFacts);
   const ranked: Snapshot = { ...snapshot, reviewFacts: { ...snapshot.reviewFacts, ranking: verdict } };
-  persistIfPossible(cwd, ranked);
+  (await persistIfPossible(cwd, ranked));
   return { snapshot: ranked, lastFail: null, halt: null };
 }
 
@@ -704,10 +703,10 @@ async function rankVerdict(
   return { kind: "ranked", above: false, docsVerdict: await judgeDocsImpact(cwd, snapshot, path, deps) };
 }
 
-function readRankArtifact(cwd: string, snapshot: Snapshot):
-  | { kind: "blocked"; reason: string }
-  | { kind: "ready"; artifact: { path: string; text: string }; issues: ReviewIssue[] } {
-  const artifacts = unfinishedIterateArtifacts(cwd, snapshot);
+async function readRankArtifact(cwd: string, snapshot: Snapshot):
+  Promise<| { kind: "blocked"; reason: string }
+  | { kind: "ready"; artifact: { path: string; text: string }; issues: ReviewIssue[] }> {
+  const artifacts = (await unfinishedIterateArtifacts(cwd, snapshot));
   if (artifacts.length === 0) return { kind: "blocked", reason: "no unfinished iterate artifact to rank" };
   if (artifacts.length > 1) return { kind: "blocked", reason: `multiple unfinished iterate artifacts: ${artifacts.map((artifact) => artifact.path).join(", ")}` };
   const artifact = artifacts[0];
@@ -718,7 +717,7 @@ function readRankArtifact(cwd: string, snapshot: Snapshot):
 }
 
 async function rankUnfinishedArtifact(cwd: string, snapshot: Snapshot, target: string, deps: LoopDeps) {
-  const input = readRankArtifact(cwd, snapshot);
+  const input = (await readRankArtifact(cwd, snapshot));
   if (input.kind === "blocked") return { status: "blocked" as const, reason: input.reason };
   return rankIssues({ cwd, planPath: target, artifactPath: input.artifact.path, artifactText: input.artifact.text, issues: input.issues },
     { ask: deps.ask ?? nativeAsk, now: () => new Date(deps.now()) });
@@ -731,7 +730,7 @@ async function rankUnfinishedArtifact(cwd: string, snapshot: Snapshot, target: s
  * update is needed.
  */
 async function judgeDocsImpact(cwd: string, snapshot: Snapshot, path: string, deps: LoopDeps): Promise<DocsVerdict> {
-  const report = latestReviewReport(cwd, snapshot);
+  const report = (await latestReviewReport(cwd, snapshot));
   if (!report) return "unresolved";
   const state = {
     reviewReport: report.text,
@@ -771,22 +770,23 @@ function binaryJudgment(value: unknown): boolean | null {
 }
 
 /** Read source text only for artifacts the shared scan predicate still considers unfinished. */
-function unfinishedIterateArtifacts(cwd: string, snapshot: Snapshot): Array<{ path: string; text: string }> {
+async function unfinishedIterateArtifacts(cwd: string, snapshot: Snapshot): Promise<Array<{ path: string; text: string }>> {
   if (!snapshot.subject) return [];
   const dir = join(cwd, ".context", snapshot.subject);
-  return unfinishedIterates(dir).map((abs) => ({
-    path: `.context/${snapshot.subject}/${basename(abs)}`,
-    text: readFileSync(abs, "utf8"),
-  }));
+  return [...await readLoopDocuments(cwd)]
+    .filter(([abs, text]) => dirname(abs) === dir && /^iterate-.*\.md$/.test(basename(abs)) && !/^status:\s*(?:completed|below-waterline)\s*$/m.test(text))
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([abs, text]) => ({ path: `.context/${snapshot.subject}/${basename(abs)}`, text }));
 }
 
 /** The report `scan` parsed: the last `review-*.md` by name. */
-function latestReviewReport(cwd: string, snapshot: Snapshot): { path: string; text: string } | null {
+async function latestReviewReport(cwd: string, snapshot: Snapshot): Promise<{ path: string; text: string } | null> {
   if (!snapshot.subject) return null;
   const dir = join(cwd, ".context", snapshot.subject);
-  if (!existsSync(dir)) return null;
-  const name = readdirSync(dir).filter((entry) => /^review-.*\.md$/.test(entry)).sort().at(-1);
-  return name ? { path: `.context/${snapshot.subject}/${name}`, text: readFileSync(join(dir, name), "utf8") } : null;
+  const latest = [...await readLoopDocuments(cwd)]
+    .filter(([abs]) => dirname(abs) === dir && /^review-.*\.md$/.test(basename(abs)))
+    .sort(([a], [b]) => a.localeCompare(b)).at(-1);
+  return latest ? { path: `.context/${snapshot.subject}/${basename(latest[0])}`, text: latest[1] } : null;
 }
 
 function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): boolean {
@@ -803,9 +803,9 @@ function ambiguousWorkChoice(snapshot: Snapshot, legal: readonly Choice[]): bool
  * Only called when the postcondition is ambiguous, which implies an ok
  * session, so no separate outcome guard is needed.
  */
-function closeFinishedIterate(cwd: string, snapshot: Snapshot, deps: LoopDeps): boolean {
+async function closeFinishedIterate(cwd: string, snapshot: Snapshot, deps: LoopDeps): Promise<boolean> {
   if (!snapshot.subject) return false;
-  return closeSingleUnfinishedIterate(join(cwd, ".context", snapshot.subject), deps.now());
+  return (await closeSingleUnfinishedIterate(join(cwd, ".context", snapshot.subject), deps.now()));
 }
 
 async function resolveAmbiguity(
@@ -818,7 +818,7 @@ async function resolveAmbiguity(
 ): Promise<EffectResult> {
   const abs = phaseAbs(cwd, snapshot.phasePath ?? snapshot.planPath);
   if (abs && repairCheckedPhase(abs, deps.now())) {
-    return { snapshot: rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }), lastFail: null, halt: null };
+    return { snapshot: (await rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 })), lastFail: null, halt: null };
   }
   let plan: RepairPlan;
   try {
@@ -826,10 +826,10 @@ async function resolveAmbiguity(
   } catch (error) {
     const reason = `could not audit ambiguity lift: ${error instanceof Error ? error.message : String(error)}`;
     const blocked = block(snapshot, reason, deps.now());
-    persistIfPossible(cwd, blocked);
+    (await persistIfPossible(cwd, blocked));
     return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
   }
-  if (plan.lift === "heavy") return stopForOperator(cwd, snapshot, plan, abs, deps);
+  if (plan.lift === "heavy") return (await stopForOperator(cwd, snapshot, plan, abs, deps));
   return retryRepair(cwd, snapshot, path, plan, deps);
 }
 
@@ -845,38 +845,38 @@ async function retryRepair(
   const ran = await continueChoice(cwd, snapshot, path, retry, deps, plan.diagnosis);
   const changed = changedLoopExtensionFiles(cwd, beforeRetry);
   if (changed.length === 0) return ran;
-  return stopForExtensionRestart(cwd, ran.snapshot, changed, deps);
+  return (await stopForExtensionRestart(cwd, ran.snapshot, changed, deps));
 }
 
-function stopForOperator(
+async function stopForOperator(
   cwd: string,
   snapshot: Snapshot,
   plan: RepairPlan,
   abs: string | null,
   deps: LoopDeps,
-): EffectResult {
+): Promise<EffectResult> {
   // The diagnosis already names the iterate artifacts for an iterating miss.
   const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
   const reason = `heavy lift: ${plan.reason}. ${plan.diagnosis} ${disk}`;
   deps.onWarning(reason);
   const blocked = block(snapshot, reason, deps.now());
-  persistIfPossible(cwd, blocked);
+  (await persistIfPossible(cwd, blocked));
   return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
 }
 
 const LOOP_EXTENSION_RESTART = "Restart OMP before continuing:";
 
-function stopForExtensionRestart(
+async function stopForExtensionRestart(
   cwd: string,
   snapshot: Snapshot,
   changed: readonly string[],
   deps: LoopDeps,
-): EffectResult {
+): Promise<EffectResult> {
   const reason = `${LOOP_EXTENSION_RESTART} repaired the buck-loop extension, and this session is still running the previous code. Changed: ${changed.join(", ")}`;
   restartRequired.set(cwd, reason);
   deps.onWarning(reason);
   const blocked = block(snapshot, reason, deps.now());
-  persistIfPossible(cwd, blocked);
+  (await persistIfPossible(cwd, blocked));
   return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
 }
 
@@ -902,7 +902,7 @@ async function runChoice(
   const chosen = await chooseSafely(cwd, snapshot, legal, why, deps);
   reportChoiceFailure(snapshot, chosen, deps);
   const applied = applyChosen(snapshot, chosen, deps.now());
-  persistIfPossible(cwd, applied.snapshot);
+  (await persistIfPossible(cwd, applied.snapshot));
   if (applied.stop) {
     return { snapshot: applied.snapshot, lastFail: null, halt: { state: applied.snapshot.state, reason: applied.reason } };
   }
@@ -947,23 +947,23 @@ async function continueChoice(
   deps: LoopDeps,
   handoff?: string,
 ): Promise<EffectResult> {
-  const prepared = prepareCommitTransition(cwd, snapshot, {
+  const prepared = (await prepareCommitTransition(cwd, snapshot, {
     snapshot: withTransition(snapshot, transition, deps.now()), transition, halt: null,
-  }, deps.now(), deps.probeCommitHead);
+  }, deps.now(), deps.probeCommitHead));
   const nextSnapshot = prepared.snapshot;
   const preparedTransition = prepared.transition;
   if (prepared.halt) {
-    persistIfPossible(cwd, nextSnapshot);
+    (await persistIfPossible(cwd, nextSnapshot));
     return { snapshot: nextSnapshot, lastFail: prepared.halt.reason, halt: prepared.halt };
   }
   deps.onSnapshot?.(nextSnapshot);
   const savePreparation = prepareProjectedSave(cwd, preparedTransition, nextSnapshot, snapshot.state === "saving");
   if (savePreparation) {
     const blocked = block(nextSnapshot, savePreparation, deps.now());
-    persistIfPossible(cwd, blocked);
+    (await persistIfPossible(cwd, blocked));
     return { snapshot: blocked, lastFail: savePreparation, halt: { state: "blocked", reason: savePreparation } };
   }
-  persistIfPossible(cwd, nextSnapshot);
+  (await persistIfPossible(cwd, nextSnapshot));
   if (preparedTransition.effect.kind === "repair") {
     return runCommitRepair(cwd, nextSnapshot, deps.now(), deps.probeCommitHead);
   }
@@ -1010,8 +1010,8 @@ async function executeSkill(
   handoff?: string,
 ): Promise<{ snapshot: Snapshot; failedText: string | null; sessionText: string }> {
   const planOrPhasePath = snapshot.phasePath ?? snapshot.planPath ?? path;
-  const nested = nestedSkill(cwd, skill, snapshot);
-  const reviewArtifactsBefore = skill === "review" ? snapshotReviewArtifacts(cwd, snapshot) : null;
+  const nested = (await nestedSkill(cwd, skill, snapshot));
+  const reviewArtifactsBefore = skill === "review" ? (await snapshotReviewArtifacts(cwd, snapshot)) : null;
   emitProgress(deps, {
     state: snapshot.state,
     operation: "run-skill",
@@ -1034,7 +1034,7 @@ async function executeSkill(
   }
   // Stamp before the landed-work scan so its sync and rescan see the ticked boxes.
   const stamp = await stampBuildAcceptance(cwd, skill, planOrPhasePath, result, deps);
-  const finished = finishSkill(cwd, scanLandedWork(cwd, snapshot, path, deps, {
+  const finished = await finishSkill(cwd, await scanLandedWork(cwd, snapshot, path, deps, {
     planOrPhasePath, skill, ok: result.ok, retriesUsed, sqlSaveVerified: saveCheck.status === "verified",
   }), skill, planOrPhasePath, result.ok, result.text, retriesUsed);
   return attachAcceptanceGap(skill, finished, stamp);
@@ -1078,20 +1078,20 @@ async function stampBuiltAcceptance(cwd: string, planOrPhasePath: string, sessio
 }
 
 /** Rescan after a nested session, closing a single finished iterate artifact first. */
-function scanLandedWork(
+async function scanLandedWork(
   cwd: string,
   snapshot: Snapshot,
   path: string,
   deps: LoopDeps,
   work: { planOrPhasePath: string; skill: WorkSkill; ok: boolean; retriesUsed: number; sqlSaveVerified: boolean },
-): Snapshot {
-  syncCheckedPhasesAt(cwd, work.planOrPhasePath, deps.now().slice(0, 10));
-  const scanned = rescan(cwd, snapshot, path, {
+): Promise<Snapshot> {
+  ((await syncCheckedPhasesAt(cwd, work.planOrPhasePath, deps.now().slice(0, 10))));
+  const scanned = (await rescan(cwd, snapshot, path, {
     sessionOutcome: work.ok ? "ok" : "failed",
     retriesUsed: work.retriesUsed,
     sqlSaveVerified: work.sqlSaveVerified,
-  });
-  return closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps) ?? scanned;
+  }));
+  return (await closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps)) ?? scanned;
 }
 
 /**
@@ -1100,17 +1100,17 @@ function scanLandedWork(
  * ok. Review stays the next permitted work effect. Returns `null` when there is
  * nothing to close, so the caller keeps the original scan.
  */
-function closeIterateAfterSession(
+async function closeIterateAfterSession(
   cwd: string,
   snapshot: Snapshot,
   path: string,
   scanned: Snapshot,
   skill: WorkSkill,
   deps: LoopDeps,
-): Snapshot | null {
+): Promise<Snapshot | null> {
   if (skill !== "iterate" || scanned.workFacts.postcondition !== "ambiguous") return null;
-  if (!closeFinishedIterate(cwd, scanned, deps)) return null;
-  return rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
+  if (!(await closeFinishedIterate(cwd, scanned, deps))) return null;
+  return (await rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }));
 }
 
 async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {
@@ -1157,16 +1157,16 @@ async function reconcileSqlSave(cwd: string, snapshot: Snapshot, at: string, onA
     ...snapshot,
     workFacts: { sessionOutcome: "pending", retriesUsed: 0, postcondition: "pending" },
   };
-  return confirmedResume(cwd, snapshot);
+  return (await confirmedResume(cwd, snapshot));
 }
 
-function confirmedResume(cwd: string, snapshot: Snapshot): Snapshot {
+async function confirmedResume(cwd: string, snapshot: Snapshot): Promise<Snapshot> {
   if (snapshot.state === "saving") {
     return { ...snapshot, workFacts: { sessionOutcome: "ok", retriesUsed: 0, postcondition: "confirmed" } };
   }
   const path = snapshot.phasePath ?? snapshot.planPath;
   if (!path) return snapshot;
-  const scanned = rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
+  const scanned = (await rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 }));
   return scanned.workFacts.postcondition === "confirmed" ? scanned : snapshot;
 }
 
@@ -1182,9 +1182,9 @@ async function runNestedSkill(
 ): Promise<RunStepResult> {
   try {
     if (skill === "commit") {
-      if (prepareCommitEffect(cwd, snapshot, planOrPhasePath)) return { ok: true, text: "existing commit checkpoint verified" };
+      if ((await prepareCommitEffect(cwd, snapshot, planOrPhasePath))) return { ok: true, text: "existing commit checkpoint verified" };
     }
-    const difficulty = difficultyLabel(cwd, snapshot);
+    const difficulty = (await difficultyLabel(cwd, snapshot));
     const memoryContext = skill === "commit" ? null : await recallProjectMemories(cwd, planOrPhasePath);
     if (memoryContext?.kind === "failure") {
       throw new Error(memoryContext.reason);
@@ -1216,13 +1216,13 @@ async function runNestedSkill(
   }
 }
 
-function prepareCommitEffect(cwd: string, snapshot: Snapshot, targetPath: string): boolean {
+async function prepareCommitEffect(cwd: string, snapshot: Snapshot, targetPath: string): Promise<boolean> {
   const checkpoint = snapshot.commitCheckpoint;
   if (!checkpoint || checkpoint.targetPath !== targetPath) throw new Error("missing or mismatched commit checkpoint; refusing to select a new target");
   const proof = commitProof(cwd, checkpoint);
   if (proof === "verified") return true;
   if (proof !== "pending") throw new Error("commit checkpoint history, dirt, or Git probe is unsafe; inspect before resuming");
-  prepareCommitCheckpoint(cwd, checkpoint.targetPath);
+  (await prepareCommitCheckpoint(cwd, checkpoint.targetPath));
   return false;
 }
 
@@ -1327,7 +1327,7 @@ async function recoverBlocked(
   if (!(await deps.confirmContinue(halt.reason))) return { snapshot, halt };
   const parked = snapshot.state === "blocked" ? snapshot : block(snapshot, halt.reason, deps.now());
   const continued = withTransition(parked, userConfirmed(parked), deps.now());
-  persistIfPossible(cwd, continued);
+  (await persistIfPossible(cwd, continued));
   return { snapshot: continued, halt: null };
 }
 
@@ -1428,10 +1428,13 @@ function commitProof(cwd: string, checkpoint: NonNullable<Snapshot["commitCheckp
     if (checkpoint.baseHead !== null) strictGit(cwd, "cat-file", "-e", `${checkpoint.baseHead}^{commit}`);
     if (head === checkpoint.baseHead) return "pending";
     if (!head) return "unsafe";
-    const parents = strictGit(cwd, "rev-list", "--parents", "-n", "1", head).split(/\s+/);
-    const direct = checkpoint.baseHead === null ? parents.length === 1 : parents.length === 2 && parents[1] === checkpoint.baseHead;
-    return direct && status === "" ? "verified" : "unsafe";
+    return directCheckpointChild(cwd, head, checkpoint.baseHead) && status === "" ? "verified" : "unsafe";
   } catch { return "unsafe"; }
+}
+
+function directCheckpointChild(cwd: string, head: string, base: string | null): boolean {
+  const parents = strictGit(cwd, "rev-list", "--parents", "-n", "1", head).split(/\s+/);
+  return base === null ? parents.length === 1 : parents.length === 2 && parents[1] === base;
 }
 
 function verifiedCommit(cwd: string, checkpoint: NonNullable<Snapshot["commitCheckpoint"]>): boolean {
@@ -1469,8 +1472,8 @@ function unstagedNonContextStatus(cwd: string): string[] {
  * dirt can never silently land in a phase commit. When no `files:` is declared the
  * guard falls back to refusing any unstaged non-`.context` change.
  */
-export function prepareCommitCheckpoint(cwd: string, planOrPhasePath: string | null): void {
-  const declared = declaredPhaseFiles(cwd, planOrPhasePath);
+export async function prepareCommitCheckpoint(cwd: string, planOrPhasePath: string | null): Promise<void> {
+  const declared = await declaredPhaseFiles(cwd, planOrPhasePath);
   const unstaged = unstagedNonContextStatus(cwd);
   const outOfScope: string[] = [];
   const autoStage: string[] = [];
@@ -1503,10 +1506,10 @@ export function prepareCommitCheckpoint(cwd: string, planOrPhasePath: string | n
 }
 
 /** Read only the phase files: field; malformed or absent frontmatter grants no staging scope. */
-function declaredPhaseFiles(cwd: string, planOrPhasePath: string | null): string[] {
+async function declaredPhaseFiles(cwd: string, planOrPhasePath: string | null): Promise<string[]> {
   if (!planOrPhasePath) return [];
-  let text: string;
-  try { text = readFileSync(resolve(cwd, planOrPhasePath), "utf8"); } catch { return []; }
+  const text = (await readLoopDocuments(cwd)).get(resolve(cwd, planOrPhasePath));
+  if (text === undefined) return [];
   const files = parsePhaseFiles(text);
   const values = typeof files === "string" ? [files] : Array.isArray(files) ? files : [];
   return values.filter(isRelativePhasePath).map((path) => path.replace(/\\/g, "/"));
@@ -1575,7 +1578,7 @@ export function restageClaimedFiles(cwd: string, skill: WorkSkill, ok: boolean):
   return claimed;
 }
 
-function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): LoopResult {
+async function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): Promise<LoopResult> {
   const last = snapshot.history.at(-1);
   if (snapshot.state === "blocked" && last?.to === "blocked" && IN_CYCLE_WORK_STATES[last.from] === true) {
     const unstaged = unstagedNonContextStatus(cwd);
@@ -1585,11 +1588,11 @@ function haltInCycleBlock(cwd: string, snapshot: Snapshot, result: LoopResult): 
       // second blocked → blocked hop: permitsBlockedStagedResume requires the
       // latest transition to start in an in-cycle state, so an extra hop here
       // would permanently strand the staged in-cycle work behind a dirty tree.
-      persistIfPossible(cwd, { ...snapshot, history: [...snapshot.history.slice(0, -1), { ...last, why: reason }] });
+      (await persistIfPossible(cwd, { ...snapshot, history: [...snapshot.history.slice(0, -1), { ...last, why: reason }] }));
       return { state: "blocked", reason };
     }
   }
-  persistIfPossible(cwd, snapshot);
+  (await persistIfPossible(cwd, snapshot));
   return result;
 }
 
@@ -1600,7 +1603,7 @@ function nextRetries(snapshot: Snapshot, ok: boolean): number {
   return snapshot.workFacts.sessionOutcome === "failed" ? snapshot.workFacts.retriesUsed + 1 : 0;
 }
 
-function finishSkill(
+async function finishSkill(
   cwd: string,
   scanned: Snapshot,
   skill: WorkSkill,
@@ -1608,8 +1611,8 @@ function finishSkill(
   ok: boolean,
   text: string,
   retriesUsed: number,
-): { snapshot: Snapshot; failedText: string | null; sessionText: string } {
-  if (ok && skill === "build" && builtPhaseLanded(cwd, planOrPhasePath, scanned.planFacts.kind)) {
+): Promise<{ snapshot: Snapshot; failedText: string | null; sessionText: string }> {
+  if (ok && skill === "build" && (await builtPhaseLanded(cwd, planOrPhasePath, scanned.planFacts.kind))) {
     return {
       snapshot: { ...scanned, workFacts: { sessionOutcome: "ok", retriesUsed, postcondition: "confirmed" } },
       failedText: null,
@@ -1619,16 +1622,14 @@ function finishSkill(
   return { snapshot: scanned, failedText: ok ? null : text, sessionText: text };
 }
 
-type ReviewArtifactSnapshot = Map<string, { text: string; mtimeMs: number }>;
+type ReviewArtifactSnapshot = Map<string, string>;
 
-function snapshotReviewArtifacts(cwd: string, snapshot: Snapshot): ReviewArtifactSnapshot {
+async function snapshotReviewArtifacts(cwd: string, snapshot: Snapshot): Promise<ReviewArtifactSnapshot> {
   const artifacts: ReviewArtifactSnapshot = new Map();
   if (!snapshot.subject) return artifacts;
   const dir = join(cwd, ".context", snapshot.subject);
-  if (!existsSync(dir)) return artifacts;
-  for (const name of readdirSync(dir).filter((entry) => /^review-(?!zz-buck-loop-).*\.md$/.test(entry)).sort()) {
-    const abs = join(dir, name);
-    artifacts.set(name, { text: readFileSync(abs, "utf8"), mtimeMs: statSync(abs).mtimeMs });
+  for (const [abs, text] of await readLoopDocuments(cwd)) {
+    if (dirname(abs) === dir && /^review-(?!zz-buck-loop-).*\.md$/.test(basename(abs))) artifacts.set(basename(abs), text);
   }
   return artifacts;
 }
@@ -1644,44 +1645,42 @@ async function persistReviewArtifact(
   const dir = join(cwd, ".context", snapshot.subject);
   mkdirSync(dir, { recursive: true });
   const changedArtifact = before
-    ? [...snapshotReviewArtifacts(cwd, snapshot)].filter(([name, current]) => {
-        const previous = before.get(name);
-        return !previous || previous.text !== current.text || previous.mtimeMs !== current.mtimeMs;
-      }).at(-1)?.[1].text
+    ? [...await snapshotReviewArtifacts(cwd, snapshot)].filter(([name, current]) => before.get(name) !== current).at(-1)?.[1]
     : undefined;
   const authoritative = changedArtifact ?? text;
   if (!authoritative.trim()) return;
   const stamp = at.replace(/[:.]/g, "-");
   const name = `review-zz-buck-loop-${stamp}.md`;
   const body = authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`;
-  writeFileSync(join(dir, name), body);
+  // Retain first; the subject file is only the user-facing export.
   await scheduleConfiguredRetain({
-    kind: "review", subjectId: snapshot.subject, logicalName: `${snapshot.subject}/${name}`,
-    bytes: new TextEncoder().encode(body), worktreeId: cwd, source: "buck-loop",
+    kind: "review", subjectId: snapshot.subject, logicalName: name,
+    bytes: new TextEncoder().encode(body), cwd, source: "buck-loop",
   });
+  writeFileSync(join(dir, name), body);
 }
 
-function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapshot["planFacts"]["kind"]): boolean {
+async function builtPhaseLanded(cwd: string, planOrPhasePath: string, planKind: Snapshot["planFacts"]["kind"]): Promise<boolean> {
   if (planKind === "phased-complete" || planKind === "unphased") return true;
-  const abs = resolve(cwd, planOrPhasePath);
-  return existsSync(abs) && /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
+  const text = (await readLoopDocuments(cwd)).get(resolve(cwd, planOrPhasePath));
+  return text !== undefined && /^status:\s*completed\s*$/m.test(text);
 }
 
 /**
  * Re-read plan/review files after a nested session. While `FROZEN_PHASE`
  * holds, keep the same `phasePath` so a mid-cycle rescan cannot jump phases.
  */
-function rescan(
+async function rescan(
   cwd: string,
   snapshot: Snapshot,
   path: string,
   work: { sessionOutcome: Snapshot["workFacts"]["sessionOutcome"]; retriesUsed: number; sqlSaveVerified?: boolean; commitVerified?: boolean },
-): Snapshot {
+): Promise<Snapshot> {
   const scanPath = snapshot.phasePath ?? snapshot.planPath ?? path;
   const commitVerified = snapshot.state === "committing" && snapshot.commitCheckpoint
     ? verifiedCommit(cwd, snapshot.commitCheckpoint)
     : false;
-  const scanned = scan({
+  const scanned = ((await scan({
     projectRoot: cwd,
     path: scanPath,
     state: snapshot.state,
@@ -1689,7 +1688,7 @@ function rescan(
     retriesUsed: work.retriesUsed,
     ...(work.sqlSaveVerified ? { sqlSaveVerified: true } : {}),
     commitVerified,
-  });
+  })));
   const phasePath = retainedPhase(snapshot, scanned.phasePath);
   return {
     ...snapshot,
@@ -1709,8 +1708,8 @@ function retainedPhase(snapshot: Snapshot, scannedPhase: string | null): string 
 }
 
 /** Map a machine skill to the nested skill name, including build-hard and howto-only docs. */
-function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedSkill {
-  if (skill === "build") return difficultyOf(cwd, snapshot) === "hard" ? "b-build-hard" : "b-build";
+async function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): Promise<NestedSkill> {
+  if (skill === "build") return (await difficultyOf(cwd, snapshot)) === "hard" ? "b-build-hard" : "b-build";
   if (skill === "review") return "b-review";
   if (skill === "iterate") return "b-iterate";
   if (skill === "save") return "b-save";
@@ -1721,17 +1720,17 @@ function nestedSkill(cwd: string, skill: WorkSkill, snapshot: Snapshot): NestedS
 }
 
 /** Phase/plan `difficulty:` frontmatter, else `not-hard`. Selects the nested skill only. */
-function difficultyOf(cwd: string, snapshot: Snapshot): PhaseDifficulty {
-  return parsePhaseDifficulty(difficultyLabel(cwd, snapshot));
+async function difficultyOf(cwd: string, snapshot: Snapshot): Promise<PhaseDifficulty> {
+  return parsePhaseDifficulty((await difficultyLabel(cwd, snapshot)));
 }
 
 /** Raw `difficulty:` value when the key is present. Absent keys are omitted from picker context. */
-function difficultyLabel(cwd: string, snapshot: Snapshot): string | undefined {
+async function difficultyLabel(cwd: string, snapshot: Snapshot): Promise<string | undefined> {
   const rel = snapshot.phasePath ?? snapshot.planPath;
   if (!rel) return undefined;
-  const abs = resolve(cwd, rel);
-  if (!existsSync(abs)) return undefined;
-  const match = /^difficulty:\s*(.+)\s*$/m.exec(readFileSync(abs, "utf8"));
+  const text = (await readLoopDocuments(cwd)).get(resolve(cwd, rel));
+  if (text === undefined) return undefined;
+  const match = /^difficulty:\s*(.+)\s*$/m.exec(text);
   const value = match?.[1]?.trim();
   return value ? value : undefined;
 }
@@ -1763,11 +1762,11 @@ function block(snapshot: Snapshot, reason: string, at: string): Snapshot {
   return withTransition(snapshot, { to: "blocked", effect: { kind: "await-operator", reason }, why: reason }, at);
 }
 
-function persistIfPossible(cwd: string, snapshot: Snapshot): void {
-  if (snapshot.subject && snapshot.planPath) persist(cwd, snapshot);
+async function persistIfPossible(cwd: string, snapshot: Snapshot): Promise<void> {
+  if (snapshot.subject && snapshot.planPath) (await persist(cwd, snapshot));
 }
 
-function persist(cwd: string, snapshot: Snapshot): void {
+async function persist(cwd: string, snapshot: Snapshot): Promise<void> {
   if (!snapshot.subject || !snapshot.planPath) return;
   const projection: Projection = {
     version: PROJECTION_VERSION,
@@ -1783,7 +1782,7 @@ function persist(cwd: string, snapshot: Snapshot): void {
     lastChoice: snapshot.lastChoice,
     history: snapshot.history,
   };
-  writeProjection(cwd, projection);
+  ((await writeProjection(cwd, projection)));
 }
 
 function isTerminal(state: LoopState): boolean {

@@ -178,7 +178,7 @@ export function createBuckLoopActivityLog(options: CreateBuckLoopActivityLogOpti
         if (existsSync(path) && statSync(path).isFile()) {
           await scheduleConfiguredRetain({
             kind: "activity", subjectId: "buck-loop", logicalName: ACTIVITY_LOG_RELPATH.replace(/^\.context\//u, ""),
-            bytes: new TextEncoder().encode(readFileSync(path, "utf8")), worktreeId: root, source: "buck-loop",
+            bytes: new TextEncoder().encode(readFileSync(path, "utf8")), cwd: root, source: "buck-loop",
           });
         }
       });

@@ -1,5 +1,7 @@
 import { resolve } from 'node:path';
-import { toPlanDocument, type PlanDocument, type PlanSource, type PlanSubject } from './types.js';
+import { toPlanDocument } from './types.js';
+import type { PlanDocument, PlanSource, PlanSubject } from './types.js';
+import { withConfiguredStore } from '../../../../../skills/_shared/scripts/workflow-state.js';
 export interface StoredPlan {
   subjectId: string;
   logicalName: string;
@@ -9,9 +11,6 @@ export interface StoredPlan {
 export type PlanLoader = () => Promise<readonly StoredPlan[]>;
 
 async function defaultLoader(): Promise<readonly StoredPlan[]> {
-  const [{ withConfiguredStore }] = await Promise.all([
-    import('../../../../../skills/_shared/scripts/workflow-state.js'),
-  ]);
   const root = process.env.BUCK_WORKFLOW_ROOT ?? resolve(process.cwd(), '../..');
   return withConfiguredStore(root, async (store, context) => {
     if (!context.worktreeId) throw new Error('plan reader requires a trusted worktree identity');
@@ -21,7 +20,7 @@ async function defaultLoader(): Promise<readonly StoredPlan[]> {
       publishedRevisionIds: context.publishedRevisionIds,
     });
     return visible
-      .filter((item) => ['plan', 'phase', 'spec', 'research', 'subject-index'].includes(item.key.kind))
+      .filter((item) => ['plan', 'phase', 'spec', 'research', 'subject-index', 'review', 'iterate', 'brainstorm', 'capture', 'grill', 'memory', 'backlog'].includes(item.key.kind) && item.key.logicalName.endsWith('.md'))
       .map((item) => ({ subjectId: item.key.subjectId, logicalName: item.key.logicalName, bytes: item.bytes }));
   });
 }

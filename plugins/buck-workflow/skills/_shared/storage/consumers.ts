@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { basename, join } from "node:path";
 import { readdir, readFile } from "node:fs/promises";
-import { withConfiguredStore } from "../scripts/workflow-state.js";
+import { resolveConsumerContext, withBoundStore, withConfiguredStore, type TrustedWorkflowContext } from "../scripts/workflow-state.js";
 import { createRunId } from "./identity.js";
 import { revisionHash } from "./adapter-utils.js";
 import type { ArtifactKind, ArtifactKey, ArtifactRevision, RunReceipt, StorageStore } from "./contract.js";
@@ -26,6 +26,7 @@ export interface ConsumerWrite {
   author?: string;
   source?: string;
   links?: readonly ArtifactKey[];
+  expectedRevision?: string | null;
 }
 
 export function consumerKey(scope: ConsumerScope, kind: ArtifactKind, subjectId: string, logicalName: string): ArtifactKey {
@@ -48,16 +49,23 @@ export async function commitConsumerBatch(
   store: StorageStore,
   scope: ConsumerScope,
   writes: readonly ConsumerWrite[],
-  receipt: { attemptId: string; status: RunReceipt["status"]; kind?: RunReceipt["kind"]; metadataDuties?: readonly string[] },
+  receipt: { attemptId: string; status: RunReceipt["status"]; kind?: RunReceipt["kind"]; metadataDuties?: readonly string[]; runId?: string },
 ): Promise<{ revisions: readonly string[]; receipt: RunReceipt }> {
-  const revisions = writes.map((write) => revisionFor(scope, write));
+  const revisions = await Promise.all(writes.map(async (write) => {
+    const current = await store.read(consumerKey(scope, write.kind, write.subjectId, write.logicalName));
+    return revisionFor(scope, {
+      ...write,
+      links: write.links ?? current?.links ?? [],
+      expectedRevision: write.expectedRevision === undefined ? current?.revision ?? null : write.expectedRevision,
+    });
+  }));
   const written = await store.writeBatch(revisions);
-  if (written.length !== revisions.length) throw new Error("uncertain persistence blocks save");
+  await assertBatchReadback(store, revisions, written);
   const stored: RunReceipt = {
     projectId: scope.projectId,
     branchId: scope.branchId,
     worktreeId: scope.worktreeId,
-    runId: scope.runId,
+    runId: receipt.runId ?? scope.runId,
     attemptId: receipt.attemptId,
     status: receipt.status,
     artifactRevisions: written.map((item) => item.revision),
@@ -65,11 +73,19 @@ export async function commitConsumerBatch(
     ...(receipt.metadataDuties ? { metadataDuties: receipt.metadataDuties } : {}),
   };
   await store.writeReceipt(stored);
-  const read = await store.readReceipt(scope.projectId, scope.runId);
+  const read = await store.readReceipt(scope.projectId, stored.runId);
   if (!read) throw new Error("uncertain persistence blocks save");
   assertReceiptReadback(read, stored);
-  if (read.worktreeId !== scope.worktreeId || read.runId !== scope.runId) throw new Error("receipt scope does not match the bound context");
+  if (read.worktreeId !== scope.worktreeId || read.runId !== stored.runId) throw new Error("receipt scope does not match the bound context");
   return { revisions: stored.artifactRevisions, receipt: read };
+}
+
+async function assertBatchReadback(store: StorageStore, expected: readonly ArtifactRevision[], written: readonly ArtifactRevision[]): Promise<void> {
+  if (written.length !== expected.length) throw new Error("uncertain persistence blocks save");
+  for (const revision of expected) {
+    const readback = await store.read(revision.key, revision.revision);
+    if (!readback || readback.revision !== revision.revision || revisionHash(readback.bytes) !== revision.sha256) throw new Error("uncertain persistence blocks save");
+  }
 }
 
 export async function readConsumer(store: StorageStore, scope: ConsumerScope, kind: ArtifactKind, subjectId: string, logicalName: string): Promise<ArtifactRevision | null> {
@@ -99,47 +115,23 @@ function revisionFor(scope: ConsumerScope, write: ConsumerWrite): ArtifactRevisi
     source: write.source ?? "consumer",
     createdAt: new Date().toISOString(),
     links: write.links ?? [],
+    expectedRevision: write.expectedRevision,
   };
 }
 
-export function resumeScope(projectId: string, branchId: string, worktreeId: string): ConsumerScope {
-  return { projectId, branchId, worktreeId, runId: `resume:${worktreeId}`, publishedRevisionIds: [] };
+/** Retain in the bound workspace run; a separate run owns the individual receipt. */
+export async function retainConfiguredArtifact(write: ConsumerWrite & { cwd: string }): Promise<string | null> {
+  const context = await resolveConsumerContext(write.cwd);
+  return retainBoundArtifact(write, context);
 }
 
-export async function writeResumePointer(store: StorageStore, scope: ConsumerScope, bytes: Uint8Array): Promise<string> {
-  const committed = await commitConsumerBatch(store, scope, [{
-    kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json", bytes, source: "buck-loop",
-  }], { attemptId: scope.runId, status: "attempted" });
-  return committed.revisions[0] ?? "";
-}
-
-export async function readResumePointer(store: StorageStore, scope: ConsumerScope): Promise<Uint8Array | null> {
-  const found = await readConsumer(store, scope, "checkpoint", "buck-loop", "workflow/buck-loop.json");
-  return found?.bytes ?? null;
-}
-
-/** Retain one artifact on the configured store with its own receipt-bearing run. Returns the run id for readback. */
-export async function retainConfiguredArtifact(write: {
-  kind: ArtifactKind;
-  subjectId: string;
-  logicalName: string;
-  bytes: Uint8Array;
-  worktreeId?: string;
-  author?: string;
-  source?: string;
-  cwd?: string;
-}): Promise<string | null> {
-  return withConfiguredStore(write.cwd ?? process.cwd(), async (store, context) => {
-    if (!context.worktreeId) throw new Error("Trusted worktree identity is not bound");
-    const runId = createRunId();
-    await commitConsumerBatch(store, {
-      projectId: context.projectId,
-      branchId: context.branchId,
-      worktreeId: context.worktreeId,
-      runId,
-      publishedRevisionIds: context.publishedRevisionIds,
-    }, [write], { attemptId: runId, status: "attempted" });
-    return runId;
+async function retainBoundArtifact(write: ConsumerWrite & { cwd: string }, context: TrustedWorkflowContext): Promise<string> {
+  return withBoundStore(write.cwd, context, async (store) => {
+    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree/run identity is not bound");
+    const scope = { ...context, worktreeId: context.worktreeId, runId: context.runId };
+    const receiptRun = createRunId();
+    await commitConsumerBatch(store, scope, [write], { attemptId: receiptRun, runId: receiptRun, status: "attempted" });
+    return context.runId;
   });
 }
 
@@ -147,8 +139,12 @@ let retainTail: Promise<void> = Promise.resolve();
 let retainFailures: unknown[] = [];
 
 /** Schedule synchronous writers serially; an explicit drain acknowledges accumulated failures. */
-export function scheduleConfiguredRetain(write: Parameters<typeof retainConfiguredArtifact>[0]): Promise<string | null> {
-  const retained = retainTail.then(() => retainConfiguredArtifact(write));
+export function scheduleConfiguredRetain(write: ConsumerWrite & { cwd: string }): Promise<string | null> {
+  // Resolve immediately, not after earlier queued writes finish. Destination and
+  // workspace identity are captured before the queue can observe another config.
+  const bound = resolveConsumerContext(write.cwd);
+  void bound.catch(() => undefined);
+  const retained = retainTail.then(async () => retainBoundArtifact(write, await bound));
   retainTail = retained.then(
     () => undefined,
     (error: unknown) => { retainFailures.push(error); },
@@ -176,9 +172,9 @@ export function classifyContextPath(path: string): { kind: ArtifactKind; subject
   const subjectId = segments[0]!;
   const logicalName = segments.slice(1).join("/");
   const name = segments.at(-1)!;
-  if (name === "index.md") return { kind: "subject-index", subjectId, logicalName: "index.md" };
+  if (logicalName === "index.md") return { kind: "subject-index", subjectId, logicalName };
   const matched = KIND_BY_FILENAME.find(([pattern]) => pattern.test(name));
-  return matched ? { kind: matched[1], subjectId, logicalName } : { kind: "audit", subjectId, logicalName };
+  return { kind: matched?.[1] ?? (name.endsWith(".md") ? "capture" : "audit"), subjectId, logicalName };
 }
 
 export async function flushConfiguredRetains(): Promise<void> {

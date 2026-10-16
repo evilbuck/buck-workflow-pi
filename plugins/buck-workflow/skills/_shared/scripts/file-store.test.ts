@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -146,7 +146,7 @@ describe("file storage adapter", () => {
     const key: ArtifactKey = { projectId: "p", subjectId: "s", kind: "memory", logicalName: "note.md", branchId: "main" };
     const first = revision(key, new TextEncoder().encode("published needle"), null);
     await store.writeBatch([first]);
-    await writeFile(join(root, "context", ...(adapter === "external-files" ? ["main"] : []), "note.md"), "PRIVATE needle edit");
+    await writeFile(join(root, "context", ...(adapter === "external-files" ? ["main"] : []), key.subjectId, key.logicalName), "PRIVATE needle edit");
     const query = { projectId: "p", branchId: "branch-b", publishedRevisionIds: [first.revision], limit: 1 };
     const published = await store.search({ ...query, text: "needle" });
     expect(published.map((item) => item.revision)).toEqual([first.revision]);
@@ -225,15 +225,16 @@ describe("external file adapter", () => {
       const base: ArtifactKey = { projectId: "p", subjectId: "s", kind: "plan", logicalName: "plan.md", branchId: "branch-a", worktreeId: `worktree-${randomUUID()}`, runId: `run-${randomUUID()}` };
       const other = { ...base, worktreeId: `worktree-${randomUUID()}`, runId: `run-${randomUUID()}` };
       await store.writeBatch([revision(base, new TextEncoder().encode("worktree-one"), null), revision(other, new TextEncoder().encode("worktree-two"), null)]);
-      const segment = "h-14833ef89f7fbf7004973d26f3a59858e1174abc6eb74718cf20b74656424142";
-      const root = join(configHome, "buck-workflow", segment, ".context");
-      expect(await readFile(join(root, "branch-a", base.worktreeId!, base.runId!, "plan.md"), "utf8")).toBe("worktree-one");
-      expect(await readFile(join(root, "branch-a", other.worktreeId, other.runId, "plan.md"), "utf8")).toBe("worktree-two");
       expect(new TextDecoder().decode((await store.read(base))!.bytes)).toBe("worktree-one");
+      expect(new TextDecoder().decode((await store.read(other))!.bytes)).toBe("worktree-two");
+      const sibling = { ...base, subjectId: "another-subject" };
+      await store.writeBatch([revision(sibling, new TextEncoder().encode("same run, different subject"), null)]);
+      expect(new TextDecoder().decode((await store.read(base))!.bytes)).toBe("worktree-one");
+      expect(new TextDecoder().decode((await store.read(sibling))!.bytes)).toBe("same run, different subject");
       const escaped = new ExternalFilesStorageStore({ projectKey: "../escape", root: join(configHome, "buck-workflow", "{project}", ".context") });
       await escaped.writeBatch([revision({ ...base, logicalName: "escape.md" }, new TextEncoder().encode("contained"), null)]);
-      expect(await readFile(join(configHome, "buck-workflow", "h-1ba7343c47dc442de7dec43a995deb9a7b62234ecca16d7c6f597b5155bd85b1", ".context", "branch-a", base.worktreeId!, base.runId!, "escape.md"), "utf8")).toBe("contained");
-      await expect(readFile(join(configHome, "escape"))).rejects.toThrow();
+      expect(new TextDecoder().decode((await escaped.read({ ...base, logicalName: "escape.md" }))!.bytes)).toBe("contained");
+      await expect(stat(join(configHome, "escape"))).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       if (previous === undefined) delete process.env.XDG_CONFIG_HOME;
       else process.env.XDG_CONFIG_HOME = previous;

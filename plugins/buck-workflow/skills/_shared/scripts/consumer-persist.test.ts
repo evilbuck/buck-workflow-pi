@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   commitConsumerBatch, flushConfiguredRetains, readConsumer, retainConfiguredArtifact,
   retainPresentationPackage, scheduleConfiguredRetain, listVisiblePlans, type ConsumerScope,
+  classifyContextPath,
 } from "../storage/consumers.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
 import { withConfiguredStore, resolveTrustedContext } from "./workflow-state.js";
@@ -86,6 +88,35 @@ describe("remaining durable consumers", () => {
     expect(visible.map((item) => item.key.logicalName)).toEqual(["plan-demo.md"]);
     store.close();
   });
+
+  it("preserves links and refuses a stale consumer revision without changing native identity", async () => {
+    const store = await opened();
+    try {
+      const bound = scope("wt-1", "run-1");
+      const write = { kind: "plan" as const, subjectId: "demo", logicalName: "plan.md", bytes: new TextEncoder().encode("native body") };
+      const link = { projectId: bound.projectId, branchId: bound.branchId, kind: "spec" as const, subjectId: "demo", logicalName: "spec.md" };
+      const first = await commitConsumerBatch(store, bound, [{ ...write, links: [link], expectedRevision: null }], { attemptId: "same", status: "attempted" });
+      const next = await commitConsumerBatch(store, bound, [{ ...write, bytes: new TextEncoder().encode("consumer update"), expectedRevision: first.revisions[0] }], { attemptId: "same", status: "attempted" });
+      await expect(commitConsumerBatch(store, bound, [{ ...write, expectedRevision: first.revisions[0] }], { attemptId: "same", status: "attempted" })).rejects.toThrow(/revision|stale|conflict/i);
+      const current = await readConsumer(store, bound, "plan", "demo", "plan.md");
+      expect(current).toMatchObject({ revision: next.revisions[0], links: [link], bytes: new TextEncoder().encode("consumer update") });
+      expect((await store.list({ projectId: bound.projectId, branchId: bound.branchId, publishedRevisionIds: [], kind: "plan" })).map((item) => item.key.logicalName)).toEqual(["plan.md"]);
+      const root = classifyContextPath(".context/demo/index.md");
+      const nested = classifyContextPath(".context/demo/notes/index.md");
+      expect(root.kind).toBe("subject-index");
+      expect(nested).toEqual({ kind: "capture", subjectId: "demo", logicalName: "notes/index.md" });
+    } finally { store.close(); }
+  });
+
+  it("keeps nested index content out of canonical lifecycle inspection", async () => {
+    const store = await opened();
+    try {
+      const bound = scope("wt-1", "run-1");
+      await store.transition({ projectId: bound.projectId, branchId: bound.branchId, subjectId: "demo", fromRevision: null, expectedState: "missing", intent: { kind: "initialize" }, evidence: [] });
+      await commitConsumerBatch(store, bound, [{ ...classifyContextPath(".context/demo/notes/index.md"), bytes: new TextEncoder().encode("---\nstatus: completed\n---\n# Nested notes\n") }], { attemptId: "nested", status: "attempted" });
+      expect(await store.inspectLifecycle(bound.projectId, bound.branchId, "demo")).toMatchObject({ state: "draft", effectiveState: "draft", provenance: "canonical" });
+    } finally { store.close(); }
+  });
 });
 
 describe("configured-store retains from synchronous writers", () => {
@@ -115,18 +146,17 @@ describe("configured-store retains from synchronous writers", () => {
     const bytes = new TextEncoder().encode('{"entryKey":"entry-7","totalTokens":32}');
     const runId = await retainConfiguredArtifact({
       kind: "attribution", subjectId: "token-attribution", logicalName: "rows/entry-7.json",
-      bytes, worktreeId: "/repo/worktree-a",
+      bytes, cwd: process.cwd(),
     });
     expect(runId).toBeTruthy();
     const context = await resolveTrustedContext(process.cwd());
-    expect(runId).not.toBe(context.runId);
+    expect(runId).toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
       const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
       await expect(readConsumer(store, readScope, "attribution", "token-attribution", "rows/entry-7.json")).resolves.toMatchObject({ bytes });
-      await expect(store.readReceipt(context.projectId, runId!)).resolves.toMatchObject({
-        attemptId: runId, worktreeId: context.worktreeId, artifactRevisions: [expect.any(String)],
-      });
+      const visible = await readConsumer(store, readScope, "attribution", "token-attribution", "rows/entry-7.json");
+      expect(visible?.key.worktreeId).toBe(context.worktreeId);
       const otherWorktree = { ...readScope, worktreeId: "worktree-other", runId: `${runId}-other` };
       await expect(readConsumer(store, otherWorktree, "attribution", "token-attribution", "rows/entry-7.json")).resolves.toBeNull();
     } finally {
@@ -139,14 +169,14 @@ describe("configured-store retains from synchronous writers", () => {
     writeFileSync(configPath, "not: [valid");
     const failed = scheduleConfiguredRetain({
       kind: "audit", subjectId: "memory-import", logicalName: "failed.json",
-      bytes: new TextEncoder().encode("{}"), worktreeId: "/repo/worktree-a",
+      bytes: new TextEncoder().encode("{}"), cwd: process.cwd(),
     });
     await expect(failed).rejects.toThrow();
     writeFileSync(configPath, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(configPath, "..", "state.sqlite")}\n`);
     process.env.BUCK_WORKFLOW_CONFIG = configPath;
     const succeeded = scheduleConfiguredRetain({
       kind: "audit", subjectId: "memory-import", logicalName: "succeeded.json",
-      bytes: new TextEncoder().encode("{}"), worktreeId: "/repo/worktree-a",
+      bytes: new TextEncoder().encode("{}"), cwd: process.cwd(),
     });
     await expect(succeeded).resolves.toBeTruthy();
     await expect(flushConfiguredRetains()).rejects.toThrow();
@@ -157,19 +187,18 @@ describe("configured-store retains from synchronous writers", () => {
     configureSqlite();
     const retained = scheduleConfiguredRetain({
       kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
-      bytes: new TextEncoder().encode('{"version":1,"files":{}}'), worktreeId: "/repo/worktree-a",
+      bytes: new TextEncoder().encode('{"version":1,"files":{}}'), cwd: process.cwd(),
     });
     const runId = await flushConfiguredRetains().then(() => retained);
     expect(runId).toBeTruthy();
     const context = await resolveTrustedContext(process.cwd());
-    expect(runId).not.toBe(context.runId);
+    expect(runId).toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
       const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
       await expect(readConsumer(store, readScope, "audit", "memory-import", "manifest.json")).resolves.toMatchObject({
         key: { logicalName: "manifest.json" },
       });
-      await expect(store.readReceipt(context.projectId, runId!)).resolves.toMatchObject({ attemptId: runId, status: "attempted" });
     } finally {
       store.close();
     }
@@ -197,20 +226,46 @@ describe("configured-store retains from synchronous writers", () => {
     const bytes = new TextEncoder().encode("{}");
     const runId = await retainConfiguredArtifact({
       kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
-      bytes, worktreeId: "/repo/worktree-a",
+      bytes, cwd: process.cwd(),
     });
     expect(runId).toBeTruthy();
     await withConfiguredStore(process.cwd(), async (store, context) => {
-      expect(runId).not.toBe(context.runId);
+      expect(runId).toBe(context.runId);
       const readScope = {
         projectId: context.projectId, branchId: context.branchId,
         worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [],
       };
       await expect(readConsumer(store, readScope, "audit", "memory-import", "manifest.json"))
         .resolves.toMatchObject({ bytes });
-      await expect(store.readReceipt(context.projectId, runId!))
-        .resolves.toMatchObject({ attemptId: runId, worktreeId: context.worktreeId });
     });
+  });
+
+  it("pins queued writes to the requested worktree and refuses destination changes", async () => {
+    const root = configureSqlite();
+    const left = join(root, "left");
+    const right = join(root, "right");
+    mkdirSync(left);
+    execFileSync("git", ["init", "-q", "-b", "left", left]);
+    execFileSync("git", ["-C", left, "config", "remote.origin.url", "https://example.test/consumer-binding.git"]);
+    execFileSync("git", ["-C", left, "-c", "user.name=fixture", "-c", "user.email=fixture@example.test", "commit", "--allow-empty", "-qm", "fixture"]);
+    execFileSync("git", ["-C", left, "worktree", "add", "-q", "-b", "right", right]);
+    const write = { kind: "checkpoint" as const, subjectId: "loop", logicalName: "pointer.json", bytes: new TextEncoder().encode('{"state":"saving"}'), cwd: right };
+    const retained = scheduleConfiguredRetain(write);
+    const original = `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "state.sqlite")}\n`;
+    writeFileSync(configPath, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "redirect.sqlite")}\n`);
+    const runId = await retained;
+    writeFileSync(configPath, original);
+    await withConfiguredStore(right, async (store, context) => {
+      expect(runId).toBe(context.runId);
+      expect(await readConsumer(store, { ...context, worktreeId: context.worktreeId!, runId: context.runId! }, "checkpoint", "loop", "pointer.json")).toMatchObject({ bytes: write.bytes });
+    });
+    await withConfiguredStore(left, async (store, context) => {
+      expect(await readConsumer(store, { ...context, worktreeId: context.worktreeId!, runId: context.runId! }, "checkpoint", "loop", "pointer.json")).toBeNull();
+    });
+    writeFileSync(configPath, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "redirect.sqlite")}\n`);
+    await expect(scheduleConfiguredRetain(write)).rejects.toThrow(/destination changed/);
+    await expect(flushConfiguredRetains()).rejects.toThrow(/destination changed/);
+    writeFileSync(configPath, original);
   });
 });
 

@@ -1,3 +1,5 @@
+- 2026-10-16 — [Phase 5 standalone save LTM privacy repair](phase-5-ltm-privacy-repair-2026-10-16.md) — active (standalone save now withholds scribe facts from unscoped retain/learn without publication-proven adapter revisions; wire suite 22/22; other Phase-5 review findings remain)
+
 - 2026-10-10 — [Storage adapters Phase 1 save](storage-adapters-phase-1-save-2026-10-10.md) — completed (contract/config/identity in skills/_shared/storage/, A-4 validated, inventory census closed; committed 065b776; loop on phase 2)
 
 - 2026-10-09 — [PR #62 CodeRabbit redaction fix](fix-pr-62-2026-10-09.md) — completed (settled twice: security redaction 85f296e, colon-less URI credentials f21fbb1; Wooderson settlements 5473505374 and 5474612684; all inline threads resolved)

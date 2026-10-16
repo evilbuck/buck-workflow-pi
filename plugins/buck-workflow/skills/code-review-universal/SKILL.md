@@ -238,9 +238,16 @@ Full workflow for reviewing a GitHub PR and posting the result back as **one ato
 bun <skill_dir>/../code-review/scripts/pr-context.ts <pr-url|owner/repo#N|#N|N>
 ```
 
-Creates `.worktrees/pr-<N>/` containing:
-- `pr-context.json` — owner, repo, `head_sha` (pinned commit), changed-file list
-- `pr.diff` — the full base→head diff
+The script retains pinned `pr-context.json` and exact `pr.diff` bytes in the configured run-private adapter, then exports them to `.worktrees/pr-<N>/`. The stdout `retained` block identifies the original SHA pair and revisions.
+
+On restart, from the same **owning source checkout** (not the review worktree), read the retained pin before reviewing:
+
+```bash
+bun <skill_dir>/../code-review/scripts/pr-context.ts --list <pr-ref>
+bun <skill_dir>/../code-review/scripts/pr-context.ts --restore <pr-ref> --head-sha <pinned-head-sha>
+```
+
+Restore reads no `gh` inputs and refuses missing/ambiguous pins or unavailable storage; never substitute local files or a fresh mutable PR fetch. `--out <dir>` changes only the evidence export destination. Restore rebuilds evidence files, not a missing Git source checkout; source inspection must still use the pinned commit. Local exports are not retained authority.
 
 ### Step 2 — Review
 

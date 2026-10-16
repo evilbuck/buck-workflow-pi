@@ -12,32 +12,45 @@ You are processing a single GitHub issue in an isolated worktree.
 ## Inputs
 - Issue number, title, body
 - Worktree path (your cwd)
-- Run state directory: `.context/auto-fix/<run-id>/issue-<n>/`
+- Owning checkout and run ID from pipeline setup (the issue worktree is not the storage owner)
+- Run export directory: `<owning-checkout>/.context/auto-fix/<run-id>/issue-<n>/`
+
+## Retained stage handoff
+
+Run/stage/failure evidence is authoritative in the configured run-private adapter. Local paths are exports, not restart inputs. After producing each stage output in a temporary file, retain it before continuing:
+
+```bash
+bun <skill_dir>/scripts/auto-fix.ts artifact write <run-id> issue-<n>/<stage>.md <output-file> --cwd <owning-checkout>
+bun <skill_dir>/scripts/auto-fix.ts artifact read <run-id> issue-<n>/<stage>.md --cwd <owning-checkout>
+bun <skill_dir>/scripts/auto-fix.ts artifact restore <run-id> --cwd <owning-checkout>
+```
+
+`<stage>` is research, plan, build, or review. Read previous stages with `artifact read`; `artifact restore` rebuilds all exports after restart. Missing retained inputs or storage errors block continuation; never fall back to a local Markdown copy. PR bodies and hard/soft-fail evidence use the same retained service through the completion helpers.
 
 ## Pipeline
-Run each stage in order. Write stage output to the run state directory.
+Run each stage in order. Retain each stage output through the handoff above.
 
 ### 1. b-research
 Investigate the issue body, linked files, and codebase.
-Write findings to `<run-dir>/research.md`.
+Retain findings as `issue-<n>/research.md`.
 
 Read `skill://b-research` for the research workflow.
 
 ### 2. b-plan
 Using research output, create an implementation plan.
-Write to `<run-dir>/plan.md`.
+Retain as `issue-<n>/plan.md`.
 
 Read `skill://b-plan` for the planning workflow.
 
 ### 3. b-build
 Implement the plan using TDD.
-Write build summary to `<run-dir>/build.md`.
+Retain build summary as `issue-<n>/build.md`.
 
 Read `skill://b-build` for the build workflow.
 
 ### 4. b-review
 Review the diff against the plan.
-Write verdict to `<run-dir>/review.md`.
+Retain verdict as `issue-<n>/review.md`.
 
 Read `skill://b-review` for the review workflow.
 
@@ -46,7 +59,7 @@ Read `skill://b-review` for the review workflow.
 - If b-review blocks: report `review_blocked` as hard-fail
 
 ## Output
-All artifacts in `<run-dir>/`. Verdict in `review.md` determines success/fail.
+All evidence is retained under the owning checkout's trusted run-private scope. The retained `review.md` determines success/fail; `<run-dir>/` contains optional exports.
 
 ## CLI
 

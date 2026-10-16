@@ -1,24 +1,20 @@
 /**
- * Saved-run file and resume reconciliation.
+ * Adapter-backed bookmark and resume reconciliation.
  *
- * The projection (`.context/workflow/buck-loop.json`) is a bookmark: which
- * subject, which phase, how many loops, last accepted choice. It is **not**
- * the source of truth. On `--resume`, we rescan the plan/review files and
- * **artifacts win**. Unsafe disagreement (projection says `done` but an
- * incomplete phase exists, or the subject folder vanished) → `blocked`.
+ * The retained checkpoint records subject, phase, counters and last choice.
+ * On resume, visible plan/review artifacts win over that bookmark. Unsafe
+ * disagreement (done versus incomplete, or a vanished subject) blocks.
  *
- * The projection is gitignored via `.git/info/exclude` so it is never
- * committed. No XState snapshot lives here.
+ * `.context/workflow/buck-loop.json` is an optional, gitignored export.
+ * Missing rows and service failures never fall back to that local file.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { consumerKey, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
-import { loadStorageConfigSync } from "../../skills/_shared/storage/config.js";
-import { readPinnedScopeSync } from "../../skills/_shared/scripts/workflow-state.js";
-import { SQLiteStorageStore } from "../../skills/_shared/storage/sqlite-store.js";
-import { phaseFileDone } from "./phase-completion.js";
-import { scan, type ScanResult } from "./scan.js";
+import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
+import { acceptanceCriteria, phaseIsDone } from "./phase-completion.js";
+import { scan, scanDocuments, readLoopDocuments, type ScanResult } from "./scan.js";
 import type { AcceptedChoice, Choice, CommitCheckpoint, LoopState, Snapshot, TransitionRecord } from "./types.js";
 import { unphasedBlockReason } from "./machine.js";
 
@@ -51,7 +47,7 @@ const CHOICE_KINDS: Record<Choice["kind"], true> = {
   block: true,
 };
 
-/** On-disk bookmark. `version` must equal {@link PROJECTION_VERSION} or resume treats it as unreadable. */
+/** Retained bookmark. `version` must equal {@link PROJECTION_VERSION} or resume treats it as unreadable. */
 export type Projection = {
   version: typeof PROJECTION_VERSION;
   state: LoopState;
@@ -108,67 +104,58 @@ function prepareProjectionPath(projectRoot: string): void {
   }
 }
 
-/** Write the bookmark atomically. Creates `.context/workflow/` as needed. */
-export function writeProjection(projectRoot: string, projection: Projection): void {
+/** Retain the bookmark before writing its optional local export. */
+export async function writeProjection(projectRoot: string, projection: Projection): Promise<void> {
+  const body = `${JSON.stringify(projection, null, 2)}\n`;
+  await scheduleConfiguredRetain({
+    kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
+    bytes: new TextEncoder().encode(body), cwd: resolve(projectRoot), source: "buck-loop",
+  });
   prepareProjectionPath(projectRoot);
   const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
   const temporary = `${abs}.${process.pid}.tmp`;
-  const body = `${JSON.stringify(projection, null, 2)}\n`;
   mkdirSync(dirname(abs), { recursive: true });
   writeFileSync(temporary, body, "utf8");
   renameSync(temporary, abs);
-  mirrorResume(projectRoot, new TextEncoder().encode(body));
 }
 
-/** Read and validate the bookmark. Missing or corrupt → `null` (treated as idle / blocked by callers). */
-export function readProjection(projectRoot: string): Projection | null {
-  const mirrored = mirroredResume(projectRoot);
-  const abs = join(resolve(projectRoot), PROJECTION_RELPATH);
-  const raw = mirrored ?? (existsSync(abs) ? readFileSync(abs, "utf8") : null);
-  if (raw === null) return null;
-  try {
-    return normalizeProjection(JSON.parse(raw));
-  } catch {
-    return null;
-  }
-}
-
-function mirrorResume(projectRoot: string, bytes: Uint8Array): void {
-  scheduleConfiguredRetain({
-    kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
-    bytes, cwd: projectRoot, source: "buck-loop",
+/** Missing row is absent; invalid retained bytes are unreadable. Never read an export. */
+async function readProjectionBody(projectRoot: string): Promise<string | null> {
+  const root = resolve(projectRoot);
+  const context = await resolveConsumerContext(root);
+  return withBoundStore(root, context, async (store) => {
+    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree/run identity is not bound");
+    const found = await store.read(consumerKey({ ...context, worktreeId: context.worktreeId, runId: context.runId }, "checkpoint", "buck-loop", "workflow/buck-loop.json"));
+    return found ? new TextDecoder().decode(found.bytes) : null;
   });
 }
 
-function mirroredResume(projectRoot: string): string | null {
-  const selection = loadStorageConfigSync();
-  if (selection.storage.adapter !== "sqlite" || !selection.storage.database) return null;
-  const scope = readPinnedScopeSync(projectRoot);
-  if (!scope) return null;
-  const store = SQLiteStorageStore.openSync(selection.storage.database);
-  try {
-    const found = store.readSync(consumerKey(scope, "checkpoint", "buck-loop", "workflow/buck-loop.json"));
-    return found ? new TextDecoder().decode(found.bytes) : null;
-  } finally { store.close(); }
+export async function readProjection(projectRoot: string): Promise<Projection | null> {
+  const raw = await readProjectionBody(projectRoot);
+  if (raw === null) return null;
+  try { return normalizeProjection(JSON.parse(raw)); }
+  catch { return null; }
 }
 
 
 /**
  * Rebuild a {@link Snapshot} for `--resume`.
  *
- * No file → `idle` (or `resolving` if `path` was passed). Unreadable file →
- * `blocked`. Otherwise rescan the named plan and {@link reconcile}.
+ * No retained row → `idle` (or `resolving` with an explicit path). Invalid
+ * retained bytes → `blocked`. Service failures propagate, never become idle.
  */
-export function resume(opts: ResumeOptions): Snapshot {
+export async function resume(opts: ResumeOptions): Promise<Snapshot> {
   const root = resolve(opts.projectRoot);
-  const file = join(root, PROJECTION_RELPATH);
-  if (!existsSync(file)) {
+  const raw = await readProjectionBody(root);
+  if (raw === null) {
     if (!opts.path) return baseSnapshot("idle", "no projection to resume");
-    return fromScan(scan({ projectRoot: root, path: opts.path, state: "resolving" }), {
+    return fromScan(await scan({ projectRoot: root, path: opts.path, state: "resolving" }), {
       state: "resolving",
     });
   }
-  const projection = readProjection(root);
+  let projection: Projection | null;
+  try { projection = normalizeProjection(JSON.parse(raw)); }
+  catch { projection = null; }
   if (!projection) return baseSnapshot("blocked", "unreadable projection");
   return reconcile(root, projection, opts.path);
 }
@@ -177,9 +164,10 @@ export function resume(opts: ResumeOptions): Snapshot {
  * Merge bookmark + live scan. Subject gone or "done vs incomplete phase"
  * is unsafe → `blocked`. Stale `building` + all phases complete → `done`.
  */
-function reconcile(root: string, projection: Projection, pathOverride?: string): Snapshot {
+async function reconcile(root: string, projection: Projection, pathOverride?: string): Promise<Snapshot> {
+  const documents = await readLoopDocuments(root);
   const subjectDir = join(root, ".context", projection.subject);
-  if (!existsSync(subjectDir)) {
+  if (![...documents.keys()].some((abs) => abs.startsWith(`${subjectDir}/`))) {
     return baseSnapshot("blocked", `subject vanished: ${projection.subject}`, {
       subject: projection.subject,
       planPath: projection.planPath,
@@ -187,18 +175,18 @@ function reconcile(root: string, projection: Projection, pathOverride?: string):
       ...counters(projection),
     });
   }
-  const scanned = scan({
+  const scanned = scanDocuments({
     projectRoot: root,
-    path: projection.commitCheckpoint?.targetPath ?? pathOverride ?? resumePath(root, projection),
+    path: projection.commitCheckpoint?.targetPath ?? pathOverride ?? (documents.has(resolve(root, projection.planPath)) ? projection.planPath : join(".context", projection.subject)),
     state: projection.state,
-  });
-  return reconcileCheckpointOrArtifacts(root, projection, scanned);
+  }, documents);
+  return reconcileCheckpointOrArtifacts(root, projection, scanned, documents);
 }
 
-function reconcileCheckpointOrArtifacts(root: string, projection: Projection, scanned: ScanResult): Snapshot {
+function reconcileCheckpointOrArtifacts(root: string, projection: Projection, scanned: ScanResult, documents: ReadonlyMap<string, string>): Snapshot {
   return reconcileCommit(root, projection, scanned) ??
     reconcileCloseout(projection, scanned) ??
-    keepCompletedProjectedPhase(root, projection, scanned) ??
+    keepCompletedProjectedPhase(root, projection, scanned, documents) ??
     reconcileScanned(projection, scanned);
 }
 
@@ -247,7 +235,7 @@ function checkpointOwned(root: string, projection: Projection, scanned: ScanResu
 function canonicalDiskPaths(root: string, paths: string[]): boolean {
   try {
     const realRoot = realpathSync(root);
-    return paths.every((path) => realpathSync(resolve(root, path)) === resolve(realRoot, path));
+    return paths.every((path) => !existsSync(resolve(root, path)) || realpathSync(resolve(root, path)) === resolve(realRoot, path));
   } catch { return false; }
 }
 
@@ -279,11 +267,13 @@ function keepCompletedProjectedPhase(
   root: string,
   projection: Projection,
   scanned: ScanResult,
+  documents: ReadonlyMap<string, string>,
 ): Snapshot | null {
   if (staleBuildingComplete(projection, scanned)) return null;
   if (scanned.phasePath === projection.phasePath) return null;
   if (!projection.phasePath) return null;
-  if (!projectedPhaseCompleted(root, projection.phasePath)) return null;
+  const text = documents.get(resolve(root, projection.phasePath));
+  if (text === undefined || !phaseIsDone(/^status:\s*(.*)$/m.exec(text)?.[1]?.trim() ?? null, acceptanceCriteria(text))) return null;
   return fromScan(scanned, {
     state: projection.state,
     phasePath: projection.phasePath,
@@ -293,19 +283,11 @@ function keepCompletedProjectedPhase(
   });
 }
 
-function projectedPhaseCompleted(root: string, phasePath: string): boolean {
-  const abs = resolve(root, phasePath);
-  return existsSync(abs) && phaseFileDone(abs);
-}
 
 function staleBuildingComplete(projection: Projection, scanned: ScanResult): boolean {
   return projection.state === "building" && scanned.planFacts.kind === "phased-complete";
 }
 
-function resumePath(root: string, projection: Projection): string {
-  if (existsSync(resolve(root, projection.planPath))) return projection.planPath;
-  return join(".context", projection.subject);
-}
 
 function counters(projection: Projection): Pick<
   Snapshot,

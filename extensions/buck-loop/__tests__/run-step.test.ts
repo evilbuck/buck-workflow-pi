@@ -29,8 +29,7 @@ vi.mock("@mariozechner/pi-coding-agent", async () => {
 vi.mock("../../../skills/_shared/storage/db.js", () => ({ createLazyPool: createLazyPoolMock }));
 import { WORK_SESSION_IDLE_TIMEOUT_MS, runStep, selectBuckStageModel, type WorkModelSelectInput } from "../run-step.js";
 import { cleanupRepos, git, repo } from "./fixtures.js";
-import { completeSaveAttempt, prepareSaveAttempt, verifySqlSave, writeReceipt } from "../sql-save.js";
-import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
+import { completeSaveAttempt, prepareSaveAttempt, recordSaveMetadata, saveSqlFacts, verifySqlSave } from "../sql-save.js";
 
 const dirs: string[] = [];
 function tmp(): string { const dir = mkdtempSync(join(tmpdir(), "buck-loop-run-step-")); dirs.push(dir); return dir; }
@@ -111,12 +110,13 @@ describe("runStep", () => {
     if ("error" in prepared) throw new Error(prepared.error);
     const session = arrange("finished");
     session.prompt.mockImplementation(async () => {
-      writeReceipt(cwd, prepared, { kind: "no-fact", ids: [] });
-      completeSaveAttempt(cwd, prepared);
+      await saveSqlFacts(cwd, prepared, []);
+      await recordSaveMetadata(cwd, prepared, []);
+      await completeSaveAttempt(cwd, prepared);
     });
     const result = await runStep({ select: selectOnce(), cwd, skill: "b-save", planOrPhasePath: "plan.md" });
     expect(result).toEqual({ ok: true, text: "finished" });
-    expect(await verifySqlSave(cwd, prepared.subject, { store: new FileStorageStore({ root: join(cwd, "store") }), context: { projectId: "fixture-project", branchId: "branch-a", publishedRevisionIds: [] } }, true, prepared.attemptId)).toEqual({ status: "verified" });
+    expect(await verifySqlSave(cwd, prepared.subject, {}, true, prepared.attemptId)).toEqual({ status: "verified" });
     expect(createLazyPoolMock).not.toHaveBeenCalled();
   });
   it("records a failed workflow_state call on a save stage without hiding the child report", async () => {

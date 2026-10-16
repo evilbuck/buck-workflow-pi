@@ -20,6 +20,8 @@ steps, then **Eat** — the check that it worked.
 
 1. [Read a workflow artifact by token](read-workflow-artifact-by-token.md)
 2. [Install Bubblewrap for restricted stages](install-bubblewrap-for-restricted-stages.md)
+3. [Restore auto-fix evidence](restore-auto-fix-evidence.md)
+4. [Restore pinned PR evidence](restore-pinned-pr-evidence.md)
 
 ## Why
 

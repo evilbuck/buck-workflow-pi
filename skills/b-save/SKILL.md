@@ -36,17 +36,19 @@ Follow `skills/_shared/workflow-state-access.md`. Write reusable facts with `wor
 
 Do not create or update `.context/memory/` files or `.context/memory/index.md` as a second canonical store. Backlog, phase, spec, and subject-lifecycle duties still run through the same artifact surface.
 
-The supervisor directive names `attemptId`, `runId`, `subject`, `project`, `phase`, and `receipt`. Use those values exactly. Do not record a database URL, password, or connection string.
+When the supervisor supplies a directive, it names `attemptId`, `runId`, `subject`, `project`, `phase`, `receipt`, and the exact fact/apply commands. That directive owns one persisted attempt. Treat the responsibilities below as inputs to its metadata payload, not instructions for separate manual writes.
 
-1. Write the fact through `workflow_state` `write` with `subjectId` equal to the directive subject and `logicalName` `memory/<id-or-slug>.md`. Pass `body`. For a correction, call `correct` with `predecessorRevision` set to the previous revision. Do not assemble SQL.
-2. A tool error blocks the save. Identity errors mean Git origin or user.email is missing; fix and retry rather than bypassing the tool.
-3. Write the receipt projection named by the directive with `attemptId`, `runId`, `subject`, `project`, `kind` (`rows` or `no-fact`), `ids` (returned revision ids), and `probed: true`. No-fact is allowed only when the session has no reusable fact; `ids` must be `[]`. After metadata duties and lifecycle work succeed, add `completed: true`. The store readback, not a model-issued query, proves the write.
-4. Do not issue a read-back SELECT. `workflow_state` receipt completion already verifies same-scope readback.
+1. Collect reusable facts/corrections and run the directive's `facts` command with its exact attempt ID. Use `[]` only when no reusable fact exists. The helper persists facts and returns verified `receipt.path` and `receipt.ids`; do not write independent facts or receipts alongside it.
+2. Run the associated `save-preflight.ts --subject <subject>` from the owning checkout. Preserve its canonical `storage_snapshot` unchanged for conditional metadata updates. Missing checkout exports are not a missing store.
+3. Assemble the normal `save-apply.ts` JSON payload from preflight, consolidated narrative/backlog changes, and verified completion decisions. Include that snapshot and the returned path/IDs in `sql_receipt`. Do not create `.context/memory` bodies/index entries in this mode.
+4. Run the directive's apply command. It seals metadata, moves/deletions and lifecycle duties, then completes and reads back the same durable receipt. Any fact, metadata, receipt or readback failure blocks save success.
+5. Never manually stamp `completed: true` on local JSON, issue a read-back SELECT, or manufacture missing duty evidence. Only the helper's exact complete-receipt readback authorizes completion. Do not record database URLs, passwords or connection strings.
+
 ## The 12 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for context.
 2. **Subject Folder** — Inspect with `bun "$SUBJECT_LIFECYCLE" inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`, then immediately inspect again and retain the refreshed state. Consolidate loose artifacts without editing lifecycle fields.
-3. **Memory Creation** — Create or update the session memory file with the required frontmatter:
+3. **Memory Facts** — Consolidate the session's reusable facts with the required frontmatter; use the directive's fact/metadata payload when present, otherwise the native artifact surface above:
 
    ```yaml
    ---
@@ -67,11 +69,10 @@ The supervisor directive names `attemptId`, `runId`, `subject`, `project`, `phas
    - For new or deferred items: create `items/<slug>.md` and add a linked checkbox to `todo.md`.
    - Only auto-archive explicitly completed items. If completion is inferred, surface it for user decision.
 6. **Spec Status Updates** — Set `status: completed` on finished specs; do not move them.
-7. **Index Update** — Update `.context/memory/index.md` with one entry at the top.
-8. **Native agent memory (OMP only)** — If running in OMP and `retain`/`learn` tools exist, mirror durable session outcomes into harness LTM.
-   - If `retain` is available (OMP with `memory.backend: hindsight` or `mnemopi`), retain 1–N self-contained facts covering decisions, conventions, risks, shipped outcomes, and relevant artifact paths.
-   - If only `learn` is available (OMP `local` backend), learn one concise reusable lesson.
-   - If neither tool exists or the agent is not OMP, skip this step.
+7. **Index Update** — Update retained references through the selected artifact surface, not a second `.context/memory/index.md` authority. A supervisor attempt delegates this metadata duty to apply.
+8. **Native agent memory (OMP only)** — Mirror only exact publication-proven adapter revisions into harness LTM.
+   - Scribe/session facts and branch-local revisions alone are not publication proof.
+   - Without that proof, skip both `retain` and `learn`, even when the tools exist. The current save handoff supplies no publication proof.
    - Do not call the Hindsight HTTP API or run `b-memory-import` during a routine save; that skill is for bulk backfill.
 9. **Memory skill re-index (non-OMP, optional)** — If running outside OMP and a memory skill is configured in the project's `AGENTS.md`, load it and follow its indexing protocol for `.context/memory`. This is best-effort; failures do not block `/b-save`. Skip when no memory skill is configured or when running in OMP.
 10. **Phase State Consolidation** — If discrete phased plan files exist in the subject folder:

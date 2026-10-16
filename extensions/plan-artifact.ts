@@ -32,7 +32,10 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
-import { executeWorkflowState, resolveTrustedContext } from "../skills/_shared/scripts/workflow-state.js";
+import { artifactToken, executeWorkflowState, resolveConsumerContext, withBoundStore, type TrustedWorkflowContext } from "../skills/_shared/scripts/workflow-state.js";
+import { commitConsumerBatch } from "../skills/_shared/storage/consumers.js";
+import { createRunId } from "../skills/_shared/storage/identity.js";
+import type { StorageStore } from "../skills/_shared/storage/contract.js";
 
 const MARKER_TYPE = "plan-artifact";
 
@@ -221,22 +224,21 @@ function readNonemptyPlan(path: string): string | null {
     return null;
   }
 }
-async function openSubject(cwd: string, date: string, slug: string): Promise<string> {
-  const context = await resolveTrustedContext(cwd);
+async function openSubject(cwd: string, context: TrustedWorkflowContext, store: StorageStore, date: string, slug: string): Promise<string> {
   const base = `${date}.${slug}`;
   for (let suffix = 1; suffix < 100; suffix += 1) {
     const subjectId = suffix === 1 ? base : `${base}-${suffix}`;
-    const lifecycle = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { provenance?: string; effectiveState?: string; state?: string; revision?: string } | null;
+    const lifecycle = await executeWorkflowState({ cwd, context, store, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { provenance?: string; effectiveState?: string; state?: string; revision?: string } | null;
     if (lifecycle?.provenance === "malformed") continue;
     if (lifecycle && lifecycle.effectiveState === "completed") continue;
     if (!lifecycle) {
       const written = await executeWorkflowState({
-        cwd, context, role: "write",
-        request: { operation: "write", ref: { subjectId, kind: "subject-index", logicalName: `${subjectId}/index.md` }, body: indexBody(date, subjectId, slug) },
+        cwd, context, store, role: "write",
+        request: { operation: "write", ref: { subjectId, kind: "subject-index", logicalName: "index.md" }, body: indexBody(date, subjectId, slug), expectedRevision: null },
       }) as { revision: string };
-      await executeWorkflowState({ cwd, context, role: "save", request: { operation: "transition", subjectId, fromRevision: written.revision, expectedState: "missing", intent: { kind: "initialize" }, evidence: [] } });
-      const draft = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { revision: string };
-      await executeWorkflowState({ cwd, context, role: "save", request: { operation: "transition", subjectId, fromRevision: draft.revision, expectedState: "draft", intent: { kind: "activate" }, evidence: [] } });
+      await executeWorkflowState({ cwd, context, store, role: "save", request: { operation: "transition", subjectId, fromRevision: written.revision, expectedState: "missing", intent: { kind: "initialize" }, evidence: [] } });
+      const draft = await executeWorkflowState({ cwd, context, store, role: "read", request: { operation: "inspect-lifecycle", subjectId } }) as { revision: string };
+      await executeWorkflowState({ cwd, context, store, role: "save", request: { operation: "transition", subjectId, fromRevision: draft.revision, expectedState: "draft", intent: { kind: "activate" }, evidence: [] } });
     }
     return subjectId;
   }
@@ -252,13 +254,20 @@ async function persistPlanExit(pi: ExtensionAPI, ctx: PlanArtifactContext, exit:
   if (content === null) return;
   const date = new Date().toISOString().slice(0, 10);
   const slug = slugFromPlanUrl(exit.planFilePath);
-  const subject = await openSubject(ctx.cwd, date, slug);
-  const context = await resolveTrustedContext(ctx.cwd);
-  const written = await executeWorkflowState({
-    cwd: ctx.cwd, context, role: "write",
-    request: { operation: "write", ref: { subjectId: subject, kind: "plan", logicalName: `${subject}/plan-${slug}.md` }, body: withFrontmatter(content, { date, subject, planUrl: exit.planFilePath }) },
-  }) as { token: string };
-  pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target: written.token, subject });
+  const context = await resolveConsumerContext(ctx.cwd);
+  if (!context.worktreeId || !context.runId) throw new Error("Plan capture requires a trusted worktree/run identity");
+  const scope = { ...context, worktreeId: context.worktreeId, runId: context.runId };
+  const { subject, token } = await withBoundStore(ctx.cwd, context, async (store) => {
+    const subject = await openSubject(ctx.cwd, context, store, date, slug);
+    const ref = { subjectId: subject, kind: "plan" as const, logicalName: `plan-${slug}.md` };
+    const runId = createRunId();
+    const written = await commitConsumerBatch(store, scope, [{
+      ...ref, bytes: new TextEncoder().encode(withFrontmatter(content, { date, subject, planUrl: exit.planFilePath })),
+      source: "plan-artifact",
+    }], { attemptId: runId, runId, status: "attempted" });
+    return { subject, token: artifactToken({ ...ref, revision: written.revisions[0] }) };
+  });
+  pi.appendEntry(MARKER_TYPE, { exitId: exit.exitId, target: token, subject });
   if (ctx.hasUI) ctx.ui.notify(`plan-artifact: ${subject}/plan-${slug}.md`, "info");
 }
 

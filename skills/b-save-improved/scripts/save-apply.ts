@@ -1,19 +1,22 @@
 #!/usr/bin/env bun
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, writeFileSync,
+  existsSync as fileExistsSync, lstatSync, mkdirSync, readFileSync as fileReadSync, realpathSync, renameSync, rmSync, writeFileSync,
 } from "node:fs";
 import {
   readFrontmatter, setFrontmatterFields, appendFrontmatterListItem, planMemoryRefStyle, extractTitle,
 } from "../../_shared/scripts/context-helpers.js";
 import {
-  applySubjectLifecycleIntent,
-  inspectSubjectLifecycle,
+  applySubjectLifecycleTexts,
+  inspectSubjectLifecycleTexts,
   type SubjectLifecycleResult,
 } from "../../_shared/scripts/subject-lifecycle.js";
-import { withConfiguredStore } from "../../_shared/scripts/workflow-state.js";
-import { classifyContextPath, commitConsumerBatch, type ConsumerWrite } from "../../_shared/storage/consumers.js";
-import { createRunId } from "../../_shared/storage/identity.js";
+import { readSaveSources } from "./save-preflight.js";
+import { classifyContextPath, consumerKey, type ConsumerScope } from "../../_shared/storage/consumers.js";
+import type { ArtifactKey, ArtifactRevision, StorageStore } from "../../_shared/storage/contract.js";
+import { completeSaveAttempt, loadSaveAttempt, prepareSaveAttempt, recordSaveMetadata, resumeSaveMetadata, saveSqlFacts, verifySqlSave, withSaveStore, type SaveAttempt, type SaveStoreDeps } from "../../../extensions/buck-loop/sql-save.js";
+import { randomUUID } from "node:crypto";
+import { revisionHash } from "../../_shared/storage/adapter-utils.js";
 declare const Bun: { stdin: { text(): Promise<string> } };
 
 type Applied = { path: string; action: "created" | "updated" | "moved" | "skipped"; reason: string };
@@ -24,6 +27,25 @@ const dryRun = process.argv.includes("--dry-run");
 const archiveInferred = process.argv.includes("--archive-inferred");
 const report: Report = { applied: [], staged_inferred: [], errors: [] };
 const pendingWrites = new Map<string, string>();
+const sourceArtifacts = new Map<string, ArtifactRevision>();
+const removedSources = new Set<string>();
+const movedFrom = new Map<string, string>();
+let authoritative = false;
+let saveAttempt: SaveAttempt | null = null;
+
+function existsSync(path: string): boolean {
+  const rel = relative(cwd(), resolve(path)).split(sep).join("/");
+  if (!authoritative || !rel.startsWith(".context/")) return fileExistsSync(path);
+  return !removedSources.has(rel) && (pendingWrites.has(rel) || sourceArtifacts.has(rel)
+    || [...sourceArtifacts.keys(), ...pendingWrites.keys()].some(name => name.startsWith(`${rel}/`)));
+}
+function readFileSync(path: string, encoding: "utf8"): string {
+  const rel = relative(cwd(), resolve(path)).split(sep).join("/");
+  if (!authoritative || !rel.startsWith(".context/")) return fileReadSync(path, encoding);
+  const content = pendingWrites.get(rel) ?? (sourceArtifacts.has(rel) ? new TextDecoder().decode(sourceArtifacts.get(rel)!.bytes) : undefined);
+  if (content === undefined || removedSources.has(rel)) throw new Error(`Artifact not in selected storage: ${rel}`);
+  return content;
+}
 function sqlMemoryMode(): boolean {
   return Boolean(process.env.SQL_MEMORY_URL);
 }
@@ -114,14 +136,8 @@ function requiredFile(payload: AnyRecord): string | null {
 
 function missingSqlReceipt(payload: AnyRecord): string | null {
   const receipt = payload.sql_receipt;
-  if (!receipt || typeof receipt.path !== "string" || !Array.isArray(receipt.ids)) return "verified SQL receipt is required";
-  const full = containedUnder(payload.subject.path, receipt.path);
-  if (!existsSync(full)) return "SQL receipt is missing";
-  const stored = JSON.parse(readFileSync(full, "utf8")) as AnyRecord;
-  if (stored.subject !== payload.subject.name || stored.probed !== true
-    || stored.kind !== (receipt.ids.length ? "rows" : "no-fact")
-    || JSON.stringify(stored.ids) !== JSON.stringify(receipt.ids)) return "SQL receipt does not match payload";
-  return null;
+  return !receipt || typeof receipt.path !== "string" || !Array.isArray(receipt.ids)
+    ? "verified SQL receipt is required" : null;
 }
 
 function record(path: string, action: Applied["action"], reason: string): void {
@@ -129,6 +145,10 @@ function record(path: string, action: Applied["action"], reason: string): void {
 }
 
 function mutate(path: string, content: string, reason: string): void {
+  if (removedSources.has(path)) {
+    record(path, "skipped", "source deletion requested");
+    return;
+  }
   const full = containedContextPath(path);
   const action = existsSync(full) ? "updated" : "created";
   if (!dryRun) {
@@ -227,6 +247,7 @@ function applyIndex(payload: AnyRecord, fm: AnyRecord): void {
 
 function applyCrossrefs(payload: AnyRecord): void {
   for (const ref of payload.crossrefs) {
+    if (removedSources.has(ref.path)) continue;
     const full = containedContextPath(ref.path);
     const old = readFileSync(full, "utf8");
     const style = planMemoryRefStyle(old);
@@ -273,6 +294,8 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
     writeFileSync(source, rewritten);
     renameSync(source, destination);
     pendingWrites.set(archivePath, rewritten);
+    removedSources.add(itemPath);
+    movedFrom.set(archivePath, itemPath);
   }
   record(archivePath, "moved", `archive completed backlog item ${item.slug}`);
   const completedPath = ".context/backlog/archive/completed.md";
@@ -303,6 +326,7 @@ function newBacklogItem(payload: AnyRecord, item: AnyRecord): void {
 }
 
 function updateFile(path: string, fields: AnyRecord, reason: string): void {
+  if (removedSources.has(path)) return;
   const old = readFileSync(containedContextPath(path), "utf8");
   const next = setFrontmatterFields(old, fields);
   if (next !== old) mutate(path, next, reason);
@@ -310,8 +334,8 @@ function updateFile(path: string, fields: AnyRecord, reason: string): void {
 
 function fixPhaseTables(payload: AnyRecord): void {
   if (!payload.phase_table_fixes.length) return;
-  const folder = containedContextPath(payload.subject.path);
-  const overview = existsSync(folder) ? readdirSync(folder).find((x) => /phases\.md$/.test(x)) : undefined;
+  const overview = [...sourceArtifacts.keys(), ...pendingWrites.keys()]
+    .filter(path => dirname(path) === payload.subject.path).map(path => basename(path)).find(name => /phases\.md$/.test(name));
   if (!overview) throw new Error("phase overview not found");
   const path = join(payload.subject.path, overview);
   let text = readFileSync(containedContextPath(path), "utf8");
@@ -339,6 +363,7 @@ function applyIterates(payload: AnyRecord): void {
     updateFile(subjectFile(payload, iterate.path), { status: "completed", completed: payload.today }, "complete iterate artifact");
     if (!iterate.addresses) continue;
     const planPath = subjectFile(payload, iterate.addresses);
+    if (removedSources.has(planPath)) continue;
     const old = readFileSync(containedContextPath(planPath), "utf8");
     const next = appendFrontmatterListItem(old, "iterations", basename(iterate.path));
     if (next !== old) mutate(planPath, next, "link completed iterate");
@@ -459,6 +484,7 @@ function applyStatuses(payload: AnyRecord): void {
 
 function applyLoose(payload: AnyRecord): void {
   for (const loose of payload.loose_artifacts) {
+    if (removedSources.has(loose)) continue;
     const source = containedContextPath(loose);
     const destination = containedContextPath(join(payload.subject.path, basename(loose)));
     if (existsSync(destination)) {
@@ -468,35 +494,53 @@ function applyLoose(payload: AnyRecord): void {
     if (!dryRun) {
       mkdirSync(dirname(destination), { recursive: true });
       renameSync(source, destination);
-      pendingWrites.set(join(payload.subject.path, basename(loose)), readFileSync(destination, "utf8"));
+      pendingWrites.set(join(payload.subject.path, basename(loose)), fileReadSync(destination, "utf8"));
+      removedSources.add(loose);
+      movedFrom.set(join(payload.subject.path, basename(loose)), loose);
     }
     record(join(payload.subject.path, basename(loose)), "moved", `consolidate loose artifact ${loose}`);
   }
 }
 
+function lifecycleSubjectFiles(subjectPath: string): Map<string, string> {
+  const files = new Map<string, string>();
+  for (const name of new Set([...sourceArtifacts.keys(), ...pendingWrites.keys()])) {
+    if (dirname(name) === subjectPath && name.endsWith(".md") && !removedSources.has(name)) {
+      files.set(basename(name), readFileSync(containedContextPath(name), "utf8"));
+    }
+  }
+  return files;
+}
+
+function prepareLifecycleText(text: string, files: ReadonlyMap<string, string>): string {
+  if (inspectSubjectLifecycleTexts(text, files).state === "missing") {
+    text = applySubjectLifecycleTexts(text, files, { kind: "initialize" });
+  }
+  if (inspectSubjectLifecycleTexts(text, files).state === "draft" && [...files.keys()].some(name => /^plan-.*\.md$/.test(name))) {
+    text = applySubjectLifecycleTexts(text, files, { kind: "activate" });
+  }
+  return text;
+}
+
 function applyLifecycle(payload: AnyRecord): void {
   if (dryRun) return;
-  const subjectDir = containedContextPath(payload.subject.path);
-  let inspection = inspectSubjectLifecycle(subjectDir);
-  if (inspection.state === "missing") {
-    const initialized = applySubjectLifecycleIntent({ kind: "initialize", subjectDir });
-    if (!initialized.ok) {
-      report.lifecycle = initialized;
-      return;
-    }
-    inspection = inspectSubjectLifecycle(subjectDir);
+  const path = join(payload.subject.path, "index.md");
+  if (removedSources.has(path)) return;
+  const files = lifecycleSubjectFiles(payload.subject.path);
+  let text = files.get("index.md") ?? "";
+  const before = inspectSubjectLifecycleTexts(text, files, payload.subject.path);
+  try {
+    text = prepareLifecycleText(text, files);
+    text = applySubjectLifecycleTexts(text, files, { kind: "close-verified" });
+    const after = inspectSubjectLifecycleTexts(text, files, payload.subject.path);
+    report.lifecycle = { ...after, ok: true, code: "applied", changed: text !== files.get("index.md"), previousState: before.state, resultingState: after.state };
+  } catch (error) {
+    const after = inspectSubjectLifecycleTexts(text, files, payload.subject.path);
+    const message = error instanceof Error ? error.message : String(error);
+    const code = /malformed|ambiguous/.test(message) ? "legacy-ambiguous" : /evidence/.test(message) ? "not-verified" : "invalid-transition";
+    report.lifecycle = { ...after, ok: false, code, changed: text !== files.get("index.md"), previousState: before.state, resultingState: after.state };
   }
-  const hasPlanWork = readdirSync(subjectDir, { withFileTypes: true }).some(
-    (entry) => entry.isFile() && /^plan-.*\.md$/.test(entry.name),
-  );
-  if (inspection.state === "draft" && hasPlanWork) {
-    const activated = applySubjectLifecycleIntent({ kind: "activate", subjectDir });
-    if (!activated.ok) {
-      report.lifecycle = activated;
-      return;
-    }
-  }
-  report.lifecycle = applySubjectLifecycleIntent({ kind: "close-verified", subjectDir });
+  if (text !== files.get("index.md")) mutate(path, text, "apply canonical subject lifecycle");
 }
 
 function validateBacklog(payload: AnyRecord): void {
@@ -537,6 +581,17 @@ function validateLoose(payload: AnyRecord): void {
   }
 }
 
+function validateDeletedSources(payload: AnyRecord): void {
+  for (const deleted of payload.deleted_sources ?? []) {
+    const path = typeof deleted === "string" ? deleted : deleted.path;
+    if (typeof path !== "string") throw new Error("deleted source path is required");
+    containedContextPath(path);
+    if (!path.startsWith(`${payload.subject.path}/`) && !/^\.context\/(?:memory|backlog)\//.test(path)) throw new Error(`deleted source is outside the save scope: ${path}`);
+    const snapshot = payload.storage_snapshot?.[path];
+    if (!snapshot?.revision) throw new Error(`deleted source requires a captured revision: ${path}`);
+  }
+}
+
 function validatePayload(payload: AnyRecord): void {
   validateBacklog(payload);
   if (!sqlMemoryMode()) containedContextPath(payload.memory.path);
@@ -545,9 +600,13 @@ function validatePayload(payload: AnyRecord): void {
   validateSpecPlans(payload);
   validateEvidence(payload.verification_evidence);
   validateLoose(payload);
+  validateDeletedSources(payload);
 }
 
 function applyAll(payload: AnyRecord): void {
+  for (const deleted of payload.deleted_sources ?? []) {
+    removedSources.add(typeof deleted === "string" ? deleted : deleted.path);
+  }
   if (payload.subject.create && !dryRun) mkdirSync(containedContextPath(payload.subject.path), { recursive: true });
   applyIterates(payload);
   const fm = applyMemory(payload);
@@ -587,42 +646,125 @@ function failSchema(message: string): number {
   return 2;
 }
 
-/**
- * File mode writes the `.context` projection, then seals the exact applied bytes
- * plus one attempt receipt on the configured store — the same contract both save
- * pipelines use. Uncertain persistence fails the apply instead of reporting success.
- */
-async function sealAppliedBytes(payload: AnyRecord): Promise<void> {
-  const subjectIndexPath = join(payload.subject.path, "index.md");
-  const indexFull = containedContextPath(subjectIndexPath);
-  if (existsSync(indexFull)) pendingWrites.set(subjectIndexPath, readFileSync(indexFull, "utf8"));
-  if (pendingWrites.size === 0) return;
-  const writes: ConsumerWrite[] = [...pendingWrites.entries()].map(([path, content]) => {
-    const classified = classifyContextPath(path);
-    return {
-      kind: classified.kind,
-      subjectId: classified.subjectId,
-      logicalName: classified.logicalName,
-      bytes: new TextEncoder().encode(content),
-      source: "save-apply",
-    };
-  });
-  const attemptRun = createRunId();
-  await withConfiguredStore(cwd(), async (store, context) => {
-    if (!context.worktreeId) throw new Error("save-apply requires a trusted worktree identity");
-    await commitConsumerBatch(store, {
-      projectId: context.projectId,
-      branchId: context.branchId,
-      worktreeId: context.worktreeId,
-      runId: attemptRun,
-      publishedRevisionIds: context.publishedRevisionIds,
-    }, writes, { attemptId: attemptRun, status: "attempted", metadataDuties: ["projection"] });
-  });
-  report.run_id = attemptRun;
-  pendingWrites.clear();
+function saveSourcePath(item: ArtifactRevision, subjectName: string): string | null {
+  const key = item.key;
+  if (key.subjectId === "save-attempts" || key.kind === "receipt") return null;
+  const path = key.subjectId === "save-apply" ? `.context/${key.logicalName}` : `.context/${key.subjectId}/${key.logicalName}`;
+  if (key.subjectId !== subjectName && !["memory", "backlog", "save-apply"].includes(key.subjectId)) return null;
+  const classified = classifyContextPath(path);
+  return classified.kind === key.kind && classified.subjectId === key.subjectId && classified.logicalName === key.logicalName ? path : null;
 }
 
-export async function runApply(payload: AnyRecord): Promise<number> {
+function assertSourceSnapshot(path: string, snapshot: AnyRecord): void {
+  const current = sourceArtifacts.get(path);
+  if ((current?.revision || null) !== snapshot.revision) throw new Error(`stale revision rejected: ${path}`);
+  if (snapshot.origin === null && current !== undefined) throw new Error(`stale revision rejected: ${path}`);
+  if (snapshot.origin === "repo-projection" && current && new TextDecoder().decode(current.bytes) !== snapshot.text) throw new Error(`stale revision rejected: ${path}`);
+}
+
+function validateSourceSnapshots(payload: AnyRecord): void {
+  for (const [path, snapshot] of Object.entries(payload.storage_snapshot ?? {}) as Array<[string, AnyRecord]>) {
+    if (!path.startsWith(`${payload.subject.path}/`) && !/^\.context\/(?:memory|backlog)\//.test(path) && !sourceArtifacts.has(path)) continue;
+    assertSourceSnapshot(path, snapshot);
+  }
+}
+
+/** Capture read revisions before any local mutation; seal against that snapshot. */
+async function loadSources(payload: AnyRecord, deps: SaveStoreDeps): Promise<void> {
+  await withSaveStore(cwd(), deps, async (store, context) => {
+    const { artifacts } = await readSaveSources(store, context, cwd());
+    for (const item of artifacts.values()) {
+      const path = saveSourcePath(item, payload.subject.name);
+      if (path !== null) sourceArtifacts.set(path, item);
+    }
+    validateSourceSnapshots(payload);
+    authoritative = true;
+    if (dryRun) return;
+    for (const [path, item] of sourceArtifacts) {
+      const full = containedContextPath(path);
+      mkdirSync(dirname(full), { recursive: true });
+      writeFileSync(full, item.bytes);
+    }
+  });
+}
+
+function assertMetadataRevision(expected: ArtifactRevision, actual: ArtifactRevision | null | undefined): void {
+  if (!actual || actual.revision !== expected.revision || actual.sha256 !== expected.sha256) throw new Error("uncertain save metadata persistence");
+}
+
+async function commitMetadataRevisions(store: StorageStore, scope: ConsumerScope, attempt: SaveAttempt, local: readonly ArtifactRevision[], corrections: readonly ArtifactRevision[]): Promise<void> {
+  const stored = await store.writeBatch(local);
+  if (stored.length !== local.length) throw new Error("uncertain save metadata persistence");
+  for (let index = 0; index < local.length; index++) assertMetadataRevision(local[index]!, stored[index]);
+  for (const replacement of corrections) {
+    const corrected = await store.correct({
+      key: replacement.key, predecessorRevision: replacement.expectedRevision!, replacement,
+      idempotencyKey: `${attempt.attemptId}:metadata:${replacement.key.subjectId}:${replacement.key.logicalName}`,
+      publishedRevisionIds: scope.publishedRevisionIds,
+    });
+    assertMetadataRevision(replacement, corrected);
+  }
+}
+
+function metadataRevision(scope: ConsumerScope, path: string, content: string, previous: ArtifactRevision | undefined): ArtifactRevision {
+  const classified = classifyContextPath(path);
+  const bytes = new TextEncoder().encode(content);
+  return { key: consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName), revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "buck-save", source: "save-apply", createdAt: new Date().toISOString(), links: previous?.links ?? sourceArtifacts.get(movedFrom.get(path) ?? "")?.links ?? [], expectedRevision: previous?.revision || null };
+}
+
+async function sealAppliedBytes(deps: SaveStoreDeps, metadataDigest: string): Promise<void> {
+  if (!saveAttempt) throw new Error("Save attempt is not bound");
+  const attempt = saveAttempt;
+  await withSaveStore(cwd(), deps, async (store, context) => {
+    const local: ArtifactRevision[] = [];
+    const corrections: ArtifactRevision[] = [];
+    const writes: ArtifactRevision[] = [...pendingWrites.entries()].map(([path, content]) => {
+      const previous = sourceArtifacts.get(path);
+      const revision = metadataRevision(context, path, content, previous);
+      if (previous?.revision && previous.key.branchId !== context.branchId) corrections.push(revision);
+      else local.push(revision);
+      return revision;
+    });
+    await commitMetadataRevisions(store, context, attempt, local, corrections);
+    const removed: ArtifactKey[] = [];
+    for (const path of removedSources) {
+      const previous = sourceArtifacts.get(path);
+      if (!previous?.revision) continue;
+      const key = { ...previous.key, branchId: context.branchId };
+      await store.correct({ key, predecessorRevision: previous.revision, replacement: null, idempotencyKey: `${attempt.attemptId}:remove:${path}`, publishedRevisionIds: context.publishedRevisionIds });
+      rmSync(containedContextPath(path), { force: true });
+      removed.push(key);
+    }
+    await recordSaveMetadata(cwd(), attempt, writes, removed, { store, context }, metadataDigest);
+    await completeSaveAttempt(cwd(), attempt, { store, context });
+  });
+  report.run_id = attempt.runId;
+}
+
+async function bindApplyAttempt(payload: AnyRecord, deps: SaveStoreDeps): Promise<SaveAttempt> {
+  if (!sqlMemoryMode()) {
+    const prepared = prepareSaveAttempt(cwd(), payload.subject.name);
+    if ("error" in prepared) throw new Error(prepared.error);
+    await saveSqlFacts(cwd(), prepared, [], deps);
+    return prepared;
+  }
+  const attempt = await loadSaveAttempt(cwd(), deps);
+  if (!attempt || attempt.subject !== payload.subject.name) throw new Error("Durable SQL save attempt is missing");
+  const check = await verifySqlSave(cwd(), payload.subject.name, deps, false, attempt.attemptId);
+  if (check.status !== "verified") throw new Error(check.status === "block" ? check.reason : "SQL save facts are not verified");
+  await withSaveStore(cwd(), deps, async (store, context) => {
+    const receipt = await store.readReceipt(context.projectId, attempt.runId);
+    if (JSON.stringify(receipt?.artifactRevisions) !== JSON.stringify(payload.sql_receipt.ids)) throw new Error("SQL receipt does not match payload");
+  });
+  return attempt;
+}
+
+function schemaError(payload: AnyRecord): string | null {
+  try { return required(payload); }
+  catch (error) { return error instanceof Error ? error.message : String(error); }
+}
+
+export async function runApply(payload: AnyRecord, deps: SaveStoreDeps = {}): Promise<number> {
   report.applied = [];
   report.staged_inferred = [];
   report.errors = [];
@@ -630,15 +772,26 @@ export async function runApply(payload: AnyRecord): Promise<number> {
   delete report.lifecycle;
   delete report.run_id;
   pendingWrites.clear();
-  let invalid: string | null;
-  try { invalid = required(payload); }
-  catch (error) { invalid = error instanceof Error ? error.message : String(error); }
+  sourceArtifacts.clear();
+  removedSources.clear();
+  movedFrom.clear();
+  authoritative = false;
+  saveAttempt = null;
+  const invalid = schemaError(payload);
   if (invalid) return failSchema(invalid);
   defaults(payload);
+  const { storage_snapshot: _snapshot, ...metadataInput } = payload;
+  const metadataDigest = revisionHash(new TextEncoder().encode(JSON.stringify(metadataInput)));
   try {
     validatePayload(payload);
-    applyAll(payload);
-    if (!dryRun) await sealAppliedBytes(payload);
+    if (!dryRun) saveAttempt = await bindApplyAttempt(payload, deps);
+    const replayed = !dryRun && saveAttempt && await resumeSaveMetadata(cwd(), saveAttempt, metadataDigest, deps);
+    if (replayed) report.run_id = saveAttempt!.runId;
+    else {
+      await loadSources(payload, deps);
+      applyAll(payload);
+      if (!dryRun) await sealAppliedBytes(deps, metadataDigest);
+    }
   } catch (error) { report.errors.push(error instanceof Error ? error.message : String(error)); }
   console.log(JSON.stringify(report));
   return report.errors.length ? 1 : 0;

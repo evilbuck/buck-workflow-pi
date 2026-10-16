@@ -8,7 +8,6 @@
  * effects are injected so the sequencing is unit-testable end to end.
  */
 
-import { readFileSync } from "node:fs";
 import { join, relative, isAbsolute } from "node:path";
 import type { CatalogLoad, FixerSelection, ModelCatalogEntry } from "./catalog.js";
 import { reviewerThinking, selectFixerModel, thinkingFor } from "./catalog.js";
@@ -51,6 +50,7 @@ import {
   findResumable,
   newRunId,
   passDirFor,
+  readPassArtifact,
   saveState,
   validateResume,
   writePassFixer,
@@ -523,7 +523,7 @@ function newLoopState(ctx: LoopContext, head: string, fingerprint: string): RunS
 
 async function tryResume(deps: LoopDeps, ctx: LoopContext): Promise<void> {
   if (!ctx.options.resume) return;
-  const resumable = findResumable(ctx.commonDir, ctx.branch);
+  const resumable = await findResumable(ctx.commonDir, ctx.branch, ctx.cwd);
   if (!resumable) return;
   const check = validateResume(resumable.state, {
     head: resolveHead(ctx.cwd),
@@ -545,28 +545,24 @@ async function tryResume(deps: LoopDeps, ctx: LoopContext): Promise<void> {
   deps.notify(`Resuming run ${resumable.state.run_id} at pass ${resumable.state.pass + 1}.`, "info");
 }
 
-function readJsonIfExists<T>(path: string): T | null {
-  try {
-    return JSON.parse(readFileSync(path, "utf-8")) as T;
-  } catch {
-    return null;
-  }
+async function readRetainedJson<T>(runDir: string, pass: number, file: string): Promise<T | null> {
+  const body = await readPassArtifact(runDir, pass, file);
+  return body === null ? null : JSON.parse(body) as T;
 }
 
 async function writeTerminalReport(deps: LoopDeps, ctx: LoopContext, finalHead: string): Promise<string | null> {
   if (!ctx.runDir || !ctx.state) return null;
   const passes = [];
   for (let pass = 1; pass <= ctx.state.pass; pass++) {
-    const dir = passDirFor(ctx.runDir, pass);
     passes.push({
       pass,
-      review: readJsonIfExists<PassReviewRecord>(join(dir, "review.json")),
-      fixer: readJsonIfExists<PassFixerRecord>(join(dir, "fixer.json")),
+      review: await readRetainedJson<PassReviewRecord>(ctx.runDir, pass, "review.json"),
+      fixer: await readRetainedJson<PassFixerRecord>(ctx.runDir, pass, "fixer.json"),
     });
   }
-  const subject = resolveReportSubject(deps.contextDir(ctx.cwd));
+  const subject = await resolveReportSubject(deps.contextDir(ctx.cwd), ctx.cwd);
   const markdown = renderFinalReport({ state: ctx.state, passes, runDir: ctx.runDir, finalHead });
-  const path = writeFinalReport(subject.dir, ctx.state.run_id, markdown);
+  const path = await writeFinalReport(subject.dir, ctx.state.run_id, markdown, ctx.cwd);
   if (subject.created) deps.notify(`No active subject; created ${subject.dir}.`, "info");
   return path;
 }
@@ -583,8 +579,14 @@ async function terminalResult(
   status: RunState["status"],
   reason: string,
 ): Promise<LoopResult> {
-  await terminalize(ctx, status, reason);
+  if (ctx.state) {
+    ctx.state.status = status;
+    ctx.state.terminal = { reason, at: new Date().toISOString() };
+  }
+  // Retain the report before recording clean. A failed report must leave the
+  // persisted run resumable rather than advertise a clean terminal state.
   const reportPath = await writeTerminalReport(deps, ctx, resolveHead(ctx.cwd));
+  await terminalize(ctx, status, reason);
   if (status === "clean" && reportPath) {
     const rel = repoRelative(ctx.cwd, reportPath);
     if (rel) checkpointCommit(ctx.cwd, [rel], "docs(code-review): record review-iteration report");
@@ -616,7 +618,7 @@ async function bootstrapRun(deps: LoopDeps, ctx: LoopContext): Promise<void> {
   if (ctx.state) return;
   const pre = capturePreRun(ctx.cwd);
   ctx.state = newLoopState(ctx, pre.head, worktreeFingerprint(ctx.cwd));
-  const created = createRun(ctx.commonDir, ctx.state);
+  const created = await createRun(ctx.commonDir, ctx.state, ctx.cwd);
   ctx.runDir = created.dir;
   ctx.state = created.state;
 }
@@ -625,20 +627,19 @@ interface MachineRuntime extends ReviewProjection {
   state: ReviewState;
 }
 
-function currentPassArtifacts(ctx: LoopContext): {
+async function currentPassArtifacts(ctx: LoopContext): Promise<{
   review: PassReviewRecord | null;
   fixer: PassFixerRecord | null;
-} {
+}> {
   if (!ctx.state || !ctx.runDir || ctx.state.pass < 1) return { review: null, fixer: null };
-  const dir = passDirFor(ctx.runDir, ctx.state.pass);
   return {
-    review: readJsonIfExists<PassReviewRecord>(join(dir, "review.json")),
-    fixer: readJsonIfExists<PassFixerRecord>(join(dir, "fixer.json")),
+    review: await readRetainedJson<PassReviewRecord>(ctx.runDir, ctx.state.pass, "review.json"),
+    fixer: await readRetainedJson<PassFixerRecord>(ctx.runDir, ctx.state.pass, "fixer.json"),
   };
 }
 
-function seedResumePosition(deps: LoopDeps, ctx: LoopContext, runtime: MachineRuntime): void {
-  const artifacts = currentPassArtifacts(ctx);
+async function seedResumePosition(deps: LoopDeps, ctx: LoopContext, runtime: MachineRuntime): Promise<void> {
+  const artifacts = await currentPassArtifacts(ctx);
   if (artifacts.review && !artifacts.fixer) {
     runtime.state = "triaging";
     runtime.review = artifacts.review;
@@ -690,7 +691,7 @@ async function executeBasePreparation(
   runtime.baseReady = true;
   runtime.baseError = undefined;
   await persistPreparedPosition(ctx);
-  seedResumePosition(deps, ctx, runtime);
+  await seedResumePosition(deps, ctx, runtime);
 }
 
 async function executeReviewerPass(

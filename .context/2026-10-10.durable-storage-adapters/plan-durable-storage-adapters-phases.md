@@ -8,6 +8,7 @@ phases: 8
 format: discrete
 sql_memory_ids:
   - 01a132bf-ba55-7008-acbb-78c3429e4d98
+  - 01a142ea-44af-78b1-9b4f-afb0fc5a9503
 ---
 
 # Phased Plan: Configurable durable workflow storage

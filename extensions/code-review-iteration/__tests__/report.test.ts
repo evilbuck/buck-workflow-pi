@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { renderPassReviewMarkdown, renderFinalReport, resolveReportSubject, writeFinalReport } from "../report.js";
 import type { PassFixerRecord, PassReviewRecord, RunState } from "../run-state.js";
 import type { ValidatedFinding } from "../findings.js";
+import { flushConfiguredRetains } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const finding: ValidatedFinding = {
   id: "F1",
@@ -115,8 +117,9 @@ describe("renderFinalReport", () => {
 });
 
 describe("resolveReportSubject", () => {
-  it("prefers the newest active subject", () => {
-    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+  it("prefers the newest active subject", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    const ctx = join(root, ".context");
     try {
       for (const [name, status] of [
         ["2026-09-01.older", "active"],
@@ -127,33 +130,35 @@ describe("resolveReportSubject", () => {
         mkdirSync(join(ctx, name), { recursive: true });
         writeFileSync(join(ctx, name, "index.md"), `---\nstatus: ${status}\n---\n`);
       }
-      const subject = resolveReportSubject(ctx);
+      const subject = await resolveReportSubject(ctx, root);
       expect(subject.dir).toBe(join(ctx, "2026-09-10.newer"));
       expect(subject.created).toBe(false);
     } finally {
-      rmSync(ctx, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("creates a fresh review subject when none is active", () => {
-    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+  it("creates a fresh review subject when none is active", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    const ctx = join(root, ".context");
     try {
-      const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
+      const subject = await resolveReportSubject(ctx, root, new Date("2026-09-12T12:00:00Z"));
       expect(subject.created).toBe(true);
       expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration"));
       const index = readFileSync(join(subject.dir, "index.md"), "utf-8");
       expect(index).toMatch(/status: active/);
       expect(index).toMatch(/lifecycle_schema: 1/);
-      const path = writeFinalReport(subject.dir, "run-1", "# report");
+      const path = await writeFinalReport(subject.dir, "run-1", "# report", root);
       expect(path).toBe(join(subject.dir, "review-iteration-run-1.md"));
       expect(existsSync(path)).toBe(true);
     } finally {
-      rmSync(ctx, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("creates a distinct subject instead of reusing a completed same-day report subject", () => {
-    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+  it("creates a distinct subject instead of reusing a completed same-day report subject", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    const ctx = join(root, ".context");
     try {
       const completed = join(ctx, "2026-09-12.code-review-iteration");
       mkdirSync(completed, { recursive: true });
@@ -162,19 +167,20 @@ describe("resolveReportSubject", () => {
         "---\nstatus: completed\nlifecycle_schema: 1\nlifecycle_revision: 2\nlifecycle_last_transition: close-verified\n---\n",
       );
 
-      const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
+      const subject = await resolveReportSubject(ctx, root, new Date("2026-09-12T12:00:00Z"));
 
       expect(subject.created).toBe(true);
       expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration-2"));
       expect(readFileSync(join(completed, "index.md"), "utf8")).not.toContain("status: active");
       expect(readFileSync(join(subject.dir, "index.md"), "utf8")).toContain("status: active");
     } finally {
-      rmSync(ctx, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("ignores malformed active-looking subjects", () => {
-    const ctx = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+  it("ignores malformed active-looking subjects", async () => {
+    const root = mkdtempSync(join(tmpdir(), "cr-ctx-"));
+    const ctx = join(root, ".context");
     try {
       const malformed = join(ctx, "2026-09-11.malformed");
       mkdirSync(malformed, { recursive: true });
@@ -183,12 +189,54 @@ describe("resolveReportSubject", () => {
         "---\nstatus: active\nlifecycle_schema: 1\nlifecycle_revision: nope\nlifecycle_last_transition: activate\n---\n",
       );
 
-      const subject = resolveReportSubject(ctx, new Date("2026-09-12T12:00:00Z"));
+      const subject = await resolveReportSubject(ctx, root, new Date("2026-09-12T12:00:00Z"));
 
       expect(subject.created).toBe(true);
       expect(subject.dir).toBe(join(ctx, "2026-09-12.code-review-iteration"));
     } finally {
-      rmSync(ctx, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("selects an adapter-only active subject instead of inventing a new local subject", async () => {
+    const root = mkdtempSync(join(tmpdir(), "report-adapter-"));
+    const previous = process.env.BUCK_WORKFLOW_CONFIG;
+    const config = join(root, "storage.yaml");
+    writeFileSync(config, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "records.sqlite")}\n`);
+    process.env.BUCK_WORKFLOW_CONFIG = config;
+    const subjectId = "2026-09-12.retained";
+    try {
+      await withConfiguredStore(root, async (store, context) => {
+        const scope = { projectId: context.projectId, branchId: context.branchId, subjectId };
+        const draft = await store.transition({ ...scope, fromRevision: null, expectedState: "missing", intent: { kind: "initialize" }, evidence: [] });
+        await store.transition({ ...scope, fromRevision: draft, expectedState: "draft", intent: { kind: "activate" }, evidence: [draft] });
+      });
+      expect(existsSync(join(root, ".context"))).toBe(false);
+      expect(await resolveReportSubject(join(root, ".context"), root)).toEqual({ dir: join(root, ".context", subjectId), created: false });
+    } finally {
+      if (previous === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previous;
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+it("refuses terminal report success when the selected store cannot retain it", async () => {
+  const root = mkdtempSync(join(tmpdir(), "report-fault-"));
+  const previous = process.env.BUCK_WORKFLOW_CONFIG;
+  const config = join(root, "invalid.yaml");
+  writeFileSync(config, "storage: [invalid");
+  process.env.BUCK_WORKFLOW_CONFIG = config;
+  try {
+    const local = join(root, ".context", "2026-09-12.local");
+    mkdirSync(local, { recursive: true });
+    writeFileSync(join(local, "index.md"), "---\nstatus: active\n---\n");
+    await expect(resolveReportSubject(join(root, ".context"), root)).rejects.toThrow(/config/);
+    await expect(writeFinalReport(root, "failed-retain", "# report", root)).rejects.toThrow(/config/);
+    await expect(flushConfiguredRetains()).rejects.toThrow(/config/);
+  } finally {
+    if (previous === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+    else process.env.BUCK_WORKFLOW_CONFIG = previous;
+    rmSync(root, { recursive: true, force: true });
+  }
 });

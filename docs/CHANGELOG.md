@@ -12,6 +12,13 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **Consumer persistence binds the checkout and configured destination.** Queued writes retain their trusted destination, conditional updates preserve typed links, and nested Markdown indexes cannot overwrite subject lifecycle metadata. Run-private file projections stay outside the checkout.
+- **Review iteration waits for retained state and reports.** Resume and command/pass evidence read the selected adapter rather than optional exports; a failed terminal-report retain cannot advertise a clean run.
+- **Turn-memory windows have independent receipt attempts.** Success requires retained-byte readback and a complete receipt; replay reuses the completed attempt. The host's consumed-window policy is unchanged.
+- **The plan reader keeps visible linked Markdown.** Reviews, iterations, brainstorms and nested knowledge remain available through the existing source seam, without exposing private execution records or binary attachments.
+- **Save completion requires one durable facts-and-metadata attempt.** Both save entrypoints preserve captured revisions/links, retire moved or deleted source keys, and read back the exact complete receipt. Local completion flags cannot authorize success; unproven private facts remain withheld from harness LTM.
+- **Importer cursors and attribution reports use retained authority.** Missing exports do not lose cursor/dedupe state, persistence failures stay visible and repairable, and host-owned session/stats tables remain untouched.
+- **Auto-fix and pinned PR evidence survive export removal.** Run/stage/failure bytes and original SHA-pair context/raw diff are retained under the owning checkout's private scope; offline list/restore never substitutes local files or mutable PR metadata.
 - **File storage serializes overlapping operations and preserves projection recovery.** Unsafe artifact/namespace identities are refused before committing. A post-commit projection failure reports the committed generation explicitly and leaves an atomic recovery journal, preventing unfinished projections from becoming false direct-file edits.
 - **Additive PostgreSQL migrations reject unknown computed expressions.** Literal defaults, built-in casts, required key/reference/check forms, and the reviewed timestamp default remain supported. Migration 003 adds project-scoped branch incarnation/ref/lineage records without changing applied migration checksums.
 

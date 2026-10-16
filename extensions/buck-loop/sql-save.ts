@@ -1,30 +1,21 @@
-/**
- * Save receipts for the Buck-loop supervisor.
- *
- * The supervisor generates the attempt id before `b-save` starts. Fact writes
- * go through `workflow_state`; receipt ids are the revision ids that write
- * returns. There is no follow-up memories SELECT. The database URL is never
- * written to the attempt file or the receipt.
- */
+/** One attempt owns fact writes, metadata evidence, and the exact durable receipt. */
 import { createHash, randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { SqlMemoryActivitySink } from "../sql-memory/index.js";
-import type { ArtifactKind } from "../../skills/_shared/storage/contract.js";
-import type { StorageStore } from "../../skills/_shared/storage/contract.js";
+import type { ArtifactKey, ArtifactRevision, RunReceipt, StorageStore } from "../../skills/_shared/storage/contract.js";
 import {
-  executeWorkflowState,
-  resolveTrustedContext,
-  type ArtifactRef,
+  executeWorkflowState, resolveConsumerContext, resolveTrustedContext, withBoundStore,
   type TrustedWorkflowContext,
-  type WorkflowRequest,
 } from "../../skills/_shared/scripts/workflow-state.js";
+import { consumerKey } from "../../skills/_shared/storage/consumers.js";
+import { revisionHash } from "../../skills/_shared/storage/adapter-utils.js";
 import { redactRemoteCredentials } from "../token-attribution/git-identity.js";
 
 const ATTEMPT_REL = ".context/workflow/sql-save-attempt.json";
 const SECRET_KEY = /password|connection|database_url|sql_memory_url|^url$/i;
-
 export interface SaveAttempt {
   attemptId: string;
   runId: string;
@@ -33,7 +24,6 @@ export interface SaveAttempt {
   phase: string | null;
   receiptRel: string;
 }
-
 export interface SaveReceipt {
   attemptId: string;
   runId: string;
@@ -44,13 +34,7 @@ export interface SaveReceipt {
   probed: true;
   completed?: true;
 }
-
-export type SaveCheck =
-  | { status: "skip" }
-  | { status: "verified" }
-  | { status: "unverified" }
-  | { status: "block"; reason: string };
-
+export type SaveCheck = { status: "skip" } | { status: "verified" } | { status: "unverified" } | { status: "block"; reason: string };
 export interface SaveStoreDeps {
   cwd?: string;
   store?: StorageStore;
@@ -59,522 +43,353 @@ export interface SaveStoreDeps {
   configPath?: string;
   onActivity?: SqlMemoryActivitySink;
 }
-
 export type SaveFact = string | { body: string; supersedes?: string };
-
-/** True when the process was given a durable-save target. The URL itself is not persisted or queried. */
-export function sqlMode(): boolean {
-  return Boolean(process.env.SQL_MEMORY_URL);
+/** Named so the projection's refusal is a distinct domain outcome, not an anonymous shape. */
+export interface PrepareError { error: string }
+export type PrepareResult = SaveAttempt | PrepareError;
+interface Evidence { key: ArtifactKey; revision: string; sha256: string }
+interface AttemptState {
+  attempt: SaveAttempt;
+  factsDigest: string;
+  ids: string[];
+  facts: Evidence[];
+  metadata?: Evidence[];
+  removed?: ArtifactKey[];
+  metadataDigest?: string;
 }
+type BoundContext = TrustedWorkflowContext & { worktreeId: string; runId: string };
+export function sqlMode(): boolean { return Boolean(process.env.SQL_MEMORY_URL); }
 
-/** Prepare a new cycle before its saving projection is persisted. */
-export function prepareSaveAttempt(cwd: string, subject: string, reuse = false, phase: string | null = null): SaveAttempt | { error: string } {
-  if (!safeSubject(subject)) return { error: "SQL save subject path is not a single subject folder." };
+/** Synchronous supervisor projection; the first store operation persists and binds it. */
+export function prepareSaveAttempt(cwd: string, subject: string, reuse = false, phase: string | null = null): PrepareResult {
+  if (!/^[\w.-]+$/.test(subject) || subject === "." || subject === "..") return { error: "SQL save subject path is not a single subject folder." };
   const project = projectOrigin(cwd);
   if (!project) return { error: "Shared SQL memory is configured, but project identity could not be established; no save was started." };
   const previous = readAttempt(cwd);
   if (reuse && previous?.subject === subject && previous.project === project && previous.phase === phase) return previous;
-  const attempt = attemptFor(subject, project, phase);
+  const attemptId = randomUUID();
+  const attempt = { attemptId, runId: `run-${randomUUID()}`, subject, project, phase, receiptRel: join(".context", subject, "sql-memory-receipts", `${attemptId}.json`) };
   writeJson(cwd, ATTEMPT_REL, attempt);
   return attempt;
 }
 
-/** A receipt is not save-stage proof until all metadata work has succeeded. */
-export function completeSaveAttempt(cwd: string, attempt: SaveAttempt): void {
-  const receipt = readReceipt(cwd, attempt);
-  if (!receipt || receiptShape(receipt, attempt).status !== "verified") throw new Error("SQL save receipt is missing or invalid");
-  writeJson(cwd, attempt.receiptRel, { ...receipt, completed: true });
+/** Completion observes durable metadata evidence, never a local completed flag. */
+export async function completeSaveAttempt(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps = {}): Promise<void> {
+  await withSaveStore(cwd, deps, async (store, context) => {
+    const state = await readState(store, context, attempt);
+    if (!state?.metadata) throw new Error("SQL save metadata evidence is missing or invalid");
+    await confirmEvidence(store, state);
+    const expected = receiptFor(context, state, "complete");
+    const existing = await store.readReceipt(context.projectId, attempt.runId);
+    if (!exactReceipt(existing, expected)) {
+      if (!exactReceipt(existing, { ...expected, status: "attempted" })) throw new Error("SQL save attempted receipt is missing or invalid");
+      await store.writeReceipt(expected);
+    }
+    if (!exactReceipt(await store.readReceipt(context.projectId, attempt.runId), expected)) throw new Error("Durable save receipt readback mismatch");
+    writeJson(cwd, attempt.receiptRel, { ...localReceipt(state), completed: true });
+  });
 }
 
-/** Child-facing contract. This is not a repair diagnosis. */
 export function saveDirective(attempt: SaveAttempt): string {
   return [
-    "SQL save attempt.",
-    `attemptId: ${attempt.attemptId}`,
-    `runId: ${attempt.runId}`,
-    `subject: ${attempt.subject}`,
-    `project: ${attempt.project}`,
-    `phase: ${attempt.phase ?? "null"}`,
-    `receipt: ${attempt.receiptRel}`,
-    "Connectivity probe succeeded.",
-    "Do not write .context/memory files or the memory index.",
-    "Do not record the database URL, password, or connection string in any file.",
-    "Use workflow_state write for a memory artifact with the exact subject above; use correct with previousId as predecessorRevision. The tool binds project and branch. Do not call sql_memory, construct SQL, or issue a separate read-back SELECT. Write a rows receipt only from revision ids returned by successful writes. Use kind no-fact with ids [] only when this session has no reusable fact.",
-    "After all metadata duties succeed, set completed: true on the receipt; persistence alone is not stage completion.",
+    "Durable save attempt.", `attemptId: ${attempt.attemptId}`, `runId: ${attempt.runId}`, `subject: ${attempt.subject}`,
+    `project: ${attempt.project}`, `phase: ${attempt.phase ?? "null"}`, `receipt: ${attempt.receiptRel}`,
+    `Persist facts first: run bun ${JSON.stringify(fileURLToPath(import.meta.url))} facts with stdin JSON {"attemptId":${JSON.stringify(attempt.attemptId)},"facts":[...]} (strings or {body,supersedes}; [] for no reusable facts). Use its returned receipt.path and receipt.ids in sql_receipt.`,
+    `Apply ALL metadata using bun ${JSON.stringify(fileURLToPath(new URL("../../skills/b-save-improved/scripts/save-apply.ts", import.meta.url)))} with the normal save payload on stdin, including sql_receipt and storage_snapshot from save-preflight. This seals metadata and completes this same durable attempt. Do not perform separate manual metadata writes or completion.`,
+    "Do not write .context/memory files or the memory index in SQL save mode. Do not call sql_memory or record credentials.",
+    "A local completed flag is not proof; missing facts or metadata evidence must block completion.",
   ].join("\n");
 }
 
+/** Optional local export, not durable evidence. */
 export function writeReceipt(cwd: string, attempt: SaveAttempt, body: Pick<SaveReceipt, "kind" | "ids">): void {
-  const receipt: SaveReceipt = {
-    attemptId: attempt.attemptId,
-    runId: attempt.runId,
-    subject: attempt.subject,
-    project: attempt.project,
-    kind: body.kind,
-    ids: body.ids,
-    probed: true,
-  };
-  writeJson(cwd, attempt.receiptRel, receipt);
+  writeJson(cwd, attempt.receiptRel, { ...attempt, kind: body.kind, ids: body.ids, probed: true });
 }
 
-/** Persist reusable facts before applying filesystem metadata. Retries reuse the attempt receipt. */
 export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], deps: SaveStoreDeps = {}, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
-  const reused = savedIds(cwd, attempt, facts);
-  if (reused) {
-    await persistAttemptOnStore(cwd, attempt, deps, reused);
-    return reused;
-  }
   try {
-    const ids = facts.length === 0 ? await saveNoFacts(cwd, attempt, deps) : await saveRows(cwd, attempt, facts, deps);
-    note(onActivity ?? deps.onActivity, true, facts.length === 0 ? "Memory wrote · no-fact" : "Memory wrote");
+    const ids = await withSaveStore(cwd, deps, async (store, context) => {
+      await bindAttemptRun(cwd, store, context, deps, attempt, facts.length ? "rows" : "no-fact");
+      const digest = revisionHash(new TextEncoder().encode(JSON.stringify(facts)));
+      const previous = await readState(store, context, attempt);
+      if (previous) {
+        if (previous.factsDigest !== digest) throw new Error("Save attempt facts changed; start a new attempt");
+        await confirmEvidence(store, previous);
+        await ensureAttemptReceipt(store, context, previous);
+        await writeRecord(store, pointerKey(context), attempt);
+        writeJson(cwd, attempt.receiptRel, localReceipt(previous));
+        return previous.ids;
+      }
+      const evidence: Evidence[] = [];
+      for (const [index, fact] of facts.entries()) evidence.push(await saveFact(cwd, store, context, attempt, fact, index + 1));
+      const state: AttemptState = { attempt: { ...attempt }, factsDigest: digest, ids: evidence.map(item => item.revision), facts: evidence };
+      await writeRecord(store, stateKey(context, attempt), state);
+      await writeAttemptReceipt(store, context, state);
+      await writeRecord(store, pointerKey(context), attempt);
+      writeJson(cwd, attempt.receiptRel, localReceipt(state));
+      return state.ids;
+    });
+    note(onActivity ?? deps.onActivity, true, facts.length ? "Memory wrote" : "Memory wrote · no-fact");
     return ids;
-  } catch (error) {
-    note(onActivity ?? deps.onActivity, false, "Memory failed");
-    throw error;
-  }
+  } catch (error) { note(onActivity ?? deps.onActivity, false, "Memory failed"); throw error; }
 }
 
-async function saveRows(cwd: string, attempt: SaveAttempt, facts: SaveFact[], deps: SaveStoreDeps): Promise<string[]> {
-  const ids: string[] = [];
-  for (const [index, fact] of facts.entries()) ids.push(await saveOne(cwd, attempt, deps, fact, index + 1));
-  writeReceipt(cwd, attempt, { kind: "rows", ids });
-  await persistAttemptOnStore(cwd, attempt, deps, ids);
-  return ids;
+/**
+ * Resolves the durable run this attempt writes under, before any state is read:
+ * durable state is keyed by the bound runId, so the binding must exist first.
+ *
+ * A durable pointer naming this attempt already carries its bound run and is
+ * replayed as-is, so a completed receipt is never restamped as attempted. Only a
+ * genuinely new attempt allocates a run, through the supported write-receipt seam
+ * with the caller's identityPath so the binding lands in the same registry the
+ * trusted context was resolved from. An injected store owns its own lifecycle and
+ * consults no identity registry.
+ */
+async function bindAttemptRun(cwd: string, store: StorageStore, context: BoundContext, deps: SaveStoreDeps, attempt: SaveAttempt, kind: SaveReceipt["kind"]): Promise<void> {
+  const bound = deps.store ? attempt.runId : await resolveAttemptRun(cwd, store, context, deps, attempt, kind);
+  if (bound === attempt.runId) return;
+  attempt.runId = bound;
+  writeJson(cwd, ATTEMPT_REL, attempt);
 }
 
-async function persistAttemptOnStore(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, ids: string[]): Promise<void> {
-  if (deps.store && deps.context) {
-    await deps.store.writeReceipt({
-      projectId: deps.context.projectId,
-      branchId: deps.context.branchId,
-      worktreeId: deps.context.worktreeId ?? `worktree:${attempt.runId}`,
-      runId: attempt.runId,
-      attemptId: attempt.attemptId,
-      status: "attempted",
-      artifactRevisions: ids,
-      kind: ids.length === 0 ? "no-fact" : "rows",
-      metadataDuties: ["save-metadata", ids.length === 0 ? "probe" : "readback"],
-    });
-    return;
+/** Replay adopts the pointer's run; only a new attempt allocates one. */
+async function resolveAttemptRun(cwd: string, store: StorageStore, context: BoundContext, deps: SaveStoreDeps, attempt: SaveAttempt, kind: SaveReceipt["kind"]): Promise<string> {
+  const persisted = await readPointerAttempt(store, context);
+  if (persisted?.attemptId === attempt.attemptId) {
+    if (persisted.subject !== attempt.subject || persisted.project !== attempt.project || persisted.phase !== attempt.phase
+      || persisted.receiptRel !== attempt.receiptRel) throw new Error("Durable save attempt identity mismatch");
+    return persisted.runId;
   }
-  await callStore(cwd, deps, {
-    operation: "write-receipt",
-    attemptId: attempt.attemptId,
-    status: "attempted",
-    artifactRevisions: ids,
-    kind: ids.length === 0 ? "no-fact" : "rows",
-    metadataDuties: ["save-metadata", ids.length === 0 ? "probe" : "readback"],
+  return allocateAttemptRun(cwd, store, context, deps, attempt.attemptId, kind);
+}
+
+async function allocateAttemptRun(cwd: string, store: StorageStore, context: BoundContext, deps: SaveStoreDeps, attemptId: string, kind: SaveReceipt["kind"]): Promise<string> {
+  const current = await executeWorkflowState({
+    cwd, store, context, role: "save", identityPath: deps.identityPath, configPath: deps.configPath,
+    request: { operation: "read-receipt" },
+  }) as RunReceipt | null;
+  if (current?.attemptId === attemptId) return current.runId;
+  const receipt = await executeWorkflowState({
+    cwd, store, context, role: "save", identityPath: deps.identityPath, configPath: deps.configPath,
+    request: { operation: "write-receipt", attemptId, status: "attempted", artifactRevisions: [], kind, metadataDuties: ["save-metadata", kind === "no-fact" ? "probe" : "readback"] },
+  }) as { runId?: string };
+  if (!receipt?.runId) throw new Error("SQL save could not allocate a durable attempt run");
+  return receipt.runId;
+}
+
+/** Called only after metadata mutations and scoped source corrections succeeded. */
+export async function recordSaveMetadata(cwd: string, attempt: SaveAttempt, revisions: readonly ArtifactRevision[], removed: readonly ArtifactKey[] = [], deps: SaveStoreDeps = {}, metadataDigest?: string): Promise<void> {
+  await withSaveStore(cwd, deps, async (store, context) => {
+    const state = await readState(store, context, attempt);
+    if (!state) throw new Error("Durable save facts evidence is missing");
+    if (state.metadata) throw new Error("Save metadata is already sealed; resume the recorded metadata attempt");
+    state.metadata = revisions.map(evidenceOf);
+    state.removed = [...removed];
+    state.metadataDigest = metadataDigest;
+    await confirmEvidence(store, state);
+    await writeRecord(store, stateKey(context, attempt), state);
+    await writeAttemptReceipt(store, context, state);
   });
 }
 
-async function saveOne(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, fact: SaveFact, seq: number): Promise<string> {
-  const body = typeof fact === "string" ? fact : fact.body;
-  const supersedes = typeof fact === "string" ? undefined : fact.supersedes;
-  return supersedes ? correctFact(cwd, attempt, deps, body, supersedes, seq) : writeFact(cwd, attempt, deps, body, seq);
-}
-
-async function writeFact(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, body: string, seq: number): Promise<string> {
-  const ref: ArtifactRef = { subjectId: attempt.subject, kind: "memory", logicalName: factName(attempt, seq) };
-  try {
-    const written = await callStore(cwd, deps, {
-      operation: "write", ref, body, expectedRevision: null,
-      author: git(cwd, "config", "user.email") ?? "workflow-state",
-      source: attempt.phase ?? "b-save",
-    });
-    const revision = revisionOf(written);
-    if (!revision) throw new Error("SQL save did not return a memory id");
-    return revision;
-  } catch (error) {
-    if (!/stale revision/i.test(errorMessage(error))) throw error;
-    const existing = revisionOf(await callStore(cwd, deps, { operation: "read", ref }));
-    if (!existing) throw error;
-    return existing;
-  }
-}
-
-async function correctFact(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps, body: string, supersedes: string, seq: number): Promise<string> {
-  const listed = await callStore(cwd, deps, { operation: "list", kind: "memory" });
-  const ref = refOf(Array.isArray(listed) ? listed.find((item) => revisionOf(item) === supersedes) : undefined);
-  if (!ref) throw new Error("SQL correction target is not in this project");
-  const corrected = await callStore(cwd, deps, {
-    operation: "correct", ref, predecessorRevision: supersedes, body, idempotencyKey: `${attempt.runId}:${seq}`,
+/** A retry repairs receipt completion without rewriting already sealed metadata. */
+export async function resumeSaveMetadata(cwd: string, attempt: SaveAttempt, metadataDigest: string, deps: SaveStoreDeps = {}): Promise<boolean> {
+  const sealed = await withSaveStore(cwd, deps, async (store, context) => {
+    const state = await readState(store, context, attempt);
+    if (!state?.metadata) return false;
+    if (state.metadataDigest !== metadataDigest) throw new Error("Save attempt metadata changed; start a new attempt");
+    await confirmEvidence(store, state);
+    return true;
   });
-  const revision = revisionOf(corrected);
-  if (!revision) throw new Error("SQL save did not return a memory id");
-  return revision;
+  if (sealed) await completeSaveAttempt(cwd, attempt, deps);
+  return sealed;
 }
 
-async function saveNoFacts(cwd: string, attempt: SaveAttempt, deps: SaveStoreDeps): Promise<string[]> {
-  const probed = await probeStore(cwd, deps);
-  if (probed.status !== "verified") throw new Error(probed.status === "block" ? probed.reason : "SQL save requires connectivity");
-  writeReceipt(cwd, attempt, { kind: "no-fact", ids: [] });
-  await persistAttemptOnStore(cwd, attempt, deps, []);
-  return [];
+/** Adapter-only recovery: the local attempt/receipt exports may both be absent. */
+export async function loadSaveAttempt(cwd: string, deps: SaveStoreDeps = {}): Promise<SaveAttempt | null> {
+  return withSaveStore(cwd, deps, (store, context) => readPointerAttempt(store, context));
+}
+
+/** The checkpoint pointer names the one authoritative persisted attempt. */
+async function readPointerAttempt(store: StorageStore, context: BoundContext): Promise<SaveAttempt | null> {
+  const pointer = await store.read(pointerKey(context));
+  return pointer ? parseAttempt(JSON.parse(new TextDecoder().decode(pointer.bytes))) : null;
 }
 
 export async function probeSql(deps: SaveStoreDeps = {}, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
-  const check = await probeStore(deps.cwd ?? process.cwd(), deps);
-  if (check.status === "block") note(onActivity ?? deps.onActivity, false, "Memory failed");
-  return check;
+  if (!sqlMode()) return { status: "skip" };
+  try { await withSaveStore(deps.cwd ?? process.cwd(), deps, async (store, context) => { await store.list({ ...context, limit: 1 }); }); return { status: "verified" }; }
+  catch (error) { note(onActivity ?? deps.onActivity, false, "Memory failed"); return { status: "block", reason: `SQL save connectivity probe failed: ${errorMessage(error)}` }; }
 }
 
-/** Confirm the current attempt's receipt against visible store revisions. */
+/** Verification is read-only: it must not invent or complete missing evidence. */
 export async function verifySqlSave(cwd: string, subject: string | null, deps: SaveStoreDeps = {}, requireComplete = true, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
   if (!sqlMode()) return { status: "skip" };
-  return verifySqlSaveAttempt(cwd, subject, deps, requireComplete, expectedAttemptId, onActivity);
-}
-
-async function verifySqlSaveAttempt(cwd: string, subject: string | null, deps: SaveStoreDeps, requireComplete: boolean, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
-  const preflight = verifyLocalAttempt(cwd, subject, expectedAttemptId);
-  if (preflight) return preflight;
-  const attempt = readAttempt(cwd)!;
-  const projectCheck = verifyAttemptProject(cwd, attempt);
-  if (projectCheck.status !== "verified") return projectCheck;
-  const receipt = readReceipt(cwd, attempt);
-  if (!receipt) return { status: "unverified" };
-  const shape = receiptShape(receipt, attempt);
-  if (shape.status !== "verified") return shape;
-  if (requireComplete && receipt.completed !== true) return { status: "unverified" };
-  const check = await confirmReceipt(cwd, receipt, attempt, deps);
-  if (check.status === "block") note(onActivity, false, "Memory failed");
-  if (check.status !== "verified" || !requireComplete) return check;
-  return completeStoreReceipt(cwd, attempt, receipt, deps);
-}
-
-function verifyLocalAttempt(cwd: string, subject: string | null, expectedAttemptId?: string | null): SaveCheck | null {
   if (!subject) return { status: "block", reason: "SQL save has no subject; refusing to commit." };
-  const projected = projectedAttemptCheck(readAttempt(cwd), subject, expectedAttemptId);
-  return projected;
+  try {
+    return await withSaveStore(cwd, deps, async (store, context) => {
+      const attempt = await readPointerAttempt(store, context);
+      if (!attempt) return { status: "unverified" };
+      const mismatch = attemptMismatch(cwd, attempt, subject, expectedAttemptId);
+      if (mismatch) return mismatch;
+      const state = await readState(store, context, attempt);
+      if (!state || (requireComplete && !state.metadata)) return { status: "unverified" };
+      await confirmEvidence(store, state);
+      return receiptProves(store, context, state, requireComplete);
+    });
+  } catch (error) { note(onActivity ?? deps.onActivity, false, "Memory failed"); return { status: "block", reason: `SQL save receipt check failed: ${errorMessage(error)}` }; }
 }
-
-function verifyAttemptProject(cwd: string, attempt: SaveAttempt): SaveCheck {
-  const current = projectOrigin(cwd);
-  return current && current === attempt.project
-    ? { status: "verified" }
-    : { status: "block", reason: "SQL save receipt project does not match the current Git project." };
+/** Completion demands the complete receipt; a non-completing check accepts whatever status is durable. */
+async function receiptProves(store: StorageStore, context: BoundContext, state: AttemptState, requireComplete: boolean): Promise<SaveCheck> {
+  const receipt = await store.readReceipt(context.projectId, state.attempt.runId);
+  const status = requireComplete ? "complete" : receipt?.status ?? "attempted";
+  return exactReceipt(receipt, receiptFor(context, state, status)) ? { status: "verified" } : { status: "unverified" };
 }
-
-function projectedAttemptCheck(attempt: SaveAttempt | null, subject: string, expectedId?: string | null): SaveCheck | null {
-  if (matchesProjectedAttempt(attempt, subject, expectedId)) return null;
-  return expectedId !== undefined
-    ? { status: "block", reason: "SQL save attempt does not match the projected transition." }
-    : { status: "unverified" };
+/** A block check is returned only for a projected transition that cannot be this attempt. */
+function attemptMismatch(cwd: string, attempt: SaveAttempt, subject: string, expectedAttemptId?: string | null): SaveCheck | null {
+  if (attempt.subject !== subject || (expectedAttemptId !== undefined && attempt.attemptId !== expectedAttemptId)) return { status: "block", reason: "SQL save attempt does not match the projected transition." };
+  if (projectOrigin(cwd) !== attempt.project) return { status: "block", reason: "SQL save receipt project does not match the current Git project." };
+  return null;
 }
-
-function matchesProjectedAttempt(attempt: SaveAttempt | null, subject: string, expectedId?: string | null): attempt is SaveAttempt {
-  return attempt !== null && attempt.subject === subject
-    && (expectedId === undefined || attempt.attemptId === expectedId);
-}
-
-/** Resume may retry an unverified save. It must not commit one. Outages always block. */
 export function resumeSaveDecision(state: string, check: SaveCheck): "continue" | "block" {
-  if (check.status === "skip" || check.status === "verified") return "continue";
-  if (check.status === "block" || state === "committing") return "block";
-  return "continue";
+  return check.status === "block" || (state === "committing" && check.status === "unverified") ? "block" : "continue";
 }
 
-function attemptFor(subject: string, project: string, phase: string | null): SaveAttempt {
-  const attemptId = randomUUID();
-  const runId = randomUUID();
-  return {
-    attemptId,
-    runId,
-    subject,
-    project,
-    phase,
-    receiptRel: join(".context", subject, "sql-memory-receipts", `${runId}-${attemptId}.json`),
-  };
+export async function withSaveStore<T>(cwd: string, deps: SaveStoreDeps, run: (store: StorageStore, context: BoundContext) => Promise<T>): Promise<T> {
+  const context = deps.context ?? (deps.configPath || deps.identityPath ? await resolveTrustedContext(cwd, deps) : await resolveConsumerContext(cwd));
+  if (!context.worktreeId || !context.runId) throw new Error("Save requires a trusted worktree/run identity");
+  const bound = context as BoundContext;
+  return deps.store ? run(deps.store, bound) : withBoundStore(cwd, bound, store => run(store, bound));
 }
-
-function receiptShape(value: unknown, attempt: SaveAttempt): SaveCheck {
-  if (hasSecretKey(value)) return { status: "block", reason: "SQL save receipt recorded a database URL or secret." };
-  const receipt = parseReceipt(value);
-  if (!receipt || !sameAttempt(receipt, attempt)) return { status: "unverified" };
-  if (receipt.kind === "no-fact") {
-    return receipt.ids.length === 0
-      ? { status: "verified" }
-      : { status: "block", reason: "SQL no-fact receipt listed memory ids." };
+function pointerKey(context: BoundContext): ArtifactKey { return consumerKey(context, "checkpoint", "save-attempts", "workflow/sql-save-attempt.json"); }
+function stateKey(context: BoundContext, attempt: SaveAttempt): ArtifactKey { return consumerKey({ ...context, runId: attempt.runId }, "receipt", attempt.subject, `save-attempts/${attempt.attemptId}.json`); }
+function evidenceOf(item: ArtifactRevision): Evidence { return { key: item.key, revision: item.revision, sha256: item.sha256 }; }
+async function writeRecord(store: StorageStore, key: ArtifactKey, value: unknown): Promise<void> {
+  const previous = await store.read(key);
+  const bytes = new TextEncoder().encode(JSON.stringify(value));
+  const sha256 = revisionHash(bytes);
+  if (previous?.sha256 === sha256 && revisionHash(previous.bytes) === sha256) return;
+  const revision = { key, revision: randomUUID(), bytes, sha256, author: "buck-save", source: "save-attempt", createdAt: new Date().toISOString(), links: [], expectedRevision: previous?.revision ?? null };
+  const written = await store.writeBatch([revision]);
+  const read = await store.read(key);
+  if (written.length !== 1 || read?.revision !== revision.revision || read.sha256 !== revision.sha256 || revisionHash(read.bytes) !== revision.sha256) throw new Error("Durable save evidence readback mismatch");
+}
+async function readState(store: StorageStore, context: BoundContext, attempt: SaveAttempt): Promise<AttemptState | null> {
+  const item = await store.read(stateKey(context, attempt));
+  if (!item) return null;
+  const state = JSON.parse(new TextDecoder().decode(item.bytes)) as AttemptState;
+  const saved = state.attempt;
+  if (saved.attemptId !== attempt.attemptId || saved.runId !== attempt.runId || saved.subject !== attempt.subject
+    || saved.project !== attempt.project || saved.phase !== attempt.phase || saved.receiptRel !== attempt.receiptRel) throw new Error("Durable save attempt identity mismatch");
+  return state;
+}
+function localReceipt(state: AttemptState): SaveReceipt { return { ...state.attempt, ids: state.ids, kind: state.ids.length ? "rows" : "no-fact", probed: true }; }
+function receiptFor(context: BoundContext, state: AttemptState, status: RunReceipt["status"]): RunReceipt {
+  // The receipt revision set is the fact set (no-fact must remain empty).
+  // Exact metadata revisions and source tombstones live in this attempt's durable evidence.
+  return { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId, runId: state.attempt.runId, attemptId: state.attempt.attemptId, status, artifactRevisions: state.ids, kind: state.ids.length ? "rows" : "no-fact", metadataDuties: ["save-metadata", state.ids.length ? "readback" : "probe"] };
+}
+function exactReceipt(actual: RunReceipt | null, expected: RunReceipt): boolean {
+  return actual !== null && actual.projectId === expected.projectId && actual.branchId === expected.branchId && actual.worktreeId === expected.worktreeId && actual.runId === expected.runId && actual.attemptId === expected.attemptId && actual.status === expected.status && actual.kind === expected.kind && JSON.stringify(actual.artifactRevisions) === JSON.stringify(expected.artifactRevisions) && JSON.stringify(actual.metadataDuties) === JSON.stringify(expected.metadataDuties);
+}
+async function writeAttemptReceipt(store: StorageStore, context: BoundContext, state: AttemptState): Promise<void> {
+  const expected = receiptFor(context, state, "attempted");
+  const current = await store.readReceipt(context.projectId, state.attempt.runId);
+  if (!exactReceipt(current, expected)) await store.writeReceipt(expected);
+  if (!exactReceipt(await store.readReceipt(context.projectId, state.attempt.runId), expected)) throw new Error("Durable save attempted receipt readback mismatch");
+}
+async function ensureAttemptReceipt(store: StorageStore, context: BoundContext, state: AttemptState): Promise<void> {
+  const current = await store.readReceipt(context.projectId, state.attempt.runId);
+  if (current?.status !== "complete") {
+    await writeAttemptReceipt(store, context, state);
+    return;
   }
-  return receipt.ids.length > 0 ? { status: "verified" } : { status: "unverified" };
+  if (!exactReceipt(current, receiptFor(context, state, "complete"))) throw new Error("Durable save attempted receipt readback mismatch");
 }
-
-async function confirmReceipt(cwd: string, receipt: SaveReceipt, attempt: SaveAttempt, deps: SaveStoreDeps): Promise<SaveCheck> {
-  if (receipt.kind === "no-fact") return probeStore(cwd, deps);
-  try {
-    const listed = await callStore(cwd, deps, { operation: "list", subjectId: attempt.subject, kind: "memory" });
-    const visible = listedRevisions(listed);
-    const missing = receipt.ids.filter((id) => !visible.has(id));
-    if (missing.length > 0) return { status: "block", reason: `SQL save receipt ids were not readable for this project: ${missing.join(", ")}` };
-    return { status: "verified" };
-  } catch (error) {
-    return { status: "block", reason: `SQL save receipt check failed: ${errorMessage(error)}` };
+async function confirmEvidence(store: StorageStore, state: AttemptState): Promise<void> {
+  for (const evidence of [...state.facts, ...(state.metadata ?? [])]) await confirmRevision(store, evidence);
+  for (const key of state.removed ?? []) if (await store.read(key)) throw new Error(`Save source remains live: ${key.logicalName}`);
+}
+async function confirmRevision(store: StorageStore, evidence: Evidence): Promise<void> {
+  const item = await store.read(evidence.key, evidence.revision);
+  if (!item || item.revision !== evidence.revision || item.sha256 !== evidence.sha256 || revisionHash(item.bytes) !== evidence.sha256) throw new Error(`SQL save revision not readable: ${evidence.revision}`);
+}
+async function saveFact(cwd: string, store: StorageStore, context: BoundContext, attempt: SaveAttempt, fact: SaveFact, seq: number): Promise<Evidence> {
+  const body = typeof fact === "string" ? fact : fact.body;
+  const supersedes = typeof fact === "string" ? undefined : fact.supersedes;
+  return supersedes ? correctFact(store, context, attempt, body, supersedes, seq) : insertFact(cwd, store, context, attempt, body, seq);
+}
+/** A superseding fact republishes a live memory revision of this project/subject. */
+async function correctFact(store: StorageStore, context: BoundContext, attempt: SaveAttempt, body: string, supersedes: string, seq: number): Promise<Evidence> {
+  const visible = await store.list({ ...context, subjectId: attempt.subject, kind: "memory" });
+  const previous = visible.find(item => item.revision === supersedes);
+  if (!previous) throw new Error("SQL correction target is not in this project/subject");
+  const bytes = new TextEncoder().encode(body);
+  const key = { ...previous.key, branchId: context.branchId };
+  const replacement = { ...previous, key, revision: randomUUID(), bytes, sha256: revisionHash(bytes), expectedRevision: supersedes, source: attempt.phase ?? "b-save", createdAt: new Date().toISOString() };
+  const corrected = await store.correct({ key, predecessorRevision: supersedes, replacement, idempotencyKey: `${attempt.attemptId}:${seq}`, publishedRevisionIds: context.publishedRevisionIds });
+  if (!corrected) throw new Error("SQL correction did not return a memory id");
+  return evidenceOf(corrected);
+}
+/** The deterministic key makes a retry idempotent: identical body returns the same evidence. */
+async function insertFact(cwd: string, store: StorageStore, context: BoundContext, attempt: SaveAttempt, body: string, seq: number): Promise<Evidence> {
+  const digest = createHash("sha256").update(`${attempt.subject}:${attempt.attemptId}:${seq}`).digest("hex").slice(0, 32);
+  const key: ArtifactKey = { projectId: context.projectId, branchId: context.branchId, subjectId: attempt.subject, kind: "memory", logicalName: `memory/${digest}.md` };
+  const previous = await store.read(key);
+  if (previous) {
+    if (new TextDecoder().decode(previous.bytes) !== body) throw new Error("Save attempt fact content changed");
+    return evidenceOf(previous);
   }
+  const written = await executeWorkflowState({ cwd, store, context, role: "save", request: { operation: "write", ref: { subjectId: key.subjectId, kind: key.kind, logicalName: key.logicalName }, body, expectedRevision: null, source: attempt.phase ?? "b-save" } }) as { revision?: string };
+  const stored = await store.read(key);
+  if (!stored || stored.revision !== written?.revision || new TextDecoder().decode(stored.bytes) !== body) throw new Error("SQL save did not return a readable memory id");
+  return evidenceOf(stored);
 }
-
-async function completeStoreReceipt(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps): Promise<SaveCheck> {
-  try {
-    return deps.store && deps.context
-      ? await completeInjectedReceipt(attempt, receipt, deps)
-      : await completeWorkflowReceipt(cwd, attempt, receipt, deps);
-  } catch (error) {
-    return { status: "block", reason: `Durable save receipt completion failed: ${errorMessage(error)}` };
-  }
-}
-
-async function completeInjectedReceipt(attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps & { store: StorageStore; context: TrustedWorkflowContext }): Promise<SaveCheck> {
-  const { store, context } = deps;
-  const expectedWorktree = context.worktreeId ?? `worktree:${attempt.runId}`;
-  let existing = await store.readReceipt(context.projectId, attempt.runId);
-  if (!existing) {
-    await store.writeReceipt({
-      projectId: context.projectId,
-      branchId: context.branchId,
-      worktreeId: expectedWorktree,
-      runId: attempt.runId,
-      attemptId: attempt.attemptId,
-      status: "attempted",
-      artifactRevisions: receipt.ids,
-      kind: receipt.kind,
-      metadataDuties: requiredReceiptDuties(receipt.kind),
-    });
-    existing = await store.readReceipt(context.projectId, attempt.runId);
-    if (!existing) return { status: "unverified" };
-  }
-  if (existing.status !== "complete") await persistInjectedCompletion(store, existing, attempt, receipt);
-  const stored = await store.readReceipt(context.projectId, attempt.runId);
-  return injectedReceiptMatches(stored, context, expectedWorktree, attempt, receipt)
-    ? { status: "verified" }
-    : { status: "unverified" };
-}
-
-async function persistInjectedCompletion(store: StorageStore, existing: RunReceipt, attempt: SaveAttempt, receipt: SaveReceipt): Promise<void> {
-  await store.writeReceipt({
-    ...existing,
-    status: "complete",
-    artifactRevisions: receipt.ids,
-    kind: receipt.kind,
-    metadataDuties: requiredReceiptDuties(receipt.kind),
-  });
-}
-
-function injectedReceiptMatches(stored: RunReceipt | null, context: TrustedWorkflowContext, worktreeId: string, attempt: SaveAttempt, receipt: SaveReceipt): boolean {
-  return stored !== null && stored.branchId === context.branchId && stored.worktreeId === worktreeId &&
-    stored.attemptId === attempt.attemptId && stored.kind === receipt.kind &&
-    receiptMatches(stored, attempt, receipt.ids, "complete");
-}
-
-async function completeWorkflowReceipt(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps): Promise<SaveCheck> {
-  const revisions = receipt.ids;
-  const duties = ["save-metadata", receipt.kind === "no-fact" ? "probe" : "readback"];
-  const existing = await callStore(cwd, deps, { operation: "read-receipt" });
-  if (!receiptMatches(existing, attempt, revisions, "complete")) {
-    if (!receiptMatches(existing, attempt, revisions, "attempted")) {
-      await callStore(cwd, deps, {
-        operation: "write-receipt",
-        attemptId: attempt.attemptId,
-        status: "attempted",
-        artifactRevisions: revisions,
-        kind: receipt.kind,
-        metadataDuties: duties,
-      });
-    }
-    await callStore(cwd, deps, {
-      operation: "write-receipt",
-      attemptId: attempt.attemptId,
-      status: "complete",
-      artifactRevisions: revisions,
-      kind: receipt.kind,
-      metadataDuties: duties,
-    });
-  }
-  const stored = await callStore(cwd, deps, { operation: "read-receipt" });
-  return receiptMatches(stored, attempt, revisions, "complete")
-    ? { status: "verified" }
-    : { status: "unverified" };
-}
-
-
-function receiptMatches(value: unknown, attempt: SaveAttempt, revisions: readonly string[], status: string): boolean {
-  if (!value || typeof value !== "object") return false;
-  const receipt = value as Record<string, unknown>;
-  return receipt.status === status && receipt.attemptId === attempt.attemptId &&
-    hasRevisions(receipt.artifactRevisions, revisions) &&
-    (status !== "complete" || hasRequiredDuties(receipt));
-}
-
-function hasRevisions(value: unknown, revisions: readonly string[]): boolean {
-  return Array.isArray(value) && value.length === revisions.length &&
-    value.every((revision, index) => revision === revisions[index]);
-}
-
-function hasRequiredDuties(receipt: Record<string, unknown>): boolean {
-  const duties = Array.isArray(receipt.metadataDuties) ? receipt.metadataDuties : [];
-  return requiredReceiptDuties(receipt.kind === "no-fact" ? "no-fact" : "rows").every((duty) => duties.includes(duty));
-}
-
-function requiredReceiptDuties(kind: SaveReceipt["kind"]): string[] {
-  return ["save-metadata", kind === "no-fact" ? "probe" : "readback"];
-}
-
-async function probeStore(cwd: string, deps: SaveStoreDeps): Promise<SaveCheck> {
-  if (!sqlMode()) return { status: "skip" };
-  try {
-    await callStore(cwd, deps, { operation: "list", limit: 1 });
-    return { status: "verified" };
-  } catch (error) {
-    return { status: "block", reason: `SQL save connectivity probe failed: ${errorMessage(error)}` };
-  }
-}
-
-async function callStore(cwd: string, deps: SaveStoreDeps, request: WorkflowRequest): Promise<unknown> {
-  const context = deps.context ?? await resolveTrustedContext(cwd, {
-    ...(deps.identityPath ? { identityPath: deps.identityPath } : {}),
-    ...(deps.configPath ? { configPath: deps.configPath } : {}),
-  });
-  return executeWorkflowState({
-    cwd,
-    request,
-    context,
-    role: "save",
-    ...(deps.store ? { store: deps.store } : {}),
-    ...(deps.configPath ? { configPath: deps.configPath } : {}),
-    ...(deps.identityPath ? { identityPath: deps.identityPath } : {}),
-  });
-}
-
-function savedIds(cwd: string, attempt: SaveAttempt, facts: SaveFact[]): string[] | null {
-  const receipt = readReceipt(cwd, attempt);
-  if (!receipt || !sameAttempt(receipt, attempt)) return null;
-  if (facts.length === 0) return receipt.kind === "no-fact" ? [] : null;
-  return receipt.kind === "rows" && receipt.ids.length === facts.length ? receipt.ids : null;
-}
-
-function factName(attempt: SaveAttempt, seq: number): string {
-  const digest = createHash("sha256").update(`${attempt.subject}:${attempt.runId}:${seq}`).digest("hex").slice(0, 32);
-  return `memory/${digest}.md`;
-}
-
-
-function revisionOf(value: unknown): string | null {
-  if (!value || typeof value !== "object" || !("revision" in value)) return null;
-  const revision = value.revision;
-  return typeof revision === "string" && revision.length > 0 ? revision : null;
-}
-
-function listedRevisions(value: unknown): Set<string> {
-  if (!Array.isArray(value)) return new Set();
-  return new Set(value.flatMap((item) => {
-    const revision = revisionOf(item);
-    return revision ? [revision] : [];
-  }));
-}
-
-function refOf(value: unknown): ArtifactRef | null {
-  if (!value || typeof value !== "object") return null;
-  if (!("subjectId" in value) || !("kind" in value) || !("logicalName" in value)) return null;
-  if (typeof value.subjectId !== "string" || typeof value.kind !== "string" || typeof value.logicalName !== "string") return null;
-  return { subjectId: value.subjectId, kind: value.kind as ArtifactKind, logicalName: value.logicalName };
-}
-
-function note(sink: SqlMemoryActivitySink | undefined, ok: boolean, message: string): void {
-  sink?.({ kind: "toolEnd", tool: "workflow_state", ok, message });
-}
-
-function sameAttempt(value: SaveReceipt, attempt: SaveAttempt): boolean {
-  return value.attemptId === attempt.attemptId
-    && value.runId === attempt.runId
-    && value.subject === attempt.subject
-    && value.project === attempt.project
-    && value.probed === true;
-}
-
-function readAttempt(cwd: string): SaveAttempt | null {
-  return parseAttempt(readJson(cwd, ATTEMPT_REL));
-}
-
-function readReceipt(cwd: string, attempt: SaveAttempt): SaveReceipt | null {
-  return parseReceipt(readJson(cwd, attempt.receiptRel));
-}
-
+function readAttempt(cwd: string): SaveAttempt | null { return parseAttempt(readJson(cwd, ATTEMPT_REL)); }
 function parseAttempt(value: unknown): SaveAttempt | null {
-  if (!isAttempt(value) || hasSecretKey(value)) return null;
-  return value;
-}
-
-function parseReceipt(value: unknown): SaveReceipt | null {
-  if (!isReceipt(value)) return null;
-  return value;
-}
-
-function isAttempt(value: unknown): value is SaveAttempt {
-  if (!value || typeof value !== "object") return false;
+  if (!value || typeof value !== "object" || Object.keys(value).some(key => SECRET_KEY.test(key))) return null;
   const row = value as SaveAttempt;
-  return typeof row.attemptId === "string"
-    && typeof row.runId === "string"
-    && typeof row.subject === "string"
-    && typeof row.project === "string"
-    && typeof row.receiptRel === "string"
-    && (row.phase === null || typeof row.phase === "string");
+  return [row.attemptId, row.runId, row.subject, row.project, row.receiptRel].every(value => typeof value === "string" && value.length > 0) && (row.phase === null || typeof row.phase === "string") ? row : null;
 }
-
-function isReceipt(value: unknown): value is SaveReceipt {
-  if (!value || typeof value !== "object") return false;
-  const row = value as SaveReceipt;
-  if (!Array.isArray(row.ids) || !row.ids.every((id) => typeof id === "string")) return false;
-  return (row.kind === "rows" || row.kind === "no-fact") && row.probed === true;
-}
-
-function hasSecretKey(value: unknown): boolean {
-  if (!value || typeof value !== "object") return false;
-  return Object.keys(value).some((key) => SECRET_KEY.test(key));
-}
-
-function safeSubject(subject: string): boolean {
-  return /^[\w.-]+$/.test(subject);
-}
-
 function projectOrigin(cwd: string): string | null {
   const origin = git(cwd, "remote", "get-url", "origin");
   if (origin) return redactRemoteCredentials(origin);
-  const commonDir = git(cwd, "rev-parse", "--git-common-dir");
-  if (!commonDir) return null;
-  return commonDir.startsWith("/") ? commonDir : resolve(cwd, commonDir);
+  const common = git(cwd, "rev-parse", "--git-common-dir");
+  return common ? resolve(cwd, common) : null;
 }
-
 function git(cwd: string, ...args: string[]): string | null {
-  try {
-    const value = execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    return value || null;
-  } catch {
-    return null;
-  }
+  try { return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null; } catch { return null; }
 }
-
 function readJson(cwd: string, rel: string): unknown {
   const full = contained(cwd, rel);
   if (!full || !existsSync(full)) return null;
-  try {
-    return JSON.parse(readFileSync(full, "utf8"));
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(readFileSync(full, "utf8")); } catch { return null; }
 }
-
-function writeJson(cwd: string, rel: string, value: SaveAttempt | SaveReceipt): void {
+function writeJson(cwd: string, rel: string, value: unknown): void {
   const full = contained(cwd, rel);
   if (!full) throw new Error(`SQL save path escapes the project: ${rel}`);
   mkdirSync(dirname(full), { recursive: true });
-  const temporary = `${full}.${process.pid}.tmp`;
+  const temporary = `${full}.${randomUUID()}.tmp`;
   writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`);
   renameSync(temporary, full);
 }
+function contained(cwd: string, rel: string): string | null { const root = resolve(cwd); const full = resolve(root, rel); return full.startsWith(`${root}/`) ? full : null; }
+function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+function note(sink: SqlMemoryActivitySink | undefined, ok: boolean, message: string): void { sink?.({ kind: "toolEnd", tool: "workflow_state", ok, message }); }
 
-function contained(cwd: string, rel: string): string | null {
-  const root = resolve(cwd);
-  const full = resolve(root, rel);
-  return full === root || full.startsWith(`${root}/`) ? full : null;
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+if (import.meta.main) {
+  try {
+    if (process.argv[2] !== "facts") throw new Error("Usage: sql-save.ts facts < facts.json");
+    const input = JSON.parse(readFileSync(0, "utf8")) as { attemptId?: string; facts?: SaveFact[] };
+    const cwd = process.cwd();
+    const durable = await loadSaveAttempt(cwd);
+    const attempt = durable?.attemptId === input.attemptId ? durable : readAttempt(cwd);
+    if (!attempt || attempt.attemptId !== input.attemptId) throw new Error("Save attempt does not match the requested attempt");
+    if (!Array.isArray(input.facts)) throw new Error("facts must be an array");
+    const ids = await saveSqlFacts(cwd, attempt, input.facts);
+    console.log(JSON.stringify({ attemptId: attempt.attemptId, runId: attempt.runId, subject: attempt.subject, receipt: { path: attempt.receiptRel, ids } }));
+  } catch (error) {
+    console.log(JSON.stringify({ error: errorMessage(error) }));
+    process.exitCode = 1;
+  }
 }

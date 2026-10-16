@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanupRepos, git, phaseMd, planMd, repo, writeTree } from "./fixtures.js";
 import { handleLoop } from "../loop.js";
-import { completeSaveAttempt, prepareSaveAttempt, writeReceipt } from "../sql-save.js";
+import { completeSaveAttempt, prepareSaveAttempt, recordSaveMetadata, saveSqlFacts } from "../sql-save.js";
 import type { RunStepResult } from "../run-step.js";
 
 vi.mock("../../../skills/_shared/storage/db.js", () => ({
@@ -73,8 +73,9 @@ describe("save client receipt boundary", () => {
     const work = deps(async (root, phase) => {
       const attempt = prepareSaveAttempt(root, SUBJECT, true, phase);
       if ("error" in attempt) throw new Error(attempt.error);
-      writeReceipt(root, attempt, { kind: "no-fact", ids: [] });
-      completeSaveAttempt(root, attempt);
+      await saveSqlFacts(root, attempt, []);
+      await recordSaveMetadata(root, attempt, []);
+      await completeSaveAttempt(root, attempt);
       git(root, ["add", "-f", ".context"]);
       return { ok: true, text: "Durable save completed", sqlFailure: "Memory failed · late SQL error" };
     });
