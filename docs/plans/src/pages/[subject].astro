@@ -1,12 +1,12 @@
 ---
 import Base from '../layouts/Base.astro';
 import LinkPreview from '../components/LinkPreview.astro';
-import { FilesystemPlanSource } from '../lib/plans/filesystem';
+import { createPlanSource } from '../lib/plans';
 import { synopsisOf } from '../lib/plans/synopsis';
 import type { Synopsis } from '../lib/plans/synopsis';
 
 export async function getStaticPaths() {
-  const source = new FilesystemPlanSource();
+  const source = createPlanSource();
   const subjects = await source.listSubjects();
   return await Promise.all(
     subjects.map(async (subject) => {

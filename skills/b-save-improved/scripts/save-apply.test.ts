@@ -6,6 +6,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runApply } from "./save-apply.js";
 import { prepareSaveAttempt, saveSqlFacts } from "../../../extensions/buck-loop/sql-save.js";
 import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
+import { readConsumer } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
 const LEGACY = "- 2026-05-08 | `example-2026-05-08.md` | domains: [tooling, orchestration] | topics: [example, rpc, pi-extension] | status: completed\n";
@@ -55,10 +57,16 @@ function backlog(root: string, related = "related:\n  - extensions/x.ts"): void 
 
 describe("save-apply", () => {
   const previousUrl = process.env.SQL_MEMORY_URL;
-  beforeEach(() => { delete process.env.SQL_MEMORY_URL; });
+  const previousXdg = process.env.XDG_CONFIG_HOME;
+  beforeEach(() => {
+    delete process.env.SQL_MEMORY_URL;
+    process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), "save-apply-xdg-"));
+  });
   afterEach(() => {
     if (previousUrl === undefined) delete process.env.SQL_MEMORY_URL;
     else process.env.SQL_MEMORY_URL = previousUrl;
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdg;
   });
 
   it("prepends the exact normalized two-line index entry once and preserves the legacy line", () => {
@@ -334,16 +342,22 @@ describe("save-apply", () => {
 
 describe("runApply in-process", () => {
   const previousUrl = process.env.SQL_MEMORY_URL;
-  beforeEach(() => { delete process.env.SQL_MEMORY_URL; });
+  const previousXdg = process.env.XDG_CONFIG_HOME;
+  beforeEach(() => {
+    delete process.env.SQL_MEMORY_URL;
+    process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), "save-apply-xdg-"));
+  });
   afterEach(() => {
     if (previousUrl === undefined) delete process.env.SQL_MEMORY_URL;
     else process.env.SQL_MEMORY_URL = previousUrl;
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdg;
   });
-  it("returns 2 on a schema mismatch", () => {
-    expect(runApply({})).toBe(2);
+  it("returns 2 on a schema mismatch", async () => {
+    await expect(runApply({})).resolves.toBe(2);
   });
 
-  it("archives, cross-refs, completes phases, and moves loose files", () => {
+  it("archives, cross-refs, completes phases, and moves loose files", async () => {
     const root = fixture();
     const prev = process.cwd();
     try {
@@ -355,7 +369,7 @@ describe("runApply in-process", () => {
       write(root, ".context/2026-08-26.save/spec-x.md", "---\nstatus: active\n---\n# S\n");
       write(root, ".context/2026-08-26.save/iterate-x.md", "---\nstatus: active\naddresses: plan-x.md\n---\n# I\n");
       process.chdir(root);
-      const code = runApply(basePayload({
+      const code = await runApply(basePayload({
         crossrefs: [{ path: ".context/2026-08-26.save/plan-x.md", key: "memory", value: "../memory/b-save-improved-2026-08-26.md" }],
         backlog: {
           complete_explicit: [{ slug: "x", outcome: "Shipped." }],
@@ -380,14 +394,14 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("rejects backlog slugs that would write outside the items directory", () => {
+  it("rejects backlog slugs that would write outside the items directory", async () => {
     const root = fixture();
     const prev = process.cwd();
     const outside = resolve(root, "pwned.md");
     try {
       process.chdir(root);
       for (const slug of ["../pwned", "/tmp/pwned", "..", "HasCaps", "has spaces"]) {
-        const code = runApply(basePayload({
+        const code = await runApply(basePayload({
           backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug, title: "X", priority: "high", related: [], body: "nope" }] },
         }));
         expect(code).toBe(1);
@@ -401,12 +415,12 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("rejects a memory path that resolves outside .context", () => {
+  it("rejects a memory path that resolves outside .context", async () => {
     const root = fixture();
     const prev = process.cwd();
     try {
       process.chdir(root);
-      const code = runApply(basePayload({
+      const code = await runApply(basePayload({
         memory: {
           path: ".context/../escaped-memory.md",
           frontmatter: {
@@ -426,7 +440,7 @@ describe("runApply in-process", () => {
   });
 
 
-  it("refuses to write through a leaf symlink pointing outside .context", () => {
+  it("refuses to write through a leaf symlink pointing outside .context", async () => {
     const root = fixture();
     const prev = process.cwd();
     const outside = join(root, "outside.md");
@@ -434,7 +448,7 @@ describe("runApply in-process", () => {
     symlinkSync(outside, join(root, ".context/memory/b-save-improved-2026-08-26.md"));
     try {
       process.chdir(root);
-      expect(runApply(basePayload())).toBe(1);
+      expect(await runApply(basePayload())).toBe(1);
       expect(readFileSync(outside, "utf8")).toBe("secret\n");
     } finally {
       process.chdir(prev);
@@ -442,7 +456,7 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("refuses to rename a loose artifact that is a leaf symlink", () => {
+  it("refuses to rename a loose artifact that is a leaf symlink", async () => {
     const root = fixture();
     const prev = process.cwd();
     const outside = join(root, "secret.md");
@@ -450,7 +464,7 @@ describe("runApply in-process", () => {
     symlinkSync(outside, join(root, ".context/plan-orphan.md"));
     try {
       process.chdir(root);
-      expect(runApply(basePayload({ loose_artifacts: [".context/plan-orphan.md"] }))).toBe(1);
+      expect(await runApply(basePayload({ loose_artifacts: [".context/plan-orphan.md"] }))).toBe(1);
       expect(readFileSync(outside, "utf8")).toBe("secret\n");
       expect(existsSync(join(root, ".context/2026-08-26.save/plan-orphan.md"))).toBe(false);
     } finally {
@@ -459,7 +473,7 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("rejects a new file when its parent directory is a symlink outside .context", () => {
+  it("rejects a new file when its parent directory is a symlink outside .context", async () => {
     const root = fixture();
     const prev = process.cwd();
     const outsideDir = join(root, "outside-mem");
@@ -468,14 +482,14 @@ describe("runApply in-process", () => {
     symlinkSync(outsideDir, join(root, ".context/memory"));
     try {
       process.chdir(root);
-      expect(runApply(basePayload())).toBe(1);
+      expect(await runApply(basePayload())).toBe(1);
       expect(existsSync(join(outsideDir, "b-save-improved-2026-08-26.md"))).toBe(false);
     } finally {
       process.chdir(prev);
       rmSync(root, { recursive: true, force: true });
     }
   });
-  it("rejects a new backlog item below an outside ancestor symlink", () => {
+  it("rejects a new backlog item below an outside ancestor symlink", async () => {
     const root = fixture();
     const prev = process.cwd();
     const outsideDir = join(root, "outside-backlog");
@@ -484,7 +498,7 @@ describe("runApply in-process", () => {
     symlinkSync(outsideDir, join(root, ".context/backlog"));
     try {
       process.chdir(root);
-      expect(runApply(basePayload({
+      expect(await runApply(basePayload({
         backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug: "new-item", title: "New item", priority: "high", related: [], body: "" }] },
       }))).toBe(1);
       expect(existsSync(join(outsideDir, "items", "new-item.md"))).toBe(false);
@@ -494,14 +508,14 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("skips a new backlog item whose slug already exists", () => {
+  it("skips a new backlog item whose slug already exists", async () => {
     const root = fixture();
     const prev = process.cwd();
     write(root, ".context/backlog/todo.md", "# Backlog\n\n- [ ] [Y](items/y.md) — medium priority\n");
     write(root, ".context/backlog/items/y.md", "---\ntitle: Y\nstatus: active\n---\n\n# Y\n\nORIGINAL\n");
     try {
       process.chdir(root);
-      expect(runApply(basePayload({
+      expect(await runApply(basePayload({
         backlog: { complete_explicit: [], complete_inferred: [], new_items: [{ slug: "y", title: "Y", priority: "medium", related: [], body: "Later." }] },
       }))).toBe(0);
       expect(readFileSync(join(root, ".context/backlog/items/y.md"), "utf8")).toContain("ORIGINAL");
@@ -511,7 +525,7 @@ describe("runApply in-process", () => {
       rmSync(root, { recursive: true, force: true });
     }
   });
-  it("quotes multiline frontmatter scalars without creating a YAML fence", () => {
+  it("quotes multiline frontmatter scalars without creating a YAML fence", async () => {
     const root = fixture();
     try {
       const payload = basePayload();
@@ -525,7 +539,7 @@ describe("runApply in-process", () => {
     }
   });
 
-  it("keeps scalar frontmatter lists when merging memory", () => {
+  it("keeps scalar frontmatter lists when merging memory", async () => {
     const root = fixture();
     const prev = process.cwd();
     write(root, ".context/memory/b-save-improved-2026-08-26.md", `---
@@ -545,7 +559,7 @@ Prior body.
 `);
     try {
       process.chdir(root);
-      expect(runApply(basePayload())).toBe(0);
+      expect(await runApply(basePayload())).toBe(0);
       const topics = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8")
         .split("\n")
         .find((line) => line.startsWith("topics:"));
@@ -562,7 +576,9 @@ describe("durable-save apply", () => {
   it("persists revision ids in cross-references without a phantom Markdown memory", async () => {
     const root = fixture();
     const oldUrl = process.env.SQL_MEMORY_URL;
+    const oldXdg = process.env.XDG_CONFIG_HOME;
     process.env.SQL_MEMORY_URL = "postgres://example.invalid/unused";
+    process.env.XDG_CONFIG_HOME = join(root, "config");
     execFileSync("git", ["init"], { cwd: root, stdio: "ignore" });
     execFileSync("git", ["remote", "add", "origin", "https://example.test/improved-save.git"], { cwd: root });
     try {
@@ -599,6 +615,66 @@ describe("durable-save apply", () => {
       rmSync(root, { recursive: true, force: true });
       if (oldUrl === undefined) delete process.env.SQL_MEMORY_URL;
       else process.env.SQL_MEMORY_URL = oldUrl;
+      if (oldXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = oldXdg;
     }
+  });
+});
+
+describe("file-mode storage sealing", () => {
+  const previousUrl = process.env.SQL_MEMORY_URL;
+  const previousXdg = process.env.XDG_CONFIG_HOME;
+  const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+  let root: string;
+
+  beforeEach(() => {
+    root = fixture();
+    const home = join(root, "xdg");
+    mkdirSync(home, { recursive: true });
+    process.env.XDG_CONFIG_HOME = home;
+    process.env.BUCK_WORKFLOW_CONFIG = join(root, "config.yaml");
+    writeFileSync(join(root, "config.yaml"), `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "state.sqlite")}\n`);
+    delete process.env.SQL_MEMORY_URL;
+  });
+
+  afterEach(() => {
+    rmSync(root, { recursive: true, force: true });
+    if (previousUrl === undefined) delete process.env.SQL_MEMORY_URL;
+    else process.env.SQL_MEMORY_URL = previousUrl;
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdg;
+    if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+    else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+  });
+
+  it("seals applied bytes and an attempt receipt on the configured store while keeping the .context projection", async () => {
+    execFileSync("git", ["init", "-b", "master"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "t@example.test"], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["config", "user.name", "t"], { cwd: root, stdio: "ignore" });
+    writeFileSync(join(root, "README.md"), "# seal\n");
+    execFileSync("git", ["add", "."], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["commit", "-qm", "init"], { cwd: root, stdio: "ignore" });
+    const result = run(root, basePayload());
+    expect(result.errors).toEqual([]);
+    expect(result.run_id).toMatch(/^run-[0-9a-f-]{36}$/);
+    const memoryFile = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8");
+    await withConfiguredStore(root, async (store, context) => {
+      const memory = await store.read({
+        projectId: context.projectId, branchId: context.branchId,
+        subjectId: "memory", kind: "memory", logicalName: "b-save-improved-2026-08-26.md",
+      });
+      expect(new TextDecoder().decode(memory!.bytes)).toBe(memoryFile);
+      const index = await store.read({
+        projectId: context.projectId, branchId: context.branchId,
+        subjectId: "2026-08-26.save", kind: "subject-index", logicalName: "index.md",
+      });
+      expect(new TextDecoder().decode(index!.bytes)).toBe(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8"));
+      await expect(store.readReceipt(context.projectId, result.run_id!)).resolves.toMatchObject({
+        attemptId: result.run_id,
+        worktreeId: expect.any(String),
+        status: "attempted",
+        metadataDuties: ["projection"],
+      });
+    }, { configPath: join(root, "config.yaml") });
   });
 });

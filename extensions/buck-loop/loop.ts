@@ -1026,7 +1026,7 @@ async function executeSkill(
   const result = await runNestedSkill(cwd, snapshot, skill, nested, planOrPhasePath, deps, handoff, opened.directive);
   reportSkillFailure(snapshot, nested, planOrPhasePath, result, deps);
   restageClaimedFiles(cwd, skill, result.ok);
-  recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
+  await recordReviewArtifact(cwd, snapshot, skill, result, deps.now(), reviewArtifactsBefore);
   const retriesUsed = nextRetries(snapshot, result.ok);
   const saveCheck = await finishSqlSave(cwd, snapshot, skill, deps.onActivity, result.sqlFailure);
   if (saveCheck.status === "block") {
@@ -1242,16 +1242,16 @@ function reportSkillFailure(
   emitFailure(deps, enrichFailure(snapshot, "run-skill", "Run " + nested + " for " + planOrPhasePath, failure));
 }
 
-function recordReviewArtifact(
+async function recordReviewArtifact(
   cwd: string,
   snapshot: Snapshot,
   skill: WorkSkill,
   result: RunStepResult,
   at: string,
   before: ReviewArtifactSnapshot | null,
-): void {
+): Promise<void> {
   if (!result.ok || skill !== "review" || !result.text.trim()) return;
-  persistReviewArtifact(cwd, snapshot, result.text, at, before);
+  await persistReviewArtifact(cwd, snapshot, result.text, at, before);
 }
 function progressLabel(state: LoopState, target: string): string {
   const name = basename(target);
@@ -1633,13 +1633,13 @@ function snapshotReviewArtifacts(cwd: string, snapshot: Snapshot): ReviewArtifac
   return artifacts;
 }
 
-function persistReviewArtifact(
+async function persistReviewArtifact(
   cwd: string,
   snapshot: Snapshot,
   text: string,
   at: string,
   before: ReviewArtifactSnapshot | null,
-): void {
+): Promise<void> {
   if (!snapshot.subject || !text.trim()) return;
   const dir = join(cwd, ".context", snapshot.subject);
   mkdirSync(dir, { recursive: true });
@@ -1655,7 +1655,7 @@ function persistReviewArtifact(
   const name = `review-zz-buck-loop-${stamp}.md`;
   const body = authoritative.endsWith("\n") ? authoritative : `${authoritative}\n`;
   writeFileSync(join(dir, name), body);
-  scheduleConfiguredRetain({
+  await scheduleConfiguredRetain({
     kind: "review", subjectId: snapshot.subject, logicalName: `${snapshot.subject}/${name}`,
     bytes: new TextEncoder().encode(body), worktreeId: cwd, source: "buck-loop",
   });

@@ -17,6 +17,7 @@ import {
   sha256Hex,
   splitFrontmatter,
   type MemoryFile,
+  filterPublishedImportFiles,
 } from "./import-context-memory";
 
 describe("splitFrontmatter", () => {
@@ -344,6 +345,26 @@ describe("listMemoryMarkdown multi-dir", () => {
     expect(warnings.some((w) => w.includes("no-fm.md"))).toBe(true);
     expect(warnings.some((w) => w.includes("no-title.md"))).toBe(true);
   });
+
+describe("published-only import filtering", () => {
+  test("keeps only exact adapter revisions proven published for memory and backlog paths", () => {
+    const files = [
+      { relPath: ".context/memory/fact.md", sha256: "published", kind: "memory" as const },
+      { relPath: ".context/memory/fact.md", sha256: "altered", kind: "memory" as const },
+      { relPath: ".context/memory/draft.md", sha256: "private", kind: "memory" as const },
+      { relPath: ".context/backlog/items/item.md", sha256: "backlog", kind: "backlog" as const },
+    ];
+    const revisions = [
+      { key: { kind: "memory" as const, subjectId: "memory", logicalName: "fact.md" }, revision: "pub-1", sha256: "published" },
+      { key: { kind: "memory" as const, subjectId: "memory", logicalName: "draft.md" }, revision: "private-1", sha256: "private" },
+      { key: { kind: "backlog" as const, subjectId: "backlog", logicalName: "items/item.md" }, revision: "backlog-1", sha256: "backlog" },
+    ];
+    expect(filterPublishedImportFiles(files, revisions, ["pub-1", "backlog-1"]).map((file) => file.relPath)).toEqual([
+      ".context/memory/fact.md",
+      ".context/backlog/items/item.md",
+    ]);
+  });
+});
 
   test("missing source dirs are silently skipped (not an error)", () => {
     const root = mkdtempSync(join(tmpdir(), "bmem-missing-"));

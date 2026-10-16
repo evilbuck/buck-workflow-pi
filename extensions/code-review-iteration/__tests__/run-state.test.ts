@@ -1,3 +1,4 @@
+import { DatabaseSync } from "node:sqlite";
 import { describe, it, expect, afterEach } from "vitest";
 import { readConsumer } from "../../../skills/_shared/storage/consumers.js";
 import { SQLiteStorageStore } from "../../../skills/_shared/storage/sqlite-store.js";
@@ -283,11 +284,15 @@ describe("pass artifact retention on the configured store", () => {
       expect(markdownRunId).toBeTruthy();
       const store = SQLiteStorageStore.openSync(database);
       try {
-        const scope = { projectId: "configured-project", branchId: "configured-branch", worktreeId: dir, runId: runId!, publishedRevisionIds: [] };
+        const probe = new DatabaseSync(database, { readOnly: true });
+        const row = probe.prepare("SELECT project_id, branch_id, worktree_id, run_id FROM artifact_revisions WHERE logical_name=? AND run_id=?").get("passes/01/review.json", runId) as { project_id: string; branch_id: string; worktree_id: string; run_id: string } | undefined;
+        probe.close();
+        expect(row).toBeTruthy();
+        const scope = { projectId: row!.project_id, branchId: row!.branch_id, worktreeId: row!.worktree_id, runId: row!.run_id, publishedRevisionIds: [] };
         const retained = await readConsumer(store, scope, "audit", "code-review", "passes/01/review.json");
         expect(new TextDecoder().decode(retained!.bytes)).toBe(`${JSON.stringify(reviewBody, null, 2)}\n`);
-        await expect(store.readReceipt("configured-project", runId!)).resolves.toMatchObject({
-          attemptId: runId, worktreeId: dir, status: "attempted",
+        await expect(store.readReceipt(row!.project_id, runId!)).resolves.toMatchObject({
+          attemptId: runId, worktreeId: row!.worktree_id, status: "attempted",
         });
         const stranger = { ...scope, runId: `${runId}-stranger` };
         await expect(readConsumer(store, stranger, "audit", "code-review", "passes/01/review.json")).resolves.toBeNull();

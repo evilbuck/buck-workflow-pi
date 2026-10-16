@@ -1,8 +1,8 @@
 ---
 import Base from '../layouts/Base.astro';
-import { FilesystemPlanSource } from '../lib/plans/filesystem';
+import { createPlanSource } from '../lib/plans';
 
-const source = new FilesystemPlanSource();
+const source = createPlanSource();
 const subjects = await source.listSubjects();
 const totalDocs = subjects.reduce((n, s) => n + s.documents.length, 0);
 ---

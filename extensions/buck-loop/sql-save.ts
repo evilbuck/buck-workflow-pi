@@ -119,9 +119,11 @@ export function writeReceipt(cwd: string, attempt: SaveAttempt, body: Pick<SaveR
 
 /** Persist reusable facts before applying filesystem metadata. Retries reuse the attempt receipt. */
 export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], deps: SaveStoreDeps = {}, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
-  if (!sqlMode()) throw new Error("SQL_MEMORY_URL is not set");
   const reused = savedIds(cwd, attempt, facts);
-  if (reused) return reused;
+  if (reused) {
+    await persistAttemptOnStore(cwd, attempt, deps, reused);
+    return reused;
+  }
   try {
     const ids = facts.length === 0 ? await saveNoFacts(cwd, attempt, deps) : await saveRows(cwd, attempt, facts, deps);
     note(onActivity ?? deps.onActivity, true, facts.length === 0 ? "Memory wrote · no-fact" : "Memory wrote");
@@ -146,11 +148,12 @@ async function persistAttemptOnStore(cwd: string, attempt: SaveAttempt, deps: Sa
       projectId: deps.context.projectId,
       branchId: deps.context.branchId,
       worktreeId: deps.context.worktreeId ?? `worktree:${attempt.runId}`,
-      runId: deps.context.runId ?? attempt.runId,
+      runId: attempt.runId,
       attemptId: attempt.attemptId,
       status: "attempted",
       artifactRevisions: ids,
       kind: ids.length === 0 ? "no-fact" : "rows",
+      metadataDuties: ["save-metadata", ids.length === 0 ? "probe" : "readback"],
     });
     return;
   }
@@ -160,6 +163,7 @@ async function persistAttemptOnStore(cwd: string, attempt: SaveAttempt, deps: Sa
     status: "attempted",
     artifactRevisions: ids,
     kind: ids.length === 0 ? "no-fact" : "rows",
+    metadataDuties: ["save-metadata", ids.length === 0 ? "probe" : "readback"],
   });
 }
 
@@ -217,10 +221,13 @@ export async function probeSql(deps: SaveStoreDeps = {}, onActivity?: SqlMemoryA
 /** Confirm the current attempt's receipt against visible store revisions. */
 export async function verifySqlSave(cwd: string, subject: string | null, deps: SaveStoreDeps = {}, requireComplete = true, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
   if (!sqlMode()) return { status: "skip" };
-  if (!subject) return { status: "block", reason: "SQL save has no subject; refusing to commit." };
-  const attempt = readAttempt(cwd);
-  const projected = projectedAttemptCheck(attempt, subject, expectedAttemptId);
-  if (projected) return projected;
+  return verifySqlSaveAttempt(cwd, subject, deps, requireComplete, expectedAttemptId, onActivity);
+}
+
+async function verifySqlSaveAttempt(cwd: string, subject: string | null, deps: SaveStoreDeps, requireComplete: boolean, expectedAttemptId?: string | null, onActivity?: SqlMemoryActivitySink): Promise<SaveCheck> {
+  const preflight = verifyLocalAttempt(cwd, subject, expectedAttemptId);
+  if (preflight) return preflight;
+  const attempt = readAttempt(cwd)!;
   const projectCheck = verifyAttemptProject(cwd, attempt);
   if (projectCheck.status !== "verified") return projectCheck;
   const receipt = readReceipt(cwd, attempt);
@@ -230,7 +237,14 @@ export async function verifySqlSave(cwd: string, subject: string | null, deps: S
   if (requireComplete && receipt.completed !== true) return { status: "unverified" };
   const check = await confirmReceipt(cwd, receipt, attempt, deps);
   if (check.status === "block") note(onActivity, false, "Memory failed");
-  return check;
+  if (check.status !== "verified" || !requireComplete) return check;
+  return completeStoreReceipt(cwd, attempt, receipt, deps);
+}
+
+function verifyLocalAttempt(cwd: string, subject: string | null, expectedAttemptId?: string | null): SaveCheck | null {
+  if (!subject) return { status: "block", reason: "SQL save has no subject; refusing to commit." };
+  const projected = projectedAttemptCheck(readAttempt(cwd), subject, expectedAttemptId);
+  return projected;
 }
 
 function verifyAttemptProject(cwd: string, attempt: SaveAttempt): SaveCheck {
@@ -295,6 +309,111 @@ async function confirmReceipt(cwd: string, receipt: SaveReceipt, attempt: SaveAt
   } catch (error) {
     return { status: "block", reason: `SQL save receipt check failed: ${errorMessage(error)}` };
   }
+}
+
+async function completeStoreReceipt(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps): Promise<SaveCheck> {
+  try {
+    return deps.store && deps.context
+      ? await completeInjectedReceipt(attempt, receipt, deps)
+      : await completeWorkflowReceipt(cwd, attempt, receipt, deps);
+  } catch (error) {
+    return { status: "block", reason: `Durable save receipt completion failed: ${errorMessage(error)}` };
+  }
+}
+
+async function completeInjectedReceipt(attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps & { store: StorageStore; context: TrustedWorkflowContext }): Promise<SaveCheck> {
+  const { store, context } = deps;
+  const expectedWorktree = context.worktreeId ?? `worktree:${attempt.runId}`;
+  let existing = await store.readReceipt(context.projectId, attempt.runId);
+  if (!existing) {
+    await store.writeReceipt({
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: expectedWorktree,
+      runId: attempt.runId,
+      attemptId: attempt.attemptId,
+      status: "attempted",
+      artifactRevisions: receipt.ids,
+      kind: receipt.kind,
+      metadataDuties: requiredReceiptDuties(receipt.kind),
+    });
+    existing = await store.readReceipt(context.projectId, attempt.runId);
+    if (!existing) return { status: "unverified" };
+  }
+  if (existing.status !== "complete") await persistInjectedCompletion(store, existing, attempt, receipt);
+  const stored = await store.readReceipt(context.projectId, attempt.runId);
+  return injectedReceiptMatches(stored, context, expectedWorktree, attempt, receipt)
+    ? { status: "verified" }
+    : { status: "unverified" };
+}
+
+async function persistInjectedCompletion(store: StorageStore, existing: RunReceipt, attempt: SaveAttempt, receipt: SaveReceipt): Promise<void> {
+  await store.writeReceipt({
+    ...existing,
+    status: "complete",
+    artifactRevisions: receipt.ids,
+    kind: receipt.kind,
+    metadataDuties: requiredReceiptDuties(receipt.kind),
+  });
+}
+
+function injectedReceiptMatches(stored: RunReceipt | null, context: TrustedWorkflowContext, worktreeId: string, attempt: SaveAttempt, receipt: SaveReceipt): boolean {
+  return stored !== null && stored.branchId === context.branchId && stored.worktreeId === worktreeId &&
+    stored.attemptId === attempt.attemptId && stored.kind === receipt.kind &&
+    receiptMatches(stored, attempt, receipt.ids, "complete");
+}
+
+async function completeWorkflowReceipt(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, deps: SaveStoreDeps): Promise<SaveCheck> {
+  const revisions = receipt.ids;
+  const duties = ["save-metadata", receipt.kind === "no-fact" ? "probe" : "readback"];
+  const existing = await callStore(cwd, deps, { operation: "read-receipt" });
+  if (!receiptMatches(existing, attempt, revisions, "complete")) {
+    if (!receiptMatches(existing, attempt, revisions, "attempted")) {
+      await callStore(cwd, deps, {
+        operation: "write-receipt",
+        attemptId: attempt.attemptId,
+        status: "attempted",
+        artifactRevisions: revisions,
+        kind: receipt.kind,
+        metadataDuties: duties,
+      });
+    }
+    await callStore(cwd, deps, {
+      operation: "write-receipt",
+      attemptId: attempt.attemptId,
+      status: "complete",
+      artifactRevisions: revisions,
+      kind: receipt.kind,
+      metadataDuties: duties,
+    });
+  }
+  const stored = await callStore(cwd, deps, { operation: "read-receipt" });
+  return receiptMatches(stored, attempt, revisions, "complete")
+    ? { status: "verified" }
+    : { status: "unverified" };
+}
+
+
+function receiptMatches(value: unknown, attempt: SaveAttempt, revisions: readonly string[], status: string): boolean {
+  if (!value || typeof value !== "object") return false;
+  const receipt = value as Record<string, unknown>;
+  return receipt.status === status && receipt.attemptId === attempt.attemptId &&
+    hasRevisions(receipt.artifactRevisions, revisions) &&
+    (status !== "complete" || hasRequiredDuties(receipt));
+}
+
+function hasRevisions(value: unknown, revisions: readonly string[]): boolean {
+  return Array.isArray(value) && value.length === revisions.length &&
+    value.every((revision, index) => revision === revisions[index]);
+}
+
+function hasRequiredDuties(receipt: Record<string, unknown>): boolean {
+  const duties = Array.isArray(receipt.metadataDuties) ? receipt.metadataDuties : [];
+  return requiredReceiptDuties(receipt.kind === "no-fact" ? "no-fact" : "rows").every((duty) => duties.includes(duty));
+}
+
+function requiredReceiptDuties(kind: SaveReceipt["kind"]): string[] {
+  return ["save-metadata", kind === "no-fact" ? "probe" : "readback"];
 }
 
 async function probeStore(cwd: string, deps: SaveStoreDeps): Promise<SaveCheck> {

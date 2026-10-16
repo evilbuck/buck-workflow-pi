@@ -215,6 +215,15 @@ Sections:
 Source: <source-artifact-path>
 ```
 
+After writing the HTML, retain the presentation package before reporting success:
+
+```bash
+bun skills/b-present/scripts/retain-package.ts presentations/<slug>
+```
+
+Retention failure means the blueprint is not durable; report the error instead
+of claiming completion. Include the returned `runId` and retained file count.
+
 ## Code Snippet Rendering
 
 ### Syntax Highlighting Approach

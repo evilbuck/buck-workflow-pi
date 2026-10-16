@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { RepoFilesStorageStore } from "../storage/file-store.js";
-import { artifactToken, executeWorkflowState, parseArtifactToken, resolveTrustedContext, type TrustedWorkflowContext } from "./workflow-state.js";
+import { artifactToken, executeWorkflowState, parseArtifactToken, readPinnedScopeSync, resolveTrustedContext, type TrustedWorkflowContext } from "./workflow-state.js";
 
 const roots: string[] = [];
 const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
@@ -278,6 +278,26 @@ describe("trusted context binding", () => {
     expect((await resolveTrustedContext(cwd, options)).branchId).not.toBe(first.branchId);
   });
 
+  it("reads an existing trusted worktree scope without inventing identity", async () => {
+    const cwd = repo();
+    const previousXdg = process.env.XDG_CONFIG_HOME;
+    const xdg = temp("wf-pinned-xdg-");
+    process.env.XDG_CONFIG_HOME = xdg;
+    config(temp("wf-pinned-config-"), "version: 1\nstorage:\n  adapter: repo-files\nprojects: {}\n");
+    try {
+      const context = await resolveTrustedContext(cwd, { configPath: process.env.BUCK_WORKFLOW_CONFIG });
+      expect(readPinnedScopeSync(cwd)).toEqual({
+        projectId: context.projectId,
+        branchId: context.branchId,
+        worktreeId: context.worktreeId,
+        runId: context.runId,
+        publishedRevisionIds: [],
+      });
+    } finally {
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdg;
+    }
+  });
   it("does not materialize canonical .context bodies for sqlite or external-files writes", async () => {
     const cwd = repo();
     const home = temp("wf-home-");
@@ -316,7 +336,8 @@ describe("postgres opener", () => {
     delete process.env.BUCK_WORKFLOW_DATABASE_URL;
     try {
       await expect(executeWorkflowState({
-        cwd: temp("wf-pg-cwd-"), configPath: process.env.BUCK_WORKFLOW_CONFIG, context: context(), role: "read", request: { operation: "list" },
+        cwd: temp("wf-pg-cwd-"), identityPath: join(home, "identity.json"),
+        configPath: process.env.BUCK_WORKFLOW_CONFIG, context: context(), role: "read", request: { operation: "list" },
       })).rejects.toThrow(/BUCK_WORKFLOW_DATABASE_URL/);
     } finally {
       if (previous === undefined) delete process.env.SQL_MEMORY_URL;

@@ -162,7 +162,7 @@ export async function askRepairLift(diagnosis: string, audit?: { cwd: string; su
       accepted: lift !== null, reason,
     }, null, 2)}\n`;
     await writeFile(join(directory, name), body);
-    scheduleConfiguredRetain({
+    await scheduleConfiguredRetain({
       kind: "audit", subjectId: audit.subject, logicalName: `${audit.subject}/transition-audits/${name}`,
       bytes: new TextEncoder().encode(body), worktreeId: audit.cwd, source: "buck-loop",
     });

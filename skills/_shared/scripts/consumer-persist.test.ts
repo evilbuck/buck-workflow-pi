@@ -7,7 +7,7 @@ import {
   retainPresentationPackage, scheduleConfiguredRetain, listVisiblePlans, type ConsumerScope,
 } from "../storage/consumers.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
-import { resolveTrustedContext } from "./workflow-state.js";
+import { withConfiguredStore, resolveTrustedContext } from "./workflow-state.js";
 
 const roots: string[] = [];
 afterEach(() => {
@@ -90,11 +90,14 @@ describe("remaining durable consumers", () => {
 
 describe("configured-store retains from synchronous writers", () => {
   const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+  const previousXdg = process.env.XDG_CONFIG_HOME;
   let configPath: string;
 
   afterEach(() => {
     if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
     else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdg;
   });
 
   function configureSqlite(): string {
@@ -103,6 +106,7 @@ describe("configured-store retains from synchronous writers", () => {
     configPath = join(root, "config.yaml");
     writeFileSync(configPath, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "state.sqlite")}\n`);
     process.env.BUCK_WORKFLOW_CONFIG = configPath;
+    process.env.XDG_CONFIG_HOME = root;
     return root;
   }
 
@@ -115,7 +119,7 @@ describe("configured-store retains from synchronous writers", () => {
     });
     expect(runId).toBeTruthy();
     const context = await resolveTrustedContext(process.cwd());
-    expect(runId).toBe(context.runId);
+    expect(runId).not.toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
       const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
@@ -158,7 +162,7 @@ describe("configured-store retains from synchronous writers", () => {
     const runId = await flushConfiguredRetains().then(() => retained);
     expect(runId).toBeTruthy();
     const context = await resolveTrustedContext(process.cwd());
-    expect(runId).toBe(context.runId);
+    expect(runId).not.toBe(context.runId);
     const store = SQLiteStorageStore.openSync(join(configPath, "..", "state.sqlite"));
     try {
       const readScope = { projectId: context.projectId, branchId: context.branchId, worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [] };
@@ -171,13 +175,42 @@ describe("configured-store retains from synchronous writers", () => {
     }
   });
 
-  it("is a no-op under the default repo-files adapter instead of inventing a second store", async () => {
+  it("retains under the configured adapter in a fresh receipt run after the configured run completed", async () => {
     configureSqlite();
     writeFileSync(configPath, "version: 1\nstorage:\n  adapter: repo-files\n");
-    await expect(retainConfiguredArtifact({
+    await withConfiguredStore(process.cwd(), async (store, context) => {
+      if (!context.worktreeId || !context.runId) throw new Error("missing trusted test identity");
+      const receipt = {
+        projectId: context.projectId,
+        branchId: context.branchId,
+        worktreeId: context.worktreeId,
+        runId: context.runId,
+        attemptId: context.runId,
+        status: "attempted" as const,
+        artifactRevisions: [],
+        kind: "no-fact" as const,
+        metadataDuties: ["probe"],
+      };
+      await store.writeReceipt(receipt);
+      await store.writeReceipt({ ...receipt, status: "complete" });
+    });
+    const bytes = new TextEncoder().encode("{}");
+    const runId = await retainConfiguredArtifact({
       kind: "audit", subjectId: "memory-import", logicalName: "manifest.json",
-      bytes: new TextEncoder().encode("{}"), worktreeId: "/repo/worktree-a",
-    })).resolves.toBeNull();
+      bytes, worktreeId: "/repo/worktree-a",
+    });
+    expect(runId).toBeTruthy();
+    await withConfiguredStore(process.cwd(), async (store, context) => {
+      expect(runId).not.toBe(context.runId);
+      const readScope = {
+        projectId: context.projectId, branchId: context.branchId,
+        worktreeId: context.worktreeId!, runId: runId!, publishedRevisionIds: [],
+      };
+      await expect(readConsumer(store, readScope, "audit", "memory-import", "manifest.json"))
+        .resolves.toMatchObject({ bytes });
+      await expect(store.readReceipt(context.projectId, runId!))
+        .resolves.toMatchObject({ attemptId: runId, worktreeId: context.worktreeId });
+    });
   });
 });
 

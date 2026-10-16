@@ -7,7 +7,7 @@ triggers:
   - seed hindsight from .context
 ---
 
-Import historical project `.context/memory/*.md` into OMP Hindsight via HTTP retain. The default scan is limited to the legacy `.context/memory/` directory; subject-scoped SQL receipts are control-plane metadata and are never an import source. SQL mode does not migrate historical Markdown memories.
+Import project `.context/memory/*.md` and backlog items into OMP Hindsight via HTTP retain only when each exact file hash matches a revision explicitly listed as published by the configured workflow store. Private branch drafts and ambiguous legacy files are excluded before payload construction. The default scan is limited to the legacy `.context/memory/` directory; subject-scoped SQL receipts are control-plane metadata and are never an import source. SQL mode does not migrate historical Markdown memories that lack published-revision evidence.
 
 The deterministic Bun script uses no LLM or qmd. Configure `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, and `HINDSIGHT_SCOPING`, or `~/.omp/agent/config.yml` → `hindsight.*`.
 

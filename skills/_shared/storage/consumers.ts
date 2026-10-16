@@ -130,16 +130,16 @@ export async function retainConfiguredArtifact(write: {
   cwd?: string;
 }): Promise<string | null> {
   return withConfiguredStore(write.cwd ?? process.cwd(), async (store, context) => {
-    if (context.selection?.storage.adapter === "repo-files") return null;
-    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree run is not bound");
+    if (!context.worktreeId) throw new Error("Trusted worktree identity is not bound");
+    const runId = createRunId();
     await commitConsumerBatch(store, {
       projectId: context.projectId,
       branchId: context.branchId,
       worktreeId: context.worktreeId,
-      runId: context.runId,
+      runId,
       publishedRevisionIds: context.publishedRevisionIds,
-    }, [write], { attemptId: context.runId, status: "attempted" });
-    return context.runId;
+    }, [write], { attemptId: runId, status: "attempted" });
+    return runId;
   });
 }
 
@@ -176,7 +176,7 @@ export function classifyContextPath(path: string): { kind: ArtifactKind; subject
   const subjectId = segments[0]!;
   const logicalName = segments.slice(1).join("/");
   const name = segments.at(-1)!;
-  if (name === "index.md") return { kind: "subject-index", subjectId, logicalName };
+  if (name === "index.md") return { kind: "subject-index", subjectId, logicalName: "index.md" };
   const matched = KIND_BY_FILENAME.find(([pattern]) => pattern.test(name));
   return matched ? { kind: matched[1], subjectId, logicalName } : { kind: "audit", subjectId, logicalName };
 }

@@ -130,12 +130,15 @@ describe("attribution retention on the configured store", () => {
     const store = SQLiteStorageStore.openSync(database);
     try {
       const probe = new DatabaseSync(database, { readOnly: true });
-      const rows = probe.prepare("SELECT logical_name, run_id FROM artifact_revisions WHERE subject_id='token-attribution' AND kind='attribution'").all() as Array<{ logical_name: string; run_id: string }>;
+      const rows = probe.prepare("SELECT project_id, logical_name, run_id, worktree_id FROM artifact_revisions WHERE subject_id='token-attribution' AND kind='attribution'").all() as Array<{ project_id: string; logical_name: string; run_id: string; worktree_id: string }>;
       probe.close();
       expect(rows.map((row) => row.logical_name)).toContain("rows/entry-1.json");
-      await expect(store.readReceipt("configured-project", rows[0]!.run_id)).resolves.toMatchObject({
-        attemptId: rows[0]!.run_id,
-        worktreeId: "/repo/a",
+      const row = rows[0]!;
+      expect(row.project_id).not.toBe("");
+      expect(row.worktree_id).not.toBe("");
+      await expect(store.readReceipt(row.project_id, row.run_id)).resolves.toMatchObject({
+        attemptId: row.run_id,
+        worktreeId: row.worktree_id,
         status: "attempted",
       });
     } finally {

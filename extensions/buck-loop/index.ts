@@ -256,6 +256,7 @@ async function showResult(result: LoopResult, parsed: RunArgs, card: ActivityCar
   const ok = result.state !== "blocked" && result.state !== "aborted";
   log.terminal({ state: result.state, reason: result.reason, ok });
   await log.flush();
+  await log.close();
   if (ok || parsed.command === "status" || result.state === "aborted") card.succeed(terminal);
   else card.fail(terminal);
 }

@@ -65,10 +65,14 @@ else {
   if (!subject && !SUBJECT_FREE[operation]) fail(`${operation} requires --subject`);
   const cwd = resolve(process.cwd());
   const context = await resolveTrustedContext(cwd);
+  // Receipt attempts have their own pinned runs; the workspace run is not a receipt key.
+  const operationContext = operation === "read-receipt" || operation === "write-receipt"
+    ? { ...context, runId: undefined }
+    : context;
   // Operator-only executable: restricted children have no execution tool.
   // Ordinary mutations need save permissions, never cross-branch administration.
   const role: WorkflowRole = operation === "inspect" || operation === "recover" ? "admin" : "save";
-  const value = await executeWorkflowState({ cwd, request: buildRequest(operation, subject, branchFlag.value, input), context, role });
+  const value = await executeWorkflowState({ cwd, request: buildRequest(operation, subject, branchFlag.value, input), context: operationContext, role });
   if (value === null || value === undefined) process.exitCode = 1;
   console.log(JSON.stringify(value ?? null));
 }

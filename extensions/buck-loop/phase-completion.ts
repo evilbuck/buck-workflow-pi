@@ -6,7 +6,8 @@
  * boxes say so. A phase with no list still uses `status`.
  */
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, relative, resolve, sep } from "node:path";
+import { classifyContextPath, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { scan } from "./scan.js";
 import {
   frontmatterAcceptanceCriteria,
@@ -50,12 +51,12 @@ export function syncCheckedPhasesAt(root: string, input: string, today: string):
   for (const name of readdirSync(subjectDir)) {
     if (PHASE_FILE_RE.test(name)) {
       const phaseAbs = resolve(subjectDir, name);
-      if (!writeCompletedStatus(phaseAbs, today)) continue;
+      if (!writeCompletedStatus(root, phaseAbs, today)) continue;
       written.push(phaseAbs);
-      syncOverviews(subjectDir, name);
+      syncOverviews(root, subjectDir, name);
     }
   }
-  if (selected.planFacts.kind === "unphased" && writeUnphasedPlanStatus(abs, today)) written.push(abs);
+  if (selected.planFacts.kind === "unphased" && writeUnphasedPlanStatus(root, abs, today)) written.push(abs);
   return written;
 }
 
@@ -73,7 +74,7 @@ export function markPhaseCompleted(text: string, today: string): string {
   return text.slice(0, fm.start) + body + text.slice(fm.end);
 }
 
-function writeUnphasedPlanStatus(abs: string, today: string): boolean {
+function writeUnphasedPlanStatus(root: string, abs: string, today: string): boolean {
   const text = readFileSync(abs, "utf8");
   const fm = frontmatterSpan(text);
   const criteria = planAcceptanceCriteria(text);
@@ -86,7 +87,9 @@ function writeUnphasedPlanStatus(abs: string, today: string): boolean {
   const withDate = /^completed_at:/m.test(updated)
     ? updated.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
     : updated.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
-  writeFileSync(abs, text.slice(0, fm.start) + withDate + text.slice(fm.end));
+  const body = text.slice(0, fm.start) + withDate + text.slice(fm.end);
+  writeFileSync(abs, body);
+  retainContextArtifact(root, abs, body);
   return true;
 }
 
@@ -94,22 +97,37 @@ function criteriaAllChecked(criteria: string[] | null): boolean {
   return criteria !== null && criteria.length > 0 && criteria.every(isCheckedCriterion);
 }
 
-function writeCompletedStatus(abs: string, today: string): boolean {
+function writeCompletedStatus(root: string, abs: string, today: string): boolean {
   const text = readFileSync(abs, "utf8");
   const next = markPhaseCompleted(text, today);
   if (next === text) return false;
   writeFileSync(abs, next);
+  retainContextArtifact(root, abs, next);
   return true;
 }
 
-function syncOverviews(subjectDir: string, phaseName: string): void {
+function syncOverviews(root: string, subjectDir: string, phaseName: string): void {
   for (const name of readdirSync(subjectDir)) {
     if (!name.startsWith("plan-") || !name.endsWith(".md") || !name.includes("-phases")) continue;
     const abs = resolve(subjectDir, name);
     const text = readFileSync(abs, "utf8");
     const next = markOverviewRow(text, phaseName);
-    if (next !== text) writeFileSync(abs, next);
+    if (next !== text) {
+      writeFileSync(abs, next);
+      retainContextArtifact(root, abs, next);
+    }
   }
+}
+
+function retainContextArtifact(root: string, abs: string, body: string): void {
+  const relativePath = relative(root, abs).split(sep).join("/");
+  const artifact = classifyContextPath(relativePath);
+  scheduleConfiguredRetain({
+    ...artifact,
+    bytes: new TextEncoder().encode(body),
+    cwd: root,
+    source: "buck-loop-phase-completion",
+  });
 }
 
 function markOverviewRow(text: string, phaseName: string): string {
