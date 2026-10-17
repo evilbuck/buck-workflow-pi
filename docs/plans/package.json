@@ -2,7 +2,7 @@
   "name": "plans-site",
   "private": true,
   "version": "0.1.0",
-  "description": "Readable browser for .context/{subject}/ plan markdown. Markdown is sourced through a PlanSource adapter so filesystem (.context/) and SQL memory can be supported interchangeably.",
+  "description": "Readable browser for workflow artifacts sourced through the configured workflow storage adapter.",
   "type": "module",
   "scripts": {
     "dev": "astro dev",

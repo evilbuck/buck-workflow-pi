@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cleanupRepos, planMd, phaseMd, repo, writeTree } from "./fixtures.js";
+import { cleanupRepos, planMd, phaseMd, repo, seedProjectionBytes, writeTree } from "./fixtures.js";
 import {
   PROJECTION_RELPATH,
   readProjection,
@@ -17,7 +17,6 @@ import {
 } from "../persist.js";
 import { heavyLiftResume, next, userConfirmed } from "../machine.js";
 import type { LoopState } from "../types.js";
-import { scheduleConfiguredRetain } from "../../../skills/_shared/storage/consumers.js";
 
 const SUBJECT = "2026-09-18.demo";
 
@@ -52,10 +51,7 @@ function projection(overrides: Partial<Projection> = {}): Projection {
 }
 
 async function seedProjection(root: string, files: Record<string, string>): Promise<void> {
-  await scheduleConfiguredRetain({
-    kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
-    cwd: root, bytes: new TextEncoder().encode(files[PROJECTION_RELPATH]), source: "test",
-  });
+  await seedProjectionBytes(root, files[PROJECTION_RELPATH]);
 }
 
 afterEach(cleanupRepos);

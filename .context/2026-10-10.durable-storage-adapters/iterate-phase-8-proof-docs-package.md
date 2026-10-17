@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-10-16
 updated: 2026-10-16
 subject: 2026-10-10.durable-storage-adapters
 topics: [review, iteration, end-to-end-proof]
 informs: []
 addresses: phase-8-proof-docs-package.md
-completed: null
+completed: 2026-10-16
 from_review: b-review
 ---
 

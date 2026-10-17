@@ -7,8 +7,6 @@ Chain: 1 → 2 → 3 → 4 → 5 and 3 → 6 → 7 → 8 (5 ∥ 6 possible; sequ
 
 
 
-- [ ] [Phase 8: End-to-End Proof, Docs & Packaging](items/phase-8-storage-adapter-proof-docs-package.md) — easy, `/b-build`
-
 
 ## Worktree recap
 

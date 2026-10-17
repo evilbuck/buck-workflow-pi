@@ -4,8 +4,8 @@ date: 2026-10-10
 subject: 2026-10-10.durable-storage-adapters
 topics: [storage-adapters, configuration, branch-isolation, sqlite, postgresql]
 research: [research-durable-storage-adapters.md]
-iterations: [iterate-phase-1-contract-config-identity.md, iterate-phase-2-four-adapters.md]
-memory: [storage-adapters-phase-1-save-2026-10-10.md]
+iterations: [iterate-phase-1-contract-config-identity.md, iterate-phase-2-four-adapters.md, iterate-phase-4-native-access-rereview.md, iterate-phase-8-proof-docs-package.md]
+memory: [storage-adapters-phase-1-save-2026-10-10.md, storage-adapters-phase-8-save-2026-10-16.md]
 sql_memory_ids:
   - 01a127c3-490a-74ad-8cb8-04f01a67dd53
   - 01a130f6-89ba-70a4-9b09-c181378c4836
@@ -178,21 +178,23 @@ Before implementation, use LSP references for changed exports and inventory ever
 Dependency order: 1 → 2 → 3 → 4; 5 depends on the same contract/tool surface; 6 needs exact revisions/checkpoint integration; 7 needs all selected adapter and visibility semantics; final proof requires all steps. This is a multi-slice plan and should be phased before implementation. These numbered steps are not generated phase files.
 
 ## Acceptance criteria
-- [ ] Each required adapter supports every in-scope durable kind, text/binary payload, exact revisions, save/lifecycle semantics and scoped resume; no PostgreSQL-only fallback pipeline remains.
-- [ ] One machine text config with project overrides selects storage consistently for extension, hook, child sessions and CLI; secrets/private generated state are not dotfile payloads.
-- [ ] No-config repository-file behavior remains usable; legacy SQL environment is diagnosed and migrated explicitly, not silently used as a second backend.
-- [ ] Independent projects never collide; aliases/import mappings preserve existing identities; worktrees and concurrent runs never share mutable resume pointers accidentally.
-- [ ] Ordinary reads return only current branch overlay and proven published baseline—including memories, subject discovery and backlog. Private candidates cannot affect visible shortlist/pagination.
-- [ ] Same-named subjects/artifacts on two unmerged branches stay independent; branched corrections/tombstones do not invalidate another branch's published baseline.
-- [ ] Exact sealed v1 publishes after valid checkpoint merge; later v2 stays private. Old creation HEAD, inherited integration commits, branch deletion, patch equivalence and Git errors never count as proof.
-- [ ] Preserved-history merges auto-publish only eligible snapshots; squash/rebase remain private until exact verified mapping; rewritten integration history revokes now-unproven visibility. Conflicts preserve the last unambiguous baseline.
-- [ ] Detached/unborn/orphaned/reused branches remain private and explicitly recoverable; no automatic deletion.
-- [ ] Lifecycle close, receipt completion, attempt/run/project binding, no-fact verification and commit proof remain enforced on every backend. Outages or stale writers cannot yield false success.
-- [ ] Native/CLI/reference-based workflows run without canonical `.context` materialization under external/SQL selection; no unscoped normal raw SQL recall or LTM mirroring leak remains.
-- [ ] Legacy records without exact merge evidence are retained in an explicit recovery/import scope; no guessing or deletion. Export/import preserves IDs, content hashes, binary files, links, scoped corrections, ranks and lifecycle provenance.
-- [ ] Switching/migration/recovery works with interrupted imports and post-cutover writes, without dual writes or silent backend fallback.
-- [ ] All discovered Buck-owned durable writers/readers are migrated; host-owned session/LTM/stats data and unrelated source/living docs are unchanged.
-- [ ] Actual OMP runtime, CLI/CI supported runtimes, installed package, canonical command/skill mirrors, existing suite and required guardrails pass; changed plan-site read path is exercised on its actual surface.
+- [x] Each required adapter supports every in-scope durable kind, text/binary payload, exact revisions, save/lifecycle semantics and scoped resume; no PostgreSQL-only fallback pipeline remains.
+- [x] One machine text config with project overrides selects storage consistently for extension, hook, child sessions and CLI; secrets/private generated state are not dotfile payloads.
+- [x] No-config repository-file behavior remains usable; legacy SQL environment is diagnosed and migrated explicitly, not silently used as a second backend.
+- [x] Independent projects never collide; aliases/import mappings preserve existing identities; worktrees and concurrent runs never share mutable resume pointers accidentally.
+- [x] Ordinary reads return only current branch overlay and proven published baseline—including memories, subject discovery and backlog. Private candidates cannot affect visible shortlist/pagination.
+- [x] Same-named subjects/artifacts on two unmerged branches stay independent; branched corrections/tombstones do not invalidate another branch's published baseline.
+- [x] Exact sealed v1 publishes after valid checkpoint merge; later v2 stays private. Old creation HEAD, inherited integration commits, branch deletion, patch equivalence and Git errors never count as proof.
+- [x] Preserved-history merges auto-publish only eligible snapshots; squash/rebase remain private until exact verified mapping; rewritten integration history revokes now-unproven visibility. Conflicts preserve the last unambiguous baseline.
+- [x] Detached/unborn/orphaned/reused branches remain private and explicitly recoverable; no automatic deletion.
+- [x] Lifecycle close, receipt completion, attempt/run/project binding, no-fact verification and commit proof remain enforced on every backend. Outages or stale writers cannot yield false success.
+- [x] Native/CLI/reference-based workflows run without canonical `.context` materialization under external/SQL selection; no unscoped normal raw SQL recall or LTM mirroring leak remains.
+- [x] Legacy records without exact merge evidence are retained in an explicit recovery/import scope; no guessing or deletion. Export/import preserves IDs, content hashes, binary files, links, scoped corrections, ranks and lifecycle provenance.
+- [x] Switching/migration/recovery works with interrupted imports and post-cutover writes, without dual writes or silent backend fallback.
+- [x] All discovered Buck-owned durable writers/readers are migrated; host-owned session/LTM/stats data and unrelated source/living docs are unchanged.
+- [x] Actual OMP runtime, CLI/CI supported runtimes, installed package, canonical command/skill mirrors, existing suite and required guardrails pass; changed plan-site read path is exercised on its actual surface.
+
+Evidence: [parent acceptance recheck](research-phase-8-acceptance-recheck.md), [actual OMP workflows and producer revisions](research-phase-8-live-workflows.md), and [guarded repair verification](research-phase-8-guarded-repair.md).
 
 ## Verification
 **During implementation, required:**

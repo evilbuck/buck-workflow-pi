@@ -14,18 +14,13 @@ export async function getStaticPaths() {
   const paths = [];
   for (const subject of subjects) {
     const docs = await source.listDocuments(subject.name);
-    const previews: Record<string, Synopsis> = {};
     for (const doc of docs) {
-      previews[`/${subject.name}/${doc.slug}`] = synopsisOf(doc.file, doc.raw);
-    }
-    for (const doc of docs) {
-      // Cross-subject link targets get previews too; same-subject links are
-      // already covered by the sibling map above.
+      const previews: Record<string, Synopsis> = {};
       const hrefs = new Set<string>();
       for (const match of doc.body.matchAll(linkPattern)) hrefs.add(match[1]);
       for (const href of hrefs) {
         const ref = resolveDocHref(subject.name, href);
-        if (!ref || ref.subject === subject.name) continue;
+        if (!ref) continue;
         const key = routeKey(ref);
         if (key in previews) continue;
         const target = await source.getDocument(ref.subject, ref.slug).catch(() => null);

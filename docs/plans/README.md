@@ -36,6 +36,16 @@ working directory.
 The reader returns current-branch and published revisions only. It does not
 select a raw SQL database or union adapter results with filesystem documents.
 
+Each reader captures one immutable visible view. Production static builds share
+that reader across routes, so subject listings, document bytes and link targets
+come from the same snapshot without reloading the entire store per link. New
+reader instances capture fresh bytes. Development does not share the production
+reader, but Astro can cache static route props: restart the development server
+after backend-only edits, and rebuild static output to refresh a published site.
+Document hover payloads include only referenced targets, not every sibling
+document. This keeps large builds from multiplying full-store reads and
+unrelated preview data.
+
 ## Hover previews
 
 Doc and subject pages inline a JSON map of linked-document synopses

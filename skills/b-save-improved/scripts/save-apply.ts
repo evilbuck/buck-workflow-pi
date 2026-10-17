@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
-  existsSync as fileExistsSync, lstatSync, mkdirSync, readFileSync as fileReadSync, realpathSync, renameSync, rmSync, writeFileSync,
+  existsSync as fileExistsSync, lstatSync, readFileSync as fileReadSync, realpathSync, rmSync,
 } from "node:fs";
 import {
   readFrontmatter, setFrontmatterFields, appendFrontmatterListItem, planMemoryRefStyle, extractTitle,
@@ -11,7 +11,7 @@ import {
   inspectSubjectLifecycleTexts,
   type SubjectLifecycleResult,
 } from "../../_shared/scripts/subject-lifecycle.js";
-import { readSaveSources } from "./save-preflight.js";
+import { contextPathOf, readSaveSources } from "./save-preflight.js";
 import { classifyContextPath, consumerKey, type ConsumerScope } from "../../_shared/storage/consumers.js";
 import type { ArtifactKey, ArtifactRevision, StorageStore } from "../../_shared/storage/contract.js";
 import { completeSaveAttempt, loadSaveAttempt, prepareSaveAttempt, recordSaveMetadata, resumeSaveMetadata, saveSqlFacts, verifySqlSave, withSaveStore, type SaveAttempt, type SaveStoreDeps } from "../../../extensions/buck-loop/sql-save.js";
@@ -152,8 +152,6 @@ function mutate(path: string, content: string, reason: string): void {
   const full = containedContextPath(path);
   const action = existsSync(full) ? "updated" : "created";
   if (!dryRun) {
-    mkdirSync(dirname(full), { recursive: true });
-    writeFileSync(full, content);
     pendingWrites.set(path, content);
   }
   record(path, action, reason);
@@ -285,14 +283,11 @@ function archiveItem(payload: AnyRecord, item: AnyRecord): void {
   const title = String(readFrontmatter(original).data.title ?? extractTitle(readFrontmatter(original).body, item.slug));
   const rewritten = setFrontmatterFields(original, { status: "completed", completed: payload.today, updated: payload.today });
   const archivePath = `.context/backlog/archive/${payload.today.slice(0, 7)}/${item.slug}.md`;
-  const destination = containedUnder(".context/backlog/archive", archivePath);
+  containedUnder(".context/backlog/archive", archivePath);
   const todo = existsSync(containedContextPath(todoPath)) ? readFileSync(containedContextPath(todoPath), "utf8") : "";
   const nextTodo = todo.split(/(?<=\n)/).filter((line) => !(line.startsWith("- [ ]") && line.includes(`items/${item.slug}.md`))).join("");
   if (nextTodo !== todo) mutate(todoPath, nextTodo, `remove completed backlog item ${item.slug}`);
   if (!dryRun) {
-    mkdirSync(dirname(destination), { recursive: true });
-    writeFileSync(source, rewritten);
-    renameSync(source, destination);
     pendingWrites.set(archivePath, rewritten);
     removedSources.add(itemPath);
     movedFrom.set(archivePath, itemPath);
@@ -492,9 +487,7 @@ function applyLoose(payload: AnyRecord): void {
       continue;
     }
     if (!dryRun) {
-      mkdirSync(dirname(destination), { recursive: true });
-      renameSync(source, destination);
-      pendingWrites.set(join(payload.subject.path, basename(loose)), fileReadSync(destination, "utf8"));
+      pendingWrites.set(join(payload.subject.path, basename(loose)), readFileSync(source, "utf8"));
       removedSources.add(loose);
       movedFrom.set(join(payload.subject.path, basename(loose)), loose);
     }
@@ -607,7 +600,6 @@ function applyAll(payload: AnyRecord): void {
   for (const deleted of payload.deleted_sources ?? []) {
     removedSources.add(typeof deleted === "string" ? deleted : deleted.path);
   }
-  if (payload.subject.create && !dryRun) mkdirSync(containedContextPath(payload.subject.path), { recursive: true });
   applyIterates(payload);
   const fm = applyMemory(payload);
   applySubjectIndex(payload, fm);
@@ -649,10 +641,8 @@ function failSchema(message: string): number {
 function saveSourcePath(item: ArtifactRevision, subjectName: string): string | null {
   const key = item.key;
   if (key.subjectId === "save-attempts" || key.kind === "receipt") return null;
-  const path = key.subjectId === "save-apply" ? `.context/${key.logicalName}` : `.context/${key.subjectId}/${key.logicalName}`;
   if (key.subjectId !== subjectName && !["memory", "backlog", "save-apply"].includes(key.subjectId)) return null;
-  const classified = classifyContextPath(path);
-  return classified.kind === key.kind && classified.subjectId === key.subjectId && classified.logicalName === key.logicalName ? path : null;
+  return contextPathOf(key);
 }
 
 function assertSourceSnapshot(path: string, snapshot: AnyRecord): void {
@@ -675,16 +665,13 @@ async function loadSources(payload: AnyRecord, deps: SaveStoreDeps): Promise<voi
     const { artifacts } = await readSaveSources(store, context, cwd());
     for (const item of artifacts.values()) {
       const path = saveSourcePath(item, payload.subject.name);
-      if (path !== null) sourceArtifacts.set(path, item);
+      if (path !== null) {
+        if (sourceArtifacts.has(path)) throw new Error(`Ambiguous authoritative artifact path: ${path}`);
+        sourceArtifacts.set(path, item);
+      }
     }
     validateSourceSnapshots(payload);
     authoritative = true;
-    if (dryRun) return;
-    for (const [path, item] of sourceArtifacts) {
-      const full = containedContextPath(path);
-      mkdirSync(dirname(full), { recursive: true });
-      writeFileSync(full, item.bytes);
-    }
   });
 }
 
@@ -707,9 +694,10 @@ async function commitMetadataRevisions(store: StorageStore, scope: ConsumerScope
 }
 
 function metadataRevision(scope: ConsumerScope, path: string, content: string, previous: ArtifactRevision | undefined): ArtifactRevision {
-  const classified = classifyContextPath(path);
+  const classified = previous?.key ?? classifyContextPath(path);
+  const source = previous ?? sourceArtifacts.get(movedFrom.get(path) ?? "");
   const bytes = new TextEncoder().encode(content);
-  return { key: consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName), revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "buck-save", source: "save-apply", createdAt: new Date().toISOString(), links: previous?.links ?? sourceArtifacts.get(movedFrom.get(path) ?? "")?.links ?? [], expectedRevision: previous?.revision || null };
+  return { key: consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName), revision: randomUUID(), bytes, sha256: revisionHash(bytes), author: "buck-save", source: "save-apply", createdAt: new Date().toISOString(), links: source?.links ?? [], expectedRevision: previous?.revision || null };
 }
 
 async function sealAppliedBytes(deps: SaveStoreDeps, metadataDigest: string): Promise<void> {
@@ -729,10 +717,10 @@ async function sealAppliedBytes(deps: SaveStoreDeps, metadataDigest: string): Pr
     const removed: ArtifactKey[] = [];
     for (const path of removedSources) {
       const previous = sourceArtifacts.get(path);
-      if (!previous?.revision) continue;
+      if (!previous) continue;
       const key = { ...previous.key, branchId: context.branchId };
-      await store.correct({ key, predecessorRevision: previous.revision, replacement: null, idempotencyKey: `${attempt.attemptId}:remove:${path}`, publishedRevisionIds: context.publishedRevisionIds });
-      rmSync(containedContextPath(path), { force: true });
+      if (previous.revision) await store.correct({ key, predecessorRevision: previous.revision, replacement: null, idempotencyKey: `${attempt.attemptId}:remove:${path}`, publishedRevisionIds: context.publishedRevisionIds });
+      if (context.selection?.storage.adapter === "repo-files") rmSync(containedContextPath(path), { force: true });
       removed.push(key);
     }
     await recordSaveMetadata(cwd(), attempt, writes, removed, { store, context }, metadataDigest);

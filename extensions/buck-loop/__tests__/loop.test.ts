@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, writeTree } from "./fixtures.js";
+import { cleanupRepos, git, phaseMd, phaseMdWithFiles, planMd, repo, seedProjectionBytes, writeTree } from "./fixtures.js";
 import { handleLoop, parsePorcelainZ, prepareCommitCheckpoint, productionClassifyRepair, shellQuote, unstagedBlockReason, type LoopDeps } from "../loop.js";
 import { runJev } from "../../jev-tool/index.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
@@ -20,7 +20,6 @@ import type { NestedSkill, RunStepResult } from "../run-step.js";
 import type { ActivityEvent } from "../../extension-activity.js";
 import type { Choice } from "../types.js";
 import type { RankAttempt } from "../ranking.js";
-import { scheduleConfiguredRetain } from "../../../skills/_shared/storage/consumers.js";
 
 const SUBJECT = "2026-09-18.demo";
 const PLAN = `.context/${SUBJECT}/plan-demo.md`;
@@ -28,10 +27,7 @@ const NOW = "2026-09-18T00:00:00.000Z";
 
 async function seedProjection(cwd: string, files: Record<string, string>): Promise<void> {
   writeTree(cwd, files);
-  await scheduleConfiguredRetain({
-    cwd, kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
-    bytes: new TextEncoder().encode(files[".context/workflow/buck-loop.json"]), source: "test",
-  });
+  await seedProjectionBytes(cwd, files[".context/workflow/buck-loop.json"]);
 }
 
 const CLEAN_REVIEW = `# Review

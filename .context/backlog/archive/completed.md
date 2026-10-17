@@ -1,3 +1,4 @@
+- [x] [Phase 8: End-to-End Proof, Docs & Packaging](2026-10/phase-8-storage-adapter-proof-docs-package.md) — done 2026-10-16 — four-backend OMP readback recorded in research-phase-8-live-workflows.md; phase file completed; loop projection done. Not yet committed. `.context/2026-10-10.durable-storage-adapters/phase-8-proof-docs-package.md`
 - [x] [Opt-out SQL memory turn hook](2026-10/sql-memory-turn-hook.md) — done 2026-10-08 — package hook listed once by live `/extensions`; opt-out and sliding window proved; guardrails pass. `.context/2026-10-08.sql-memory-turn-hook/`
 - [x] [Phase 1: Enablement and Window](2026-10/phase-1-sql-memory-turn-hook.md) — done 2026-10-08 — enablement precedence and replay-safe window stayed green through the hook commits. `.context/2026-10-08.sql-memory-turn-hook/phase-1-enable-window.md`
 

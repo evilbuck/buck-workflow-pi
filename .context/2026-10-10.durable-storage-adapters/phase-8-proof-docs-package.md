@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 8
 order: 8
 plan: plan-durable-storage-adapters.md
@@ -12,16 +12,25 @@ files:
   - docs/
   - CHANGELOG.md
   - GLOBAL_OR_PROJECT-AGENTS.md
+  - extensions/buck-loop/__tests__/fixtures.ts
+  - extensions/buck-loop/__tests__/persist.test.ts
+  - extensions/buck-loop/__tests__/loop.test.ts
+  - skills/_shared/scripts/postgres-store.test.ts
+  - skills/_shared/scripts/plan-source.test.ts
+  - skills/b-save-improved/scripts/save-apply.ts
+  - skills/b-save-improved/scripts/save-preflight.ts
+  - skills/b-save-improved/scripts/save-apply.test.ts
+  - AGENTS.md
 from_plan_steps: [8]
 depends_on: [7]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Real OMP workflow per backend (brainstorm/research/plan → phase → build/review/iterate → save/checkpoint → restart/resume) reads back exact artifact IDs/revisions and completed attempt receipts."
-  - "[ ] All plan acceptance criteria re-checked against live behavior; parent plan checkboxes updated with evidence."
-  - "[ ] Existing deterministic suite + `npm run guardrails:check` pass; install, bundle parity, and changed plan-site surface smoke pass."
-  - "[ ] Docs updated: storage configuration, publication rules, migration/recovery, backup, dotfile exclusions (config-only dotfiles; SQLite/WAL/SHM, manifests, exports, receipts excluded), `docs/sql-memory.md`, `docs/buck-loop.md`, `docs/buck-workflow.md`, how-tos, `CHANGELOG.md`, AGENTS managed conventions."
-  - "[ ] No dual-write pipeline, obsolete raw-SQL recall path, or second active memory store remains anywhere in the shipped surface."
-completed_at: null
+  - "[x] Real OMP workflow per backend (brainstorm/research/plan → phase → build/review/iterate → save/checkpoint → restart/resume) reads back exact artifact IDs/revisions and completed attempt receipts."
+  - "[x] All plan acceptance criteria re-checked against live behavior; parent plan checkboxes updated with evidence."
+  - "[x] Existing deterministic suite + `npm run guardrails:check` pass; install, bundle parity, and changed plan-site surface smoke pass."
+  - "[x] Docs updated: storage configuration, publication rules, migration/recovery, backup, dotfile exclusions (config-only dotfiles; SQLite/WAL/SHM, manifests, exports, receipts excluded), `docs/sql-memory.md`, `docs/buck-loop.md`, `docs/buck-workflow.md`, how-tos, `CHANGELOG.md`, AGENTS managed conventions."
+  - "[x] No dual-write pipeline, obsolete raw-SQL recall path, or second active memory store remains anywhere in the shipped surface."
+completed_at: 2026-10-16
 completed_by: null
 ---
 
@@ -46,6 +55,15 @@ Parent User Goal: choose durable storage, resume reliably, branch-private unmerg
 ## Verification
 - The per-backend live workflow transcripts and read-back evidence are the deliverable; attach/references in `/b-save` memory.
 - `npm run guardrails:check` green; install/bundle parity green.
+
+## Repair Checkpoint
+
+- Scanner authority is the configured workflow adapter, not a local completion flag. The proof research and parent acceptance were explicitly retained with revision/hash readback before this phase was completed.
+- [Actual four-backend OMP workflows](research-phase-8-live-workflows.md): complete pinned save receipts and exact native restart reads; real isolated review audits/checkpoints, generated HTML/PNG packages, cursor initialization, attribution, and live RPC hook memory/complete receipts. Non-repo exports were removed before readback.
+- [Parent acceptance recheck](research-phase-8-acceptance-recheck.md): all 15 criteria mapped to executed evidence and retained on the same authority. Native Jev acceptance evidence is recorded there.
+- [Guarded repair verification](research-phase-8-guarded-repair.md): final unchanged required gates pass; full ordinary 963-route site build and actual browser interactions pass; isolated install and bundle parity pass. No guard, timeout, baseline, global config, or parent loop state was weakened or changed.
+- [Typed save identity repair](research-phase-8-save-identity.md): real nested research keys/links survive metadata apply without non-repo narrative mirrors; the original failed PostgreSQL save attempt completed and verified.
+- This is build-proof repair only. No parent save/commit, lifecycle close, next phase, or next loop state was selected.
 
 ## Per-Phase Execution Loop
 
