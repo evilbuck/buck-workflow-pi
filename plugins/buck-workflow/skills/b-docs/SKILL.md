@@ -172,7 +172,7 @@ closeout.
 ADRs you just wrote.
 
 ## Behavior
-Before deriving conventions or architecture context, use `sql_memory` for project-scoped recall only when callable, following `skills/_shared/recall-project-memories.md`. Missing tool/configuration is distinct from zero matches; current implementation and plan remain authoritative.
+Before deriving conventions or architecture context, follow `skills/_shared/recall-project-memories.md`. Do not call `sql_memory` or construct SQL. A missing result is distinct from a tool error; current implementation and plan remain authoritative.
 
 1. Resolve subject; read diff, plan, and any `b-review` finding.
 2. Read the existing canonical docs to avoid duplication.

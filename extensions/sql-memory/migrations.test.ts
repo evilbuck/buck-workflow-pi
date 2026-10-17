@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { applyMigrations, type MigrationPool } from "./migrations.js";
+import { applyMigrations, type MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
 describe("applyMigrations", () => {
   it("applies migrations by version and records checksums, then no-ops", async () => {
@@ -76,6 +76,9 @@ describe("applyMigrations", () => {
     ["014_dynamic.sql", "DO $$ BEGIN EXECUTE 'TRU' || 'NCATE memories'; END $$;"],
     ["015_hidden_expression.sql", "CREATE TABLE IF NOT EXISTS x (id int DEFAULT nextval('seq'));"],
     ["016_empty_statement.sql", "CREATE TABLE IF NOT EXISTS x (id int);;"],
+    ["017_arbitrary_default.sql", "CREATE TABLE IF NOT EXISTS x (id int DEFAULT review_erase());"],
+    ["018_arbitrary_check.sql", "CREATE TABLE IF NOT EXISTS x (id int CHECK (review_erase() = 1));"],
+    ["019_computed_default.sql", "CREATE TABLE IF NOT EXISTS x (id int DEFAULT 1 + 2);"],
   ])("blocks non-additive file %s without exact acknowledgment", async (name, sql) => {
     const pool: MigrationPool = {
       async query() { return { rows: [] }; },
@@ -101,6 +104,7 @@ describe("applyMigrations", () => {
   });
 
   it("applies an additive column without acknowledgment", async () => {
+
     const queries: string[] = [];
     const pool: MigrationPool = {
       async query() { return { rows: [] }; },
@@ -113,6 +117,17 @@ describe("applyMigrations", () => {
       loadFiles: async () => [{ name: "002_note.sql", sql }],
     })).resolves.toEqual({ applied: ["002_note.sql"] });
     expect(queries).toContain(sql);
+  });
+
+  it("applies additive storage tables with binary, JSON, and foreign-key columns", async () => {
+    const pool: MigrationPool = {
+      async query() { return { rows: [] }; },
+      async connect() { return { async query() { return { rows: [] }; }, release() {} }; },
+    };
+    const sql = "CREATE TABLE IF NOT EXISTS artifact_revisions (id UUID PRIMARY KEY, body BYTEA NOT NULL, links JSONB NOT NULL DEFAULT '[]'::jsonb, parent UUID REFERENCES artifact_revisions(id));";
+    await expect(applyMigrations(pool, {
+      loadFiles: async () => [{ name: "002_storage.sql", sql }],
+    })).resolves.toEqual({ applied: ["002_storage.sql"] });
   });
 
   it("trusts only the unchanged bootstrap when procedural SQL is unacknowledged", async () => {
@@ -132,5 +147,32 @@ describe("applyMigrations", () => {
       name: "001_initial_schema.sql", sql: `${sql}\n-- changed`,
     }] })).rejects.toThrow(/non-additive.*001_initial_schema/i);
     expect(queries).toHaveLength(prior);
+  });
+
+  it("keeps the pinned bootstrap checksum and applies the storage migration without rewriting it", async () => {
+    const sql001 = await readFile(new URL("../../migrations/001_initial_schema.sql", import.meta.url), "utf8");
+    const sql002 = await readFile(new URL("../../migrations/002_durable_storage.sql", import.meta.url), "utf8");
+    expect(createHash("sha256").update(sql001).digest("hex")).toBe("4e76b01d169ceb8d4d940fbc9373953b77304cc5a9b0dab018d8843979ced716");
+    expect(sql002).not.toMatch(/MAX\s*\(\s*seq\s*\)/i);
+    const applied = new Map<string, string>();
+    const pool: MigrationPool = {
+      async query(text, values) {
+        if (text.startsWith("SELECT version")) return { rows: [...applied].map(([version, checksum]) => ({ version, checksum })) };
+        return { rows: [] };
+      },
+      async connect() {
+        return { async query(text, values) {
+          if (text.startsWith("INSERT INTO schema_migrations") && values) applied.set(String(values[0]), String(values[1]));
+          return { rows: [] };
+        }, release() {} };
+      },
+    };
+    const loadFiles = async () => [{ name: "001_initial_schema.sql", sql: sql001 }, { name: "002_durable_storage.sql", sql: sql002 }];
+    await expect(applyMigrations(pool, { loadFiles })).resolves.toEqual({ applied: ["001_initial_schema.sql", "002_durable_storage.sql"] });
+    expect(applied.get("001")).toBe("4e76b01d169ceb8d4d940fbc9373953b77304cc5a9b0dab018d8843979ced716");
+    const checksum002 = applied.get("002");
+    await expect(applyMigrations(pool, { loadFiles })).resolves.toEqual({ applied: [] });
+    expect(applied.get("001")).toBe("4e76b01d169ceb8d4d940fbc9373953b77304cc5a9b0dab018d8843979ced716");
+    expect(applied.get("002")).toBe(checksum002);
   });
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { rememberSqlMemory } from "./remember.js";
 import { correctSqlMemory } from "./index.js";
-import type { MigrationPool } from "./migrations.js";
+import type { MigrationPool } from "../../skills/_shared/storage/migrations.js";
 import type { SqlGitRunner } from "./identity.js";
 
 const origin = "git@github.com:acme/project.git";

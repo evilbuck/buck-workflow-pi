@@ -18,6 +18,32 @@ function tempDir(): string {
 function writeJson(path: string, obj: unknown): void {
   writeFileSync(path, JSON.stringify(obj), "utf-8");
 }
+
+// Retained runs must never use the operator's configured destination or identity.
+let storageSandbox: string;
+let previousStorageEnv: Record<string, string | undefined>;
+beforeEach(() => {
+  previousStorageEnv = {
+    BUCK_WORKFLOW_CONFIG: process.env.BUCK_WORKFLOW_CONFIG,
+    XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
+    AUTO_FIX_GH_BIN: process.env.AUTO_FIX_GH_BIN,
+  };
+  storageSandbox = tempDir();
+  const config = join(storageSandbox, "config.yaml");
+  writeFileSync(config, "version: 1\nstorage:\n  adapter: repo-files\n");
+  const gh = join(storageSandbox, "gh");
+  writeFileSync(gh, FAKE_GH, { mode: 0o755 });
+  process.env.BUCK_WORKFLOW_CONFIG = config;
+  process.env.XDG_CONFIG_HOME = storageSandbox;
+  process.env.AUTO_FIX_GH_BIN = gh;
+});
+afterEach(() => {
+  for (const [key, value] of Object.entries(previousStorageEnv)) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  rmSync(storageSandbox, { recursive: true, force: true });
+});
 // ── shouldSkipByLabel ──────────────────────────────────
 describe("shouldSkipByLabel", () => {
   const skipList = ["in-progress", "do-not-auto-fix", "human-only"];

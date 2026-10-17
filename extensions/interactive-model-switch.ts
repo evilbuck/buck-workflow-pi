@@ -4,7 +4,7 @@
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { ThinkingLevel } from "@mariozechner/pi-agent-core";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createBuckModelPicker, type BuckModelPickInput, type ResolvedBuckStage } from "./buck-models/picker.js";
 import {
@@ -17,7 +17,7 @@ import {
   type BuckStageKey,
   type BuckThinking,
 } from "./omp-models.js";
-import { listSubjectFolders, readSubjectStatus } from "../skills/_shared/scripts/context-helpers.js";
+import { executeWorkflowState, resolveTrustedContext } from "../skills/_shared/scripts/workflow-state.js";
 
 export const CONVERSATION_TAIL_MESSAGES = 8;
 export const CONVERSATION_TAIL_CHARS = 12_000;
@@ -44,7 +44,6 @@ export const INTERACTIVE_STAGE_BY_SKILL: Readonly<Record<string, BuckStageKey>> 
   "b-present": "present",
 };
 
-const ARTIFACT_NAME = /^(index|tasks|brainstorm-.+|research-.+|plan-.+|spec-.+|phase-.+|iterate-.+)\.md$/;
 const SKILL_PREFIX = /^\/(?:skill:)?(b-[\w-]+)(\s|$)/;
 const AUTO_SWITCH_GRACE_MS = 100;
 
@@ -100,15 +99,23 @@ export function conversationTail(messages: readonly ConversationMessage[]): stri
   return text.slice(text.length - CONVERSATION_TAIL_CHARS);
 }
 
-export function resolveSubjectArtifacts(cwd: string): string[] {
-  const name = resolveSubjectName(cwd);
-  if (!name) return [];
-  const dir = join(cwd, ".context", name);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((file) => ARTIFACT_NAME.test(file))
-    .sort()
-    .map((file) => `.context/${name}/${file}`);
+export async function resolveSubjectArtifacts(cwd: string): Promise<string[]> {
+  try {
+    const context = await resolveTrustedContext(cwd);
+    const found = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "discover" } });
+    const open = subjectIds(found);
+    const session = sessionSubject(cwd);
+    const subjectId = session && open.includes(session) ? session : open.length === 1 ? open[0] : null;
+    if (!subjectId) return [];
+    const listed = await executeWorkflowState({ cwd, context, role: "read", request: { operation: "list", subjectId } });
+    if (!Array.isArray(listed)) return [];
+    return listed.flatMap((item) => {
+      if (!item || typeof item !== "object" || !("token" in item) || typeof item.token !== "string") return [];
+      return [item.token];
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function selectInteractiveModel(request: InteractiveSelectRequest): Promise<InteractiveSelectResult> {
@@ -207,7 +214,7 @@ interface MappedInput {
 async function handleMappedInput(input: MappedInput): Promise<{ action: "continue" | "handled" }> {
   let saved: SwitchSnapshot | null = null;
   try {
-    const picked = await input.select(buildRequest(input.cwd, input.stage, input.skill, input.text, input.host));
+    const picked = await input.select(await buildRequest(input.cwd, input.stage, input.skill, input.text, input.host));
     if (!picked.ok) {
       input.host.ui?.notify(refusal(picked.message), "error");
       return { action: "handled" };
@@ -235,20 +242,20 @@ function pickerInput(request: InteractiveSelectRequest, resolution: ResolvedBuck
   };
 }
 
-function buildRequest(
+async function buildRequest(
   cwd: string,
   stage: BuckStageKey,
   skill: string,
   commandText: string,
   host: SwitchHost,
-): InteractiveSelectRequest {
+): Promise<InteractiveSelectRequest> {
   const available = host.modelRegistry?.getAvailable() ?? [];
   return {
     cwd,
     stage,
     skill,
     commandText,
-    subjectArtifacts: resolveSubjectArtifacts(cwd),
+    subjectArtifacts: await resolveSubjectArtifacts(cwd),
     conversationTail: conversationTail(sessionMessages(host)),
     availableIds: new Set(available.map((model) => `${model.provider}/${model.id}`)),
   };
@@ -311,24 +318,22 @@ async function restoreSnapshot(
   }
 }
 
-function resolveSubjectName(cwd: string): string | null {
+function sessionSubject(cwd: string): string | null {
   const path = join(cwd, ".context", "workflow", "current-session.json");
-  if (existsSync(path)) {
-    try {
-      const parsed = JSON.parse(readFileSync(path, "utf8")) as { subject?: unknown };
-      const subject = typeof parsed.subject === "string" ? parsed.subject : "";
-      if (subject && isOpenSubject(cwd, subject)) return subject;
-    } catch {
-      // Fall through to the unique open subject.
-    }
+  if (!existsSync(path)) return null;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (!parsed || typeof parsed !== "object" || !("subject" in parsed) || typeof parsed.subject !== "string" || !parsed.subject) return null;
+    return parsed.subject;
+  } catch {
+    return null;
   }
-  const open = listSubjectFolders(cwd).filter((folder) => folder.status === "active" || folder.status === "draft");
-  return open.length === 1 ? open[0].name : null;
 }
 
-function isOpenSubject(cwd: string, name: string): boolean {
-  const folder = join(cwd, ".context", name);
-  if (!existsSync(folder)) return false;
-  const status = readSubjectStatus(folder);
-  return status === "active" || status === "draft";
+function subjectIds(found: unknown): string[] {
+  if (!found || typeof found !== "object" || !("subjects" in found) || !Array.isArray(found.subjects)) return [];
+  return found.subjects.flatMap((item: unknown) => {
+    if (!item || typeof item !== "object" || !("key" in item) || !item.key || typeof item.key !== "object" || !("subjectId" in item.key)) return [];
+    return typeof item.key.subjectId === "string" ? [item.key.subjectId] : [];
+  });
 }

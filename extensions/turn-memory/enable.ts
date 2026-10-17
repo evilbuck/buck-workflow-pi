@@ -24,13 +24,12 @@ function settingsEnablement(cwd: string, home: string): boolean {
   return true;
 }
 
-/** Resolve turn-memory opt-out. SQL availability is a hard enablement prerequisite. */
+/** Resolve turn-memory opt-out; storage availability is checked by the configured store. */
 export function isTurnMemoryEnabled(
   cwd: string,
   env: NodeJS.ProcessEnv = process.env,
   options: { home?: string } = {},
 ): boolean {
-  if (!env.SQL_MEMORY_URL) return false;
   if (env.BUCK_TURN_MEMORY === "0" || env.BUCK_TURN_MEMORY === "false") return false;
   if (env.BUCK_TURN_MEMORY === "1" || env.BUCK_TURN_MEMORY === "true") return true;
 

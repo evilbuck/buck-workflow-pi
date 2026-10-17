@@ -26,6 +26,8 @@ import {
   runList,
   runVerify,
   runInstall,
+  SHIPPED_STORAGE_FILES,
+  shippedStorageFiles,
 } from "./install.mjs";
 
 const TEST_ROOT = join("/tmp", "install-test-" + process.pid);
@@ -45,14 +47,13 @@ function setupFixtures() {
   writeFileSync(join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"), "# Bootstrap\n");
   writeFileSync(join(repo, "prompts", "b-build.md"), "# Build prompt\n");
   writeFileSync(join(repo, "prompts", "b-plan.md"), "# Plan prompt\n");
-  writeFileSync(
-    join(repo, "skills", "b-build", "SKILL.md"),
-    "# b-build skill\n",
-  );
-  writeFileSync(
-    join(repo, "skills", "b-plan", "SKILL.md"),
-    "# b-plan skill\n",
-  );
+  writeFileSync(join(repo, "skills", "b-build", "SKILL.md"), "# b-build skill\n");
+  writeFileSync(join(repo, "skills", "b-plan", "SKILL.md"), "# b-plan skill\n");
+  for (const rel of SHIPPED_STORAGE_FILES) {
+    const full = join(repo, rel);
+    mkdirSync(dirname(full), { recursive: true });
+    writeFileSync(full, "// shipped\n");
+  }
 
   // Home: all 8 harness dirs detected
   mkdirSync(join(home, ".pi", "agent"), { recursive: true });
@@ -66,6 +67,18 @@ function setupFixtures() {
 
   return { repo, home };
 }
+
+describe("shipped storage", () => {
+  it("requires the workflow-state script and storage modules", () => {
+    const source = join(TEST_ROOT, "storage-source");
+    mkdirSync(source, { recursive: true });
+    const report = shippedStorageFiles(source);
+    expect(report.missing).toEqual(SHIPPED_STORAGE_FILES);
+    expect(report.files).toContain("skills/_shared/scripts/workflow-state.ts");
+    expect(report.files.some((rel) => rel.startsWith("skills/_shared/storage/"))).toBe(true);
+    rmSync(source, { recursive: true, force: true });
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Registry

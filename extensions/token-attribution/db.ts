@@ -1,37 +1,31 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
+import { commitConsumerBatch, consumerKey, type ConsumerScope, type ConsumerWrite } from "../../skills/_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore, type TrustedWorkflowContext } from "../../skills/_shared/scripts/workflow-state.js";
+import type { StorageStore } from "../../skills/_shared/storage/contract.js";
+import { createRunId } from "../../skills/_shared/storage/identity.js";
+import { Type, type Static } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 
-const PRIMARY_TABLE = "attribution";
-const FALLBACK_TABLE = "buck_token_attribution";
-const REQUIRED_COLUMNS = [
-  "recorded_at", "session_file", "session_id", "entry_key", "project_key", "branch",
-  "worktree_root", "provider", "model", "api", "input_tokens", "output_tokens",
-  "cache_read_tokens", "cache_write_tokens", "reasoning_tokens", "total_tokens",
-  "cost_usd", "cost_source",
-] as const;
+const TABLE = "buck_token_attribution";
+const SUBJECT = "token-attribution";
 
-export interface AttributionRecord {
-  recordedAt: string;
-  sessionFile: string;
-  sessionId: string;
-  entryKey: string;
-  projectKey: string;
-  branch: string | null;
-  worktreeRoot: string;
-  provider: string;
-  model: string;
-  api: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  reasoningTokens: number | null;
-  totalTokens: number;
-  costUsd: number | null;
-  costSource: "usage" | "none";
+const RecordSchema = Type.Object({
+  recordedAt: Type.String(), sessionFile: Type.String(), sessionId: Type.String(),
+  entryKey: Type.String(), projectKey: Type.String(), branch: Type.Union([Type.String(), Type.Null()]),
+  worktreeRoot: Type.String(), provider: Type.String(), model: Type.String(), api: Type.String(),
+  inputTokens: Type.Number(), outputTokens: Type.Number(), cacheReadTokens: Type.Number(), cacheWriteTokens: Type.Number(),
+  reasoningTokens: Type.Union([Type.Number(), Type.Null()]), totalTokens: Type.Number(),
+  costUsd: Type.Union([Type.Number(), Type.Null()]), costSource: Type.Union([Type.Literal("usage"), Type.Literal("none")]),
+});
+export type AttributionRecord = Static<typeof RecordSchema>;
+
+function parseRecord(bytes: Uint8Array): AttributionRecord {
+  const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+  if (!Value.Check(RecordSchema, value)) throw new Error("Invalid retained attribution row");
+  return value;
 }
 
 export interface TotalRow {
@@ -42,169 +36,135 @@ export interface TotalRow {
 export interface GroupRow extends TotalRow {
   label: string;
 }
+
 const require = createRequire(import.meta.url);
 
-
-export function defaultStatsDbPath(): string {
-  return join(homedir(), ".omp", "stats.db");
+function logicalName(prefix: "rows" | "aliases", sessionFile: string, entryKey: string): string {
+  return `${prefix}/${encodeURIComponent(sessionFile)}/${encodeURIComponent(entryKey)}.json`;
 }
 
-function createTable(db: DatabaseSync, table: string): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS ${table} (
-      recorded_at TEXT NOT NULL,
-      session_file TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      entry_key TEXT NOT NULL,
-      project_key TEXT NOT NULL,
-      branch TEXT,
-      worktree_root TEXT NOT NULL,
-      provider TEXT NOT NULL,
-      model TEXT NOT NULL,
-      api TEXT NOT NULL,
-      input_tokens INTEGER NOT NULL,
-      output_tokens INTEGER NOT NULL,
-      cache_read_tokens INTEGER NOT NULL,
-      cache_write_tokens INTEGER NOT NULL,
-      reasoning_tokens INTEGER,
-      total_tokens INTEGER NOT NULL,
-      cost_usd REAL,
-      cost_source TEXT NOT NULL,
-      UNIQUE(session_file, entry_key)
-    );
-    CREATE INDEX IF NOT EXISTS ${table}_project_branch_idx
-      ON ${table}(project_key, branch);
-  `);
+function scopeOf(context: TrustedWorkflowContext): ConsumerScope {
+  if (!context.worktreeId || !context.runId) throw new Error("Attribution requires a bound workspace run");
+  return { ...context, worktreeId: context.worktreeId, runId: context.runId };
 }
 
-function tableExists(db: DatabaseSync, table: string): boolean {
-  return db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) !== undefined;
+function write(logicalName: string, value: unknown): ConsumerWrite {
+  return { kind: "attribution", subjectId: SUBJECT, logicalName, bytes: new TextEncoder().encode(JSON.stringify(value)), source: "token-attribution" };
 }
 
-function ownsSchema(db: DatabaseSync, table: string): boolean {
-  if (!tableExists(db, table)) return false;
-  const columns = new Set(
-    (db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>).map((row) => row.name),
-  );
-  return REQUIRED_COLUMNS.every((column) => columns.has(column));
+async function canonicalEntryKey(store: StorageStore, scope: ConsumerScope, record: AttributionRecord): Promise<string> {
+  const name = logicalName("aliases", record.sessionFile, record.entryKey);
+  const alias = await store.read(consumerKey(scope, "attribution", SUBJECT, name));
+  if (!alias) return record.entryKey;
+  const value: unknown = JSON.parse(new TextDecoder().decode(alias.bytes));
+  if (!value || typeof value !== "object" || !("entryKey" in value) || typeof value.entryKey !== "string") throw new Error("Invalid retained attribution alias");
+  return value.entryKey;
 }
 
+/** The adapter owns rows and delivery aliases. SQLite is an opt-in export only. */
 export class AttributionDatabase {
-  readonly tableName: string;
-  private readonly db: DatabaseSync;
+  readonly tableName = TABLE;
+  private readonly db?: DatabaseSync;
+  private tail: Promise<void> = Promise.resolve();
+  private failures: unknown[] = [];
 
-  constructor(path = defaultStatsDbPath()) {
-    mkdirSync(dirname(path), { recursive: true });
+  constructor(projectionPath?: string) {
+    if (projectionPath === undefined) return;
+    mkdirSync(dirname(projectionPath), { recursive: true });
     const { DatabaseSync: Database } = require("node:sqlite") as { DatabaseSync: typeof DatabaseSync };
-    this.db = new Database(path);
-    this.db.exec("PRAGMA busy_timeout = 5000;");
-
-    if (!tableExists(this.db, PRIMARY_TABLE)) {
-      this.tableName = PRIMARY_TABLE;
-      createTable(this.db, this.tableName);
-    } else if (ownsSchema(this.db, PRIMARY_TABLE)) {
-      this.tableName = PRIMARY_TABLE;
-    } else {
-      if (tableExists(this.db, FALLBACK_TABLE) && !ownsSchema(this.db, FALLBACK_TABLE)) {
-        this.db.close();
-        throw new Error(`${FALLBACK_TABLE} exists with an incompatible schema`);
-      }
-      this.tableName = FALLBACK_TABLE;
-      createTable(this.db, this.tableName);
-    }
+    this.db = new Database(projectionPath);
     this.db.exec(`
-      CREATE INDEX IF NOT EXISTS ${this.tableName}_project_branch_idx
-        ON ${this.tableName}(project_key, branch);
-      DROP INDEX IF EXISTS ${this.tableName}_delivery_idx;
+      PRAGMA busy_timeout = 5000;
+      CREATE TABLE IF NOT EXISTS ${TABLE} (
+        recorded_at TEXT NOT NULL, session_file TEXT NOT NULL, session_id TEXT NOT NULL,
+        entry_key TEXT NOT NULL, project_key TEXT NOT NULL, branch TEXT,
+        worktree_root TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, api TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+        cache_read_tokens INTEGER NOT NULL, cache_write_tokens INTEGER NOT NULL,
+        reasoning_tokens INTEGER, total_tokens INTEGER NOT NULL, cost_usd REAL, cost_source TEXT NOT NULL,
+        UNIQUE(session_file, entry_key)
+      );
     `);
   }
 
-  insert(record: AttributionRecord): boolean {
-    const result = this.db.prepare(`
-      INSERT OR IGNORE INTO ${this.tableName} (
-        recorded_at, session_file, session_id, entry_key, project_key, branch,
-        worktree_root, provider, model, api, input_tokens, output_tokens,
-        cache_read_tokens, cache_write_tokens, reasoning_tokens, total_tokens,
-        cost_usd, cost_source
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.recordedAt, record.sessionFile, record.sessionId, record.entryKey,
-      record.projectKey, record.branch, record.worktreeRoot, record.provider,
-      record.model, record.api, record.inputTokens, record.outputTokens,
-      record.cacheReadTokens, record.cacheWriteTokens, record.reasoningTokens,
-      record.totalTokens, record.costUsd, record.costSource,
-    );
-    return result.changes === 1;
+  insert(record: AttributionRecord): Promise<boolean> {
+    return this.insertReconciled(record, record.entryKey);
   }
 
-  insertReconciled(record: AttributionRecord, fallbackEntryKey: string): boolean {
-    if (record.entryKey === fallbackEntryKey) return this.insert(record);
-
-    this.db.exec("BEGIN IMMEDIATE");
-    try {
-      const targetExists = this.db.prepare(`
-        SELECT 1 FROM ${this.tableName}
-        WHERE session_file = ? AND entry_key = ?
-      `).get(record.sessionFile, record.entryKey) !== undefined;
-
-      if (targetExists) {
-        this.db.prepare(`
-          DELETE FROM ${this.tableName}
-          WHERE session_file = ? AND entry_key = ?
-        `).run(record.sessionFile, fallbackEntryKey);
-      } else {
-        this.db.prepare(`
-          UPDATE ${this.tableName}
-          SET entry_key = ?
-          WHERE session_file = ? AND entry_key = ?
-        `).run(record.entryKey, record.sessionFile, fallbackEntryKey);
+  insertReconciled(record: AttributionRecord, fallbackEntryKey: string): Promise<boolean> {
+    return this.enqueue(record.worktreeRoot, async (store, scope) => {
+      const entryKey = await canonicalEntryKey(store, scope, record);
+      const name = logicalName("rows", record.sessionFile, entryKey);
+      const key = consumerKey(scope, "attribution", SUBJECT, name);
+      const current = await store.read(key);
+      const fallbackName = logicalName("rows", record.sessionFile, fallbackEntryKey);
+      const fallbackKey = consumerKey(scope, "attribution", SUBJECT, fallbackName);
+      const fallback = fallbackName === name ? null : await store.read(fallbackKey);
+      const original = current ?? fallback;
+      const retained: AttributionRecord = original
+        ? { ...parseRecord(original.bytes), entryKey }
+        : { ...record, entryKey };
+      const writes = [write(name, retained)];
+      if (fallbackEntryKey !== entryKey) {
+        const fallbackAlias = logicalName("aliases", record.sessionFile, fallbackEntryKey);
+        // Distinct real entry IDs may share a fallback fingerprint. Preserve both;
+        // an ID-less replay continues to refer to the first canonical delivery.
+        if (!await store.read(consumerKey(scope, "attribution", SUBJECT, fallbackAlias))) {
+          writes.push(write(fallbackAlias, { entryKey }));
+        }
       }
-
-      const inserted = this.insert(record);
-      this.db.exec("COMMIT");
-      return inserted;
-    } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
-    }
+      const receiptRun = createRunId();
+      await commitConsumerBatch(store, scope, writes, { attemptId: receiptRun, runId: receiptRun, status: "attempted" });
+      if (fallback) {
+        await store.correct({ key: fallbackKey, predecessorRevision: fallback.revision, replacement: null, idempotencyKey: `reconcile:${fallback.revision}` });
+      }
+      // A successful delivery includes exact adapter readback, not a local marker.
+      const read = await store.read(key);
+      if (!read || !Buffer.from(read.bytes).equals(Buffer.from(writes[0]!.bytes))) throw new Error("Attribution retention readback mismatch");
+      this.project(retained, fallbackEntryKey);
+      return !original;
+    });
   }
 
-  hasBranch(projectKey: string, branch: string): boolean {
-    return this.db.prepare(`SELECT 1 FROM ${this.tableName} WHERE project_key = ? AND branch = ? LIMIT 1`)
-      .get(projectKey, branch) !== undefined;
+  records(cwd: string): Promise<AttributionRecord[]> {
+    return this.enqueue(cwd, async (store, scope) => {
+      const items = await store.list({ ...scope, publishedRevisionIds: [], subjectId: SUBJECT, kind: "attribution" });
+      const aliases = new Set(items.filter((item) => item.key.logicalName.startsWith("aliases/")).map((item) => item.key.logicalName.replace(/^aliases\//u, "rows/")));
+      return items.filter((item) => item.key.logicalName.startsWith("rows/") && !aliases.has(item.key.logicalName))
+        .map((item) => parseRecord(item.bytes));
+    });
   }
 
-  total(projectKey: string, branch?: string): TotalRow | null {
-    const branchClause = branch === undefined ? "" : " AND branch = ?";
-    const params = branch === undefined ? [projectKey] : [projectKey, branch];
-    const row = this.db.prepare(`
-      SELECT SUM(total_tokens) AS total_tokens, SUM(cost_usd) AS cost_usd
-      FROM ${this.tableName} WHERE project_key = ?${branchClause}
-    `).get(...params) as { total_tokens: number | null; cost_usd: number | null };
-    return row.total_tokens === null ? null : { total_tokens: row.total_tokens, cost_usd: row.cost_usd };
+  private enqueue<T>(cwd: string, operation: (store: StorageStore, scope: ConsumerScope) => Promise<T>): Promise<T> {
+    // Capture destination before earlier operations drain. Re-resolution also
+    // refuses a changed selection, including after process restart.
+    const bound = resolveConsumerContext(cwd);
+    void bound.catch(() => undefined);
+    const result = this.tail.then(async () => withBoundStore(cwd, await bound, (store, context) => operation(store, scopeOf(context))));
+    this.tail = result.then(() => undefined, (error: unknown) => { this.failures.push(error); });
+    return result;
   }
 
-  groups(projectKey: string, kind: "branch" | "model", branch?: string): GroupRow[] {
-    const branchClause = branch === undefined ? "" : " AND branch = ?";
-    const params = branch === undefined ? [projectKey] : [projectKey, branch];
-    const label = kind === "branch" ? "COALESCE(branch, '(none)')" : "provider || '/' || model";
-    return this.db.prepare(`
-      SELECT ${label} AS label, SUM(total_tokens) AS total_tokens, SUM(cost_usd) AS cost_usd
-      FROM ${this.tableName}
-      WHERE project_key = ?${branchClause}
-      GROUP BY label ORDER BY total_tokens DESC, label ASC
-    `).all(...params) as unknown as GroupRow[];
+  async flush(): Promise<void> {
+    await this.tail;
+    const failures = this.failures.splice(0);
+    if (failures.length === 1) throw failures[0];
+    if (failures.length > 1) throw new AggregateError(failures, "Attribution persistence failed");
   }
 
-  matchingProjects(substring: string): Array<{ project_key: string } & TotalRow> {
-    return this.db.prepare(`
-      SELECT project_key, SUM(total_tokens) AS total_tokens, SUM(cost_usd) AS cost_usd
-      FROM ${this.tableName} WHERE project_key LIKE ? ESCAPE '\\'
-      GROUP BY project_key ORDER BY total_tokens DESC, project_key ASC
-    `).all(`%${substring.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`) as unknown as Array<{ project_key: string } & TotalRow>;
+  private project(record: AttributionRecord, fallbackEntryKey: string): void {
+    if (!this.db) return;
+    this.db.prepare(`DELETE FROM ${TABLE} WHERE session_file = ? AND entry_key = ?`).run(record.sessionFile, fallbackEntryKey);
+    this.db.prepare(`INSERT OR REPLACE INTO ${TABLE} VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      record.recordedAt, record.sessionFile, record.sessionId, record.entryKey,
+      record.projectKey, record.branch, record.worktreeRoot, record.provider, record.model, record.api,
+      record.inputTokens, record.outputTokens, record.cacheReadTokens, record.cacheWriteTokens,
+      record.reasoningTokens, record.totalTokens, record.costUsd, record.costSource,
+    );
   }
 
-  close(): void {
-    this.db.close();
+  async close(): Promise<void> {
+    try { await this.flush(); }
+    finally { this.db?.close(); }
   }
 }

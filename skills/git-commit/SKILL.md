@@ -5,6 +5,8 @@ description: Create a Conventional Commits message from staged changes and commi
 
 # git-commit: Conventional Commit Agent
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 Create a Conventional Commits message from staged changes and commit immediately. Works standalone or as part of the Buck workflow (reads draft-commit.md if present).
 
 Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash command). The skill name remains `git-commit` because it is the generic, reusable implementation.
@@ -108,3 +110,4 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
 
 - Print the final commit message used (title + body).
 - Include the important lines from the post-commit status/log.
+

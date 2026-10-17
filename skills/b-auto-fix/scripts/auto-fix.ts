@@ -1,7 +1,110 @@
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { listOpenIssues, findExistingDraftPr, GhIssue } from "./auto-fix/lib/gh.ts";
+import { commitConsumerBatch, readConsumer, type ConsumerScope } from "../../_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore, type TrustedWorkflowContext } from "../../_shared/scripts/workflow-state.js";
+
+interface AutoFixStore {
+  cwd: string;
+  context: TrustedWorkflowContext;
+  scope: ConsumerScope;
+}
+
+async function bindAutoFixStore(cwd: string): Promise<AutoFixStore> {
+  cwd = resolve(cwd);
+  const context = await resolveConsumerContext(cwd);
+  if (!context.worktreeId || !context.runId) throw new Error("Auto-fix requires a trusted worktree/run");
+  return { cwd, context, scope: { ...context, worktreeId: context.worktreeId, runId: context.runId } };
+}
+
+function artifactName(runId: string, name: string): string {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(runId)) throw new Error("Invalid auto-fix run ID");
+  if (name !== "run.json" && !/^issue-[1-9][0-9]*\/(?:stages\.json|completion-plan\.json|research\.md|plan\.md|build\.md|review\.md|pr-body\.md|summary\.md|soft-fail\.log)$/u.test(name)) {
+    throw new Error(`Invalid auto-fix artifact: ${name}`);
+  }
+  return `${runId}/${name}`;
+}
+
+async function writeRunArtifact(bound: AutoFixStore, runId: string, name: string, bytes: Uint8Array | string, expectedRevision?: string | null): Promise<string> {
+  const logicalName = artifactName(runId, name);
+  const result = await withBoundStore(bound.cwd, bound.context, async (store) => {
+    const receiptRun = `run-${randomBytes(16).toString("hex")}`;
+    return commitConsumerBatch(store, bound.scope, [{
+      kind: name === "run.json" ? "run-state" : "audit", subjectId: "auto-fix", logicalName,
+      bytes: typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes, source: "b-auto-fix", expectedRevision,
+    }], { attemptId: receiptRun, runId: receiptRun, status: "attempted" });
+  });
+  const path = join(bound.cwd, ".context", "auto-fix", logicalName);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, bytes);
+  return result.revisions[0]!;
+}
+
+async function readRunArtifact(bound: AutoFixStore, runId: string, name: string) {
+  return withBoundStore(bound.cwd, bound.context, (store) =>
+    readConsumer(store, bound.scope, name === "run.json" ? "run-state" : "audit", "auto-fix", artifactName(runId, name)));
+}
+
+async function listRunArtifacts(bound: AutoFixStore, runId?: string) {
+  if (runId) artifactName(runId, "run.json");
+  return withBoundStore(bound.cwd, bound.context, (store) => store.list({
+    ...bound.scope, publishedRevisionIds: [], subjectId: "auto-fix",
+    ...(runId ? { logicalNamePrefix: `${runId}/` } : { kind: "run-state" as const }),
+  }));
+}
+
+function runLocation(runDir: string): { cwd: string; runId: string } {
+  const path = resolve(runDir);
+  if (basename(dirname(path)) !== "auto-fix" || basename(dirname(dirname(path))) !== ".context") {
+    throw new Error("Auto-fix run directory must be <checkout>/.context/auto-fix/<run-id>");
+  }
+  return { cwd: dirname(dirname(dirname(path))), runId: basename(path) };
+}
+
+function artifactCwd(args: string[]): string {
+  const index = args.indexOf("--cwd");
+  if (index === -1) return process.cwd();
+  const cwd = args[index + 1];
+  if (!cwd) throw new Error("--cwd requires the owning checkout");
+  return cwd;
+}
+
+async function writeStageArtifact(bound: AutoFixStore, runId: string, name?: string, input?: string): Promise<void> {
+  if (!name || name === "run.json" || !input || input === "--cwd") throw new Error("artifact write requires an issue artifact and input file");
+  await writeRunArtifact(bound, runId, name, readFileSync(input));
+}
+
+async function restoreRunExports(bound: AutoFixStore, runId: string): Promise<void> {
+  const artifacts = await listRunArtifacts(bound, runId);
+  for (const artifact of artifacts) {
+    const relativeName = artifact.key.logicalName.slice(runId.length + 1);
+    const path = join(bound.cwd, ".context", "auto-fix", artifactName(runId, relativeName));
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, artifact.bytes);
+  }
+  console.log(join(bound.cwd, ".context", "auto-fix", runId));
+}
+
+/** Explicit stage handoff and restart export. No local file is a retained-read fallback. */
+async function artifactCommand(args: string[]): Promise<void> {
+  const [, operation, runId, name, input] = args;
+  if (!runId) throw new Error("artifact requires a run ID");
+  const bound = await bindAutoFixStore(artifactCwd(args));
+  const run = await readRunArtifact(bound, runId, "run.json");
+  if (!run) throw new Error(`Retained auto-fix run not found: ${runId}`);
+  if (operation === "read") {
+    const found = await readRunArtifact(bound, runId, name ?? "");
+    if (!found) throw new Error(`Retained auto-fix artifact not found: ${name}`);
+    process.stdout.write(found.bytes);
+  } else if (operation === "write") {
+    await writeStageArtifact(bound, runId, name, input);
+  } else if (operation === "restore") {
+    await restoreRunExports(bound, runId);
+  } else {
+    throw new Error("Usage: artifact read|write|restore <run-id> [issue-N/name] [input-file] [--cwd <owning-checkout>]");
+  }
+}
 
 // ── Types ──────────────────────────────────────────────
 export interface AutoFixConfig {
@@ -57,6 +160,12 @@ Flags:
   --max-issues <n>          Safety cap per run (default: 10)
   --yes                     Skip first-run safety prompt
   --help                    Show this help
+  artifact write <run-id> <issue-N/name> <file> [--cwd <checkout>]
+                            Retain stage output before exporting it locally
+  artifact read <run-id> <name> [--cwd <checkout>]
+                            Read retained bytes (run.json or issue-N/name)
+  artifact restore <run-id> [--cwd <checkout>]
+                            Rebuild exports from the configured private run
 
 Config:
   Merged from: auto-fix.config.json → auto-fix.config.local.json → CLI flags
@@ -156,22 +265,13 @@ function generateRunId(): string {
   return `${ts}-${rand}`;
 }
 
-function createRunStateDir(): string {
-  const dir = resolve(".context/auto-fix");
-  mkdirSync(dir, { recursive: true });
-  return dir;
-}
-
-function initRunState(
+async function initRunState(
+  bound: AutoFixStore,
   repo: string,
   config: AutoFixConfig,
-  extra: Partial<RunState> = {}
-): { runId: string; runDir: string } {
+): Promise<{ runId: string; runDir: string; revision: string }> {
   const runId = generateRunId();
-  const baseDir = createRunStateDir();
-  const runDir = resolve(baseDir, runId);
-  mkdirSync(runDir, { recursive: true });
-
+  const runDir = join(bound.cwd, ".context", "auto-fix", runId);
   const state: RunState = {
     run_id: runId,
     started_at: new Date().toISOString(),
@@ -179,11 +279,10 @@ function initRunState(
     config,
     issues: [],
     results: [],
-    ...extra,
   };
 
-  writeFileSync(join(runDir, "run.json"), JSON.stringify(state, null, 2), "utf-8");
-  return { runId, runDir };
+  const revision = await writeRunArtifact(bound, runId, "run.json", JSON.stringify(state, null, 2), null);
+  return { runId, runDir, revision };
 }
 
 // ── Predicates ─────────────────────────────────────────
@@ -325,19 +424,7 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
   if (flags.max_issues !== undefined) cliOverrides.max_issues = flags.max_issues;
   const finalConfig = { ...mergedConfig, ...cliOverrides };
 
-  // First-run safety prompt (Phase 8)
-  if (!finalConfig.dry_run && !flags.yes && !flags.list) {
-    const priorRuns = existsSync(resolve(".context/auto-fix"));
-    if (!priorRuns) {
-      console.log(
-        "First run on this repo — use --dry-run to preview? [Y/n]",
-      );
-      console.log("Defaulting to dry-run for safety. Use --yes to skip this prompt.");
-      cliOverrides.dry_run = true;
-      // Re-merge
-      Object.assign(finalConfig, cliOverrides);
-    }
-  }
+  // List mode must not bind or write storage identity.
 
   // ── List-only mode (observation only, no disk side effects) ─
   if (flags.list) {
@@ -358,12 +445,18 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
       results: [],
     };
   }
+  const bound = await bindAutoFixStore(process.cwd());
+  if (!finalConfig.dry_run && !flags.yes && (await listRunArtifacts(bound)).length === 0) {
+    console.log("First run on this repo — use --dry-run to preview? [Y/n]");
+    console.log("Defaulting to dry-run for safety. Use --yes to skip this prompt.");
+    finalConfig.dry_run = true;
+  }
 
-  const { runId, runDir } = initRunState(repo, finalConfig);
+  const { runId, runDir, revision } = await initRunState(bound, repo, finalConfig);
   console.log(`Run state: ${runDir}/run.json`);
 
   // ── Fetch and filter issues ──────────────────────────
-  const issues: unknown[] = [];
+  const issues: GhIssue[] = [];
   try {
     const rawIssues = await listOpenIssues({
       assignee: finalConfig.assignee,
@@ -404,34 +497,32 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
   }> = [];
 
   for (const issue of issues) {
-    const issueDir = join(runDir, `issue-${(issue as { number: number }).number}`);
-    mkdirSync(issueDir, { recursive: true });
+    const issueDir = join(runDir, `issue-${issue.number}`);
 
-    // Write stage prompt files for the operator/agent
+    // These prompts and routing plans are retained evidence; files are exports.
     const issueData = JSON.stringify(issue, null, 2);
 
-    writeFileSync(
-      join(issueDir, "stages.json"),
+    await writeRunArtifact(
+      bound, runId, `issue-${issue.number}/stages.json`,
       JSON.stringify(
         {
-          issue: (issue as { number: number }).number,
+          issue: issue.number,
           stages: ["research", "plan", "build", "review"],
-          prompt: `Read skill://b-auto-fix and process this issue in worktree: <worktree-path>. Issue data: ${issueData}`,
+          prompt: `Read skill://b-auto-fix and process this issue in worktree: <worktree-path>. Retain stage output with: bun ${JSON.stringify(import.meta.filename)} artifact write ${runId} issue-${issue.number}/<stage>.md <output-file> --cwd ${JSON.stringify(bound.cwd)}. Read prior output with artifact read; local files are exports only. Issue data: ${issueData}`,
         },
         null,
         2,
       ),
-      "utf-8",
     );
 
     // Write completion routing plan (Phase 7)
-    writeFileSync(
-      join(issueDir, "completion-plan.json"),
+    await writeRunArtifact(
+      bound, runId, `issue-${issue.number}/completion-plan.json`,
       JSON.stringify(
         {
-          issue: (issue as { number: number }).number,
+          issue: issue.number,
           successPath: [
-            "1. Read review.md verdict",
+            "1. Read retained review.md with artifact read",
             "2. If approved: push branch, create draft PR, post summary comment, remove worktree",
             "3. If review_blocked: post needs-human comment, leave worktree",
           ],
@@ -441,20 +532,19 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
             "3. Record hard-fail in run state",
           ],
           softFailPath: [
-            "1. Write soft-fail.log to issue directory",
+            "1. Retain soft-fail.log through softFailPath",
             "2. Continue to next issue",
           ],
-          branch: `${finalConfig.branch_prefix}${(issue as { number: number }).number}`,
-          worktreePath: `issue-${(issue as { number: number }).number}`,
+          branch: `${finalConfig.branch_prefix}${issue.number}`,
+          worktreePath: `issue-${issue.number}`,
         },
         null,
         2,
       ),
-      "utf-8",
     );
 
     results.push({
-      issue: (issue as { number: number }).number,
+      issue: issue.number,
       stage: "setup",
       status: "completed",
       artifact: join(issueDir, "completion-plan.json"),
@@ -470,9 +560,9 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
     repo,
     config: finalConfig,
     issues,
-    results: [],
+    results,
   };
-  writeFileSync(join(runDir, "run.json"), JSON.stringify(state, null, 2), "utf-8");
+  await writeRunArtifact(bound, runId, "run.json", JSON.stringify(state, null, 2), revision);
 
   return state;
 }
@@ -493,34 +583,21 @@ export async function successPath(input: CompletionInput): Promise<void> {
   const { pushBranch } = await import("./auto-fix/lib/push.ts");
   const { createDraftPr } = await import("./auto-fix/lib/pr.ts");
   const { postIssueSummary } = await import("./auto-fix/lib/comment.ts");
-  const { remove } = await import("./auto-fix/lib/worktree.ts");
   const { generatePrBody } = await import("./auto-fix/lib/pr-body.ts");
 
-  const repoDir = process.cwd();
-
-  // Read build/review artifacts
-  let buildArtifact = "";
-  let reviewArtifact = "";
-  let diffSummary = "";
-  try {
-    buildArtifact = readFileSync(
-      join(input.runDir, `issue-${input.issueN}`, "build.md"),
-      "utf-8",
-    );
-    reviewArtifact = readFileSync(
-      join(input.runDir, `issue-${input.issueN}`, "review.md"),
-      "utf-8",
-    );
-    const diffProc = Bun.spawn({
-      cmd: ["git", "diff", "--stat", input.baseBranch],
-      cwd: repoDir,
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    diffSummary = (await new Response(diffProc.stdout).text()).trim();
-  } catch {
-    // Artifacts may not exist — continue with empty
-  }
+  const { cwd: repoDir, runId } = runLocation(input.runDir);
+  const bound = await bindAutoFixStore(repoDir);
+  if (!await readRunArtifact(bound, runId, "run.json")) throw new Error(`Retained auto-fix run not found: ${runId}`);
+  const build = await readRunArtifact(bound, runId, `issue-${input.issueN}/build.md`);
+  const review = await readRunArtifact(bound, runId, `issue-${input.issueN}/review.md`);
+  if (!build || !review) throw new Error("Retained build.md and review.md are required before PR completion");
+  const buildArtifact = new TextDecoder().decode(build.bytes);
+  const reviewArtifact = new TextDecoder().decode(review.bytes);
+  const diffProc = Bun.spawn({
+    cmd: ["git", "diff", "--stat", input.baseBranch], cwd: repoDir, stdout: "pipe", stderr: "pipe",
+  });
+  const diffSummary = (await new Response(diffProc.stdout).text()).trim();
+  if (await diffProc.exited !== 0) throw new Error("Cannot read auto-fix diff summary");
 
   const body = generatePrBody({
     issueNumber: input.issueN,
@@ -530,11 +607,9 @@ export async function successPath(input: CompletionInput): Promise<void> {
     buildArtifact,
     reviewArtifact,
   });
+  await writeRunArtifact(bound, runId, `issue-${input.issueN}/pr-body.md`, body);
 
   if (input.dryRun) {
-    // Write proposed PR body to disk
-    const dryRunDir = join(input.runDir, `issue-${input.issueN}`);
-    writeFileSync(join(dryRunDir, "pr-body.md"), body, "utf-8");
     console.log(
       `[DRY RUN] Would push branch ${input.branch}, create PR, post comment`,
     );
@@ -562,19 +637,18 @@ export async function hardFailPath(
   input: CompletionInput,
   failureMode: string,
 ): Promise<void> {
+  const { cwd, runId } = runLocation(input.runDir);
+  const bound = await bindAutoFixStore(cwd);
+  if (!await readRunArtifact(bound, runId, "run.json")) throw new Error(`Retained auto-fix run not found: ${runId}`);
+  const summary = [
+    `## Hard-fail: ${failureMode}`,
+    `**Worktree**: ${join(input.worktreeDir, `issue-${input.issueN}`)}`,
+    `**Branch**: ${input.branch}`,
+    "",
+    "This issue needs human intervention.",
+  ].join("\n");
+  await writeRunArtifact(bound, runId, `issue-${input.issueN}/summary.md`, summary);
   if (input.dryRun) {
-    const summary = [
-      `## Hard-fail: ${failureMode}`,
-      `**Worktree**: ${join(input.worktreeDir, `issue-${input.issueN}`)}`,
-      `**Branch**: ${input.branch}`,
-      "",
-      "This issue needs human intervention.",
-    ].join("\n");
-    writeFileSync(
-      join(input.runDir, `issue-${input.issueN}`, "summary.md"),
-      summary,
-      "utf-8",
-    );
     console.log(
       `[DRY RUN] Would post needs-human comment for issue #${input.issueN}`,
     );
@@ -599,16 +673,17 @@ export async function softFailPath(
   input: CompletionInput,
   reason: string,
 ): Promise<void> {
-  const logPath = join(
-    input.runDir,
-    `issue-${input.issueN}`,
-    "soft-fail.log",
-  );
-  writeFileSync(logPath, `Soft-fail at ${new Date().toISOString()}: ${reason}\n`, "utf-8");
+  const { cwd, runId } = runLocation(input.runDir);
+  const bound = await bindAutoFixStore(cwd);
+  if (!await readRunArtifact(bound, runId, "run.json")) throw new Error(`Retained auto-fix run not found: ${runId}`);
+  await writeRunArtifact(bound, runId, `issue-${input.issueN}/soft-fail.log`, `Soft-fail at ${new Date().toISOString()}: ${reason}\n`);
   console.log(`Issue #${input.issueN}: soft-fail — ${reason}`);
 }
 
 // Direct execution
 if (import.meta.main) {
-  await main();
+  const args = process.argv.slice(2);
+  if (args[0] === "--") args.shift();
+  if (args[0] === "artifact") await artifactCommand(args);
+  else await main();
 }

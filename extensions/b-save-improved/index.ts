@@ -8,7 +8,6 @@
  */
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { dirname, join } from "node:path";
-import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured, execFileCapturedWithStdin, recordCommandError } from "../subprocess.js";
 import { createActivity, type ActivityEvent } from "../extension-activity.js";
@@ -26,28 +25,16 @@ export const DIGEST_CAP = 12_000;
 
 const FLAGS = ["--dry-run", "--archive-inferred", "--subject", "--no-retain", "--model"];
 
-/** Projected saves keep their phase. Standalone saves use the first incomplete phase file. */
-export function savePhase(cwd: string, subjectPath: string, projectedPhase: string | null, projected: boolean): string | null {
+/** Projected saves keep their phase; standalone provenance uses adapter preflight. */
+export function savePhase(subjectPath: string, projectedPhase: string | null, projected: boolean, phases: readonly { path: string; status?: string | null }[]): string | null {
   if (projected) return projectedPhase;
-  return incompletePhase(cwd, subjectPath);
-}
-
-function incompletePhase(cwd: string, subjectPath: string): string | null {
-  let names: string[];
-  try { names = readdirSync(join(cwd, subjectPath)); } catch { return null; }
-  for (const name of names.filter((entry) => /^phase-(\d+)-/.test(entry)).sort(byPhaseNumber)) {
-    const status = /^status:\s*(\S+)/m.exec(readFileSync(join(cwd, subjectPath, name), "utf8"))?.[1];
-    if (status !== "completed") return join(subjectPath, name);
-  }
-  return null;
-}
-
-function byPhaseNumber(left: string, right: string): number {
-  return phaseNumber(left) - phaseNumber(right) || left.localeCompare(right);
-}
-
-function phaseNumber(name: string): number {
-  return Number(/^phase-(\d+)-/.exec(name)?.[1] ?? 0);
+  const incomplete = phases.filter(phase => /^phase-\d+-/.test(phase.path) && phase.status !== "completed");
+  incomplete.sort((left, right) => {
+    const leftNumber = Number(/^phase-(\d+)-/.exec(left.path)?.[1]);
+    const rightNumber = Number(/^phase-(\d+)-/.exec(right.path)?.[1]);
+    return leftNumber - rightNumber || left.path.localeCompare(right.path);
+  });
+  return incomplete[0] ? join(subjectPath, incomplete[0].path) : null;
 }
 
 
@@ -436,10 +423,10 @@ function buildScribePrompt(digest: string, preflight: Record<string, unknown>): 
     "- backlog.complete_inferred: [{ slug, outcome, evidence }] for likely-done items without an explicit session statement",
     "- backlog.new_items: [{ slug, title, priority, related, body }]",
     "- retain_facts: string[] of self-contained facts including artifact paths",
-    "- supersedes_id: optional prior memory UUID only for an explicit correction to a known same-project row; never guess an ID",
+    "- supersedes_id: optional prior workflow_state revision id only for an explicit correction; never guess an ID",
     "- memory.body headings (omit a section only when empty): ## User Goal, ## What happened, ## Decision, ## What shipped, ## Verification, ## Leftover, ## Related",
     process.env.SQL_MEMORY_URL
-      ? "- SQL_MEMORY_URL is set: still return memory JSON for the auditor, but the apply step will not write .context/memory files or copy the body into the subject index. Do not invent a second body store."
+      ? "- SQL_MEMORY_URL is set: write the reusable fact through workflow_state. The receipt ids are the returned revision ids. Do not issue a read-back SELECT. Still return memory JSON for the auditor; apply will not write .context/memory files."
       : "- file mode: the apply step writes the memory file and index entry",
     "- artifacts: subject-folder filenames and .context/memory paths only — not implementation source",
     "- related: other memory filenames, not source paths",
@@ -520,6 +507,8 @@ export function assembleApplyPayload(
   }
   return {
     today,
+    storage_snapshot: preflight.storage_snapshot ?? {},
+    deleted_sources: preflight.deleted_sources ?? [],
     subject: { name: subject?.name, path: subject?.path, create: Boolean(subject?.created) },
     memory: {
       path: memoryPath,
@@ -546,37 +535,17 @@ export function assembleApplyPayload(
 }
 
 export function buildRetainInstruction(
-  backend: { backend?: string | null; expect_retain?: boolean } | undefined,
+  _backend: { backend?: string | null; expect_retain?: boolean } | undefined,
   memoryPath: string,
   subjectName: string,
-  facts: string[],
+  _facts: string[],
 ): string {
-  const kind = backend?.backend;
-  const tool =
-    kind === "hindsight" || kind === "mnemopi" ? "retain"
-      : kind === "local" ? "learn"
-        : null;
-  const factBlock = facts.length > 0
-    ? facts.map((f, i) => `${i + 1}. ${f}`).join("\n")
-    : `1. Session checkpoint written for ${subjectName} at ${memoryPath}.`;
-  if (!tool) {
-    return [
-      "No harness memory tool is expected (memory.backend is unset).",
-      "Skip retain/learn. Do not call the Hindsight HTTP API.",
-      "Do not run b-memory-import — that skill is bulk backfill only.",
-      `Memory file: ${memoryPath}`,
-      `Subject: ${subjectName}`,
-    ].join("\n");
-  }
   return [
-    `Call the ${tool} tool with 1–N self-contained facts about this session.`,
+    "No publication-proven revisions are available for harness LTM.",
+    "Skip retain/learn. Do not call the Hindsight HTTP API.",
+    "Do not run b-memory-import — that skill is bulk backfill only.",
     `Memory file: ${memoryPath}`,
     `Subject: ${subjectName}`,
-    "Do not call the Hindsight HTTP API.",
-    "Do not run b-memory-import — that skill is bulk backfill only.",
-    "",
-    "Facts:",
-    factBlock,
   ].join("\n");
 }
 
@@ -723,16 +692,17 @@ async function runBSaveImproved(
       const subject = preflight.subject;
       if (!subject || typeof subject !== "object" || !("name" in subject) || typeof subject.name !== "string"
         || !("path" in subject) || typeof subject.path !== "string") throw new Error("SQL save requires a resolved subject");
-      const projection = readProjection(ctx.cwd);
+      const projection = await readProjection(ctx.cwd);
       const projected = projection?.state === "saving" && projection.subject === subject.name;
-      const attempt = prepareSaveAttempt(ctx.cwd, subject.name, projected, savePhase(ctx.cwd, subject.path, projection?.phasePath ?? null, projected));
+      const phaseFiles = (preflight.phases as { files?: Array<{ path: string; status?: string | null }> } | undefined)?.files ?? [];
+      const attempt = prepareSaveAttempt(ctx.cwd, subject.name, projected, savePhase(subject.path, projection?.phasePath ?? null, projected, phaseFiles));
       if ("error" in attempt) throw new Error(attempt.error);
       sqlAttempt = attempt;
       const reusable = scribe.retain_facts.filter((fact) => fact.trim().length > 0);
       const facts = reusable.length > 0
         ? [{ body: `# ${scribe.memory.title}\n\n${scribe.memory.body}\n\n## Reusable facts\n\n${reusable.map((fact) => `- ${fact}`).join("\n")}`, supersedes: scribe.supersedes_id }]
         : [];
-      const ids = await saveSqlFacts(ctx.cwd, attempt, facts, undefined, activity.ingest);
+      const ids = await saveSqlFacts(ctx.cwd, attempt, facts, { onActivity: activity.ingest });
       payload.sql_receipt = { path: attempt.receiptRel, ids };
       const plans = preflight.plans;
       const refs = Array.isArray(plans) ? plans : [];
@@ -764,7 +734,7 @@ async function runBSaveImproved(
       recordCommandError(pi, "b-save-improved", "apply", first, applied.code);
       return;
     }
-    if (sqlAttempt) completeSaveAttempt(ctx.cwd, sqlAttempt);
+    if (sqlAttempt) await completeSaveAttempt(ctx.cwd, sqlAttempt);
     for (const row of report.applied ?? []) {
       notify(ctx, `${row.action} ${row.path}${row.reason ? ` — ${row.reason}` : ""}`);
     }

@@ -6,6 +6,8 @@ import { captureTurnMemory } from "../../extensions/turn-memory/capture.js";
 import type { CaptureDeps } from "../../extensions/turn-memory/capture.js";
 import { isTurnMemoryEnabled } from "../../extensions/turn-memory/enable.js";
 import { selectTurnMemoryWindow } from "../../extensions/turn-memory/window.js";
+import { bindConsumerAttempt, resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
+import { commitConsumerBatch } from "../../skills/_shared/storage/consumers.js";
 
 const TICK = "turn-memory-tick";
 
@@ -24,7 +26,6 @@ interface TickData {
 }
 
 export function turnMemoryStatus(cwd: string, env: NodeJS.ProcessEnv = process.env, home?: string): string {
-  if (!env.SQL_MEMORY_URL) return "turn-memory: off (no SQL_MEMORY_URL)";
   if (!isTurnMemoryEnabled(cwd, env, home ? { home } : {})) return "turn-memory: off (opt-out)";
   return "turn-memory: on";
 }
@@ -91,27 +92,29 @@ function continues(event: object): boolean {
   return "willContinue" in event && event.willContinue === true;
 }
 
-type PoolGetter = () => unknown;
-let cachedPool: { url: string; get: PoolGetter } | null = null;
-
-export function turnMemoryPool(url: string, create: (connectionString: string) => PoolGetter): PoolGetter {
-  if (!cachedPool || cachedPool.url !== url) cachedPool = { url, get: create(url) };
-  return cachedPool.get;
-}
-
-export function resetTurnMemoryPool(): void {
-  cachedPool = null;
-}
 
 async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): Promise<string> {
-  const url = process.env.SQL_MEMORY_URL;
-  if (!url) throw new Error("SQL_MEMORY_URL is unset");
-  // Static import would load pg from db.ts at factory load, even when SQL_MEMORY_URL is unset.
-  const [{ createLazyPool }, { rememberSqlMemory }] = await Promise.all([
-    import("../../extensions/sql-memory/db.js"),
-    import("../../extensions/sql-memory/remember.js"),
-  ]);
-  return rememberSqlMemory({ pool: turnMemoryPool(url, createLazyPool)(), ...input });
+  const context = await resolveConsumerContext(input.cwd);
+  return withBoundStore(input.cwd, context, async (store) => {
+    if (!context.worktreeId) throw new Error("turn-memory requires a trusted worktree identity");
+    const bound = await bindConsumerAttempt(context, input.cwd, input.phase);
+    const prior = await store.readReceipt(context.projectId, bound.runId);
+    if (prior?.status === "complete") return prior.artifactRevisions[0] ?? "";
+    const committed = await commitConsumerBatch(store, {
+      projectId: context.projectId,
+      branchId: context.branchId,
+      worktreeId: context.worktreeId,
+      runId: bound.runId,
+      publishedRevisionIds: context.publishedRevisionIds,
+    }, [
+      { kind: "memory", subjectId: input.subject, logicalName: `turn-memory/${input.phase}.md`, bytes: new TextEncoder().encode(input.body), source: "turn-memory" },
+      { kind: "activity", subjectId: "turn-memory", logicalName: `dedupe/${input.phase}.json`, bytes: new TextEncoder().encode(input.phase), source: "turn-memory-dedupe" },
+    ], { attemptId: input.phase, status: "attempted", kind: "rows", metadataDuties: ["readback"] });
+    await store.writeReceipt({ ...committed.receipt, status: "complete" });
+    const complete = await store.readReceipt(context.projectId, bound.runId);
+    if (complete?.status !== "complete") throw new Error("turn-memory receipt completion was not persisted");
+    return committed.revisions[0] ?? "";
+  });
 }
 
 function defaultJudge(text: string): Promise<unknown> {

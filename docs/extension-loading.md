@@ -131,7 +131,7 @@ buck-workflow-pi/
     buck-loop/              # (wired) observably invoked /buck-loop runner
     code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
     token-attribution/      # (wired) project/branch token ledger + /tokens report
-    sql-memory/             # (wired, env-gated) sql_memory tool when SQL_MEMORY_URL is set
+    workflow-state/         # (wired) workflow_state tool; sql-memory wire does not register a tool
     *.test.ts               # Tests for extension behavior
   skills/
     b-build/SKILL.md
@@ -168,7 +168,7 @@ buck-workflow-pi/
 8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the portable synchronous module in `extensions/state_machine/` for graph validation and guarded transitions; the adapter enforces route cardinality, and the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
 9. **`/code-review` local iteration** (`code-review-iteration/`) — bounded local Reviewer → optional Fixer → fresh-Reviewer passes. Reviewer work runs in disposable detached worktrees; reproduction commands cross the `review_exec` allowlist boundary; pass artifacts are immutable under the Git common directory. This runtime command is distinct from the portable release-PR review prompt/skill with the same name.
 10. **Token attribution** (`token-attribution/`) — records assistant and current-session nested usage in a plugin-owned `~/.omp/stats.db` table, keyed by Git origin/common directory plus branch, and exposes estimated project totals through `/tokens` (or `/token-use` on command collision). It never modifies OMP-owned stats tables. See `docs/oh-my-pi.md` and `docs/howto/inspect-project-token-use.md`.
-11. **SQL memory** (`sql-memory/`) — registers the `sql_memory` tool only when `SQL_MEMORY_URL` is set. Unset skips registration and does not load `pg`. The pool connects on the first call, not at startup.
+11. **Workflow state** (`workflow-state/`) — registers native `workflow_state` on every load. `sql-memory/` `wire()` does not register `sql_memory` and does not load `pg` at registration. Administration is the shared CLI `migrate` operation.
 
 `extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 

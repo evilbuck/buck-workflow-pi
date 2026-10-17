@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { describe, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
+import type { ArtifactRevision } from "../../_shared/storage/contract.js";
+import type { MemoryFile } from "./import-context-memory";
 import {
   buildRetainItem,
   classify,
@@ -16,7 +16,6 @@ import {
   planImport,
   sha256Hex,
   splitFrontmatter,
-  type MemoryFile,
 } from "./import-context-memory";
 
 describe("splitFrontmatter", () => {
@@ -228,28 +227,27 @@ describe("parseArgs", () => {
   });
 });
 
-describe("list integration light", () => {
-  test("walks nested md", () => {
-    const root = mkdtempSync(join(tmpdir(), "bmem-"));
-    const mem = join(root, ".context", "memory");
-    mkdirSync(mem, { recursive: true });
-    writeFileSync(
-      join(mem, "one.md"),
-      `---\ndate: 2026-01-01\n---\n# One\n`,
-    );
-    const receiptDir = join(root, ".context", "2026-09-28.subject", "sql-memory-receipts");
-    mkdirSync(receiptDir, { recursive: true });
-    writeFileSync(join(receiptDir, "run-attempt.json"), `{"kind":"rows","ids":["not-a-memory"]}`);
-    writeFileSync(join(receiptDir, "run-attempt.md"), "# SQL receipt metadata\n");
-    writeFileSync(join(mem, "index.md"), "# index\n");
-    const files = listMemoryMarkdown(
-      [{ rel: ".context/memory", abs: mem, kind: "memory" }],
-      root,
-    );
-    expect(files).toHaveLength(1);
-    expect(files[0].relPath).toBe(".context/memory/one.md");
+function storedSource(kind: "memory" | "backlog", logicalName: string, text: string): ArtifactRevision {
+  const bytes = new TextEncoder().encode(text);
+  return {
+    key: { projectId: "fixture", branchId: "branch", kind, subjectId: kind, logicalName },
+    revision: logicalName, bytes, sha256: sha256Hex(bytes), author: "fixture", source: "fixture",
+    createdAt: "2026-10-15T00:00:00.000Z", links: [],
+  };
+}
+
+describe("adapter source parsing", () => {
+  test("keeps exact published nested memory revisions, excluding indexes and private drafts", () => {
+    const records = [
+      storedSource("memory", "nested/one.md", "---\ndate: 2026-01-01\n---\n# One\n"),
+      storedSource("memory", "index.md", "---\ndate: 2026-01-01\n---\n# Index\n"),
+      storedSource("memory", "draft.md", "---\ndate: 2026-01-01\n---\n# Private draft\n"),
+    ];
+    const sourceDirs = parseArgs(["--root", "/project"]).sourceDirs;
+    const files = listMemoryMarkdown(sourceDirs, "/project", records, ["nested/one.md", "index.md"]);
+    expect(files.map((file) => file.relPath)).toEqual([".context/memory/nested/one.md"]);
     expect(files[0].frontmatter.date).toBe("2026-01-01");
-    expect(files[0].kind).toBe("memory");
+    expect(files[0].body).toBe("# One\n");
   });
 });
 
@@ -303,65 +301,30 @@ describe("source-dir classifier + framing", () => {
   });
 });
 
-describe("listMemoryMarkdown multi-dir", () => {
-  test("walks both memory and backlog", () => {
-    const root = mkdtempSync(join(tmpdir(), "bmem-multi-"));
-    const mem = join(root, ".context", "memory");
-    const backlog = join(root, ".context", "backlog", "items");
-    mkdirSync(mem, { recursive: true });
-    mkdirSync(backlog, { recursive: true });
-    writeFileSync(
-      join(mem, "session.md"),
-      `---\ndate: 2026-08-01\n---\n# Session\nContent.`,
-    );
-    writeFileSync(
-      join(backlog, "item.md"),
-      `---\ntitle: Do the thing\nstatus: active\npriority: high\n---\n# Item\n`,
-    );
-    // No frontmatter on memory file -> should be skipped with a warning.
-    writeFileSync(join(mem, "no-fm.md"), "# Just a title\nNo frontmatter here.\n");
-    // Backlog item missing `title` -> should be skipped.
-    writeFileSync(
-      join(backlog, "no-title.md"),
-      `---\nstatus: active\n---\n# Item\n`,
-    );
-
+describe("adapter source-dir and frontmatter boundaries", () => {
+  test("imports memory and backlog while warning on missing required frontmatter", () => {
+    const records = [
+      storedSource("memory", "session.md", "---\ndate: 2026-08-01\n---\n# Session\nContent."),
+      storedSource("backlog", "items/item.md", "---\ntitle: Do the thing\nstatus: active\n---\n# Item\n"),
+      storedSource("memory", "no-fm.md", "# Just a title\nNo frontmatter here.\n"),
+      storedSource("backlog", "items/no-title.md", "---\nstatus: active\n---\n# Item\n"),
+      storedSource("backlog", "archive/outside.md", "---\ntitle: Archived\nstatus: completed\n---\n# Old\n"),
+    ];
+    const sourceDirs = parseArgs(["--root", "/project", "--source-dirs", ".context/memory,.context/backlog/items"]).sourceDirs;
     const warnings: string[] = [];
-    const files = listMemoryMarkdown(
-      [
-        { rel: ".context/memory", abs: mem, kind: "memory" },
-        { rel: ".context/backlog/items", abs: backlog, kind: "backlog" },
-      ],
-      root,
-      warnings,
-    );
-
-    expect(files).toHaveLength(2);
-    expect(files.map((f) => f.kind).sort()).toEqual(["backlog", "memory"]);
-    expect(files.find((f) => f.kind === "memory")?.sourceDir).toBe(".context/memory");
-    expect(files.find((f) => f.kind === "backlog")?.sourceDir).toBe(".context/backlog/items");
-    expect(warnings.length).toBe(2);
-    expect(warnings.some((w) => w.includes("no-fm.md"))).toBe(true);
-    expect(warnings.some((w) => w.includes("no-title.md"))).toBe(true);
+    const files = listMemoryMarkdown(sourceDirs, "/project", records, records.map((record) => record.revision), warnings);
+    expect(files.map((file) => [file.relPath, file.kind])).toEqual([
+      [".context/backlog/items/item.md", "backlog"], [".context/memory/session.md", "memory"],
+    ]);
+    expect(warnings).toEqual([
+      "skip: no frontmatter in .context/memory/no-fm.md",
+      "skip: backlog item .context/backlog/items/no-title.md missing required title/status",
+    ]);
   });
 
-  test("missing source dirs are silently skipped (not an error)", () => {
-    const root = mkdtempSync(join(tmpdir(), "bmem-missing-"));
-    const backlog = join(root, ".context", "backlog", "items");
-    mkdirSync(backlog, { recursive: true });
-    writeFileSync(
-      join(backlog, "item.md"),
-      `---\ntitle: Real\nstatus: active\n---\n# Item\n`,
-    );
-
-    const files = listMemoryMarkdown(
-      [
-        { rel: ".context/memory", abs: join(root, ".context", "memory"), kind: "memory" },
-        { rel: ".context/backlog/items", abs: backlog, kind: "backlog" },
-      ],
-      root,
-    );
-    expect(files).toHaveLength(1);
-    expect(files[0].kind).toBe("backlog");
+  test("default source selection excludes even published backlog items", () => {
+    const item = storedSource("backlog", "items/item.md", "---\ntitle: Real\nstatus: active\n---\n# Item\n");
+    const sourceDirs = parseArgs(["--root", "/project"]).sourceDirs;
+    expect(listMemoryMarkdown(sourceDirs, "/project", [item], [item.revision])).toEqual([]);
   });
 });

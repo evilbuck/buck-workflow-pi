@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { sqlMemoryTool } from "./index.js";
-import type { MigrationPool } from "./migrations.js";
+import type { MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
 const cleanupDirs: string[] = [];
 function mkdirPath(): string {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createLazyPool } from "./db.js";
+import { createLazyPool } from "../../skills/_shared/storage/db.js";
 import { correctSqlMemory, sqlMemoryRows, sqlMemorySaveTransaction, sqlMemoryTool, wire } from "./index.js";
-import type { MigrationPool } from "./migrations.js";
+import type { MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
 const pool: MigrationPool = {
   async query() { return { rows: [] }; },
@@ -83,21 +83,15 @@ describe("supervisor SQL activity", () => {
 });
 
 describe("sql_memory tool", () => {
-  it("does not register without SQL_MEMORY_URL", () => {
+  it("does not register a model-facing tool even when SQL_MEMORY_URL is set", () => {
     delete process.env.SQL_MEMORY_URL;
-    const registerTool = vi.fn();
-    wire({ registerTool } as never);
-    expect(registerTool).not.toHaveBeenCalled();
-  });
-
-  it("registers only with SQL_MEMORY_URL and returns query rows", async () => {
+    const absent = vi.fn();
+    wire({ registerTool: absent } as never);
     process.env.SQL_MEMORY_URL = "postgres://unused";
-    const registerTool = vi.fn();
-    wire({ registerTool } as never, { pool });
-    expect(registerTool).toHaveBeenCalledTimes(1);
-    const tool = registerTool.mock.calls[0]![0];
-    const result = await tool.execute("call", { op: "sql", statement: "SELECT id FROM memories" }, undefined, undefined, {} as never);
-    if (result.content[0]!.type === "text") expect(result.content[0]!.text).toContain("mem-1");
+    const present = vi.fn();
+    wire({ registerTool: present } as never, { pool });
+    expect(absent).not.toHaveBeenCalled();
+    expect(present).not.toHaveBeenCalled();
   });
   it("renders one notice when collapsed and retains JSON when expanded", async () => {
     const tool = sqlMemoryTool(pool, "recall");

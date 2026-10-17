@@ -1,0 +1,87 @@
+{
+  "adapter": "postgres",
+  "projectId": "workspace-cc0982d6658790a789a83e2f45a805d472cb10450347773cc152d0dcdf259a80",
+  "branchId": "branch-437856cd-4ad0-49ae-b189-a03d211f77da",
+  "worktreeId": "worktree-5a9d5ef5-3d83-4342-b574-eade2cd22af4",
+  "verified": {
+    "status": "verified"
+  },
+  "receipt": {
+    "projectId": "workspace-cc0982d6658790a789a83e2f45a805d472cb10450347773cc152d0dcdf259a80",
+    "runId": "run-7d506ac4-009e-4bbd-87be-6b316e0f5aef",
+    "branchId": "branch-437856cd-4ad0-49ae-b189-a03d211f77da",
+    "worktreeId": "worktree-5a9d5ef5-3d83-4342-b574-eade2cd22af4",
+    "attemptId": "c01a65cc-279c-4746-83d9-312862e929eb",
+    "status": "complete",
+    "artifactRevisions": [
+      "fae8c405-c21d-420d-acb8-d5ed5d836b8c"
+    ],
+    "kind": "rows",
+    "metadataDuties": [
+      "save-metadata",
+      "readback"
+    ]
+  },
+  "artifacts": [
+    {
+      "kind": "brainstorm",
+      "logicalName": "brainstorm-adapter-proof.md",
+      "revision": "a565b51d-a066-4c2a-a342-67854462be8d",
+      "sha256": "f473ac204edddb522d1cafd64451e32390682d9f7b4c8707006e5a3896433561"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research/notes-adapter-proof.md",
+      "revision": "effdee39-8be5-4bb9-8840-24d341719942",
+      "sha256": "3a8b8d05a153249b6c4097cc2d212dad0daa4917657fc6191ef62932ba709574"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research/sources-adapter-proof.md",
+      "revision": "353bdeeb-5ecc-4804-89e6-84b43dbd1a01",
+      "sha256": "429b60407e929340907f6df36b02537360fc5df5c52e5f5d8be54f52f400d4cd"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research-adapter-proof.md",
+      "revision": "daa922e0-886c-4a89-9d15-a8b0b7e1b8a8",
+      "sha256": "25375aa5cc5c0644712ae0318cfdfff26f8e27f7620ac3cce02eb2800d30857b"
+    },
+    {
+      "kind": "review",
+      "logicalName": "review-adapter-proof.md",
+      "revision": "274ce042-b873-4deb-badc-e8e65e51031d",
+      "sha256": "9e7c80616a564ec1fb4679edc101190c26efaa3d32a9667d6dddb95570f586a9"
+    },
+    {
+      "kind": "iterate",
+      "logicalName": "iterate-adapter-proof.md",
+      "revision": "4d659ec7-50c2-4cc6-a912-b41ec4607c5f",
+      "sha256": "2473b5d2f77b15e9d5759ca24c50c856f2fe09fa38a21c2252cae336f0d6a5f3"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof.md",
+      "revision": "6340a6c0-3473-475a-bbac-3568d21e4edc",
+      "sha256": "4117fc2e2d981609e53ff55ed8ef0f8ad6c5ac9daa146b00b0c8c271b9c0d51b"
+    },
+    {
+      "kind": "phase",
+      "logicalName": "phase-1-adapter-proof.md",
+      "revision": "eb33ade3-1a8a-49d6-8c44-9378ed2f0110",
+      "sha256": "2370834e10ee874dd6acf55e00ec57c005e9585aee0985ef963a2722514ea452"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof-phases.md",
+      "revision": "4906b7c7-dd8a-418c-9028-1a352965f892",
+      "sha256": "5505ba3237f24d371f7ae9a5889e1d8ed8644da75078376c078679a40a8eb6c5"
+    },
+    {
+      "kind": "subject-index",
+      "logicalName": "index.md",
+      "revision": "b5d6567b-b082-4585-8ed4-3a886b7c9a25",
+      "sha256": "704b3b211a1675a4bcf64a4163f817fa5fd2c96be9ef2e347adfa522f9224078"
+    }
+  ]
+}
