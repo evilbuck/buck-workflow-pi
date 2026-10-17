@@ -30,28 +30,39 @@ export class SqlPlanSource implements PlanSource {
   readonly kind = 'sql';
   constructor(private readonly load: PlanLoader = defaultLoader) {}
 
-  async listSubjects(): Promise<PlanSubject[]> {
-    const grouped = new Map<string, { files: Set<string>; status: string | null }>();
-    for (const item of await this.load()) {
-      const subject = grouped.get(item.subjectId) ?? { files: new Set<string>(), status: null };
-      subject.files.add(item.logicalName);
-      if (item.logicalName === 'index.md') {
-        subject.status = toPlanDocument(item.subjectId, item.logicalName, new TextDecoder().decode(item.bytes)).frontmatter.status ?? null;
+  private records?: Promise<readonly StoredPlan[]>;
+  private subjects?: Promise<PlanSubject[]>;
+  private readonly documents = new Map<string, Promise<PlanDocument[]>>();
+
+  listSubjects(): Promise<PlanSubject[]> {
+    return this.subjects ??= (this.records ??= this.load()).then((items) => {
+      const grouped = new Map<string, { files: Set<string>; status: string | null }>();
+      for (const item of items) {
+        const subject = grouped.get(item.subjectId) ?? { files: new Set<string>(), status: null };
+        subject.files.add(item.logicalName);
+        if (item.logicalName === 'index.md') {
+          subject.status = toPlanDocument(item.subjectId, item.logicalName, new TextDecoder().decode(item.bytes)).frontmatter.status ?? null;
+        }
+        grouped.set(item.subjectId, subject);
       }
-      grouped.set(item.subjectId, subject);
-    }
-    return [...grouped.entries()].map(([name, value]) => ({
-      name,
-      status: value.status,
-      documents: [...value.files].sort((left, right) => left.localeCompare(right)),
-    })).sort((left, right) => right.name.localeCompare(left.name));
+      return [...grouped.entries()].map(([name, value]) => ({
+        name,
+        status: value.status,
+        documents: [...value.files].sort((left, right) => left.localeCompare(right)),
+      })).sort((left, right) => right.name.localeCompare(left.name));
+    });
   }
 
-  async listDocuments(subject: string): Promise<PlanDocument[]> {
-    return (await this.load())
-      .filter((item) => item.subjectId === subject)
-      .map((item) => toPlanDocument(subject, item.logicalName, new TextDecoder().decode(item.bytes)))
-      .sort((left, right) => left.file.localeCompare(right.file));
+  listDocuments(subject: string): Promise<PlanDocument[]> {
+    let documents = this.documents.get(subject);
+    if (!documents) {
+      documents = (this.records ??= this.load()).then((items) => items
+        .filter((item) => item.subjectId === subject)
+        .map((item) => toPlanDocument(subject, item.logicalName, new TextDecoder().decode(item.bytes)))
+        .sort((left, right) => left.file.localeCompare(right.file)));
+      this.documents.set(subject, documents);
+    }
+    return documents;
   }
 
   async getDocument(subject: string, slug: string): Promise<PlanDocument | null> {

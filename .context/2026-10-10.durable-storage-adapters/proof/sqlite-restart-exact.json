@@ -1,0 +1,87 @@
+{
+  "adapter": "sqlite",
+  "projectId": "workspace-3d877d93bd4fb1cbb93467941cbecc0ad6f3f21d5c0b818ec2096f4b53c291ed",
+  "branchId": "branch-7cd3d816-ce7a-4c92-96b4-d54875ec83e8",
+  "worktreeId": "worktree-ac336cf6-ae2c-4ad5-b033-9a428b3eafe9",
+  "verified": {
+    "status": "verified"
+  },
+  "receipt": {
+    "projectId": "workspace-3d877d93bd4fb1cbb93467941cbecc0ad6f3f21d5c0b818ec2096f4b53c291ed",
+    "runId": "run-36aefeef-9729-4097-b155-af416e7c791d",
+    "branchId": "branch-7cd3d816-ce7a-4c92-96b4-d54875ec83e8",
+    "worktreeId": "worktree-ac336cf6-ae2c-4ad5-b033-9a428b3eafe9",
+    "attemptId": "c5a5b1d1-2f72-4783-b882-b949516f1dc3",
+    "status": "complete",
+    "artifactRevisions": [
+      "c08c1b28-6f44-4812-9ac8-0bead4676e72"
+    ],
+    "kind": "rows",
+    "metadataDuties": [
+      "save-metadata",
+      "readback"
+    ]
+  },
+  "artifacts": [
+    {
+      "kind": "brainstorm",
+      "logicalName": "brainstorm-adapter-proof.md",
+      "revision": "99d29e94-58cf-46de-9ecb-dda2a0f00021",
+      "sha256": "bc679bd3584f5ca1141b49663dc5897be81af9b96bbc0afd74862892a35350bb"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research-adapter-proof.md",
+      "revision": "50e7154e-84bd-4ed1-a255-4d2581e03777",
+      "sha256": "a5fd4bbb2b82271708663aff535327bc5a758521f18a348997f0b87f20d3c3a1"
+    },
+    {
+      "kind": "review",
+      "logicalName": "review-adapter-proof.md",
+      "revision": "756fe33f-90dc-4d2d-96a8-50a5f2b694d4",
+      "sha256": "d239e7a452e47b0693c67a265c86f2410b7409d69fcfcd50da435851288eede2"
+    },
+    {
+      "kind": "iterate",
+      "logicalName": "iterate-adapter-proof.md",
+      "revision": "3d9300ab-18d5-4b6d-911f-dca523580929",
+      "sha256": "f505d565b430cf7e782327ad0bccd6943efbac97ad835ee1f3e417199183ba4e"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof.md",
+      "revision": "779e7a03-e4bd-45fc-904e-f2bac080a4c2",
+      "sha256": "79a2521ee2cfa7acec5fe438dec72abbb8092627d967e9ff8bccfb6dc290ff12"
+    },
+    {
+      "kind": "phase",
+      "logicalName": "phase-1-adapter-proof.md",
+      "revision": "1788b9ab-ce3f-421f-a75a-61dd4050ef91",
+      "sha256": "75dd9a139c0bbab2f4634c911c6810ed3fbe0c4a93ff8b0abec68602cfc19bb0"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof-phases.md",
+      "revision": "34fa14f9-9811-41dc-b53a-dce737ffbef2",
+      "sha256": "5c1ca9e74565bf0c8957ceb634ec82539741fd7e8ae2480d4e7197fe3c28df3e"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research-notes-adapter-proof.md",
+      "revision": "14ea63bf-c1fa-457e-81a9-6f3ba5b30e80",
+      "sha256": "2f4d19f3240aecc900bece5cb129fdcf0f24fcb39c9c77d6ee4a27a93993aede"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research-sources-adapter-proof.md",
+      "revision": "89f89a61-69ea-4115-8bc5-ba9a8d65b24a",
+      "sha256": "7d382e597c92d2853cec3efeb437b28f51264af483b024ab635f9f15b1debf23"
+    },
+    {
+      "kind": "subject-index",
+      "logicalName": "index.md",
+      "revision": "eb552ea2-d321-4e05-9260-620b4e03511e",
+      "sha256": "704b3b211a1675a4bcf64a4163f817fa5fd2c96be9ef2e347adfa522f9224078"
+    }
+  ]
+}

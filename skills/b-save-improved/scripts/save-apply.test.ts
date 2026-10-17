@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { runApply } from "./save-apply.js";
 import { prepareSaveAttempt, saveSqlFacts } from "../../../extensions/buck-loop/sql-save.js";
-import { FileStorageStore } from "../../../skills/_shared/storage/file-store.js";
-import { readConsumer } from "../../../skills/_shared/storage/consumers.js";
+import { commitConsumerBatch, consumerKey } from "../../../skills/_shared/storage/consumers.js";
 import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const SCRIPT = resolve(import.meta.dirname, "save-apply.ts");
@@ -644,34 +643,46 @@ describe("file-mode storage sealing", () => {
     else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
   });
 
-  it("seals applied bytes and an attempt receipt on the configured store while keeping the .context projection", async () => {
-    execFileSync("git", ["init", "-b", "master"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["config", "user.email", "t@example.test"], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["config", "user.name", "t"], { cwd: root, stdio: "ignore" });
-    writeFileSync(join(root, "README.md"), "# seal\n");
-    execFileSync("git", ["add", "."], { cwd: root, stdio: "ignore" });
-    execFileSync("git", ["commit", "-qm", "init"], { cwd: root, stdio: "ignore" });
-    const result = run(root, basePayload());
+  it("updates typed nested research without turning stale exports into authority or a second mirror", async () => {
+    const subjectId = "2026-08-26.save";
+    const logicalName = "research/notes-adapter-proof.md";
+    const path = `.context/${subjectId}/${logicalName}`;
+    const original = "---\nstatus: active\n---\n# Retained research\n\nVerified adapter evidence.\n";
+    const planKey = await withConfiguredStore(root, async (store, context) => {
+      const scope = { ...context, worktreeId: context.worktreeId!, runId: context.runId! };
+      const linked = consumerKey(scope, "plan", subjectId, "plan-probe.md");
+      await commitConsumerBatch(store, scope, [
+        { kind: "subject-index", subjectId, logicalName: "index.md", bytes: new TextEncoder().encode("---\nstatus: active\n---\n# Retained subject\n") },
+        { kind: "plan", subjectId, logicalName: "plan-probe.md", bytes: new TextEncoder().encode("---\nstatus: active\n---\n# Plan\n") },
+        { kind: "research", subjectId, logicalName, bytes: new TextEncoder().encode(original), links: [linked] },
+      ], { attemptId: "nested-source", status: "attempted" });
+      return linked;
+    });
+    write(root, path, "# Stale local export\n");
+    const preflight = JSON.parse(execFileSync("bun", [resolve(import.meta.dirname, "save-preflight.ts"), "--subject", subjectId], {
+      cwd: root, encoding: "utf8",
+    }));
+    const result = run(root, basePayload({
+      storage_snapshot: preflight.storage_snapshot,
+      crossrefs: [{ path, key: "memory", value: "b-save-improved-2026-08-26.md" }],
+    }));
     expect(result.errors).toEqual([]);
-    expect(result.run_id).toMatch(/^run-[0-9a-f-]{36}$/);
-    const memoryFile = readFileSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"), "utf8");
     await withConfiguredStore(root, async (store, context) => {
-      const memory = await store.read({
-        projectId: context.projectId, branchId: context.branchId,
-        subjectId: "memory", kind: "memory", logicalName: "b-save-improved-2026-08-26.md",
+      const scope = { ...context, worktreeId: context.worktreeId!, runId: context.runId! };
+      const notes = await store.read(consumerKey(scope, "research", subjectId, logicalName));
+      expect(new TextDecoder().decode(notes!.bytes)).toContain("Verified adapter evidence.");
+      expect(new TextDecoder().decode(notes!.bytes)).toContain("b-save-improved-2026-08-26.md");
+      expect(notes!.links).toEqual([planKey]);
+      expect(await store.read(consumerKey(scope, "capture", subjectId, logicalName))).toBeNull();
+      const memory = await store.read(consumerKey(scope, "memory", "memory", "b-save-improved-2026-08-26.md"));
+      expect(new TextDecoder().decode(memory!.bytes)).toContain("Deterministic checkpoint.");
+      await expect(store.readReceipt(context.projectId, result.run_id)).resolves.toMatchObject({
+        status: "complete", metadataDuties: ["save-metadata", "probe"],
       });
-      expect(new TextDecoder().decode(memory!.bytes)).toBe(memoryFile);
-      const index = await store.read({
-        projectId: context.projectId, branchId: context.branchId,
-        subjectId: "2026-08-26.save", kind: "subject-index", logicalName: "index.md",
-      });
-      expect(new TextDecoder().decode(index!.bytes)).toBe(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8"));
-      await expect(store.readReceipt(context.projectId, result.run_id!)).resolves.toMatchObject({
-        attemptId: expect.any(String),
-        worktreeId: expect.any(String),
-        status: "complete",
-        metadataDuties: ["save-metadata", "probe"],
-      });
-    }, { configPath: join(root, "config.yaml") });
+    });
+    expect(readFileSync(join(root, path), "utf8")).toBe("# Stale local export\n");
+    expect(readFileSync(join(root, ".context/memory/index.md"), "utf8")).toBe(LEGACY);
+    expect(readFileSync(join(root, ".context/2026-08-26.save/index.md"), "utf8")).toBe("---\nstatus: active\n---\n\n# Save\n");
+    expect(existsSync(join(root, ".context/memory/b-save-improved-2026-08-26.md"))).toBe(false);
   });
 });

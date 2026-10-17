@@ -12,8 +12,31 @@ The second principle is **make material decisions visible**. Routine, reversible
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and an env-gated `sql_memory` tool
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and native `workflow_state` over the configured storage adapter.
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
+
+### Durable workflow storage
+
+One machine text configuration, with project overrides, selects `repo-files`,
+`external-files`, `sqlite`, or `postgres`. The default is repo-files. Native
+`workflow_state`, the portable CLI, hooks and child consumers use that same
+selection; an outage does not authorize another store. `SQL_MEMORY_URL` gates
+required loop-save receipts, not backend selection or turn-memory enablement.
+See [backend configuration](howto/configure-storage-backend.md).
+
+Knowledge reads combine the current branch overlay with exact revisions proven
+published to the configured full `integration_ref`. A Git merge or a creation
+commit alone does not publish knowledge. Rewritten history requires explicit
+mapping; see [publication and recovery procedures](howto/README.md#durable-workflow-state).
+
+Backend changes are offline verified cutovers, never dual writes. Project-scope
+exports preserve retained bytes, IDs, history and publication evidence for
+backup/restore; see [storage configuration and recovery](howto/README.md#storage-configuration-and-recovery)
+and the [migration contract](sql-memory.md#durable-backend-migration).
+Only text configuration belongs in config-only dotfiles. Databases, SQLite
+WAL/SHM, manifests, private exports, journals and receipts stay outside Git,
+`.context/` and dotfile-manager source trees. Repo-files narrative bodies are
+the deliberate `.context/` projection, not a fallback for other backends.
 
 ### Subject lifecycle authority
 
@@ -1649,18 +1672,18 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Checkpoint session state and record completed work to the canonical history ledger. On OMP, also mirror durable facts into harness LTM when `retain`/`learn` tools exist.
+**Purpose**: Checkpoint session state and record completed work through the configured workflow adapter. Mirror only exact revisions proven published into harness LTM when supported.
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
-In configured OMP `/buck-loop`, the save child stores reusable memory bodies in SQL and writes a metadata-only receipt under `.context/<subject>/sql-memory-receipts/`. The receipt is written only after same-project row read-back; commit additionally requires metadata completion and the matching projected attempt. Pool teardown after that receipt does not fail the save stage. This path creates no new `.context/memory/` body or index entry. Historical Markdown memories remain readable and are not migrated.
+In OMP `/buck-loop`, the save child writes reusable memory and metadata to the selected workflow adapter. A required receipt verifies exact project, branch, worktree, run, attempt, revision IDs, and completed metadata duties before commit. Local receipt exports and child prose cannot replace selected-store readback. Late teardown noise does not invalidate verified durable proof.
 
-Outside a configured loop, portable `/b-save` uses SQL only when `sql_memory` is callable. An environment variable alone does not establish tool availability; without the callable tool, retain file-based behavior and report shared-store unavailability.
+Portable `/b-save` uses native `workflow_state` or the shared CLI against that same adapter. `SQL_MEMORY_URL` gates required loop receipts; it never chooses a backend or authorizes a second memory store. Adapter outages fail closed rather than falling back to `.context/` or legacy SQL.
 
-The thin prompt loads canonical `skills/b-save/SKILL.md`; the model follows that
-procedure, reads `.context/workflow/current-session.json` when it exists, and
-writes durable files under `.context/`. Step 8 may call harness memory tools
-(`retain` / `learn`) when present — that is intentional, not a second HTTP client.
+The thin prompt loads canonical `skills/b-save/SKILL.md`. The model follows the
+shared logical-artifact access contract; `.context/` is an editable projection
+only under repo-files. Optional harness memory mirroring must withhold private
+or unproven revisions.
 
 **Usage**:
 ```
@@ -1669,15 +1692,15 @@ writes durable files under `.context/`. Step 8 may call harness memory tools
 
 **Core Responsibilities**:
 
-1. **Read Session State** — Read `.context/workflow/current-session.json` for context
-2. **Subject Folder** — Create if missing; consolidate loose artifacts
-3. **Memory Creation** — File mode creates/updates a session memory file; configured OMP `/buck-loop` SQL mode stores reusable bodies in SQL and creates only a subject-scoped metadata receipt
-4. **Cross-Reference Stitching** — Back-fill plan/spec references with memory filenames in file mode or SQL IDs in SQL mode
+1. **Read Session State** — Read retained session state through the configured adapter
+2. **Subject** — Resolve the logical subject and consolidate its retained artifacts
+3. **Memory Creation** — Write memory through `workflow_state`; read back exact returned revisions
+4. **Cross-Reference Stitching** — Back-fill plan/spec references with logical artifact references and exact revisions
 5. **Backlog Update** — Mark completed tasks (remove from `todo.md`, archive item file), add deferred items. Legacy fallback: `.context/backlog.md`
 6. **Spec Status Updates** — Set `status: completed` only when verified
-7. **Index Update** — File mode updates `.context/memory/index.md`; SQL loop saves do not add a Markdown memory entry
-8. **Native agent memory (OMP only)** — If `retain`/`learn` tools exist, mirror durable session facts into harness LTM when appropriate; not a Hindsight HTTP client
-9. **Memory skill re-index (non-OMP, optional)** — Best-effort when configured; never required
+7. **Index Update** — Keep derived metadata on the same adapter; do not maintain a second canonical Markdown memory index
+8. **Native agent memory (OMP only)** — Mirror only exact knowledge revisions proven published; never expose unmerged private facts
+9. **Memory skill re-index (non-OMP, optional)** — May index explicit exports, never replace adapter authority
 10. **Phase State Consolidation** — Verify phase states match reality
 11. **Iterate Artifact Consolidation** — Verify iteration completion and cross-reference it
 12. **User Goal Check** — Warn when active plans lack a User Goal or technical-chore waiver
@@ -1686,10 +1709,10 @@ writes durable files under `.context/`. Step 8 may call harness memory tools
 
 | Layer | Required | Role |
 |-------|----------|------|
-| `.context/memory/*.md` | File mode; not new SQL loop bodies | Git-portable legacy/session record |
-| Subject SQL receipt | Configured OMP `/buck-loop` save | Metadata proof; no memory body |
-| OMP `retain` / `learn` | No | Harness LTM mirror when supported |
-| `b-memory-import` | No | Backfill of historical Markdown only |
+| Configured workflow adapter | Yes | Canonical memory bodies, metadata, exact revisions, and attempt receipts |
+| `.context/` projection | Repo-files only | Editable narrative view; not a fallback for other adapters |
+| OMP `retain` / `learn` | No | Published-only harness LTM mirror |
+| `b-memory-import` | No | Explicit historical import with retained provenance |
 
 **Memory Frontmatter**:
 ```yaml
@@ -1712,7 +1735,7 @@ status: active
 - End of work session
 - Switching tasks mid-session
 
-**Key Principle**: Plans live in subject folders (intent). History lives in `.context/memory/` (record). Harness LTM is a mirror for agent recall — not a replacement for git-portable markdown. `/b-save` turns intent into record, then optionally mirrors.
+**Key Principle**: Plans, execution history, memory, and receipt proof share one configured workflow adapter. Repo-files can project `.context/`; other adapters do not materialize a canonical mirror. Harness LTM is a published-only mirror, never a replacement authority.
 
 **Related**: `skills/b-memory-import` for bulk seeding an existing `.context/memory` tree into Hindsight.
 

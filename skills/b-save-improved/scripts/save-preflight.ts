@@ -221,7 +221,8 @@ const WORKFLOW_HINT_NAME = "current-session.json";
  */
 function auditContextPath(source: SourcePath): string | null {
   if (source.subjectId === "save-apply") {
-    return LOOSE_ARTIFACT_NAME.test(source.logicalName) ? `${CONTEXT}/${source.logicalName}` : null;
+    return !source.logicalName.includes("/") && source.logicalName.endsWith(".md")
+      ? `${CONTEXT}/${source.logicalName}` : null;
   }
   if (source.subjectId === "workflow") {
     return source.logicalName === WORKFLOW_HINT_NAME ? `${CONTEXT}/workflow/${source.logicalName}` : null;
@@ -231,12 +232,11 @@ function auditContextPath(source: SourcePath): string | null {
 }
 
 /**
- * The `.context` path a save-relevant source projects to, or null when it has
- * no editable Markdown projection. Only the reserved subject ids own a
- * `.context` prefix, so a subject-scoped memory fact is skipped rather than
- * remapped onto a path that would classify as audit on the apply side.
+ * Logical `.context` address for save metadata, not a filesystem export.
+ * Reserved prefixes belong only to their matching subject ids; subject-scoped
+ * memory facts must never become narrative subject metadata.
  */
-function contextPathOf(source: SourcePath): string | null {
+export function contextPathOf(source: SourcePath): string | null {
   if (source.kind === "memory") {
     return source.subjectId === "memory" ? `${CONTEXT}/memory/${source.logicalName}` : null;
   }

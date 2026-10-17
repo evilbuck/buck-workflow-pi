@@ -7,10 +7,10 @@ const subjects = await source.listSubjects();
 const totalDocs = subjects.reduce((n, s) => n + s.documents.length, 0);
 ---
 
-<Base title="All subjects" description="Every .context/ subject folder with its plan markdown.">
+<Base title="All subjects" description="Readable workflow artifacts from the configured storage adapter.">
   <div class="lede">
     <h1>Subjects</h1>
-    <p>{subjects.length} subjects · {totalDocs} documents · source: filesystem (.context/)</p>
+    <p>{subjects.length} subjects · {totalDocs} documents · adapter: {source.kind}</p>
     <input id="filter" type="search" placeholder="filter subjects…" autocomplete="off" />
   </div>
 

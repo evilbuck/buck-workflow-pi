@@ -36,14 +36,25 @@ it("reads visible linked review, iteration and nested knowledge without exposing
   // Bun runs this reader seam without requiring the optional Astro UI install.
   const result = JSON.parse(execFileSync("bun", ["-e", `
     import { SqlPlanSource } from "./docs/plans/src/lib/plans/sql.ts";
+    import { withConfiguredStore } from "./skills/_shared/scripts/workflow-state.ts";
+    import { classifyContextPath, commitConsumerBatch } from "./skills/_shared/storage/consumers.ts";
     const reader = new SqlPlanSource();
     const subject = ${JSON.stringify(subject)};
+    await reader.listSubjects();
+    await withConfiguredStore(${JSON.stringify(root)}, async (store, context) => {
+      await commitConsumerBatch(store, { ...context, worktreeId: context.worktreeId!, runId: "update-plan" }, [{
+        ...classifyContextPath(".context/" + subject + "/plan-topic.md"),
+        bytes: new TextEncoder().encode("# Updated after enumeration\\n"),
+      }], { attemptId: "updated-plan", status: "attempted" });
+    });
     console.log(JSON.stringify({
       files: (await reader.listDocuments(subject)).map(item => item.file),
       review: await reader.getDocument(subject, "review-topic"),
       nested: await reader.getDocument(subject, "notes/index"),
       private: await reader.getDocument(subject, "private"),
       other: await reader.getDocument(subject, "review-private"),
+      snapshot: await reader.getDocument(subject, "plan-topic"),
+      fresh: await new SqlPlanSource().getDocument(subject, "plan-topic"),
     }));
   `], { encoding: "utf8", env: process.env }));
   expect(result.files).toEqual([...names].sort());
@@ -51,4 +62,6 @@ it("reads visible linked review, iteration and nested knowledge without exposing
   expect(result.nested).toMatchObject({ file: "notes/index.md" });
   expect(result.private).toBeNull();
   expect(result.other).toBeNull();
+  expect(result.snapshot.raw).toBe("# plan-topic.md\n[Review](review-topic.md)\n");
+  expect(result.fresh.raw).toBe("# Updated after enumeration\n");
 });

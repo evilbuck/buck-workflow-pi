@@ -14,7 +14,7 @@ steps, then **Eat** — the check that it worked.
 7. [Recall project memories](recall-project-memories.md)
 8. [Resume /buck-loop after a supervisor repair](resume-buck-loop-after-repair.md)
 9. [Change /buck-loop activity density](change-buck-loop-density.md)
-10. [Turn automatic SQL memory capture off](toggle-turn-memory.md)
+10. [Turn automatic memory capture off](toggle-turn-memory.md)
 
 ## Durable workflow state
 

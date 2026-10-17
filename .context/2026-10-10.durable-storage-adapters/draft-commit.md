@@ -1,6 +1,3 @@
-## Title
-docs(storage): document durable backend selection
+feat(storage): record phase 8 proof closeout
 
-## Body
-Document the four authoritative storage adapters and their publication and migration boundaries.
-Record the packaging and verification evidence without claiming the missing live OMP workflows.
+Phases 1-8 are completed. The four-backend OMP readback, parent acceptance recheck, and guarded repair notes are in the subject folder. This save archives the phase 8 backlog item and closes the subject. It does not commit.

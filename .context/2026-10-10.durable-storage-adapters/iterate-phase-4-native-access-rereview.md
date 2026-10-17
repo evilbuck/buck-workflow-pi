@@ -1,12 +1,12 @@
 ---
 status: completed
 date: 2026-10-12
-updated: 2026-10-12
+updated: 2026-10-17
 subject: 2026-10-10.durable-storage-adapters
 topics: [review, iteration, native-access, scope-binding]
 informs: []
 addresses: phase-4-native-access.md
-completed: 2026-10-12
+completed: 2026-10-17
 from_review: b-review
 ---
 
@@ -49,9 +49,3 @@ from_review: b-review
 
 ## Recommended Workflow
 Start with `/b-iterate` against these two in-plan access defects, then re-run `/b-review` against `phase-4-native-access.md`. Inside the configured execution session, `/b-iterate` completes this artifact before returning; the supervisor owns the subsequent review and routing. This review changes no phase/subject lifecycle or loop state.
-
-## Resolution
-
-Both defects are fixed. Host `read`/`edit`/`write`/`grep`/`find`/`ls` delivered to restricted children are checkout-confined tools: symlinks are resolved before access, and absolute or escaping paths fail closed. Receipt runs are bound per branch, worktree, and attempt; a later attempt gets a new run, and another branch cannot read or resume the previous receipt. Completed-receipt immutability is unchanged.
-
-Verification: delivered tool objects denied absolute, symlink, and `~` reads/searches/writes of another branch's external-files body and still edited checkout source. CLI and native save-tool boundaries completed two independent saves with distinct run ids, retained identity across commands in one attempt, and refused the other branch's receipt. `npx vitest run`: 1917 passed, 30 skipped. Lint gate is disabled by contract.

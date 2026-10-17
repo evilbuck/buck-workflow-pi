@@ -114,8 +114,10 @@ describe.skipIf(!databaseUrl || !pool || !store)("PostgreSQL storage adapter", (
   it("preserves memory ids, categories, ranks, and correction links through import", async () => {
     await store!.migrate();
     const projectId = `import-${randomUUID()}`;
-    const original = { id: "11111111-1111-4111-8111-111111111111", category: "project", body: "original fact", author: "ada", projectId, branchId: "branch-a", createdAt: "2026-01-01T00:00:00.000Z", supersededBy: "22222222-2222-4222-8222-222222222222", ranks: [{ id: "rank-1", rater: "ada", score: 3 }] };
-    const corrected = { id: "22222222-2222-4222-8222-222222222222", category: "decision", body: "corrected fact", author: "ada", projectId, branchId: "branch-a", createdAt: "2026-01-02T00:00:00.000Z", supersededBy: null, ranks: [{ id: "rank-2", rater: "bea", score: 5 }] };
+    const originalId = randomUUID();
+    const correctedId = randomUUID();
+    const original = { id: originalId, category: "project", body: "original fact", author: "ada", projectId, branchId: "branch-a", createdAt: "2026-01-01T00:00:00.000Z", supersededBy: correctedId, ranks: [{ id: "rank-1", rater: "ada", score: 3 }] };
+    const corrected = { id: correctedId, category: "decision", body: "corrected fact", author: "ada", projectId, branchId: "branch-a", createdAt: "2026-01-02T00:00:00.000Z", supersededBy: null, ranks: [{ id: "rank-2", rater: "bea", score: 5 }] };
     await store!.importMemoryRecords([original, corrected]);
     await store!.importMemoryRecords([original, corrected]);
     const imported = await store!.readMemoryImport(original.id, projectId);

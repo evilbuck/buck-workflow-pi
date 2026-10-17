@@ -1,8 +1,8 @@
 ---
-status: active
+status: completed
 lifecycle_schema: 1
-lifecycle_revision: 2
-lifecycle_last_transition: activate
+lifecycle_revision: 3
+lifecycle_last_transition: close-verified
 ---
 
 # Durable storage adapters
@@ -12,4 +12,4 @@ lifecycle_last_transition: activate
 - [SQL and merge evidence notes](research/notes-sql-and-merge-evidence.md)
 - [Authoritative sources](research/sources-sql-and-merge-evidence.md)
 
-Planning deliverable saved. Implementation has not started. Next: phase the plan; validate A-4 in the earliest runtime-capable unit.
+All eight phases completed 2026-10-16. Proof readback is in research-phase-8-live-workflows.md. Closeout is not committed.
