@@ -1,0 +1,87 @@
+{
+  "adapter": "repo-files",
+  "projectId": "workspace-2a83cb16770da3165551ac09571390946c635e4fe8b1157018b62a3a630d70fa",
+  "branchId": "branch-3ecf37fb-bdfc-4836-8012-21a0d9062a90",
+  "worktreeId": "worktree-33c7c7ac-1b2a-49f7-8925-10ab237db40e",
+  "verified": {
+    "status": "verified"
+  },
+  "receipt": {
+    "projectId": "workspace-2a83cb16770da3165551ac09571390946c635e4fe8b1157018b62a3a630d70fa",
+    "branchId": "branch-3ecf37fb-bdfc-4836-8012-21a0d9062a90",
+    "worktreeId": "worktree-33c7c7ac-1b2a-49f7-8925-10ab237db40e",
+    "runId": "run-ecd26eb4-72da-4ca3-84b1-3dc5dff1e994",
+    "attemptId": "2bc445cb-8e82-4b50-b1f4-27e957d0f9dd",
+    "status": "complete",
+    "artifactRevisions": [
+      "9ae24a23-f069-42fb-831b-9e145dbf71c6"
+    ],
+    "kind": "rows",
+    "metadataDuties": [
+      "save-metadata",
+      "readback"
+    ]
+  },
+  "artifacts": [
+    {
+      "kind": "brainstorm",
+      "logicalName": "brainstorm-adapter-proof.md",
+      "revision": "56babb79-a8e9-4eca-8ab5-a9cff17c704b",
+      "sha256": "b3cccddc25dfe8e128e300a5f4367693a025517e14fd40403ce34f5b487db13c"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research/notes-adapter-proof.md",
+      "revision": "d4df2bde-3689-4622-8e89-62f1f297c75c",
+      "sha256": "fc03af27ec1d6a07d9e22b5481de81fe499cc0835b2a8ddf50ee5dbf53c94411"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research/sources-adapter-proof.md",
+      "revision": "0a239355-4302-451d-afa9-1a8015bea67b",
+      "sha256": "7f61b4863712bed87bf03915152bd51525284ee670d33ca925d350ec8da54e04"
+    },
+    {
+      "kind": "research",
+      "logicalName": "research-adapter-proof.md",
+      "revision": "3520ab53-84a9-4608-902f-79df94d7e496",
+      "sha256": "4b24a41d9cf1eb00cf853dbc73b7ff2ab81afcf6bdf1c6abf7f87948053f73b0"
+    },
+    {
+      "kind": "review",
+      "logicalName": "review-adapter-proof.md",
+      "revision": "be6b2146-ebe4-425f-be06-f765ee6696e6",
+      "sha256": "0901846104c682ce0a202a1baff9d7d481b47df87c89ed9fb41d14f2476c3de4"
+    },
+    {
+      "kind": "iterate",
+      "logicalName": "iterate-adapter-proof.md",
+      "revision": "54004eeb-23ec-467f-af33-bda8846b63c6",
+      "sha256": "c6d176eb6a5f5122d4fa3be5c45dc2909397627876d2ca5b0ede8fecfd37d08d"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof.md",
+      "revision": "a74c13af-cbf5-4a78-b249-5ef784a5f87e",
+      "sha256": "891259976c0ef512102b43c78211b832db60dbf6dae4a6acc1a804ba9c9aa429"
+    },
+    {
+      "kind": "phase",
+      "logicalName": "phase-1-adapter-proof.md",
+      "revision": "e61c2440-0e43-49b3-86a9-fb05403c6254",
+      "sha256": "44c1e9ecdc873d57241a601c382fd811028e101f2001a8286e9cd53f31d45fc9"
+    },
+    {
+      "kind": "plan",
+      "logicalName": "plan-adapter-proof-phases.md",
+      "revision": "0eef6839-f644-4cd2-947f-8581a9f9cac5",
+      "sha256": "0eb3667dcf2f3d2a63654ac169937826138ee1352a669061137e5636d6ef7c68"
+    },
+    {
+      "kind": "subject-index",
+      "logicalName": "index.md",
+      "revision": "4846694e-becc-48c6-be97-b940db7f3d59",
+      "sha256": "e09b37abb12477bffe22da62a170f71258d47a570f16f5171efa6a240c0c5ab3"
+    }
+  ]
+}

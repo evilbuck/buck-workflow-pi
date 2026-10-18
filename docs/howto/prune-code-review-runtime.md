@@ -1,6 +1,6 @@
 # Prune retained /code-review runtime
 
-Drop git-common `/code-review` runtime so the next invocation starts a fresh run instead of resuming.
+Tombstone the current checkout's retained `/code-review` runtime in the configured store, then remove its optional git-common exports so the next invocation starts a fresh run.
 
 ## Steps
 

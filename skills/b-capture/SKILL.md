@@ -38,6 +38,8 @@ Default: `.context/YYYY-MM-DD.<subject>/` only.
 If the user named a path, that path is the notes root.
 Do not modify application code.
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Turn 1 — scaffold before any dump lands
 
 Resolve subject via `skills/_shared/subject-resolution.md`. If none, infer from `$ARGUMENTS` or the first dump, create the folder, and run `bun skills/_shared/scripts/subject-lifecycle.ts initialize --subject <folder> --json`.
@@ -91,3 +93,4 @@ Lead with what landed. Surface only contradictions and unverified claims. Do not
 ## Leaving note-taking mode
 
 Only when the user says tidy / refine / synthesize / "start consolidating". Then stop capturing and do that work from the notes tree. Until then, stay in this mode even if the notes look messy enough to polish.
+

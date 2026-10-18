@@ -1,11 +1,11 @@
 import type { ExtensionAPI, ToolDefinition } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
-import { createLazyPool } from "./db.js";
-import { applyMigrations, type MigrationPool } from "./migrations.js";
+import { createLazyPool } from "../../skills/_shared/storage/db.js";
+import { applyMigrations, type MigrationPool } from "../../skills/_shared/storage/migrations.js";
 import { formatSqlMemoryNotice } from "./notice.js";
 import type { ActivityEvent } from "../extension-activity.js";
-import { checkSqlForRole, checkSqlStatement } from "./sql-gate.js";
+import { checkSqlForRole, checkSqlStatement } from "../../skills/_shared/storage/sql-gate.js";
 import { columnCard, fixFor } from "./columns.js";
 import { RememberCategoryError, rememberSqlMemory } from "./remember.js";
 
@@ -406,14 +406,7 @@ ${columnCard()}`,
   };
 }
 
-export function wire(api: ExtensionAPI, deps: SqlMemoryDeps = {}): void {
-  const connectionString = process.env.SQL_MEMORY_URL;
-  if (!connectionString) return;
-  const getPool = deps.pool ? () => deps.pool! : createLazyPool(connectionString);
-  api.registerTool({
-    ...sqlMemoryTool({
-      async query(text, values) { return getPool().query(text, values); },
-      async connect() { return getPool().connect(); },
-    }, deps.role, undefined, deps.cwd ?? process.cwd()),
-  });
+export function wire(_api: ExtensionAPI, _deps: SqlMemoryDeps = {}): void {
+  // Model-facing recall/remember/correct/sql registration is removed.
+  // Administration stays on `bun skills/_shared/scripts/workflow-state-cli.ts migrate`.
 }

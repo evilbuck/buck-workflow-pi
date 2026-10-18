@@ -1,15 +1,15 @@
 # plans · readable `.context/` browser
 
-Astro static site that serves the markdown in `.context/{subject}/` folders so
-plans are easy to read. Markdown is sourced through a **`PlanSource` adapter**
-(`src/lib/plans/`), so filesystem and SQL-backed plan storage are interchangeable.
+Astro static site for visible workflow Markdown, sourced through the existing
+**`PlanSource` adapter** (`src/lib/plans/`). The configured repo-files,
+external-files, SQLite, or PostgreSQL service supplies canonical document bytes.
 
 ## Run
 
 ```bash
 cd docs/plans
 npm install
-npm run dev      # local preview with live .context/ reads
+npm run dev      # local preview using the configured workflow store
 npm run build    # static output in dist/
 npm run preview  # serve the built output
 ```
@@ -24,23 +24,27 @@ Pages call only three methods (`src/lib/plans/types.ts`):
 
 Implementations:
 
-| File | Kind | State |
-|---|---|---|
-| `filesystem.ts` | `fs` | Live. Walks `PLAN_CONTEXT_DIR` (default: repo `.context/`). |
-| `sql.ts` | `sql` | Typed stub. Fails closed until a plan-document table exists. |
-| `index.ts` | `combined` | Union of both sources; SQL wins on slug collisions. |
+| `sql.ts` | adapter-backed | Reads visible knowledge Markdown, including plan/phase/spec/research, review/iterate/brainstorm, subject indexes, and nested captures; excludes private execution records and binaries. |
+| `index.ts` | `createPlanSource()` | Always uses the configured workflow adapter; no filesystem or raw-SQL fallback. |
 
-Selection via `PLAN_SOURCE=fs|sql|combined` (default `fs`) through
-`createPlanSource()`. Index/subject pages currently instantiate
-`FilesystemPlanSource` directly at build time; switch them to
-`createPlanSource()` once the SQL table lands — no page redesign needed.
+All page entrypoints use `createPlanSource()`. Adapter-backed builds resolve the
+workflow checkout from `BUCK_WORKFLOW_ROOT`, defaulting to the checkout two
+levels above `docs/plans`; normal store visibility applies before document
+bytes are rendered. Set `BUCK_WORKFLOW_ROOT` when building from another
+working directory.
 
-## Adding the SQL source
+The reader returns current-branch and published revisions only. It does not
+select a raw SQL database or union adapter results with filesystem documents.
 
-1. Add the migration (proposed row shape is documented in `sql.ts`).
-2. Fill in the three `SqlPlanSource` methods with `pg` queries against
-   `SQL_MEMORY_URL`.
-3. Set `PLAN_SOURCE=combined` to overlay database edits on committed files.
+Each reader captures one immutable visible view. Production static builds share
+that reader across routes, so subject listings, document bytes and link targets
+come from the same snapshot without reloading the entire store per link. New
+reader instances capture fresh bytes. Development does not share the production
+reader, but Astro can cache static route props: restart the development server
+after backend-only edits, and rebuild static output to refresh a published site.
+Document hover payloads include only referenced targets, not every sibling
+document. This keeps large builds from multiplying full-store reads and
+unrelated preview data.
 
 ## Hover previews
 

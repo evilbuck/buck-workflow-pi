@@ -1,5 +1,12 @@
 # Backlog
 
+## Durable Storage Adapters Phases (2026-10-10)
+
+Overview: [`plan-durable-storage-adapters-phases.md`](../2026-10-10.durable-storage-adapters/plan-durable-storage-adapters-phases.md).
+Chain: 1 → 2 → 3 → 4 → 5 and 3 → 6 → 7 → 8 (5 ∥ 6 possible; sequential default).
+
+
+
 
 ## Worktree recap
 

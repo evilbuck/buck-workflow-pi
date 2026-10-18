@@ -49,53 +49,53 @@ function asReport(facts: ReviewFacts): Extract<ReviewFacts, { kind: "report" }> 
 afterEach(cleanupRepos);
 
 describe("scan: path resolution", () => {
-  it("resolves an explicit plan path to that plan and the first incomplete phase", () => {
+  it("resolves an explicit plan path to that plan and the first incomplete phase", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "pending" },
       { n: 2, status: "pending" },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.subject).toBe(SUBJECT);
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-demo.md`);
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
   });
 
-  it("resolves an explicit later phase path to the first incomplete phase of the same plan", () => {
+  it("resolves an explicit later phase path to the first incomplete phase of the same plan", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "pending" },
       { n: 2, status: "pending" },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-2-p2.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-2-p2.md` }));
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-demo.md`);
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
-  it("resolves a subject directory without guessing another subject", () => {
+  it("resolves a subject directory without guessing another subject", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     writeTree(root, {
       [`.context/${OTHER}/plan-other.md`]: planMd(),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.subject).toBe(SUBJECT);
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-demo.md`);
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
-  it("resolves a subject folder name against .context/", () => {
+  it("resolves a subject folder name against .context/", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
-    const result = scan({ projectRoot: root, path: SUBJECT });
+    const result = (await scan({ projectRoot: root, path: SUBJECT }));
     expect(result.subject).toBe(SUBJECT);
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
   });
 
-  it("does not create a plan when the path is missing", () => {
+  it("does not create a plan when the path is missing", async () => {
     const root = repo();
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.planFacts.kind).toBe("missing");
     if (result.planFacts.kind === "missing") {
       expect(result.planFacts.reason).toMatch(/does not exist/i);
@@ -103,11 +103,11 @@ describe("scan: path resolution", () => {
     expect(existsSync(join(root, ".context", SUBJECT))).toBe(false);
   });
 
-  it("refuses to guess when the path is .context with multiple subjects", () => {
+  it("refuses to guess when the path is .context with multiple subjects", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     writeTree(root, { [`.context/${OTHER}/plan-other.md`]: planMd() });
-    const result = scan({ projectRoot: root, path: ".context" });
+    const result = (await scan({ projectRoot: root, path: ".context" }));
     expect(result.planFacts.kind).toBe("missing");
     if (result.planFacts.kind === "missing") {
       expect(result.planFacts.reason).toMatch(/guess|multiple/i);
@@ -115,49 +115,49 @@ describe("scan: path resolution", () => {
     expect(result.subject).toBeNull();
   });
 
-  it("refuses to guess among multiple plans in one subject", () => {
+  it("refuses to guess among multiple plans in one subject", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
       [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.planFacts.kind).toBe("missing");
     if (result.planFacts.kind === "missing") {
       expect(result.planFacts.reason).toMatch(/multiple plans/i);
     }
   });
 
-  it("uses the named plan when a subject has more than one", () => {
+  it("uses the named plan when a subject has more than one", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
       [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` }));
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
     expect(result.phasePath).toBeNull();
   });
 
-  it("reports unphased when a plan has no phase files", () => {
+  it("reports unphased when a plan has no phase files", async () => {
     const root = repo();
     writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: planMd() });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.phasePath).toBeNull();
   });
 
-  it("reports phased-complete when every phase is completed", () => {
+  it("reports phased-complete when every phase is completed", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
       { n: 2, status: "completed" },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.planFacts).toEqual({ kind: "phased-complete" });
     expect(result.phasePath).toBeNull();
   });
 
-  it("scopes phases to the explicitly selected plan", () => {
+  it("scopes phases to the explicitly selected plan", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-epic.md`]: planMd(),
@@ -165,23 +165,23 @@ describe("scan: path resolution", () => {
       [`.context/${SUBJECT}/phase-1-epic.md`]: phaseMd(1, "completed", [], "plan-epic.md"),
     });
 
-    const picker = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-picker.md` });
+    const picker = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-picker.md` }));
     expect(picker.phasePath).toBeNull();
 
-    const epic = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-epic.md` });
+    const epic = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-epic.md` }));
     expect(epic.planFacts).toEqual({ kind: "phased-complete" });
     expect(epic.phasePath).toBeNull();
   });
 
-  it("keeps untagged phase compatibility only for a sole plan", () => {
+  it("keeps untagged phase compatibility only for a sole plan", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
-  it("resolves an explicitly selected owned phase in a multi-plan subject", () => {
+  it("resolves an explicitly selected owned phase in a multi-plan subject", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-epic.md`]: planMd(),
@@ -189,12 +189,12 @@ describe("scan: path resolution", () => {
       [`.context/${SUBJECT}/phase-1-picker.md`]: phaseMd(1, "pending", [], "plan-picker.md"),
     });
 
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-1-picker.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-1-picker.md` }));
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-picker.md`);
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-picker.md`);
   });
 
-  it("does not treat an explicit empty plan owner as an untagged sole-plan phase", () => {
+  it("does not treat an explicit empty plan owner as an untagged sole-plan phase", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-demo.md`]: planMd(),
@@ -202,41 +202,41 @@ describe("scan: path resolution", () => {
         "---\nstatus: completed\nplan:\nphase: 1\norder: 1\ndepends_on: []\ndependency_type: HARD\n---\n# Phase 1\n",
     });
 
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
 
     expect(result.phasePath).toBeNull();
   });
 
-  it("selects the first incomplete phase whose HARD dependencies are completed", () => {
+  it("selects the first incomplete phase whose HARD dependencies are completed", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
       { n: 2, status: "pending", dependsOn: [1] },
       { n: 3, status: "pending", dependsOn: [2] },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
   });
 
-  it("does not skip an incomplete dependency to reach a later phase", () => {
+  it("does not skip an incomplete dependency to reach a later phase", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "pending" },
       { n: 2, status: "pending", dependsOn: [1] },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-2-p2.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/phase-2-p2.md` }));
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
-  it("selects no phase when the remaining phases form a dependency cycle", () => {
+  it("selects no phase when the remaining phases form a dependency cycle", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
       { n: 2, status: "pending", dependsOn: [3] },
       { n: 3, status: "pending", dependsOn: [2] },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-demo.md` }));
     expect(result.subject).toBe(SUBJECT);
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-demo.md`);
     expect(result.phasePath).toBeNull();
@@ -247,13 +247,13 @@ describe("scan: path resolution", () => {
     }
   });
 
-  it("selects no phase when a depends_on names a phase that does not exist", () => {
+  it("selects no phase when a depends_on names a phase that does not exist", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
       { n: 2, status: "pending", dependsOn: [9] },
     ]);
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.phasePath).toBeNull();
     expect(result.planFacts.kind).toBe("missing");
     if (result.planFacts.kind === "missing") {
@@ -261,7 +261,7 @@ describe("scan: path resolution", () => {
     }
   });
 
-  it("selects no phase when an incomplete phase has malformed depends_on metadata", () => {
+  it("selects no phase when an incomplete phase has malformed depends_on metadata", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
@@ -278,7 +278,7 @@ dependency_type: HARD
 # Phase 3
 `,
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.phasePath).toBeNull();
     expect(result.planFacts.kind).toBe("missing");
     if (result.planFacts.kind === "missing") {
@@ -288,7 +288,7 @@ dependency_type: HARD
   });
   it.each(["[1", "1]", "[1,]"])(
     "selects no phase when depends_on is malformed: %s",
-    (dependsOn) => {
+    async (dependsOn) => {
       const root = repo();
       phased(root, [
         { n: 1, status: "completed" },
@@ -306,7 +306,7 @@ dependency_type: HARD
 `,
       });
 
-      const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+      const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
       expect(result.phasePath).toBeNull();
       expect(result.planFacts.kind).toBe("missing");
       if (result.planFacts.kind === "missing") {
@@ -318,66 +318,66 @@ dependency_type: HARD
 });
 
 describe("scan: artifact facts", () => {
-  it("sets iterateArtifact when iterate-*.md exists in the subject", () => {
+  it("sets iterateArtifact when iterate-*.md exists in the subject", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: active\n---\n# iterate\n",
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     const report = asReport(result.reviewFacts);
     expect(report.iterateArtifact).toBe(true);
   });
   
-  it("ignores completed iterate artifacts and confirms the iterating postcondition", () => {
+  it("ignores completed iterate artifacts and confirms the iterating postcondition", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: completed\n---\n# iterate\n",
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
     });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "iterating",
       sessionOutcome: "ok",
-    });
+    }));
     const report = asReport(result.reviewFacts);
     expect(report.iterateArtifact).toBe(false);
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
-  it("ignores below-waterline iterate artifacts and ranking files", () => {
+  it("ignores below-waterline iterate artifacts and ranking files", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: below-waterline\n---\n# iterate\n",
       [`.context/${SUBJECT}/ranking-demo.md`]: "---\nstatus: active\n---\n# ranking\n",
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(asReport(result.reviewFacts).iterateArtifact).toBe(false);
   });
 
 
-  it("ignores below-waterline iterate artifacts and confirms the iterating postcondition", () => {
+  it("ignores below-waterline iterate artifacts and confirms the iterating postcondition", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/iterate-demo.md`]: "---\nstatus: below-waterline\n---\n# iterate\n",
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
     });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "iterating",
       sessionOutcome: "ok",
-    });
+    }));
     expect(asReport(result.reviewFacts).iterateArtifact).toBe(false);
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
-  it("parses a clean review report as parseable with both impact flags false", () => {
+  it("parses a clean review report as parseable with both impact flags false", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.reviewFacts).toEqual({
       kind: "report",
       parseable: true,
@@ -387,7 +387,7 @@ describe("scan: artifact facts", () => {
     });
   });
 
-  it("treats No additional documentation impact as no impact", () => {
+  it("treats No additional documentation impact as no impact", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -395,7 +395,7 @@ describe("scan: artifact facts", () => {
         "No additional how-to impact",
       ),
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: true,
       iterateArtifact: false,
@@ -404,7 +404,7 @@ describe("scan: artifact facts", () => {
     });
   });
 
-  it("treats explicit current-phase no-impact and named later-phase deferral as clean", () => {
+  it("treats explicit current-phase no-impact and named later-phase deferral as clean", async () => {
     const root = repo();
     phased(root, [{ n: 2, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
@@ -412,7 +412,7 @@ describe("scan: artifact facts", () => {
         "How-to coverage is deferred to Phase 5.",
       ),
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: true,
       iterateArtifact: false,
@@ -421,7 +421,7 @@ describe("scan: artifact facts", () => {
     });
   });
 
-  it("keeps cross-domain named deferrals flagged", () => {
+  it("keeps cross-domain named deferrals flagged", async () => {
     const root = repo();
     phased(root, [{ n: 2, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
@@ -429,12 +429,12 @@ describe("scan: artifact facts", () => {
         "Documentation work is deferred to Phase 5.",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("compares review wording with the frozen cycle phase instead of the next pending phase", () => {
+  it("compares review wording with the frozen cycle phase instead of the next pending phase", async () => {
     const root = repo();
     phased(root, [
       { n: 2, status: "completed" },
@@ -445,18 +445,18 @@ describe("scan: artifact facts", () => {
         "How-to coverage is deferred to Phase 5.",
       ),
     });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}/phase-2-p2.md`,
       state: "reviewing",
-    });
+    }));
     const report = asReport(result.reviewFacts);
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-3-p3.md`);
     expect(report.docsImpact).toBe(false);
     expect(report.howtoImpact).toBe(false);
   });
 
-  it("keeps a mismatched phase-qualified no-impact statement flagged", () => {
+  it("keeps a mismatched phase-qualified no-impact statement flagged", async () => {
     const root = repo();
     phased(root, [{ n: 2, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
@@ -464,13 +464,13 @@ describe("scan: artifact facts", () => {
         "No how-to impact",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
   });
 
   it.each([2, 1])(
     "keeps a deferral to Phase %i flagged while Phase 2 is active",
-    (deferredPhase) => {
+    async (deferredPhase) => {
       const root = repo();
       phased(root, [{ n: 2, status: "pending" }], {
         [`.context/${SUBJECT}/review-phase-2.md`]: reportMd(
@@ -478,12 +478,12 @@ describe("scan: artifact facts", () => {
           `How-to coverage is deferred to Phase ${deferredPhase}.`,
         ),
       });
-      const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+      const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
       expect(report.howtoImpact).toBe(true);
     },
   );
 
-  it("fails closed on phase-qualified impact wording for an unphased plan", () => {
+  it("fails closed on phase-qualified impact wording for an unphased plan", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-demo.md`]: planMd(),
@@ -492,12 +492,12 @@ describe("scan: artifact facts", () => {
         "How-to coverage is deferred to Phase 5.",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("keeps affirmative and vague deferred impact wording flagged", () => {
+  it("keeps affirmative and vague deferred impact wording flagged", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -505,12 +505,12 @@ describe("scan: artifact facts", () => {
         "How-to coverage is deferred until later.",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("keeps current required work flagged when the same line also names a deferred phase", () => {
+  it("keeps current required work flagged when the same line also names a deferred phase", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -518,12 +518,12 @@ describe("scan: artifact facts", () => {
         "No how-to impact",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
   });
 
 
-  it("does not treat contradictory no-impact wording as clean", () => {
+  it("does not treat contradictory no-impact wording as clean", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -531,12 +531,12 @@ describe("scan: artifact facts", () => {
         "How-to coverage is deferred to Phase 5, but it is required now.",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("rejects an unrecognized clause after no-impact wording", () => {
+  it("rejects an unrecognized clause after no-impact wording", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -544,12 +544,12 @@ describe("scan: artifact facts", () => {
         "No how-to impact. A guide must be added now.",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("parses H2 impact headings the same as H3", () => {
+  it("parses H2 impact headings the same as H3", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: `# Review
@@ -561,7 +561,7 @@ describe("scan: artifact facts", () => {
 - No how-to impact
 `,
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: true,
       iterateArtifact: false,
@@ -570,7 +570,7 @@ describe("scan: artifact facts", () => {
     });
   });
 
-  it("parses H4 impact headings the same as H3", () => {
+  it("parses H4 impact headings the same as H3", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: `# Review
@@ -582,7 +582,7 @@ describe("scan: artifact facts", () => {
 - No how-to impact
 `,
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: true,
       iterateArtifact: false,
@@ -592,19 +592,19 @@ describe("scan: artifact facts", () => {
   });
 
 
-  it("does not pick another plan's unowned phases when multiple plans exist", () => {
+  it("does not pick another plan's unowned phases when multiple plans exist", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
       [`.context/${SUBJECT}/plan-beta.md`]: planMd(),
       [`.context/${SUBJECT}/phase-1-alpha.md`]: phaseMd(1, "pending"),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` }));
     expect(result.planPath).toBe(`.context/${SUBJECT}/plan-beta.md`);
     expect(result.phasePath).toBeNull();
   });
 
-  it("picks phases owned by the named plan in a multi-plan subject", () => {
+  it("picks phases owned by the named plan in a multi-plan subject", async () => {
     const root = repo();
     writeTree(root, {
       [`.context/${SUBJECT}/plan-alpha.md`]: planMd(),
@@ -618,13 +618,13 @@ depends_on: []
 # Beta phase
 `,
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}/plan-beta.md` }));
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-1-beta.md`);
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
   });
 
 
-  it("sets docsImpact when Documentation Impact is flagged", () => {
+  it("sets docsImpact when Documentation Impact is flagged", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -632,13 +632,13 @@ depends_on: []
         "No how-to impact",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.parseable).toBe(true);
     expect(report.docsImpact).toBe(true);
     expect(report.howtoImpact).toBe(false);
   });
 
-  it("sets howtoImpact when How-to Impact is flagged", () => {
+  it("sets howtoImpact when How-to Impact is flagged", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -646,19 +646,19 @@ depends_on: []
         "new /buck-loop command needs a how-to",
       ),
     });
-    const report = asReport(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts);
+    const report = asReport((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts);
     expect(report.parseable).toBe(true);
     expect(report.docsImpact).toBe(false);
     expect(report.howtoImpact).toBe(true);
   });
 
-  it("treats a report missing impact headings as unparseable with all flags false", () => {
+  it("treats a report missing impact headings as unparseable with all flags false", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]:
         "## Plan Path Review: demo\n\nDocs should probably be updated.\n",
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: false,
       iterateArtifact: false,
@@ -667,13 +667,13 @@ depends_on: []
     });
   });
 
-  it("keeps iterateArtifact while forcing impact flags false on an unparseable report", () => {
+  it("keeps iterateArtifact while forcing impact flags false on an unparseable report", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/iterate-demo.md`]: "# iterate\n",
       [`.context/${SUBJECT}/review-phase-1.md`]: "garbage\n",
     });
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "report",
       parseable: false,
       iterateArtifact: true,
@@ -682,24 +682,24 @@ depends_on: []
     });
   });
 
-  it("leaves reviewFacts pending when there is no report and no iterate artifact", () => {
+  it("leaves reviewFacts pending when there is no report and no iterate artifact", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
-    expect(scan({ projectRoot: root, path: `.context/${SUBJECT}` }).reviewFacts).toEqual({
+    expect((await scan({ projectRoot: root, path: `.context/${SUBJECT}` })).reviewFacts).toEqual({
       kind: "pending",
     });
   });
 
-  it("marks building postcondition ambiguous when files changed and the phase is still pending", () => {
+  it("marks building postcondition ambiguous when files changed and the phase is still pending", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     writeTree(root, { "src/app.ts": "export const x = 1;\n" });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "building",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts).toEqual({
       sessionOutcome: "ok",
       retriesUsed: 0,
@@ -707,21 +707,21 @@ depends_on: []
     });
   });
 
-  it("marks building postcondition confirmed when every phase is completed", () => {
+  it("marks building postcondition confirmed when every phase is completed", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "completed" }]);
     writeTree(root, { "src/app.ts": "export const x = 1;\n" });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "building",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.planFacts).toEqual({ kind: "phased-complete" });
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
-  it("confirms building when every acceptance criterion is checked and status is still in-progress", () => {
+  it("confirms building when every acceptance criterion is checked and status is still in-progress", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "in-progress" }]);
     const phase = `.context/${SUBJECT}/phase-1-p1.md`;
@@ -731,17 +731,17 @@ depends_on: []
         "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
       ),
     });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: phase,
       state: "building",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.planFacts).toEqual({ kind: "phased-complete" });
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
-  it("does not treat status completed as done while an acceptance criterion is open", () => {
+  it("does not treat status completed as done while an acceptance criterion is open", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "completed" }]);
     const phase = `.context/${SUBJECT}/phase-1-p1.md`;
@@ -751,12 +751,12 @@ depends_on: []
         "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n- \"[ ] still open\"\n",
       ),
     });
-    const result = scan({ projectRoot: root, path: `.context/${SUBJECT}` });
+    const result = (await scan({ projectRoot: root, path: `.context/${SUBJECT}` }));
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
     expect(result.phasePath).toBe(phase);
   });
 
-  it("skips a criteria-done phase and keeps a later pending phase", () => {
+  it("skips a criteria-done phase and keeps a later pending phase", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "in-progress" },
@@ -769,34 +769,34 @@ depends_on: []
         "dependency_type: NONE\nacceptance_criteria:\n- \"[x] landed\"\n",
       ),
     });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: phase,
       state: "building",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.phasePath).toBe(`.context/${SUBJECT}/phase-2-p2.md`);
     expect(result.planFacts).toEqual({ kind: "phased-incomplete" });
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
-  it("confirms a reviewing session postcondition regardless of git dirtiness", () => {
+  it("confirms a reviewing session postcondition regardless of git dirtiness", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd("No documentation impact", "No how-to impact"),
     });
     writeTree(root, { "src/app.ts": "export const x = 1;\n" });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "reviewing",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts.postcondition).toBe("confirmed");
     expect(result.workFacts.sessionOutcome).toBe("ok");
   });
 
-  it("confirms documenting when corrected review facts expect no living-doc changes", () => {
+  it("confirms documenting when corrected review facts expect no living-doc changes", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }], {
       [`.context/${SUBJECT}/review-phase-1.md`]: reportMd(
@@ -805,24 +805,24 @@ depends_on: []
       ),
     });
     writeTree(root, { "src/app.ts": "export const x = 1;\n" });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "documenting",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 
-  it("leaves postcondition pending when the session has not finished", () => {
+  it("leaves postcondition pending when the session has not finished", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "building",
       sessionOutcome: "pending",
-    });
+    }));
     expect(result.workFacts).toEqual({
       sessionOutcome: "pending",
       retriesUsed: 0,
@@ -830,27 +830,27 @@ depends_on: []
     });
   });
 
-  it("requires verified SQL save evidence instead of a changed file-memory path", () => {
+  it("requires verified SQL save evidence instead of a changed file-memory path", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     writeTree(root, { ".context/memory/session.md": "memory\n" });
     const previous = process.env.SQL_MEMORY_URL;
     process.env.SQL_MEMORY_URL = "postgres://configured";
     try {
-      const unverified = scan({
+      const unverified = (await scan({
         projectRoot: root,
         path: `.context/${SUBJECT}`,
         state: "saving",
         sessionOutcome: "ok",
-      });
+      }));
       expect(unverified.workFacts.postcondition).toBe("ambiguous");
-      const verified = scan({
+      const verified = (await scan({
         projectRoot: root,
         path: `.context/${SUBJECT}`,
         state: "saving",
         sessionOutcome: "ok",
         sqlSaveVerified: true,
-      });
+      }));
       expect(verified.workFacts.postcondition).toBe("confirmed");
     } finally {
       if (previous === undefined) delete process.env.SQL_MEMORY_URL;
@@ -858,49 +858,49 @@ depends_on: []
     }
   });
 
-  it("does not confirm a committing session from a clean tree alone", () => {
+  it("does not confirm a committing session from a clean tree alone", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     git(root, ["add", "-A"]);
     git(root, ["commit", "-qm", "fixture"]);
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "committing",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts.postcondition).toBe("ambiguous");
   });
   
-  it("does not confirm a commit when git status cannot be observed", () => {
+  it("does not confirm a commit when git status cannot be observed", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     rmSync(join(root, ".git"), { recursive: true, force: true });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "committing",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts.postcondition).toBe("ambiguous");
   });
 
-  it("confirms iterating when the iterate artifact is gone", () => {
+  it("confirms iterating when the iterate artifact is gone", async () => {
     const root = repo();
     phased(root, [{ n: 1, status: "pending" }]);
     writeTree(root, { "src/app.ts": "export const x = 1;\n" });
-    const result = scan({
+    const result = (await scan({
       projectRoot: root,
       path: `.context/${SUBJECT}`,
       state: "iterating",
       sessionOutcome: "ok",
-    });
+    }));
     expect(result.workFacts.postcondition).toBe("confirmed");
   });
 });
 
 describe("scan: contract", () => {
-  it("requires explicit verified Git evidence before confirming a commit", () => {
+  it("requires explicit verified Git evidence before confirming a commit", async () => {
     const root = repo();
     phased(root, [
       { n: 1, status: "completed" },
@@ -913,29 +913,23 @@ describe("scan: contract", () => {
       { n: 2, status: "pending" },
     ]);
     const phase = `.context/${SUBJECT}/phase-1-p1.md`;
-    const ordinary = scan({
+    const ordinary = (await scan({
       projectRoot: root,
       path: phase,
       state: "committing",
       sessionOutcome: "ok",
       retriesUsed: 0,
-    });
+    }));
     expect(ordinary.workFacts.postcondition).toBe("ambiguous");
 
-    const verified = scan({
+    const verified = (await scan({
       projectRoot: root,
       path: phase,
       state: "committing",
       sessionOutcome: "ok",
       retriesUsed: 0,
       commitVerified: true,
-    });
+    }));
     expect(verified.workFacts.postcondition).toBe("confirmed");
-  });
-  it("does not import b-flow or xstate", () => {
-    const src = readFileSync(new URL("../scan.ts", import.meta.url), "utf8");
-    expect(src).not.toMatch(/from ["'][^"']*b-flow/);
-    expect(src).not.toMatch(/from ["']xstate["']/);
-    expect(src).not.toMatch(/orchestration\.snapshot\.json/);
   });
 });

@@ -22,9 +22,10 @@ Read `.context/workflow/current-session.json`. If it exists, extract the subject
 - If that subject folder exists, run `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`. Reuse the pointer only when `effectiveState` is `active` or `draft`; closed or malformed pointers fall through to Step 4.
 - If the subject folder does not exist, fall through to Step 4.
 
-## Step 4: Scan Subject Folders
 
-List all `.context/YYYY-MM-DD.*/` directories. Inspect each with `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <folder> --json`; use `effectiveState` and fail closed on malformed provenance.
+## Step 4: Discover visible subjects
+
+Call `workflow_state` `discover`, or `bun skills/_shared/scripts/workflow-state-cli.ts discover`. Do not require a physical `.context/` directory listing. Inspect each returned subject with `inspect-lifecycle` or `bun skills/_shared/scripts/subject-lifecycle.ts inspect --subject <id> --json`. Use `effectiveState` and fail closed on malformed provenance. A repo-files projection path is not the selection input.
 
 **Artifact classification** (from filenames only — no full reads):
 

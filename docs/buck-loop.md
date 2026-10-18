@@ -5,3 +5,34 @@
 Change density with `/buck-loop --profile compact|standard|verbose`, including during an active run. The setting lasts for the current host session and defaults to standard. See [Change Buck-loop activity density](howto/change-buck-loop-density.md) and [Watch Buck-loop activity](howto/watch-buck-loop-activity.md).
 
 Context occupancy is sampled from the running **child stage session**, not the parent supervisor chat or accumulated work tokens. It updates on child events and resets for each new child. Compact shows the percentage, standard shows `ctx 21%`, and verbose shows used tokens, window capacity and percentage (`ctx 42k / 200k · 21%`) alongside current input/output detail. After compaction, nullable occupancy shows only the known window (`ctx /200k`); if the entire usage value is unavailable, no context readout is shown. This display never triggers compaction or changes loop decisions.
+
+## Nested execution boundary
+
+Restricted stages use native `workflow_state` for durable artifacts and Linux
+`workflow_exec` (Bubblewrap) for commands. They do not receive host `bash`.
+Commands see the checkout and installed runtime dependencies, but no machine
+storage/configuration, host credentials or network. Missing Bubblewrap or a failed
+namespace setup fails closed; there is no unrestricted-shell fallback.
+Git metadata is read-only inside `workflow_exec` until the commit checkpoint
+stage. The supervisor stages the declared checkpoint; the commit stage can
+mutate that Git metadata inside the same command isolation boundary. Host file
+tools do not yet enforce that Git-metadata rule. No child stage receives
+workflow administration permissions (`inspect`, `recover`, `migrate`).
+The standalone CLI remains available to operators and portable non-nested agents.
+Install the command boundary with [Install Bubblewrap for restricted stages](howto/install-bubblewrap-for-restricted-stages.md). Operators read artifacts with [Read a workflow artifact by token](howto/read-workflow-artifact-by-token.md).
+
+## Completion authority
+
+The scanner reads phase, plan, review, and iterate artifacts from the configured
+workflow adapter, not from optional checkout exports. A non-empty phase
+`acceptance_criteria` list must be fully checked from observed evidence before
+the building postcondition confirms. A completed save receipt proves its bound
+attempt, not unfinished phase acceptance; a local `completed: true` flag cannot
+replace exact selected-store readback.
+
+Storage selection follows the extension module actually loaded by OMP. Running
+in a feature worktree does not replace an older package registered in the host's
+`extensions` list. Integration proofs must load the intended implementation and
+use the same configuration for native tools, the scanner, save, and fresh-process
+resume. Restart the host after replacing an extension; `/reload` does not replace
+already imported modules.

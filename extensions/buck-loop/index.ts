@@ -97,24 +97,22 @@ export function parseArgs(raw: string): ParsedArgs {
   const density = profileCommand(tokens);
   if (density) return density;
 
-  const flags = tokens.filter((token) => token.startsWith("-"));
-  const positionals = tokens.filter((token) => !token.startsWith("-"));
-
-  if (flags.length > 0 && positionals.length > 0) {
-    return { ok: false, error: `conflicting arguments\n${USAGE}` };
+  if (tokens.length > 1) {
+    const message = tokens.some(token => token.startsWith("-")) ? "conflicting arguments" : "extra arguments";
+    return { ok: false, error: `${message}\n${USAGE}` };
   }
-  if (flags.length > 1) return { ok: false, error: `conflicting arguments\n${USAGE}` };
-  if (positionals.length > 1) return { ok: false, error: `extra arguments\n${USAGE}` };
+  const token = tokens[0]!;
+  if (token.startsWith("-")) return parseModeFlag(token);
+  return { ok: true, command: "start", path: token };
+}
 
-  if (flags.length === 1) {
-    const flag = flags[0];
-    if (flag === "--resume") return { ok: true, command: "resume" };
-    if (flag === "--status") return { ok: true, command: "status" };
-    if (flag === "--stop") return { ok: true, command: "stop" };
-    return { ok: false, error: `unknown flag: ${flag}\n${USAGE}` };
+function parseModeFlag(flag: string): ParsedArgs {
+  switch (flag) {
+    case "--resume": return { ok: true, command: "resume" };
+    case "--status": return { ok: true, command: "status" };
+    case "--stop": return { ok: true, command: "stop" };
+    default: return { ok: false, error: `unknown flag: ${flag}\n${USAGE}` };
   }
-
-  return { ok: true, command: "start", path: positionals[0]! };
 }
 
 /**
@@ -172,10 +170,10 @@ function returnFailureToAgent(pi: ExtensionAPI, ui: BuckLoopUI, failure: AgentCa
  * work/choice session). Best-effort: if even reading saved status fails,
  * report blocked and preserve the original error.
  */
-function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }>, error: unknown): AgentCallFailure {
+async function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }>, error: unknown): Promise<AgentCallFailure> {
   let state: AgentCallFailure["state"] = "blocked";
   try {
-    if (statusOf(cwd).state === "aborted") state = "aborted";
+    if (((await statusOf(cwd))).state === "aborted") state = "aborted";
   } catch {
     // A missing or unreadable projection cannot make an exception successful.
   }
@@ -256,6 +254,7 @@ async function showResult(result: LoopResult, parsed: RunArgs, card: ActivityCar
   const ok = result.state !== "blocked" && result.state !== "aborted";
   log.terminal({ state: result.state, reason: result.reason, ok });
   await log.flush();
+  await log.close();
   if (ok || parsed.command === "status" || result.state === "aborted") card.succeed(terminal);
   else card.fail(terminal);
 }
@@ -275,7 +274,7 @@ async function executeCommand(pi: ExtensionAPI, ctx: CommandContext, parsed: Run
     });
     await showResult(result, parsed, card, log);
   } catch (error) {
-    const failure = supervisorFailure(ctx.cwd, parsed, error);
+    const failure = (await supervisorFailure(ctx.cwd, parsed, error));
     log.terminal({ state: failure.state, reason: failure.error.message, ok: false });
     await log.flush();
     returnFailureToAgent(pi, ctx.ui, failure);

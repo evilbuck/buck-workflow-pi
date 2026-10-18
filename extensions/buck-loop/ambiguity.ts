@@ -7,8 +7,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { unfinishedIterates, readStatus } from "./scan.js";
+import { commitConsumerBatch, consumerKey, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
 import { frontmatterSpan } from "./phase-completion.js";
 import { runJev } from "../jev-tool/index.js";
 import { frontmatterAcceptanceCriteria, isCheckedCriterion, openCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
@@ -59,43 +61,51 @@ export function repairCheckedPhase(abs: string, at: string): boolean {
 }
 
 /** Status a diagnosis should name for each unfinished artifact. */
-export function unfinishedIterateReport(subjectDir: string): string {
-  const files = unfinishedIterates(subjectDir);
+export async function unfinishedIterateReport(subjectDir: string): Promise<string> {
+  const files = await unfinishedIterates(subjectDir);
   if (files.length === 0) return "no unfinished iterate artifact";
-  return `unfinished iterate artifacts: ${files
-    .map((abs) => `${basename(abs)} (status ${readStatus(abs) ?? "missing"})`)
-    .join(", ")}`;
+  const entries = await Promise.all(files.map(async (abs) => `${basename(abs)} (status ${await readStatus(abs) ?? "missing"})`));
+  return `unfinished iterate artifacts: ${entries.join(", ")}`;
 }
 
 /**
  * Close the one iterate artifact a successful session left open, so the run
  * reaches review instead of a heavy-lift handoff. Deliberately narrow: exactly
  * one candidate, well-formed `active` frontmatter, only the three lifecycle
- * fields touched, and a verified status change. Anything else returns false and
- * the caller keeps the normal diagnosis path.
+ * fields touched, and durable readback before success. Malformed or non-unique
+ * targets return false; storage failures propagate to the caller.
  */
-export function closeSingleUnfinishedIterate(subjectDir: string, at: string): boolean {
-  const targets = unfinishedIterates(subjectDir);
+export async function closeSingleUnfinishedIterate(subjectDir: string, at: string): Promise<boolean> {
+  subjectDir = resolve(subjectDir);
+  const root = dirname(dirname(subjectDir));
+  const context = await resolveConsumerContext(root);
+  const targets = await unfinishedIterates(subjectDir);
   if (targets.length !== 1) return false;
   const abs = targets[0]!;
-  const original = readFileSync(abs, "utf8");
-  const end = original.startsWith("---") ? original.indexOf("\n---", 3) : -1;
-  if (end < 0) return false;
-  const head = original.slice(4, end);
-  if (!/^status:\s*active\s*$/m.test(head)) return false;
-  const today = at.slice(0, 10);
-  let next = head.replace(/^status:\s*active\s*$/m, "status: completed");
-  for (const key of ["completed", "updated"]) {
-    next = new RegExp(`^${key}:`, "m").test(next)
-      ? next.replace(new RegExp(`^${key}:.*$`, "m"), `${key}: ${today}`)
-      : next.replace(/^status: completed$/m, `status: completed\n${key}: ${today}`);
-  }
-  try {
-    writeFileSync(abs, `---\n${next}\n---${original.slice(end + 4)}`);
-  } catch {
-    return false;
-  }
-  return /^status:\s*completed\s*$/m.test(readFileSync(abs, "utf8"));
+  return withBoundStore(root, context, async (store) => {
+    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree/run identity is not bound");
+    const scope = { ...context, worktreeId: context.worktreeId, runId: context.runId };
+    const subjectId = basename(subjectDir);
+    const logicalName = basename(abs);
+    const current = await store.read(consumerKey(scope, "iterate", subjectId, logicalName));
+    if (!current) throw new Error(`Missing authoritative artifact: ${abs}`);
+    const original = new TextDecoder().decode(current.bytes);
+    const fm = frontmatterSpan(original);
+    if (!fm || !/^status:\s*active\s*$/m.test(fm.body)) return false;
+    const today = at.slice(0, 10);
+    let next = fm.body.replace(/^status:\s*active\s*$/m, "status: completed");
+    for (const key of ["completed", "updated"]) {
+      next = new RegExp(`^${key}:`, "m").test(next)
+        ? next.replace(new RegExp(`^${key}:.*$`, "m"), `${key}: ${today}`)
+        : next.replace(/^status: completed$/m, `status: completed\n${key}: ${today}`);
+    }
+    await commitConsumerBatch(store, scope, [{
+      kind: "iterate", subjectId, logicalName,
+      bytes: new TextEncoder().encode(original.slice(0, fm.start) + next + original.slice(fm.end)),
+      links: current.links, expectedRevision: current.revision, source: "buck-loop-iterate-closeout",
+    }], { attemptId: randomUUID(), runId: randomUUID(), status: "attempted" });
+    return true;
+  });
 }
 
 export function explainAmbiguity(abs: string | null): string {
@@ -155,10 +165,16 @@ export async function askRepairLift(diagnosis: string, audit?: { cwd: string; su
   if (audit) {
     const directory = join(audit.cwd, ".context", audit.subject, "transition-audits");
     await mkdir(directory, { recursive: true });
-    await writeFile(join(directory, `${Date.now()}-repair-lift-${randomUUID()}.json`), `${JSON.stringify({
+    const name = `${Date.now()}-repair-lift-${randomUUID()}.json`;
+    const body = `${JSON.stringify({
       source: "repair-lift", context: diagnosis, raw, lift: plan.lift,
       accepted: lift !== null, reason,
-    }, null, 2)}\n`);
+    }, null, 2)}\n`;
+    await writeFile(join(directory, name), body);
+    await scheduleConfiguredRetain({
+      kind: "audit", subjectId: audit.subject, logicalName: `transition-audits/${name}`,
+      bytes: new TextEncoder().encode(body), cwd: audit.cwd, source: "buck-loop",
+    });
   }
   return plan;
 }

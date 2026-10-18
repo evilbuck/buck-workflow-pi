@@ -1,3 +1,5 @@
+- 2026-10-10 — [Storage adapters Phase 1 save](storage-adapters-phase-1-save-2026-10-10.md) — completed (contract/config/identity in skills/_shared/storage/, A-4 validated, inventory census closed; committed 065b776; loop on phase 2)
+
 - 2026-10-09 — [PR #62 CodeRabbit redaction fix](fix-pr-62-2026-10-09.md) — completed (settled twice: security redaction 85f296e, colon-less URI credentials f21fbb1; Wooderson settlements 5473505374 and 5474612684; all inline threads resolved)
 - 2026-10-06 — [PR #60 commit repair and CI fixes](fix-pr-60-2026-10-06.md) — active (review_pending after 30-minute poll ending 16:25:51Z; fix a80712e on tip 89d33ec; no independent settlement review)
 - 2026-10-05 — [PR #58 CI and Wooderson fixes](fix-pr-58-2026-10-05.md) — completed (native Jev-validated corrections pushed as 7096ea6; SQL fixtures and shared CRLF lifecycle fixed; real rollback/mutation smoke and required checks pass; Wooderson re-review 5418155480 settles loop 1; five GitHub checks green; final closeout recorded locally)

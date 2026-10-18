@@ -1,5 +1,5 @@
 declare module "pg" {
-  import type { MigrationPool } from "./migrations.js";
+  import type { MigrationPool } from "../../skills/_shared/storage/migrations.js";
 
   const pg: {
     Pool: new (options: {

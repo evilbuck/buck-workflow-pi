@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync, appendFileSync, existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, isAbsolute } from "node:path";
@@ -6,6 +6,8 @@ import { execFileSync } from "node:child_process";
 import { runReviewLoop, LoopCancelledError, type LoopDeps, type LoopOptions } from "../loop.js";
 import { parseModelEntry, type CatalogLoad } from "../catalog.js";
 import { resolveHead } from "../git-ops.js";
+import * as consumers from "../../../skills/_shared/storage/consumers.js";
+import { listRuns } from "../run-state.js";
 
 const USER_ENV = {
   GIT_AUTHOR_NAME: "t",
@@ -258,6 +260,33 @@ describe("runReviewLoop", () => {
     expect(g(clone, ["log", "--oneline"])).toMatch(/docs\(code-review\): record review-iteration report/);
   });
 
+  it("leaves the retained run resumable and makes no clean commit when terminal report retention fails", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const before = resolveHead(clone);
+    const previous = process.env.BUCK_WORKFLOW_CONFIG;
+    const config = join(origin, "invalid-storage.yaml");
+    writeFileSync(config, "storage: [invalid");
+    const retain = consumers.scheduleConfiguredRetain;
+    const spy = vi.spyOn(consumers, "scheduleConfiguredRetain").mockImplementation(write => {
+      if (write.kind === "review") process.env.BUCK_WORKFLOW_CONFIG = config;
+      return retain(write);
+    });
+    const deps = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })], contextRoot: join(clone, ".context") });
+    try {
+      await expect(runReviewLoop(deps, clone, OPTIONS)).rejects.toThrow(/config/);
+      await expect(consumers.flushConfiguredRetains()).rejects.toThrow(/config/);
+    } finally {
+      spy.mockRestore();
+      if (previous === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previous;
+    }
+    const runs = await listRuns(commonDirAbsolute(clone), g(clone, ["branch", "--show-current"]), clone);
+    expect(runs[0].state.status).toBe("running");
+    expect(runs[0].state.pass).toBe(1);
+    expect(resolveHead(clone)).toBe(before);
+  });
+
   it("fixes blocking findings, checkpoints, re-reviews, then ends clean", async () => {
     const { origin, clone } = makeOriginClone();
     cleanup.push(origin, clone);
@@ -409,16 +438,10 @@ describe("runReviewLoop", () => {
   it("resumes an incomplete fixer pass instead of skipping it", async () => {
     const { origin, clone } = makeOriginClone();
     cleanup.push(origin, clone);
-    const deps = makeDeps({ checksPassed: false });
+    const deps = makeDeps();
+    deps.runFixerSession = async () => { throw new Error("fixer interrupted before persistence"); };
     const blocked = await runReviewLoop(deps, clone, OPTIONS);
-    expect(blocked.status).toBe("blocked");
-    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", blocked.runId);
-    rmSync(join(runDir, "passes", "01", "fixer.json"));
-    rmSync(join(runDir, "passes", "01", "fixer.md"));
-    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
-    state.status = "running";
-    state.terminal = null;
-    writeFileSync(join(runDir, "state.json"), JSON.stringify(state));
+    expect(blocked.status).toBe("failed");
     const deps2 = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
     const resumed = await runReviewLoop(deps2, clone, { ...OPTIONS, resume: true });
     expect(deps2.notifyLog.join("\n")).toMatch(/incomplete fixer/);

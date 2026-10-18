@@ -1,0 +1,9 @@
+{
+  "persona": "balanced",
+  "requested_model": "zai/glm-5.3",
+  "requested_temperature": null,
+  "thinking_level": "medium",
+  "reviewed_head": "85927faa45c3ad79f1e33430f641bdfd49e48779",
+  "findings": [],
+  "errors": []
+}
