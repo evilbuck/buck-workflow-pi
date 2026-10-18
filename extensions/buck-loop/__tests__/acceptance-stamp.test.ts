@@ -41,7 +41,7 @@ describe("loop-owned acceptance stamp", () => {
     const { cwd, abs } = setup();
     await stampAcceptance(abs, "evidence", async () => answers(0.95, 0.8));
     expect(phaseFileDone(abs)).toBe(true);
-    syncCheckedPhasesAt(cwd, PHASE, "2026-09-18");
+    await syncCheckedPhasesAt(cwd, PHASE, "2026-09-18");
     expect(readFileSync(abs, "utf8")).toMatch(/^status: completed$/m);
     expect(readFileSync(join(cwd, `.context/${SUBJECT}/plan-demo-phases.md`), "utf8")).toContain("| completed |");
   });
