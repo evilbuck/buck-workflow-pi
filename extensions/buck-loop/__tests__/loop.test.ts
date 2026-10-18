@@ -2513,7 +2513,7 @@ describe("in-cycle unstaged guard: claimed restage, original reason, recovery hi
     expect(result.reason).toContain("git add -- src/stray.ts");
     expect(result.reason).toContain("/buck-loop --resume");
     expect(result.reason).not.toContain("src/claimed.ts");
-    expect(readProjection(cwd)?.history.at(-1)?.why).toBe(result.reason);
+    expect((await readProjection(cwd))?.history.at(-1)?.why).toBe(result.reason);
   });
 
   it("does not restage after a failed session", async () => {
