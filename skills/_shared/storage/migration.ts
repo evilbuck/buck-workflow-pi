@@ -117,7 +117,7 @@ export function legacySnapshot(projectId: string, records: readonly Record<strin
     const createdAt = typeof record.createdAt === "string" ? record.createdAt : "1970-01-01T00:00:00.000Z";
     const item: ArtifactRevision = { key, revision: record.id, bytes, sha256: createHash("sha256").update(bytes).digest("hex"), author: typeof record.author === "string" ? record.author : "legacy-import", source: "legacy-quarantine", createdAt, links: typeof record.supersededBy === "string" ? [{ ...key, logicalName: `${record.supersededBy}.md` }] : [] };
     snapshot.tables.artifact_revisions.push(revisionRow(item));
-    snapshot.tables.artifact_search_text.push({ project_id: projectId, revision: record.id, search_text: new TextDecoder().decode(bytes).toLocaleLowerCase() });
+    snapshot.tables.artifact_search_text.push({ project_id: projectId, revision: record.id, search_text: new TextDecoder().decode(bytes).toLocaleLowerCase().replace(/\0/g, "") });
     snapshot.tables.artifact_import_provenance.push({ source_id: record.id, destination_revision: record.id, source_metadata: { ...record, recoveryScope: "legacy-quarantine", originalRecord: record }, imported_at: createdAt });
   }
   const scoped = scopeSnapshot(snapshot);

@@ -19,7 +19,10 @@ export function visible(revision: ArtifactRevision, query: { projectId: string; 
 }
 
 export function searchableText(bytes: Uint8Array): string {
-  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).toLocaleLowerCase(); }
+  // Derived index text, not authoritative bytes: NUL cannot round-trip
+  // through SQL TEXT (node:sqlite truncates at NUL, Postgres rejects it),
+  // so strip it here to keep every adapter's readback identical.
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).toLocaleLowerCase().replace(/\0/g, ""); }
   catch { return ""; }
 }
 
