@@ -765,6 +765,77 @@ describe("operator-owned edges", () => {
     expect(userConfirmed(snap({ state: "blocked" })).to).toBe("resolving");
   });
 
+  it("USER_CONFIRMED diagnoses a heavy-lift block instead of resolving", () => {
+    const halted = snap({
+      state: "blocked",
+      history: [{ from: "building", to: "blocked", at: "2026-10-16", why: "heavy lift: scanner proof missing" }],
+    });
+    expect(userConfirmed(halted).to).toBe("diagnosing");
+    expect(userConfirmed(snap({
+      state: "blocked",
+      history: [{ from: "repairing", to: "blocked", at: "2026-10-16", why: "heavy lift: ignored because commit repair is owed" }],
+    })).to).toBe("repairing");
+  });
+
+  it("takes the optional diagnosing edge when Jev halted an ambiguous build", () => {
+    const halted = workSnap("building", { postcondition: "ambiguous" }, {
+      repairLift: "heavy",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "phase proof missing from the scanner store",
+      diagnoseAttempts: 0,
+    });
+    expect(next(halted)).toEqual({
+      to: "diagnosing",
+      effect: { kind: "diagnose" },
+      why: expect.stringContaining("diagnosing and fixing"),
+    });
+    expect(legalChoices("building", halted)).toEqual([]);
+  });
+
+  it.each([false, true])("diagnoses a heavy saving halt with SQL configured: %s", (sql) => {
+    const previous = process.env.SQL_MEMORY_URL;
+    if (sql) process.env.SQL_MEMORY_URL = "postgres://example.invalid/sql-save";
+    else delete process.env.SQL_MEMORY_URL;
+    try {
+      const halted = workSnap("saving", { postcondition: "ambiguous" }, {
+        repairLift: "heavy",
+        diagnoseOrigin: "saving",
+        diagnoseAttempts: 0,
+      });
+      expect(next(halted)).toMatchObject({
+        to: "diagnosing",
+        effect: { kind: "diagnose" },
+      });
+      expect(legalChoices("saving", halted)).toEqual([]);
+    } finally {
+      if (previous === undefined) delete process.env.SQL_MEMORY_URL;
+      else process.env.SQL_MEMORY_URL = previous;
+    }
+  });
+
+  it("reviews a landed diagnose and blocks a miss without rebuilding", () => {
+    const pending = snap({
+      state: "diagnosing",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "proof missing",
+    });
+    expect(next(pending).effect).toEqual({ kind: "diagnose" });
+    const landed = snap({
+      state: "diagnosing",
+      diagnoseOrigin: "building",
+      workFacts: wf({ sessionOutcome: "ok", postcondition: "confirmed" }),
+    });
+    expect(next(landed)).toMatchObject({ to: "reviewing", effect: { kind: "run-skill", skill: "review" } });
+    const missed = snap({
+      state: "diagnosing",
+      diagnoseOrigin: "building",
+      diagnoseHandoff: "proof missing",
+      workFacts: wf({ sessionOutcome: "failed", postcondition: "ambiguous" }),
+    });
+    expect(next(missed).to).toBe("blocked");
+    expect(next(missed).why).toMatch(/will not rebuild/);
+  });
+
   it("USER_CONFIRMED repairs a failed commit instead of resolving", () => {
     const failed = snap({
       state: "blocked",

@@ -44,7 +44,7 @@ export type CallFailureDetails = {
 /** {@link CallFailureDetails} plus where in the loop we were when it failed. */
 export type AgentCallFailure = CallFailureDetails & {
   state: LoopState;
-  operation: "run-skill" | "choose" | "supervise";
+  operation: "run-skill" | "choose" | "supervise" | "diagnose";
   trying: string;
 };
 

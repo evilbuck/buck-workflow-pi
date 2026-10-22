@@ -18,7 +18,7 @@
  * User-visible states of one `/buck-loop` run.
  *
  * Scanning, classifying, and verifying are **functions inside a state**,
- * not states of their own. The operator sees twelve:
+ * not states of their own. The operator sees thirteen:
  *
  * - `idle` — nothing saved; waiting for `/buck-loop <path>`.
  * - `resolving` — we have a path; looking up the plan/phase on disk.
@@ -30,6 +30,7 @@
  * - `saving` — nested session is writing session memory (`b-save`).
  * - `committing` — nested session is creating a git commit (`b-commit`).
  * - `repairing` — in-process repair of a failed commit pin, then `b-commit`. Not a nested skill.
+ * - `diagnosing` — nested session diagnoses a Jev halt and fixes the scanner proof. Not a skill cycle.
  * - `blocked` — cannot continue safely; waiting for the operator.
  * - `done` — every phase completed; the run is finished.
  * - `aborted` — the operator typed `/buck-loop --stop`.
@@ -45,6 +46,7 @@ export type LoopState =
   | "saving"
   | "committing"
   | "repairing"
+  | "diagnosing"
   | "blocked"
   | "done"
   | "aborted";
@@ -53,7 +55,7 @@ export type LoopState =
  * States whose stay is filled by one nested coding session (a child agent
  * that runs a skill). `ranking` performs an in-process judgment, not a skill.
  */
-export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "repairing" | "blocked" | "done" | "aborted">;
+export type WorkState = Exclude<LoopState, "idle" | "resolving" | "ranking" | "repairing" | "diagnosing" | "blocked" | "done" | "aborted">;
 
 
 /**
@@ -163,7 +165,8 @@ export type ReviewFacts =
  *
  * The model can only name a continuation. `block` is not one of them.
  * Machine stops (limits, a second failure, a scan defect, a missing plan)
- * are `await-operator` edges, not model votes. `applyChoice` checks
+ * are `await-operator` edges, not model votes. A Jev heavy halt is not one of
+ * those stops: it is an optional `diagnosing` edge. `applyChoice` checks
  * membership in the current legal set before any transition is produced.
  *
  * Review-time (`reviewing`, report unparseable): `iterate` | `document` | `save`.
@@ -224,7 +227,18 @@ export interface Snapshot {
    * loop-owned acceptance stamp after a build. Diagnostic for stop messages.
    */
   acceptanceGap?: string | null;
-  /** Completed supervisor iterations. */
+  /**
+   * Jev classified the current ambiguous postcondition as a halt.
+   * The diagnosing edge is taken only while this is `heavy` and
+   * `diagnoseAttempts` is still 0. Absent on older bookmarks.
+   */
+  repairLift?: "heavy" | null;
+  /** Work state the halt interrupted. Diagnosing returns to its successor, not a rebuild. */
+  diagnoseOrigin?: DiagnoseOrigin | null;
+  /** Error text handed to the diagnose-and-fix session. */
+  diagnoseHandoff?: string | null;
+  /** Diagnose-and-fix runs already spent on this halt. One is the ceiling. */
+  diagnoseAttempts?: number;
   loopCount: number;
   /** Operator-configured ceiling; a loop at the maximum blocks before further work. */
   maxLoops: number;
@@ -243,6 +257,10 @@ export interface Snapshot {
  */
 export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "commit";
 
+/** Work states that can hand a Jev halt to diagnosing instead of stopping. */
+export type DiagnoseOrigin = "building" | "iterating" | "documenting" | "saving";
+
+
 /**
  * What the supervisor must **do** after arriving in `Transition.to`.
  *
@@ -251,8 +269,8 @@ export type WorkSkill = "build" | "review" | "iterate" | "docs" | "save" | "comm
  * - `choose` — ask a model to pick from `legal` (already closed by the machine).
  * - `rank` — rank review issues in-process using the judgment API.
  * - `repair` — re-pin the current phase's commit checkpoint, then the machine enters `committing`.
+ * - `diagnose` — hand the guarded halt to a nested session that diagnoses and fixes it.
  * - `await-operator` — stop and wait; the human must `--resume` or `--stop`.
- *
  * Work and choice are separate variants so execution code cannot smuggle a
  * transition through free text.
  */
@@ -262,6 +280,7 @@ export type Effect =
   | { kind: "choose"; legal: readonly Choice[] }
   | { kind: "rank" }
   | { kind: "repair" }
+  | { kind: "diagnose" }
   | { kind: "await-operator"; reason: string };
 
 /** One edge of the state graph: target state, the effect to perform, and why. */

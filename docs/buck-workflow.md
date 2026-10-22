@@ -178,9 +178,15 @@ for the decision log.
   status — and Jev classifies that diagnosis as a light, medium, or heavy lift.
   Light and medium lifts continue automatically once, with the diagnosis handed
   to the next skill run. A heavy lift, or a lift call that does not return a legal
-  class, is told to the operator with the diagnosis, phase status, unchecked
-  criteria, and execution checkpoint. Missing credentials or a disposable database
-  are heavy.
+  class, is an optional `diagnosing` transition: a nested session receives the
+  halt and must fix the store the scanner reads. Marking the phase file completed
+  is not enough when the scanner reads another adapter. One diagnose attempt per
+  halt is the ceiling; landed proof releases the allowance for a later independent
+  halt. The diagnosing bookmark is persisted before the child starts. Landed
+  build or iterate proof continues to review; landed documenting proof continues
+  to save; landed saving proof continues to commit. If that attempt does not
+  land the proof, the loop blocks and resume does not rebuild the phase.
+  Missing credentials or a disposable database are still heavy; the diagnose session stops if that operator input is actually missing.
   A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
   until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
 - **Blocked resume preserves a completed phase's review.** If a build or iterate
