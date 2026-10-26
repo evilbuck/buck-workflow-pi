@@ -102,6 +102,14 @@ configured workflow adapter; it does not adopt `SQL_MEMORY_URL` as a URL.
 
 - **`op: "remember"`** (save and direct only) — pass `body`, `subject`, optional `phase`, `category` (default `"project"`), `previousId`. The tool derives `author`, `project`, branch/SHA, `seq`, `source_key`, `context`, `id`, and timestamps. It returns `{ id }` only after an internal same-project active readback. Failures closed when git email or git origin cannot be resolved; the `fix` field explains how to recover. Category must be an active slug in the current `categories` table; rejection fixes list the current active slugs. Identical `subject`, `phase`, `body`, and `previousId` reuse the existing active row and return the same id without inserting again. Change the body or phase for a distinct fact, or pass `previousId` to supersede an existing fact.
 - **`op: "sql"`** — one `SELECT`/`INSERT`/`UPDATE` against the public memory tables, function-allowlisted, DDL denied. Errors and gate denials include a `fix` field that names the legal columns or points at `remember`. Schema inspection (`information_schema`, `pg_catalog`) is denied; the `fix` lists the nine public tables.
+
+  Bind `$n` placeholders by passing the values array as JSON under `values` (canonical; `params` and `parameters` are accepted aliases, precedence `params` > `parameters` > `values`):
+
+  ```json
+  {"op":"sql","statement":"… $1 … $2 …","values":["…","…"]}
+  ```
+
+  Keys outside the tool's schema properties are stripped before execution, so an unrecognized alias leaves placeholders unbound — PostgreSQL then fails with `42P02` (`there is no parameter $n`) and the `fix` names the `values`/`params`/`parameters` envelope.
 - **`op: "correct"`** (save only) — atomic correction: `project`, `previousId`, `author`, `branchName`, `commitSha`, `body`, `context.source_key`, `context.subject`, `context.phase` (`string | null`), `context.source`, `category`, `seq`. The tool claims the predecessor, inserts or reuses the source-key successor, and links `superseded_by`. Never update immutable memory content.
 - **`op: "migrate"`** (direct only) — applies ordered files from `migrations/`; see `migrations/README.md`.
 

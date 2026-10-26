@@ -91,6 +91,7 @@ export function tableRefFromStatement(statement: string): string | null {
  * Produce a `fix` string for a Postgres failure or gate denial. `kind` covers:
  *  - "missing-column": a column does not exist (e.g. `users.id`, `project_id`).
  *  - "uuid-cast": uuid/text operator error.
+ *  - "unbound-parameter": PostgreSQL 42P02; a $n placeholder has no bound value.
  *  - "catalog-deny": gate refusal of information_schema / non-public schema.
  *  - "non-public-schema": gate refusal of a non-public schema reference.
  *  - "unknown-table": gate refusal of a non-allowlisted table.
@@ -108,6 +109,8 @@ export function fixFor(kind: string, statement: string, error?: { column?: strin
     }
     case "uuid-cast":
       return "memories.project and memories.id are uuid. Compare to an untyped literal or a bound $1 parameter; never cast the literal to text. To return a uuid column as text, cast it in the select list: `SELECT m.id::text AS id`. For writes, call `op: \"remember\"`.";
+    case "unbound-parameter":
+      return "Bind $n placeholders by passing a JSON array under `values` (aliases: `params`, `parameters`). Unknown keys are stripped by the schema, so placeholders reach PostgreSQL unbound. Example: `{\"op\":\"sql\",\"statement\":\"… $1 …\",\"values\":[\"…\"]}`.";
     case "catalog-deny":
       return `Schema inspection is denied. The nine public tables are: ${PUBLIC_TABLES.join(", ")}. Call \`op: "remember"\` to write without naming columns.`;
     case "non-public-schema":

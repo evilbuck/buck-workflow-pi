@@ -46,6 +46,13 @@ describe("columns module", () => {
     expect(fix).toContain("remember");
   });
 
+  it("fixes an unbound $n placeholder by naming the values envelope", () => {
+    const fix = fixFor("unbound-parameter", "SELECT body FROM memories WHERE body = $1");
+    expect(fix).toContain("values");
+    expect(fix).toContain("params");
+    expect(fix).toContain("parameters");
+  });
+
   it("fixes an unknown table gate denial", () => {
     const fix = fixFor("unknown-table", "SELECT * FROM secrets");
     expect(fix).toContain("allowlisted");

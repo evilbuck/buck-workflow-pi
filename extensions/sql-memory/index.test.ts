@@ -34,6 +34,77 @@ afterEach(() => { delete process.env.SQL_MEMORY_URL; });
     expect(migration.details).toMatchObject({ error: true, message: expect.stringContaining("unavailable") });
   });
 
+describe("sql value binding aliases", () => {
+  function recordingTool() {
+    const commands: Array<[string, unknown[] | undefined]> = [];
+    const tool = sqlMemoryTool({
+      async query() { return { rows: [] }; },
+      async connect() {
+        return {
+          async query(text: string, values?: unknown[]) {
+            commands.push([text, values]);
+            return { rows: text.startsWith("SELECT") ? [{ body: "row" }] : [], rowCount: 1 };
+          },
+          release() {},
+        };
+      },
+    }, "recall");
+    return { tool, commands };
+  }
+
+  const statement = "SELECT body FROM memories WHERE body = $1";
+
+  it("binds the array supplied under the params alias", async () => {
+    const { tool, commands } = recordingTool();
+    const result = await tool.execute("call", { op: "sql", statement, params: ["alpha"] }, undefined, undefined, {} as never);
+    expect(commands).toContainEqual([statement, ["alpha"]]);
+    expect(result.details).toMatchObject({ rows: [{ body: "row" }] });
+  });
+
+  it("binds the array supplied under the parameters alias", async () => {
+    const { tool, commands } = recordingTool();
+    const result = await tool.execute("call", { op: "sql", statement, parameters: ["beta"] }, undefined, undefined, {} as never);
+    expect(commands).toContainEqual([statement, ["beta"]]);
+    expect(result.details).toMatchObject({ rows: [{ body: "row" }] });
+  });
+
+  it("prefers params over values when both are present", async () => {
+    const { tool, commands } = recordingTool();
+    await tool.execute("call", { op: "sql", statement, params: ["chosen"], values: ["ignored"] }, undefined, undefined, {} as never);
+    expect(commands).toContainEqual([statement, ["chosen"]]);
+    expect(commands).not.toContainEqual([statement, ["ignored"]]);
+  });
+
+  it("names the bind envelope when PostgreSQL reports an unbound placeholder (42P02)", async () => {
+    const tool = sqlMemoryTool({
+      async query() { return { rows: [] }; },
+      async connect() {
+        return {
+          async query(text: string) {
+            if (text.startsWith("SELECT")) {
+              const error = new Error("there is no parameter $2") as Error & { code: string };
+              error.code = "42P02";
+              throw error;
+            }
+            return { rows: [] };
+          },
+          release() {},
+        };
+      },
+    }, "recall");
+    const result = await tool.execute("call", { op: "sql", statement, values: ["x"] }, undefined, undefined, {} as never);
+    expect(result.details).toMatchObject({ error: true });
+    const details = result.details;
+    if (!details || typeof details !== "object" || !("fix" in details) || typeof details.fix !== "string") {
+      throw new Error("expected a fix string on the failure details");
+    }
+    const fix = details.fix;
+    expect(fix).toContain("values");
+    expect(fix).toMatch(/params.*parameters|parameters.*params/);
+    expect(fix).not.toContain("column card");
+  });
+});
+
 describe("supervisor SQL activity", () => {
   const statement = "INSERT INTO memories (body, category) VALUES ($1, $2) RETURNING id";
 
