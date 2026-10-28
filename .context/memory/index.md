@@ -1,3 +1,4 @@
+- 2026-10-28 — [PR #66 Git cleanup feedback](fix-pr-66-2026-10-28.md) — active (safety fixes in progress; verification and independent review pending)
 - 2026-10-27 — [SQL memory save-attempt binding repair](sql-memory-save-binding-2026-10-27.md) — completed (immutable-context binding replaced with tag membership; live PostgreSQL smoke, 74 focused tests, guardrails pass; neighboring OMP restart left to user)
 - 2026-10-16 — [Heavy-halt diagnosis iteration](buck-loop-jev-halt-iterate-2026-10-16.md) — active (re-review Pass with warnings, no in-plan defects; b-docs added diagnosing successor edges + narrative; ready to commit with sibling fingerprint subject)
 - 2026-10-09 — [PR #62 CodeRabbit redaction fix](fix-pr-62-2026-10-09.md) — completed (settled twice: security redaction 85f296e, colon-less URI credentials f21fbb1; Wooderson settlements 5473505374 and 5474612684; all inline threads resolved)

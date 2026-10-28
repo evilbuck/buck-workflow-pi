@@ -1856,14 +1856,16 @@ Same contract and same procedure under the old name. Proven-landed clean branche
 `skills/git-cleanup/scripts/classify.ts` inventories local branches and every
 worktree registered to the repository's common Git directory, including paths
 outside the main repository's parent. It emits one JSON document containing
-`base`, `fetch`, and `items`. A branch checked out in a worktree appears as a
+`base`, `base_verified`, `fetch`, and `items`. A branch checked out in a worktree appears as a
 worktree row rather than a duplicate branch row. Branch identity comes from
 `refs/heads/`, not ambiguous short refs that can collide with tags.
 
-The classifier fetches with `git fetch --prune origin` before resolving
+The classifier fetches with `git fetch --no-auto-maintenance --prune origin` before resolving
 `refs/remotes/origin/HEAD`, local `master`, then local `main`. Without one of
-those bases it stops. Fetch failure makes remote state `unknown`, never `gone`;
-unavailable PR metadata is `pr: null`, not proof that no PR exists.
+those bases it stops. Automatic deletion requires a successful fetch and matching
+remote default branch and SHA from `git ls-remote --symref origin HEAD`; otherwise
+`base_verified` is false and candidates remain `ask`. Fetch failure makes remote
+state `unknown`; unavailable PR metadata is `pr: null`.
 
 Containment is a merge-result proof, not ancestry or patch-count inference:
 `git merge-tree --write-tree -z` must parse completely, every conflict path must
@@ -1878,8 +1880,8 @@ Rows use three dispositions:
 - `auto-delete`: a classification only — finished, contained, no differing
   `.context` paths, clean, and checkable; it does not mean anything was removed.
 - `ask`: everything else, with `planning`, `building`, or `finished` state and
-  a recorded description source. Dirty/untracked work, differing `.context`
-  content, detached worktrees, and uncheckable entries cannot be auto-deleted.
+  a recorded description source. Dirty, untracked or ignored work, differing
+  `.context` content, detached worktrees, and uncheckable entries cannot be auto-deleted.
 
 `classify.ts` accepts one optional flag: `--apply [name ...]`. Without it the run
 is classification only — no local branch or worktree removal, though fetch

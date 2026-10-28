@@ -4,9 +4,10 @@ import { basename, dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
-const git = async (args: string[], cwd = process.cwd(), allowFailure = false) => {
+const networkOptions = { timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "Never" } };
+const git = async (args: string[], cwd = process.cwd(), allowFailure = false, network = false) => {
   try {
-    const result = await exec("git", args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+    const result = await exec("git", args, { cwd, encoding: "utf8", maxBuffer: 16 * 1024 * 1024, ...(network ? networkOptions : {}) });
     return { ok: true, stdout: result.stdout, stderr: result.stderr };
   } catch (error) {
     const failure = error as Error & { stdout?: string; stderr?: string; code?: number };
@@ -91,12 +92,12 @@ function mergeRecords(raw: string) {
 async function containment(base: string, tip: string, cwd: string) {
   const result = await git(["merge-tree", "--write-tree", "-z", base, tip], cwd, true);
   const parsed = mergeRecords(result.stdout);
-  if (!parsed || (!result.ok && result.code !== 1)) return { contained: false, conflict_paths: [] as string[] };
+  if (!parsed || (!result.ok && result.code !== 1)) return { contained: false, conflict_paths: [] as string[], tree: null };
   const { tree, paths } = parsed;
-  if (!result.ok && paths.length === 0) return { contained: false, conflict_paths: paths };
+  if (!result.ok && paths.length === 0) return { contained: false, conflict_paths: paths, tree: null };
   const codeDiff = await git(["diff", "--quiet", base, tree, "--", ".", ":(exclude).context"], cwd, true);
   const conflictsAllowed = paths.every((path) => path.startsWith(".context/"));
-  return { contained: codeDiff.ok && conflictsAllowed, conflict_paths: paths };
+  return { contained: codeDiff.ok && conflictsAllowed, conflict_paths: paths, tree };
 }
 async function contextPaths(base: string, tip: string, cwd: string) {
   const result = await git(["diff", "--name-only", "-z", base, tip, "--", ".context"], cwd, true);
@@ -105,7 +106,7 @@ async function contextPaths(base: string, tip: string, cwd: string) {
 
 async function pullRequest(branch: string, cwd: string): Promise<Item["pr"]> {
   try {
-    const result = await exec("gh", ["pr", "view", branch, "--json", "state,title"], { cwd, encoding: "utf8", maxBuffer: 1024 * 1024 });
+    const result = await exec("gh", ["pr", "view", branch, "--json", "state,title"], { cwd, encoding: "utf8", maxBuffer: 1024 * 1024, ...networkOptions });
     const value = JSON.parse(result.stdout) as { state?: string; title?: string };
     return value.state && value.title ? { state: value.state, title: value.title } : null;
   } catch { return null; }
@@ -166,7 +167,7 @@ async function branchState(tip: string, base: string, cwd: string, contained: bo
 
 async function getDirtyPaths(path: string | null) {
   if (!path) return [];
-  const status = await git(["status", "--porcelain", "--untracked-files=normal"], path, true);
+  const status = await git(["status", "--porcelain", "--untracked-files=normal", "--ignored=matching"], path, true);
   const paths = status.stdout.split("\n").filter(Boolean);
   if (!status.ok) paths.push("(status failed)");
   return paths;
@@ -189,7 +190,7 @@ function getSkipReason(branch: string, path: string | null, options: { current: 
 }
 
 async function containmentFor(missing: boolean, base: string, tip: string, cwd: string) {
-  if (missing) return { contained: false, conflict_paths: [] as string[] };
+  if (missing) return { contained: false, conflict_paths: [] as string[], tree: null };
   return containment(base, tip, cwd);
 }
 
@@ -210,7 +211,7 @@ async function evidenceFor(branch: string, path: string | null, tip: string, bas
   // Even an existing directory can lack its gitdir: Git may silently use a parent repo.
   const missing = Boolean(options.worktree?.prunable);
   const proof = await containmentFor(missing, base, tip, workingPath);
-  const uniquePaths = await contextPaths(base, tip, workingPath);
+  const uniquePaths = await contextPaths(base, proof.tree ?? tip, workingPath);
   const pr = await pullRequestFor(branch, workingPath);
   const artifacts = await relevantArtifacts(tip, base, workingPath);
   const [description, state, cherry, remote] = await Promise.all([
@@ -268,9 +269,20 @@ async function inventoryItems(worktreeOutput: string, branchOutput: string, base
   return items;
 }
 
+async function verifyBase(cwd: string, base: { ref: string; sha: string }, fetchOk: boolean) {
+  if (!fetchOk || base.ref !== "refs/remotes/origin/HEAD") return false;
+  const remoteHead = await git(["ls-remote", "--symref", "origin", "HEAD"], cwd, true, true);
+  const expectedRef = remoteHead.stdout.match(/^ref: refs\/heads\/([^\n\t]+)\s+HEAD$/m)?.[1];
+  const expectedSha = remoteHead.stdout.match(/^([0-9a-f]{40}|[0-9a-f]{64})\s+HEAD$/m)?.[1];
+  if (!remoteHead.ok || !expectedRef || !expectedSha) return false;
+  const symbolic = await git(["symbolic-ref", "-q", base.ref], cwd, true);
+  return symbolic.ok && symbolic.stdout.trim() === `refs/remotes/origin/${expectedRef}` && base.sha === expectedSha;
+}
+
 async function classify(cwd: string) {
-  const fetch = await git(["fetch", "--prune", "origin"], cwd, true);
+  const fetch = await git(["fetch", "--no-auto-maintenance", "--prune", "origin"], cwd, true, true);
   const base = await resolveBase(cwd);
+  const trusted = await verifyBase(cwd, base, fetch.ok);
   const commonDir = resolve(cwd, (await git(["rev-parse", "--git-common-dir"], cwd)).stdout.trim());
   const [worktreeResult, branchesResult, currentResult, currentPathResult, headRef] = await Promise.all([
     git(["worktree", "list", "--porcelain", "-z"], cwd),
@@ -287,7 +299,8 @@ async function classify(cwd: string) {
     integration: headRef.ok ? headRef.stdout.trim().replace(/^refs\/heads\//, "").replace(/^refs\/remotes\/origin\//, "") : base.ref.replace(/^refs\/heads\//, ""),
   };
   const items = await inventoryItems(worktreeResult.stdout, branchesResult.stdout, base, options, cwd);
-  return { base, fetch: { ok: fetch.ok }, items };
+  if (!trusted) for (const item of items) if (item.disposition === "auto-delete") item.disposition = "ask";
+  return { base, fetch: { ok: fetch.ok }, base_verified: trusted, items };
 }
 
 type ApplyResult = {
@@ -303,23 +316,44 @@ function refusalReason(item: Item | undefined): string | null {
   return null;
 }
 
-async function applyItem(name: string, item: Item | undefined, base: string, cwd: string, result: ApplyResult) {
+async function prepareWorktree(item: Item, cwd: string): Promise<string | null> {
+  if (item.kind !== "worktree" || !item.path) return null;
+  if ((await getDirtyPaths(item.path)).length) return "worktree contains changes or ignored files";
+  const removed = await git(["worktree", "remove", item.path], cwd, true);
+  return removed.ok ? null : "git worktree remove failed";
+}
+
+async function branchAvailable(name: string, cwd: string) {
+  const worktrees = await git(["worktree", "list", "--porcelain", "-z"], cwd, true);
+  return worktrees.ok && !parseWorktrees(worktrees.stdout).some((row) => row.branch === `refs/heads/${name}`);
+}
+
+async function applyItem(name: string, item: Item | undefined, cwd: string, result: ApplyResult) {
   const reason = refusalReason(item);
   if (reason || !item) {
     result.refused.push({ name, reason: reason ?? "name not present in fresh classification" });
     return;
   }
-  if (item.kind === "worktree" && item.path) {
-    const removed = await git(["worktree", "remove", item.path], cwd, true);
-    if (!removed.ok) {
-      result.refused.push({ name, reason: "git worktree remove failed" });
-      return;
-    }
+  const currentTip = await git(["rev-parse", "--verify", `refs/heads/${name}`], cwd, true);
+  if (!currentTip.ok || currentTip.stdout.trim() !== item.tip) {
+    result.refused.push({ name, reason: "branch tip changed" });
+    return;
   }
-  const ancestor = await git(["merge-base", "--is-ancestor", item.tip!, base], cwd, true);
-  const flag = ancestor.ok ? "-d" : "-D";
-  const deleted = await git(["branch", flag, name], cwd, true);
-  result.applied.push({ name, action: `branch ${flag}`, ok: deleted.ok });
+  const worktreeError = await prepareWorktree(item, cwd);
+  if (worktreeError) {
+    result.refused.push({ name, reason: worktreeError });
+    return;
+  }
+  if (!await branchAvailable(name, cwd)) {
+    result.refused.push({ name, reason: "branch is checked out or worktrees cannot be verified" });
+    return;
+  }
+  const deleted = await git(["update-ref", "-d", `refs/heads/${name}`, item.tip!], cwd, true);
+  if (!deleted.ok) {
+    result.refused.push({ name, reason: "branch tip changed or branch deletion failed" });
+    return;
+  }
+  result.applied.push({ name, action: "update-ref -d", ok: true });
 }
 
 async function apply(cwd: string, requested: string[]) {
@@ -327,7 +361,7 @@ async function apply(cwd: string, requested: string[]) {
   const result: ApplyResult = { applied: [], refused: [] };
   const names = requested.length ? [...new Set(requested)] : fresh.items.filter((item) => item.disposition === "auto-delete").map((item) => item.name);
   const byName = new Map(fresh.items.map((item) => [item.name, item]));
-  for (const name of names) await applyItem(name, byName.get(name), fresh.base.sha, cwd, result);
+  for (const name of names) await applyItem(name, byName.get(name), cwd, result);
   const prunable = fresh.items.filter((item) => item.prunable);
   if (prunable.length) await git(["worktree", "prune"], cwd, true);
   return { ...fresh, ...result };
