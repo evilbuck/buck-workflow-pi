@@ -16,6 +16,11 @@ steps, then **Eat** — the check that it worked.
 9. [Change /buck-loop activity density](change-buck-loop-density.md)
 10. [Turn automatic SQL memory capture off](toggle-turn-memory.md)
 
+## Git housekeeping
+
+1. [Inspect local Git cleanup candidates](inspect-git-cleanup-candidates.md)
+2. [Clean up landed local Git work](clean-up-landed-git-work.md)
+
 ## Why
 
 - [Local-only isolated code-review loop](../adr/0001-local-only-isolated-code-review-loop.md)

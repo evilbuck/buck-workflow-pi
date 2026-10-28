@@ -331,7 +331,8 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-create-ux-guide` | Site → component inventory → markdown style guide + HTML research guide + `design-brief.json` |
 | `code-smells` | Reference catalog of the 23 code smells + parallel-subagent audit producing a remediation report |
 | `cross-platform-pi-omp-loading` | Package-authoring pattern for shipping one package that loads under both Pi and OMP |
-| `git-clean-orphans` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
+| `git-cleanup` | Delete proven-landed clean local branches and worktrees (containment-proven, including after squash, rebase, or rewritten history) through the bundled classify/apply script; everything else is asked |
+| `git-clean-orphans` | Alias of `git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
 | `llm-wiki-vault` | Vault-native LLM Wiki for Obsidian PARA vaults — ingest, interlinked notes, knowledge-base maintenance |
 | `manage-herdr-panes` | Split, start, prompt, and read Herdr panes (requires `HERDR_ENV=1`) |
 | `node5-code-review` | Code review specialized for the node5 project |

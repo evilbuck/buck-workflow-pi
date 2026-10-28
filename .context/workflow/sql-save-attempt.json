@@ -1,8 +1,8 @@
 {
-  "attemptId": "0730bceb-956d-4251-9801-8424cb810509",
-  "runId": "495ba247-6090-46ad-ad04-025a7b1339bf",
-  "subject": "2026-10-03.review-severity-ranking",
+  "attemptId": "478375c3-bd28-48bf-9320-1b9fc689a828",
+  "runId": "d15f3d06-9b69-4645-b9a1-556f932ca16c",
+  "subject": "2026-10-26.git-cleanup-skill",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-10-03.review-severity-ranking/phase-2-jev-ranking-core.md",
-  "receiptRel": ".context/2026-10-03.review-severity-ranking/sql-memory-receipts/495ba247-6090-46ad-ad04-025a7b1339bf-0730bceb-956d-4251-9801-8424cb810509.json"
+  "phase": ".context/2026-10-26.git-cleanup-skill/phase-3-skill-redirect-docs.md",
+  "receiptRel": ".context/2026-10-26.git-cleanup-skill/sql-memory-receipts/d15f3d06-9b69-4645-b9a1-556f932ca16c-478375c3-bd28-48bf-9320-1b9fc689a828.json"
 }
