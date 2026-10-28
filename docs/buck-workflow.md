@@ -1845,6 +1845,47 @@ Seven slash commands are backed by **code, not only prompt-following**, when `ex
 **Behavior**: read-only by default; destructive steps are gated on explicit user confirmation.
 
 ---
+#### Git cleanup classifier — Local Containment Inventory
+
+`skills/git-cleanup/scripts/classify.ts` inventories local branches and every
+worktree registered to the repository's common Git directory, including paths
+outside the main repository's parent. It emits one JSON document containing
+`base`, `fetch`, and `items`. A branch checked out in a worktree appears as a
+worktree row rather than a duplicate branch row. Branch identity comes from
+`refs/heads/`, not ambiguous short refs that can collide with tags.
+
+The classifier fetches with `git fetch --prune origin` before resolving
+`refs/remotes/origin/HEAD`, local `master`, then local `main`. Without one of
+those bases it stops. Fetch failure makes remote state `unknown`, never `gone`;
+unavailable PR metadata is `pr: null`, not proof that no PR exists.
+
+Containment is a merge-result proof, not ancestry or patch-count inference:
+`git merge-tree --write-tree -z` must parse completely, every conflict path must
+be under `.context/`, and the resulting tree must have no diff from the base
+outside `.context`. Unknown or malformed records fail closed. `git cherry`
+counts, PR state, and remote state are descriptive evidence, not deletion
+authority.
+
+Rows use three dispositions:
+
+- `skip`: current checkout, integration branch, or main worktree.
+- `auto-delete`: a classification only — finished, contained, no differing
+  `.context` paths, clean, and checkable; it does not mean anything was removed.
+- `ask`: everything else, with `planning`, `building`, or `finished` state and
+  a recorded description source. Dirty/untracked work, differing `.context`
+  content, detached worktrees, and uncheckable entries cannot be auto-deleted.
+
+The current script has no deletion path and accepts no flags; `--apply` fails
+before Git operations. “Read-only” here means no local branch or worktree
+removal, not zero Git writes: fetch updates remote-tracking refs and merge-tree
+can write objects. This interface does not replace `/git-clean-orphans` or
+provide an apply workflow.
+
+See [Inspect local Git cleanup candidates](howto/inspect-git-cleanup-candidates.md)
+for the inspection-only procedure.
+
+---
+
 
 #### `/product-tour` — Guided Product Tours
 

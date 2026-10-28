@@ -7,6 +7,23 @@
 
 - [ ] [Add /worktrees-active-recap](items/worktrees-active-recap.md) — medium; deterministic unmerged-worktree report — see `.context/2026-10-06.worktrees-active-recap/plan-worktrees-active-recap.md`
 
+## Git cleanup
+
+- [ ] [Add git-cleanup skill](items/git-cleanup-skill.md) — high; landedness-proven local cleanup, then ask on the rest — see `.context/2026-10-26.git-cleanup-skill/plan-git-cleanup.md`
+
+## Git cleanup phases (2026-10-26)
+
+Overview: [`plan-git-cleanup-phases.md`](../2026-10-26.git-cleanup-skill/plan-git-cleanup-phases.md).
+Phases form a HARD chain (1 → 2 → 3). No `omp_execution`.
+
+- [x] [Phase 1: Classifier JSON](archive/2026-10/phase-1-classify-json.md) — hard, `/b-build-hard` — done 2026-10-27 — [phase-1-classify-json.md](../2026-10-26.git-cleanup-skill/phase-1-classify-json.md)
+
+
+### Upcoming Phases
+
+- [ ] [Phase 2: Apply deletes](items/phase-2-apply-deletes.md) — hard, `/b-build-hard` — [phase-2-apply-deletes.md](../2026-10-26.git-cleanup-skill/phase-2-apply-deletes.md) — do not start until Phase 1 is completed
+- [ ] [Phase 3: Skill, redirect, and docs](items/phase-3-skill-redirect-docs.md) — medium, `/b-build` — [phase-3-skill-redirect-docs.md](../2026-10-26.git-cleanup-skill/phase-3-skill-redirect-docs.md) — do not start until Phase 2 is completed
+
 ## Review Severity Ranking Phases (2026-10-03)
 
 Overview: [`plan-review-severity-ranking-phases.md`](../2026-10-03.review-severity-ranking/plan-review-severity-ranking-phases.md).

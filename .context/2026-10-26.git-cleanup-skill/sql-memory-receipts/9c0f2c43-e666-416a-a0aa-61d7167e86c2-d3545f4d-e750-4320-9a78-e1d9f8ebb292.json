@@ -1,0 +1,12 @@
+{
+  "attemptId": "d3545f4d-e750-4320-9a78-e1d9f8ebb292",
+  "runId": "9c0f2c43-e666-416a-a0aa-61d7167e86c2",
+  "subject": "2026-10-26.git-cleanup-skill",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "kind": "rows",
+  "ids": [
+    "01a17acd-c885-70f5-87a0-4c6b3311cc27"
+  ],
+  "probed": true,
+  "completed": true
+}
