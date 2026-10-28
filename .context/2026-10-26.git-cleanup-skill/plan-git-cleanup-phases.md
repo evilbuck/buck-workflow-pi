@@ -31,7 +31,7 @@ Inherited unchanged from the parent plan; the three phases are slices of one use
 |-------|--------|------------|---------------|------|
 | 1: Classifier JSON | completed | hard | none | [phase-1-classify-json.md](phase-1-classify-json.md) |
 | 2: Apply deletes | completed | hard | none | [phase-2-apply-deletes.md](phase-2-apply-deletes.md) |
-| 3: Skill, redirect, and docs | pending | medium | none | [phase-3-skill-redirect-docs.md](phase-3-skill-redirect-docs.md) |
+| 3: Skill, redirect, and docs | completed | medium | none | [phase-3-skill-redirect-docs.md](phase-3-skill-redirect-docs.md) |
 
 ## Dependency Matrix
 

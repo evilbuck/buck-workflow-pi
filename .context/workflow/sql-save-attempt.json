@@ -1,8 +1,8 @@
 {
-  "attemptId": "5312646f-2d0e-46cf-92ee-3787cebac2eb",
-  "runId": "717a2ff1-15ee-4584-aa1a-6440a814ccb0",
+  "attemptId": "478375c3-bd28-48bf-9320-1b9fc689a828",
+  "runId": "d15f3d06-9b69-4645-b9a1-556f932ca16c",
   "subject": "2026-10-26.git-cleanup-skill",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
-  "phase": ".context/2026-10-26.git-cleanup-skill/phase-2-apply-deletes.md",
-  "receiptRel": ".context/2026-10-26.git-cleanup-skill/sql-memory-receipts/717a2ff1-15ee-4584-aa1a-6440a814ccb0-5312646f-2d0e-46cf-92ee-3787cebac2eb.json"
+  "phase": ".context/2026-10-26.git-cleanup-skill/phase-3-skill-redirect-docs.md",
+  "receiptRel": ".context/2026-10-26.git-cleanup-skill/sql-memory-receipts/d15f3d06-9b69-4645-b9a1-556f932ca16c-478375c3-bd28-48bf-9320-1b9fc689a828.json"
 }

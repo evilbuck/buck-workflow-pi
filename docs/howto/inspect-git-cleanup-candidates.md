@@ -17,6 +17,6 @@ Produce a JSON inventory of local branches and registered worktrees without remo
 
 If no supported base exists (`origin/HEAD`, local `master`, or local `main`), the command exits nonzero: resolve the repository’s intended integration ref before trying again. Do not guess a base or turn the preview into hand-written deletion commands.
 
-The classifier runs `git fetch --prune origin` and can write merge-tree objects; it is not an offline or zero-write inventory. Fetch failure is reported in JSON and does not establish that any remote branch is gone. This script currently rejects all flags, including `--apply`; deletion is not available through this interface.
+The classifier runs `git fetch --prune origin` and can write merge-tree objects; it is not an offline or zero-write inventory. Fetch failure is reported in JSON and does not establish that any remote branch is gone. Omit `--apply` to keep this run inspection-only. For deletion, follow [Clean up landed local Git work](clean-up-landed-git-work.md).
 
 For the proof and disposition contract, see [Git cleanup classifier](../buck-workflow.md#git-cleanup-classifier--local-containment-inventory).

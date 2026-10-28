@@ -12,7 +12,7 @@ Delete only clean local work proven contained in the integration branch. Present
 - Scope is this repository's common Git directory: every registered worktree counts, including paths outside the main repository's parent. Unregistered directories are not cleanup targets.
 - Preserve the current checkout, integration branch, main worktree, unique `.context` content, dirty/untracked work, and uncheckable/prunable entries. Ignored files do not make a worktree dirty.
 - Fetch failure means remote state is unknown, not gone. It does not authorize or block a containment-proven deletion.
-- Never construct `git branch -D`, force-remove a worktree, expire reflogs, run garbage collection, or push/delete a remote. Do not invent an apply implementation when the installed script lacks one: report the prerequisite failure and stop before deletion.
+- Never construct `git branch -D` or `git worktree remove --force` yourself, expire reflogs, run garbage collection, or push/delete a remote. Every delete goes through the bundled apply path. Do not invent an apply implementation when the installed script lacks one: report the prerequisite failure and stop before deletion.
 - This is a bounded safety decision: `skip`, `auto-delete`, or `ask`. The script computes it deterministically; do not replace proof with model judgment.
 </safety>
 
@@ -35,13 +35,13 @@ Delete only clean local work proven contained in the integration branch. Present
    bun <skill_dir>/scripts/classify.ts --apply
    ```
 
-   Apply must recompute eligibility, journal recovery evidence, and recheck the exact tip, clean status, and registered path before each deletion. Do not replay the preview as an unchecked delete list. The fresh proven set needs no second per-item confirmation. Report only deletions and refusals actually emitted by apply; a nonzero result is a failure, not success. If `--apply` is unsupported, stop and report that deletion is unavailable in this installation. Do not fall back to hand-written Git deletion commands.
+   Apply re-runs the classifier and deletes only names whose fresh disposition is `auto-delete`; it never replays the preview as an unchecked delete list. Against that fresh run, a name whose disposition is `ask` or `skip`, whose registration is prunable, or whose worktree is dirty is refused and left in place. Worktrees are removed with `git worktree remove <path>` and never `--force`; if that removal fails, the branch is not deleted and the directory stays on disk. The fresh proven set needs no second per-item confirmation. Report only the `applied` and `refused` entries the run actually emitted; a nonzero result is a failure, not success. If `--apply` is unsupported, stop and report that deletion is unavailable in this installation. Do not fall back to hand-written Git deletion commands.
 
 5. Stop and wait for the user's keep/delete-locally choices for `ask` rows, individually or for an explicitly named abandoned subset. Do not delete those rows in the classify turn unless the user already supplied the relevant choice. A discard of dirty work must explicitly name the exact path in that same turn. If the bundled apply interface cannot express that choice safely, report that limitation and stop; do not add force flags or bypass its proof boundary.
 
-6. Report observed results: deleted branches/worktrees, skips/refusals, retained ask rows, and the recovery journal location when apply supplies one. Never claim successful removal merely from an `auto-delete` classification.
+6. Report observed results: the `applied` and `refused` entries apply emitted, skip reasons, and retained ask rows. Never claim successful removal merely from an `auto-delete` classification.
 </procedure>
 
 <success_criteria>
-Dry-run produces a faithful preview and no deletions. Normal cleanup deletes only the freshly proven clean local set through the bundled apply path, preserves recovery evidence, and waits for decisions about the rest. An unavailable apply path is reported as a prerequisite failure, never worked around.
+Dry-run produces a faithful preview and no deletions. Normal cleanup deletes only the freshly proven clean local set through the bundled apply path and waits for decisions about the rest. An unavailable apply path is reported as a prerequisite failure, never worked around.
 </success_criteria>

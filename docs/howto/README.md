@@ -19,6 +19,7 @@ steps, then **Eat** — the check that it worked.
 ## Git housekeeping
 
 1. [Inspect local Git cleanup candidates](inspect-git-cleanup-candidates.md)
+2. [Clean up landed local Git work](clean-up-landed-git-work.md)
 
 ## Why
 

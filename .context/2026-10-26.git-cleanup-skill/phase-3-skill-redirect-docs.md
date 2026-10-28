@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-git-cleanup.md
@@ -20,16 +20,18 @@ from_plan_steps: [8, 9, 10]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `skills/git-cleanup/SKILL.md` is model-invoked. It loads `skills/git-cleanup/scripts/classify.ts`, runs it without `--apply`, prints the deleted-set preview and the ask list, then runs `--apply` unless the argument is `dry-run`."
-  - "[ ] The skill stops and waits on the ask list. It does not delete an ask-list item in the same turn as classify unless the user already answered keep or delete for that item."
-  - "[ ] The skill forbids the agent from constructing `git branch -D` or `git worktree remove --force` itself. Deletes go through the script."
-  - "[ ] `prompts/git-cleanup.md` is a thin wrapper that loads the skill. `commands/git-cleanup.md` is a symlink to `../prompts/git-cleanup.md`."
-  - "[ ] `skills/git-clean-orphans/SKILL.md` and `prompts/git-clean-orphans.md` contain no second delete procedure. Both load `git-cleanup`. The first lines state that proven-landed clean branches are deleted without the old confirmation pause, and that a path outside the repo parent is no longer a skip."
-  - "[ ] README skills-catalog row and `docs/buck-workflow.md` mapping row (near line 74), quick-reference row (near line 497), and the `/git-clean-orphans` section (near line 1824) describe the new contract for both names. The sentence 'destructive steps gated on confirmation' is gone for that command. `/git-cleanup` is added beside it."
-  - "[ ] `scripts/codex-plugin.test.ts` curated-bundle inventory is unchanged. `git-cleanup` is not added to `curatedBundle.canonicalCopies`."
-  - "[ ] Published procedure text has no remote delete, no `git push --prune`, no `git reflog expire`, and no `git gc`."
-completed_at: null
+  - "[x] `skills/git-cleanup/SKILL.md` is model-invoked. It loads `skills/git-cleanup/scripts/classify.ts`, runs it without `--apply`, prints the deleted-set preview and the ask list, then runs `--apply` unless the argument is `dry-run`."
+  - "[x] The skill stops and waits on the ask list. It does not delete an ask-list item in the same turn as classify unless the user already answered keep or delete for that item."
+  - "[x] The skill forbids the agent from constructing `git branch -D` or `git worktree remove --force` itself. Deletes go through the script."
+  - "[x] `prompts/git-cleanup.md` is a thin wrapper that loads the skill. `commands/git-cleanup.md` is a symlink to `../prompts/git-cleanup.md`."
+  - "[x] `skills/git-clean-orphans/SKILL.md` and `prompts/git-clean-orphans.md` contain no second delete procedure. Both load `git-cleanup`. The first lines state that proven-landed clean branches are deleted without the old confirmation pause, and that a path outside the repo parent is no longer a skip."
+  - "[x] README skills-catalog row and `docs/buck-workflow.md` mapping row (near line 74), quick-reference row (near line 497), and the `/git-clean-orphans` section (near line 1824) describe the new contract for both names. The sentence 'destructive steps gated on confirmation' is gone for that command. `/git-cleanup` is added beside it."
+  - "[x] `scripts/codex-plugin.test.ts` curated-bundle inventory is unchanged. `git-cleanup` is not added to `curatedBundle.canonicalCopies`."
+  - "[x] Published procedure text has no remote delete, no `git push --prune`, no `git reflog expire`, and no `git gc`."
+completed_at: 2026-10-27
 completed_by: null
+sql_memory_ids:
+  - "01a1803b-e27b-7687-82a8-b63f2a8f4202"
 ---
 
 # Phase 3: Skill, redirect, and docs

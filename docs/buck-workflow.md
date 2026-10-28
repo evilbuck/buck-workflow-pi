@@ -71,7 +71,8 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/b-commit-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-commit-improved.md`; `commands/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit-improved/` |
 | `/b-save-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-save-improved.md`; `commands/b-save-improved.md`; `extensions/b-save-improved/`; falls back to `skills/b-save-improved/` |
 | `/b-kamal-release` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-kamal-release.md`; `commands/b-kamal-release.md`; `extensions/b-kamal-release/` |
-| `/git-clean-orphans` | Prompt template + Skill | Slash command symlink | `prompts/git-clean-orphans.md`; `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
+| `/git-cleanup` | Prompt template + Skill | Slash command symlink | `prompts/git-cleanup.md`; `commands/git-cleanup.md`; `skills/git-cleanup/SKILL.md` — proven-landed clean locals are deleted; everything else is asked |
+| `/git-clean-orphans` | Prompt template + Skill | Slash command symlink | Alias of `/git-cleanup` (same contract): `prompts/git-clean-orphans.md`; `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
 | `/product-tour` | Prompt template + Skill | Slash command symlink | `prompts/product-tour.md`; `commands/product-tour.md`; `skills/product-tour/SKILL.md` |
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
 | `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
@@ -505,7 +506,8 @@ flowchart TD
 | [**code-review**](#code-review--release-pr-review) | Prompt template + Skill + extension command | `/code-review` | Portable: `prompts/code-review.md` + `skills/code-review/`; local runtime: `extensions/code-review-iteration/` | Portable release-PR review; wired Pi/OMP command runs bounded local Reviewer → optional Fixer → fresh-Reviewer passes |
 | [**code-review-universal**](#code-review-universal--universal-pr-review) | Prompt template + Skill | `/code-review-universal` | `prompts/code-review-universal.md` + `skills/code-review-universal/` | Language-agnostic PR review; posts one atomic severity-tagged GitHub review with inline comments |
 | [**skill-explainer**](#skill-explainer--skill-walkthrough-reports) | Skill | `/skill:skill-explainer` | `skills/skill-explainer/SKILL.md` | Explain a skill/command and produce a visual HTML report of its flow and effects (skill-only) |
-| [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
+| [**git-cleanup**](#git-cleanup--landed-git-cleanup) | Prompt template + Skill | `/git-cleanup` | `prompts/git-cleanup.md` + `commands/git-cleanup.md` + `skills/git-cleanup/SKILL.md` | Delete proven-landed clean local branches and worktrees; everything else is asked |
+| [**git-clean-orphans**](#git-clean-orphans--alias-of-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Alias of `/git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
 | [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
 | [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
@@ -1834,15 +1836,19 @@ Seven slash commands are backed by **code, not only prompt-following**, when `ex
 
 ### 7. Utilities & Housekeeping
 
-#### `/git-clean-orphans` — Stale Git Cleanup
+#### `/git-cleanup` — Landed Git Cleanup
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Inventory and remove stale local git artifacts — merged worktrees, worktrees whose remote is gone, and local branches whose remote is gone (merged or not). Surfaces unmerged tips and reflog for user decision before any destructive action.
+**Purpose**: Delete local worktrees and branches whose code is proven contained in the integration branch — including after a squash, rebase, or rewritten history — then ask keep-or-delete for everything else. Proven-landed clean locals are deleted; everything else is asked.
 
-**Pi/OMP primitive**: Prompt command + skill (`prompts/git-clean-orphans.md`, `commands/git-clean-orphans.md` symlink, `skills/git-clean-orphans/SKILL.md`).
+**Pi/OMP primitive**: Prompt command + skill (`prompts/git-cleanup.md`, `commands/git-cleanup.md` symlink, `skills/git-cleanup/SKILL.md`).
 
-**Behavior**: read-only by default; destructive steps are gated on explicit user confirmation.
+**Behavior**: the skill previews classification, then applies fresh proof unless the argument is `dry-run`. The proven set needs no second per-item confirmation; the skill waits on the ask list. Deletes go only through the script, never agent-built deletion commands. Fetch updates local remote-tracking refs, but no remote branches are deleted. See [Clean up landed local Git work](howto/clean-up-landed-git-work.md) for the operator sequence.
+
+#### `/git-clean-orphans` — Alias of `/git-cleanup`
+
+Same contract and same procedure under the old name. Proven-landed clean branches are deleted without the old confirmation pause, and a checkout outside the main repository's parent is no longer skipped when it is registered to this common Git directory. `prompts/git-clean-orphans.md` and `skills/git-clean-orphans/SKILL.md` load `git-cleanup`; there is no second delete procedure.
 
 ---
 #### Git cleanup classifier — Local Containment Inventory
@@ -1875,11 +1881,14 @@ Rows use three dispositions:
   a recorded description source. Dirty/untracked work, differing `.context`
   content, detached worktrees, and uncheckable entries cannot be auto-deleted.
 
-The current script has no deletion path and accepts no flags; `--apply` fails
-before Git operations. “Read-only” here means no local branch or worktree
-removal, not zero Git writes: fetch updates remote-tracking refs and merge-tree
-can write objects. This interface does not replace `/git-clean-orphans` or
-provide an apply workflow.
+`classify.ts` accepts one optional flag: `--apply [name ...]`. Without it the run
+is classification only — no local branch or worktree removal, though fetch
+updates remote-tracking refs and merge-tree can write objects. With `--apply`
+the script re-runs classification and deletes only the names whose fresh
+disposition is `auto-delete` (the whole fresh proven set when no names are
+given); any other name is refused and left in place, and a failing worktree
+removal also refuses the branch. `auto-delete` remains a classification, not
+proof of removal.
 
 See [Inspect local Git cleanup candidates](howto/inspect-git-cleanup-candidates.md)
 for the inspection-only procedure.
