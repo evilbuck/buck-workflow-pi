@@ -174,7 +174,7 @@ describe("verifySqlSave guards", () => {
     completeSaveAttempt(cwd, prepared);
     // An empty read-back means the id is not active in this project, so the
     // receipt must not be treated as save-stage proof.
-    const result = await verifySqlSave(cwd, SUBJECT, async () => [], true, prepared.attemptId);
+    const result = await verifySqlSave(cwd, SUBJECT, async (sql) => sql.includes("JOIN memory_tags") ? [{ id: ID }] : [], true, prepared.attemptId);
     expect(result.status).toBe("block");
     expect(result.status === "block" && result.reason).toContain(ID);
   });

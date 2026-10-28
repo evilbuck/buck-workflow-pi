@@ -110,14 +110,14 @@ export function writeReceipt(cwd: string, attempt: SaveAttempt, body: Pick<SaveR
 
 /** Persist reusable facts before applying filesystem metadata. Retries reuse source keys. */
 export async function saveSqlFacts(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query?: SqlQuery, onActivity?: SqlMemoryActivitySink): Promise<string[]> {
-  if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query));
+  if (query) return saveFactsWithQuery(cwd, attempt, facts, guardedQuery(query), query);
   const url = process.env.SQL_MEMORY_URL;
   if (!url) throw new Error("SQL_MEMORY_URL is not set");
   const pool = createLazyPool(url)();
   const saveQuery: SqlQuery = (sql, values) => sqlMemoryRows(pool, sql, values, "save", onActivity);
   saveQuery.transaction = (work) => sqlMemorySaveTransaction(pool, work, onActivity);
   try {
-    return await saveFactsWithQuery(cwd, attempt, facts, saveQuery);
+    return await saveFactsWithQuery(cwd, attempt, facts, saveQuery, async (sql, values) => (await pool.query(sql, values)).rows);
   } finally {
     await pool.end();
   }
@@ -133,7 +133,7 @@ function guardedQuery(query: SqlQuery): SqlQuery {
   return guarded;
 }
 
-async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query: SqlQuery): Promise<string[]> {
+async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: SaveFact[], query: SqlQuery, bindingQuery: SqlQuery): Promise<string[]> {
   if (facts.length === 0) return saveNoFacts(cwd, attempt, query);
   const email = git(cwd, "config", "user.email");
   if (!email) throw new Error("SQL save requires git user.email");
@@ -156,8 +156,25 @@ async function saveFactsWithQuery(cwd: string, attempt: SaveAttempt, facts: Save
     const rows = await query(READBACK_SQL, [attempt.project, id]);
     if (rows.length !== 1) throw new Error(`SQL save row was not readable for this project: ${id}`);
   }
+  await bindSavedFacts(attempt, ids, bindingQuery);
   writeReceipt(cwd, attempt, { kind: "rows", ids });
   return ids;
+}
+
+async function bindSavedFacts(attempt: SaveAttempt, ids: string[], query: SqlQuery): Promise<void> {
+  const tag = `sql-memory-save:${attempt.attemptId}`;
+  await query("INSERT INTO tags (slug) VALUES ($1) ON CONFLICT (slug) DO NOTHING", [tag]);
+  for (const id of ids) {
+    await query(
+      `INSERT INTO memory_tags (memory_id, tag_id)
+       SELECT m.id, t.id FROM memories m JOIN projects p ON p.id = m.project CROSS JOIN tags t
+       WHERE p.origin_url = $1 AND m.id = $2 AND m.invalid_at IS NULL AND t.slug = $3
+       ON CONFLICT (memory_id, tag_id) DO NOTHING`,
+      [attempt.project, id, tag],
+    );
+  }
+  const bound = await query(STAMPED_ATTEMPT_SQL, [attempt.project, attempt.attemptId]);
+  if (ids.some((id) => !bound.some((row) => row.id === id))) throw new Error("SQL save could not bind the save attempt");
 }
 
 async function storeCorrectedFact(
@@ -254,7 +271,12 @@ export async function verifySqlSave(cwd: string, subject: string | null, query: 
   if (projectCheck.status !== "verified") return projectCheck;
   const receipt = readReceipt(cwd, attempt);
   if (!receipt) return { status: "unverified" };
-  const bound = await receiptFromBinding(cwd, attempt, receipt, guardedQuery(query));
+  let bound: SaveReceipt;
+  try {
+    bound = await receiptFromBinding(cwd, attempt, receipt, guardedQuery(query));
+  } catch (error) {
+    return { status: "block", reason: `SQL save attempt binding read-back failed: ${errorMessage(error)}` };
+  }
   const shape = receiptShape(bound, attempt);
   if (shape.status !== "verified") return shape;
   if (requireComplete && bound.completed !== true) return { status: "unverified" };
@@ -263,7 +285,11 @@ export async function verifySqlSave(cwd: string, subject: string | null, query: 
 
 async function receiptFromBinding(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, query: SqlQuery): Promise<SaveReceipt> {
   const ids = await boundAttemptIds(attempt, query);
-  if (!ids || (sameIdSet(receipt.ids, ids) && receipt.kind === "rows")) return receipt;
+  if (!ids) {
+    if (receipt.kind === "no-fact") return receipt;
+    return { ...receipt, kind: "rows", ids: [] };
+  }
+  if (sameIdSet(receipt.ids, ids) && receipt.kind === "rows") return receipt;
   const next: SaveReceipt = { ...receipt, kind: "rows", ids, probed: true };
   writeJson(cwd, attempt.receiptRel, next);
   writeBoundFrontmatter(cwd, attempt, ids);
@@ -271,13 +297,9 @@ async function receiptFromBinding(cwd: string, attempt: SaveAttempt, receipt: Sa
 }
 
 async function boundAttemptIds(attempt: SaveAttempt, query: SqlQuery): Promise<string[] | null> {
-  try {
-    const rows = await query(STAMPED_ATTEMPT_SQL, [attempt.project, attempt.attemptId]);
-    const ids = rows.map((row) => row.id).filter((id): id is string => typeof id === "string");
-    return ids.length > 0 ? ids : null;
-  } catch {
-    return null;
-  }
+  const rows = await query(STAMPED_ATTEMPT_SQL, [attempt.project, attempt.attemptId]);
+  const ids = rows.map((row) => row.id).filter((id): id is string => typeof id === "string");
+  return ids.length > 0 ? ids : null;
 }
 
 function sameIdSet(left: string[], right: string[]): boolean {

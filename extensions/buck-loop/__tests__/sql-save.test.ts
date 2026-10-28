@@ -127,14 +127,26 @@ describe("SQL save receipts", () => {
     const current = attempt(cwd);
     const id = "22222222-2222-4222-8222-222222222222";
     writeReceipt(cwd, current, { kind: "rows", ids: [id] });
-    const found: SqlQuery = async (_sql, values) => values[1] === id ? [{ id }] : [];
+    const found: SqlQuery = async (sql, values) => sql.includes("JOIN memory_tags") || values[1] === id ? [{ id }] : [];
     expect(await verifySqlSave(cwd, SUBJECT, found)).toEqual({ status: "unverified" });
     completeSaveAttempt(cwd, current);
     await expect(verifySqlSave(cwd, SUBJECT, found)).resolves.toEqual({ status: "verified" });
-    await expect(verifySqlSave(cwd, SUBJECT, emptyQuery)).resolves.toEqual({
+    const missing: SqlQuery = async (sql) => sql.includes("JOIN memory_tags") ? [{ id }] : [];
+    await expect(verifySqlSave(cwd, SUBJECT, missing)).resolves.toEqual({
       status: "block",
       reason: `SQL save receipt ids were not readable for this project: ${id}`,
     });
+  });
+
+  it("does not authorize an unbound row even if it exists in the project", async () => {
+    process.env.SQL_MEMORY_URL = URL;
+    cwd = repo();
+    const current = attempt(cwd);
+    const id = "22222222-2222-4222-8222-222222222222";
+    writeReceipt(cwd, current, { kind: "rows", ids: [id] });
+    completeSaveAttempt(cwd, current);
+    const query: SqlQuery = async (sql) => sql.includes("JOIN memory_tags") ? [] : [{ id }];
+    await expect(verifySqlSave(cwd, SUBJECT, query)).resolves.toEqual({ status: "unverified" });
   });
 
   it("replaces a spliced receipt id with the attempt-bound row", async () => {
@@ -174,12 +186,39 @@ describe("SQL save receipts", () => {
     await expect(verifySqlSave(cwd, SUBJECT, ok)).resolves.toEqual({ status: "verified" });
     await expect(verifySqlSave(cwd, SUBJECT, down)).resolves.toEqual({
       status: "block",
-      reason: "SQL save connectivity probe failed: connection refused",
+      reason: "SQL save attempt binding read-back failed: connection refused",
     });
     await expect(probeSql(down)).resolves.toEqual({
       status: "block",
       reason: "SQL save connectivity probe failed: connection refused",
     });
+  });
+
+  it("binds facts saved by the direct save path before verifying the receipt", async () => {
+    process.env.SQL_MEMORY_URL = URL;
+    cwd = repo();
+    execFileSync("git", ["config", "user.email", "save@example.test"], { cwd });
+    const current = attempt(cwd);
+    const id = "22222222-2222-4222-8222-222222222222";
+    let tag = "";
+    let bound = false;
+    const binding = (sql: string, values: unknown[]) => {
+      if (sql.startsWith("INSERT INTO tags")) { tag = String(values[0]); return []; }
+      if (sql.startsWith("INSERT INTO memory_tags")) { bound = values[1] === id && values[2] === tag; return []; }
+      if (sql.includes("JOIN memory_tags")) return bound && tag === `sql-memory-save:${values[1]}` ? [{ id }] : [];
+      return null;
+    };
+    const query: SqlQuery = async (sql, values) => {
+      const result = binding(sql, values);
+      if (result) return result;
+      if (sql.startsWith("SELECT id FROM projects")) return [{ id: "11111111-1111-4111-8111-111111111111" }];
+      if (sql.startsWith("INSERT INTO memories")) return [{ id }];
+      if (sql.includes("m.id = $2")) return values[1] === id ? [{ id }] : [];
+      return [];
+    };
+    expect(await saveSqlFacts(cwd, current, ["a fact"], query)).toEqual([id]);
+    completeSaveAttempt(cwd, current);
+    await expect(verifySqlSave(cwd, SUBJECT, query)).resolves.toEqual({ status: "verified" });
   });
 
   it("does not issue a rows receipt when read-back cannot see the inserted row", async () => {

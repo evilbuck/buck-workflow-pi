@@ -36,3 +36,8 @@ The user explicitly selected **Leave restart to me**. No process was restarted a
 
 ## Diagnostics limitation
 LSP diagnostics for `remember.ts` repeatedly return `Operation aborted`; no clean diagnostic claim is made. `sql-save.ts` reports an existing typing error at line 122: `MigrationPool` does not declare `end()`; the repair changes its binding query at line 275, not pool ownership.
+
+## Review iteration follow-up
+The pass 2 finding was valid: a completed rows receipt could be accepted without current-attempt tag membership. Empty membership now leaves rows receipts unverified; a membership-query error blocks verification, including for no-fact receipts. The direct `b-save-improved` save path now binds its saved ids before issuing its receipt, using the same reserved tag and active project read-back.
+
+Focused Vitest: 32 passed, 1 database integration skipped. A standalone Bun smoke with an active same-project id but no membership returned `{"status":"unverified"}`. `npm run guardrails:check` passed: unit, global coverage ratchet (89.3% versus 84%), and complexity gates passed; patch advisory, lint and functional skipped. No real-database integration was run for this follow-up. The review-iteration run state and checkpoint remain unchanged.
