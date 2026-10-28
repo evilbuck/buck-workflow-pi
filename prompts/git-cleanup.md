@@ -1,5 +1,5 @@
 ---
-description: Delete proven-landed clean local branches and worktrees (containment-proven, including after squash, rebase, or rewritten history); everything else is asked. Never touches remotes. Argument `dry-run` previews without deleting.
+description: Delete proven-landed clean local branches and worktrees; ask about the rest. Classification, including dry-run, fetches and prunes local tracking refs from origin; it never deletes remote branches.
 ---
 
 # git-cleanup

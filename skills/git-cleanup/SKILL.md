@@ -10,8 +10,8 @@ Delete only clean local work proven contained in the integration branch. Present
 <safety>
 - Use the bundled classifier as the source of proof. Do not substitute ancestry, `git cherry`, PR merge status, or a remote-gone label for containment.
 - Scope is this repository's common Git directory: every registered worktree counts, including paths outside the main repository's parent. Unregistered directories are not cleanup targets.
-- Preserve the current checkout, integration branch, main worktree, unique `.context` content, dirty/untracked work, and uncheckable/prunable entries. Ignored files do not make a worktree dirty.
-- Fetch failure means remote state is unknown, not gone. It does not authorize or block a containment-proven deletion.
+- Preserve the current checkout, integration branch, main worktree, unique `.context` content, dirty, untracked or ignored work, and uncheckable/prunable entries. Ignored files must be preserved or explicitly discarded before cleanup.
+- Fetch failure makes remote state unknown and blocks automatic deletion. Automatic deletion requires the fetched origin default branch and SHA to match the independently queried remote HEAD.
 - Never construct `git branch -D` or `git worktree remove --force` yourself, expire reflogs, run garbage collection, or push/delete a remote. Every delete goes through the bundled apply path. Do not invent an apply implementation when the installed script lacks one: report the prerequisite failure and stop before deletion.
 - This is a bounded safety decision: `skip`, `auto-delete`, or `ask`. The script computes it deterministically; do not replace proof with model judgment.
 </safety>
@@ -23,9 +23,9 @@ Delete only clean local work proven contained in the integration branch. Present
    bun <skill_dir>/scripts/classify.ts
    ```
 
-   Require exit 0 and one JSON object. A missing base, malformed JSON, or failed invocation stops the procedure. The base is origin/HEAD, otherwise local master, otherwise local main. No base means no cleanup.
+   Require exit 0 and one JSON object. A missing base, malformed JSON, or failed invocation stops the procedure. Classification contacts origin and may update or prune local remote-tracking refs, including in dry-run. Local master or main can serve as a preview base, but automatic deletion requires `base_verified: true`.
 
-2. Show the base ref/SHA and fetch result. Print an `auto-delete` preview with names and exact worktree paths. Print all `ask` rows with name, path, description, `description_source`, state, containment, unique-context paths, dirty paths, cherry counts, PR/remote availability, and prunable status. Use the supplied description verbatim; unknown PR metadata is not evidence of no PR. List skipped rows and their skip reasons separately.
+2. Show the base ref/SHA, `base_verified`, and fetch result. Print an `auto-delete` preview with names and exact worktree paths. Print all `ask` rows with name, path, description, `description_source`, state, containment, unique-context paths, dirty paths, cherry counts, PR/remote availability, and prunable status. Use the supplied description verbatim; unknown PR metadata is not evidence of no PR. List skipped rows and their skip reasons separately.
 
 3. If the argument is `dry-run`, stop after the preview. Delete nothing.
 

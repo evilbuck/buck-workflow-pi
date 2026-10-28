@@ -34,12 +34,22 @@ function repo(): string {
 const { spawnSync } = require("node:child_process");
 const { readFileSync } = require("node:fs");
 const args = process.argv.slice(2);
-if (args[0] === "fetch") process.exit(1);
+if (args[0] === "fetch") process.exit(process.env.FAIL_FETCH ? 1 : 0);
+if (args[0] === "ls-remote") {
+  const ref = spawnSync(${JSON.stringify(realGit)}, ["symbolic-ref", "-q", "refs/remotes/origin/HEAD"], { encoding: "utf8" }).stdout.trim();
+  const sha = spawnSync(${JSON.stringify(realGit)}, ["rev-parse", ref], { encoding: "utf8" }).stdout.trim();
+  if (!ref || !/^[0-9a-f]{40}$/.test(sha)) process.exit(1);
+  process.stdout.write("ref: refs/heads/" + (process.env.REMOTE_HEAD || ref.replace("refs/remotes/origin/", "")) + "\\tHEAD\\n" + sha + "\\tHEAD\\n");
+  process.exit(0);
+}
 if (args[0] === "merge-tree" && process.env.MERGE_OUTPUT) {
   process.stdout.write(readFileSync(process.env.MERGE_OUTPUT));
   process.exit(Number(process.env.MERGE_STATUS || 0));
 }
 if (args[0] === "worktree" && args[1] === "remove" && process.env.FAIL_WORKTREE_REMOVE) process.exit(1);
+if (args[0] === "update-ref" && args[1] === "-d" && process.env.RACE_TIP) {
+  spawnSync(${JSON.stringify(realGit)}, ["update-ref", args[2], process.env.RACE_TIP]);
+}
 if (process.env.GIT_LOG) require("node:fs").appendFileSync(process.env.GIT_LOG, JSON.stringify(args) + "\\n");
 const result = spawnSync(${JSON.stringify(realGit)}, args, { stdio: "inherit" });
 process.exit(result.status ?? 1);
@@ -130,9 +140,31 @@ describe("git-cleanup classifier", () => {
     git(root, "update-ref", "refs/remotes/origin/feature/upstream", git(root, "rev-parse", "HEAD"));
     git(root, "update-ref", "-d", "refs/remotes/origin/feature/upstream");
 
-    const reportValue = report(root);
+    const reportValue = JSON.parse(run(root, [], { FAIL_FETCH: "1" }).stdout);
     expect(reportValue.fetch.ok).toBe(false);
     expect(reportValue.items.find((item: { name: string }) => item.name === "feature/upstream").remote).toBe("unknown");
+  });
+
+  it.each([{ FAIL_FETCH: "1" }, { REMOTE_HEAD: "other" }])("refuses deletion when the remote base is unverified", (env) => {
+    const root = repo();
+    git(root, "branch", "feature/landed");
+    const value = JSON.parse(run(root, ["--apply", "feature/landed"], env).stdout);
+    expect(value.base_verified).toBe(false);
+    expect(value.refused[0].name).toBe("feature/landed");
+    expect(git(root, "rev-parse", "--verify", "refs/heads/feature/landed")).toBeTruthy();
+  });
+
+  it("preserves a branch that advances immediately before deletion", () => {
+    const root = repo();
+    git(root, "branch", "feature/landed");
+    writeFileSync(join(root, "next.txt"), "new commit\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "new commit");
+    const next = git(root, "rev-parse", "HEAD");
+    git(root, "update-ref", "refs/remotes/origin/main", next);
+    const value = JSON.parse(run(root, ["--apply", "feature/landed"], { RACE_TIP: next }).stdout);
+    expect(value.refused.some((row: { name: string }) => row.name === "feature/landed")).toBe(true);
+    expect(git(root, "rev-parse", "refs/heads/feature/landed")).toBe(next);
   });
 
 
@@ -193,7 +225,7 @@ describe("git-cleanup classifier", () => {
     const log = join(root, ".git", "argv.jsonl");
     const result = run(root, ["--apply", "feature/worktree-landed"], { GIT_LOG: log });
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout).applied).toContainEqual({ name: "feature/worktree-landed", action: "branch -d", ok: true });
+    expect(JSON.parse(result.stdout).applied).toContainEqual({ name: "feature/worktree-landed", action: "update-ref -d", ok: true });
     expect(() => readFileSync(join(path, "landed.txt"))).toThrow();
     expect(git(root, "branch", "--list", "feature/worktree-landed")).toBe("");
     expect(readFileSync(log, "utf8")).not.toContain("--force");
@@ -252,7 +284,7 @@ describe("git-cleanup classifier", () => {
     const result = run(root, ["--apply", "feature/context", "feature/notes"]);
     expect(result.status, result.stderr).toBe(0);
     const value = JSON.parse(result.stdout);
-    expect(value.applied).toContainEqual({ name: "feature/context", action: "branch -D", ok: true });
+    expect(value.applied).toContainEqual({ name: "feature/context", action: "update-ref -d", ok: true });
     expect(value.refused.some((row: { name: string }) => row.name === "feature/notes")).toBe(true);
     expect(git(root, "show-ref", "--verify", "refs/heads/feature/notes")).toBeTruthy();
   });
@@ -366,6 +398,19 @@ describe("git-cleanup classifier", () => {
     if (mode === "cherry pick") expect(item.cherry).toEqual({ plus: 0, minus: 1 });
   });
 
+  it("ignores context added to the base after the branch landed", () => {
+    const root = repo();
+    git(root, "branch", "feature/landed");
+    mkdirSync(join(root, ".context"));
+    writeFileSync(join(root, ".context", "later.md"), "later\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "later context");
+    git(root, "update-ref", "refs/remotes/origin/main", git(root, "rev-parse", "main"));
+    const item = report(root).items.find((row: { name: string }) => row.name === "feature/landed");
+    expect(item.unique_context).toBe(false);
+    expect(item.disposition).toBe("auto-delete");
+  });
+
   it.each(["untracked", "ignored", "prunable", "newline"])("handles a registered %s worktree", (mode) => {
     const root = repo();
     writeFileSync(join(root, ".gitignore"), "ignored.txt\n");
@@ -381,11 +426,11 @@ describe("git-cleanup classifier", () => {
     if (mode === "prunable") rmSync(path, { recursive: true });
     const item = report(root).items.find((row: { name: string }) => row.name === "feature/worktree");
     expect(item.path).toBe(path);
-    expect(item.disposition).toBe(mode === "prunable" || mode === "untracked" ? "ask" : "auto-delete");
-    expect(item.dirty).toBe(mode === "untracked" || mode === "prunable");
+    expect(item.disposition).toBe(mode === "newline" ? "auto-delete" : "ask");
+    expect(item.dirty).toBe(mode !== "newline");
     expect(item.prunable).toBe(mode === "prunable");
     if (mode === "untracked") expect(item.dirty_paths).toEqual(["?? untracked.txt"]);
-    if (mode === "ignored") expect(item.dirty_paths).toEqual([]);
+    if (mode === "ignored") expect(item.dirty_paths).toEqual(["!! ignored.txt"]);
   });
 
   it("asks for a missing-gitdir registration even when Git can fall back to a clean parent", () => {
