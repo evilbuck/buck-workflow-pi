@@ -692,7 +692,6 @@ export function next(s: Snapshot): Transition {
   const f = facts(s);
   const instance = buckMachine.restore(s.state);
   const targets = instance.available(f);
-  if (s.state === "building" && s.workFacts.sessionOutcome === "ok") console.error("TARGETS", targets);
   if (targets.length === 0) throw new BuckMachineError("NO_ROUTE", s.state, targets);
   // Preserve the SQL-save decision boundary even when only retry is legal.
   const singleSqlChoice = s.state === "saving" && f.sqlMemoryConfigured && decisionOpen(s);
