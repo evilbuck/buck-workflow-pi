@@ -268,9 +268,7 @@ async function inventoryItems(worktreeOutput: string, branchOutput: string, base
   return items;
 }
 
-async function main() {
-  if (process.argv.length > 2) throw new Error("Usage: classify.ts (no flags supported in Phase 1)");
-  const cwd = process.cwd();
+async function classify(cwd: string) {
   const fetch = await git(["fetch", "--prune", "origin"], cwd, true);
   const base = await resolveBase(cwd);
   const commonDir = resolve(cwd, (await git(["rev-parse", "--git-common-dir"], cwd)).stdout.trim());
@@ -289,7 +287,61 @@ async function main() {
     integration: headRef.ok ? headRef.stdout.trim().replace(/^refs\/heads\//, "").replace(/^refs\/remotes\/origin\//, "") : base.ref.replace(/^refs\/heads\//, ""),
   };
   const items = await inventoryItems(worktreeResult.stdout, branchesResult.stdout, base, options, cwd);
-  process.stdout.write(`${JSON.stringify({ base, fetch: { ok: fetch.ok }, items }, null, 2)}\n`);
+  return { base, fetch: { ok: fetch.ok }, items };
+}
+
+type ApplyResult = {
+  applied: { name: string; action: string; ok: boolean }[];
+  refused: { name: string; reason: string }[];
+};
+
+function refusalReason(item: Item | undefined): string | null {
+  if (!item) return "name not present in fresh classification";
+  if (item.disposition !== "auto-delete") return `fresh disposition is ${item.disposition}`;
+  if (item.prunable) return "worktree registration is prunable";
+  if (item.dirty || item.dirty_paths.length) return "worktree is dirty";
+  return null;
+}
+
+async function applyItem(name: string, item: Item | undefined, base: string, cwd: string, result: ApplyResult) {
+  const reason = refusalReason(item);
+  if (reason || !item) {
+    result.refused.push({ name, reason: reason ?? "name not present in fresh classification" });
+    return;
+  }
+  if (item.kind === "worktree" && item.path) {
+    const removed = await git(["worktree", "remove", item.path], cwd, true);
+    if (!removed.ok) {
+      result.refused.push({ name, reason: "git worktree remove failed" });
+      return;
+    }
+  }
+  const ancestor = await git(["merge-base", "--is-ancestor", item.tip!, base], cwd, true);
+  const flag = ancestor.ok ? "-d" : "-D";
+  const deleted = await git(["branch", flag, name], cwd, true);
+  result.applied.push({ name, action: `branch ${flag}`, ok: deleted.ok });
+}
+
+async function apply(cwd: string, requested: string[]) {
+  const fresh = await classify(cwd);
+  const result: ApplyResult = { applied: [], refused: [] };
+  const names = requested.length ? [...new Set(requested)] : fresh.items.filter((item) => item.disposition === "auto-delete").map((item) => item.name);
+  const byName = new Map(fresh.items.map((item) => [item.name, item]));
+  for (const name of names) await applyItem(name, byName.get(name), fresh.base.sha, cwd, result);
+  const prunable = fresh.items.filter((item) => item.prunable);
+  if (prunable.length) await git(["worktree", "prune"], cwd, true);
+  return { ...fresh, ...result };
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === "--apply") {
+    const result = await apply(process.cwd(), args.slice(1));
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
+  if (args.length) throw new Error("Usage: classify.ts [--apply [branch ...]]");
+  process.stdout.write(`${JSON.stringify(await classify(process.cwd()), null, 2)}\n`);
 }
 
 main().catch((error: unknown) => {

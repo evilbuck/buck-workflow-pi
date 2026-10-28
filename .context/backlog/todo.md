@@ -21,7 +21,7 @@ Phases form a HARD chain (1 → 2 → 3). No `omp_execution`.
 
 ### Upcoming Phases
 
-- [ ] [Phase 2: Apply deletes](items/phase-2-apply-deletes.md) — hard, `/b-build-hard` — [phase-2-apply-deletes.md](../2026-10-26.git-cleanup-skill/phase-2-apply-deletes.md) — do not start until Phase 1 is completed
+- [x] [Phase 2: Apply deletes](archive/2026-10/phase-2-apply-deletes.md) — hard, `/b-build-hard` — done 2026-10-27 — [phase-2-apply-deletes.md](../2026-10-26.git-cleanup-skill/phase-2-apply-deletes.md)
 - [ ] [Phase 3: Skill, redirect, and docs](items/phase-3-skill-redirect-docs.md) — medium, `/b-build` — [phase-3-skill-redirect-docs.md](../2026-10-26.git-cleanup-skill/phase-3-skill-redirect-docs.md) — do not start until Phase 2 is completed
 
 ## Review Severity Ranking Phases (2026-10-03)
