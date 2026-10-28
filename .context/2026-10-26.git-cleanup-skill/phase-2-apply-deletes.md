@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-git-cleanup.md
@@ -15,17 +15,19 @@ from_plan_steps: [7]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `--apply` re-runs classify and deletes only names in the intersection of the requested set and the fresh `auto-delete` set."
-  - "[ ] A name the second classify does not mark `auto-delete` is not removed."
-  - "[ ] Auto-delete worktrees are removed with `git worktree remove` and never `--force`. If remove fails, that branch is not deleted."
-  - "[ ] After a successful worktree remove, `git branch -d` is used when the tip is an ancestor of the base; `git branch -D` is used only when the fresh result still says `auto-delete`."
-  - "[ ] The unique-`.context` fixture (code contained, `.context/notes.md` differs) stays `ask` and `--apply` does not remove it."
-  - "[ ] Dirty or untracked porcelain is not removed. No apply argv contains `--force`."
-  - "[ ] `git worktree prune` runs only for registrations already marked prunable. It does not delete a directory."
-  - "[ ] Current checkout and the integration branch remain `skip` under `--apply`."
-  - "[ ] No network write, no `git reflog expire`, no `git gc`, no `git push`."
-completed_at: null
+  - "[x] `--apply` re-runs classify and deletes only names in the intersection of the requested set and the fresh `auto-delete` set."
+  - "[x] A name the second classify does not mark `auto-delete` is not removed."
+  - "[x] Auto-delete worktrees are removed with `git worktree remove` and never `--force`. If remove fails, that branch is not deleted."
+  - "[x] After a successful worktree remove, `git branch -d` is used when the tip is an ancestor of the base; `git branch -D` is used only when the fresh result still says `auto-delete`."
+  - "[x] The unique-`.context` fixture (code contained, `.context/notes.md` differs) stays `ask` and `--apply` does not remove it."
+  - "[x] Dirty or untracked porcelain is not removed. No apply argv contains `--force`."
+  - "[x] `git worktree prune` runs only for registrations already marked prunable. It does not delete a directory."
+  - "[x] Current checkout and the integration branch remain `skip` under `--apply`."
+  - "[x] No network write, no `git reflog expire`, no `git gc`, no `git push`."
+completed_at: 2026-10-27
 completed_by: null
+sql_memory_ids:
+  - "01a1802f-b2ca-7c91-afe9-d953517d79e2"
 ---
 
 # Phase 2: Apply deletes

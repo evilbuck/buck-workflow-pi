@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -39,6 +39,8 @@ if (args[0] === "merge-tree" && process.env.MERGE_OUTPUT) {
   process.stdout.write(readFileSync(process.env.MERGE_OUTPUT));
   process.exit(Number(process.env.MERGE_STATUS || 0));
 }
+if (args[0] === "worktree" && args[1] === "remove" && process.env.FAIL_WORKTREE_REMOVE) process.exit(1);
+if (process.env.GIT_LOG) require("node:fs").appendFileSync(process.env.GIT_LOG, JSON.stringify(args) + "\\n");
 const result = spawnSync(${JSON.stringify(realGit)}, args, { stdio: "inherit" });
 process.exit(result.status ?? 1);
 `);
@@ -154,6 +156,105 @@ describe("git-cleanup classifier", () => {
     expect(cherry).toContain("+");
     expect(item.disposition).toBe("auto-delete");
     expect(item.cherry.plus).toBe(2);
+  });
+
+  it("refuses a branch that became ask after the earlier preview and preserves protected branches", () => {
+    const root = repo();
+    git(root, "checkout", "-qb", "feature/stale");
+    writeFileSync(join(root, "unique.ts"), "new work\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "new unique work");
+    git(root, "checkout", "-q", "main");
+    const log = join(root, ".git", "argv.jsonl");
+    const result = run(root, ["--apply", "feature/stale", "main", "missing"], { GIT_LOG: log });
+    expect(result.status, result.stderr).toBe(0);
+    const value = JSON.parse(result.stdout);
+    expect(value.applied).toEqual([]);
+    expect(value.refused).toContainEqual({ name: "feature/stale", reason: "fresh disposition is ask" });
+    expect(value.refused.map((row: { name: string }) => row.name)).toContain("main");
+    expect(value.refused.map((row: { name: string }) => row.name)).toContain("missing");
+    expect(git(root, "branch", "--list", "feature/stale")).toBe("feature/stale");
+    expect(git(root, "branch", "--list", "main")).toBe("* main");
+    expect(readFileSync(log, "utf8")).not.toContain("--force");
+  });
+
+  it("removes clean proven worktrees without force and deletes ancestor branches safely", () => {
+    const root = repo();
+    git(root, "checkout", "-qb", "feature/worktree-landed");
+    writeFileSync(join(root, "landed.txt"), "landed\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "landed feature");
+    git(root, "checkout", "-q", "main");
+    git(root, "merge", "--ff-only", "feature/worktree-landed");
+    git(root, "update-ref", "refs/remotes/origin/main", git(root, "rev-parse", "main"));
+    const path = join(tmpdir(), `git-cleanup-worktree-landed-${Date.now()}`);
+    roots.push(path);
+    git(root, "worktree", "add", "-q", path, "feature/worktree-landed");
+    const log = join(root, ".git", "argv.jsonl");
+    const result = run(root, ["--apply", "feature/worktree-landed"], { GIT_LOG: log });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).applied).toContainEqual({ name: "feature/worktree-landed", action: "branch -d", ok: true });
+    expect(() => readFileSync(join(path, "landed.txt"))).toThrow();
+    expect(git(root, "branch", "--list", "feature/worktree-landed")).toBe("");
+    expect(readFileSync(log, "utf8")).not.toContain("--force");
+  });
+
+  it("does not delete a branch when removing its worktree fails", () => {
+    const root = repo();
+    git(root, "checkout", "-qb", "feature/remove-fails");
+    writeFileSync(join(root, "landed.txt"), "landed\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "landed feature");
+    git(root, "checkout", "-q", "main");
+    git(root, "merge", "--ff-only", "feature/remove-fails");
+    git(root, "update-ref", "refs/remotes/origin/main", git(root, "rev-parse", "main"));
+    const path = join(tmpdir(), `git-cleanup-worktree-fails-${Date.now()}`);
+    roots.push(path);
+    git(root, "worktree", "add", "-q", path, "feature/remove-fails");
+    const result = run(root, ["--apply", "feature/remove-fails"], { FAIL_WORKTREE_REMOVE: "1" });
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).refused).toContainEqual({ name: "feature/remove-fails", reason: "git worktree remove failed" });
+    expect(git(root, "show-ref", "--verify", "refs/heads/feature/remove-fails")).toBeTruthy();
+    expect(readFileSync(join(path, "landed.txt"), "utf8")).toBe("landed\n");
+  });
+
+  it("prunes a fresh prunable registration without deleting a directory", () => {
+    const root = repo();
+    git(root, "checkout", "-q", "main");
+    const path = join(root, "stale-worktree");
+    git(root, "worktree", "add", "-qb", "feature/prunable", path, "main");
+    rmSync(path, { recursive: true });
+    const result = run(root, ["--apply", "feature/prunable"]);
+    expect(result.status, result.stderr).toBe(0);
+    expect(JSON.parse(result.stdout).refused.some((row: { name: string }) => row.name === "feature/prunable")).toBe(true);
+    expect(git(root, "worktree", "list", "--porcelain")).not.toContain(path);
+    expect(git(root, "show-ref", "--verify", "refs/heads/feature/prunable")).toBeTruthy();
+    expect(() => readFileSync(path)).toThrow();
+  });
+
+  it("auto-deletes only fresh landed branches and leaves unique context ask", () => {
+    const root = repo();
+    git(root, "checkout", "-qb", "feature/context");
+    writeFileSync(join(root, "code.txt"), "landed\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "feature code");
+    git(root, "checkout", "-q", "main");
+    git(root, "merge", "--squash", "feature/context");
+    git(root, "commit", "-qm", "landed");
+    git(root, "update-ref", "refs/remotes/origin/main", git(root, "rev-parse", "main"));
+    writeFileSync(join(root, ".context-notes"), "context\n");
+    git(root, "checkout", "-qb", "feature/notes", "main");
+    mkdirSync(join(root, ".context"), { recursive: true });
+    writeFileSync(join(root, ".context/notes.md"), "unique\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "unique context");
+    git(root, "checkout", "-q", "main");
+    const result = run(root, ["--apply", "feature/context", "feature/notes"]);
+    expect(result.status, result.stderr).toBe(0);
+    const value = JSON.parse(result.stdout);
+    expect(value.applied).toContainEqual({ name: "feature/context", action: "branch -D", ok: true });
+    expect(value.refused.some((row: { name: string }) => row.name === "feature/notes")).toBe(true);
+    expect(git(root, "show-ref", "--verify", "refs/heads/feature/notes")).toBeTruthy();
   });
 
   it("keeps unique context out of auto-delete even when code is contained", () => {

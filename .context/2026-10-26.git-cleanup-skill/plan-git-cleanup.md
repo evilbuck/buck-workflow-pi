@@ -5,12 +5,13 @@ subject: 2026-10-26.git-cleanup-skill
 topics: [git, worktree, branch-cleanup, landedness]
 research: []
 iterations:
+  - iterate-git-cleanup.md
   - iterate-phase-1-classify-json-review.md
   - iterate-phase-1-context-metadata-rereview.md
   - iterate-phase-1-refname-collision-review.md
 memory: []
 sql_memory_ids:
-  - "01a1801f-b353-74b6-9e06-8686930e36c8"
+  - "01a1802f-b2ca-7c91-afe9-d953517d79e2"
 ---
 
 # Plan: Landed worktree and branch cleanup

@@ -30,7 +30,7 @@ Inherited unchanged from the parent plan; the three phases are slices of one use
 | Phase | Status | Difficulty | omp_execution | File |
 |-------|--------|------------|---------------|------|
 | 1: Classifier JSON | completed | hard | none | [phase-1-classify-json.md](phase-1-classify-json.md) |
-| 2: Apply deletes | pending | hard | none | [phase-2-apply-deletes.md](phase-2-apply-deletes.md) |
+| 2: Apply deletes | completed | hard | none | [phase-2-apply-deletes.md](phase-2-apply-deletes.md) |
 | 3: Skill, redirect, and docs | pending | medium | none | [phase-3-skill-redirect-docs.md](phase-3-skill-redirect-docs.md) |
 
 ## Dependency Matrix
@@ -81,8 +81,8 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 ## Execution Checklist
 
-- [ ] Phase 1: Classifier JSON — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 2: Apply deletes — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 1: Classifier JSON — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 2: Apply deletes — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 3: Skill, redirect, and docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes
