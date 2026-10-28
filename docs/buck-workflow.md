@@ -175,18 +175,29 @@ for the decision log.
   unfinished artifacts, a malformed one, or any failed close are left untouched.
   Every remaining miss is diagnosed from the child report and the disk gap — an
   iterating miss names each unfinished artifact and its status, not just the phase
-  status — and Jev classifies that diagnosis as a light, medium, or heavy lift.
+  status — and Jev classifies that diagnosis as a light, medium, operator, or heavy lift.
+  A finished build is not that miss. Session outcome `ok` goes to review and
+  does not classify a repair, even when acceptance boxes are open or the scan
+  is ambiguous. Review is the check that the build finished. If boxes are still
+  open after review, the supervisor writes an iterate artifact and the iterate
+  edge runs. Do not hold building to re-check them.
   Light and medium lifts continue automatically once, with the diagnosis handed
-  to the next skill run. A heavy lift, or a lift call that does not return a legal
-  class, is an optional `diagnosing` transition: a nested session receives the
-  halt and must fix the store the scanner reads. Marking the phase file completed
-  is not enough when the scanner reads another adapter. One diagnose attempt per
-  halt is the ceiling; landed proof releases the allowance for a later independent
+  to the next skill run. An operator lift is missing input the phase reserves
+  for the operator: a credential, a disposable database, a product decision, or
+  an approval. The loop blocks with `operator input required:` and does not
+  diagnose. Supply that input, then `/buck-loop --resume`; resume rebuilds the
+  phase. A heavy lift, or a lift call that does not return a legal class, is an
+  optional `diagnosing` transition: a nested session receives the halt and must
+  fix the store the scanner reads. Marking the phase file completed is not
+  enough when the scanner reads another adapter. One diagnose attempt per halt
+  is the ceiling; landed proof releases the allowance for a later independent
   halt. The diagnosing bookmark is persisted before the child starts. Landed
   build or iterate proof continues to review; landed documenting proof continues
   to save; landed saving proof continues to commit. If that attempt does not
-  land the proof, the loop blocks and resume does not rebuild the phase.
-  Missing credentials or a disposable database are still heavy; the diagnose session stops if that operator input is actually missing.
+  land the proof, the loop blocks and resume does not rebuild the phase. A
+  diagnose child that stops because operator input is actually missing ends
+  with `OPERATOR_INPUT_REQUIRED:`; that hold is resumable and does not use the
+  no-rebuild scanner-proof block.
   A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
   until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
 - **Blocked resume preserves a completed phase's review.** If a build or iterate
@@ -1660,6 +1671,8 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
 In configured OMP `/buck-loop`, the save child stores reusable memory bodies in SQL and writes a metadata-only receipt under `.context/<subject>/sql-memory-receipts/`. The receipt is written only after same-project row read-back; commit additionally requires metadata completion and the matching projected attempt. Pool teardown after that receipt does not fail the save stage. This path creates no new `.context/memory/` body or index entry. Historical Markdown memories remain readable and are not migrated.
+
+`remember` binds each verified memory to the current attempt using a reserved `sql-memory-save:<attemptId>` tag in the existing `tags`/`memory_tags` relations. The supervisor reconstructs receipt ids from that membership, limited to active rows in the same project; children do not copy ids into receipts. Binding never updates immutable `memories.context`, and attaching an existing memory to a later attempt does not duplicate the memory. Save-stage SQL may read these two tag tables; direct tag writes remain unavailable to children.
 
 Outside a configured loop, portable `/b-save` uses SQL only when `sql_memory` is callable. An environment variable alone does not establish tool availability; without the callable tool, retain file-based behavior and report shared-store unavailability.
 

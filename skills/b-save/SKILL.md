@@ -40,11 +40,11 @@ The supervisor directive names `attemptId`, `runId`, `subject`, `project`, `phas
 
 1. Save it through `op: "remember"` — never assemble raw `INSERT`/`UPDATE`/`SELECT` against the memory tables.
    - Pass `body` and `subject`. The `subject` parameter is the directive's `subject` value, copied exactly. Include `phase` from the directive when it is non-null. Pass `previousId` only when correcting an existing row.
-   - The tool derives `author`, `project`, `branch_name`, `commit_sha`, `seq`, `source_key`, `context`, `category` (default `"project"`), the new `id`, and timestamps. It reads back the active same-project row before returning `{ id }`. Category is checked against the currently active database slugs.
+   - The tool derives `author`, `project`, `branch_name`, `commit_sha`, `seq`, `source_key`, `context`, `category` (default `"project"`), the new `id`, and timestamps. It reads back the active same-project row, and when a save attempt is active it binds that id to the attempt. Do not copy the returned id into a file. Category is checked against the currently active database slugs.
    - Identical `subject`, `phase`, `body`, and `previousId` reuse the same active row and id; retries do not create another memory. Change the body or phase for a distinct fact, or use `previousId` to supersede an existing fact.
    - A `{ error: true }` response blocks the save. The `fix` field tells you which call or column to use next. Identity errors mean `git config user.email` or `git remote add origin` is missing; fix and retry rather than bypass the tool.
 2. If `previousId` is set, the tool runs the save-stage `op: "correct"` (same atomic correction the supervisor would have done): it claims it, inserts or reuses the source-key successor, and links `superseded_by`. Never update immutable memory content.
-3. Once the tool returns `{ id }`, write `.context/<subject>/sql-memory-receipts/<runId>-<attemptId>.json` with `attemptId`, `runId`, `subject`, `project`, `kind` (`rows` or `no-fact`), `ids` (the returned or reused id(s)), and `probed: true`. The receipt's `subject` is the directive's `subject` value, exactly. No-fact is allowed only when the directive says the connectivity probe succeeded and this session has no reusable fact; `ids` must be `[]`. After all metadata responsibilities and lifecycle work succeed, add `completed: true` to the receipt.
+3. Write `.context/<subject>/sql-memory-receipts/<runId>-<attemptId>.json` with `attemptId`, `runId`, `subject`, `project`, `kind` (`rows` or `no-fact`), `ids: []`, and `probed: true`. The receipt's `subject` is the directive's `subject` value, exactly. Do not put the `{ id }` from `remember` into `ids`, `sql_memory_ids`, or prose. A spliced or retyped id is not receipt proof; the supervisor fills `ids` from the attempt binding. No-fact is allowed only when the directive says the connectivity probe succeeded and this session has no reusable fact. After all metadata responsibilities and lifecycle work succeed, add `completed: true` to the receipt.
 4. Do not run a separate readback SELECT against `memories` for the receipt. `remember` and `correct` already read back the active same-project row internally. Issuing your own `SELECT` will fail at the gate or at the schema and is not the save procedure.
 ## The 12 Responsibilities
 
@@ -65,7 +65,7 @@ The supervisor directive names `attemptId`, `runId`, `subject`, `project`, `phas
    ---
    ```
 
-4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files in file mode; in SQL mode, back-fill `sql_memory_ids:` arrays from verified receipt IDs instead of nonexistent Markdown paths.
+4. **Cross-Reference Stitching** — Back-fill `memory:` arrays in plan/spec files in file mode. In SQL mode, do not type memory ids into `sql_memory_ids`; the supervisor writes those from the attempt binding after the receipt is verified.
 5. **Backlog Update** — Read `.context/backlog/todo.md` (legacy fallback: `.context/backlog.md`).
    - For explicitly completed items: remove the item from `todo.md`; set its item file to `status: completed` and `completed: YYYY-MM-DD`; move it to `archive/YYYY-MM/<slug>.md`; add a summary to `archive/completed.md`.
    - For new or deferred items: create `items/<slug>.md` and add a linked checkbox to `todo.md`.

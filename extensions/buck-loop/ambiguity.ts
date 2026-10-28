@@ -1,8 +1,9 @@
 /**
  * Ambiguous postcondition gate. The scan only knows the expected artifact
  * did not land. The supervisor diagnoses that gap, then asks Jev how large a
- * continuation it is. Light and medium lifts continue automatically with the
- * diagnosis. A heavy lift is an optional diagnosing transition, not an operator stop.
+ * continuation it is. Light and medium lifts continue automatically. An operator
+ * lift stops for reserved input; resume rebuilds. A heavy lift is an optional
+ * diagnosing transition for a scanner-store gap, not an operator stop.
  */
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -14,7 +15,7 @@ import { runJev } from "../jev-tool/index.js";
 import { frontmatterAcceptanceCriteria, isCheckedCriterion, openCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
 
-const LIFTS = ["light", "medium", "heavy"] as const;
+const LIFTS = ["light", "medium", "operator", "heavy"] as const;
 
 export type RepairLift = (typeof LIFTS)[number];
 
@@ -140,7 +141,8 @@ export async function askRepairLift(diagnosis: string, audit?: { cwd: string; su
           criteria: {
             light: "A small unfinished slice of the same assignment. Another run of the same skill can finish it. No credential, disposable database, or operator decision is missing.",
             medium: "Unfinished work that is still this phase and can be continued by another skill run. No operator-only input is required.",
-            heavy: "Missing operator input, a disposable database, a product decision, or work too large for one automatic continuation.",
+            operator: "Missing operator input, a credential, a disposable database, a product decision, or an approval the phase reserves for the operator. Stop. Do not diagnose.",
+            heavy: "The scanner is reading the wrong store, an adapter mismatch, or a proof gap a diagnose-and-fix session can land without operator input, a credential, a disposable database, or a product decision.",
           },
         },
       },

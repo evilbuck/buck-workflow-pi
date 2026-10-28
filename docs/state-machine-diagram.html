@@ -167,7 +167,7 @@ const edges = [
   e('resolving', 'done', 'all phases complete', 'flow', 'phased-complete: nothing to do.'),
   e('resolving', 'blocked', 'no plan / limits', 'halt', 'plan missing, or loop limit already reached.'),
   // build → review
-  e('building', 'reviewing', 'session ok', 'flow', 'postcondition confirmed (or ambiguous + choice: advance); work landed, review it.'),
+  e('building', 'reviewing', 'session ok', 'flow', 'A finished build goes to review. Open acceptance boxes and an ambiguous scan are not a repair lift.'),
   e('iterating', 'reviewing', 'session ok', 'flow', 'fixes landed; re-review the phase.'),
   // rework cycle
   e('reviewing', 'ranking', 'unfinished artifact / rank', 'flow', 'Run native issue judgment in-process before deciding whether to iterate.'),
@@ -190,7 +190,7 @@ const edges = [
   self('repairing', 'repair', 'Re-probe Git and pin the current phase before b-commit.'),
   e('blocked', 'repairing', 'USER_CONFIRMED', 'resume', 'operator resumed a failed commit repair; fix the pin, then b-commit.'),
   e('blocked', 'diagnosing', 'USER_CONFIRMED', 'resume', 'operator resumed a heavy-lift halt; diagnose and fix the scanner proof instead of rebuilding.'),
-  e('blocked', 'resolving', 'USER_CONFIRMED', 'resume', 'operator reviewed a non-commit blocker and resumed the loop.'),
+  e('blocked', 'resolving', 'USER_CONFIRMED', 'resume', 'operator reviewed a non-commit blocker and resumed the loop. An operator-input hold rebuilds the phase; it does not diagnose.'),
   e('diagnosing', 'reviewing', 'proof landed', 'flow', 'Build or iterate proof landed in the store the scanner reads; review the phase.'),
   e('diagnosing', 'saving', 'proof landed', 'flow', 'Documenting proof landed in the store the scanner reads; save session state.'),
   e('diagnosing', 'committing', 'proof landed', 'flow', 'Saving proof landed in the store the scanner reads; commit.'),

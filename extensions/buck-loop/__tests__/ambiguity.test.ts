@@ -294,6 +294,18 @@ describe("ambiguous repair lift", () => {
     expect(judge.mock.calls[0]?.[1]).toMatchObject({ state: "small gap", questions: { lift: { type: "choice" } } });
   });
 
+  it("asks Jev to stop for reserved operator input instead of diagnosing it as heavy", async () => {
+    judge.mockResolvedValueOnce(liftAnswer("operator"));
+    expect(await askRepairLift("host approval missing")).toMatchObject({
+      lift: "operator",
+      reason: "Jev classified the repair as operator",
+    });
+    const criteria = judge.mock.calls[0]?.[1].questions.lift.criteria as Record<string, string>;
+    expect(criteria.operator).toMatch(/Stop\. Do not diagnose/);
+    expect(criteria.heavy).not.toMatch(/Missing operator input/);
+    expect(criteria.heavy).toMatch(/scanner/i);
+  });
+
   it("hands a failed lift call to the operator with the diagnosis", async () => {
     judge.mockRejectedValueOnce(new Error("provider unavailable"));
     expect(await askRepairLift("child stopped early")).toEqual({

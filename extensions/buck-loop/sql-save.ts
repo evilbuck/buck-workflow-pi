@@ -1,9 +1,9 @@
 /**
  * SQL-mode save receipts for the Buck-loop supervisor.
  *
- * The supervisor generates the attempt id before `b-save` starts, then
- * read-backs the receipt's memory ids before `saving` can become `committing`.
- * The database URL is never written to the attempt file or the receipt.
+ * The supervisor generates the attempt id before `b-save` starts. `remember`
+ * binds the verified id to that attempt. Verification uses the binding, not a
+ * model-copied id, before `saving` can become `committing`.
  */
 import { randomUUID } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -12,6 +12,7 @@ import { dirname, join, resolve } from "node:path";
 import { createLazyPool } from "../sql-memory/db.js";
 import { checkSqlForRole } from "../sql-memory/sql-gate.js";
 import { sqlMemoryRows, sqlMemorySaveTransaction, type SqlMemoryActivitySink } from "../sql-memory/index.js";
+import { STAMPED_ATTEMPT_SQL } from "../sql-memory/remember.js";
 import { redactRemoteCredentials } from "../token-attribution/git-identity.js";
 
 const ATTEMPT_REL = ".context/workflow/sql-save-attempt.json";
@@ -89,7 +90,7 @@ export function saveDirective(attempt: SaveAttempt): string {
     "Connectivity probe succeeded.",
     "Do not write .context/memory files or the memory index.",
     "Do not record the database URL, password, or connection string in any file.",
-    "Use sql_memory op remember with body, the exact subject above, and phase; include previousId for a correction. The tool derives provenance, reuses the source key, and verifies the active same-project id internally. Do not issue raw memory INSERT/UPDATE or a separate read-back SELECT. Write a rows receipt only from ids returned by successful remember calls. Use kind no-fact with ids [] only when this session has no reusable fact.",
+    "Use sql_memory op remember with body, the exact subject above, and phase. Pass previousId only into a later remember call when correcting; never write that id into a file. The tool binds the verified id to this save attempt. Do not copy, splice, or invent memory ids. Do not issue raw memory INSERT/UPDATE or a separate read-back SELECT. Write kind rows with ids [] when remember succeeded; the supervisor fills ids from the attempt binding. Use kind no-fact with ids [] only when this session has no reusable fact. Do not write sql_memory_ids.",
     "After all metadata duties succeed, set completed: true on the receipt; persistence alone is not stage completion.",
   ].join("\n");
 }
@@ -253,10 +254,58 @@ export async function verifySqlSave(cwd: string, subject: string | null, query: 
   if (projectCheck.status !== "verified") return projectCheck;
   const receipt = readReceipt(cwd, attempt);
   if (!receipt) return { status: "unverified" };
-  const shape = receiptShape(receipt, attempt);
+  const bound = await receiptFromBinding(cwd, attempt, receipt, guardedQuery(query));
+  const shape = receiptShape(bound, attempt);
   if (shape.status !== "verified") return shape;
-  if (requireComplete && receipt.completed !== true) return { status: "unverified" };
-  return confirmReceipt(receipt, attempt, guardedQuery(query));
+  if (requireComplete && bound.completed !== true) return { status: "unverified" };
+  return confirmReceipt(bound, attempt, guardedQuery(query));
+}
+
+async function receiptFromBinding(cwd: string, attempt: SaveAttempt, receipt: SaveReceipt, query: SqlQuery): Promise<SaveReceipt> {
+  const ids = await boundAttemptIds(attempt, query);
+  if (!ids || (sameIdSet(receipt.ids, ids) && receipt.kind === "rows")) return receipt;
+  const next: SaveReceipt = { ...receipt, kind: "rows", ids, probed: true };
+  writeJson(cwd, attempt.receiptRel, next);
+  writeBoundFrontmatter(cwd, attempt, ids);
+  return next;
+}
+
+async function boundAttemptIds(attempt: SaveAttempt, query: SqlQuery): Promise<string[] | null> {
+  try {
+    const rows = await query(STAMPED_ATTEMPT_SQL, [attempt.project, attempt.attemptId]);
+    const ids = rows.map((row) => row.id).filter((id): id is string => typeof id === "string");
+    return ids.length > 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+function sameIdSet(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  const ordered = [...left].sort();
+  return [...right].sort().every((id, index) => id === ordered[index]);
+}
+
+function writeBoundFrontmatter(cwd: string, attempt: SaveAttempt, ids: string[]): void {
+  if (!attempt.phase) return;
+  const phaseFile = contained(cwd, attempt.phase);
+  if (!phaseFile || !existsSync(phaseFile)) return;
+  const phaseText = readFileSync(phaseFile, "utf8");
+  writeFileSync(phaseFile, withMemoryIds(phaseText, ids));
+  const plan = /^plan:\s*(\S+)\s*$/m.exec(phaseText)?.[1];
+  if (!plan) return;
+  const planFile = contained(cwd, join(dirname(attempt.phase), plan));
+  if (!planFile || !existsSync(planFile)) return;
+  writeFileSync(planFile, withMemoryIds(readFileSync(planFile, "utf8"), ids));
+}
+
+function withMemoryIds(text: string, ids: string[]): string {
+  if (!text.startsWith("---\n")) return text;
+  const end = text.indexOf("\n---", 4);
+  if (end < 0) return text;
+  const front = text.slice(4, end + 1).replace(/^sql_memory_ids:.*(?:\n[ \t]+-.*)*\n?/m, "");
+  const block = `sql_memory_ids:\n${ids.map((id) => `  - "${id}"`).join("\n")}\n`;
+  return `---\n${front}${block}${text.slice(end + 1)}`;
 }
 function verifyAttemptProject(cwd: string, attempt: SaveAttempt): SaveCheck {
   const current = projectOrigin(cwd);

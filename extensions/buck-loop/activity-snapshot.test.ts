@@ -7,13 +7,13 @@ export const snapshot: Snapshot = {
   loopCount: 1, maxLoops: 12, iterateCyclesOnPhase: 2, lastChoice: null, history: [],
 };
 describe("real machine activity projection", () => {
-  it("projects deterministic and ambiguous continuations without invented machine fields", () => {
+  it("projects a finished build to review with no repair choice", () => {
     const deterministic = projectActivitySnapshot(snapshot);
     expect(deterministic.expectedState).toBe("reviewing");
     expect(deterministic.choices).toEqual([]);
     const ambiguous = projectActivitySnapshot({ ...snapshot, workFacts: { ...snapshot.workFacts, postcondition: "ambiguous" } });
-    expect(ambiguous.choices).toEqual([{ kind: "retry" }, { kind: "advance" }]);
-    expect(ambiguous.expectedState).toBeUndefined();
+    expect(ambiguous.choices).toEqual([]);
+    expect(ambiguous.expectedState).toBe("reviewing");
     expect(ambiguous.usage).toBeUndefined();
     expect(ambiguous.iteration).toBe(2);
   });

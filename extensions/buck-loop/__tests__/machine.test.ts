@@ -255,15 +255,15 @@ describe("next: confirmed postconditions advance deterministically", () => {
     expect(t.to).toBe("blocked");
   });
 
-  it("blocks explicitly when a finished session has no postcondition verdict (scan defect)", () => {
-    const t = next(workSnap("building", { postcondition: "pending" }));
+  it("blocks a non-build session that finished without a postcondition verdict", () => {
+    const t = next(workSnap("documenting", { postcondition: "pending" }));
     expect(t.to).toBe("blocked");
     expect(t.effect.kind).toBe("await-operator");
   });
 });
 
 describe("next: ambiguous postconditions defer to a closed choice", () => {
-  it.each(POSTCONDITION_STATES.filter((state) => state !== "committing"))("stays in %s and offers retry|advance in file mode", (state) => {
+  it.each(POSTCONDITION_STATES.filter((state) => state !== "committing" && state !== "building"))("stays in %s and offers retry|advance in file mode", (state) => {
     const sqlUrl = process.env.SQL_MEMORY_URL;
     delete process.env.SQL_MEMORY_URL;
     try {
@@ -299,9 +299,9 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
     }
   });
 
-  it("names the unchecked acceptance criteria and jev failure in the retry-exhausted stop", () => {
+  it("names the unchecked acceptance criteria on an exhausted non-build retry", () => {
     const gap = 'jev unavailable: TypeSafe API key is unavailable.; unchecked acceptance: "[ ] live query works"';
-    const t = next(workSnap("building", { postcondition: "ambiguous", retriesUsed: 1 }, { acceptanceGap: gap }));
+    const t = next(workSnap("iterating", { postcondition: "ambiguous", retriesUsed: 1 }, { acceptanceGap: gap }));
     expect(t.to).toBe("blocked");
     expect(t.effect).toMatchObject({ kind: "await-operator" });
     const reason = (t.effect as { reason: string }).reason;
@@ -310,7 +310,7 @@ describe("next: ambiguous postconditions defer to a closed choice", () => {
     expect(reason).toContain('"[ ] live query works"');
   });
 
-  it.each(POSTCONDITION_STATES)("blocks a second ambiguous %s retry without asking", (state) => {
+  it.each(POSTCONDITION_STATES.filter((state) => state !== "building"))("blocks a second ambiguous %s retry without asking", (state) => {
     const t = next(workSnap(state, { postcondition: "ambiguous", retriesUsed: 1 }));
     expect(t.to).toBe("blocked");
     expect(t.effect).toEqual({
@@ -681,18 +681,30 @@ describe("legalChoices", () => {
     ]);
   });
 
-  it("offers the postcondition set exactly when the scan is ambiguous", () => {
-    expect(legalChoices("building", workSnap("building", { postcondition: "ambiguous" }))).toEqual([
+  it("offers no build choice after a finished build", () => {
+    expect(legalChoices("building", workSnap("building", { postcondition: "ambiguous" }))).toEqual([]);
+  });
+
+  it("offers the postcondition set for a non-build ambiguous scan", () => {
+    expect(legalChoices("iterating", workSnap("iterating", { postcondition: "ambiguous" }))).toEqual([
       { kind: "retry" },
       { kind: "advance" },
     ]);
   });
 
+  it("sends a finished build to review even when acceptance is open", () => {
+    const gap = 'unchecked acceptance: "[ ] live query works"';
+    const s = workSnap("building", { postcondition: "ambiguous" }, { acceptanceGap: gap });
+    expect(next(s)).toEqual({
+      to: "reviewing",
+      effect: { kind: "run-skill", skill: "review" },
+      why: "build finished; reviewing it",
+    });
+  });
+
   it("keeps non-iterate choices at the iterate ceiling and empties only at the loop ceiling", () => {
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { loopCount: 12, maxLoops: 12 }))).toEqual([]);
-    expect(
-      legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE })),
-    ).toEqual([{ kind: "retry" }, { kind: "advance" }]);
+    expect(legalChoices("building", workSnap("building", { postcondition: "ambiguous" }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toEqual([]);
     expect(legalChoices("reviewing", reviewDone({ parseable: false }, { iterateCyclesOnPhase: MAX_ITERATE_CYCLES_PER_PHASE }))).toEqual([
       { kind: "document" },
       { kind: "save" },
@@ -713,14 +725,14 @@ describe("applyChoice", () => {
     expect(() => applyChoice({ kind: "block" }, s)).toThrow(BuckMachineError);
   });
 
-  it("takes the accepted postcondition choice", () => {
-    const s = workSnap("building", { postcondition: "ambiguous" });
+  it("takes the accepted postcondition choice for a non-build state", () => {
+    const s = workSnap("iterating", { postcondition: "ambiguous" });
     expect(applyChoice({ kind: "advance" }, s)).toEqual({
       to: "reviewing",
       effect: { kind: "run-skill", skill: "review" },
       why: expect.any(String),
     });
-    expect(applyChoice({ kind: "retry" }, s).to).toBe("building");
+    expect(applyChoice({ kind: "retry" }, s).to).toBe("iterating");
     expect(() => applyChoice({ kind: "block" }, s)).toThrow(BuckMachineError);
   });
 
@@ -777,7 +789,7 @@ describe("operator-owned edges", () => {
     })).to).toBe("repairing");
   });
 
-  it("takes the optional diagnosing edge when Jev halted an ambiguous build", () => {
+  it("does not diagnose a finished build; review is the only edge", () => {
     const halted = workSnap("building", { postcondition: "ambiguous" }, {
       repairLift: "heavy",
       diagnoseOrigin: "building",
@@ -785,11 +797,10 @@ describe("operator-owned edges", () => {
       diagnoseAttempts: 0,
     });
     expect(next(halted)).toEqual({
-      to: "diagnosing",
-      effect: { kind: "diagnose" },
-      why: expect.stringContaining("diagnosing and fixing"),
+      to: "reviewing",
+      effect: { kind: "run-skill", skill: "review" },
+      why: "build finished; reviewing it",
     });
-    expect(legalChoices("building", halted)).toEqual([]);
   });
 
   it.each([false, true])("diagnoses a heavy saving halt with SQL configured: %s", (sql) => {
@@ -972,39 +983,32 @@ const LEGACY_ROWS = [
   {
     "id": "building-postcondition-missing",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"pending"}},
-    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"building session finished but postcondition is pending (scan defect)"},"why":"building session finished but postcondition is pending (scan defect)"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
     "id": "building-confirmed-review",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"}},
-    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
     "id": "building-confirmed-loop-limit",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"confirmed"},"loopCount":12},
-    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"loop limit reached (12 >= 12); refusing further work"},"why":"loop limit reached (12 >= 12); refusing further work"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
-    "id": "building-choice-retry",
+    "id": "building-finished-ambiguous",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"retry"},
-    "expected": {"to":"building","effect":{"kind":"run-skill","skill":"build"},"why":"accepted choice: retry the session"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
-    "id": "building-choice-advance",
-    "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"}},
-    "choice": {"kind":"advance"},
-    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"work landed; reviewing it"},
-  },
-  {
-    "id": "building-postcondition-ambiguous-loop-limit",
+    "id": "building-finished-ambiguous-loop-limit",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":0,"postcondition":"ambiguous"},"loopCount":12},
-    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition ambiguous and no legal choice remains (limits exceeded)"},"why":"postcondition ambiguous and no legal choice remains (limits exceeded)"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
-    "id": "building-postcondition-ambiguous-retry-exhausted",
+    "id": "building-finished-ambiguous-after-retry",
     "overrides": {"state":"building","workFacts":{"sessionOutcome":"ok","retriesUsed":1,"postcondition":"ambiguous"}},
-    "expected": {"to":"blocked","effect":{"kind":"await-operator","reason":"postcondition still ambiguous after one retry; refusing another spin"},"why":"postcondition still ambiguous after one retry; refusing another spin"},
+    "expected": {"to":"reviewing","effect":{"kind":"run-skill","skill":"review"},"why":"build finished; reviewing it"},
   },
   {
     "id": "iterating-session-pending",
@@ -1455,9 +1459,9 @@ describe("declarative operator graph", () => {
 });
 
 describe("adapter safety boundaries", () => {
-  it("keeps conflicting exhausted retries fail-closed but reports no legal choices", () => {
+  it("sends a finished build to review even when the old ambiguity rules conflict", () => {
     const s = workSnap("building", { postcondition: "ambiguous", retriesUsed: 1 }, { loopCount: 12 });
-    expect(() => next(s)).toThrow(BuckMachineError);
+    expect(next(s).to).toBe("reviewing");
     expect(legalChoices("building", s)).toEqual([]);
   });
 
@@ -1500,7 +1504,7 @@ describe("routing and reason boundaries", () => {
     }
   });
 
-  it.each(POSTCONDITION_STATES)("pins ambiguous loop-limit wording for %s", (state) => {
+  it.each(POSTCONDITION_STATES.filter((state) => state !== "building"))("pins ambiguous loop-limit wording for %s", (state) => {
     expect(next(workSnap(state, {postcondition: "ambiguous"}, {loopCount: 12}))).toEqual({
       to: "blocked", effect: {kind: "await-operator", reason: "postcondition ambiguous and no legal choice remains (limits exceeded)"},
       why: "postcondition ambiguous and no legal choice remains (limits exceeded)",

@@ -41,6 +41,7 @@ import {
   unfinishedIterateReport,
   type RepairPlan,
 } from "./ambiguity.js";
+import { openCriteria } from "../../skills/_shared/scripts/plan-acceptance.js";
 import type { ActivityEvent } from "../extension-activity.js";
 import {
   PROJECTION_VERSION,
@@ -51,7 +52,7 @@ import {
   type Projection,
 } from "./persist.js";
 import { parsePhaseDifficulty, type PhaseDifficulty } from "../omp-models.js";
-import { runStep as defaultRunStep, runDiagnoseStep, type NestedSkill, type RunStepResult } from "./run-step.js";
+import { runStep as defaultRunStep, runDiagnoseStep, OPERATOR_INPUT_SIGNAL, type NestedSkill, type RunStepResult } from "./run-step.js";
 import { serializeCallError, type AgentCallFailure, type CallFailureDetails } from "./call-failure.js";
 import { scan, unfinishedIterates } from "./scan.js";
 import { parseIterateArtifacts, rankIssues, type RankAttempt, type ReviewIssue } from "./ranking.js";
@@ -61,7 +62,7 @@ import { describeAcceptanceGap, stampAcceptance, type AcceptanceJudge, type Acce
 import { syncCheckedPhasesAt } from "./phase-completion.js";
 import { recallProjectMemories, formatRecall } from "./project-memory.js";
 import { prepareSaveAttempt, probeSql, resumeSaveDecision, saveDirective, sqlMode, verifySqlSave } from "./sql-save.js";
-import { applyChoice, DIAGNOSE_MISS, heavyLiftResume, isDiagnoseOrigin, next, start, stopFrom, userConfirmed } from "./machine.js";
+import { applyChoice, DIAGNOSE_MISS, OPERATOR_HOLD, heavyLiftResume, isDiagnoseOrigin, next, start, stopFrom, userConfirmed } from "./machine.js";
 import { applySubjectLifecycleIntent } from "../../skills/_shared/scripts/subject-lifecycle.js";
 import type {
   AcceptedChoice,
@@ -299,21 +300,30 @@ function recoveryFor(cwd: string, projection: Projection, from: LoopState | unde
 
 function blockedRecovery(projection: Projection): string {
   const why = projection.history.at(-1)?.why ?? "";
+  return recoveryForWhy(why, projection.diagnoseAttempts ?? 0)
+    ?? "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
+}
+
+function recoveryForWhy(why: string, diagnoseAttempts: number): string | null {
+  if (why.startsWith(OPERATOR_HOLD)) {
+    return "Supply the named operator input, then /buck-loop --resume. Resume rebuilds this phase; it does not diagnose the scanner store.";
+  }
   if (why.startsWith(DIAGNOSE_MISS)) {
     return "Diagnose-and-fix did not land the scanner proof. Resume will not rebuild this phase. Fix the store the scanner reads, then start that phase explicitly.";
   }
-  if (why.startsWith("heavy lift:") && (projection.diagnoseAttempts ?? 0) < 1) {
+  if (why.startsWith("heavy lift:") && diagnoseAttempts < 1) {
     return "Resume diagnoses and fixes this halt. It does not rebuild the phase.";
   }
-  if (why.startsWith(LOOP_EXTENSION_RESTART)) {
-    const spent = (projection.diagnoseAttempts ?? 0) >= 1;
-    return `Restart OMP to load the repaired extension, then /buck-loop --resume. ${
-      spent
-        ? "The interrupted diagnosis is spent: resume rechecks the scanner and continues or reports the specific gap, and it does not rebuild the phase."
-        : "Resume continues the halted phase; it does not rebuild it."
-    }`;
-  }
-  return "Resolve the cause (stage only intended changes if unstaged), then /buck-loop --resume.";
+  if (why.startsWith(LOOP_EXTENSION_RESTART)) return restartRecovery(diagnoseAttempts);
+  return null;
+}
+
+function restartRecovery(diagnoseAttempts: number): string {
+  const spent = diagnoseAttempts >= 1;
+  const next = spent
+    ? "The interrupted diagnosis is spent: resume rechecks the scanner and continues or reports the specific gap, and it does not rebuild the phase."
+    : "Resume continues the halted phase; it does not rebuild it.";
+  return `Restart OMP to load the repaired extension, then /buck-loop --resume. ${next}`;
 }
 
 function commitRecoveryGuidance(cwd: string, projection: Projection, from: LoopState | undefined): string {
@@ -955,6 +965,7 @@ async function resolveAmbiguity(
     persistIfPossible(cwd, blocked);
     return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
   }
+  if (plan.lift === "operator") return stopForOperatorInput(cwd, snapshot, plan, abs, deps);
   if (plan.lift === "heavy") return enterDiagnose(cwd, snapshot, path, plan, abs, deps);
   return retryRepair(cwd, snapshot, path, plan, deps);
 }
@@ -1041,6 +1052,8 @@ function finishDiagnose(
   if (result.ok && scanned.workFacts.postcondition === "confirmed") {
     return { snapshot: scanned, lastFail: null, halt: null, sessionText: result.text };
   }
+  const operatorDetail = operatorInputDetail(result.text);
+  if (operatorDetail) return operatorHold(cwd, scanned, operatorDetail, deps);
   return diagnoseMiss(cwd, scanned, result.text, handoff, deps);
 }
 
@@ -1154,6 +1167,37 @@ function stopForOperator(
   const blocked = block(snapshot, reason, deps.now());
   persistIfPossible(cwd, blocked);
   return { snapshot: blocked, lastFail: null, halt: { state: "blocked", reason }, mandatoryStop: true };
+}
+
+function stopForOperatorInput(
+  cwd: string,
+  snapshot: Snapshot,
+  plan: RepairPlan,
+  abs: string | null,
+  deps: LoopDeps,
+): EffectResult {
+  const disk = abs ? explainAmbiguity(abs) : transitionWhy(snapshot);
+  return operatorHold(cwd, snapshot, `${plan.reason}. ${plan.diagnosis} ${disk}`, deps);
+}
+
+function operatorInputDetail(text: string): string | null {
+  const line = text.split("\n").map((row) => row.trim()).find((row) => row.startsWith(OPERATOR_INPUT_SIGNAL));
+  if (!line) return null;
+  return line.slice(OPERATOR_INPUT_SIGNAL.length).trim() || "required operator input was not supplied";
+}
+
+function operatorHold(cwd: string, snapshot: Snapshot, detail: string, deps: LoopDeps): EffectResult {
+  const reason = `${OPERATOR_HOLD} ${detail}`;
+  deps.onWarning(reason);
+  const blocked = block({
+    ...snapshot,
+    repairLift: null,
+    diagnoseOrigin: null,
+    diagnoseHandoff: null,
+    diagnoseAttempts: 0,
+  }, reason, deps.now());
+  persistIfPossible(cwd, blocked);
+  return { snapshot: blocked, lastFail: detail, halt: { state: "blocked", reason }, mandatoryStop: true, sessionText: detail };
 }
 
 const LOOP_EXTENSION_RESTART = "Restart OMP before continuing:";
@@ -1387,7 +1431,9 @@ function scanLandedWork(
     retriesUsed: work.retriesUsed,
     sqlSaveVerified: work.sqlSaveVerified,
   });
-  return closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps) ?? scanned;
+  return closeIterateAfterSession(cwd, snapshot, path, scanned, work.skill, deps)
+    ?? acceptanceIterateAfterReview(cwd, snapshot, path, scanned, work.skill, work.ok)
+    ?? scanned;
 }
 
 /**
@@ -1407,6 +1453,50 @@ function closeIterateAfterSession(
   if (skill !== "iterate" || scanned.workFacts.postcondition !== "ambiguous") return null;
   if (!closeFinishedIterate(cwd, scanned, deps)) return null;
   return rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
+}
+
+/** Open boxes after review are an in-plan failure. Write the iterate artifact the rank edge reads. */
+function acceptanceIterateAfterReview(
+  cwd: string,
+  snapshot: Snapshot,
+  path: string,
+  scanned: Snapshot,
+  skill: WorkSkill,
+  ok: boolean,
+): Snapshot | null {
+  if (skill !== "review" || !ok || (scanned.reviewFacts.kind === "report" && scanned.reviewFacts.iterateArtifact)) return null;
+  const rel = scanned.phasePath;
+  if (!rel || !scanned.subject) return null;
+  const abs = resolve(cwd, rel);
+  if (!existsSync(abs)) return null;
+  const open = openCriteria(readFileSync(abs, "utf8"));
+  if (open.length === 0) return null;
+  const file = join(cwd, ".context", scanned.subject, "iterate-open-acceptance.md");
+  writeFileSync(file, acceptanceIterateText(rel, open));
+  return rescan(cwd, snapshot, path, { sessionOutcome: "ok", retriesUsed: 0 });
+}
+
+
+function acceptanceIterateText(phasePath: string, open: readonly string[]): string {
+  const listed = open.map((line) => line.replaceAll('"', "'")).join("; ");
+  return [
+    "---",
+    "status: active",
+    "completed: null",
+    "from_review: b-review",
+    "---",
+    "",
+    "# Iteration: open acceptance",
+    "",
+    "## Critical Issues",
+    "### 1. Acceptance criteria still open",
+    `- **File**: ${phasePath}`,
+    `- **Problem**: Build finished and review did not close these criteria: ${listed}`,
+    "- **Proposed fix**: Finish each named criterion and record direct evidence so the stamp can check it.",
+    "",
+    "## Warnings",
+    "",
+  ].join("\n");
 }
 
 async function openSqlSave(cwd: string, snapshot: Snapshot, skill: WorkSkill, onActivity: LoopDeps["onActivity"]): Promise<{ directive?: string; block?: string }> {

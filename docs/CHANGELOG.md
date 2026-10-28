@@ -12,6 +12,9 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **SQL save-attempt binding preserves immutable memory provenance.** `remember` now attaches existing memory tags instead of updating `memories.context`, which PostgreSQL correctly rejects. Identical save/correction retries reuse the same active memory id across attempts; the supervisor reconstructs receipt ids from project-scoped tag membership. No schema migration or trigger weakening is required.
+- **A finished Buck-loop build goes to review.** Session outcome `ok` no longer classifies an open acceptance box or an ambiguous scan as a repair lift. Review is the check that the build finished. Iterate, docs, and save misses still use the lift.
+
 - **Buck-loop diagnosis survives interruptions and applies once per halt.** Heavy save halts enter diagnosing in file mode as well as SQL mode. The diagnosing bookmark is persisted before its child starts; landed proof releases the attempt allowance for a later independent halt, while a missed proof still blocks without rebuilding.
 - **Buck-loop uses one iteration lifecycle rule throughout review routing.** Scanning, ambiguity diagnosis, artifact closing, and severity ranking agree on completed and below-waterline work, including CRLF artifacts. Retired artifacts cannot spuriously block a new review as multiple unfinished findings.
 - **SQL save directives emit the canonical subject once.** The redundant field is removed without changing receipt provenance or verification.

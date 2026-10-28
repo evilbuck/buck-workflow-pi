@@ -1,5 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { rememberSqlMemory } from "./remember.js";
+import { rememberSqlMemory, STAMPED_ATTEMPT_SQL } from "./remember.js";
 import { correctSqlMemory } from "./index.js";
 import type { MigrationPool } from "./migrations.js";
 import type { SqlGitRunner } from "./identity.js";
@@ -49,6 +52,7 @@ function memoryStore(): MemoryStore {
   const memories: StoredMemory[] = [];
   const users = new Set<string>();
   const projects = new Map<string, string>();
+  const bindings = new Map<string, Set<string>>();
   const categories = new Map<string, string>([["project", "active"], ["decision", "active"]]);
   const log: string[] = [];
   let snapshot: StoredMemory[] | null = null;
@@ -56,6 +60,10 @@ function memoryStore(): MemoryStore {
 
   function memoryLookup(text: string, values: unknown[]): QueryRows {
     const project = projects.get(String(values[0]));
+    if (text.includes("JOIN memory_tags")) {
+      const ids = bindings.get(`sql-memory-save:${values[1]}`);
+      return { rows: memories.filter((row) => row.project === project && row.invalid_at === null && ids?.has(row.id)).map((row) => ({ id: row.id })) };
+    }
     if (text.includes("m.context @>")) {
       const key = JSON.parse(String(values[1])).source_key;
       return { rows: memories.filter((row) => row.project === project && row.invalid_at === null && row.context.source_key === key).map((row) => ({ id: row.id })) };
@@ -80,6 +88,19 @@ function memoryStore(): MemoryStore {
     }
     if (text.startsWith("SELECT m.")) return memoryLookup(text, values);
     return undefined;
+  }
+
+  function bindingInsert(text: string, values: unknown[]): QueryRows | undefined {
+    if (text.startsWith("INSERT INTO tags")) {
+      const slug = String(values[0]);
+      if (!bindings.has(slug)) bindings.set(slug, new Set());
+      return { rows: [] };
+    }
+    if (!text.startsWith("INSERT INTO memory_tags")) return undefined;
+    const project = projects.get(String(values[0]));
+    const row = memories.find((item) => item.project === project && item.id === values[1] && item.invalid_at === null);
+    if (row) bindings.get(String(values[2]))?.add(row.id);
+    return { rows: [] };
   }
 
   function insert(text: string, values: unknown[]): QueryRows | undefined {
@@ -107,6 +128,9 @@ function memoryStore(): MemoryStore {
 
   function update(text: string, values: unknown[]): QueryRows | undefined {
     if (!text.startsWith("UPDATE memories")) return undefined;
+    if (text.includes("SET context =")) {
+      throw new Error("memory content and provenance are immutable; insert a successor memory");
+    }
     if (!snapshot) throw new Error("correction mutation outside transaction");
     if (text.includes("SET invalid_at = now()")) {
       const row = memories.find((item) => item.id === values[0] && item.project === values[1] && item.invalid_at === null);
@@ -122,7 +146,7 @@ function memoryStore(): MemoryStore {
 
   function query(text: string, values: unknown[] = []): QueryRows {
     log.push(text);
-    const result = lookup(text, values) ?? insert(text, values) ?? update(text, values);
+    const result = lookup(text, values) ?? bindingInsert(text, values) ?? insert(text, values) ?? update(text, values);
     if (!result) throw new Error(`Unhandled fixture query: ${text}`);
     return result;
   }
@@ -201,6 +225,47 @@ describe("rememberSqlMemory", () => {
     expect(claim).toBeGreaterThan(begin);
     expect(link).toBeGreaterThan(claim);
     expect(store.log.indexOf("COMMIT")).toBeGreaterThan(link);
+  });
+
+  it("binds retries and corrections across attempts without mutating provenance or duplicating memories", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "remember-bind-"));
+    try {
+      const store = memoryStore();
+      mkdirSync(join(cwd, ".context/workflow"), { recursive: true });
+      writeFileSync(join(cwd, ".context/workflow/sql-save-attempt.json"), JSON.stringify({
+        attemptId: "attempt-1", runId: "run-1", subject: "subject-a", project: origin, phase: null, receiptRel: "receipt.json",
+      }));
+      const previousId = await rememberSqlMemory({
+        pool: store.pool, cwd, subject: "subject-a", body: "before", git: runner(gitOutputs), correct: correctSqlMemory,
+      });
+      const context = structuredClone(store.memories[0].context);
+      const id = await rememberSqlMemory({
+        pool: store.pool, cwd, subject: "subject-a", body: "after", previousId, git: runner(gitOutputs), correct: correctSqlMemory,
+      });
+      expect(store.memories[0]).toMatchObject({ id: previousId, invalid_at: "now" });
+      expect(store.memories[0].context).toEqual(context);
+      expect((await store.pool.query(STAMPED_ATTEMPT_SQL, [origin, "attempt-1"])).rows).toEqual([{ id }]);
+      expect(id).toBe(store.memories[1]?.id);
+      writeFileSync(join(cwd, ".context/workflow/sql-save-attempt.json"), JSON.stringify({
+        attemptId: "attempt-2", runId: "run-2", subject: "subject-a", project: origin, phase: null, receiptRel: "receipt.json",
+      }));
+      expect(await rememberSqlMemory({
+        pool: store.pool, cwd, subject: "subject-a", body: "after", previousId, git: runner(gitOutputs), correct: correctSqlMemory,
+      })).toBe(id);
+      expect(store.insertedCount()).toBe(2);
+      expect((await store.pool.query(STAMPED_ATTEMPT_SQL, [origin, "attempt-2"])).rows).toEqual([{ id }]);
+      expect((await store.pool.query(STAMPED_ATTEMPT_SQL, ["other-project", "attempt-2"])).rows).toEqual([]);
+      const other = memoryStore();
+      writeFileSync(join(cwd, ".context/workflow/sql-save-attempt.json"), JSON.stringify({
+        attemptId: "attempt-3", runId: "run-3", subject: "other-subject", project: origin, phase: null, receiptRel: "receipt.json",
+      }));
+      await rememberSqlMemory({
+        pool: other.pool, cwd, subject: "subject-a", body: "unrelated", git: runner(gitOutputs), correct: correctSqlMemory,
+      });
+      expect((await other.pool.query(STAMPED_ATTEMPT_SQL, [origin, "attempt-3"])).rows).toEqual([]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   it("rejects a seeded category that is now a candidate before any insert", async () => {

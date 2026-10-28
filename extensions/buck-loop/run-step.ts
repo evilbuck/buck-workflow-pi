@@ -300,6 +300,9 @@ export async function runStep(opts: {
   return stopResult(prompt, opts.role ?? opts.skill, stage, `buckModels stage "${stage}" exhausted model attempts; last: ${last.text}`);
 }
 
+/** Last-line token a diagnose child must emit when it stops for reserved operator input. */
+export const OPERATOR_INPUT_SIGNAL = "OPERATOR_INPUT_REQUIRED:";
+
 /** Instructions for the optional diagnose-and-fix transition. The child does not choose the next state. */
 export function diagnosePrompt(planOrPhasePath: string, handoff: string): string {
   return [
@@ -307,7 +310,9 @@ export function diagnosePrompt(planOrPhasePath: string, handoff: string): string
     "Do not rebuild the assigned phase from scratch. Do not start the next phase.",
     "Do not only mark the phase file completed. The scanner ignores that file when it reads another store.",
     "Find the store the scanner actually reads. If that store still has the phase pending and no completed receipt, write the missing proof there, or fix the scanner/adapter mismatch, so a rescan can confirm.",
-    "Stop when the scanner's postcondition can confirm, or when a required operator input is actually missing.",
+    "If a required operator input is actually missing, do not write proof and do not mark the phase complete.",
+    `End that report with one line: ${OPERATOR_INPUT_SIGNAL} <what the operator must supply>.`,
+    "Otherwise land the proof in the store the scanner reads so a rescan can confirm.",
     "You have no authority to choose the next loop state.",
     "",
     `Assigned path: ${planOrPhasePath}`,

@@ -26,6 +26,9 @@ describe("stage SQL policy", () => {
     ["INSERT INTO private.memories (body) VALUES ($1)", "save", false],
     ["SELECT id FROM memories WHERE id = $1", "save", true],
     ["SELECT id FROM memories m JOIN projects p ON p.id = m.project WHERE p.origin_url = $1 AND m.context @> $2", "save", true],
+    ["SELECT m.id FROM memories m JOIN memory_tags mt ON mt.memory_id = m.id JOIN tags t ON t.id = mt.tag_id WHERE t.slug = $1", "save", true],
+    ["INSERT INTO tags (slug) VALUES ($1)", "save", false],
+    ["INSERT INTO memory_tags (memory_id, tag_id) VALUES ($1, $2)", "save", false],
     ["SELECT id FROM memory_ranks", "save", false],
     ["DELETE FROM memories", "save", false],
   ] as const)("applies %s policy for %s", (sql, role, allowed) => {

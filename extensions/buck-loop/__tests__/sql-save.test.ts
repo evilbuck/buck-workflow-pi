@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -135,6 +135,31 @@ describe("SQL save receipts", () => {
       status: "block",
       reason: `SQL save receipt ids were not readable for this project: ${id}`,
     });
+  });
+
+  it("replaces a spliced receipt id with the attempt-bound row", async () => {
+    process.env.SQL_MEMORY_URL = URL;
+    cwd = repo();
+    const current = attempt(cwd, `.context/${SUBJECT}/phase-1.md`);
+    const real = "01a17acd-c885-70f5-87a0-4c6b3311cc27";
+    const spliced = "01a17acb-c885-70f5-87a0-4c6b3311cc27";
+    const phase = join(cwd, current.phase!);
+    const plan = join(cwd, `.context/${SUBJECT}/plan.md`);
+    mkdirSync(join(cwd, `.context/${SUBJECT}`), { recursive: true });
+    writeFileSync(phase, `---\nstatus: completed\nplan: plan.md\nsql_memory_ids:\n  - "${spliced}"\n---\n`);
+    writeFileSync(plan, `---\nstatus: active\nsql_memory_ids:\n  - "${spliced}"\n---\n`);
+    writeReceipt(cwd, current, { kind: "rows", ids: [spliced] });
+    completeSaveAttempt(cwd, current);
+    const query: SqlQuery = async (sql, values) => {
+      if (sql.includes("JOIN memory_tags") && values[1] === current.attemptId) return [{ id: real }];
+      return values[1] === real ? [{ id: real }] : [];
+    };
+    await expect(verifySqlSave(cwd, SUBJECT, query)).resolves.toEqual({ status: "verified" });
+    expect(JSON.parse(readFileSync(join(cwd, current.receiptRel), "utf8")).ids).toEqual([real]);
+    expect(readFileSync(phase, "utf8")).toContain(`- "${real}"`);
+    expect(readFileSync(phase, "utf8")).not.toContain(spliced);
+    expect(readFileSync(plan, "utf8")).toContain(`- "${real}"`);
+    expect(readFileSync(plan, "utf8")).not.toContain(spliced);
   });
 
   it("accepts a no-fact receipt only after a successful probe", async () => {

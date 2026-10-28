@@ -45,6 +45,8 @@ function blocked(reason: string): BuckOutput {
 
 /** Operator-visible prefix. Resume treats this as terminal: it does not rebuild. */
 export const DIAGNOSE_MISS = "diagnose did not land the scanner proof; resume will not rebuild this phase";
+/** Operator-visible prefix. Resume rebuilds after the named input is supplied. */
+export const OPERATOR_HOLD = "operator input required:";
 
 const DIAGNOSE_ORIGINS: readonly DiagnoseOrigin[] = ["building", "iterating", "documenting", "saving"];
 
@@ -435,8 +437,23 @@ export const buckMachine = defineMachine<BuckFacts, BuckOutput>()({
     },
     building: {
       targets: [
-        ...workEdges("building"),
-        { name: "reviewing", guard: confirmedOrAmbiguous, effect: () => runSkill("review", "work landed; reviewing it") },
+        {
+          name: "building",
+          guard: (s) => !sessionOk(s) && rerunReason("building", s) !== null,
+          effect: (s) => runSkill("build", rerunReason("building", s)!),
+        },
+        {
+          name: "diagnosing",
+          guard: (s) => !sessionOk(s) && jevHaltOpen(s),
+          effect: () => ({ effect: { kind: "diagnose" } as const, why: DIAGNOSE_WHY }),
+        },
+        {
+          name: "blocked",
+          guard: (s) => !sessionOk(s) && blockReason("building", s) !== null,
+          effect: (s) => blocked(blockReason("building", s)!),
+        },
+        { name: "reviewing", guard: (s) => sessionOk(s), effect: () => runSkill("review", "build finished; reviewing it") },
+        { ...STOP, effect: () => none("STOP requested by operator from building") },
       ],
     },
     iterating: {
@@ -642,6 +659,7 @@ function take(instance: MachineInstance<LoopState, BuckFacts, BuckOutput>, to: L
 
 function decisionOpen(s: Snapshot): boolean {
   if (jevHaltOpen(s)) return false;
+  if (s.state === "building" && sessionOk(s)) return false;
   if (s.state === "reviewing") return reviewRoute(s, reviewUnparseable);
   if (s.state === "ranking") return docsUnresolved(s) && canRunWork(s);
   if (!Object.hasOwn(WORK_SKILL, s.state)) return false;
@@ -660,21 +678,26 @@ const REVIEW_CHOICE_WHY: Partial<Record<LoopState, string>> = {
   ranking: "documentation impact could not be judged; no iterate artifact",
 };
 
-/** Deterministic transition or closed choose effect. Command-owned states fail closed. */
-export function next(s: Snapshot): Transition {
-  const f = facts(s);
-  const instance = buckMachine.restore(s.state);
-  const targets = instance.available(f);
-  if (targets.length === 0) throw new BuckMachineError("NO_ROUTE", s.state, targets);
-  // Preserve the SQL-save decision boundary even when only retry is legal.
-  const singleSqlChoice = s.state === "saving" && f.sqlMemoryConfigured && decisionOpen(s);
-  if (targets.length === 1 && !singleSqlChoice) return take(instance, targets[0]!, f);
+function choiceTransition(s: Snapshot, targets: readonly LoopState[]): Transition {
   if (!decisionOpen(s)) throw new BuckMachineError("AMBIGUOUS_ROUTE", s.state, targets);
   return {
     to: s.state,
     effect: { kind: "choose", legal: targets.map((to) => choiceFor(s.state, to)) },
     why: REVIEW_CHOICE_WHY[s.state] ?? "postcondition scan ambiguous",
   };
+}
+
+/** Deterministic transition or closed choose effect. Command-owned states fail closed. */
+export function next(s: Snapshot): Transition {
+  const f = facts(s);
+  const instance = buckMachine.restore(s.state);
+  const targets = instance.available(f);
+  if (s.state === "building" && s.workFacts.sessionOutcome === "ok") console.error("TARGETS", targets);
+  if (targets.length === 0) throw new BuckMachineError("NO_ROUTE", s.state, targets);
+  // Preserve the SQL-save decision boundary even when only retry is legal.
+  const singleSqlChoice = s.state === "saving" && f.sqlMemoryConfigured && decisionOpen(s);
+  if (targets.length === 1 && !singleSqlChoice) return take(instance, targets[0]!, f);
+  return choiceTransition(s, targets);
 }
 
 export function applyChoice(choice: Choice, s: Snapshot): Transition {

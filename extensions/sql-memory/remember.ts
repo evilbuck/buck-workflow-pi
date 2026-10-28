@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { createHash } from "node:crypto";
 import { resolveRememberIdentity, type SqlGitRunner } from "./identity.js";
 import type { MigrationPool } from "./migrations.js";
@@ -104,11 +106,58 @@ async function rememberId(params: RememberParams & { identity: RememberIdentity 
   const projectId = await resolveProjectId(pool, identity.origin);
   const sourceKey = rememberSourceKey({ subject, phase, body, previousId: previousId ?? null });
   const existingId = await findExistingSource(pool, identity.origin, sourceKey);
-  if (existingId) return verifyActiveId(pool, identity.origin, existingId);
-  const id = previousId
+  const id = existingId ?? (previousId
     ? await insertSuccessor({ pool, identity, sourceKey, subject, category, phase, body, previousId, correct: params.correct })
-    : await insertFresh({ pool, identity, projectId, sourceKey, subject, category, phase, body });
-  return verifyActiveId(pool, identity.origin, id);
+    : await insertFresh({ pool, identity, projectId, sourceKey, subject, category, phase, body }));
+  const active = await verifyActiveId(pool, identity.origin, id);
+  await bindSaveAttempt(pool, params.cwd, identity.origin, subject, active);
+  return active;
+}
+
+const SAVE_ATTEMPT_TAG_PREFIX = "sql-memory-save:";
+
+export const STAMPED_ATTEMPT_SQL = `SELECT m.id::text AS id
+  FROM memories m
+  JOIN projects p ON p.id = m.project
+  JOIN memory_tags mt ON mt.memory_id = m.id
+  JOIN tags t ON t.id = mt.tag_id
+  WHERE p.origin_url = $1 AND m.invalid_at IS NULL
+    AND t.slug = '${SAVE_ATTEMPT_TAG_PREFIX}' || $2
+  ORDER BY m.id ASC`;
+
+const SAVE_ATTEMPT_REL = ".context/workflow/sql-save-attempt.json";
+
+function bindableAttempt(cwd: string, origin: string, subject: string): string | null {
+  const root = resolve(cwd);
+  const full = resolve(root, SAVE_ATTEMPT_REL);
+  if (full !== root && !full.startsWith(`${root}/`)) return null;
+  if (!existsSync(full)) return null;
+  try {
+    const value = JSON.parse(readFileSync(full, "utf8")) as { attemptId?: unknown; subject?: unknown; project?: unknown };
+    if (value.subject !== subject || value.project !== origin || typeof value.attemptId !== "string") return null;
+    if (!/^[\w.-]+$/.test(subject)) return null;
+    return value.attemptId;
+  } catch {
+    return null;
+  }
+}
+
+async function bindSaveAttempt(pool: MigrationPool, cwd: string, origin: string, subject: string, id: string): Promise<void> {
+  const attemptId = bindableAttempt(cwd, origin, subject);
+  if (!attemptId) return;
+  const tag = `${SAVE_ATTEMPT_TAG_PREFIX}${attemptId}`;
+  await pool.query("INSERT INTO tags (slug) VALUES ($1) ON CONFLICT (slug) DO NOTHING", [tag]);
+  await pool.query(
+    `INSERT INTO memory_tags (memory_id, tag_id)
+     SELECT m.id, t.id FROM memories m
+     JOIN projects p ON p.id = m.project
+     CROSS JOIN tags t
+     WHERE p.origin_url = $1 AND m.id = $2 AND m.invalid_at IS NULL AND t.slug = $3
+     ON CONFLICT (memory_id, tag_id) DO NOTHING`,
+    [origin, id, tag],
+  );
+  const bound = await pool.query(STAMPED_ATTEMPT_SQL, [origin, attemptId]);
+  if (!bound.rows.some((row) => row.id === id)) throw new Error("remember could not bind the save attempt");
 }
 
 async function upsertIdentity(pool: MigrationPool, email: string, origin: string, subject: string): Promise<void> {
