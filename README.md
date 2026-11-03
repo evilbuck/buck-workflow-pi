@@ -329,6 +329,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
 | `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
 | `adversarial-review` | Prove-it-fails review of one GitHub PR. Asks post vs local. Post mode leaves inline comments on exact diff lines and submits one atomic review. Reuses `code-review` plumbing. Not the constructive `code-review-universal` review |
+| `b-design-palette` | Deterministic OKLCH UI palette → consumer `design-brief.jsonc` from one brand hex (script-backed) |
 | `b-create-styleguide` | Guided UX styleguide creation + idempotent maintenance, with a managed AGENTS.md/CLAUDE.md block |
 | `b-create-ux-guide` | Site → component inventory → markdown style guide + HTML research guide + `design-brief.json` |
 | `code-smells` | Reference catalog of the 23 code smells + parallel-subagent audit producing a remediation report |
