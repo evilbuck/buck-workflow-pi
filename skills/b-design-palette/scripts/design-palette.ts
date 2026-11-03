@@ -5,7 +5,7 @@
  *   bun <skill-dir>/scripts/design-palette.ts --brand '#3366ff' --stdout
  *   bun <skill-dir>/scripts/design-palette.ts --brand '#3366ff' --out design-brief.jsonc
  */
-import { renameSync, writeFileSync } from "node:fs";
+import { renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { emitDesignBriefJsonc } from "./emit-jsonc.js";
 import {
@@ -163,6 +163,21 @@ export function run(argv: string[]): string {
   return emitDesignBriefJsonc(buildPalette(args));
 }
 
+function writeAtomic(path: string, text: string): void {
+  const tmp = `${dirname(path)}/.design-palette.${process.pid}.tmp`;
+  try {
+    writeFileSync(tmp, text, "utf8");
+    renameSync(tmp, path);
+  } catch (err) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // tmp may not exist if writeFileSync failed first
+    }
+    die(err instanceof Error ? err.message : String(err));
+  }
+}
+
 function main(): void {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -172,7 +187,8 @@ function main(): void {
   if (!args.brand) die("--brand is required");
   let text: string;
   try {
-    text = run(process.argv.slice(2));
+    // Parse once in main; do not call run() (which would re-parse argv).
+    text = emitDesignBriefJsonc(buildPalette(args));
   } catch (err) {
     die(err instanceof Error ? err.message : String(err));
   }
@@ -181,9 +197,7 @@ function main(): void {
     return;
   }
   const path = resolve(args.out);
-  const tmp = `${dirname(path)}/.design-palette.${process.pid}.tmp`;
-  writeFileSync(tmp, text, "utf8");
-  renameSync(tmp, path);
+  writeAtomic(path, text);
   console.error(`design-palette: wrote ${path}`);
 }
 

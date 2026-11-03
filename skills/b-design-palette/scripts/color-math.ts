@@ -85,7 +85,7 @@ export function hexToOklch(hex: string): Oklch {
   return oklabToOklch(rgbToOklab(parseHex(hex)));
 }
 
-export function isInGamut(rgb: Rgb, eps = 1e-4): boolean {
+export function isInGamut(rgb: Rgb, eps = 0): boolean {
   return (
     rgb.r >= -eps && rgb.r <= 1 + eps &&
     rgb.g >= -eps && rgb.g <= 1 + eps &&
@@ -93,28 +93,56 @@ export function isInGamut(rgb: Rgb, eps = 1e-4): boolean {
   );
 }
 
-/** Reduce chroma until the color fits sRGB; returns hex. */
+/** Half of one 8-bit code unit — keep mapped colors inside after quantization. */
+const CODE_UNIT_HEADROOM = 0.5 / 255;
+
+function channelsInside(rgb: Rgb, head: number): boolean {
+  return (
+    rgb.r >= head && rgb.r <= 1 - head &&
+    rgb.g >= head && rgb.g <= 1 - head &&
+    rgb.b >= head && rgb.b <= 1 - head
+  );
+}
+
+/**
+ * CSS Color 4 OKLCH gamut map: reduce chroma at constant lightness and hue
+ * until the color fits sRGB. Searches with half-code-unit headroom so 8-bit
+ * quantization does not snap onto the gamut face (which zeros a channel and
+ * reads as a hue shift — e.g. dark #3366ff steps looking violet).
+ */
 export function oklchToHexGamutMapped(color: Oklch): string {
+  const maxC = Math.max(0, color.C);
   let lo = 0;
-  let hi = color.C;
-  let best = { ...color, C: 0 };
-  for (let i = 0; i < 24; i++) {
+  let hi = maxC;
+  let bestC = 0;
+  for (let i = 0; i < 32; i++) {
     const mid = (lo + hi) / 2;
-    const candidate = { L: color.L, C: mid, H: color.H };
-    const rgb = oklabToRgb(oklchToOklab(candidate));
-    if (isInGamut(rgb)) {
-      best = candidate;
+    const rgb = oklabToRgb(oklchToOklab({ L: color.L, C: mid, H: color.H }));
+    if (channelsInside(rgb, CODE_UNIT_HEADROOM)) {
+      bestC = mid;
       lo = mid;
     } else {
       hi = mid;
     }
   }
-  const rgb = oklabToRgb(oklchToOklab(best));
-  return toHex({
-    r: Math.min(1, Math.max(0, rgb.r)),
-    g: Math.min(1, Math.max(0, rgb.g)),
-    b: Math.min(1, Math.max(0, rgb.b)),
-  });
+  // Near white/black, headroom can exclude every candidate — fall back to the
+  // strict [0,1] boundary (still chroma-only; never RGB-clip as the strategy).
+  if (bestC === 0 && maxC > 0) {
+    lo = 0;
+    hi = maxC;
+    for (let i = 0; i < 32; i++) {
+      const mid = (lo + hi) / 2;
+      const rgb = oklabToRgb(oklchToOklab({ L: color.L, C: mid, H: color.H }));
+      if (channelsInside(rgb, 0)) {
+        bestC = mid;
+        lo = mid;
+      } else {
+        hi = mid;
+      }
+    }
+  }
+  const rgb = oklabToRgb(oklchToOklab({ L: color.L, C: bestC, H: color.H }));
+  return toHex(rgb);
 }
 
 export function relativeLuminance(hex: string): number {

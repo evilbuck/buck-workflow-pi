@@ -1,7 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   contrastRatio,
@@ -19,6 +20,17 @@ import { buildPalette, buildTintScale } from "./palette-build.js";
 import { parseArgs, run } from "./design-palette.js";
 
 const BRAND = "#3366ff";
+
+const SCRIPT_DIR =
+  typeof import.meta.dirname === "string"
+    ? import.meta.dirname
+    : dirname(fileURLToPath(import.meta.url));
+
+const HAS_BUN = spawnSync("bun", ["--version"], { encoding: "utf8" }).status === 0;
+
+function hueDelta(a: number, b: number): number {
+  return Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+}
 
 describe("color-math", () => {
   it("round-trips a mid gray through OKLCH → hex", () => {
@@ -79,10 +91,23 @@ describe("palette-build golden #3366ff", () => {
 
   it("keeps brand hue family across the tint scale", () => {
     const brandH = hexToOklch(BRAND).H;
-    for (const hex of Object.values(doc.scales.brand)) {
-      const H = hexToOklch(hex).H;
-      const delta = Math.min(Math.abs(H - brandH), 360 - Math.abs(H - brandH));
-      expect(delta).toBeLessThan(8);
+    for (const [step, hex] of Object.entries(doc.scales.brand)) {
+      const delta = hueDelta(hexToOklch(hex).H, brandH);
+      expect(delta, `step ${step} ${hex}`).toBeLessThan(2);
+    }
+  });
+
+  it("pins #3366ff dark steps after CSS Color 4 chroma mapping", () => {
+    // Half-LSB headroom keeps G from snapping to 0 (violet corner) at constant H.
+    expect(doc.scales.brand["900"]).toBe("#050192");
+    expect(doc.scales.brand["950"]).toBe("#02015e");
+    expect(doc.scales.brand["600"]).toBe("#2b5bf3");
+    for (const step of ["900", "950"] as const) {
+      const { r, g, b } = parseHex(doc.scales.brand[step]);
+      const R = Math.round(r * 255);
+      const G = Math.round(g * 255);
+      const B = Math.round(b * 255);
+      expect(G === 0 && R > 0 && B > 0, `${step} violet-corner snap`).toBe(false);
     }
   });
 
@@ -206,8 +231,8 @@ describe("CLI parseArgs / run", () => {
     expect(() => run(["--brand", "blue", "--stdout"])).toThrow(/invalid hex color/i);
   });
 
-  it("CLI reports invalid brand through die()", () => {
-    const script = join(import.meta.dirname, "design-palette.ts");
+  it.skipIf(!HAS_BUN)("CLI reports invalid brand through die()", () => {
+    const script = join(SCRIPT_DIR, "design-palette.ts");
     const result = spawnSync("bun", [script, "--brand", "blue", "--stdout"], { encoding: "utf8" });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("design-palette: error:");
@@ -215,11 +240,11 @@ describe("CLI parseArgs / run", () => {
     expect(result.stdout).toBe("");
   });
 
-  it("CLI writes --out atomically over an existing file", () => {
+  it.skipIf(!HAS_BUN)("CLI writes --out atomically over an existing file", () => {
     const dir = mkdtempSync(join(tmpdir(), "design-palette-out-"));
     const out = join(dir, "design-brief.jsonc");
     writeFileSync(out, "// previous\n{\"ok\":false}\n", "utf8");
-    const script = join(import.meta.dirname, "design-palette.ts");
+    const script = join(SCRIPT_DIR, "design-palette.ts");
     const result = spawnSync("bun", [script, "--brand", BRAND, "--out", out], { encoding: "utf8" });
     expect(result.status).toBe(0);
     expect(result.stderr).toContain(`design-palette: wrote ${out}`);
@@ -227,6 +252,19 @@ describe("CLI parseArgs / run", () => {
     expect(body).toContain('"brand": "#3366ff"');
     expect(body).not.toContain('"ok":false');
     expect(existsSync(join(dir, `.design-palette.${result.pid}.tmp`))).toBe(false);
+  });
+
+  it.skipIf(!HAS_BUN)("CLI reports missing --out directory through die() and leaves no tmp", () => {
+    const dir = mkdtempSync(join(tmpdir(), "design-palette-missing-"));
+    const out = join(dir, "no-such-dir", "design-brief.jsonc");
+    const script = join(SCRIPT_DIR, "design-palette.ts");
+    const result = spawnSync("bun", [script, "--brand", BRAND, "--out", out], { encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("design-palette: error:");
+    expect(result.stderr).toMatch(/ENOENT|no such file|not found/i);
+    for (const name of readdirSync(dir)) {
+      expect(name.startsWith(".design-palette.")).toBe(false);
+    }
   });
 });
 
