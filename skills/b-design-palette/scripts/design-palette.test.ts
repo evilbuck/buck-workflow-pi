@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   contrastRatio,
@@ -196,6 +200,33 @@ describe("CLI parseArgs / run", () => {
     const text = run(["--brand", BRAND, "--stdout", "--name", "golden"]);
     expect(text).toContain('"name": "golden"');
     expect(text).toContain('"brand": "#3366ff"');
+  });
+
+  it("run throws on invalid brand hex", () => {
+    expect(() => run(["--brand", "blue", "--stdout"])).toThrow(/invalid hex color/i);
+  });
+
+  it("CLI reports invalid brand through die()", () => {
+    const script = join(import.meta.dirname, "design-palette.ts");
+    const result = spawnSync("bun", [script, "--brand", "blue", "--stdout"], { encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("design-palette: error:");
+    expect(result.stderr).toMatch(/invalid hex color/i);
+    expect(result.stdout).toBe("");
+  });
+
+  it("CLI writes --out atomically over an existing file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "design-palette-out-"));
+    const out = join(dir, "design-brief.jsonc");
+    writeFileSync(out, "// previous\n{\"ok\":false}\n", "utf8");
+    const script = join(import.meta.dirname, "design-palette.ts");
+    const result = spawnSync("bun", [script, "--brand", BRAND, "--out", out], { encoding: "utf8" });
+    expect(result.status).toBe(0);
+    expect(result.stderr).toContain(`design-palette: wrote ${out}`);
+    const body = readFileSync(out, "utf8");
+    expect(body).toContain('"brand": "#3366ff"');
+    expect(body).not.toContain('"ok":false');
+    expect(existsSync(join(dir, `.design-palette.${result.pid}.tmp`))).toBe(false);
   });
 });
 

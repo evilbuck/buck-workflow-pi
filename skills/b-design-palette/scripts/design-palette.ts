@@ -2,11 +2,11 @@
 /**
  * Deterministic UI design palette → design-brief.jsonc
  *
- *   bun skills/b-design-palette/scripts/design-palette.ts --brand '#3366ff' --stdout
- *   bun skills/b-design-palette/scripts/design-palette.ts --brand '#3366ff' --out design-brief.jsonc
+ *   bun <skill-dir>/scripts/design-palette.ts --brand '#3366ff' --stdout
+ *   bun <skill-dir>/scripts/design-palette.ts --brand '#3366ff' --out design-brief.jsonc
  */
-import { writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { emitDesignBriefJsonc } from "./emit-jsonc.js";
 import {
   NEUTRALS,
@@ -170,13 +170,20 @@ function main(): void {
     return;
   }
   if (!args.brand) die("--brand is required");
-  const text = run(process.argv.slice(2));
+  let text: string;
+  try {
+    text = run(process.argv.slice(2));
+  } catch (err) {
+    die(err instanceof Error ? err.message : String(err));
+  }
   if (args.stdout) {
     process.stdout.write(text);
     return;
   }
   const path = resolve(args.out);
-  writeFileSync(path, text, "utf8");
+  const tmp = `${dirname(path)}/.design-palette.${process.pid}.tmp`;
+  writeFileSync(tmp, text, "utf8");
+  renameSync(tmp, path);
   console.error(`design-palette: wrote ${path}`);
 }
 

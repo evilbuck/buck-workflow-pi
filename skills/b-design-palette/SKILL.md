@@ -44,10 +44,11 @@ Do **not** invent tint scales, on-colors, or dark mappings by hand.
 
 ### 2. Call the script (deterministic)
 
-From the repository root (or any cwd; `--out` is relative to cwd):
+Requires `bun`. Run from the project that will own the output file. `--out` is relative to cwd.
+Resolve `scripts/design-palette.ts` relative to this skill's directory (`<skill-dir>`):
 
 ```bash
-bun skills/b-design-palette/scripts/design-palette.ts \
+bun <skill-dir>/scripts/design-palette.ts \
   --brand '#3366ff' \
   --scheme complementary \
   --neutral cool \
