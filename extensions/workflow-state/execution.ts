@@ -12,6 +12,9 @@ const Params = Type.Object({ command: Type.String() }, { additionalProperties: f
  */
 export function workflowExecutionTool(cwd: string, gitCheckpoint = false): ToolDefinition<typeof Params> {
   const workspace = realpathSync(cwd);
+  // Resolve through the host launcher (including version-manager shims), then
+  // mount only the executable, never its potentially credential-bearing parent.
+  const bun = realpathSync(execFileSync("bun", ["-p", "process.execPath"], { encoding: "utf8" }).trim());
   return {
     name: "workflow_exec", label: "Isolated execution",
     description: "Run commands in an isolated checkout, without host HOME/config/storage/credentials/network. workflow_state is the only access to the host store. Use this instead of bash. Git metadata is read-only except in the commit checkpoint stage. Isolation failure is an error, never a host-shell fallback.",
@@ -22,13 +25,14 @@ export function workflowExecutionTool(cwd: string, gitCheckpoint = false): ToolD
         if (existsSync(path)) args.push("--ro-bind", path, path);
       }
       args.push("--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--bind", workspace, workspace);
+      args.push("--dir", "/run/workflow/bin", "--ro-bind", bun, "/run/workflow/bin/bun");
       bindGitMetadata(args, workspace, gitCheckpoint);
       const modules = resolve(workspace, "node_modules");
       if (existsSync(modules)) {
         const dependencyRoot = realpathSync(modules);
         args.push("--ro-bind", dependencyRoot, dependencyRoot);
       }
-      args.push("--setenv", "PATH", "/usr/bin:/bin", "--setenv", "HOME", "/tmp/home", "--setenv", "XDG_CONFIG_HOME", "/tmp/config", "--chdir", workspace, "/bin/bash", "--noprofile", "--norc", "-c", params.command);
+      args.push("--setenv", "PATH", "/run/workflow/bin:/usr/bin:/bin", "--setenv", "HOME", "/tmp/home", "--setenv", "XDG_CONFIG_HOME", "/tmp/config", "--chdir", workspace, "/bin/bash", "--noprofile", "--norc", "-c", params.command);
       const { promise, resolve: done, reject } = Promise.withResolvers<string>();
       const child = spawn("/usr/bin/bwrap", args, { env: {}, signal, stdio: ["ignore", "pipe", "pipe"] });
       let output = "";

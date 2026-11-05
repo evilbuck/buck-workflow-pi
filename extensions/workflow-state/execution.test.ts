@@ -2,14 +2,32 @@ import { execFileSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { executeWorkflowState, resolveTrustedContext } from "../../skills/_shared/scripts/workflow-state.js";
 import { workflowExecutionTool } from "./execution.js";
 
 const roots: string[] = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => { vi.unstubAllEnvs(); for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
 
 describe.skipIf(process.platform !== "linux" || !existsSync("/usr/bin/bwrap"))("restricted execution", () => {
+  it("runs Bun installed outside system directories without exposing its host directory or environment", async () => {
+    const root = mkdtempSync(join(tmpdir(), "wf-runtime-"));
+    roots.push(root);
+    const cwd = join(root, "checkout");
+    const install = join(root, "private-runtime");
+    mkdirSync(cwd); mkdirSync(install);
+    const bun = execFileSync("bun", ["-p", "process.execPath"], { encoding: "utf8" }).trim();
+    cpSync(bun, join(install, "bun"));
+    const secret = join(install, "credentials");
+    writeFileSync(secret, "PRIVATE RUNTIME NEIGHBOR");
+    vi.stubEnv("PATH", `${install}:${process.env.PATH}`);
+    vi.stubEnv("WORKFLOW_HOST_SECRET", "PRIVATE HOST VALUE");
+    const tool = workflowExecutionTool(cwd);
+    const result = await tool.execute("runtime", { command: `bun -e 'console.log(JSON.stringify({ executable: process.execPath, secretVisible: require("node:fs").existsSync(${JSON.stringify(secret)}), hostSecret: process.env.WORKFLOW_HOST_SECRET ?? null }))'` });
+    const text = result.content[0] as { text: string };
+    expect(JSON.parse(text.text)).toEqual({ executable: "/run/workflow/bin/bun", secretVisible: false, hostSecret: null });
+  });
+
   it("cannot retrieve another branch through the operator CLI or caller-set machine config", async () => {
     const root = mkdtempSync(join(tmpdir(), "wf-isolation-"));
     roots.push(root);

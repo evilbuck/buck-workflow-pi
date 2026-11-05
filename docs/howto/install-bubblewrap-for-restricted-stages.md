@@ -6,6 +6,7 @@ Restricted `/buck-loop` command stages run through `workflow_exec`. On Linux tha
 
 1. Install the `bubblewrap` package from the distro. On Arch: `sudo pacman -S --needed bubblewrap`. On Debian or Ubuntu: `sudo apt-get install bubblewrap`.
 2. Confirm the binary is `/usr/bin/bwrap`, not a user-local substitute. Restricted execution spawns that path and no other.
-3. **Eat:** `bwrap --version` prints a version line, and `/usr/bin/bwrap` exists. A restricted stage with Bubblewrap missing errors instead of opening host `bash`.
+3. Install Bun and make `bun` available on the supervisor's `PATH`. Restricted execution resolves the real executable through that launcher (including version-manager shims) and mounts only that file read-only at `/run/workflow/bin/bun`. It does not expose the installation directory, inherit the host `PATH`, or mount host HOME/config. A missing runtime fails closed.
+4. **Eat:** `bwrap --version` prints a version line, `/usr/bin/bwrap` exists, and `bun -p process.execPath` prints the runtime executable. In a restricted stage, `bun -p process.execPath` prints `/run/workflow/bin/bun`; host credentials beside the original binary remain inaccessible. Missing Bubblewrap errors instead of opening host `bash`.
 
 This check covers command isolation only. It does not make host file tools read-only for Git metadata. Durable artifacts inside a restricted stage go through native `workflow_state`, not this shell. See [ADR 0004](../adr/0004-workflow-state-trusted-access.md).
