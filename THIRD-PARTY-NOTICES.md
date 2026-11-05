@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This project includes material derived from the following third-party project:
+This project includes material derived from the following third-party projects:
 
 ## mattpocock/skills
 
@@ -58,3 +58,15 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## @hanakoxbt — agent-graph prompt
+
+- Source: public "Karpathy-inspired graph prompt" post by @hanakoxbt (X); companion guide: https://agent-layers.vercel.app
+- Inspiration: https://github.com/karpathy/autoresearch
+- License: none stated on the source post
+
+Adapted (method retained; prose rewritten to this repository's conventions):
+
+- `skills/b-graph/SKILL.md` (+ `prompts/b-graph.md` / `commands/b-graph.md` wrapper)
+
+Per the source's own disclaimer: the method is inspired by Karpathy's autoresearch and is not written or endorsed by Andrej Karpathy.
