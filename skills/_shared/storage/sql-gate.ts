@@ -36,6 +36,7 @@ export type SqlGateResult = { allowed: true } | { allowed: false; reason: string
 export type SqlMemoryRole = "recall" | "save";
 
 const SAVE_TABLES: Record<string, true> = { users: true, projects: true, memories: true };
+const SAVE_READ_TABLES: Record<string, true> = { ...SAVE_TABLES, tags: true, memory_tags: true };
 
 /** Apply the narrower stage policy after the general memory-schema SQL gate. */
 export function checkSqlForRole(sql: string, role: SqlMemoryRole): SqlGateResult {
@@ -63,7 +64,7 @@ function saveSelectError(tokens: Token[]): string | null {
   for (const index of indexes) {
     const relation = parsedRelation(tokens, index);
     if (relation.error) return relation.error;
-    if (!relation.table || !SAVE_TABLES[relation.table]) return "Save stage target is not allowlisted";
+    if (!relation.table || !SAVE_READ_TABLES[relation.table]) return "Save stage target is not allowlisted";
   }
   return null;
 }

@@ -14,7 +14,7 @@ vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 const judge = vi.mocked(runJev);
 import { readProjection, writeProjection, type Projection } from "../persist.js";
 import { applySubjectLifecycleIntent, inspectSubjectLifecycle } from "../../../skills/_shared/scripts/subject-lifecycle.js";
-import { completeSaveAttempt, prepareSaveAttempt, recordSaveMetadata, saveSqlFacts } from "../sql-save.js";
+import { completeSaveAttempt, prepareSaveAttempt, recordSaveMetadata, saveSqlFacts, writeReceipt } from "../sql-save.js";
 import type { ChooseResult } from "../choice.js";
 import type { NestedSkill, RunStepResult } from "../run-step.js";
 import type { ActivityEvent } from "../../extension-activity.js";
@@ -934,7 +934,7 @@ describe("failure and choice", () => {
   it("holds an interrupted diagnosis whose proof never landed, without rebuilding or re-diagnosing", async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
-    writeProjection(cwd, {
+    await writeProjection(cwd, {
       version: 1,
       state: "blocked",
       subject: SUBJECT,
@@ -961,7 +961,7 @@ describe("failure and choice", () => {
     expect(deps.runStep).not.toHaveBeenCalled();
     expect(result.state).toBe("blocked");
     expect(result.reason).toMatch(/diagnose did not land the scanner proof/i);
-    expect(readProjection(cwd)?.diagnoseAttempts).toBe(1);
+    expect((await readProjection(cwd))?.diagnoseAttempts).toBe(1);
     const again = await handleLoop({ cwd, command: "resume", deps });
     expect(deps.runStep).not.toHaveBeenCalled();
     expect(again.state).toBe("blocked");
@@ -985,7 +985,7 @@ describe("failure and choice", () => {
       operation: "diagnose",
       error: expect.objectContaining({ message: "diagnose session could not start" }),
     }));
-    expect(readProjection(cwd)).toMatchObject({ diagnoseAttempts: 1 });
+    expect(await readProjection(cwd)).toMatchObject({ diagnoseAttempts: 1 });
   });
 
   it.skipIf(!process.env.SQL_MEMORY_TEST_URL)("lets a SQL saving diagnosis land on a verified receipt", async () => {

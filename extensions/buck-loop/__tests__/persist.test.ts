@@ -300,12 +300,12 @@ describe("diagnose bookmark", () => {
     });
   }
 
-  it("round-trips a diagnosing projection with its origin, handoff, heavy stamp, and attempt count", () => {
+  it("round-trips a diagnosing projection with its origin, handoff, heavy stamp, and attempt count", async () => {
     const root = repo();
     phased(root, ["pending"]);
     const original = heavy({ state: "diagnosing" });
-    writeProjection(root, original);
-    expect(readProjection(root)).toEqual(original);
+    (await writeProjection(root, original));
+    expect((await readProjection(root))).toEqual(original);
 
     const disk = JSON.parse(readFileSync(join(root, PROJECTION_RELPATH), "utf8")) as Projection;
     expect(disk).toMatchObject({
@@ -316,7 +316,7 @@ describe("diagnose bookmark", () => {
       diagnoseAttempts: 0,
     });
 
-    const snap = resume({ projectRoot: root });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("diagnosing");
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -329,15 +329,15 @@ describe("diagnose bookmark", () => {
     expect(next(snap).effect).toEqual({ kind: "diagnose" });
   });
 
-  it("keeps the origin, handoff, and heavy stamp across a resume of a blocked heavy halt", () => {
+  it("keeps the origin, handoff, and heavy stamp across a resume of a blocked heavy halt", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -347,33 +347,33 @@ describe("diagnose bookmark", () => {
     expect(userConfirmed(snap).to).toBe("diagnosing");
   });
 
-  it("retains a spent attempt on a blocked heavy halt so resume does not re-diagnose", () => {
+  it("retains a spent attempt on a blocked heavy halt so resume does not re-diagnose", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       diagnoseAttempts: 1,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(1);
     expect(snap.repairLift).toBe("heavy");
     expect(heavyLiftResume(snap)).toBe(false);
     expect(userConfirmed(snap).to).not.toBe("diagnosing");
   });
 
-  it("reads an extension-restart interruption as a spent heavy halt, not a fresh one", () => {
+  it("reads an extension-restart interruption as a spent heavy halt, not a fresh one", async () => {
     const root = repo();
     phased(root, ["pending"]);
     // `stopForExtensionRestart` blocks from `diagnosing`, keeping the stamp and
     // origin for the operator but marking the halt's single attempt spent.
     const restartWhy = "Restart OMP before continuing: repaired the buck-loop extension. Changed: machine.ts";
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       diagnoseAttempts: 1,
       history: [{ from: "diagnosing", to: "blocked", at: "2026-09-18T00:00:00Z", why: restartWhy }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(1);
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -381,29 +381,29 @@ describe("diagnose bookmark", () => {
     expect(userConfirmed(snap).to).not.toBe("diagnosing");
   });
 
-  it("never invents a checkpoint for a heavy-lift bookmark that carries none", () => {
+  it("never invents a checkpoint for a heavy-lift bookmark that carries none", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       commitCheckpoint: null,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.commitCheckpoint).toBeNull();
-    expect(readProjection(root)?.commitCheckpoint).toBeNull();
+    expect((await readProjection(root))?.commitCheckpoint).toBeNull();
   });
 
   it.each([["committing"], ["reviewing"], ["toString"], [7]])(
     "refuses an illegal diagnose origin (%j) instead of reviving a spent halt",
-    (diagnoseOrigin) => {
+    async (diagnoseOrigin) => {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, {
+      await seedProjection(root, {
         [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked", diagnoseAttempts: 1 }), diagnoseOrigin }),
       });
-      expect(readProjection(root)).toBeNull();
-      const snap = resume({ projectRoot: root });
+      expect((await readProjection(root))).toBeNull();
+      const snap = (await resume({ projectRoot: root }));
       expect(snap.state).toBe("blocked");
       expect(snap.planFacts.kind).toBe("missing");
       if (snap.planFacts.kind === "missing") expect(snap.planFacts.reason).toMatch(/unreadable/);
@@ -414,65 +414,65 @@ describe("diagnose bookmark", () => {
 
   it.each([[0.5], [-1], ["1"], [{ spent: 1 }]])(
     "refuses an illegal diagnose attempt count (%j) instead of re-opening a spent halt",
-    (diagnoseAttempts) => {
+    async (diagnoseAttempts) => {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, {
+      await seedProjection(root, {
         [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked" }), diagnoseAttempts }),
       });
-      expect(readProjection(root)).toBeNull();
-      const snap = resume({ projectRoot: root });
+      expect((await readProjection(root))).toBeNull();
+      const snap = (await resume({ projectRoot: root }));
       expect(snap.state).toBe("blocked");
       if (snap.planFacts.kind === "missing") expect(snap.planFacts.reason).toMatch(/unreadable/);
       expect(snap.commitCheckpoint ?? null).toBeNull();
     },
   );
 
-  it("refuses an illegal repair lift stamp", () => {
+  it("refuses an illegal repair lift stamp", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, {
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked" }), repairLift: "medium" }),
     });
-    expect(readProjection(root)).toBeNull();
-    expect(resume({ projectRoot: root }).state).toBe("blocked");
+    expect((await readProjection(root))).toBeNull();
+    expect((await resume({ projectRoot: root })).state).toBe("blocked");
   });
 
-  it("reads the cleared-diagnosis bookmark a landed successor persists", () => {
+  it("reads the cleared-diagnosis bookmark a landed successor persists", async () => {
     const root = repo();
     phased(root, ["pending"]);
     // What `clearDepartedDiagnosis` + `diagnoseBookmark` write after a landed
     // diagnose: every diagnose field explicitly empty, state past diagnosing.
-    writeProjection(root, projection({
+    (await writeProjection(root, projection({
       state: "reviewing",
       repairLift: null,
       diagnoseOrigin: null,
       diagnoseHandoff: null,
       diagnoseAttempts: 0,
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
     expect(snap.diagnoseOrigin).toBeNull();
     expect(heavyLiftResume(snap)).toBe(false);
   });
 
-  it("reads a bookmark written before diagnosing existed as zero attempts and no heavy stamp", () => {
+  it("reads a bookmark written before diagnosing existed as zero attempts and no heavy stamp", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, projection());
-    expect(readProjection(root)?.diagnoseAttempts).toBeUndefined();
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection()));
+    expect((await readProjection(root))?.diagnoseAttempts).toBeUndefined();
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
     expect(snap.diagnoseOrigin).toBeNull();
     expect(heavyLiftResume(snap)).toBe(false);
   });
 
-  it("tolerates explicit nulls for the diagnose bookmark fields", () => {
+  it("tolerates explicit nulls for the diagnose bookmark fields", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, {
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({
         ...projection(),
         repairLift: null,
@@ -481,8 +481,8 @@ describe("diagnose bookmark", () => {
         diagnoseAttempts: null,
       }),
     });
-    expect(readProjection(root)).toEqual(projection());
-    const snap = resume({ projectRoot: root });
+    expect((await readProjection(root))).toEqual(projection());
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
   });
