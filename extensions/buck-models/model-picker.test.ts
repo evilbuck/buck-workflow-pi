@@ -385,6 +385,50 @@ describe("createProfileEditor", () => {
     expect(e.component.render(80).join("\n")).toMatch(/resize/i);
   });
 
+  it("keeps the Save control and every line inside the terminal at every supported height", () => {
+    let rows = 24;
+    const e = makeEditor({ terminalRows: () => rows, available: ["openai/gpt"] });
+    for (const key of BUCK_STAGE_KEYS) e.state.drafts[key].ids = ["openai/gpt"];
+    e.component.handleInput(KEY.shiftTab);
+    expect(e.state.tab).toBe(12);
+    for (const height of [40, 24, 20, 18, 17, 16, 12, 10]) {
+      rows = height;
+      const lines = e.component.render(80);
+      expect(lines.length).toBeLessThanOrEqual(height);
+      expect(lines.join("\n")).toContain("[ Save ]");
+    }
+    rows = 10;
+    e.component.handleInput(KEY.shiftTab);
+    expect(e.state.tab).toBe(11);
+    const category = e.component.render(80);
+    expect(category.length).toBeLessThanOrEqual(10);
+    expect(category.join("\n")).toContain("filter: ");
+
+    e.component.handleInput(KEY.tab);
+    expect(e.state.tab).toBe(12);
+    const tight = e.component.render(80);
+    expect(tight).toHaveLength(10);
+    expect(tight[4]).toContain("[ Save ]");
+    expect(tight.join("\n")).toContain("+8 more edit(s)");
+  });
+
+  it("clamps the selected cursor when a catalog toggle removes an earlier model", () => {
+    const baselines = { build: cfg(["aaa/one", "bbb/two"]) };
+    const e = makeEditor({ baselines, available: ["aaa/one", "bbb/two"] });
+    for (let i = 0; i < 2; i++) e.component.handleInput(KEY.tab);
+    e.component.handleInput(KEY.left);
+    e.component.handleInput(KEY.down);
+    expect(e.state.views.build.selectedCursor).toBe(1);
+    e.component.handleInput(KEY.right);
+    e.component.handleInput(KEY.space);
+    expect(e.state.drafts.build.ids).toEqual(["bbb/two"]);
+    expect(e.state.views.build.selectedCursor).toBe(0);
+    e.component.handleInput(KEY.left);
+    expect(e.component.render(80).join("\n")).toMatch(/> \[x\] bbb\/two/);
+    e.component.handleInput(KEY.space);
+    expect(e.state.drafts.build.ids).toEqual([]);
+  });
+
   it("keeps every rendered line within width and the active tab visible when the strip scrolls", () => {
     const e = makeEditor({ available: ["openai/gpt", "anthropic/claude"] });
     for (const width of [120, 80, 60]) {

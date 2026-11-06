@@ -1,6 +1,15 @@
 /**
- * Searchable checkbox list of installed model ids for `/buck-models`.
- * Enter saves the checked set. Escape cancels. Space toggles. Typing filters.
+ * Tabbed profile editor for `/buck-models`: one tab per canonical stage plus a
+ * final Save tab. Each category tab shows a SELECTED column backed by the
+ * draft and a CATALOG column filtered by typed text; Left/Right move focus,
+ * Up/Down move the cursor, Space/Enter toggles, and Ctrl+T requests thinking
+ * choices for the active category. Escape cancels the whole editor without
+ * writes. Only the Save tab submits.
+ *
+ * Outcomes are typed (`cancel`, `thinking-request` with resume state,
+ * `submit` with drafts) so the caller owns dialogs and persistence. The
+ * draft/baseline comparison in `deriveStageUpdates` is the partial-write
+ * boundary: untouched categories never materialize a write.
  */
 import { decodeKittyPrintable, fuzzyFilter, matchesKey, truncateToWidth, visibleWidth, type KeybindingsManager } from "@mariozechner/pi-tui";
 import {
@@ -154,6 +163,8 @@ const EDITOR_TAB_LABELS = [
 ];
 const SAVE_TAB = BUCK_STAGE_KEYS.length;
 const EDITOR_CHROME_ROWS = 7;
+// Title, tab strip, help, meta. The Save button and edit list follow them.
+const SAVE_CHROME_ROWS = 4;
 const MIN_EDITOR_WIDTH = 60;
 const MIN_EDITOR_ROWS = 10;
 
@@ -303,17 +314,22 @@ export function createProfileEditor(input: ProfileEditorHost): {
   const savePane = (width: number): string[] => {
     const updates = deriveStageUpdates(state.drafts, input.baselines);
     const changed = BUCK_STAGE_KEYS.filter((key) => updates[key] !== undefined);
-    const lines: string[] = [];
+    const lines: string[] = [input.theme.fg("accent", input.theme.bold("> [ Save ]"))];
     if (changed.length === 0) {
       lines.push(input.theme.fg("muted", "  No deliberate edits yet"));
-    } else {
-      for (const key of changed) {
-        const update = updates[key] as BuckStageWrite;
-        lines.push(`  ${key}: ${update.models.length} model(s), thinking ${update.thinking ?? "off"}`);
-      }
+      return lines.map((line) => truncateToWidth(line, width));
     }
-    lines.push("");
-    lines.push(input.theme.fg("accent", input.theme.bold("> [ Save ]")));
+    // Rows held back: the Save button itself, then one row for the "+N more"
+    // tail so the button and the tail always fit; the edit list never pushes
+    // the button off-screen.
+    const budget = Math.max(1, (input.terminalRows?.() ?? 24) - SAVE_CHROME_ROWS - 2);
+    const shown = changed.slice(0, budget);
+    for (const key of shown) {
+      const update = updates[key] as BuckStageWrite;
+      lines.push(`  ${key}: ${update.models.length} model(s), thinking ${update.thinking ?? "off"}`);
+    }
+    const hidden = changed.length - shown.length;
+    if (hidden > 0) lines.push(input.theme.fg("muted", `  +${hidden} more edit(s)`));
     return lines.map((line) => truncateToWidth(line, width));
   };
 
@@ -341,14 +357,15 @@ export function createProfileEditor(input: ProfileEditorHost): {
       tabStrip(width),
       input.theme.fg("muted", help),
       input.theme.fg("muted", meta),
-      "",
     ];
     if (onSaveTab) {
       lines.push(...savePane(width));
     } else {
+      lines.push("");
       lines.push(...categoryPane(key as BuckStageKey, width));
     }
-    return lines.map((line) => truncateToWidth(line, width));
+    const limit = input.terminalRows?.() ?? 24;
+    return lines.slice(0, limit).map((line) => truncateToWidth(line, width));
   };
 
   const handleTabNav = (data: string): boolean => {
@@ -425,8 +442,12 @@ export function createProfileEditor(input: ProfileEditorHost): {
       const id = catalogRows(key)[view.catalogCursor]?.id;
       if (id !== undefined) {
         const at = draft.ids.indexOf(id);
-        if (at >= 0) draft.ids.splice(at, 1);
-        else draft.ids.push(id);
+        if (at >= 0) {
+          draft.ids.splice(at, 1);
+          if (draft.ids.length > 0 && view.selectedCursor >= draft.ids.length) {
+            view.selectedCursor = draft.ids.length - 1;
+          }
+        } else draft.ids.push(id);
         input.requestRender();
       }
     }

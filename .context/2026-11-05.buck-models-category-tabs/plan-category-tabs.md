@@ -112,7 +112,7 @@ Subsequent review found that reselecting a retained model followed by a thinking
 |---|---|---|---|---|
 | A-1 | Skipping a project category must preserve global fallthrough rather than copying effective models into project scope. | validated | false | `effectiveStage` in `index.ts:104-119`, partial update merge in `omp-models.ts:534-549`, documented presence semantics. |
 | A-2 | Thinking remains user-editable without interrupting tab navigation. | validated | false | User selected “Per-tab shortcut”; existing `THINKING_CHOICES` and thinking prompt remain the semantic source. |
-| A-3 | The chosen key chords and narrow-terminal layout work in the installed Pi/OMP TUI hosts. | deferred | false | validation_path: during implementation, run the actual extension in disposable Pi/OMP sessions; exercise Tab/Shift+Tab, Ctrl+T, filtering, column navigation and Save at 120×40, 80×24, 40×16. Resolve host key encoding through existing pi-tui helpers before shipping. |
+| A-3 | The chosen key chords and narrow-terminal layout work in the installed Pi/OMP TUI hosts. | validated | false | 2026-11-05 live smoke in OMP 18.16.0 and Pi with disposable configs: Tab/`Shift+Tab` (kitty `\x1b[9;2u`), Ctrl+T, filtering, column navigation, Save at 120×40, 80×24, 80×18, 80×16; 40×16 shows the resize-needed view. See `## Verification → Live smoke record`. |
 
 ## Material Risks
 
@@ -130,7 +130,24 @@ Subsequent review found that reselecting a retained model followed by a thinking
 - Navigate forward/backward through all tabs including `save (models)` and final Save; filter/add/remove models, revisit tabs, round-trip thinking, and preserve the global-only category while editing another. Save through existing activation/write prompts; inspect parsed project/global YAML for exact intended changes and preservation of unrelated YAML.
 - Repeat a global-scope edit and an activation-only command; exercise `--doctor` without writes. Cancel from category/Save tabs and reject final write confirmation; compare both config files byte-for-byte.
 - Inspect actual rendered output at 120×40, 80×24 and 40×16 with long ids, empty matches, zero available models, and more selected models than the viewport; verify visible focus and usable tab/Save navigation. Record which hosts and dimensions were actually exercised.
+
 - Planning-session validation passed: required frontmatter fields/identity, 13 required sections, five existing affected paths, and backlog metadata/link checked by an executable assertion script. Lifecycle `inspect --json` reports canonical active state, revision 2. Full YAML-parser validation was unavailable in the eval process (`Cannot find module 'yaml'`); field/structure assertions were used instead. Only `.context/` artifacts changed; implementation tests and guardrails were not run, and no behavioral pass is claimed.
+
+### Live smoke record (2026-11-05, post-iteration)
+
+Isolated run: `OMP_AGENT_DIR` pointed at a disposable agent dir, project config in a `/tmp` project, both hosts launched with `--no-extensions` plus an explicit loader for `extensions/buck-models/index.ts`; no user profile files were touched.
+
+| Host | Size | Exercised | Result |
+|---|---|---|---|
+| OMP 18.16.0 | 120×40 | all tabs, Space add/remove, filter, Ctrl+T round trip (high → medium), Save tab → activation decline → save confirm | project YAML written with notes kept, unrelated `unrelated.keep` key and its comment preserved, global file untouched |
+| OMP 18.16.0 | 80×24 | edit then Esc | both config files byte-identical |
+| OMP 18.16.0 | 80×18 / 80×16 | 12 deliberate edits on the Save tab | 16 rendered lines at 16 rows, `[ Save ]` visible, 10 edits listed + `+2 more` |
+| OMP 18.16.0 | 40×16 | open editor | resize-needed view, Esc cancels |
+| OMP 18.16.0 | 120×40 | `--doctor` | 3 configured occurrences, 2 unavailable, per-stage ownership correct |
+| OMP 18.16.0 | 120×40 | user-global scope edit; activation-only | only the global file changed (note kept, `active` preserved); activation-only left stages untouched |
+| Pi | 120×40 | tab navigation, build baseline, edit then Esc | build stage shows thinking high, project-owned, 2 selected with notes/unavailable markers; both config files byte-identical |
+
+Host key encoding: `Tab` arrives as `"\t"` and `Shift+Tab` as the kitty form `\x1b[9;2u`; `matchesKey` handles both, so A-3's key-encoding path is validated, not merely assumed.
 
 ## Risks
 
