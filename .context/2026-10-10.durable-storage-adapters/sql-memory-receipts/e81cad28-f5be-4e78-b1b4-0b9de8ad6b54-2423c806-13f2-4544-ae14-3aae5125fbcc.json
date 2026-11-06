@@ -1,0 +1,11 @@
+{
+  "attemptId": "2423c806-13f2-4544-ae14-3aae5125fbcc",
+  "runId": "e81cad28-f5be-4e78-b1b4-0b9de8ad6b54",
+  "subject": "2026-10-10.durable-storage-adapters",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "phase": ".context/2026-10-10.durable-storage-adapters/phase-6-publication-recovery.md",
+  "kind": "rows",
+  "ids": ["01a1434f-f7ff-7794-8d51-7809e00359c6"],
+  "probed": true,
+  "completed": true
+}

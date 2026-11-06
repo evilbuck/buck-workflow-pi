@@ -9,7 +9,7 @@ const PLAN = `.context/${SUBJECT}/plan-demo.md`;
 const PHASE = `.context/${SUBJECT}/phase-2-p2.md`;
 const BLOCKER = "nested skill left unstaged non-.context changes:  M skills/fix-pr/SKILL.md";
 
-function blockedRun(from: "building" | "committing" = "committing"): string {
+async function blockedRun(from: "building" | "committing" = "committing"): Promise<string> {
   const cwd = repo();
   writeTree(cwd, {
     [PLAN]: planMd(),
@@ -17,7 +17,7 @@ function blockedRun(from: "building" | "committing" = "committing"): string {
     [`.context/${SUBJECT}/phase-1-p1.md`]: phaseMd(1, "completed"),
     [PHASE]: phaseMd(2, "pending", [1]),
   });
-  writeProjection(cwd, {
+  (await writeProjection(cwd, {
     version: 1,
     state: "blocked",
     subject: SUBJECT,
@@ -28,7 +28,7 @@ function blockedRun(from: "building" | "committing" = "committing"): string {
     maxLoops: 12,
     lastChoice: null,
     history: [{ from, to: "blocked", at: "2026-09-18T00:00:00Z", why: BLOCKER }],
-  });
+  }));
   return cwd;
 }
 
@@ -46,7 +46,7 @@ afterEach(cleanupRepos);
 
 describe("buck-loop stopped-run presentation", () => {
   it("shows the interrupted commit cause and safe completion path on status", async () => {
-    const cwd = blockedRun();
+    const cwd = (await blockedRun());
     const notices: Array<{ message: string; level?: string }> = [];
     await command()("--status", { cwd, ui: { notify: (message, level) => notices.push({ message, level }) } });
 
@@ -55,11 +55,11 @@ describe("buck-loop stopped-run presentation", () => {
       message: expect.stringContaining(BLOCKER),
     })]);
     expect(notices[0]?.message).not.toContain("/buck-loop --resume");
-    expect(readProjection(cwd)?.state).toBe("blocked");
+    expect((await readProjection(cwd))?.state).toBe("blocked");
   });
 
   it("offers resume after a recoverable non-commit block", async () => {
-    const cwd = blockedRun("building");
+    const cwd = (await blockedRun("building"));
     const notices: string[] = [];
     await command()("--status", { cwd, ui: { notify: (message) => notices.push(message) } });
     expect(notices[0]).toContain(BLOCKER);
@@ -67,7 +67,7 @@ describe("buck-loop stopped-run presentation", () => {
   });
 
   it("reports stop, status, and resume-after-stop as informational with a fresh-run path", async () => {
-    const cwd = blockedRun();
+    const cwd = (await blockedRun());
     const notices: Array<{ message: string; level?: string }> = [];
     const ctx = { cwd, ui: { notify: (message: string, level?: string) => notices.push({ message, level }) } };
     const handler = command();
@@ -77,8 +77,8 @@ describe("buck-loop stopped-run presentation", () => {
     await handler("--stop", ctx);
     await handler("--resume", ctx);
 
-    expect(readProjection(cwd)?.state).toBe("aborted");
-    expect(readProjection(cwd)?.history.at(-1)).toMatchObject({ from: "blocked", to: "aborted" });
+    expect((await readProjection(cwd))?.state).toBe("aborted");
+    expect((await readProjection(cwd))?.history.at(-1)).toMatchObject({ from: "blocked", to: "aborted" });
     expect(notices).toHaveLength(4);
     for (const notice of notices) {
       expect(notice.level).toBe("info");

@@ -135,11 +135,13 @@ Then group by originating PR using the map from Step 2.
 
 ## Step 6 — Write review files
 
-With no PR argument, write the local review to `CODE-REVIEW.md` at the repository root.
+With no PR argument, retain the local review as `{ subjectId: "code-review", kind: "review", logicalName: "CODE-REVIEW.md" }`; `CODE-REVIEW.md` at the repository root is an optional export, not the authority.
 
 In GitHub PR mode, create one file per feature PR at
 `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`. For each new
 subject folder, invoke lifecycle `initialize` and then `activate`.
+
+Follow `../_shared/workflow-state-access.md`: persist each exact report body with `workflow_state write` (or the shared portable CLI), then read back that revision before exporting or reporting success. In PR mode use the resolved subject folder name and `review-pr-<N>.md` as the logical name. On restart read the retained reference/token, never a stale local report. Do not supply project/branch/worktree/run scope.
 
 Each file should contain:
 

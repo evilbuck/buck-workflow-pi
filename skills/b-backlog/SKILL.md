@@ -36,6 +36,8 @@ Create a buck-workflow backlog item via a dedicated subagent, then register it i
 
 The subagent does not touch application code, CI, infra, tests, or any other `.context/` artifact.
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Approved Item Schema
 
 ### Frontmatter (required)
@@ -165,3 +167,4 @@ Related: <comma-separated list, or "none identified">
 - `/b-plan` — when the item is ready to be worked and needs a bounded plan
 - `/b-brainstorm` — when the item is still vague and needs scoping before planning
 - Nothing — when the item is intentionally parked for a future session
+

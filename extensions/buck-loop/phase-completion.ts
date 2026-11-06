@@ -5,9 +5,12 @@
  * only a copy of that fact. The loop writes `status: completed` when the
  * boxes say so. A phase with no list still uses `status`.
  */
-import { readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { scan } from "./scan.js";
+import { randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { basename, dirname, relative, resolve, sep } from "node:path";
+import { classifyContextPath, commitConsumerBatch, consumerKey, type ConsumerWrite } from "../../skills/_shared/storage/consumers.js";
+import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
+import { readLoopDocuments, scanDocuments } from "./scan.js";
 import {
   frontmatterAcceptanceCriteria,
   isCheckedCriterion,
@@ -41,22 +44,54 @@ export function phaseFileDone(abs: string): boolean {
  * Write `status: completed` and `completed_at` when every criterion is `[x]`.
  * Returns the paths written. Does not demote a status that the boxes reject.
  */
-export function syncCheckedPhasesAt(root: string, input: string, today: string): string[] {
-  const selected = scan({ projectRoot: root, path: input });
+export async function syncCheckedPhasesAt(root: string, input: string, today: string): Promise<string[]> {
+  root = resolve(root);
+  const context = await resolveConsumerContext(root);
+  const documents = await readLoopDocuments(root);
+  const selected = scanDocuments({ projectRoot: root, path: input }, documents);
   if (!selected.planPath) return [];
-  const abs = resolve(root, selected.planPath);
-  const subjectDir = dirname(abs);
-  const written: string[] = [];
-  for (const name of readdirSync(subjectDir)) {
-    if (PHASE_FILE_RE.test(name)) {
-      const phaseAbs = resolve(subjectDir, name);
-      if (!writeCompletedStatus(phaseAbs, today)) continue;
-      written.push(phaseAbs);
-      syncOverviews(subjectDir, name);
+  const planAbs = resolve(root, selected.planPath);
+  const subjectDir = dirname(planAbs);
+  return withBoundStore(root, context, async (store) => {
+    if (!context.worktreeId || !context.runId) throw new Error("Trusted worktree/run identity is not bound");
+    const scope = { ...context, worktreeId: context.worktreeId, runId: context.runId };
+    const writes: ConsumerWrite[] = [];
+    const written: string[] = [];
+    const completedPhases: string[] = [];
+    const update = async (abs: string, transform: (text: string) => string): Promise<boolean> => {
+      const artifact = classifyContextPath(relative(root, abs).split(sep).join("/"));
+      const current = await store.read(consumerKey(scope, artifact.kind, artifact.subjectId, artifact.logicalName));
+      if (!current) throw new Error(`Missing authoritative artifact: ${abs}`);
+      const text = new TextDecoder().decode(current.bytes);
+      if (text !== documents.get(abs)) throw new Error(`Authoritative artifact changed during completion: ${abs}`);
+      const next = transform(text);
+      if (next === text) return false;
+      writes.push({ ...artifact, bytes: new TextEncoder().encode(next), links: current.links,
+        expectedRevision: current.revision, source: "buck-loop-phase-completion" });
+      return true;
+    };
+    const paths = [...documents.keys()].filter((abs) => dirname(abs) === subjectDir).sort();
+    for (const abs of paths) {
+      if (!PHASE_FILE_RE.test(basename(abs))) continue;
+      if (!await update(abs, (text) => markPhaseCompleted(text, today))) continue;
+      written.push(abs);
+      completedPhases.push(basename(abs));
     }
+    await completeOverviews(paths, completedPhases, update);
+    if (selected.planFacts.kind === "unphased" && await update(planAbs, (text) => markUnphasedPlanCompleted(text, today))) {
+      written.push(planAbs);
+    }
+    if (writes.length > 0) await commitConsumerBatch(store, scope, writes, { attemptId: randomUUID(), runId: randomUUID(), status: "attempted" });
+    return written;
+  });
+}
+
+async function completeOverviews(paths: readonly string[], completedPhases: readonly string[], update: (abs: string, transform: (text: string) => string) => Promise<boolean>): Promise<void> {
+  if (completedPhases.length === 0) return;
+  for (const abs of paths) {
+    if (!/^plan-.*-phases.*\.md$/.test(basename(abs))) continue;
+    await update(abs, (text) => completedPhases.reduce(markOverviewRow, text));
   }
-  if (selected.planFacts.kind === "unphased" && writeUnphasedPlanStatus(abs, today)) written.push(abs);
-  return written;
 }
 
 export function markPhaseCompleted(text: string, today: string): string {
@@ -73,44 +108,25 @@ export function markPhaseCompleted(text: string, today: string): string {
   return text.slice(0, fm.start) + body + text.slice(fm.end);
 }
 
-function writeUnphasedPlanStatus(abs: string, today: string): boolean {
-  const text = readFileSync(abs, "utf8");
+function markUnphasedPlanCompleted(text: string, today: string): string {
   const fm = frontmatterSpan(text);
   const criteria = planAcceptanceCriteria(text);
-  if (criteria.length === 0 || criteria.some((line) => !isCheckedCriterion(line))) return false;
-  if (!fm) return false;
-  if (frontmatterStatus(text) === "completed") return false;
+  if (criteria.length === 0 || criteria.some((line) => !isCheckedCriterion(line))) return text;
+  if (!fm) return text;
+  if (frontmatterStatus(text) === "completed") return text;
   const updated = /^status:/m.test(fm.body)
     ? fm.body.replace(/^status:.*$/m, "status: completed")
     : `status: completed\n${fm.body}`;
   const withDate = /^completed_at:/m.test(updated)
     ? updated.replace(/^completed_at:.*$/m, `completed_at: ${today}`)
     : updated.replace(/^status: completed$/m, `status: completed\ncompleted_at: ${today}`);
-  writeFileSync(abs, text.slice(0, fm.start) + withDate + text.slice(fm.end));
-  return true;
+  return text.slice(0, fm.start) + withDate + text.slice(fm.end);
 }
 
 function criteriaAllChecked(criteria: string[] | null): boolean {
   return criteria !== null && criteria.length > 0 && criteria.every(isCheckedCriterion);
 }
 
-function writeCompletedStatus(abs: string, today: string): boolean {
-  const text = readFileSync(abs, "utf8");
-  const next = markPhaseCompleted(text, today);
-  if (next === text) return false;
-  writeFileSync(abs, next);
-  return true;
-}
-
-function syncOverviews(subjectDir: string, phaseName: string): void {
-  for (const name of readdirSync(subjectDir)) {
-    if (!name.startsWith("plan-") || !name.endsWith(".md") || !name.includes("-phases")) continue;
-    const abs = resolve(subjectDir, name);
-    const text = readFileSync(abs, "utf8");
-    const next = markOverviewRow(text, phaseName);
-    if (next !== text) writeFileSync(abs, next);
-  }
-}
 
 function markOverviewRow(text: string, phaseName: string): string {
   const lines = text.split("\n");

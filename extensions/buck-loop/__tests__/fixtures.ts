@@ -7,6 +7,9 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { writeProjection } from "../persist.js";
+import { commitConsumerBatch, consumerKey } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 const dirs: string[] = [];
 const GIT_ENV = {
@@ -47,6 +50,31 @@ export function writeTree(root: string, files: Record<string, string>): void {
     mkdirSync(dirname(abs), { recursive: true });
     writeFileSync(abs, content);
   }
+}
+
+/** Retain even malformed bytes in the real bookmark namespace, not the workspace run. */
+export async function seedProjectionBytes(root: string, raw: string): Promise<void> {
+  await writeProjection(root, {
+    version: 1, state: "idle", subject: null, planPath: null, phasePath: null,
+    saveAttemptId: null, commitCheckpoint: null, loopCount: 0, iterateCyclesOnPhase: 0,
+    maxLoops: 12, lastChoice: null, history: [],
+  });
+  await withConfiguredStore(root, async (store, context) => {
+    for (const candidate of await store.listScopes(context.projectId)) {
+      if (candidate.branchId !== context.branchId || candidate.worktreeId !== context.worktreeId || !candidate.worktreeId || !candidate.runId) continue;
+      const scope = {
+        projectId: context.projectId, branchId: context.branchId,
+        worktreeId: candidate.worktreeId, runId: candidate.runId,
+      };
+      if (!await store.read(consumerKey(scope, "checkpoint", "buck-loop", "workflow/buck-loop.json"))) continue;
+      await commitConsumerBatch(store, scope, [{
+        kind: "checkpoint", subjectId: "buck-loop", logicalName: "workflow/buck-loop.json",
+        bytes: new TextEncoder().encode(raw), source: "test",
+      }], { attemptId: scope.runId, status: "attempted" });
+      return;
+    }
+    throw new Error("Fixture bookmark scope was not retained");
+  });
 }
 
 export function planMd(): string {

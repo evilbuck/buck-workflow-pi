@@ -1,10 +1,12 @@
 # Context Artifacts: Markdown Source, JSON Query Views
 
-Buck workflow uses a hybrid `.context/` model.
+Buck workflow stores narrative and machine-owned artifacts through the configured
+durable adapter. `.context/` is the repo-files editable projection; other adapters
+do not require it.
 
 ## Canonical sources
 
-Markdown remains the source of truth for narrative artifacts:
+Markdown is the canonical content format for narrative artifacts:
 
 - subject `index.md`
 - `research-*.md`
@@ -12,12 +14,264 @@ Markdown remains the source of truth for narrative artifacts:
 - memory files in `.context/memory/`
 - backlog item files in `.context/backlog/items/`
 
-JSON remains the source of truth for machine-owned state:
+JSON is the canonical content format for machine-owned state:
 
 - `.context/workflow/current-session.json`
 - other operational/session caches
 
-**Harness LTM is not a `.context/` source.** OMP `retain`/`recall`/`reflect` (Hindsight/mnemopi) mirror durable facts for agent recall. They do not replace markdown memory files or the generated JSON indexes. Bulk seed: `skills/b-memory-import`.
+**Harness LTM is not a workflow-storage source.** OMP `retain`/`recall`/`reflect` (Hindsight/mnemopi) provide agent recall. Mirrors accept only exact revisions with trusted publication proof, never unmerged private knowledge. They do not replace retained artifacts or generated JSON indexes. Bulk seed: `skills/b-memory-import`.
+
+## Shared durable-storage contract
+
+`skills/_shared/storage/` provides the backend-neutral contract, four adapters,
+and domain policies. Adapters are `repo-files`, `external-files`, `sqlite`, and
+`postgres`. Native `workflow_state` and the shared CLI are the model-facing
+access surface. The plan-artifact bridge, interactive subject picker, and
+supervisor recall/save address artifacts by token. Loop/review state and evidence,
+save metadata, importer cursors, attribution rows, auto-fix/PR evidence, and the
+plan reader use the selected service. `sql_memory` is not registered.
+`external-files`, `sqlite`, and `postgres` do not require a canonical `.context`
+mirror; local reports and runtime directories are optional exports.
+
+### Native and portable access
+
+`extensions/workflow-state/` registers `workflow_state`. Portable callers use
+`bun skills/_shared/scripts/workflow-state-cli.ts`. Ordinary operations are
+`read`, `list`, `search`, `write`, `correct`, `discover`,
+`inspect-lifecycle`, `transition`, `read-receipt`, and `write-receipt`.
+Operator operations are `inspect`, `recover`, `publication-view`,
+`map-checkpoint`, `revoke-mapping`, and `resolve-publication`; restricted
+stages cannot call them. `migrate`, `doctor`, and `migration-*` are CLI-only
+operator maintenance, never model operations or a storage fallback.
+
+The trusted runtime binds project and visibility from the checkout and machine
+config. Callers cannot pass `projectId`, `branchId`, `publishedRevisionIds`,
+`worktreeId`, or `runId`. Address an artifact by
+`{ subjectId, kind, logicalName, revision? }` or a `workflow-artifact:` token.
+A repo-files `.context/<subject>/<logicalName>` path is an optional editable
+projection, not an input.
+
+Roles are `read`, `write`, `save`, and `admin`. Restricted children receive a
+baked role and `workflow_state`, never `sql_memory`. In `/buck-loop`,
+`SQL_MEMORY_URL` only gates whether save requires a verified store receipt.
+The supervisor does not open that variable as a pool.
+
+Repo-files immutable manifests and revision blobs live under the machine
+identity registry,
+`${XDG_CONFIG_HOME:-~/.config}/buck-workflow/projects/<project-id>/repo-manifest`,
+beside `branch-identity.json`. Only editable bodies belong in `.context/`.
+
+Consumers bind the actual owning checkout and configured destination before
+queued work. Retained private artifacts use a stable workspace run; separate
+receipt runs identify individual write/window/save attempts. Changing the
+destination within that bound branch run refuses rather than redirecting pending
+writes. Ordinary reads/resume use retained records, never local JSON or host
+attribution tables as a missing-record or service-outage fallback. Repo-files
+private projections stay beneath `repo-manifest/private`, not in the checkout.
+
+`workflow_exec` is the Linux command boundary: Bubblewrap, fail closed, no
+host-shell fallback. Git metadata is read-only inside that command boundary
+except the commit checkpoint stage. Host file tools do not yet enforce that
+rule. See [ADR 0004](adr/0004-workflow-state-trusted-access.md).
+
+### Operations and module boundaries
+
+`contract.ts` defines `StorageStore`: artifact read/list/search, write batches,
+scoped corrections, lifecycle transitions, run receipts, checkpoint
+seal/bind/reconcile, and a versioned migration snapshot. The old current-view
+streaming export/import protocol is removed. Revisions carry exact bytes,
+a hash, author/source provenance, timestamps, typed links, and optional
+expected-revision concurrency preconditions. Content is not limited to
+Markdown; attachments can carry binary bytes.
+
+`conformance.ts` is a Vitest-only helper, not a production runtime dependency.
+`defineStorageConformance()` accepts a backend factory with a disposable store
+implementing artifact lookup, conditional writes, corrections, lifecycle, and
+receipts. Shared cases run against both file adapters, on-disk and in-memory
+SQLite, and disposable PostgreSQL. They cover exact bytes, stale-batch rollback,
+visibility before ranking/page/body loading, retained published revisions,
+inherited branch corrections/tombstones, lifecycle refusal and discovery, and
+same-scope receipt readback. Checkpoint publication proof remains separate.
+
+`domain.ts` uses the text authority in `subject-lifecycle.ts` for both filesystem
+and stored lifecycle operations. `transition()` accepts initialize, activate,
+close-verified, or reopen (with a nonblank reason), bound to the visible index
+revision and expected state. A transition writes a versioned subject-index
+artifact, not an independent state row; published close evidence and private
+reopen overlays therefore use the same view as plans and discovery. Legacy
+effective-state and malformed-provenance rules are preserved. PostgreSQL
+artifact writers and lifecycle transitions acquire sorted subject locks before
+reading evidence and hold them through commit.
+
+Corrections authorize the predecessor through the supplied published revision
+set plus the branch overlay, then conditionally write only that branch's
+pointer. Replays preserve idempotency/history. Receipt completion loads the
+attempt's exact revisions, checks body hashes and project/branch/worktree/run
+scope, and requires successful metadata duties; branch knowledge is reusable
+across runs, but another run's private revision cannot complete the save.
+`RunReceipt.metadataDuties` on an `attempted` receipt declares the required
+metadata work. On a `complete` receipt it attests operations the caller has
+successfully performed. Completion must cover every persisted attempt duty,
+including no-fact saves; attempted updates cannot shrink or replace that set.
+PostgreSQL receipt writers hold a transaction advisory lock keyed by project
+and run before reading the attempt, including when no receipt row exists yet.
+Concurrent initialization therefore cannot replace the winning requirement
+set; updates validate the committed predecessor and cannot downgrade completion.
+The adapter checks the attestation, not the external metadata operations.
+Readback/probe alone is not proof of backlog, phase-status, or draft-commit work.
+
+Discovery resolves lifecycle from the full branch-overlay/published visibility
+view before applying subject, kind, or logical-name result filters. Completed
+subjects and links targeting them remain excluded even when a filter omits
+their index or legacy completion evidence.
+
+### Configuration resolution
+
+`config.ts` parses YAML schema version `1`. The only top-level keys are
+`version`, `storage`, and `projects`; unknown and duplicate keys are rejected.
+Each storage selection requires `adapter` and permits only its corresponding
+optional field: `root` for external files, `database` for SQLite, or
+`connection_env` for PostgreSQL. The latter names an environment variable,
+not an embedded connection string.
+
+Projects are keyed by safe identifiers and require a non-empty `origins` list.
+Optional project keys are `integration_ref` (a full `refs/...` ref) and
+`storage`. That ref is the only automatic-publication switch. Origin matching uses the canonical form shared with `identity.ts`;
+duplicate normalized aliases fail as ambiguous. Configured URL origins reject
+userinfo, query, and fragment data rather than retaining credentials.
+
+`loadStorageConfig()` resolves the file in this order: explicit `configPath`,
+`BUCK_WORKFLOW_CONFIG`, then
+`${XDG_CONFIG_HOME:-~/.config}/buck-workflow/config.yaml`. Only an absent
+default file falls back to `repo-files`; an unreadable or missing explicitly
+selected file is an error. A matching project's storage selection replaces
+the machine selection, rather than merging its fields. There is no
+branch-level override or environment-driven adapter switch.
+
+Resolution supplies omitted external-file and SQLite locations under
+`${XDG_CONFIG_HOME:-~/.config}/buck-workflow/`:
+`{project}/.context` for external files and `state.sqlite` for SQLite. The
+external-file `{project}` token remains a template in this layer; a consumer
+must substitute the resolved safe project identity.
+
+### Identity and visibility invariants
+
+`identity.ts` resolves project identity from a configured safe key first,
+otherwise from a SHA-256 digest of a normalized, credential-redacted origin,
+otherwise from a digest of an absolute normalized Git common directory.
+Missing or ambiguous identity fails closed; raw remote URLs are not project
+keys. Origin aliases belong to config matching, not an automatic Git-remote
+rename detector.
+
+Create and persist a branch identity once per observed incarnation of a
+canonical `refs/heads/...` ref and its initial commit tip. Do not regenerate it
+on each read/run or use a recycled branch name as identity. Worktree and run
+IDs are separate UUID-based identifiers. Detached, unborn, and no-Git callers
+use an explicitly constructed private workspace identity with a workspace nonce,
+not a missing branch interpreted as global scope. The trusted runtime persists
+those bindings. An unborn ref keeps its private binding through the first
+commit and descendants; another ref or an unrelated rewrite cannot inherit it.
+Unreadable Git identity fails closed rather than appearing to be an idle run.
+
+Artifact keys use safe opaque project/subject/kind/scope IDs and a normalized
+relative logical name; absolute paths, empty or traversal components,
+backslashes, and NULs are refused. Run-scoped keys require both valid worktree
+and run IDs.
+
+`visibility.ts` first requires an exact project match. Ordinary lookup unions
+current-branch pointers with exact immutable published revisions, then overlays
+by logical identity before ranking, LIMIT, pagination, or body loading. Selected
+bodies are loaded by immutable revision, never a mutable current pointer.
+Advancing a private draft does not remove its predecessor from the published
+view. File projections reconcile only within the querying branch's private
+scope, so another branch cannot retrieve direct edits through a published ID.
+
+`domain.ts` exposes `lookupKnowledge()` as the ordinary store-backed knowledge
+read surface: `list()` without text, `search()` with text. Both apply the
+visibility rules above. Do not add unrestricted knowledge SQL to this surface.
+Supervisor recall uses this surface. The removed `sql_memory` tool does not.
+
+Worktree-private revisions require that worktree; run-private revisions require
+exact branch, worktree, and run even if supplied as published. Callers cannot
+pass `publishedRevisionIds`. When the project has an `integration_ref`, the
+runtime fills that set by reconciling the selected adapter before ordinary
+retrieval. Without that ref the published set stays empty. This is a retrieval
+invariant, not file/DB-operator access control. Harness LTM still accepts only
+revisions in that proven set; a merge, export, or local checkout is not
+publication evidence by itself.
+
+### Checkpoint publication and recovery
+
+`publication.ts` is the shared policy for every adapter. Domain terms are in
+[Durable storage](storage/CONTEXT.md). A sealed checkpoint freezes one branch
+snapshot's exact revision ids and hashes. `/buck-loop` seals before the commit
+stage and binds the resolved resulting OID only after Git verifies it. A failed
+bind leaves the seal private. The publication anchor is the bound OID, never
+creation HEAD. Proof is local `rev-parse` / `merge-base` only: exit 1 means not
+an ancestor; any other failure cannot prove. There is no network fetch and no
+implicit integration branch. The ledger is an immutable compare-and-swap
+revision in a runtime-private scope, not a tracked repository manifest.
+
+Ordinary lookup unions the current branch overlay with members of that
+integration view. Post-seal edits stay off the view until a later seal is
+proven. Rewritten or missing evidence removes visibility. Reverting integrated
+code does not delete a still-reachable published revision; artifact tombstones
+are explicit corrections.
+
+Independent publications of one logical artifact keep the last unambiguous
+reachable baseline and both candidates. Other artifacts still advance.
+Cross-branch supersession requires persisted artifact-correction ancestry.
+Same-branch sealed successors can advance by proven checkpoint order.
+`resolve-publication` selects one current candidate and applies only to that
+exact candidate set.
+
+Squash and rebase stay private until `map-checkpoint` attests the selected
+checkpoint, its full revision/hash set, a target reachable from the integration
+ref, and evidence other than patch-id. Subsets, duplicates, and
+cross-checkpoint mappings fail closed. `revoke-mapping` removes that
+checkpoint's mapping.
+
+`recover` lists retained named, workspace, and adapter scopes with provenance.
+Export or rebind runs only after one returned `scopeToken` is selected. Export
+returns immutable bytes. Rebind writes new branch-private revisions and refuses
+collisions. Deletion, rename, same-name recreation, detached HEAD, and unborn
+branches do not publish, destroy, or name-inherit private artifacts. Kinds
+`run-state`, `checkpoint`, `activity`, `audit`, `receipt`, and `attribution`
+stay private after merge.
+
+With publication configured, a repo-files projection that has no current-branch
+pointer imports only observable local index/worktree changes or new untracked
+files. Clean tracked bytes are not that import. An existing branch-owned
+projection still reconciles checkout bytes as direct edits; that path is
+branch-private and is not publication proof. Policy: [ADR 0005](adr/0005-versioned-integration-view.md).
+Operator sequences: [how-to index](howto/README.md).
+
+### Existing-data cutover
+
+`migration.ts` is the shared version-1 inventory for every adapter: retained
+revisions and bytes, pointers, links, corrections, receipt duties, lifecycle
+provenance, checkpoints, publication rows, attachments, search text, and import
+provenance. Export reads an immutable file generation or a read-only SQL
+transaction. It does not discover, reconcile, or adopt unretained editable
+files. Import stays invisible until one adapter transaction or generation
+installs the inventory into an empty project destination, or an exact replay.
+Known `memory-import` rows and original legacy JSON keep their metadata in a
+private recovery scope and lose ordinary pointers. A branch name is not
+publication evidence. Policy:
+[ADR 0006](adr/0006-offline-verified-storage-cutover.md). Narrative and private
+file exclusions: [`docs/sql-memory.md`](sql-memory.md). Sequences:
+[storage migration how-tos](howto/README.md#storage-migration).
+
+### SQLite runtime boundary
+
+`sqlite-capability.ts` loads `node:sqlite` lazily and requires a `DatabaseSync`
+export. Unsupported runtimes throw `SQLite adapter unavailable in this
+runtime: node:sqlite could not be loaded` with the underlying reason; there is
+no fallback backend. Other storage selections must not eagerly load this
+driver. `sqlite-runtime-smoke.ts` exercises real commit/read/rollback behavior;
+`npm run test:sqlite-runtime` runs the Node and Bun probes. Capability depends
+on the actual host runtime, not merely its version label or an accepted
+`sqlite` config selection.
 
 ## Generated indexes
 

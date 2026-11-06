@@ -46,6 +46,8 @@ find .context/ -name "research-*.md" | sort
 - Do not write outside the package directory
 - Packages are disposable generated output — not intended for hand-editing
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Output Structure
 
 ```
@@ -136,7 +138,17 @@ Generate a semi-public `manifest.json` with:
 }
 ```
 
-Use `manifest.json` on regeneration to remove stale files that are no longer needed.
+ Use `manifest.json` on regeneration to remove stale files that are no longer needed.
+
+### Step 6b: Retain the package on durable storage
+
+After the package (including `manifest.json`) is complete, retain its exact bytes on the configured durable store:
+
+```bash
+bun skills/b-present/scripts/retain-package.ts presentations/<slug>
+```
+
+The on-disk package remains the served user export; the store keeps the canonical adapter-backed copy (binary assets intact). Report the returned `runId` and file count. A retention failure is a failed step — do not report the package as durable.
 
 ### Step 7: Serve/Preview
 
@@ -291,3 +303,4 @@ Presentation package generated:
 Preview: http://localhost:<port>/
 Source: <source-file(s)>
 ```
+

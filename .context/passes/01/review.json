@@ -1,0 +1,34 @@
+{
+  "persona": "balanced",
+  "requested_model": "zai/glm-5.3",
+  "requested_temperature": null,
+  "thinking_level": "medium",
+  "reviewed_head": "3d60cdf8cc8e54659fe82fd62078668f137f7025",
+  "findings": [
+    {
+      "id": "F1",
+      "title": "Null dereference on error path",
+      "location": "app.js:2",
+      "observed": "broken() dereferences null",
+      "expected": "error handled",
+      "evidence": "return null.x",
+      "confidence": 1,
+      "floors": {
+        "securityBoundaryExploitable": false,
+        "irreversibleDataLoss": false,
+        "primaryPathBlocker": false,
+        "styleOnly": false
+      },
+      "fixHardness": "medium",
+      "reproduction": {
+        "status": "not_run",
+        "commandIds": [],
+        "note": "static"
+      },
+      "score": 10,
+      "rating": "high",
+      "blocking": true
+    }
+  ],
+  "errors": []
+}

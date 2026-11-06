@@ -4,7 +4,7 @@ interface Props {
   description?: string;
 }
 
-const { title, description = 'Readable browser for .context/ plan markdown.' } = Astro.props;
+const { title, description = 'Readable workflow artifacts from the configured storage adapter.' } = Astro.props;
 ---
 
 <!doctype html>
@@ -87,7 +87,7 @@ const { title, description = 'Readable browser for .context/ plan markdown.' } =
       <slot />
     </main>
     <footer>
-      sourced via PlanSource adapter · filesystem (.context/) today, SQL when the plan-document table lands
+      sourced via the configured workflow storage adapter
     </footer>
   </body>
 </html>

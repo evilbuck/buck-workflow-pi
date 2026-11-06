@@ -38,7 +38,7 @@ import {
   type ReviewExecRequest,
 } from "./policy.js";
 import { currentBranch, gitCommonDir } from "./git-ops.js";
-import { listRuns } from "./run-state.js";
+import { listRuns, pruneRetainedRun } from "./run-state.js";
 import { openHostModelRegistry, type HostAuthStorage, type HostModelRegistry } from "./model-registry.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -343,14 +343,17 @@ function makeDeps(cwd: string, parsed: ParsedArgs, activity: Activity, ui: Comma
   };
 }
 
-function pruneRuntime(cwd: string, notify: CommandUI["notify"]): void {
-  const runs = listRuns(gitCommonDir(cwd), currentBranch(cwd));
+async function pruneRuntime(cwd: string, notify: CommandUI["notify"]): Promise<void> {
+  const runs = await listRuns(gitCommonDir(cwd), currentBranch(cwd), cwd);
   const active = runs.filter((run) => run.state.status === "running");
   if (active.length > 0) {
     notify(`Refusing to prune ${active.length} running review run(s); resume or cancel them first.`, "warning");
     return;
   }
-  for (const run of runs) rmSync(run.dir, { recursive: true, force: true });
+  for (const run of runs) {
+    await pruneRetainedRun(cwd, run.state.run_id);
+    rmSync(run.dir, { recursive: true, force: true });
+  }
   notify(runs.length === 0 ? "No code-review runtime artifacts to prune." : `Pruned ${runs.length} code-review runtime artifact(s).`, "info");
 }
 
@@ -415,7 +418,7 @@ async function runCodeReview(args: string, ctx: { cwd: string; ui: CommandUI }):
   }
   try {
     if (parsed.prune) {
-      pruneRuntime(ctx.cwd, ctx.ui.notify);
+      await pruneRuntime(ctx.cwd, ctx.ui.notify);
       return;
     }
     const options = initialLoopOptions(parsed);

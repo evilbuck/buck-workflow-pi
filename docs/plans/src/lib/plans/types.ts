@@ -1,5 +1,5 @@
-// Shared plan-domain types. Every PlanSource — filesystem today, SQL
-// tomorrow — speaks these shapes so pages never care where markdown lives.
+// Shared plan-domain shapes. Pages use the configured adapter reader seam,
+// without depending on its storage backend or optional filesystem exports.
 
 export interface PlanSubject {
   /** Folder name, e.g. `2026-10-02.buck-loop-save-receipt-subject`. */

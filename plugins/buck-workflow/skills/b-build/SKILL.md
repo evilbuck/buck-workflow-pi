@@ -320,7 +320,7 @@ At SESSION START:
 1. Read `.context/workflow/current-session.json` if it exists
 2. Read the memory file listed in session state (if any) for prior context
 3. Optional: if OMP `recall` is available, recall the active subject / user goal for durable decisions (background only; prefer plan + repo)
-4. If `sql_memory` is callable, follow `skills/_shared/recall-project-memories.md` before relevant work. SQL recall is optional; without the tool, report shared-memory unavailability and use the existing file context.
+4. Follow `skills/_shared/recall-project-memories.md` and `skills/_shared/workflow-state-access.md` before relevant work. Do not construct SQL. A tool error is not an empty result.
 
 At EACH NATURAL STOP (you finished a coherent unit of work):
 4. Read the current session memory file

@@ -1,0 +1,106 @@
+## Plan Path Review: code-review-iteration-extension
+
+### Plan Source
+- File: `.context/2026-09-12.code-review-iteration-extension/brainstorm-code-review-iteration-extension.md` (the brainstorm is acting as the acceptance contract; no `plan-*.md` exists).
+- Goal: bounded Reviewer → Fixer → fresh-Reviewer OMP loop, isolated contexts, durable artifacts, configurable model routing.
+- Baseline: branch `feat/code-reviewer-extension`, one commit ahead of `origin/master` (`3cdc7bd docs(review): draft isolated review iteration extension`). The whole `extensions/code-review-iteration/` directory is untracked from `origin/master`'s view.
+
+### Evidence Sources
+- Git status: 5 modified, 4 untracked (extension folder + iterate artifact + memory note).
+- Modified: `extensions/omp-models.ts`, `extensions/omp-models.test.ts`, `extensions/index.ts`, `index.md`, `.context/memory/index.md`.
+- New: `extensions/code-review-iteration/{index,loop,policy,catalog,findings,prompts,report,run-state,git-ops,frontmatter,rubric}.ts`, `__tests__/*`, plus prompts/policy/personas/models/catalog markdown.
+- Branch: `feat/code-reviewer-extension`; `draft-commit.md` matches current diff intent.
+
+### Completion Matrix
+
+| Step (Brainstorm section) | Status | Evidence |
+|---|---|---|
+| OMP extension command, isolated SDK session, reuses `omp-models.ts` + activity surface | ✅ complete | `extensions/code-review-iteration/index.ts:412-429` `wire(pi)`; `makeDeps` at 258-324 calls `runOmpModelSession`. |
+| Editable persona markdown + override hooks | ✅ complete | `prompts.ts` loads `personas/*.md`; `Persona` interface; `balanced/correctness/security/performance` plus 5 provider/model neutral launchers seeded. |
+| Invocation arguments (profile, temperature, supplied context) | ✅ complete | `parseArgs` at `index.ts:117-136`, `--persona`, `--reviewer-temperature`, `--context`, `--fixer-model`, `--base`, `--resume`, `--prune`, etc. |
+| Two runtime roles Reviewer+Fixer, independent model selection | ✅ complete | `LoopDeps.runReviewerSession`/`runFixerSession`; precedence in `prompts.ts:resolveReviewerModel`; `chooseFixer`. |
+| Invariant reviewer prompt envelope | ✅ complete | `findingsSchemaContract()` exposes the rubric/schema; `assembleReviewerPrompt` always prepends it. |
+| Append vs replace contract | ✅ complete | `--context` -> `appendContext`, `--replace-reviewer-prompt` -> `replacementGuidance`; `assembleReviewerPrompt` keeps the invariant envelope in both modes. |
+| Two-axis classifications (criticality, fix hardness) | ✅ complete | `rubric.ts` `computeCriticality`; `findings.ts` rejects unknown hardness; `maxBlockingHardness`. |
+| Full-loop ownership (isolated Reviewer → validate → Fixer → fresh Reviewer) | ✅ complete | `runReviewLoop` + `runReviewerPass` + `runFixerPass` + `resumeIncompleteFixer` + max-passes loop. |
+| In-place review target resolution; no two-worktree-for-one-branch | ✅ complete | `runReviewLoop` operates on cwd; `prepareBaseAndCheckpoint`; only creates detached disposable review worktrees per pass; `--linked`/branch-prompt logic in `runCodeReview`. |
+| Fetch `origin` base + autostash rebase | ✅ complete | `detectBaseBranch`, `fetchBase`, `rebaseOntoFetched`. |
+| Hard-Fixer conflict recovery, hard-stop restore on failure | ✅ complete | `resolveRebaseConflictsWithFixer` (loop.ts:139-166), `abortRebase`. |
+| Pre-review dirty checkpoint + untracked pick | ✅ complete | `capturePreRun`, `selectUntracked`, `checkpointCommit`; covered by `__tests__/loop.test.ts:304-319`. |
+| Disposable detached review worktree | ✅ complete | `createDetachedWorktree`; `removeWorktree` in `finally`. |
+| Structured finding payload, immutable pass artifacts | ✅ complete | `findings.ts:validateFindingsPayload`; `run-state.ts:writePassReview/Fixer`; tests `__tests__/loop.test.ts:385-401`. |
+| Max-hardness Fixer selection, exclude reviewer | ✅ complete | `chooseFixer`, `thinkingFor`, `selectFixerModel`. |
+| Deterministic check contract, one checkpoint per Fixer pass | ✅ complete | `makeDeps.runChecks` reads `guardrails.json`; `checkpointCommit` only on success (loop.ts:436-438). |
+| Medium+ blocks, three-review max, advisory/low report-only | ✅ complete | `RATING_ORDER`, `effectiveBlocking` call sites; `maxPasses` default 3. |
+| Terminal outcome -> one `.context/` report | ✅ complete | `terminalResult` → `writeTerminalReport` → `renderFinalReport`. |
+| Reviewer `review_exec` policy (no shell, sanitized env, caps, denials) | ✅ complete | `policy.ts` (full module): structural argv matching, sanitized env, time/output caps, SIGKILL-on-timeout, kill-the-process-tree. |
+| Reproduction evidence → `commands.jsonl`, stable `evidence_id` | ✅ complete | `commandRecorder` appends with `seq`; `cN` ids; test `__tests__/loop.test.ts:321-338` proves review_exec → commands.jsonl → reproduction validation. |
+| Reject unreproduced `reproduction` citations on `reproduced` | ✅ complete | `findings.ts:135-148` rejects unknown ids and pushes errors. |
+| Symlink-rejected `resolveRequestCwd` | ✅ complete | `policy.ts:resolveRequestCwd` realpaths root + resolved cwd, `isWithin` on real paths; test `policy.test.ts:80-98` plants a symlink and asserts denial. |
+| Stream capture cap + incremental hash (no unbounded buffering) | ✅ complete | `policy.ts:attachCappedStream` short-circuits after `cap.truncated`; `hash.update` always. |
+| Catalog thinking levels → Reviewer + Fixer sessions | ✅ complete | `chooseFixer.thinking` flows into `runFixerSession.thinkingLevel`; `reviewThinking` for Reviewer. |
+| Resume incomplete Fixer pass | ✅ complete | `resumeIncompleteFixer` detects `review.json` without `fixer.json`; test `loop.test.ts:403-421` plants that shape. |
+| Clean outcome commits the terminal `.context/` report | ✅ complete | `terminalResult` calls `checkpointCommit` for report; test `loop.test.ts:252` asserts the commit message. |
+| `--fixer-model` below required hardness warns | ✅ complete | `reportFixerChoice` looks up `ctx.options.fixerModel` (not resolved choice); test `loop.test.ts:423-432` asserts the warning. |
+| Host network exposure recorded in command record | ✅ complete | `policy.ts:settle` sets `network_exposed: true`; `network_exposed: false` for denials/spawn errors. |
+| Editable catalog/persona/reviewer/fixer markdown beside extension | ✅ complete | `index.ts:HERE` constants; `prompts/reviewer.md`, `models/*.md`, `personas/*.md`, `review-exec-policy.md`. |
+| Local-only boundary; no GitHub PR integration | ✅ complete | No `gh`/`pr` imports anywhere in the extension; brainstorm scope boundary holds. |
+
+### Review Axes
+- **Spec axis worst finding**: There is no remaining in-spec correctness defect from the prior `b-review`. The remaining observation is a **standards finding** reported below (non-null-asserted lifecycle on `LoopContext`).
+- **Standards axis worst finding** (parallel agent `StandardsReview2026-09-12`): `LoopContext` types `runDir: string | null` and `state: RunState | null` (loop.ts:126-131), then 19 non-null assertions (`ctx.state!` and `ctx.runDir!`) stand in for post-`initializeRun` narrowing throughout the loop (e.g. loop.ts:651, 658, 676). `freshContext` always constructs those fields as `null`; `initializeRun` is a convention, not a type gate. This is the Temporary Field / late-init pattern; a discriminated state (`{ runDir: null; state: null } | { runDir: string; state: RunState }`) typed through subsequent helpers would remove the `!` cascade.
+  - Confidence: 0.78 (per agent). Verified the count myself: 19 non-null assertions in `loop.ts`.
+  - Additional duplicates worth folding in one pass:
+    - `catalogAllows` (loop.ts:322-324) duplicates exported `tierAtLeast` (rubric.ts:45-47).
+    - `loop.ts:56` declares a local `RATING_ORDER`, already declared in `rubric.ts:76` and used elsewhere — re-export, don't redeclare.
+    - `findings.ts:218` inlines `rating === "medium" || rating === "high" || rating === "critical"` instead of using `rubric.ts:101-103`'s exported `isBlocking`. If the rubric expands, the production path diverges from the unit-tested rule.
+    - `statePersona`/`stateReviewer`/`stateTemperature` (loop.ts:449-460) are one-line wrappers used only by `newLoopState`; inline them.
+- **Cross-axis ranking**: none — per-axis reporting only. Both axes converge on the same area: lifecycle typing and minor duplication in the orchestrator.
+
+### Verification Status
+- Goal achieved: yes
+- User goal: met — bounded Reviewer→Fixer→fresh-Reviewer OMP loop, isolated contexts, durable artifacts, configurable model routing.
+- Scope adhered: yes (extension adds `extensions/code-review-iteration/` and 3-line wire-up in `extensions/index.ts` plus temperature/thinking plumbing in `omp-models.ts`).
+- Out-of-scope changes: none.
+
+### Guardrails Verdict
+- Contract: durable
+- Contract version: 2
+- Status: pass
+- Gates: `unit_test_gate=pass` (658/658 vitest); `lint_gate=skipped` (`lint_cmd: null`); `functional_test_gate=skipped` (`functional_test_cmd: null`); `patch_gate=pass` (diff-cover 100% over the 9 modified lines, well above the 90% floor); `global_ratchet=pass` (79.15% line coverage, up from 54.9% baseline and above the 75% target); `complexity_gate=advisory` (Lizard numbers inflate via regex/template-literal misparse on declarative functions; the genuine concern is `prepareBaseAndCheckpoint` CCN ≈ 14-17 — at the hard ceiling but readable; `parseDispositions` ≈ 11 just above the soft ceiling. No new hard-ceiling failures after de-misparse.)
+- Coverage file path: `coverage/lcov.info` (gitignored).
+
+### User Goal Analysis
+- Goal: bounded Reviewer→Fixer→fresh-Reviewer loop in isolated OMP contexts.
+- Met: full lifecycle present — base fetch + rebase, dirty checkpoint, disposable review worktree, schema-validated findings, citation-checked reproduction, routes Fixer by hardness, three-pass bound, terminal `.context` report with diff-scoped commit on clean, validated resume incl. incomplete-Fixer.
+- Partial: small TypeScript hygiene items (see Standards axis).
+- Missing: nothing material.
+- Verdict: met.
+
+### Documentation Impact
+- New domain language: `Reviewer`, `Fixer`, `review_exec`, `commands.jsonl`, `PassReviewRecord`/`PassFixerRecord`, `RunState`, `code-review-iteration/<branch-key>/<run-id>` (git-common layout).
+- New architecture decision: a separate `extensions/code-review-iteration/` directory with editable markdown beside code (matches the README's extension-authoring convention).
+- New module boundary: command shell in `index.ts`, loop in `loop.ts`, trust boundary in `policy.ts`, validation in `findings.ts`, model catalog in `catalog.ts`, persona/prompt assembly in `prompts.ts`, git lifecycle in `git-ops.ts`, run state in `run-state.ts`, report rendering in `report.ts`. The codebase already documents extension layout in `docs/oh-my-pi.md` and the README; this extension maps onto it.
+- A new convention: `review_exec` as a struct-bounded trust boundary distinct from `bash`.
+- An ADR is plausible (the brainstorm notes local-only, no `b-flow` revival; see also `docs/adr/0001-slug.md` precedent). Worth a follow-up `/b-docs` ADR pass.
+- Recommended: `/b-docs` to register the new convention/ADR — non-blocking.
+
+### How-to Impact
+- A new user-facing action: the `/code-review` command. No existing `docs/howto/` covers OMP extension commands, so a how-to is appropriate.
+- Recommended: `/b-howto` (or rolled into `/b-docs`) — non-blocking.
+
+### Issue Classification
+- **In-plan issues** (→ `/b-iterate`):
+  - The lifecycle typing pattern + minor duplication is a small refactor request. It is **not** a bug against the brainstorm contract — the iteration contract only listed 2 Critical + 6 Warnings, all addressed — but it is also **not** strictly in scope of the brainstorm (no acceptance criterion covers `catalogAllows` vs `tierAtLeast` or the `isBlocking` inlining). Classify as: **in-plan correctness-adjacent, low priority**, suitable for a small `/b-iterate` if you want the lifecycle/DRY pass, otherwise `out-of-plan` to leave for a follow-up cleanup subject.
+  - Recommend treating as **out-of-plan** to keep this subject closable; the brainstorm's "iteration contract" did not name these. They are real, but they don't block user-facing functionality.
+- **Out-of-plan issues** (→ fresh `/b-plan`):
+  - All of the above (lifecycle + duplication) — these are quality improvements to the new code, not adherence gaps against the brainstorm.
+
+### Verdict
+**Pass.** Brainstorm acceptance criteria are met (loop completeness, integrity, evidence, resume, terminal report). Standards axis surfaces a real but small lifecycle/duplication cleanup that does not block merging.
+
+### Recommended Next Step
+1. `/b-docs` for the new convention + ADR (non-blocking).
+2. `/b-howto` for the `/code-review` user-facing action.
+3. `/b-save` → `/b-commit` (subject `2026-09-12.code-review-iteration-extension` is currently `active`; bump to `completed` in save).
+4. Optional follow-up subject (out-of-plan): the lifecycle/duplication cleanup identified by the standards agent. Open a new `.context/2026-09-13.code-review-iteration-cleanup/` (or similar) and run `/b-plan` → `/b-build`.

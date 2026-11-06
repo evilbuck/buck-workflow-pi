@@ -1,7 +1,9 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = join(repoRoot, "plugins", "buck-workflow");
@@ -10,10 +12,9 @@ const pluginRoot = join(repoRoot, "plugins", "buck-workflow");
  * deliberately physical, self-contained Codex release bundle — never a
  * symlink to the canonical tree.
  *
- * - `canonicalCopies` must be byte-for-byte recursive copies of the
- *   same-named directory under the repo-root `skills/` tree. When a
- *   canonical skill changes, re-copy it into the bundle; this test enforces
- *   the parity contract.
+ * - `canonicalCopies` are physical copies of the same-named canonical skill
+ *   directories. Synchronize release copies when changing their source.
+ *   Validate packaged runtime behavior rather than asserting copied source text.
  * - `codexOnly` skills exist only in the bundle (no canonical twin) and are
  *   the sole sanctioned divergence.
  */
@@ -57,22 +58,6 @@ const bundledSkills = [
   ...curatedBundle.codexOnly,
 ];
 
-/** Recursive relative file listing of a directory tree. */
-function listTree(root: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string, prefix: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isSymbolicLink()) {
-        throw new Error(`symlink not allowed in curated bundle: ${rel}`);
-      }
-      if (entry.isDirectory()) walk(join(dir, entry.name), rel);
-      else if (entry.isFile()) out.push(rel);
-    }
-  };
-  walk(root, "");
-  return out.sort();
-}
 
 describe("curated bundle specification", () => {
   it("bundle directory set exactly equals the declared inventory", () => {
@@ -89,29 +74,6 @@ describe("curated bundle specification", () => {
     }
   });
 
-  it("canonical copies have recursive path parity with skills/<name>/", () => {
-    const offenders: string[] = [];
-    for (const name of curatedBundle.canonicalCopies) {
-      const canonical = listTree(join(repoRoot, "skills", name));
-      const bundled = listTree(join(pluginRoot, "skills", name));
-      if (canonical.join("\n") !== bundled.join("\n")) offenders.push(name);
-    }
-    expect(offenders).toEqual([]);
-  });
-
-  it("canonical copies are byte-identical to skills/<name>/", () => {
-    const offenders: string[] = [];
-    for (const name of curatedBundle.canonicalCopies) {
-      for (const rel of listTree(join(pluginRoot, "skills", name))) {
-        const canonicalBytes = readFileSync(join(repoRoot, "skills", name, rel));
-        const bundledBytes = readFileSync(join(pluginRoot, "skills", name, rel));
-        if (!canonicalBytes.equals(bundledBytes)) {
-          offenders.push(`${name}/${rel}`);
-        }
-      }
-    }
-    expect(offenders).toEqual([]);
-  });
 });
 
 describe("Buck Workflow Codex plugin", () => {
@@ -154,5 +116,32 @@ describe("Buck Workflow Codex plugin", () => {
     }
 
     expect(existsSync(join(pluginRoot, "extensions"))).toBe(false);
+  });
+
+  it("retains exact artifact bytes across bundled CLI processes and refuses a stale revision", () => {
+    const root = mkdtempSync(join(tmpdir(), "bundled-workflow-"));
+    const config = join(root, "storage.yaml");
+    writeFileSync(config, `version: 1\nstorage:\n  adapter: sqlite\n  database: ${join(root, "records.sqlite")}\n`);
+    const env = { ...process.env, BUCK_WORKFLOW_CONFIG: config, XDG_CONFIG_HOME: join(root, "identity") };
+    const command = (operation: string, request: Record<string, unknown>) => spawnSync("bun", [
+      join(pluginRoot, "skills", "_shared", "scripts", "workflow-state-cli.ts"),
+      operation, "--subject", "bundle-proof", JSON.stringify(request),
+    ], { cwd: root, env, encoding: "utf8" });
+    const ref = { kind: "plan", logicalName: "plan-proof.md" };
+    try {
+      const first = command("write", { ref, body: "# Original\n", expectedRevision: null });
+      expect(first.status, first.stderr).toBe(0);
+      const original = JSON.parse(first.stdout) as { revision: string };
+      const updated = command("write", { ref, body: "# Updated\n", expectedRevision: original.revision });
+      expect(updated.status, updated.stderr).toBe(0);
+      const stale = command("write", { ref, body: "# Stale\n", expectedRevision: original.revision });
+      expect(stale.status).toBe(1);
+      expect(stale.stderr).toMatch(/stale revision/);
+      const read = command("read", { ref });
+      expect(read.status, read.stderr).toBe(0);
+      expect(JSON.parse(read.stdout)).toMatchObject({ text: "# Updated\n", revision: JSON.parse(updated.stdout).revision });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

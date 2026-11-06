@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "run_id": "20261016T020302-z1dmh3",
+  "status": "running",
+  "branch": "feature/x",
+  "base_branch": "master",
+  "base_commit": "c3450e9068dde0d8d4dc378dfea5dc276fad653f",
+  "start_head": "3d60cdf8cc8e54659fe82fd62078668f137f7025",
+  "last_head": "3d60cdf8cc8e54659fe82fd62078668f137f7025",
+  "checkpoint_commit": null,
+  "pass": 0,
+  "persona": "balanced",
+  "reviewer_model": "zai/glm-5.3",
+  "fixer_model": null,
+  "requested_temperature": null,
+  "min_blocking": "medium",
+  "max_passes": 3,
+  "created_worktree": null,
+  "worktree_fingerprint": "3d60cdf8cc8e54659fe82fd62078668f137f7025:stash::e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "started_at": "2026-10-16T02:03:02.912Z",
+  "updated_at": "2026-10-16T02:03:03.043Z",
+  "terminal": null
+}

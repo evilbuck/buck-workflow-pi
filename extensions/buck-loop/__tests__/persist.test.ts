@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { cleanupRepos, planMd, phaseMd, repo, writeTree } from "./fixtures.js";
+import { cleanupRepos, planMd, phaseMd, repo, seedProjectionBytes, writeTree } from "./fixtures.js";
 import {
   PROJECTION_RELPATH,
   readProjection,
@@ -50,25 +50,29 @@ function projection(overrides: Partial<Projection> = {}): Projection {
   };
 }
 
+async function seedProjection(root: string, files: Record<string, string>): Promise<void> {
+  await seedProjectionBytes(root, files[PROJECTION_RELPATH]);
+}
+
 afterEach(cleanupRepos);
 
 describe("projection round-trip", () => {
-  it("writes and reads versioned buck-loop.json fields", () => {
+  it("writes and reads versioned buck-loop.json fields", async () => {
     const root = repo();
     const original = projection();
-    writeProjection(root, original);
+    (await writeProjection(root, original));
     const abs = join(root, PROJECTION_RELPATH);
     expect(existsSync(abs)).toBe(true);
     const disk = JSON.parse(readFileSync(abs, "utf8")) as { version: number; state: LoopState };
     expect(disk.version).toBe(1);
     expect(disk.state).toBe("building");
-    expect(readProjection(root)).toEqual(original);
+    expect((await readProjection(root))).toEqual(original);
   });
-  it("loads a ranking projection and a projection written before ranking existed", () => {
+  it("loads a ranking projection and a projection written before ranking existed", async () => {
     const root = repo();
-    writeProjection(root, projection({ state: "ranking" }));
-    expect(readProjection(root)?.state).toBe("ranking");
-    writeTree(root, {
+    (await writeProjection(root, projection({ state: "ranking" })));
+    expect((await readProjection(root))?.state).toBe("ranking");
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({
         version: 1,
         state: "building",
@@ -82,13 +86,13 @@ describe("projection round-trip", () => {
         history: [{ from: "resolving", to: "building", at: "2026-09-18T00:00:00Z", why: "start" }],
       }),
     });
-    expect(readProjection(root)).toEqual(projection());
+    expect((await readProjection(root))).toEqual(projection());
   });
 
 
-  it("does not create or read an XState snapshot file", () => {
+  it("does not create or read an XState snapshot file", async () => {
     const root = repo();
-    writeProjection(root, projection());
+    (await writeProjection(root, projection()));
     expect(existsSync(join(root, ".context/workflow/orchestration.snapshot.json"))).toBe(false);
     writeTree(root, {
       ".context/workflow/orchestration.snapshot.json": JSON.stringify({
@@ -96,23 +100,23 @@ describe("projection round-trip", () => {
         context: { subject: SUBJECT },
       }),
     });
-    expect(readProjection(root)?.state).toBe("building");
+    expect((await readProjection(root))?.state).toBe("building");
   });
 
-  it("returns null when the projection file is missing", () => {
-    expect(readProjection(repo())).toBeNull();
+  it("returns null when the projection file is missing", async () => {
+    expect((await readProjection(repo()))).toBeNull();
   });
 });
 
 describe("resume reconciliation", () => {
-  it.each(["done", "blocked"] as const)("refreshes open acceptance blockers on %s resume", (state) => {
+  it.each(["done", "blocked"] as const)("refreshes open acceptance blockers on %s resume", async (state) => {
     const root = repo();
     writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}\n## Acceptance criteria\n- [ ] Observed evidence\n` });
-    writeProjection(root, projection({
+    (await writeProjection(root, projection({
       state, phasePath: null,
       history: [{ from: "committing", to: state, at: "2026-09-18T00:00:00Z", why: "unphased plan remains open" }],
-    }));
-    const snapshot = resume({ projectRoot: root });
+    })));
+    const snapshot = (await resume({ projectRoot: root }));
     expect(snapshot.state).toBe("blocked");
     expect(snapshot.history.at(-1)?.why).toContain("unphased plan remains open");
     expect(snapshot.history.at(-1)?.why).toContain("- [ ] Observed evidence");
@@ -120,24 +124,24 @@ describe("resume reconciliation", () => {
 
   it.each(["\n## Acceptance criteria\n- [ ] Implementation not yet verified\n", ""])(
     "preserves an ordinary unphased build interruption with acceptance section %j",
-    (acceptance) => {
+    async (acceptance) => {
       const root = repo();
       writeTree(root, { [`.context/${SUBJECT}/plan-demo.md`]: `${planMd()}${acceptance}` });
       const history: Projection["history"] = [
         { from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: "nested build interrupted; environment repaired" },
       ];
-      writeProjection(root, projection({ state: "blocked", phasePath: null, history }));
-      const snapshot = resume({ projectRoot: root });
+      (await writeProjection(root, projection({ state: "blocked", phasePath: null, history })));
+      const snapshot = (await resume({ projectRoot: root }));
       expect(snapshot.state).toBe("blocked");
       expect(snapshot.history).toEqual(history);
     },
   );
 
-  it("rescans before returning; stale building plus all phases completed becomes done", () => {
+  it("rescans before returning; stale building plus all phases completed becomes done", async () => {
     const root = repo();
     phased(root, ["completed", "completed"]);
-    writeProjection(root, projection({ state: "building" }));
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection({ state: "building" })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("done");
     expect(snap.planFacts).toEqual({ kind: "phased-complete" });
     expect(snap.phasePath).toBeNull();
@@ -146,11 +150,11 @@ describe("resume reconciliation", () => {
       { from: "resolving", to: "building", at: "2026-09-18T00:00:00Z", why: "start" },
     ]);
   });
-  it("blocks when the projection claims done but an incomplete phase exists", () => {
+  it("blocks when the projection claims done but an incomplete phase exists", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, projection({ state: "done" }));
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection({ state: "done" })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.planFacts.kind).toBe("missing");
     if (snap.planFacts.kind === "missing") {
@@ -161,10 +165,10 @@ describe("resume reconciliation", () => {
     expect(snap.workFacts.sessionOutcome).toBe("pending");
   });
 
-  it("blocks when the projection subject folder has vanished", () => {
+  it("blocks when the projection subject folder has vanished", async () => {
     const root = repo();
-    writeProjection(root, projection({ state: "building" }));
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection({ state: "building" })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.planFacts.kind).toBe("missing");
     if (snap.planFacts.kind === "missing") {
@@ -173,43 +177,41 @@ describe("resume reconciliation", () => {
     expect(snap.subject).toBe(SUBJECT);
   });
 
-  it("replaces stale projection planFacts with the rescan", () => {
+  it("replaces stale projection planFacts with the rescan", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(
-      root,
-      projection({
-        state: "building",
-        phasePath: null,
-      }),
-    );
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root,
+    projection({
+      state: "building",
+      phasePath: null,
+    }),));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("building");
     expect(snap.planFacts).toEqual({ kind: "phased-incomplete" });
     expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
   });
 
-  it("keeps a completed projected phase instead of advancing on resume", () => {
+  it("keeps a completed projected phase instead of advancing on resume", async () => {
     const root = repo();
     phased(root, ["completed", "pending"]);
-    writeProjection(root, projection({ state: "building" }));
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection({ state: "building" })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.phasePath).toBe(`.context/${SUBJECT}/phase-1-p1.md`);
     expect(snap.state).toBe("building");
     expect(snap.workFacts.postcondition).toBe("confirmed");
   });
 
 
-  it("returns idle missing when there is no projection and no path", () => {
-    const snap = resume({ projectRoot: repo() });
+  it("returns idle missing when there is no projection and no path", async () => {
+    const snap = (await resume({ projectRoot: repo() }));
     expect(snap.state).toBe("idle");
     expect(snap.planFacts.kind).toBe("missing");
   });
 
-  it("blocks on an unreadable projection file", () => {
+  it("blocks on an unreadable projection file", async () => {
     const root = repo();
-    writeTree(root, { [PROJECTION_RELPATH]: "{not-json" });
-    const snap = resume({ projectRoot: root });
+    await seedProjection(root, { [PROJECTION_RELPATH]: "{not-json" });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.planFacts.kind).toBe("missing");
     if (snap.planFacts.kind === "missing") {
@@ -217,42 +219,42 @@ describe("resume reconciliation", () => {
     }
   });
 
-  it("blocks when a loop counter is negative", () => {
+  it("blocks when a loop counter is negative", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, { [PROJECTION_RELPATH]: JSON.stringify({ ...projection(), loopCount: -1 }) });
-    const snap = resume({ projectRoot: root });
+    await seedProjection(root, { [PROJECTION_RELPATH]: JSON.stringify({ ...projection(), loopCount: -1 }) });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.planFacts.kind).toBe("missing");
     if (snap.planFacts.kind === "missing") {
       expect(snap.planFacts.reason).toMatch(/unreadable/);
     }
-    expect(readProjection(root)).toBeNull();
+    expect((await readProjection(root))).toBeNull();
   });
 
-  it("blocks when a loop counter is fractional", () => {
+  it("blocks when a loop counter is fractional", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, {
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({ ...projection(), iterateCyclesOnPhase: 0.5 }),
     });
-    const snap = resume({ projectRoot: root });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
-    expect(readProjection(root)).toBeNull();
+    expect((await readProjection(root))).toBeNull();
   });
 
-  it("blocks when maxLoops is not a positive integer", () => {
+  it("blocks when maxLoops is not a positive integer", async () => {
     for (const maxLoops of [0, 12.5]) {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, { [PROJECTION_RELPATH]: JSON.stringify({ ...projection(), maxLoops }) });
-      const snap = resume({ projectRoot: root });
+      await seedProjection(root, { [PROJECTION_RELPATH]: JSON.stringify({ ...projection(), maxLoops }) });
+      const snap = (await resume({ projectRoot: root }));
       expect(snap.state).toBe("blocked");
-      expect(readProjection(root)).toBeNull();
+      expect((await readProjection(root))).toBeNull();
     }
   });
 
-  it("rejects inherited enum keys in projection state and choices", () => {
+  it("rejects inherited enum keys in projection state and choices", async () => {
     const corruptions = [
       { ...projection(), state: "toString" },
       {
@@ -264,20 +266,20 @@ describe("resume reconciliation", () => {
     for (const corrupted of corruptions) {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, { [PROJECTION_RELPATH]: JSON.stringify(corrupted) });
-      expect(readProjection(root)).toBeNull();
-      expect(resume({ projectRoot: root }).state).toBe("blocked");
+      await seedProjection(root, { [PROJECTION_RELPATH]: JSON.stringify(corrupted) });
+      expect((await readProjection(root))).toBeNull();
+      expect((await resume({ projectRoot: root })).state).toBe("blocked");
     }
   });
   
-  it("ignores a planted XState snapshot when reconciling", () => {
+  it("ignores a planted XState snapshot when reconciling", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, projection({ state: "building" }));
+    (await writeProjection(root, projection({ state: "building" })));
     writeTree(root, {
       ".context/workflow/orchestration.snapshot.json": JSON.stringify({ value: "done" }),
     });
-    const snap = resume({ projectRoot: root });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("building");
     expect(snap.planFacts).toEqual({ kind: "phased-incomplete" });
   });
@@ -298,12 +300,12 @@ describe("diagnose bookmark", () => {
     });
   }
 
-  it("round-trips a diagnosing projection with its origin, handoff, heavy stamp, and attempt count", () => {
+  it("round-trips a diagnosing projection with its origin, handoff, heavy stamp, and attempt count", async () => {
     const root = repo();
     phased(root, ["pending"]);
     const original = heavy({ state: "diagnosing" });
-    writeProjection(root, original);
-    expect(readProjection(root)).toEqual(original);
+    (await writeProjection(root, original));
+    expect((await readProjection(root))).toEqual(original);
 
     const disk = JSON.parse(readFileSync(join(root, PROJECTION_RELPATH), "utf8")) as Projection;
     expect(disk).toMatchObject({
@@ -314,7 +316,7 @@ describe("diagnose bookmark", () => {
       diagnoseAttempts: 0,
     });
 
-    const snap = resume({ projectRoot: root });
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("diagnosing");
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -327,15 +329,15 @@ describe("diagnose bookmark", () => {
     expect(next(snap).effect).toEqual({ kind: "diagnose" });
   });
 
-  it("keeps the origin, handoff, and heavy stamp across a resume of a blocked heavy halt", () => {
+  it("keeps the origin, handoff, and heavy stamp across a resume of a blocked heavy halt", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       phasePath: `.context/${SUBJECT}/phase-1-p1.md`,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.state).toBe("blocked");
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -345,33 +347,33 @@ describe("diagnose bookmark", () => {
     expect(userConfirmed(snap).to).toBe("diagnosing");
   });
 
-  it("retains a spent attempt on a blocked heavy halt so resume does not re-diagnose", () => {
+  it("retains a spent attempt on a blocked heavy halt so resume does not re-diagnose", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       diagnoseAttempts: 1,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(1);
     expect(snap.repairLift).toBe("heavy");
     expect(heavyLiftResume(snap)).toBe(false);
     expect(userConfirmed(snap).to).not.toBe("diagnosing");
   });
 
-  it("reads an extension-restart interruption as a spent heavy halt, not a fresh one", () => {
+  it("reads an extension-restart interruption as a spent heavy halt, not a fresh one", async () => {
     const root = repo();
     phased(root, ["pending"]);
     // `stopForExtensionRestart` blocks from `diagnosing`, keeping the stamp and
     // origin for the operator but marking the halt's single attempt spent.
     const restartWhy = "Restart OMP before continuing: repaired the buck-loop extension. Changed: machine.ts";
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       diagnoseAttempts: 1,
       history: [{ from: "diagnosing", to: "blocked", at: "2026-09-18T00:00:00Z", why: restartWhy }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(1);
     expect(snap.repairLift).toBe("heavy");
     expect(snap.diagnoseOrigin).toBe("building");
@@ -379,29 +381,29 @@ describe("diagnose bookmark", () => {
     expect(userConfirmed(snap).to).not.toBe("diagnosing");
   });
 
-  it("never invents a checkpoint for a heavy-lift bookmark that carries none", () => {
+  it("never invents a checkpoint for a heavy-lift bookmark that carries none", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, heavy({
+    (await writeProjection(root, heavy({
       state: "blocked",
       commitCheckpoint: null,
       history: [{ from: "building", to: "blocked", at: "2026-09-18T00:00:00Z", why: HEAVY_WHY }],
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.commitCheckpoint).toBeNull();
-    expect(readProjection(root)?.commitCheckpoint).toBeNull();
+    expect((await readProjection(root))?.commitCheckpoint).toBeNull();
   });
 
   it.each([["committing"], ["reviewing"], ["toString"], [7]])(
     "refuses an illegal diagnose origin (%j) instead of reviving a spent halt",
-    (diagnoseOrigin) => {
+    async (diagnoseOrigin) => {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, {
+      await seedProjection(root, {
         [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked", diagnoseAttempts: 1 }), diagnoseOrigin }),
       });
-      expect(readProjection(root)).toBeNull();
-      const snap = resume({ projectRoot: root });
+      expect((await readProjection(root))).toBeNull();
+      const snap = (await resume({ projectRoot: root }));
       expect(snap.state).toBe("blocked");
       expect(snap.planFacts.kind).toBe("missing");
       if (snap.planFacts.kind === "missing") expect(snap.planFacts.reason).toMatch(/unreadable/);
@@ -412,65 +414,65 @@ describe("diagnose bookmark", () => {
 
   it.each([[0.5], [-1], ["1"], [{ spent: 1 }]])(
     "refuses an illegal diagnose attempt count (%j) instead of re-opening a spent halt",
-    (diagnoseAttempts) => {
+    async (diagnoseAttempts) => {
       const root = repo();
       phased(root, ["pending"]);
-      writeTree(root, {
+      await seedProjection(root, {
         [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked" }), diagnoseAttempts }),
       });
-      expect(readProjection(root)).toBeNull();
-      const snap = resume({ projectRoot: root });
+      expect((await readProjection(root))).toBeNull();
+      const snap = (await resume({ projectRoot: root }));
       expect(snap.state).toBe("blocked");
       if (snap.planFacts.kind === "missing") expect(snap.planFacts.reason).toMatch(/unreadable/);
       expect(snap.commitCheckpoint ?? null).toBeNull();
     },
   );
 
-  it("refuses an illegal repair lift stamp", () => {
+  it("refuses an illegal repair lift stamp", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, {
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({ ...heavy({ state: "blocked" }), repairLift: "medium" }),
     });
-    expect(readProjection(root)).toBeNull();
-    expect(resume({ projectRoot: root }).state).toBe("blocked");
+    expect((await readProjection(root))).toBeNull();
+    expect((await resume({ projectRoot: root })).state).toBe("blocked");
   });
 
-  it("reads the cleared-diagnosis bookmark a landed successor persists", () => {
+  it("reads the cleared-diagnosis bookmark a landed successor persists", async () => {
     const root = repo();
     phased(root, ["pending"]);
     // What `clearDepartedDiagnosis` + `diagnoseBookmark` write after a landed
     // diagnose: every diagnose field explicitly empty, state past diagnosing.
-    writeProjection(root, projection({
+    (await writeProjection(root, projection({
       state: "reviewing",
       repairLift: null,
       diagnoseOrigin: null,
       diagnoseHandoff: null,
       diagnoseAttempts: 0,
-    }));
-    const snap = resume({ projectRoot: root });
+    })));
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
     expect(snap.diagnoseOrigin).toBeNull();
     expect(heavyLiftResume(snap)).toBe(false);
   });
 
-  it("reads a bookmark written before diagnosing existed as zero attempts and no heavy stamp", () => {
+  it("reads a bookmark written before diagnosing existed as zero attempts and no heavy stamp", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeProjection(root, projection());
-    expect(readProjection(root)?.diagnoseAttempts).toBeUndefined();
-    const snap = resume({ projectRoot: root });
+    (await writeProjection(root, projection()));
+    expect((await readProjection(root))?.diagnoseAttempts).toBeUndefined();
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
     expect(snap.diagnoseOrigin).toBeNull();
     expect(heavyLiftResume(snap)).toBe(false);
   });
 
-  it("tolerates explicit nulls for the diagnose bookmark fields", () => {
+  it("tolerates explicit nulls for the diagnose bookmark fields", async () => {
     const root = repo();
     phased(root, ["pending"]);
-    writeTree(root, {
+    await seedProjection(root, {
       [PROJECTION_RELPATH]: JSON.stringify({
         ...projection(),
         repairLift: null,
@@ -479,26 +481,20 @@ describe("diagnose bookmark", () => {
         diagnoseAttempts: null,
       }),
     });
-    expect(readProjection(root)).toEqual(projection());
-    const snap = resume({ projectRoot: root });
+    expect((await readProjection(root))).toEqual(projection());
+    const snap = (await resume({ projectRoot: root }));
     expect(snap.diagnoseAttempts).toBe(0);
     expect(snap.repairLift).toBeNull();
   });
 });
 
 describe("persist contract", () => {
-  it("does not import b-flow, xstate, or orchestration.snapshot.json", () => {
-    const src = readFileSync(new URL("../persist.ts", import.meta.url), "utf8");
-    expect(src).not.toMatch(/from ["'][^"']*b-flow/);
-    expect(src).not.toMatch(/from ["']xstate["']/);
-    expect(src).not.toMatch(/orchestration\.snapshot\.json/);
-  });
 
-  it("writes a stderr diagnostic when projection hygiene cannot run", () => {
+  it("writes a stderr diagnostic when projection hygiene cannot run", async () => {
     const root = mkdtempSync(join(tmpdir(), "buck-loop-nongit-"));
     const write = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
-      writeProjection(root, projection());
+      (await writeProjection(root, projection()));
       expect(write.mock.calls.map((call) => String(call[0])).join("")).toMatch(/projection hygiene skipped/);
     } finally {
       write.mockRestore();

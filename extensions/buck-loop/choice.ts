@@ -18,6 +18,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { runJev } from "../jev-tool/index.js";
 import { runOmpModelSession, type ActivityEvent, type BuckThinking } from "../omp-models.js";
 import { createTypeSafeEvaluator } from "../typed-output/evaluator.js";
@@ -189,7 +190,7 @@ async function writeAudit(opts: {
   const directory = join(opts.cwd, ".context", opts.subject, "transition-audits");
   await mkdir(directory, { recursive: true });
   const name = `${Date.now()}-${opts.source}-${opts.attempt}-${randomUUID()}.json`;
-  await writeFile(join(directory, name), `${JSON.stringify({
+  const body = `${JSON.stringify({
     source: opts.source,
     legal: opts.legal,
     raw: opts.raw,
@@ -198,7 +199,12 @@ async function writeAudit(opts: {
     reason: opts.reason,
     context: opts.context,
     attempt: opts.attempt,
-  }, null, 2)}\n`);
+  }, null, 2)}\n`;
+  await writeFile(join(directory, name), body);
+  await scheduleConfiguredRetain({
+    kind: "audit", subjectId: opts.subject, logicalName: `transition-audits/${name}`,
+    bytes: new TextEncoder().encode(body), cwd: opts.cwd, source: "buck-loop",
+  });
 }
 
 /**

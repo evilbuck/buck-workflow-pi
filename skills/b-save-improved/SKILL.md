@@ -13,7 +13,7 @@ the extension is the deterministic implementation.
 `/b-save` remains the portable fallback for harnesses without this extension;
 this skill does not replace it.
 
-When `SQL_MEMORY_URL` is set, the extension inserts the scribe's reusable session record into PostgreSQL using bound statements and source-key deduplication, verifies the subject receipt against same-project rows, then applies metadata. A session with no reusable fact writes a verified no-fact receipt. Apply refuses SQL mode without the receipt and does not write `.context/memory/` files, the memory index, or a copy of the memory body into the subject index. Plan/spec cross-references use `sql_memory_ids`, not nonexistent Markdown paths. File mode is unchanged when the variable is unset.
+When `SQL_MEMORY_URL` is set, the extension writes the scribe's reusable session record through `workflow_state` `write` (`kind: memory`). A rows receipt lists only revision ids returned by successful writes. A session with no reusable fact writes `kind: no-fact` and `ids: []`. Do not issue a read-back SELECT. Apply refuses this mode without the receipt and does not write `.context/memory/` files, the memory index, or a copy of the memory body into the subject index. Plan/spec cross-references use `sql_memory_ids` from those revision ids, not nonexistent Markdown paths. File mode is unchanged when the variable is unset.
 
 ## Inputs
 
@@ -89,8 +89,8 @@ completion list.
 The remaining steps are deterministic and run in scripts:
 
 1. Run `bun skills/b-save-improved/scripts/save-preflight.ts` (optional `--subject`).
-   Exit codes: `0` ready, `1` filesystem broken, `2` ambiguous subject,
-   `3` `.context/` missing.
+   Exit codes: `0` ready, `1` storage/read failure, `2` ambiguous subject.
+   Discovery and snapshots come from the selected adapter; `.context/` is not required.
 2. On exit 2, prompt the user to pick from `subject_candidates` (newest
    first) **or "Create `<suggested_subject>`"**. Create uses the suggested
    name with no extra prompt. Re-run preflight with `--subject`. Cancel = stop.
@@ -108,14 +108,18 @@ The remaining steps are deterministic and run in scripts:
    already proof.
 5. Assemble the apply payload (preflight facts + scribe output + auditor
    verdicts) and pipe it to `bun skills/b-save-improved/scripts/save-apply.ts`
-   on stdin. The payload has no caller-selected subject lifecycle status.
-   Apply performs lifecycle intents last and returns the lifecycle result.
+   on stdin, preserving preflight's `storage_snapshot`. In SQL save mode include
+   the directive/facts helper's `sql_receipt`; facts and metadata must share its
+   exact attempt. The payload has no caller-selected lifecycle status. Apply
+   performs lifecycle intents, seals conditional metadata/corrections, and reads
+   back the same complete durable receipt before returning success. Never stamp
+   a local completion flag or independently rewrite a stale projection.
    Use `--dry-run` to preview without writing, or `--archive-inferred` to also
    archive inferred backlog items.
-6. If `memory_backend.expect_retain`, call `retain` (for `hindsight`/`mnemopi`)
-   or `learn` (for `local`) with 1–N self-contained facts including artifact
-   paths. Each fact is pre-drafted by the scribe. Skip if `backend` is null
-   (no harness memory tool detected). Skip if `--no-retain`.
+6. Step 8 is withheld unless the caller supplies exact publication-proven
+   adapter revisions. Current scribe facts alone are branch-local and MUST NOT
+   be forwarded to unscoped host LTM. The current extension supplies no such
+   proof, so skip `retain` and `learn`; do not call the Hindsight HTTP API.
 7. Non-OMP only: best-effort re-index the configured memory skill (run `qmd`
    on `.context/memory` if it resolves on `PATH`). Wrap in try/catch; failure
    is reported, never blocking.

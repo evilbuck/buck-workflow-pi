@@ -1,7 +1,7 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { dirname, join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { runJev } from "../../jev-tool/index.js";
 import {
   acceptanceCriteria,
@@ -13,29 +13,30 @@ import {
   unfinishedIterateReport,
 } from "../ambiguity.js";
 import { unfinishedIterates } from "../scan.js";
+import { cleanupRepos, repo, writeTree } from "./fixtures.js";
+import { resolveConsumerContext } from "../../../skills/_shared/scripts/workflow-state.js";
 vi.mock("../../jev-tool/index.js", () => ({ runJev: vi.fn() }));
 
 const judge = vi.mocked(runJev);
 
 beforeEach(() => judge.mockReset());
+afterEach(cleanupRepos);
 
 function liftAnswer(choice: string) {
   return { raw: "", details: { answers: { lift: { type: "choice", choice, confidence: 0.9 } } } };
 }
 
 function subjectDir(files: Record<string, string>): string {
-  const dir = mkdtempSync(join(tmpdir(), "ambiguity-"));
-  for (const [name, content] of Object.entries(files)) {
-    mkdirSync(join(dir, name, ".."), { recursive: true });
-    writeFileSync(join(dir, name), content);
-  }
+  const root = repo("ambiguity-");
+  const dir = join(root, ".context", "2026-10-15.ambiguity");
+  writeTree(root, Object.fromEntries(Object.entries(files).map(([name, content]) => [`.context/2026-10-15.ambiguity/${name}`, content])));
   return dir;
 }
 
 const ITERATE_BODY = "---\n\n# Iteration: demo\n\n- Critical: fix the thing\n";
 
 describe("unfinished iterate artifacts", () => {
-  it("counts active, missing-status, and unterminated files as unfinished", () => {
+  it("counts active, missing-status, and unterminated files as unfinished", async () => {
     const dir = subjectDir({
       "iterate-a.md": `---\nstatus: active\ncompleted: null\n${ITERATE_BODY}`,
       "iterate-b.md": "# no frontmatter\n",
@@ -43,26 +44,26 @@ describe("unfinished iterate artifacts", () => {
       "iterate-done.md": "---\nstatus: completed\ncompleted: 2026-10-03\n---\n",
       "review-x.md": "---\nstatus: active\n",
     });
-    expect(unfinishedIterates(dir).map((abs) => abs.slice(dir.length + 1))).toEqual([
+    expect((await unfinishedIterates(dir)).map((abs) => abs.slice(dir.length + 1))).toEqual([
       "iterate-a.md",
       "iterate-b.md",
       "iterate-c.md",
     ]);
   });
 
-  it("does not count below-waterline artifacts as unfinished", () => {
+  it("does not count below-waterline artifacts as unfinished", async () => {
     const dir = subjectDir({ "iterate-low.md": "---\nstatus: below-waterline\n---\n# iterate\n" });
-    expect(unfinishedIterates(dir)).toEqual([]);
+    expect(await unfinishedIterates(dir)).toEqual([]);
   });
 });
 
 describe("closeSingleUnfinishedIterate", () => {
-  it("closes one active artifact, stamping both date fields and preserving the body", () => {
+  it("closes one active artifact, stamping both date fields and preserving the body", async () => {
     const dir = subjectDir({
       "iterate-a.md": `---\nstatus: active\ncompleted: null\nupdated: 2026-10-01\nfrom_review: b-review\n${ITERATE_BODY}`,
     });
     const abs = join(dir, "iterate-a.md");
-    expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(true);
+    expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(true);
     const text = readFileSync(abs, "utf8");
     expect(text).toContain("status: completed");
     expect(text).toContain("completed: 2026-10-03");
@@ -72,67 +73,65 @@ describe("closeSingleUnfinishedIterate", () => {
     expect(text).not.toContain("completed: null");
   });
 
-  it("adds a missing date field instead of leaving it absent", () => {
+  it("adds a missing date field instead of leaving it absent", async () => {
     const dir = subjectDir({ "iterate-a.md": `---\nstatus: active\n${ITERATE_BODY}` });
     const abs = join(dir, "iterate-a.md");
-    expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(true);
+    expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(true);
     expect(readFileSync(abs, "utf8")).toMatch(/^completed: 2026-10-03$/m);
     expect(readFileSync(abs, "utf8")).toMatch(/^updated: 2026-10-03$/m);
   });
 
-  it("closes nothing when two artifacts are unfinished", () => {
+  it("closes nothing when two artifacts are unfinished", async () => {
     const a = "---\nstatus: active\n---\n# iterate\n";
     const dir = subjectDir({ "iterate-a.md": a, "iterate-b.md": a });
-    expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
+    expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
     expect(readFileSync(join(dir, "iterate-a.md"), "utf8")).toBe(a);
     expect(readFileSync(join(dir, "iterate-b.md"), "utf8")).toBe(a);
   });
 
-  it("closes nothing when the only artifact is below-waterline or already completed", () => {
+  it("closes nothing when the only artifact is below-waterline or already completed", async () => {
     const low = "---\nstatus: below-waterline\n---\n# iterate\n";
     const dir = subjectDir({ "iterate-low.md": low });
-    expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
+    expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
     expect(readFileSync(join(dir, "iterate-low.md"), "utf8")).toBe(low);
   });
 
-  it("refuses a target without well-formed active frontmatter", () => {
+  it("refuses a target without well-formed active frontmatter", async () => {
     const noFront = "# no frontmatter\n";
     const unterminated = "---\nstatus: active\nstill open\n";
     const dir = subjectDir({ "iterate-a.md": noFront });
     const other = subjectDir({ "iterate-a.md": unterminated });
-    expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
-    expect(closeSingleUnfinishedIterate(other, "2026-10-03T00:00:00.000Z")).toBe(false);
+    expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
+    expect(await closeSingleUnfinishedIterate(other, "2026-10-03T00:00:00.000Z")).toBe(false);
     expect(readFileSync(join(dir, "iterate-a.md"), "utf8")).toBe(noFront);
     expect(readFileSync(join(other, "iterate-a.md"), "utf8")).toBe(unterminated);
   });
 
-  it("refuses a single artifact whose status is not active", () => {
+  it("refuses a single artifact whose status is not active", async () => {
     // One candidate, so the count check passes and the status guard decides.
     // The supervisor may only close what the child declared it was working on.
     for (const status of ["in-progress", "pending", "draft"]) {
       const body = `---\nstatus: ${status}\ncompleted: null\n${ITERATE_BODY}`;
       const dir = subjectDir({ "iterate-a.md": body });
-      expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
+      expect(await closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
       expect(readFileSync(join(dir, "iterate-a.md"), "utf8")).toBe(body);
     }
   });
 
-  it("fails closed when the write cannot land", () => {
+  it("surfaces a selected-store failure without changing the export", async () => {
     const original = `---\nstatus: active\n${ITERATE_BODY}`;
     const dir = subjectDir({ "iterate-a.md": original });
-    const abs = join(dir, "iterate-a.md");
-    chmodSync(abs, 0o444);
-    try {
-      expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).toBe(false);
-      expect(readFileSync(abs, "utf8")).toBe(original);
-    } finally {
-      chmodSync(abs, 0o644);
-    }
+    const root = dirname(dirname(dir));
+    const context = await resolveConsumerContext(root);
+    mkdirSync(context.manifestRoot!, { recursive: true });
+    writeFileSync(join(context.manifestRoot!, "manifest.json"), "{invalid");
+    await expect(closeSingleUnfinishedIterate(dir, "2026-10-03T00:00:00.000Z")).rejects.toThrow();
+    expect(readFileSync(join(dir, "iterate-a.md"), "utf8")).toBe(original);
   });
 });
 
 describe("ambiguity diagnosis for an iterating miss", () => {
-  it("names each unfinished artifact with its status, before any lift call", () => {
+  it("names each unfinished artifact with its status, before any lift call", async () => {
     const dir = subjectDir({
       "iterate-a.md": "---\nstatus: active\n---\n# iterate\n",
       "iterate-b.md": "---\nstatus: in-progress\n---\n# iterate\n",
@@ -144,7 +143,7 @@ describe("ambiguity diagnosis for an iterating miss", () => {
       abs: phase,
       why: "postcondition scan ambiguous",
       sessionText: "did the fix",
-      iterateReport: unfinishedIterateReport(dir),
+      iterateReport: await unfinishedIterateReport(dir),
     });
     expect(diagnosis).toContain("iterate-a.md (status active)");
     expect(diagnosis).toContain("iterate-b.md (status in-progress)");
@@ -163,12 +162,12 @@ describe("ambiguity diagnosis for an iterating miss", () => {
     expect(diagnosis).not.toContain("Iterate artifacts:");
   });
 
-  it("reports nothing to iterate on when every artifact is finished", () => {
+  it("reports nothing to iterate on when every artifact is finished", async () => {
     const dir = subjectDir({
       "iterate-a.md": "---\nstatus: completed\n---\n# iterate\n",
       "iterate-b.md": "---\nstatus: below-waterline\n---\n# iterate\n",
     });
-    expect(unfinishedIterateReport(dir)).toBe("no unfinished iterate artifact");
+    expect(await unfinishedIterateReport(dir)).toBe("no unfinished iterate artifact");
   });
 });
 

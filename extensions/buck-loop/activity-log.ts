@@ -1,7 +1,8 @@
-import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, type WriteStream } from "node:fs";
+import { appendFileSync, createWriteStream, existsSync, mkdirSync, readFileSync, statSync, type WriteStream } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
+import { flushConfiguredRetains, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
 import { finished } from "node:stream/promises";
 import type { ActivityEvent } from "../extension-activity.js";
 import type { LoopCommand, LoopProgress } from "./loop.js";
@@ -168,11 +169,19 @@ export function createBuckLoopActivityLog(options: CreateBuckLoopActivityLogOpti
           resolve();
         });
       });
+      await flushConfiguredRetains();
     },
     close: () => {
       if (closing) return closing;
       closed = true;
-      closing = finished(stream).catch(disable);
+      closing = finished(stream).catch((error: unknown) => { disable(error); }).then(async () => {
+        if (existsSync(path) && statSync(path).isFile()) {
+          await scheduleConfiguredRetain({
+            kind: "activity", subjectId: "buck-loop", logicalName: ACTIVITY_LOG_RELPATH.replace(/^\.context\//u, ""),
+            bytes: new TextEncoder().encode(readFileSync(path, "utf8")), cwd: root, source: "buck-loop",
+          });
+        }
+      });
       stream.end();
       return closing;
     },

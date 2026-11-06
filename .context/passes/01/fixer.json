@@ -1,0 +1,20 @@
+{
+  "model": "openai-codex/gpt-5.6-terra",
+  "requested_hardness": "medium",
+  "dispositions": [
+    {
+      "finding_id": "F1",
+      "disposition": "valid",
+      "note": "verified"
+    }
+  ],
+  "changed_paths": [
+    "app.js"
+  ],
+  "checks": {
+    "command": "npm test",
+    "exit_code": 0,
+    "passed": true
+  },
+  "checkpoint_commit": "7d82fdbed54d8d85ac0d66eff40836c40b16cc78"
+}

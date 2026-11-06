@@ -98,19 +98,19 @@ after the exit — abort exits with no follow-up turn are skipped. Dedupes via a
 
 File layout: `loop.ts`, `policy.ts`, `catalog.ts`, `prompts.ts`, `report.ts`, `run-state.ts`, `git-ops.ts`, `findings.ts`, `rubric.ts`, `frontmatter.ts`, `__tests__/`, plus editable markdown (`prompts/`, `personas/`, `models/`, `review-exec-policy.md`).
 
-Runtime artifacts live under `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/`. Design rationale: `.context/2026-09-12.code-review-iteration-extension/brainstorm-code-review-iteration-extension.md` and `docs/adr/0001-local-only-isolated-code-review-loop.md`.
+Run state, immutable pass evidence, and terminal reports persist on the configured workflow adapter in checkout/run-private scope. `<git-common-dir>/code-review-iteration/<branch-key>/<run-id>/` contains optional exports, not resume authority; missing exports do not lose retained state. Creation and terminal reports are awaited, and a report-retention failure cannot mark the run clean. Historical rationale: `.context/2026-09-12.code-review-iteration-extension/brainstorm-code-review-iteration-extension.md` and `docs/adr/0001-local-only-isolated-code-review-loop.md`; the configured adapter supersedes that ADR's local-file persistence location.
 
 ### `token-attribution` (bundled with buck-workflow)
 
-`extensions/token-attribution/` records each completed assistant turn in a plugin-owned table in `~/.omp/stats.db`. The package entry in `extensions/index.ts` wires it automatically; no second install step is required. `message_end` records the current process, while `message_end` and `agent_end` also scan only the current session's nested JSONL artifact directory so subagent and advisor usage is included even when the child process did not load the plugin. `(session_file, entry_key)` is the delivery identity, so retries and live-to-JSONL reconciliation do not double-count a turn.
+`extensions/token-attribution/` records completed assistant turns through the configured workflow adapter. Rows, delivery aliases, dedupe and reports are private to the trusted checkout/workspace/branch run, including after merge; local SQL rows are never a read or outage fallback. The package entry in `extensions/index.ts` wires it automatically. `message_end` records the current process; `message_end` and `agent_end` also scan the current session's nested JSONL artifact directory for subagent and advisor usage. `(session_file, entry_key)` remains the delivery identity, so retries and live-to-JSONL reconciliation do not double-count a turn.
 
 Project identity is the Git `origin` URL when available, otherwise the absolute Git common directory. Linked worktrees therefore share a project key while retaining the branch observed at each turn. Detached work is labeled `detached/<short-sha>`; a non-Git session uses its cwd as the project key and has no branch. The ledger stores provider, model, API, token buckets, and OMP's normalized `usage.cost.total` when present. Reported dollars are estimates, not invoice or subscription-quota reconciliation.
 
-The extension uses `attribution` when that table is absent or has the expected plugin schema; otherwise it uses `buck_token_attribution`. It does not alter OMP-owned stats tables. `/tokens` reports the current project by branch and provider/model; if another extension already owns that command, Buck registers `/token-use`. See [Inspect project token use](howto/inspect-project-token-use.md).
+There is no default writer to `~/.omp/stats.db`. An explicitly configured SQLite projection writes only `buck_token_attribution` after durable success; host `attribution`, `messages` and their indexes remain untouched. Delivery handlers await retention and warn on persistence failure without interrupting the host response; shutdown observes pending writes. `/tokens` groups visible current-scope usage by branch and provider/model; if another extension owns that command, Buck registers `/token-use`. Other checkouts' private rows are not aggregated. See [Inspect project token use](howto/inspect-project-token-use.md).
 
-### `sql-memory` (bundled with buck-workflow, env-gated)
+### `workflow-state` (bundled with buck-workflow)
 
-`extensions/sql-memory/` registers the `sql_memory` tool only when `SQL_MEMORY_URL` is set. `extensions/index.ts` calls `wire()`; an unset variable registers nothing and does not load `pg`. The pool is created on the first tool call, so an unreachable database does not stop extension load.
+`extensions/workflow-state/` registers native `workflow_state` on every load. Callers address artifacts by token or subject/kind/logical name and cannot pass project or visibility scope. `extensions/sql-memory/` `wire()` does not register `sql_memory`. See [ADR 0004](adr/0004-workflow-state-trusted-access.md).
 
 ## Settings
 

@@ -21,6 +21,8 @@ Investigate unfamiliar code, trace flows, map architecture, and capture findings
 - Use `.context/` for durable notes the user should keep.
 - Do not modify application code, config, CI, infra, or tests.
 
+Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
+
 ## Subject Folder Creation (Required)
 
 **Every b-explore session creates a subject folder.** This is not opt-in.
@@ -117,3 +119,4 @@ Recommended next step
 - `/b-research` — if external/web investigation is needed to fill gaps
 - `/b-build` — if the exploration makes the path clear enough to skip planning
 - `/b-build-hard` — if the path is clear but the work is complex or risky
+
