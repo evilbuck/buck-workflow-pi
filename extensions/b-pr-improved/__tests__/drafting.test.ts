@@ -1,12 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const captured: { calls: Array<[string, unknown?]>; handle: object | null } = {
+const captured: { calls: Array<[string, unknown?]>; handle: object | null; prompts: string[] } = {
   calls: [],
   handle: null,
+  prompts: [],
 };
 
 vi.mock("../../extension-activity.js", async () => {
@@ -37,7 +39,8 @@ vi.mock("../../omp-models.js", async () => {
   const actual = await vi.importActual<typeof import("../../omp-models.js")>("../../omp-models.js");
   return {
     ...actual,
-    runOmpModelSession: async (opts: { onActivity?: (e: unknown) => void } = {}) => {
+    runOmpModelSession: async (opts: { onActivity?: (e: unknown) => void; prompt?: string } = {}) => {
+      if (opts.prompt) captured.prompts.push(opts.prompt);
       const bridge = opts.onActivity;
       if (bridge) {
         bridge({ kind: "text", delta: "delta" });
@@ -89,6 +92,7 @@ describe("b-pr-improved drafting", () => {
   beforeEach(() => {
     captured.calls = [];
     captured.handle = null;
+    captured.prompts = [];
   });
 
   it("exercises preflight + Synthesizing + Creating phases; fires ingest events", async () => {
@@ -117,6 +121,15 @@ describe("b-pr-improved drafting", () => {
       // onActivity, which the runner normalized and forwarded to activity.ingest.
       expect(captured.calls.filter((c) => c[0] === "ingest").length).toBeGreaterThan(0);
       expect(captured.calls.filter((c) => c[0] === "dispose")).toHaveLength(1);
+      const template = readFileSync(
+        join(dirname(fileURLToPath(import.meta.url)), "../../../skills/b-pr/description-prompt.md"),
+        "utf8",
+      );
+      const filled = template
+        .replaceAll("<<IMPLEMENTATION_FILES>>", "(none)")
+        .replaceAll("<<COMMITS>>", "- feat: add feature (t)")
+        .replaceAll("<<PLANNING_CONTEXT>>", "(none)");
+      expect(captured.prompts).toEqual([filled]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -255,9 +255,9 @@ export function createProfileEditor(input: ProfileEditorHost): {
   const selectedRowText = (key: BuckStageKey, index: number, focused: boolean): string => {
     const id = state.drafts[key].ids[index] as string;
     const note = input.baselines[key]?.models.find((model) => model.id === id)?.note;
-    const unavailable = input.available.includes(id) ? "" : " (not on this machine)";
+    const unavailable = input.available.includes(id) ? "" : "! ";
     const cursor = focused ? "> " : "  ";
-    return `${cursor}[x] ${id}${note ? ` (${note})` : ""}${unavailable}`;
+    return `${cursor}[x] ${unavailable}${id}${note ? ` (${note})` : ""}`;
   };
 
   const catalogRowText = (
@@ -268,8 +268,8 @@ export function createProfileEditor(input: ProfileEditorHost): {
   ): string => {
     const checked = state.drafts[key].ids.includes(row.id);
     const cursor = focused ? "> " : "  ";
-    const unavailable = row.unavailable ? " (not on this machine)" : "";
-    return `${cursor}[${checked ? "x" : " "}] ${row.id}${unavailable}`;
+    const unavailable = row.unavailable ? "! " : "";
+    return `${cursor}[${checked ? "x" : " "}] ${unavailable}${row.id}`;
   };
 
   const windowStart = (cursor: number, length: number, capacity: number): number =>
@@ -307,7 +307,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
       }
       lines.push(`${cell(left, leftWidth)}│${cell(right, rightWidth)}`);
     }
-    lines.push(input.theme.fg("muted", `filter: ${view.query}`));
+    lines.push(input.theme.fg("muted", `! unavailable · filter: ${view.query}`));
     return lines.map((line) => truncateToWidth(line, width));
   };
 

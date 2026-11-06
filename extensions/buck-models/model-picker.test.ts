@@ -304,10 +304,25 @@ describe("createProfileEditor", () => {
     const baselines = { build: cfg(["gone/model"]) };
     const e = makeEditor({ baselines, available: ["openai/gpt"] });
     for (let i = 0; i < 2; i++) e.component.handleInput(KEY.tab);
-    expect(e.component.render(80).join("\n")).toContain("gone/model (not on this machine)");
+    expect(e.component.render(80).join("\n")).toContain("! gone/model");
     e.component.handleInput(KEY.left);
     e.component.handleInput(KEY.space);
     expect(e.state.drafts.build.ids).toEqual([]);
+  });
+
+  it("keeps unavailable status visible in both columns when a model ID is clipped", () => {
+    const id = "some-provider/extraordinarily-long-unavailable-model-name";
+    const e = makeEditor({ baselines: { build: cfg([id]) }, available: ["present/model"] });
+    for (let i = 0; i < 2; i++) e.component.handleInput(KEY.tab);
+    for (const width of [60, 80, 120]) {
+      const lines = e.component.render(width);
+      const row = lines.find((line) => line.includes("some-provider/"))!;
+      const [selected, catalog] = row.split("│");
+      expect(selected).toContain("! some-provider/");
+      expect(catalog).toContain("! some-provider/");
+      expect(lines.join("\n")).toContain("! unavailable");
+      expect(lines.join("\n")).not.toContain("! present/model");
+    }
   });
 
   it("stays navigable with an empty catalog and with zero filter matches", () => {

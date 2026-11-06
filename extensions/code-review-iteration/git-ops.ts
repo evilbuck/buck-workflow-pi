@@ -136,10 +136,30 @@ export function stageFiles(cwd: string, files: string[]): void {
   }
 }
 
+/** Check staged resolutions without treating unrelated whitespace as a conflict. */
+function stagedConflictError(cwd: string, files: string[]): string | null {
+  try {
+    git(cwd, ["diff", "--cached", "--check", "--", ...files], {
+      LC_ALL: "C",
+      GIT_LITERAL_PATHSPECS: "1",
+    });
+    return null;
+  } catch (error: unknown) {
+    const failure = error as { stdout?: string; stderr?: string; status?: number; message?: string };
+    if (/leftover conflict marker/i.test(failure.stdout ?? "")) {
+      return `unresolved conflict markers remain in ${files.join(", ")}`;
+    }
+    // git diff --check returns 2 for whitespace errors, which are not conflicts.
+    if (failure.status === 2 && failure.stdout && !failure.stderr?.trim()) return null;
+    return `could not check staged conflict markers: ${failure.stderr?.trim() || failure.message || "git failed"}`;
+  }
+}
+
 /** Stage resolved conflict files and continue; loops are driven by the caller. */
 export function resolveAndContinue(cwd: string, resolvedFiles: string[]): RebaseResult {
   stageFiles(cwd, resolvedFiles);
-  return continueRebase(cwd);
+  const error = stagedConflictError(cwd, resolvedFiles);
+  return error ? { status: "failed", files: [], error } : continueRebase(cwd);
 }
 
 export function abortRebase(cwd: string): void {
