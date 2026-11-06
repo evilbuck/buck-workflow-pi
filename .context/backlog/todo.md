@@ -6,6 +6,9 @@ Overview: [`plan-durable-storage-adapters-phases.md`](../2026-10-10.durable-stor
 Chain: 1 → 2 → 3 → 4 → 5 and 3 → 6 → 7 → 8 (5 ∥ 6 possible; sequential default).
 
 
+## Buck models category tabs
+
+- [ ] [Replace sequential model setup with category tabs](items/buck-models-category-tabs.md) — medium; two model columns, per-tab thinking shortcut, final Save tab — see `.context/2026-11-05.buck-models-category-tabs/plan-category-tabs.md`
 
 
 ## Worktree recap
