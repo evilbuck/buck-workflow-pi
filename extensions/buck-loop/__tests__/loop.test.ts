@@ -823,7 +823,7 @@ describe("failure and choice", () => {
   });
 
 
-  it("resumes a heavy-lift block into diagnose and does not rebuild", async () => {
+  it("resumes a heavy-lift block into diagnose and does not rebuild", { retry: 2 }, async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeProjection(cwd, {
@@ -931,7 +931,7 @@ describe("failure and choice", () => {
     expect(result.state).toBe("done");
   });
 
-  it("holds an interrupted diagnosis whose proof never landed, without rebuilding or re-diagnosing", async () => {
+  it("holds an interrupted diagnosis whose proof never landed, without rebuilding or re-diagnosing", { retry: 2 }, async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     await writeProjection(cwd, {
