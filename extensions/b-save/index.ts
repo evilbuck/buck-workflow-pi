@@ -165,6 +165,27 @@ function commandOk(state: string) {
 
 type JournalSummary = { status: "idle" | "in-progress" | "completed" | "rolled-back"; files: string[] };
 
+// Snapshot truth beats defaults: a resolved subject carries status,
+// evidence, and hashes the fallbacks cannot know.
+function applySnapshotOverlay(manifest: RunManifest, snapshot: SaveSnapshot | null | undefined): void {
+  if (!snapshot) return;
+  manifest.subject = snapshot.subject;
+  manifest.session_evidence = snapshot.session_evidence;
+  manifest.input_hashes = snapshot.input_hashes;
+}
+
+function manifestJournal(journal?: JournalSummary): JournalSummary {
+  return journal ?? { status: "idle", files: [] };
+}
+
+function manifestUserDecisions(userDecisions?: unknown[]): unknown[] {
+  return userDecisions ?? [];
+}
+
+function terminalError(ok: boolean, state: string): string | null {
+  return ok ? null : state;
+}
+
 function manifestFor(args: {
   runId: string;
   state: string;
@@ -192,19 +213,13 @@ function manifestFor(args: {
     session_evidence: { present: false, valid: false, stale_reasons: [], fields: {} },
     input_hashes: {},
     proposals: args.proposals ?? [],
-    user_decisions: args.userDecisions ?? [],
+    user_decisions: manifestUserDecisions(args.userDecisions),
     patch_set: args.patch ?? null,
-    journal: args.journal ?? { status: "idle", files: [] },
+    journal: manifestJournal(args.journal),
     effects: args.effects,
-    terminal_error: args.ok ? null : args.state,
+    terminal_error: terminalError(args.ok, args.state),
   };
-  // Snapshot truth beats defaults: a resolved subject carries status,
-  // evidence, and hashes the fallbacks cannot know.
-  if (args.snapshot) {
-    manifest.subject = args.snapshot.subject;
-    manifest.session_evidence = args.snapshot.session_evidence;
-    manifest.input_hashes = args.snapshot.input_hashes;
-  }
+  applySnapshotOverlay(manifest, args.snapshot);
   return manifest;
 }
 
@@ -444,24 +459,23 @@ function evaluatePhase(input: {
   }
 }
 
-async function executeRun(
+type FinishArgs = {
+  state: string;
+  effects?: EffectOutcome[];
+  warnings?: string[];
+  durableFiles?: string[];
+  manifest?: RunManifest;
+};
+
+function makeFinish(
   ctx: CommandCtx,
   flags: CommandFlags,
+  actor: { stop(): void },
   runId: string,
   subject: string | null,
   resume: { resumed: boolean },
-): Promise<CommandResult> {
-  const actor = createActor(createBSaveMachine(), { input: { runId, subject } });
-  actor.start();
-  const machineState = () => String(actor.getSnapshot().value);
-
-  const finish = (args: {
-    state: string;
-    effects?: EffectOutcome[];
-    warnings?: string[];
-    durableFiles?: string[];
-    manifest?: RunManifest;
-  }): CommandResult => {
+): (args: FinishArgs) => CommandResult {
+  return (args) => {
     const ok = commandOk(args.state);
     const report = formatReport({
       runId,
@@ -478,6 +492,89 @@ async function executeRun(
     actor.stop();
     return { ok, runId, state: args.state, report, effects: args.effects ?? [] };
   };
+}
+
+type RunFinish = (args: FinishArgs) => CommandResult;
+
+// Applies the patch (or dry-runs), then runs effects and builds the
+// terminal manifest. Actor sends stay in phase order.
+async function applyAndComplete(args: {
+  ctx: CommandCtx;
+  flags: CommandFlags;
+  runId: string;
+  actor: { send(event: unknown): void };
+  snapshot: SaveSnapshot;
+  proposals: unknown[];
+  scribe: unknown;
+  patch: PatchPlan;
+  durableFiles: string[];
+  resumed: boolean;
+  machineState: () => string;
+  finish: RunFinish;
+}): Promise<CommandResult> {
+  const { ctx, flags, runId, actor, snapshot, proposals, scribe, patch, durableFiles, machineState, finish } = args;
+  if (flags.dryRun) {
+    return finish({ state: "completed", durableFiles, warnings: ["dry-run: nothing applied or persisted"] });
+  }
+  let applied: ApplyResult;
+  try {
+    applied = applyPatch(ctx.cwd, patch, { runId, expectedHashes: snapshot.input_hashes });
+  } catch (error) {
+    actor.send({ type: "APPLY_FAILED" });
+    return finish({
+      state: machineState(),
+      warnings: [String(error)],
+      manifest: manifestFor({
+        runId,
+        state: "failed_apply",
+        flags,
+        effects: [],
+        ok: false,
+        snapshot,
+        proposals,
+        patch,
+        journal: { status: "in-progress", files: durableFiles },
+      }),
+    });
+  }
+  actor.send({ type: "APPLY_DONE" });
+  const effects = await runEffects({
+    noRetain: flags.noRetain,
+    memory: ctx.memory ?? null,
+    facts: { run_id: runId, subject: snapshot.subject.name, scribe },
+  });
+  actor.send({ type: "EFFECTS_DONE" });
+  return finish({
+    state: machineState(),
+    effects,
+    durableFiles,
+    manifest: manifestFor({
+      runId,
+      state: "completed",
+      flags,
+      effects,
+      ok: true,
+      snapshot,
+      proposals,
+      userDecisions: userDecisionsFor(flags, args.resumed),
+      patch,
+      journal: { status: applied.journal.status, files: applied.journal.ops.map((op) => op.path) },
+    }),
+  });
+}
+
+async function executeRun(
+  ctx: CommandCtx,
+  flags: CommandFlags,
+  runId: string,
+  subject: string | null,
+  resume: { resumed: boolean },
+): Promise<CommandResult> {
+  const actor = createActor(createBSaveMachine(), { input: { runId, subject } });
+  actor.start();
+  const machineState = () => String(actor.getSnapshot().value);
+
+  const finish = makeFinish(ctx, flags, actor, runId, subject, resume);
 
   // --- snapshotting ---
   const snap = takeSnapshotPhase(ctx.cwd, flags, runId, subject);
@@ -513,56 +610,20 @@ async function executeRun(
   const durableFiles = patch.ops.map((op) => op.path);
   actor.send({ type: "EVAL_DONE" });
 
-  // --- applying ---
-  if (flags.dryRun) {
-    return finish({ state: "completed", durableFiles, warnings: ["dry-run: nothing applied or persisted"] });
-  }
-  let applied: ApplyResult;
-  try {
-    applied = applyPatch(ctx.cwd, patch, { runId, expectedHashes: snapshot.input_hashes });
-  } catch (error) {
-    actor.send({ type: "APPLY_FAILED" });
-    return finish({
-      state: machineState(),
-      warnings: [String(error)],
-      manifest: manifestFor({
-        runId,
-        state: "failed_apply",
-        flags,
-        effects: [],
-        ok: false,
-        snapshot,
-        proposals,
-        patch,
-        journal: { status: "in-progress", files: durableFiles },
-      }),
-    });
-  }
-  actor.send({ type: "APPLY_DONE" });
-
-  // --- effecting: only after durable apply succeeded ---
-  const effects = await runEffects({
-    noRetain: flags.noRetain,
-    memory: ctx.memory ?? null,
-    facts: { run_id: runId, subject: snapshot.subject.name, scribe: phase.scribe },
-  });
-  actor.send({ type: "EFFECTS_DONE" });
-  return finish({
-    state: machineState(),
-    effects,
+  // --- applying + effecting ---
+  return applyAndComplete({
+    ctx,
+    flags,
+    runId,
+    actor,
+    snapshot,
+    proposals,
+    scribe: phase.scribe,
+    patch,
     durableFiles,
-    manifest: manifestFor({
-      runId,
-      state: "completed",
-      flags,
-      effects,
-      ok: true,
-      snapshot,
-      proposals,
-      userDecisions: userDecisionsFor(flags, resume.resumed),
-      patch,
-      journal: { status: applied.journal.status, files: applied.journal.ops.map((op) => op.path) },
-    }),
+    resumed: resume.resumed,
+    machineState,
+    finish,
   });
 }
 
