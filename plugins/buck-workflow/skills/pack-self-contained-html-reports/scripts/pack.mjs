@@ -29,8 +29,16 @@ let cfgPath = null;
 let dirArg = null;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === "--config") { cfgPath = resolve(argv[++i]); }
-  else if (a === "--dir") { dirArg = resolve(argv[++i]); }
+  if (a === "--config") {
+    const v = argv[++i];
+    if (v === undefined) bail(`missing value for --config (usage: bun pack.mjs [--dir DIR | --config PATH])`, 2);
+    cfgPath = resolve(v);
+  }
+  else if (a === "--dir") {
+    const v = argv[++i];
+    if (v === undefined) bail(`missing value for --dir (usage: bun pack.mjs [--dir DIR | --config PATH])`, 2);
+    dirArg = resolve(v);
+  }
   else if (a === "--help" || a === "-h") {
     console.log("bun pack.mjs [--dir DIR | --config PATH]");
     process.exit(0);
@@ -280,7 +288,7 @@ function rewriteBody(body, key, allKeys, idMap, tabKeyMap, crossFileMap) {
   for (const [oldId, newId] of sortedIds) {
     const escOld = oldId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     html = html.replace(new RegExp(`\\bid="${escOld}"`, "g"), `id="${newId}"`);
-    html = html.replace(new RegExp(`(href)="#${escOld}(?=[??"'\\s])`, "g"), `$1="#${newId}"`);
+    html = html.replace(new RegExp(`(href)="#${escOld}(?=["'\\s])`, "g"), `$1="#${newId}`);
     html = html.replace(new RegExp(`\\bdata-sec="${escOld}"`, "g"), `data-sec="${newId}"`);
     html = html.replace(new RegExp(`\\baria-(controls|labelledby)="${escOld}"`, "g"),
       (_, attr) => `aria-${attr}="${newId}"`);

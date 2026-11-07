@@ -29,6 +29,15 @@
     var PANELS = {}, TOCS = {}, OWNER = {};
     TABS.forEach(function(t){
       var k = t.dataset.tab;
+      // Sanitized tab keys can collide within one report (e.g. two headings both
+      // sanitized to "plan"). Fall back to a counter suffix so distinct tabs never
+      // overwrite each other in PANELS/TOCS/OWNER.
+      if (PANELS[k] || TOCS[k]) {
+        var n = 2;
+        while (PANELS[k + "-" + n] || TOCS[k + "-" + n]) n++;
+        k = k + "-" + n;
+        t.dataset.tab = k;
+      }
       // IMPORTANT: scope to `root` so a prefixed `panel-X` / [data-toc="X"] inside
       // this report maps to its own tab, not some other report's tab.
       var panel = root.querySelector('[role="tabpanel"][aria-labelledby="' + t.id + '"]')
@@ -212,6 +221,10 @@
     doc.toggle.setAttribute("aria-expanded", "false");
   }
 
+  function safeDecode(s){
+    try { return decodeURIComponent(s); } catch (e) { return s; }
+  }
+
   document.addEventListener("click", function(ev){
     var sw = ev.target.closest(".dswitch");
     if (sw) {
@@ -232,7 +245,7 @@
     }
     var a = ev.target.closest('a[href^="#"]');
     if (!a) return;
-    var id = decodeURIComponent(a.getAttribute("href").slice(1));
+    var id = safeDecode(a.getAttribute("href").slice(1));
     if (!id) return;
     if (goTo(id, true)) {
       ev.preventDefault();
@@ -242,7 +255,7 @@
   });
 
   window.addEventListener("hashchange", function(){
-    var id = decodeURIComponent(location.hash.slice(1));
+    var id = safeDecode(location.hash.slice(1));
     if (id) goTo(id, true);
   });
 

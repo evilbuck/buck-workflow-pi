@@ -124,6 +124,15 @@ jq 'del(.outputStyle)' ~/.claude/settings.json > "$tmp" && mv "$tmp" ~/.claude/s
 
 Deleting the key returns Claude Code to the **Default** style. The built-in alternatives are `Proactive`, `Explanatory`, and `Learning`.
 
+OpenCode — remove the instruction file and its `opencode.json` entry:
+
+```bash
+rm ~/.config/opencode/instructions/codex-output-style.md
+SETTINGS="$HOME/.config/opencode/opencode.json"
+tmp="$(mktemp -t oc-instructions.XXXXXX)"
+jq '.instructions = ((.instructions // []) - ["~/.config/opencode/instructions/codex-output-style.md"])' "$SETTINGS" > "$tmp" && mv "$tmp" "$SETTINGS"
+```
+
 Pi — remove the file, since its presence is what selects it:
 
 ```bash

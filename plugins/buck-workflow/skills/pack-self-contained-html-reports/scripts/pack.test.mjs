@@ -254,15 +254,9 @@ describe("output invariants", () => {
     expect(out).not.toMatch(/\bfetch\s*\(/i);
   });
 
-  test("static checks fail on duplicate ids", () => {
-    // Force a duplicate id in the OUTPUT by introducing the same id in both reports
-    // and NOT colliding (one inside .docapp, one in a different report's body that
-    // also has the same id but the rule would prefix... so we cheat by writing
-    // the raw duplicate into the script's output via a configured out name that
-    // collides with an existing id).
-    //
-    // Easiest positive failure: missing config field -> exit 2, not duplicate id.
-    // Instead exercise a different static gate: missing <body> -> exit 3.
+  test("fails with status 3 when a report has no <body>", () => {
+    // extractBody() bails with code 3 before any duplicate-ID logic runs,
+    // so this exercises the missing-<body> gate only.
     writeReport(dir, "alpha.html", `<main id="main">a</main>`);
     writeReport(dir, "beta.html",  `<main id="main">b</main>`);
     // Replace beta.html with a body-less source.
@@ -273,5 +267,20 @@ describe("output invariants", () => {
     ]);
     const r = runPack(dir, ["--dir", dir]);
     expect(r.status).toBe(3);
+  });
+
+  test("static checks fail with status 4 on duplicate ids in output", () => {
+    // Both ids live in ONE report, so cross-report collision prefixing never
+    // renames them and the duplicate reaches the packed output, where the
+    // duplicate-id static check fails (exit 4).
+    writeReport(dir, "alpha.html", `<main id="main"><section id="dup">a</section><section id="dup">b</section></main>`);
+    writeReport(dir, "beta.html",  `<main id="main">b</main>`);
+    writeConfig(dir, [
+      { key: "alpha", file: "alpha.html", label: "A", title: "A" },
+      { key: "beta",  file: "beta.html",  label: "B", title: "B" },
+    ]);
+    const r = runPack(dir, ["--dir", dir]);
+    expect(r.status).toBe(4);
+    expect(r.stdout).toContain("duplicate ids in output");
   });
 });
