@@ -54,6 +54,7 @@ Phases form a HARD chain (1 → 2 → 3 → 4).
 All four phases complete; subject closed verified 2026-10-08 reconciliation.
 
 - [x] [b-commit-improved](archive/2026-07/b-commit-improved.md) — make b-commit deterministic (skill, preflight, extension, tests, cross-platform) — done 2026-07-25
+- [x] [z.ai discount banner OMP extension](archive/2026-09/zai-discount-banner-extension.md) — done 2026-09-11 (second review passed via PR #22)
 - [x] [Stop b-commit-improved committing leftover draft placeholders](archive/2026-08/b-commit-placeholder-sentinels.md) — done 2026-08-26
 
 
@@ -145,10 +146,13 @@ Phases form a HARD chain because Phases 1–2 share `extensions/index.ts` and Ph
 - [ ] [Stop false heavy lifts when an iterate file stays active](items/buck-loop-iterate-closeout.md) — high; supervisor closes one unfinished iterate artifact after an ok session — see `.context/2026-10-03.buck-loop-iterate-closeout/plan-iterate-closeout.md`
 - [x] [Add decision closure across Buck Workflow](items/decision-closure-protocol.md) — medium; phased — all six phases complete — done 2026-09-30
 - [x] [Phase 1: Chooser Stall Verification and Repair](items/phase-1-chooser-stall.md) — hard, `/b-build-hard`; bugs-first entry — done 2026-09-29
+- [ ] [nvim-socket-rpc skill](items/nvim-socket-rpc-skill.md) — SKILL.md + Bun CLI (discover/ping/open/goto/eval/qf/verify); plan in .context/2026-09-09.nvim-socket-rpc-skill/
+- [ ] [Live TUI progress for deterministic slash commands](items/deterministic-extension-progress.md) — high priority
 - [ ] [Raise patch coverage vs origin/master above 90%](items/patch-gate-branch-coverage.md) — medium; first guardrails check failed at 51%
 - [ ] [Rewrite HEAD 30e0849 placeholder commit subject](items/rewrite-placeholder-commit-30e0849.md) — low; tool fixed, historical message not rewritten
 - [ ] [First npm publish of buck-workflow (blocked on test gate)](items/first-npm-publish.md) — high priority
 - [ ] [Multi-harness symlink installer (buck-workflow install)](items/multi-harness-symlink-installer.md) — high priority
+- [ ] [b-loop skill — advisory + stamp + deferred slash mirror](items/b-loop-skill-and-mirror.md) — SKILL.md only; tracked follow-ups F1–F3
 - [x] [b-init-guardrails](archive/2026-07/b-init-guardrails.md) — quality guardrails with brownfield ratchet (skills, detection, ratchet protocol, managed block, OMP async check) — done 2026-07-26
 - [ ] [Sweep leftover qmd mentions outside the memory-search plan](items/qmd-mentions-outside-plan.md)
 - [x] [Run /b-init-guardrails on this repo to record a durable check contract](items/run-b-init-guardrails-on-repo.md) — done 2026-09-10 (guardrails.json v2 durable contract verified during mattpocock Phase 1)
