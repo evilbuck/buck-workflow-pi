@@ -167,7 +167,33 @@ function layoutExists(root: string): boolean {
   }
 }
 
+// CWE-59: never create through a symlinked store component. The buck root
+// itself may be a user-configured redirect; everything below it must be real.
+function assertNoSymlinkComponents(root: string, storePath: string): void {
+  const buckRoot = resolve(root, "..");
+  let current = buckRoot;
+  const parts = relative(buckRoot, storePath)
+    .split(process.platform === "win32" ? "\\" : "/")
+    .filter((part) => part.length > 0);
+  for (const part of parts) {
+    current = join(current, part);
+    let st: { isSymbolicLink(): boolean } | undefined;
+    try {
+      st = lstatSync(current);
+    } catch {
+      return; // component absent; mkdirSync will create it fresh
+    }
+    if (!st) return;
+    if (st.isSymbolicLink()) {
+      throw new Error(
+        `store path component is a symlink; refusing to create through it: ${current}`,
+      );
+    }
+  }
+}
+
 function ensureStoreLayout(root: string): void {
+  assertNoSymlinkComponents(storeRoot(), root);
   mkdirSync(join(root, "memory"), { recursive: true });
   mkdirSync(join(root, "backlog"), { recursive: true });
 }
