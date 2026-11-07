@@ -53,3 +53,7 @@ steps, then **Eat** — the check that it worked.
 - [Model access uses workflow_state](../adr/0004-workflow-state-trusted-access.md)
 - [Publication is a versioned integration view](../adr/0005-versioned-integration-view.md)
 - [Backend cutover is an offline verified switch](../adr/0006-offline-verified-storage-cutover.md)
+
+## Artifact store
+
+1. [Use an external artifact store](use-external-artifact-store.md)
