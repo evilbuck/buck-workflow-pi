@@ -48,6 +48,7 @@ const curatedBundle = {
     "design-brief",
     "fix-pr",
     "git-commit",
+    "pack-self-contained-html-reports",
     "run-in-idle-pane",
     "skill-explainer",
   ],
