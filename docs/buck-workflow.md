@@ -500,6 +500,7 @@ flowchart TD
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation routed through the active Buck model profile |
+| [**b-graph**](#b-graph--task-as-a-graph-of-bounded-nodes) | Prompt template + Skill | `/b-graph` | `prompts/b-graph.md` + `skills/b-graph/SKILL.md` | Run a task as a graph of bounded, verifiable nodes — parallel dispatch, evidence gates, node-level retries, resumable artifacts |
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
@@ -1354,6 +1355,24 @@ for the operator sequence.
 **Exits**: `b-iterate` (fix in place), `b-plan` (architectural finding), `code-smells` (Phase 5 "no correct seam exists" is itself the finding).
 
 **Use when**: user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow and the cause is unknown. Not for known fixes (`b-build`) or already-written-down defects (`b-iterate`).
+
+---
+
+#### `/b-graph` — Task as a Graph of Bounded Nodes
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Execute a task as a graph of bounded, verifiable nodes instead of one long session — split first, dispatch independent nodes in parallel (subagents for judgment, code for deterministic steps), gate every edge on evidence, retry failed nodes rather than whole batches.
+
+**Pi/OMP primitives**: Prompt command (`prompts/b-graph.md` / `commands/b-graph.md` symlink) + Skill (`skills/b-graph/SKILL.md`)
+
+**Artifacts**: `graph.md` (nodes, edges, checks, learned rules), `checks.md` (`node | requirement | verdict | evidence`), `progress.md` (handoff state) — written to the active subject folder, or under `.context/` when no subject is active (`/b-save` consolidates the subject at session end).
+
+**When to use**: Fan-out work with independent subtasks, evidence-gated verification per step, or long tasks that must survive session handoff.
+
+**Escalate To**: `/b-build` for single-threaded implementation that needs no fan-out.
+
+**Source**: Adapted from @hanakoxbt's agent-graph prompt, inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch); not written or endorsed by Andrej Karpathy. See `THIRD-PARTY-NOTICES.md`.
 
 ---
 

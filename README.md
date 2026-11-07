@@ -235,6 +235,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-present` | `b-present` | Generate async-readable presentation package |
 | `/b-build` | `b-build` (standard mode) | Standard implementation — smallest safe code change |
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
+| `/b-graph` | `b-graph` | Run a task as a graph of bounded, verifiable nodes — parallel subagent dispatch, evidence-gated edges, node-level retries |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `/b-diagnose` | `b-diagnose` | Diagnose hard bugs/regressions — tight red-capable loop before any hypothesis |
 | `/b-handoff` | `b-handoff` | Portable cross-harness/-directory/-machine handoff doc (OS temp dir, redacted secrets) |
@@ -293,6 +294,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `b-plan-update` | Update an existing plan in place — interweave additions, remove with review, revision log |
 | `b-build` | Implement well-defined work (standard or hard mode) |
+| `b-graph` | Execute a task as a graph of bounded nodes — split first, dispatch in parallel, gate on evidence, retry nodes not batches; resumable via graph.md/checks.md/progress.md (not bundled in the Codex plugin) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-diagnose` | Diagnosis loop for hard bugs/regressions — Phase 1 red-capable-loop gate, ranked falsifiable hypotheses, regression test at a correct seam |
 | `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |
@@ -377,6 +379,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-capture` → user says tidy → polish | Live notes; write first, clean later |
 | `/b-fix-rebase-conflict → git rebase --continue → /b-review` | Large rebase/merge conflicts |
 | `/b-build → /b-review` | Quick fix — no planning needed |
+| `/b-graph <task> → /b-review → /b-save → /b-commit` | Fan-out work — bounded parallel nodes with evidence gates |
 | `/b-iterate → /b-review` | Follow-up fix loop |
 | `/skill:fix-pr <pr>` | Action PR review comments — validate, fix+push, poll re-review until settled; `--issues-only` to file issues instead (skill-only) |
 | `/b-plan → /b-review → /b-docs → /b-save → /b-commit` | Plan and review without exploration |
