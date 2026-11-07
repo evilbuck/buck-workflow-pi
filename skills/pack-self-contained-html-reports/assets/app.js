@@ -100,6 +100,26 @@
     sectionsIn(doc, key).forEach(function(el){ doc.observer.observe(el); });
   }
 
+  function setTabState(doc, key){
+    doc.TABS.forEach(function(t){
+      var on = t.dataset.tab === key;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      doc.PANELS[t.dataset.tab].hidden = !on;
+      doc.TOCS[t.dataset.tab].hidden = !on;
+    });
+  }
+
+  function clearTocNav(doc){
+    doc.root.querySelectorAll(".tocnav a.active").forEach(function(a){ a.classList.remove("active"); });
+  }
+
+  function focusTab(doc, key){
+    var target = null;
+    for (var ti = 0; ti < doc.TABS.length; ti++) if (doc.TABS[ti].dataset.tab === key) { target = doc.TABS[ti]; break; }
+    if (target) target.focus();
+  }
+
   function select(docKey, key, opts){
     opts = opts || {};
     var doc = DOCS[docKey];
@@ -108,22 +128,12 @@
       if (opts.focusPanel) doc.PANELS[key].focus({preventScroll:true});
       return;
     }
-    doc.TABS.forEach(function(t){
-      var on = t.dataset.tab === key;
-      t.setAttribute("aria-selected", on ? "true" : "false");
-      t.tabIndex = on ? 0 : -1;
-      doc.PANELS[t.dataset.tab].hidden = !on;
-      doc.TOCS[t.dataset.tab].hidden = !on;
-    });
-    doc.root.querySelectorAll(".tocnav a.active").forEach(function(a){ a.classList.remove("active"); });
+    setTabState(doc, key);
+    clearTocNav(doc);
     doc.current = key;
     spy(doc, key);
     if (opts.scrollTop !== false) window.scrollTo({ top: 0, behavior: opts.smooth ? "smooth" : "auto" });
-    if (opts.focusTab) {
-      var target = null;
-      for (var ti = 0; ti < doc.TABS.length; ti++) if (doc.TABS[ti].dataset.tab === key) { target = doc.TABS[ti]; break; }
-      if (target) target.focus();
-    }
+    if (opts.focusTab) focusTab(doc, key);
   }
 
   function setSwitch(docKey){
