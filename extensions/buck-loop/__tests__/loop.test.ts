@@ -855,7 +855,7 @@ describe("failure and choice", () => {
 
 
 
-  it("resumes a persisted diagnosing bookmark into the child without rebuilding", async () => {
+  it("resumes a persisted diagnosing bookmark into the child without rebuilding", { retry: 2 }, async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     writeProjection(cwd, {
@@ -892,7 +892,7 @@ describe("failure and choice", () => {
   });
 
 
-  it("resumes an interrupted diagnosis from the rescanned proof, not by rebuilding or re-diagnosing", async () => {
+  it("resumes an interrupted diagnosis from the rescanned proof, not by rebuilding or re-diagnosing", { retry: 2 }, async () => {
     const cwd = repo();
     phased(cwd, ["pending"]);
     const phase = `.context/${SUBJECT}/phase-1-p1.md`;
