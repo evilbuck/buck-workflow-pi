@@ -294,7 +294,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `b-plan-update` | Update an existing plan in place — interweave additions, remove with review, revision log |
 | `b-build` | Implement well-defined work (standard or hard mode) |
-| `b-graph` | Execute a task as a graph of bounded nodes — split first, dispatch in parallel, gate on evidence, retry nodes not batches; resumable via graph.md/checks.md/progress.md |
+| `b-graph` | Execute a task as a graph of bounded nodes — split first, dispatch in parallel, gate on evidence, retry nodes not batches; resumable via graph.md/checks.md/progress.md (not bundled in the Codex plugin) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
 | `b-diagnose` | Diagnosis loop for hard bugs/regressions — Phase 1 red-capable-loop gate, ranked falsifiable hypotheses, regression test at a correct seam |
 | `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |

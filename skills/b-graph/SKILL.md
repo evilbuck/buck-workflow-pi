@@ -39,6 +39,8 @@ Resolve all six before starting — from the invocation, the active subject, or 
 
 Break `TASK` into nodes before any work starts. Split by what each node must read, not by folder. Draw an **edge** only when a node uses another node's output; nodes with no edge between them are **parallel**.
 
+Before writing, check the target location for an existing run: if `graph.md` is already there, read it and either resume that run or confirm replacement with the user — never overwrite silently.
+
 Write nodes, edges, and checks into `graph.md` and pause for approval.
 
 ## Layer 2 — Dispatch
@@ -102,7 +104,7 @@ If a limit or blocker stops the run, return a partial status with the exact step
 2. Run independent nodes in parallel.
 3. Pass every output through its gate.
 4. Return failed nodes, never the whole batch.
-5. Merge accepted outputs and run the full checks.
+5. Merge accepted outputs and run the full checks. A full-check failure has no single node: record it as a new node in `graph.md` with its own check, and correct it through the same correction edge.
 6. Continue until completion, a global blocker, or no ready nodes remain. A node that exhausts `LIMIT` is blocked; independent ready nodes continue.
 
 Do not weaken a gate to obtain a pass.
@@ -111,13 +113,13 @@ Do not weaken a gate to obtain a pass.
 
 After each stage, update `progress.md`:
 
-- **Graph** — nodes done, running, blocked.
+- **Graph** — nodes done, running, blocked, with the failed-attempt count per node so a resumed session inherits the `LIMIT` budget.
 - **Outputs** — exact paths to current saved files.
 - **Decisions** — what changed in `graph.md` and why.
 - **Open issues** — failures, uncertainties, blockers.
 - **Next action** — the next ready node.
 
-On resumption, read `graph.md` and `progress.md` first, then continue from the recorded next node.
+On resumption, read `graph.md` and `progress.md` first, then continue from the recorded next node. Each `running` node records the run that started it; a resumed session re-dispatches a `running` node only after confirming its run is dead (no fresh handoff update), and never while the original run may still be active.
 
 ## Artifacts
 
