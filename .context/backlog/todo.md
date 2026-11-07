@@ -279,3 +279,15 @@ HARD chain: 1 → 2 → 3 → 4. X1–X3 are not phased.
 - [ ] Phase 2: Fold duplicates — medium, `/b-build` — [phase-2-fold-duplicates.md](../2026-10-01.skill-command-viability/phase-2-fold-duplicates.md)
 - [ ] Phase 3: Delete the grill shell — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md)
 - [ ] Phase 4: Move out of the package — medium, `/b-build` — [phase-4-move-out.md](../2026-10-01.skill-command-viability/phase-4-move-out.md)
+
+## b-save State-Machine Phases (2026-09-10)
+- [x] [Phase 1: Boundaries & contract freeze](archive/2026-09/phase-1-b-save-boundaries.md) — done 2026-09-10; Hindsight `unsupported` on OMP 18.1.17
+- [x] [Phase 2: Run model & deterministic snapshot](archive/2026-09/phase-2-b-save-run-model.md) — done 2026-09-10
+- [x] [Phase 3: Bounded semantic roles](archive/2026-09/phase-3-b-save-roles.md) — done 2026-09-10
+- [ ] [Phase 4: Evaluation & journaled apply](items/phase-4-b-save-evaluation-apply.md) — HARD after Phase 3
+
+<!-- Upcoming phases — activate one at a time as the previous completes
+- [ ] [Phase 5: External effects & command UX](items/phase-5-b-save-effects-ux.md) — HARD after Phase 4
+- [ ] [Phase 6: Parity, cutover & docs](items/phase-6-b-save-parity-cutover.md) — HARD after Phase 5
+-->
+

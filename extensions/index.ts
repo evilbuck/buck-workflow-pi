@@ -5,7 +5,7 @@ import { wire as wireBCommitImproved } from "./b-commit-improved/index.js";
 import { wire as wireKamalRelease } from "./b-kamal-release/index.js";
 import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireZaiDiscountBanner } from "./zai-discount-banner.js";
-import { wire as wireBSaveImproved } from "./b-save-improved/index.js";
+import { wire as wireBSave } from "./b-save/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
 import { wireBuckLoop } from "./buck-loop/index.js";
 import { wireBuckModels } from "./buck-models/index.js";
@@ -25,8 +25,9 @@ export default function (pi: ExtensionAPI) {
   wirePlanArtifact(pi);
   // --- zai-discount-banner: campaign-window banner for authenticated z.ai providers ---
   wireZaiDiscountBanner(pi);
-  // --- b-save-improved: deterministic session-record checkpoint ---
-  wireBSaveImproved(pi);
+  // --- b-save: deterministic session-record checkpoint ---
+  wireBSave(pi);
+  // --- code-review-iteration: isolated Reviewer/Fixer loop ---
   wireCodeReviewIteration(pi);
   wireBuckLoop(pi);
   wireBuckModels(pi);
