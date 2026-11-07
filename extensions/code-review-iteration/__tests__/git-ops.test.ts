@@ -148,11 +148,12 @@ describe("git-ops", () => {
     expect(conflict.files).toContain("base.txt");
     expect(hasOngoingGitOperation(clone)).toBe(true);
 
-    // simulate the Fixer resolving the file, then deterministic continuation
-    writeFileSync(join(clone, "base.txt"), "merged version\n");
+    // Trailing whitespace is not an unresolved conflict and must not block continuation.
+    writeFileSync(join(clone, "base.txt"), "merged version  \n");
     const done = resolveAndContinue(clone, ["base.txt"]);
     expect(done.status).toBe("ok");
     expect(hasOngoingGitOperation(clone)).toBe(false);
+    expect(execFileSync("git", ["show", "HEAD:base.txt"], { cwd: clone, encoding: "utf8" })).toBe("merged version  \n");
     expect(git(clone, ["log", "--oneline", "-3"])).toMatch(/diverge/);
     // No rebase in progress: continuation fails cleanly instead of guessing.
     expect(continueRebase(clone).status).toBe("failed");

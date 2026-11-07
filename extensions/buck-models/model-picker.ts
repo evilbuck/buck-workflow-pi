@@ -1,9 +1,25 @@
 /**
- * Searchable checkbox list of installed model ids for `/buck-models`.
- * Enter saves the checked set. Escape cancels. Space toggles. Typing filters.
+ * Tabbed profile editor for `/buck-models`: one tab per canonical stage plus a
+ * final Save tab. Each category tab shows a SELECTED column backed by the
+ * draft and a CATALOG column filtered by typed text; Left/Right move focus,
+ * Up/Down move the cursor, Space/Enter toggles, and Ctrl+T requests thinking
+ * choices for the active category. Escape cancels the whole editor without
+ * writes. Only the Save tab submits.
+ *
+ * Outcomes are typed (`cancel`, `thinking-request` with resume state,
+ * `submit` with drafts) so the caller owns dialogs and persistence. The
+ * draft/baseline comparison in `deriveStageUpdates` is the partial-write
+ * boundary: untouched categories never materialize a write.
  */
-import { fuzzyFilter, truncateToWidth, type KeybindingsManager } from "@mariozechner/pi-tui";
-import type { BuckModelCandidate } from "../omp-models.js";
+import { decodeKittyPrintable, fuzzyFilter, matchesKey, truncateToWidth, visibleWidth, type KeybindingsManager } from "@mariozechner/pi-tui";
+import {
+  BUCK_STAGE_KEYS,
+  type BuckModelCandidate,
+  type BuckStageConfig,
+  type BuckStageKey,
+  type BuckStageWrite,
+  type BuckThinking,
+} from "../omp-models.js";
 
 export interface StageModelChoice {
   id: string;
@@ -17,15 +33,16 @@ export interface ModelPickerTheme {
 
 export interface ModelPickerHost {
   custom?: <T>(factory: (
-    tui: { requestRender(): void },
+    tui: { requestRender(): void; terminal?: { rows?: number } },
     theme: ModelPickerTheme,
     keybindings: KeybindingsManager,
     done: (result: T) => void,
-  ) => { render(width: number): string[]; invalidate(): void; handleInput?(data: string): void }) => Promise<T>;
+  ) => { render(width: number): string[]; invalidate(): void; handleInput?(data: string): void }, options?: {
+    // Overlay mount keeps host-global chords (e.g. ctrl+t) from being consumed pre-focus.
+    overlay?: boolean;
+  }) => Promise<T>;
   notify(message: string, level?: "info" | "warning" | "error"): void;
 }
-
-const MAX_VISIBLE = 12;
 
 export function stageModelChoices(
   available: readonly string[],
@@ -61,130 +78,418 @@ export function candidatesFromSelection(
   return models;
 }
 
-export function createModelChecklist(input: {
-  title: string;
-  choices: readonly StageModelChoice[];
-  selected: readonly string[];
+export interface StageDraft {
+  ids: string[];
+  thinking: BuckThinking;
+}
+
+export type ProfileDrafts = Record<BuckStageKey, StageDraft>;
+
+export interface CategoryViewState {
+  focus: "selected" | "catalog";
+  selectedCursor: number;
+  catalogCursor: number;
+  query: string;
+}
+
+export interface ProfileEditorState {
+  tab: number;
+  drafts: ProfileDrafts;
+  views: Record<BuckStageKey, CategoryViewState>;
+}
+
+export interface ProfileEditorRunInput {
+  profile: string;
+  scope: string;
+  state: ProfileEditorState;
+  baselines: Partial<Record<BuckStageKey, BuckStageConfig>>;
+  ownerships: Record<BuckStageKey, string>;
+  available: readonly string[];
+}
+
+export type ProfileEditorOutcome =
+  | { kind: "cancel" }
+  | { kind: "thinking-request"; stage: BuckStageKey; resume: ProfileEditorState }
+  | { kind: "submit"; drafts: ProfileDrafts };
+
+export function seedProfileEditorState(
+  baselines: Partial<Record<BuckStageKey, BuckStageConfig>>,
+): ProfileEditorState {
+  const drafts = {} as ProfileDrafts;
+  const views = {} as Record<BuckStageKey, CategoryViewState>;
+  for (const key of BUCK_STAGE_KEYS) {
+    const baseline = baselines[key];
+    drafts[key] = {
+      ids: [...new Set((baseline?.models ?? []).map((model) => model.id))],
+      thinking: baseline?.thinking ?? "off",
+    };
+    views[key] = { focus: "catalog", selectedCursor: 0, catalogCursor: 0, query: "" };
+  }
+  return { tab: 0, drafts, views };
+}
+
+function sameIdSet(a: readonly BuckModelCandidate[], b: readonly BuckModelCandidate[]): boolean {
+  const aIds = new Set(a.map((model) => model.id));
+  const bIds = new Set(b.map((model) => model.id));
+  return aIds.size === bIds.size && [...aIds].every((id) => bIds.has(id));
+}
+
+export function deriveStageUpdates(
+  drafts: ProfileDrafts,
+  baselines: Partial<Record<BuckStageKey, BuckStageConfig>>,
+): Partial<Record<BuckStageKey, BuckStageWrite>> {
+  const updates: Partial<Record<BuckStageKey, BuckStageWrite>> = {};
+  for (const key of BUCK_STAGE_KEYS) {
+    const baseline = baselines[key];
+    const draft = drafts[key];
+    const current = baseline?.models ?? [];
+    const selectedIds = new Set(draft.ids);
+    const orderedIds = [...current.map((model) => model.id).filter((id) => selectedIds.has(id)), ...draft.ids];
+    const models = candidatesFromSelection(orderedIds, current);
+    const baselineModels = candidatesFromSelection(
+      current.map((model) => model.id),
+      current,
+    );
+    const baselineThinking = baseline?.thinking ?? "off";
+    if (sameIdSet(models, baselineModels) && draft.thinking === baselineThinking) continue;
+    updates[key] = { models, thinking: draft.thinking === "off" ? undefined : draft.thinking };
+  }
+  return updates;
+}
+
+const EDITOR_TAB_LABELS = [
+  ...BUCK_STAGE_KEYS.map((key) => (key === "save" ? "save (models)" : key)),
+  "Save",
+];
+const SAVE_TAB = BUCK_STAGE_KEYS.length;
+const EDITOR_CHROME_ROWS = 7;
+// Title, tab strip, help, meta. The Save button and edit list follow them.
+const SAVE_CHROME_ROWS = 4;
+const MIN_EDITOR_WIDTH = 60;
+const MIN_EDITOR_ROWS = 10;
+
+export interface ProfileEditorHost {
+  profile: string;
+  scope: string;
+  state: ProfileEditorState;
+  baselines: Partial<Record<BuckStageKey, BuckStageConfig>>;
+  ownerships: Record<BuckStageKey, string>;
+  available: readonly string[];
   theme: ModelPickerTheme;
   keybindings: KeybindingsManager;
-  done: (result: string[] | null) => void;
-  requestRender: () => void;
-}): { render(width: number): string[]; invalidate(): void; handleInput(data: string): void } {
-  const selected = input.selected.filter((id, index) => id && input.selected.indexOf(id) === index);
-  let query = "";
-  let cursor = 0;
+  done(outcome: ProfileEditorOutcome): void;
+  requestRender(): void;
+  terminalRows?(): number | undefined;
+}
 
-  const visible = () => {
-    const checked = new Set(selected);
-    const ordered = [
-      ...selected.map((id) => input.choices.find((choice) => choice.id === id)).filter((choice) => choice !== undefined),
-      ...input.choices.filter((choice) => !checked.has(choice.id)),
-    ];
-    return fuzzyFilter(ordered, query, (choice) => choice.id);
+function cloneDrafts(drafts: ProfileDrafts): ProfileDrafts {
+  const out = {} as ProfileDrafts;
+  for (const key of BUCK_STAGE_KEYS) {
+    out[key] = { ids: [...drafts[key].ids], thinking: drafts[key].thinking };
+  }
+  return out;
+}
+
+function cloneState(state: ProfileEditorState): ProfileEditorState {
+  const views = {} as Record<BuckStageKey, CategoryViewState>;
+  for (const key of BUCK_STAGE_KEYS) {
+    views[key] = { ...state.views[key] };
+  }
+  return { tab: state.tab, drafts: cloneDrafts(state.drafts), views };
+}
+
+function wrapIndex(index: number, length: number): number {
+  return ((index % length) + length) % length;
+}
+
+export function createProfileEditor(input: ProfileEditorHost): {
+  render(width: number): string[];
+  invalidate(): void;
+  handleInput(data: string): void;
+} {
+  const state = input.state;
+  let finished = false;
+  let lastWidth = MIN_EDITOR_WIDTH;
+
+  const emit = (outcome: ProfileEditorOutcome): void => {
+    if (finished) return;
+    finished = true;
+    input.done(outcome);
+  };
+
+  const rowCapacity = (): number =>
+    Math.max(3, Math.min(12, (input.terminalRows?.() ?? 24) - EDITOR_CHROME_ROWS));
+
+  const resizeNeeded = (): boolean => {
+    const rows = input.terminalRows?.();
+    return lastWidth < MIN_EDITOR_WIDTH || (rows !== undefined && rows < MIN_EDITOR_ROWS);
+  };
+
+  const stageKey = (): BuckStageKey => BUCK_STAGE_KEYS[state.tab] as BuckStageKey;
+
+  const catalogRows = (key: BuckStageKey): StageModelChoice[] =>
+    fuzzyFilter(
+      stageModelChoices(input.available, input.baselines[key]?.models ?? []),
+      state.views[key].query,
+      (row) => row.id,
+    );
+
+  const cell = (text: string, width: number): string =>
+    truncateToWidth(text, width, "…", true);
+
+  const tabStrip = (width: number): string => {
+    const parts = EDITOR_TAB_LABELS.map((label, index) =>
+      index === state.tab ? input.theme.bold(`[${label}]`) : ` ${label} `);
+    let start = 0;
+    let end = parts.length;
+    const budget = width - 2;
+    while (end - start > 1 && visibleWidth(parts.slice(start, end).join("")) > budget) {
+      if (state.tab - start > end - 1 - state.tab) start++;
+      else end--;
+    }
+    const prefix = start > 0 ? "‹" : "";
+    const suffix = end < parts.length ? "›" : "";
+    return truncateToWidth(`${prefix}${parts.slice(start, end).join("")}${suffix}`, width);
+  };
+
+  const selectedRowText = (key: BuckStageKey, index: number, focused: boolean): string => {
+    const id = state.drafts[key].ids[index] as string;
+    const note = input.baselines[key]?.models.find((model) => model.id === id)?.note;
+    const unavailable = input.available.includes(id) ? "" : "! ";
+    const cursor = focused ? "> " : "  ";
+    return `${cursor}[x] ${unavailable}${id}${note ? ` (${note})` : ""}`;
+  };
+
+  const catalogRowText = (
+    key: BuckStageKey,
+    row: StageModelChoice,
+    index: number,
+    focused: boolean,
+  ): string => {
+    const checked = state.drafts[key].ids.includes(row.id);
+    const cursor = focused ? "> " : "  ";
+    const unavailable = row.unavailable ? "! " : "";
+    return `${cursor}[${checked ? "x" : " "}] ${unavailable}${row.id}`;
+  };
+
+  const windowStart = (cursor: number, length: number, capacity: number): number =>
+    Math.max(0, Math.min(cursor - Math.floor(capacity / 2), length - capacity));
+
+  const categoryPane = (key: BuckStageKey, width: number): string[] => {
+    const view = state.views[key];
+    const draft = state.drafts[key];
+    const catalog = catalogRows(key);
+    const leftWidth = Math.max(20, Math.floor((width - 1) / 2));
+    const rightWidth = width - leftWidth - 1;
+    const capacity = rowCapacity();
+    const lines: string[] = [];
+    const selectedMark = view.focus === "selected" ? "> " : "  ";
+    const catalogMark = view.focus === "catalog" ? "> " : "  ";
+    lines.push(`${cell(`${selectedMark}SELECTED (${draft.ids.length})`, leftWidth)}│${cell(`${catalogMark}CATALOG (${catalog.length}/${stageModelChoices(input.available, input.baselines[key]?.models ?? []).length})`, rightWidth)}`);
+    const selectedStart = windowStart(view.selectedCursor, draft.ids.length, capacity);
+    const catalogStart = windowStart(view.catalogCursor, catalog.length, capacity);
+    for (let i = 0; i < capacity; i++) {
+      const selectedIndex = selectedStart + i;
+      const left = selectedIndex < draft.ids.length
+        ? selectedRowText(key, selectedIndex, view.focus === "selected" && selectedIndex === view.selectedCursor)
+        : "";
+      const catalogIndex = catalogStart + i;
+      let right = "";
+      if (catalog.length === 0 && i === 0) {
+        right = view.query ? `No models match '${view.query}'` : "(no models available)";
+      } else if (catalogIndex < catalog.length) {
+        right = catalogRowText(
+          key,
+          catalog[catalogIndex] as StageModelChoice,
+          catalogIndex,
+          view.focus === "catalog" && catalogIndex === view.catalogCursor,
+        );
+      }
+      lines.push(`${cell(left, leftWidth)}│${cell(right, rightWidth)}`);
+    }
+    lines.push(input.theme.fg("muted", `! unavailable · filter: ${view.query}`));
+    return lines.map((line) => truncateToWidth(line, width));
+  };
+
+  const savePane = (width: number): string[] => {
+    const updates = deriveStageUpdates(state.drafts, input.baselines);
+    const changed = BUCK_STAGE_KEYS.filter((key) => updates[key] !== undefined);
+    const lines: string[] = [input.theme.fg("accent", input.theme.bold("> [ Save ]"))];
+    if (changed.length === 0) {
+      lines.push(input.theme.fg("muted", "  No deliberate edits yet"));
+      return lines.map((line) => truncateToWidth(line, width));
+    }
+    // Rows held back: the Save button itself, then one row for the "+N more"
+    // tail so the button and the tail always fit; the edit list never pushes
+    // the button off-screen.
+    const budget = Math.max(1, (input.terminalRows?.() ?? 24) - SAVE_CHROME_ROWS - 2);
+    const shown = changed.slice(0, budget);
+    for (const key of shown) {
+      const update = updates[key] as BuckStageWrite;
+      lines.push(`  ${key}: ${update.models.length} model(s), thinking ${update.thinking ?? "off"}`);
+    }
+    const hidden = changed.length - shown.length;
+    if (hidden > 0) lines.push(input.theme.fg("muted", `  +${hidden} more edit(s)`));
+    return lines.map((line) => truncateToWidth(line, width));
   };
 
   const paint = (width: number): string[] => {
-    const rows = visible();
+    lastWidth = width;
+    const title = input.theme.fg("accent", input.theme.bold(
+      `buck-models · ${input.profile} profile · ${input.scope} scope`));
+    if (resizeNeeded()) {
+      return [
+        title,
+        input.theme.fg("muted", "Resize to at least 60 columns x 10 rows to edit models."),
+        input.theme.fg("muted", "Esc cancels without changes."),
+      ].map((line) => truncateToWidth(line, width));
+    }
+    const onSaveTab = state.tab === SAVE_TAB;
+    const help = onSaveTab
+      ? "Tab/Shift+Tab tabs · Enter/Space saves · Esc cancels"
+      : "Tab tabs · ←→ cols · ↑↓ rows · Space toggle · ⌃T think · Esc";
+    const key = onSaveTab ? undefined : stageKey();
+    const meta = onSaveTab
+      ? `${BUCK_STAGE_KEYS.filter((k) => deriveStageUpdates(state.drafts, input.baselines)[k] !== undefined).length} deliberate edit(s)`
+      : `thinking: ${state.drafts[key as BuckStageKey].thinking} · ${input.ownerships[key as BuckStageKey]} · ${state.drafts[key as BuckStageKey].ids.length} selected`;
     const lines = [
-      input.theme.fg("accent", input.theme.bold(input.title)),
-      input.theme.fg("muted", "Type to filter · Space toggles · Enter saves · Esc cancels"),
-      input.theme.fg("muted", query ? `filter: ${query}` : "filter:"),
-      "",
+      title,
+      tabStrip(width),
+      input.theme.fg("muted", help),
+      input.theme.fg("muted", meta),
     ];
-    if (rows.length === 0) {
-      lines.push(input.theme.fg("muted", "  No matching models"));
-      return lines.map((line) => truncateToWidth(line, width));
+    if (onSaveTab) {
+      lines.push(...savePane(width));
+    } else {
+      lines.push("");
+      lines.push(...categoryPane(key as BuckStageKey, width));
     }
-    const start = Math.max(0, Math.min(cursor - Math.floor(MAX_VISIBLE / 2), rows.length - MAX_VISIBLE));
-    for (const [offset, choice] of rows.slice(start, start + MAX_VISIBLE).entries()) {
-      const index = start + offset;
-      const mark = selected.includes(choice.id) ? "[x]" : "[ ]";
-      const cursorMark = index === cursor ? ">" : " ";
-      const unavailable = choice.unavailable ? " (not on this machine)" : "";
-      lines.push(truncateToWidth(`${cursorMark} ${mark} ${choice.id}${unavailable}`, width));
-    }
-    lines.push(input.theme.fg("muted", `${selected.length} selected`));
-    return lines;
+    const limit = input.terminalRows?.() ?? 24;
+    return lines.slice(0, limit).map((line) => truncateToWidth(line, width));
   };
 
-  const applyCursorMove = (rows: readonly { id: string }[], delta: 1 | -1): boolean => {
-    if (rows.length === 0) return false;
-    cursor = delta === -1
-      ? (cursor === 0 ? rows.length - 1 : cursor - 1)
-      : (cursor === rows.length - 1 ? 0 : cursor + 1);
-    return true;
-  };
-
-  const toggleAtCursor = (rows: readonly { id: string }[]): boolean => {
-    const id = rows[cursor]?.id;
-    if (id === undefined) return false;
-    const index = selected.indexOf(id);
-    if (index >= 0) selected.splice(index, 1);
-    else selected.push(id);
-    return true;
-  };
-
-  const applyQueryEdit = (data: string): boolean => {
-    if (input.keybindings.matches(data, "tui.editor.deleteCharBackward")) {
-      query = query.slice(0, -1);
-      cursor = 0;
+  const handleTabNav = (data: string): boolean => {
+    if (matchesKey(data, "tab")) {
+      state.tab = wrapIndex(state.tab + 1, EDITOR_TAB_LABELS.length);
+      input.requestRender();
       return true;
     }
-    if (data.length === 1 && data >= "!" && data <= "~") {
-      query += data;
-      cursor = 0;
+    if (matchesKey(data, "shift+tab")) {
+      state.tab = wrapIndex(state.tab - 1, EDITOR_TAB_LABELS.length);
+      input.requestRender();
       return true;
     }
     return false;
+  };
+
+  const handleThinking = (data: string): boolean => {
+    if (state.tab >= SAVE_TAB || !matchesKey(data, "ctrl+t")) return false;
+    emit({ kind: "thinking-request", stage: stageKey(), resume: cloneState(state) });
+    return true;
+  };
+
+  const handleSaveTab = (data: string): boolean => {
+    if (!input.keybindings.matches(data, "tui.select.confirm") && !matchesKey(data, "space")) {
+      return false;
+    }
+    emit({ kind: "submit", drafts: cloneDrafts(state.drafts) });
+    return true;
+  };
+
+  const handleColumnNav = (data: string): boolean => {
+    const view = state.views[stageKey()];
+    if (matchesKey(data, "left")) {
+      view.focus = "selected";
+      input.requestRender();
+      return true;
+    }
+    if (matchesKey(data, "right")) {
+      view.focus = "catalog";
+      input.requestRender();
+      return true;
+    }
+    const up = input.keybindings.matches(data, "tui.select.up");
+    const down = input.keybindings.matches(data, "tui.select.down");
+    if (!up && !down) return false;
+    const delta = up ? -1 : 1;
+    if (view.focus === "selected") {
+      const length = state.drafts[stageKey()].ids.length;
+      if (length > 0) view.selectedCursor = wrapIndex(view.selectedCursor + delta, length);
+    } else {
+      const length = catalogRows(stageKey()).length;
+      if (length > 0) view.catalogCursor = wrapIndex(view.catalogCursor + delta, length);
+    }
+    input.requestRender();
+    return true;
+  };
+
+  const handleToggle = (data: string): boolean => {
+    const isToggle = matchesKey(data, "space") || input.keybindings.matches(data, "tui.select.confirm");
+    if (!isToggle) return false;
+    const key = stageKey();
+    const view = state.views[key];
+    const draft = state.drafts[key];
+    if (view.focus === "selected") {
+      const id = draft.ids[view.selectedCursor];
+      if (id !== undefined) {
+        draft.ids.splice(view.selectedCursor, 1);
+        if (draft.ids.length > 0 && view.selectedCursor >= draft.ids.length) {
+          view.selectedCursor = draft.ids.length - 1;
+        }
+        input.requestRender();
+      }
+    } else {
+      const id = catalogRows(key)[view.catalogCursor]?.id;
+      if (id !== undefined) {
+        const at = draft.ids.indexOf(id);
+        if (at >= 0) {
+          draft.ids.splice(at, 1);
+          if (draft.ids.length > 0 && view.selectedCursor >= draft.ids.length) {
+            view.selectedCursor = draft.ids.length - 1;
+          }
+        } else draft.ids.push(id);
+        input.requestRender();
+      }
+    }
+    return true;
+  };
+
+  const handleQueryEdit = (data: string): boolean => {
+    const view = state.views[stageKey()];
+    if (input.keybindings.matches(data, "tui.editor.deleteCharBackward")) {
+      view.query = view.query.slice(0, -1);
+      view.catalogCursor = 0;
+      input.requestRender();
+      return true;
+    }
+    const printable = decodeKittyPrintable(data)
+      ?? (data.length === 1 && data >= "!" && data <= "~" ? data : undefined);
+    if (printable === undefined) return false;
+    view.query += printable;
+    view.catalogCursor = 0;
+    input.requestRender();
+    return true;
   };
 
   return {
     invalidate() {},
     render: paint,
     handleInput(data: string) {
-      const rows = visible();
+      if (finished) return;
       if (input.keybindings.matches(data, "tui.select.cancel")) {
-        input.done(null);
+        emit({ kind: "cancel" });
         return;
       }
-      if (input.keybindings.matches(data, "tui.select.confirm")) {
-        input.done([...selected]);
+      if (resizeNeeded()) return;
+      if (handleTabNav(data)) return;
+      if (handleThinking(data)) return;
+      if (state.tab === SAVE_TAB) {
+        handleSaveTab(data);
         return;
       }
-      const up = input.keybindings.matches(data, "tui.select.up");
-      const down = input.keybindings.matches(data, "tui.select.down");
-      if ((up || down) && applyCursorMove(rows, up ? -1 : 1)) {
-        input.requestRender();
-      } else if (data === " " && toggleAtCursor(rows)) {
-        input.requestRender();
-      } else if (applyQueryEdit(data)) {
-        input.requestRender();
-      }
+      if (handleColumnNav(data)) return;
+      if (handleToggle(data)) return;
+      handleQueryEdit(data);
     },
   };
-}
-
-export async function pickStageModels(
-  ui: ModelPickerHost,
-  title: string,
-  choices: readonly StageModelChoice[],
-  selected: readonly string[],
-): Promise<string[] | null> {
-  if (choices.length === 0) {
-    ui.notify("No installed models to choose, and this stage has no saved ids.", "error");
-    return null;
-  }
-  if (!ui.custom) {
-    ui.notify("/buck-models needs a checklist picker. This host UI cannot show one.", "error");
-    return null;
-  }
-  return ui.custom((tui, theme, keybindings, done) => createModelChecklist({
-    title,
-    choices,
-    selected,
-    theme,
-    keybindings,
-    done,
-    requestRender: () => tui.requestRender(),
-  }));
 }

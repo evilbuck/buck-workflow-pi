@@ -2,11 +2,13 @@ import type { ExtensionAPI, ExtensionUIDialogOptions } from "@mariozechner/pi-co
 import { existsSync, readFileSync } from "node:fs";
 import { parse } from "yaml";
 import {
-  candidatesFromSelection,
-  pickStageModels,
-  stageModelChoices,
+  createProfileEditor,
+  deriveStageUpdates,
+  seedProfileEditorState,
   type ModelPickerHost,
-  type StageModelChoice,
+  type ProfileEditorOutcome,
+  type ProfileEditorRunInput,
+  type ProfileEditorState,
 } from "./model-picker.js";
 import {
   BUCK_STAGE_KEYS,
@@ -15,7 +17,6 @@ import {
   projectOmpConfigPath,
   writeBuckModelsScope,
   type BuckConfigSource,
-  type BuckModelCandidate,
   type BuckModelsConfig,
   type BuckProfileWrite,
   type BuckStageConfig,
@@ -31,8 +32,6 @@ const ACTIVATE_PROFILE = "Activate a profile";
 const CREATE_PROFILE = "Create a new profile";
 /** Display prefix for existing profiles; reserved so picker labels round-trip. */
 const EDIT_PROFILE_PREFIX = "Edit profile: ";
-const KEEP_STAGE = "Keep current stage";
-const EDIT_STAGE = "Edit this stage";
 const OMIT_THINKING = "off (omit)";
 const THINKING_CHOICES = [OMIT_THINKING, "minimal", "low", "medium", "high", "xhigh"] as const;
 
@@ -61,12 +60,7 @@ interface BuckModelsContext {
 export interface BuckModelsDeps {
   readText?: (path: string) => string;
   writeScope?: typeof writeBuckModelsScope;
-  pickStageModels?: (
-    ui: BuckModelsUI,
-    title: string,
-    choices: readonly StageModelChoice[],
-    selected: readonly string[],
-  ) => Promise<string[] | null>;
+  runProfileEditor?: (input: ProfileEditorRunInput) => Promise<ProfileEditorOutcome | null>;
   readDoctorLoad?: (cwd: string) => {
     project: BuckModelsConfig | null;
     globalConfig: BuckModelsConfig | null;
@@ -118,24 +112,6 @@ function effectiveStage(
   return { stage: globalStage, ownership: globalStage ? "user-global fallthrough" : "unset" };
 }
 
-function escapeRowText(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll(",", "\\,");
-}
-
-function formatRows(models: BuckModelCandidate[]): string {
-  return models
-    .map((model) => model.note === undefined
-      ? escapeRowText(model.id)
-      : `${escapeRowText(model.id)} | ${escapeRowText(model.note)}`)
-    .join(", ");
-}
-
-
-function stageSummary(stage: BuckStageConfig | undefined): string {
-  const models = formatRows(stage?.models ?? []) || "(no models)";
-  return `models: ${models}; thinking: ${stage?.thinking ?? "off"}`;
-}
-
 async function chooseProfile(
   ui: BuckModelsUI,
   action: string,
@@ -164,48 +140,53 @@ async function chooseProfile(
   return name;
 }
 
-async function editStages(
-  ui: BuckModelsUI,
+/** Resume state after the thinking prompt; a cancelled prompt resumes the editor unchanged. */
+async function applyThinkingRequest(
+  ui: InteractiveBuckModelsUI,
+  outcome: Extract<ProfileEditorOutcome, { kind: "thinking-request" }>,
+): Promise<ProfileEditorState> {
+  const draft = outcome.resume.drafts[outcome.stage];
+  const keepThinking = `Keep current (${draft.thinking})`;
+  const choice = await ui.select(`Thinking for ${outcome.stage}`, [keepThinking, ...THINKING_CHOICES]);
+  if (!choice || choice === keepThinking) return outcome.resume;
+  const applied = choice === OMIT_THINKING ? "off" : choice;
+  // Residual choice strings after the OMIT check are exactly the BuckThinking level names.
+  const thinking = applied as BuckThinking;
+  outcome.resume.drafts[outcome.stage].thinking = thinking;
+  return outcome.resume;
+}
+
+async function editProfileStages(
+  ui: InteractiveBuckModelsUI,
   scope: BuckConfigSource,
   profile: string,
   project: BuckModelsConfig,
   globalConfig: BuckModelsConfig,
   available: readonly string[],
-  pick: NonNullable<BuckModelsDeps["pickStageModels"]>,
+  runEditor: NonNullable<BuckModelsDeps["runProfileEditor"]>,
 ): Promise<BuckProfileWrite["stages"] | null> {
-  const stages: BuckProfileWrite["stages"] = {};
+  const baselines: ProfileEditorRunInput["baselines"] = {};
+  // Cast safe: the loop below fills every BuckStageKey before the map is read.
+  const ownerships = {} as ProfileEditorRunInput["ownerships"];
   for (const key of BUCK_STAGE_KEYS) {
     const effective = effectiveStage(scope, profile, key, project, globalConfig);
-    const label = `${key} — ${effective.ownership}`;
-    const action = await ui.select?.(
-      `${label}\nCurrent ${stageSummary(effective.stage)}`,
-      [KEEP_STAGE, EDIT_STAGE],
-    );
-    if (!action) return null;
-    if (action === KEEP_STAGE) continue;
-    const current = effective.stage?.models ?? [];
-    const selected = await pick(
-      ui,
-      `Models for ${label}`,
-      stageModelChoices(available, current),
-      current.map((model) => model.id),
-    );
-    if (selected === null) return null;
-    const currentThinking = effective.stage?.thinking ?? "off";
-    const keepThinking = `Keep current (${currentThinking})`;
-    const selectedThinking = await ui.select?.(
-      `Thinking for ${label}`,
-      [keepThinking, ...THINKING_CHOICES],
-    );
-    if (!selectedThinking) return null;
-    stages[key] = {
-      models: candidatesFromSelection(selected, current),
-      thinking: selectedThinking === keepThinking
-        ? effective.stage?.thinking
-        : selectedThinking === OMIT_THINKING ? undefined : selectedThinking as BuckThinking,
-    };
+    if (effective.stage) baselines[key] = effective.stage;
+    ownerships[key] = effective.ownership;
   }
-  return stages;
+  let state = seedProfileEditorState(baselines);
+  for (;;) {
+    const outcome = await runEditor({
+      profile,
+      scope: scope === "project" ? "project" : "user-global",
+      state,
+      baselines,
+      ownerships,
+      available,
+    });
+    if (!outcome || outcome.kind === "cancel") return null;
+    if (outcome.kind === "submit") return deriveStageUpdates(outcome.drafts, baselines);
+    state = await applyThinkingRequest(ui, outcome);
+  }
 }
 
 function unavailableIds(
@@ -343,6 +324,23 @@ function liveModelIds(ctx: BuckModelsContext): string[] | null {
   }
 }
 
+function defaultProfileEditor(ui: BuckModelsUI): NonNullable<BuckModelsDeps["runProfileEditor"]> {
+  return async (input: ProfileEditorRunInput) => {
+    if (!ui.custom) {
+      ui.notify("/buck-models needs a profile editor. This host UI cannot show one.", "error");
+      return null;
+    }
+    return ui.custom((tui, theme, keybindings, done) => createProfileEditor({
+      ...input,
+      theme,
+      keybindings,
+      done,
+      requestRender: () => tui.requestRender(),
+      terminalRows: () => tui.terminal?.rows,
+    }), { overlay: true });
+  };
+}
+
 async function buildProfileUpdate(
   ui: InteractiveBuckModelsUI,
   ctx: BuckModelsContext,
@@ -351,7 +349,7 @@ async function buildProfileUpdate(
   action: string,
   project: BuckModelsConfig,
   globalConfig: BuckModelsConfig,
-  pick: NonNullable<BuckModelsDeps["pickStageModels"]>,
+  runEditor: NonNullable<BuckModelsDeps["runProfileEditor"]>,
 ): Promise<BuckProfileWrite | null> {
   const available = liveModelIds(ctx);
   if (available === null) {
@@ -359,7 +357,7 @@ async function buildProfileUpdate(
     return null;
   }
   const stages = action === EDIT_PROFILE
-    ? await editStages(ui, scope, profile, project, globalConfig, available, pick)
+    ? await editProfileStages(ui, scope, profile, project, globalConfig, available, runEditor)
     : {};
   if (stages === null) return null;
   const activate = action === ACTIVATE_PROFILE
@@ -393,7 +391,7 @@ async function runInteractive(ctx: BuckModelsContext, deps: BuckModelsDeps): Pro
     action,
     ic.project,
     ic.globalConfig,
-    ic.pick,
+    ic.runEditor,
   );
   if (!update) return;
   await persistProfileUpdate(ic.ui, ic.scope, update, ctx.cwd, deps.writeScope ?? writeBuckModelsScope);
@@ -404,7 +402,7 @@ interface InteractiveContext {
   scope: BuckConfigSource;
   project: BuckModelsConfig;
   globalConfig: BuckModelsConfig;
-  pick: NonNullable<BuckModelsDeps["pickStageModels"]>;
+  runEditor: NonNullable<BuckModelsDeps["runProfileEditor"]>;
 }
 
 async function collectInteractiveContext(
@@ -422,7 +420,7 @@ async function collectInteractiveContext(
     scope,
     project,
     globalConfig,
-    pick: deps.pickStageModels ?? pickStageModels,
+    runEditor: deps.runProfileEditor ?? defaultProfileEditor(ui),
   };
 }
 

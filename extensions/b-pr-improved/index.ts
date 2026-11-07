@@ -19,6 +19,7 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,6 +31,8 @@ import { runOmpModelSession } from "../omp-models.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The deterministic plumbing lives in one place — the b-pr skill's script.
 const PREFLIGHT = join(HERE, "..", "..", "skills", "b-pr", "scripts", "pr-preflight.ts");
+// Description wording lives in the skill. This command only fills the slots.
+const DESCRIPTION_PROMPT = join(HERE, "..", "..", "skills", "b-pr", "description-prompt.md");
 
 const MAX_CONFLICT_ATTEMPTS = 20;
 
@@ -183,6 +186,18 @@ function fallbackDescription(gather: Record<string, unknown>): string {
   ].join("\n");
 }
 
+const MAX_DIFF_STAT_CHARS = 8000;
+
+function descriptionDiffStat(cwd: string, gather: Record<string, unknown>): string {
+  try {
+    const base = (gather.chosen_base as string) ?? "base";
+    return execGit(["diff", "--stat", `${base}...HEAD`], cwd).trim().slice(0, MAX_DIFF_STAT_CHARS);
+  } catch {
+    // Best-effort context: a missing base ref must not block description synthesis.
+    return "";
+  }
+}
+
 async function synthesizeDescription(
   cwd: string,
   gather: Record<string, unknown>,
@@ -198,13 +213,13 @@ async function synthesizeDescription(
   const artifacts = ((gather.context_artifacts as Array<{ type: string; path: string; title?: string; goal?: string }>) ?? [])
     .map((a) => `- [${a.type}] ${a.path}: ${a.title ?? ""} — ${a.goal ?? ""}`)
     .join("\n");
-  const prompt =
-    `Write a concise GitHub PR description in markdown with two sections:\n` +
-    `<!-- For Humans --> with "## What & Why", "## Impact", "## High-Level Changes" (3-5 bullets grouped by concern), and\n` +
-    `<!-- For Agents --> with "### Verification Steps", "### Files Changed", "### Technical Details".\n` +
-    `Implementation files changed:\n${impl || "(none)"}\n\nCommits:\n${commits || "(none)"}\n\n` +
-    `Planning context that informed the work (reference as background only — NOT deliverables):\n${artifacts || "(none)"}\n\n` +
-    `Return ONLY the markdown description, no preamble.`;
+  const diffStat = descriptionDiffStat(cwd, gather);
+  const template = readFileSync(DESCRIPTION_PROMPT, "utf8");
+  const prompt = template
+    .replaceAll("<<IMPLEMENTATION_FILES>>", impl || "(none)")
+    .replaceAll("<<COMMITS>>", commits || "(none)")
+    .replaceAll("<<PLANNING_CONTEXT>>", artifacts || "(none)")
+    .replaceAll("<<DIFF_STAT>>", diffStat || "(none)");
   try {
     const desc = await runModelSession(cwd, ["read"], prompt, modelOverride, onActivity);
     if (desc) return desc;

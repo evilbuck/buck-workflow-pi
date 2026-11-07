@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { BUCK_STAGE_KEYS, parseBuckModels } from "../omp-models.js";
+import type { ProfileEditorOutcome, ProfileEditorRunInput, ProfileEditorState } from "./model-picker.js";
 import { wireBuckModels } from "./index.js";
 
 const dirs: string[] = [];
@@ -18,25 +19,50 @@ function tempDir(): string {
   return dir;
 }
 
+interface CommandSpec {
+  description: string;
+  handler: (args: string, ctx: unknown) => Promise<void>;
+}
+
+type EditorEntry = ProfileEditorOutcome | ((input: ProfileEditorRunInput) => ProfileEditorOutcome | null) | null;
+
+function registeredHandler(api: ExtensionAPI): (args: string, ctx: unknown) => Promise<void> {
+  // api is a vi.fn() test double; its mock surface is not part of ExtensionAPI.
+  const mocked = api as unknown as { registerCommand: { mock: { calls: Array<[string, CommandSpec]> } } };
+  return mocked.registerCommand.mock.calls[0]![1].handler;
+}
+
+function submitEdits(edit: (state: ProfileEditorState) => void): (input: ProfileEditorRunInput) => ProfileEditorOutcome {
+  return (input) => {
+    edit(input.state);
+    return { kind: "submit", drafts: input.state.drafts };
+  };
+}
+
 function commandHarness(opts: {
   selects: string[];
   inputs?: string[];
   confirms?: boolean[];
   available?: string[];
-  picks?: Array<string[] | null>;
+  editor?: EditorEntry[];
 }) {
-  const commands = new Map<string, { description: string; handler: (args: string, ctx: unknown) => Promise<void> }>();
+  const commands = new Map<string, CommandSpec>();
   const select = vi.fn(async (_prompt: string, _items: string[]) => opts.selects.shift());
   const input = vi.fn(async (_prompt: string, _placeholder?: string) => opts.inputs?.shift());
   const confirm = vi.fn(async (_title: string, _message: string) => opts.confirms?.shift() ?? false);
   const notify = vi.fn();
-  const pickStageModels = vi.fn(async () => opts.picks?.shift() ?? null);
+  const editorInputs: ProfileEditorRunInput[] = [];
+  const runProfileEditor = vi.fn(async (runInput: ProfileEditorRunInput): Promise<ProfileEditorOutcome | null> => {
+    editorInputs.push(runInput);
+    const next = opts.editor?.shift() ?? null;
+    return typeof next === "function" ? next(runInput) : next;
+  });
   const api = {
-    registerCommand: vi.fn((name: string, spec: { description: string; handler: (args: string, ctx: unknown) => Promise<void> }) => {
+    registerCommand: vi.fn((name: string, spec: CommandSpec) => {
       commands.set(name, spec);
     }),
   } as unknown as ExtensionAPI;
-  wireBuckModels(api, { pickStageModels });
+  wireBuckModels(api, { runProfileEditor });
   const ctx = {
     cwd: "",
     hasUI: true,
@@ -48,7 +74,7 @@ function commandHarness(opts: {
       }),
     },
   };
-  return { command: commands.get("buck-models")!, ctx, select, input, confirm, notify, pickStageModels };
+  return { command: commands.get("buck-models")!, ctx, select, input, confirm, notify, runProfileEditor, editorInputs };
 }
 
 function stageIds(scope: "project" | "global"): string[][] {
@@ -61,18 +87,17 @@ describe("/buck-models", () => {
     const cwd = tempDir();
     mkdirSync(join(cwd, ".omp"), { recursive: true });
     writeFileSync(join(cwd, ".omp", "config.yml"), "theme: dark\ncustom:\n  keep: yes\n");
-    const thinking = BUCK_STAGE_KEYS.map(() => "medium");
     const harness = commandHarness({
-      selects: [
-        "Project (.omp/config.yml)",
-        "Create or edit a profile",
-        "Create a new profile",
-        ...thinking.flatMap((level) => ["Edit this stage", level]),
-      ],
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Create a new profile"],
       inputs: ["work"],
-      picks: stageIds("project"),
       confirms: [true, true],
       available: ["project/build"],
+      editor: [submitEdits((state) => {
+        for (const key of BUCK_STAGE_KEYS) {
+          state.drafts[key].ids = [`project/${key}`];
+          state.drafts[key].thinking = "medium";
+        }
+      })],
     });
     harness.ctx.cwd = cwd;
 
@@ -88,17 +113,11 @@ describe("/buck-models", () => {
     });
     expect(saved).toContain("theme: dark");
     expect(saved).toContain("keep: yes");
-    expect(harness.pickStageModels).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining("Models for build"),
-      [{ id: "project/build", unavailable: false }],
-      [],
-    );
     expect(harness.notify).toHaveBeenCalledWith(expect.stringMatching(/unavailable/i), "warning");
     expect(harness.notify).toHaveBeenLastCalledWith(expect.stringContaining("Saved project profile"), "info");
   });
 
-  it("writes the same editable profile contract to user-global scope with optional notes and thinking", async () => {
+  it("writes the same editable profile contract to user-global scope with per-stage thinking", async () => {
     const cwd = tempDir();
     const agentDir = join(tempDir(), "agent");
     mkdirSync(agentDir, { recursive: true });
@@ -107,19 +126,16 @@ describe("/buck-models", () => {
     process.env.OMP_AGENT_DIR = agentDir;
     try {
       const harness = commandHarness({
-        selects: [
-          "User-global (~/.omp/agent/config.yml)",
-          "Create or edit a profile",
-          "Create a new profile",
-          ...[
-            "off (omit)",
-            ...BUCK_STAGE_KEYS.slice(1).map(() => "high"),
-          ].flatMap((level) => ["Edit this stage", level]),
-        ],
+        selects: ["User-global (~/.omp/agent/config.yml)", "Create or edit a profile", "Create a new profile"],
         inputs: ["portable"],
-        picks: stageIds("global"),
         confirms: [true, true],
         available: stageIds("global").flat(),
+        editor: [submitEdits((state) => {
+          for (const key of BUCK_STAGE_KEYS) {
+            state.drafts[key].ids = [`global/${key}`];
+            state.drafts[key].thinking = key === "brainstorm-plan" ? "off" : "high";
+          }
+        })],
       });
       harness.ctx.cwd = cwd;
 
@@ -166,6 +182,7 @@ describe("/buck-models", () => {
 
     await harness.command.handler("", harness.ctx);
 
+    expect(harness.runProfileEditor).not.toHaveBeenCalled();
     const saved = readFileSync(join(cwd, ".omp", "config.yml"), "utf8");
     const parsed = parseBuckModels(saved);
     expect(parsed.active).toBe("next");
@@ -198,14 +215,13 @@ describe("/buck-models", () => {
       "        models: [{ id: provider/reviewer, note: keep me }]",
       "",
     ].join("\n"));
-    const stageChoices = BUCK_STAGE_KEYS.flatMap((stage) => stage === "build"
-      ? ["Edit this stage", "Keep current (high)"]
-      : ["Keep current stage"]);
     const harness = commandHarness({
-      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work", ...stageChoices],
-      picks: [["provider/replacement"]],
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
       confirms: [false, true],
       available: ["provider/replacement"],
+      editor: [submitEdits((state) => {
+        state.drafts.build.ids = ["provider/replacement"];
+      })],
     });
     harness.ctx.cwd = cwd;
 
@@ -224,22 +240,9 @@ describe("/buck-models", () => {
       "Unavailable model ids will still be saved: provider/reviewer",
       "warning",
     );
-    expect(harness.pickStageModels).toHaveBeenCalledExactlyOnceWith(
-      expect.anything(),
-      expect.stringContaining("Models for build — project-owned"),
-      [
-        { id: "provider/original", unavailable: true },
-        { id: "provider/replacement", unavailable: false },
-      ],
-      ["provider/original"],
-    );
-    expect(harness.select).toHaveBeenCalledWith(
-      expect.stringContaining("Current models: provider/original | original note; thinking: high"),
-      ["Keep current stage", "Edit this stage"],
-    );
   });
 
-  it("keeps an existing note when the checklist leaves that id checked", async () => {
+  it("omits unchanged stage drafts so saved notes and thinking survive", async () => {
     const cwd = tempDir();
     mkdirSync(join(cwd, ".omp"), { recursive: true });
     const projectPath = join(cwd, ".omp", "config.yml");
@@ -251,24 +254,53 @@ describe("/buck-models", () => {
       "        models: [{ id: provider/original, note: 'fast, cheap' }]",
       "",
     ].join("\n"));
-    const stageChoices = BUCK_STAGE_KEYS.flatMap((stage) => stage === "build"
-      ? ["Edit this stage", "Keep current (off)"]
-      : ["Keep current stage"]);
     const harness = commandHarness({
-      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work", ...stageChoices],
-      picks: [["provider/original"]],
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
       confirms: [false, true],
       available: ["provider/original"],
+      editor: [submitEdits(() => {})],
     });
     harness.ctx.cwd = cwd;
 
     await harness.command.handler("", harness.ctx);
 
     const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
-    expect(parsed.profiles.work?.stages.build?.models).toEqual([
-      { id: "provider/original", note: "fast, cheap" },
-    ]);
+    expect(parsed.profiles.work?.stages.build).toEqual({
+      thinking: "off",
+      models: [{ id: "provider/original", note: "fast, cheap" }],
+    });
     expect(harness.input).not.toHaveBeenCalled();
+  });
+
+  it("keeps saved notes and order for retained ids and appends new ids when a stage changes", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, [
+      "buckModels:",
+      "  profiles:",
+      "    work:",
+      "      build:",
+      "        models: [{ id: provider/original, note: 'fast, cheap' }]",
+      "",
+    ].join("\n"));
+    const harness = commandHarness({
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
+      confirms: [false, true],
+      available: ["provider/original", "provider/new"],
+      editor: [submitEdits((state) => {
+        state.drafts.build.ids = ["provider/original", "provider/new"];
+      })],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
+    expect(parsed.profiles.work?.stages.build).toEqual({
+      thinking: "off",
+      models: [{ id: "provider/original", note: "fast, cheap" }, { id: "provider/new" }],
+    });
   });
 
   it("edits a profile whose name matches the create action label", async () => {
@@ -283,19 +315,17 @@ describe("/buck-models", () => {
       "        models: [{ id: provider/original }]",
       "",
     ].join("\n"));
-    const stageChoices = BUCK_STAGE_KEYS.flatMap((stage) => stage === "build"
-      ? ["Edit this stage", "Keep current (off)"]
-      : ["Keep current stage"]);
     const harness = commandHarness({
       selects: [
         "Project (.omp/config.yml)",
         "Create or edit a profile",
         "Edit profile: Create a new profile",
-        ...stageChoices,
       ],
-      picks: [["provider/replacement"]],
       confirms: [false, true],
       available: ["provider/replacement"],
+      editor: [submitEdits((state) => {
+        state.drafts.build.ids = ["provider/replacement"];
+      })],
     });
     harness.ctx.cwd = cwd;
 
@@ -352,19 +382,17 @@ describe("/buck-models", () => {
       const harness = commandHarness({
         selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
         inputs: [],
+        editor: [{ kind: "cancel" }],
       });
       harness.ctx.cwd = cwd;
 
       await harness.command.handler("", harness.ctx);
 
-      expect(harness.select).toHaveBeenCalledWith(
-        expect.stringContaining("brainstorm-plan — user-global fallthrough"),
-        ["Keep current stage", "Edit this stage"],
-      );
-      expect(harness.select).toHaveBeenCalledWith(
-        expect.stringContaining("Current models: provider/global; thinking: off"),
-        ["Keep current stage", "Edit this stage"],
-      );
+      expect(harness.editorInputs[0].ownerships["brainstorm-plan"]).toBe("user-global fallthrough");
+      expect(harness.editorInputs[0].baselines["brainstorm-plan"]).toEqual({
+        models: [{ id: "provider/global" }],
+        thinking: "off",
+      });
       expect(harness.input).not.toHaveBeenCalled();
       expect(readFileSync(projectPath, "utf8")).toBe(original);
       expect(harness.confirm).not.toHaveBeenCalled();
@@ -372,6 +400,188 @@ describe("/buck-models", () => {
       if (previous === undefined) delete process.env.OMP_AGENT_DIR;
       else process.env.OMP_AGENT_DIR = previous;
     }
+  });
+
+  it("leaves user-global fallthrough stages unwritten when their drafts are unchanged", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, "buckModels:\n  profiles:\n    work:\n      build:\n        models: [{ id: provider/local }]\n");
+    const agentDir = join(tempDir(), "agent");
+    mkdirSync(agentDir, { recursive: true });
+    const globalPath = join(agentDir, "config.yml");
+    writeFileSync(globalPath, [
+      "buckModels:",
+      "  profiles:",
+      "    work:",
+      "      review:",
+      "        thinking: low",
+      "        models: [{ id: provider/global }]",
+      "",
+    ].join("\n"));
+    const previous = process.env.OMP_AGENT_DIR;
+    process.env.OMP_AGENT_DIR = agentDir;
+    try {
+      const harness = commandHarness({
+        selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
+        confirms: [false, true],
+        available: ["provider/local", "provider/local2"],
+        editor: [submitEdits((state) => {
+          state.drafts.build.ids = ["provider/local2"];
+        })],
+      });
+      harness.ctx.cwd = cwd;
+
+      await harness.command.handler("", harness.ctx);
+
+      const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
+      expect(Object.keys(parsed.profiles.work?.stages ?? {})).toEqual(["build"]);
+      expect(parsed.profiles.work?.stages.build).toEqual({
+        thinking: "off",
+        models: [{ id: "provider/local2" }],
+      });
+      expect(parsed.profiles.work?.stages.review).toBeUndefined();
+      expect(parseBuckModels(readFileSync(globalPath, "utf8")).profiles.work?.stages.review).toEqual({
+        thinking: "low",
+        models: [{ id: "provider/global" }],
+      });
+    } finally {
+      if (previous === undefined) delete process.env.OMP_AGENT_DIR;
+      else process.env.OMP_AGENT_DIR = previous;
+    }
+  });
+
+  it("writes an explicit empty models override when a populated stage is cleared", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, "buckModels:\n  profiles:\n    work:\n      build:\n        models: [{ id: provider/local }]\n");
+    const harness = commandHarness({
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
+      confirms: [false, true],
+      available: ["provider/local"],
+      editor: [submitEdits((state) => {
+        state.drafts.build.ids = [];
+      })],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
+    expect(parsed.profiles.work?.stages.build).toEqual({ thinking: "off", models: [] });
+  });
+
+  it("performs no write when the final save confirmation is rejected", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    const original = "buckModels:\n  profiles:\n    work:\n      build:\n        models: [{ id: provider/local }]\n";
+    writeFileSync(projectPath, original);
+    const harness = commandHarness({
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
+      confirms: [true, false],
+      available: ["provider/local", "provider/new"],
+      editor: [submitEdits((state) => {
+        state.drafts.build.ids = ["provider/new"];
+      })],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    expect(harness.runProfileEditor).toHaveBeenCalledTimes(1);
+    expect(readFileSync(projectPath, "utf8")).toBe(original);
+    expect(harness.notify).not.toHaveBeenCalledWith(expect.stringContaining("Saved"), "info");
+  });
+
+  it("applies a chosen thinking level to the resumed editor state and the written stage", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, [
+      "buckModels:",
+      "  profiles:",
+      "    work:",
+      "      build:",
+      "        thinking: low",
+      "        models: [{ id: provider/original }]",
+      "",
+    ].join("\n"));
+    const harness = commandHarness({
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work", "high"],
+      confirms: [false, true],
+      available: ["provider/original", "provider/new"],
+      editor: [
+        (input) => {
+          input.state.views.build.query = "ne";
+          input.state.views.build.catalogCursor = 1;
+          return { kind: "thinking-request", stage: "build", resume: input.state };
+        },
+        submitEdits((state) => {
+          state.drafts.build.ids = ["provider/original", "provider/new"];
+        }),
+      ],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    expect(harness.select).toHaveBeenCalledWith(
+      "Thinking for build",
+      ["Keep current (low)", "off (omit)", "minimal", "low", "medium", "high", "xhigh"],
+    );
+    expect(harness.editorInputs).toHaveLength(2);
+    expect(harness.editorInputs[1].state.drafts.build.thinking).toBe("high");
+    expect(harness.editorInputs[1].state.views.build.query).toBe("ne");
+    expect(harness.editorInputs[1].state.views.build.catalogCursor).toBe(1);
+    const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
+    expect(parsed.profiles.work?.stages.build).toEqual({
+      thinking: "high",
+      models: [{ id: "provider/original" }, { id: "provider/new" }],
+    });
+  });
+
+  it("resumes the editor unchanged and continues when the thinking prompt is cancelled", async () => {
+    const cwd = tempDir();
+    mkdirSync(join(cwd, ".omp"), { recursive: true });
+    const projectPath = join(cwd, ".omp", "config.yml");
+    writeFileSync(projectPath, [
+      "buckModels:",
+      "  profiles:",
+      "    work:",
+      "      build:",
+      "        thinking: low",
+      "        models: [{ id: provider/original }]",
+      "",
+    ].join("\n"));
+    const harness = commandHarness({
+      selects: ["Project (.omp/config.yml)", "Create or edit a profile", "Edit profile: work"],
+      confirms: [false, true],
+      available: ["provider/new"],
+      editor: [
+        (input) => {
+          input.state.drafts.build.thinking = "high";
+          input.state.views.build.query = "orig";
+          return { kind: "thinking-request", stage: "build", resume: input.state };
+        },
+        submitEdits((state) => {
+          state.drafts.build.ids = ["provider/new"];
+        }),
+      ],
+    });
+    harness.ctx.cwd = cwd;
+
+    await harness.command.handler("", harness.ctx);
+
+    expect(harness.editorInputs).toHaveLength(2);
+    expect(harness.editorInputs[1].state.drafts.build.thinking).toBe("high");
+    expect(harness.editorInputs[1].state.views.build.query).toBe("orig");
+    const parsed = parseBuckModels(readFileSync(projectPath, "utf8"));
+    expect(parsed.profiles.work?.stages.build).toEqual({
+      thinking: "high",
+      models: [{ id: "provider/new" }],
+    });
   });
 
   describe("--doctor", () => {
@@ -418,7 +628,7 @@ describe("/buck-models", () => {
           ui: { select, input, confirm, notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+        await registeredHandler(api)("--doctor", ctx);
 
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
@@ -453,7 +663,7 @@ describe("/buck-models", () => {
           ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+        await registeredHandler(api)("--doctor", ctx);
 
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
@@ -486,7 +696,7 @@ describe("/buck-models", () => {
         ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
         modelRegistry: undefined,
       };
-      await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+      await registeredHandler(api)("--doctor", ctx);
 
       expect(notify).toHaveBeenCalledTimes(1);
       const [message, level] = notify.mock.calls[0]!;
@@ -509,7 +719,7 @@ describe("/buck-models", () => {
           ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+        await registeredHandler(api)("--doctor", ctx);
 
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
@@ -556,7 +766,7 @@ describe("/buck-models", () => {
           ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+        await registeredHandler(api)("--doctor", ctx);
 
         expect(reads).toBe(2); // one read per scope, never a reopen
         expect(notify).toHaveBeenCalledTimes(1);
@@ -584,7 +794,7 @@ describe("/buck-models", () => {
           ui: { select: vi.fn(), input: vi.fn(), confirm: vi.fn(), notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+        await registeredHandler(api)("--doctor", ctx);
 
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
@@ -621,7 +831,7 @@ describe("/buck-models", () => {
           },
         },
       };
-      await api.registerCommand.mock.calls[0]![1].handler("--doctor", ctx);
+      await registeredHandler(api)("--doctor", ctx);
 
       expect(notify).toHaveBeenCalledTimes(1);
       const [message, level] = notify.mock.calls[0]!;
@@ -647,7 +857,7 @@ describe("/buck-models", () => {
           ui: { select, input: vi.fn(), confirm: vi.fn(), notify },
           modelRegistry: { getAvailable: () => [{ provider: "provider", id: "here" }] },
         };
-        await api.registerCommand.mock.calls[0]![1].handler("--audit", ctx);
+        await registeredHandler(api)("--audit", ctx);
 
         expect(notify).toHaveBeenCalledTimes(1);
         const [message, level] = notify.mock.calls[0]!;
@@ -678,7 +888,7 @@ describe("/buck-models", () => {
         ui: { select: vi.fn(async () => selects.shift()), input: vi.fn(), confirm, notify },
         modelRegistry: { getAvailable: () => { throw new Error("registry exploded"); } },
       };
-      await api.registerCommand.mock.calls[0]![1].handler("", ctx);
+      await registeredHandler(api)("", ctx);
 
       expect(notify).toHaveBeenCalledWith(expect.stringContaining("Model registry unavailable"), "error");
       expect(confirm).not.toHaveBeenCalled();

@@ -94,109 +94,26 @@ You have these inputs from the preflight JSON:
 | `context_files[]` | **every** changed `.context/**` file (artifacts, memory, index, backlog, …). Research/development context that **informed** the work — **not** implementation. |
 | `diff_stat` | summary string for the **implementation** diff only (`.context/**` excluded) |
 | `context_artifacts[]` | the **parsed subset** of changed `.context/**` files named `plan-`/`spec-`/`brainstorm-`/`research-`/`phase-*.md`, with title/goal/status extracted. Not every `context_files[]` entry appears here (memory/index/backlog files are excluded). |
-**Read `.context/**` as the research that informed the work — never as the work itself.** `context_artifacts[]` and `context_files[]` capture the planning, specs, and research that **guided** the implementation; they are **not** deliverables. Use them to explain *why* the implementation looks the way it does, and to cross-check that `implementation_files[]` actually delivers what was planned. For each artifact in `context_artifacts[]`, read the file at `path` to extract:
-- The `## User Goal` or `goal:` field (what the user wanted → drives the "What & Why")
+**Read `.context/**` as the research that informed the work — never as the work itself.** `context_artifacts[]` and `context_files[]` capture the planning, specs, and research that **guided** the implementation; they are **not** deliverables. Use them to explain *why* the implementation looks the way it does, and to cross-check that `implementation_files[]` actually delivers what was planned. For each artifact in `context_artifacts[]`, read the file at `path` when you need more than the extracted title and goal:
+- The `## User Goal` or `goal:` field (what the user wanted → drives the human "what we now do")
 - The `scope` or `affected files` (what was planned → compare against `implementation_files[]`)
 - The `verification` criteria (how success was defined → drives "Verification Steps")
-- Any risks or constraints noted (→ drives "Known Risks")
-**Synthesize a PR description** with two distinct sections: one for humans (scannable, impact-focused) and one for agents (technical, actionable).
+- Any risks or constraints noted (mention them under architectural decisions, or in the agent section when they change how to verify)
 
-**Description format** (markdown, for the PR body):
+**The description prompt is `description-prompt.md` in this skill directory.** That file is the only wording. Read it and fill these slots from the preflight JSON. Do not rewrite, shorten, or paraphrase the prompt.
 
-```markdown
-<!-- For Humans -->
+| Slot | Fill with |
+|---|---|
+| `<<IMPLEMENTATION_FILES>>` | one line per `implementation_files[]` entry: `- ${path} (+${additions}/-${deletions})`. Empty → `(none)` |
+| `<<COMMITS>>` | one line per `commits[]` entry: `- ${subject} (${author})`. Empty → `(none)` |
+| `<<PLANNING_CONTEXT>>` | one line per `context_artifacts[]` entry: `- [${type}] ${path}: ${title} — ${goal}`. Empty → `(none)` |
 
-## What & Why
+Send the filled prompt. The reply is the PR body: only that markdown, no preamble.
 
-<2-3 sentences: what this PR does and the problem it solves. Lead with impact.>
-
-## Impact
-
-- **User-facing**: <what users see or experience differently, or "None — internal change">
-- **Breaking changes**: <any API/config/behavior breaks, or "None">
-- **Performance**: <any measurable improvements or regressions, or "No change">
-
-## High-Level Changes
-
-<3-5 bullet points max. Group related files by concern area, not a flat list.>
-
-- **<area 1>**: <what changed and why in one sentence>
-- **<area 2>**: <what changed and why in one sentence>
-
----
-
-<!-- For Agents -->
-
-## Agent Context
-
-> This section is for AI agents and automated reviewers. Humans can skip it.
-
-### Verification Steps
-
-<Exact commands to verify this PR works. Copy-pasteable.>
-
-```bash
-# Example:
-npm test
-npm run build
-# Browser verification:
-npm run dev
-# Then visit http://localhost:3000 and check <specific behavior>
-```
-
-### Files Changed
-
-<List **only** `implementation_files[]` — never `.context/**`. Group by type.>
-
-**Source files:**
-- `path/to/file.ts` — <what changed, line count if relevant>
-- `path/to/another.ts` — <what changed>
-
-**Test files:**
-- `path/to/test.spec.ts` — <what was tested>
-
-**Config/docs:**
-- `package.json` — <dependency added/removed>
-- `README.md` — <what was documented>
-
-### Technical Details
-
-- **Approach**: <key implementation decisions from plan/spec if available>
-- **Dependencies**: <any new deps added, or "None">
-- **Migration**: <any data/config migration needed, or "None">
-
-### Research & Planning Context
-
-<If `context_artifacts[]` is non-empty, reference the `.context/**` research that **informed** this work. Frame it as background that guided the implementation — not as part of the deliverable.>
-
-- **Plan**: `.context/YYYY-MM-DD.subject/plan-*.md` — <goal summary>
-- **Spec**: `.context/YYYY-MM-DD.subject/spec-*.md` — <requirement summary>
-- **Research**: `.context/YYYY-MM-DD.subject/research-*.md` — <key findings>
-
-### Known Risks
-
-- <Specific technical risk>
-- <Edge case to watch for>
-- <Follow-up work needed, with issue link if exists>
-
-### Reproduction Steps
-
-<If this PR fixes a bug, how to reproduce the original issue>
-
-1. <step 1>
-2. <step 2>
-3. Expected: <what should happen>
-4. Before this PR: <what happened>
-5. After this PR: <what happens now>
-```
-
-**Writing guidelines:**
-- The **Human section** (top) should be scannable in 15 seconds. No jargon, no file paths, focus on impact.
-- The **Agent section** (bottom) should be copy-pasteable. Exact commands, exact file paths, exact verification steps.
-- If `context_artifacts[]` is empty, omit the "Research & Planning Context" subsection entirely. Never list `.context/**` files under "Files Changed".
-- If there are no known risks, omit "Known Risks" or write "None identified."
-- If this is not a bug fix, omit "Reproduction Steps."
-- Keep both sections tight. No filler. A good PR description is useful, not long.
+The prompt already states the writing rules. Do not contradict them:
+- Humans: plain English a junior engineer can follow. Open with how many major changes, then one heading per change and a numbered "We did this by:" list that names real files, commands, and workflows. When the diff includes them, omp support, container install testing, and the pull-request GitHub Actions workflow each get their own section. Then architectural decisions, then anything else pertinent.
+- The example in the prompt is voice and shape only. Write about this pull request.
+- Agents stay terse: `### Verification Steps`, `### Files Changed`, `### Technical Details`. Never list `.context/**` under Files Changed.
 
 ### Phase 4: Workflowz (Parallel Polish)
 
@@ -208,19 +125,21 @@ If the harness supports **parallel subagents** (omp `task`, pi subagents, codex 
 You are a PR description polisher. You will receive:
 1. A draft PR description with two sections (Humans at top, Agents at bottom)
 2. The preflight JSON (commits, `implementation_files[]`, `context_files[]`, `context_artifacts[]`)
+3. The description prompt in description-prompt.md
 
 Your job:
 HUMANS section:
-- Tighten the summary — cut filler, lead with impact
-- Ensure Impact bullets are accurate (no false breaking-change claims)
-- Keep High-Level Changes to 3-5 bullets, grouped by concern
+- Keep the plain-English junior-engineer voice from description-prompt.md
+- One heading per real major change, with a numbered "We did this by:" list naming real files, commands, and workflows
+- Do not collapse it back into What & Why / Impact / High-Level Changes
+- Do not invent omp support, container testing, or GitHub Actions if they are not in the diff
 
 AGENTS section:
 - Verify the Verification Steps commands are correct and copy-pasteable
 - Verify Files Changed lists only `implementation_files[]` (never `.context/**`)
-- Ensure technical details reflect what's actually in the diff
-- If context artifacts contain verification criteria, make sure they're referenced; `.context/**` is research context, not a deliverable
-- Ensure the markdown structure is preserved (### headings, code blocks, lists)
+- Ensure technical details reflect what is actually in the diff
+- If context artifacts contain verification criteria, make sure they are referenced; `.context/**` is research context, not a deliverable
+- Keep `### Verification Steps`, `### Files Changed`, and `### Technical Details`
 
 Do NOT merge the two sections. The human/agent boundary must stay clear.
 Return ONLY the polished markdown description. No preamble, no explanation.

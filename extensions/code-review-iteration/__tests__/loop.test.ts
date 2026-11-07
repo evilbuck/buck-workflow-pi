@@ -613,7 +613,147 @@ describe("runReviewLoop", () => {
     expect(deps.fixerSessions[0].model).toBe("zai/glm-5.3");
   });
 
-  it("recovers from a resume rebase conflict via a hard fixer session without committing markers", async () => {
+  it("records the fetch failure in the terminal report and retained state", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const deps = makeDeps();
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, base: "missing-branch" });
+    const report = readFileSync(result.reportPath!, "utf-8");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", result.runId);
+    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+
+    expect(result.status).toBe("failed");
+    expect(deps.reviewerCalls).toBe(0);
+    expect(report).toContain("git fetch origin missing-branch failed");
+    expect(state.terminal.reason).toContain("git fetch origin missing-branch failed");
+  });
+
+  it("records a failed conflict fixer and the affected paths without losing the checkout", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const upstream = mkdtempSync(join(tmpdir(), "loop-failed-conflict-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const before = resolveHead(clone);
+    const deps = makeDeps();
+    deps.availableSelectors = async () => { throw new Error("registry should not be queried for an explicit fixer"); };
+    deps.runFixerSession = async (opts) => {
+      if (opts.model !== "explicit/hard") throw new Error("unexpected fixer model");
+      throw new Error("provider offline: https://alice:password@example.test?access_token=topsecret Bearer anothersecret client_secret=thirdsecret");
+    };
+
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "explicit/hard" });
+    const report = readFileSync(result.reportPath!, "utf-8");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", result.runId);
+    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+
+    expect(result.status).toBe("failed");
+    expect(deps.reviewerCalls).toBe(0);
+    expect(resolveHead(clone)).toBe(before);
+    expect(g(clone, ["status", "--porcelain"])).not.toMatch(/^UU/m);
+    expect(report).toContain("rebase-conflict fixer session failed");
+    expect(report).toContain("provider offline");
+    expect(report).toContain("app.js");
+    expect(report).toContain("Fixer model: explicit/hard");
+    expect(state.terminal.reason).toContain("provider offline");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("alice:password");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("topsecret");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("anothersecret");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("thirdsecret");
+  });
+
+  it("redacts the complete userinfo of URLs containing multiple @ signs", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const upstream = mkdtempSync(join(tmpdir(), "loop-multi-at-redaction-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const deps = makeDeps();
+    deps.availableSelectors = async () => { throw new Error("registry should not be queried for an explicit fixer"); };
+    deps.runFixerSession = async (opts) => {
+      if (opts.model !== "explicit/hard") throw new Error("unexpected fixer model");
+      throw new Error("provider offline: https://alice:one@two@example.test");
+    };
+
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "explicit/hard" });
+    const report = readFileSync(result.reportPath!, "utf-8");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", result.runId);
+    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+
+    expect(result.status).toBe("failed");
+    expect(deps.reviewerCalls).toBe(0);
+    expect(report).toContain("rebase-conflict fixer session failed");
+    expect(report).toContain("provider offline");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("alice");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("one@two@example");
+    expect(`${report}\n${state.terminal.reason}`).toContain("[REDACTED]@");
+  });
+
+  it("aborts the rebase if the fixer model registry cannot be read", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const upstream = mkdtempSync(join(tmpdir(), "loop-registry-conflict-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const before = resolveHead(clone);
+    const deps = makeDeps();
+    deps.availableSelectors = async () => { throw new Error("registry offline"); };
+    deps.runFixerSession = async () => { throw new Error("fixer should not be called"); };
+
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    const report = readFileSync(result.reportPath!, "utf-8");
+    expect(result.status).toBe("failed");
+    expect(report).toContain("registry offline");
+    expect(report).toContain("app.js");
+    expect(resolveHead(clone)).toBe(before);
+    expect(() => g(clone, ["rev-parse", "--verify", "REBASE_HEAD"])).toThrow();
+  });
+
+  it("does not commit unresolved conflict markers when a fixer returns without resolving them", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const upstream = mkdtempSync(join(tmpdir(), "loop-unresolved-conflict-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const before = resolveHead(clone);
+    const deps = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
+    deps.runFixerSession = async () => "resolved";
+
+    const result = await runReviewLoop(deps, clone, OPTIONS);
+    const report = readFileSync(result.reportPath!, "utf-8");
+    expect(result.status).toBe("failed");
+    expect(report).toContain("conflict markers");
+    expect(report).toContain("app.js");
+    expect(resolveHead(clone)).toBe(before);
+    expect(g(clone, ["show", "HEAD:app.js"])).not.toContain("<<<<<<<");
+    expect(() => g(clone, ["rev-parse", "--verify", "REBASE_HEAD"])).toThrow();
+  });
+
+  it("recovers from a resume rebase conflict using an available hard fixer", async () => {
     const { origin, clone } = makeOriginClone();
     cleanup.push(origin, clone);
     const deps = makeDeps({ checksPassed: false });
@@ -630,9 +770,15 @@ describe("runReviewLoop", () => {
     g(upstream, ["commit", "-qm", "base rewrites app.js"]);
     g(upstream, ["push", "-q", "origin", "master"]);
     const deps2 = makeDeps({ reviewerOutputs: [JSON.stringify({ findings: [] })] });
+    const catalog = catalogFixture();
+    catalog.entries.unshift(catalogEntry("offline.md", {
+      selector: "offline/unavailable", fixer_capability: "hard", roles: "[fixer]",
+    }));
+    deps2.loadCatalog = () => catalog;
     const scriptedFixer = deps2.runFixerSession.bind(deps2);
     deps2.runFixerSession = async (opts) => {
       if (opts.prompt.includes("rebase conflict")) {
+        if (opts.model !== "zai/glm-5.3") throw new Error("selected model is unavailable");
         writeFileSync(join(opts.cwd, "app.js"), "function login() { return true; }\n// resolved\n");
         return "resolved";
       }

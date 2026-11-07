@@ -148,40 +148,59 @@ async function terminalize(ctx: LoopContext, status: RunState["status"], reason:
   await saveState(ctx.runDir, ctx.state);
 }
 
+function safePreparationDetail(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error ?? "unknown");
+  return message
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/]*@/gi, "$1[REDACTED]@")
+    .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/\b([\w.-]*(?:api[_-]?key|secret|token|password|credential)[\w.-]*)\b\s*["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,"'}]+)/gi, "$1=[REDACTED]")
+    .slice(0, 2048);
+}
+
 async function resolveRebaseConflictsWithFixer(
   deps: LoopDeps,
   ctx: LoopContext,
   fixerModel: string | null,
-): Promise<boolean> {
+): Promise<string | null> {
+  let thinkingLevel: string | null = null;
+  if (fixerModel === null) {
+    try {
+      const choice = await chooseFixer(deps, ctx, "hard");
+      fixerModel = choice.model;
+      thinkingLevel = choice.thinking;
+    } catch (e: unknown) {
+      return `rebase-conflict fixer selection failed for ${conflictedFiles(ctx.cwd).join(", ")}: ${safePreparationDetail(e)}`;
+    }
+  }
   for (let attempt = 0; attempt < MAX_REBASE_ATTEMPTS; attempt++) {
     const files = conflictedFiles(ctx.cwd);
-    if (files.length === 0) return true;
+    if (files.length === 0) return null;
     const prompt =
       `You are resolving a git rebase conflict onto origin/${ctx.state?.base_branch ?? "base"}. ` +
       `These files have unresolved conflict markers:\n\n${files.map((f) => `- ${f}`).join("\n")}\n\n` +
       `For EACH file: read it, reconcile both sides, remove ALL conflict markers, and write the correct merged content. ` +
       `Do NOT run git. Do not add commentary.`;
+    if (ctx.state) ctx.state.fixer_model = fixerModel;
     try {
-      await deps.runFixerSession({ cwd: ctx.cwd, prompt, model: fixerModel });
+      await deps.runFixerSession({ cwd: ctx.cwd, prompt, model: fixerModel, thinkingLevel: thinkingLevel ?? undefined });
     } catch (e: unknown) {
-      deps.notify(`rebase-conflict fixer session failed: ${(e as Error).message}`, "error");
-      return false;
+      return `rebase-conflict fixer session failed for ${files.join(", ")}: ${safePreparationDetail(e)}`;
     }
     const result = resolveAndContinue(ctx.cwd, files);
-    if (result.status === "ok") return true;
+    if (result.status === "ok") return null;
     if (result.status === "failed") {
-      deps.notify(`rebase continuation failed: ${result.error ?? "unknown"}`, "error");
-      return false;
+      return `rebase continuation failed for ${files.join(", ")}: ${safePreparationDetail(result.error)}`;
     }
   }
-  return false;
+  return `rebase conflicts remain after ${MAX_REBASE_ATTEMPTS} attempts: ${conflictedFiles(ctx.cwd).join(", ")}`;
 }
 
-async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promise<RunState["status"] | "continue"> {
+async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promise<string | null> {
   const base = ctx.options.base ?? detectBaseBranch(ctx.cwd);
   if (!base) {
-    deps.notify("No origin default branch detected and no --base given; refusing to review a stale base.", "error");
-    return "failed";
+    const reason = "No origin default branch detected and no --base given; refusing to review a stale base.";
+    deps.notify(reason, "error");
+    return reason;
   }
   // Checkpoint the dirty start BEFORE fetching and rebasing: the checkpoint
   // lands on the current base, so the rebase runs on a clean tree and never
@@ -204,28 +223,33 @@ async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promi
   if (ctx.state) ctx.state.base_branch = base;
   const fetched = fetchBase(ctx.cwd, base);
   if (!fetched.ok || !fetched.commit) {
-    deps.notify(`git fetch origin ${base} failed: ${fetched.error ?? "unknown"}. Hard stop.`, "error");
-    return "failed";
+    const reason = `git fetch origin ${base} failed: ${safePreparationDetail(fetched.error)}. Hard stop.`;
+    deps.notify(reason, "error");
+    return reason;
   }
   const rebase = rebaseOntoFetched(ctx.cwd);
   if (rebase.status === "failed") {
-    deps.notify(`rebase onto fetched ${base} failed: ${rebase.error ?? "unknown"}. Hard stop.`, "error");
-    return "failed";
+    const reason = `rebase onto fetched ${base} failed: ${safePreparationDetail(rebase.error)}. Hard stop.`;
+    deps.notify(reason, "error");
+    return reason;
   }
   if (rebase.status === "conflict") {
     deps.notify(`rebase conflict in ${rebase.files.length} file(s); routing to a hard-capability Fixer.`, "info");
-    const hardFixer = ctx.options.fixerModel
-      ?? deps.loadCatalog().entries.find((e) => e.fixerCapability === "hard")?.selector
-      ?? deps.fixerFallbackModel("hard");
-    const resolved = await resolveRebaseConflictsWithFixer(deps, ctx, hardFixer ?? null);
-    if (!resolved) {
-      abortRebase(ctx.cwd);
-      deps.notify("Could not complete the rebase; aborted and restored the pre-run state.", "error");
-      return "failed";
+    const error = await resolveRebaseConflictsWithFixer(deps, ctx, ctx.options.fixerModel ?? null);
+    if (error !== null) {
+      // continueRebase already aborts after a failed continuation, so only
+      // abort (and only report an abort failure) when a rebase is still live.
+      const abortFailure = hasOngoingGitOperation(ctx.cwd) ? abortRebase(ctx.cwd) : null;
+      const abortNote = abortFailure === null
+        ? "rebase abort attempted."
+        : `rebase abort also failed: ${safePreparationDetail(abortFailure)}; recovery may be needed.`;
+      const reason = `${error}; ${abortNote}`;
+      deps.notify(reason, "error");
+      return reason;
     }
   }
   if (ctx.state) ctx.state.base_commit = fetched.commit;
-  return "continue";
+  return null;
 }
 
 function nullable<T>(value: T | undefined): T | null {
@@ -683,7 +707,7 @@ async function executeBasePreparation(
   runtime: MachineRuntime,
 ): Promise<void> {
   const prepared = await prepareBaseAndCheckpoint(deps, ctx);
-  if (prepared !== "continue") {
+  if (prepared !== null) {
     runtime.baseReady = false;
     runtime.baseError = prepared;
     return;
