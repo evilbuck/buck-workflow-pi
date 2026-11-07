@@ -263,13 +263,36 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
     const { cwd, cleanup } = fixtureRepo();
     try {
       // First run completes cleanly, then we tamper the manifest into
-      // failed_apply to model a crash after a partial journal write.
+      // failed_apply and swap its completed journal for an in-progress one
+      // holding a pending staged op — modeling a crash mid-apply.
       const memory = fakeMemory();
       const first = await runBSaveCommand(ctxFor(cwd, fakeRoles(), memory), []);
       expect(first.state).toBe("completed");
-      const manifestPath = join(cwd, ".context/workflow/b-save", first.runId, "manifest.json");
+      const runDirAbs = join(cwd, ".context/workflow/b-save", first.runId);
       const tampered = { ...readManifest(cwd, first.runId), state: "failed_apply" };
-      writeFileSync(manifestPath, JSON.stringify(tampered, null, 2) + "\n");
+      writeFileSync(join(runDirAbs, "manifest.json"), JSON.stringify(tampered, null, 2) + "\n");
+      const pendingPath = join(cwd, ".context/memory/demo-pending.md");
+      writeFileSync(pendingPath + ".tmp-b-save", "# Pending demo\n");
+      writeFileSync(
+        join(runDirAbs, "apply-journal.json"),
+        JSON.stringify(
+          {
+            status: "in-progress",
+            ops: [
+              {
+                path: ".context/memory/demo-pending.md",
+                before: null,
+                after: null,
+                tmp: pendingPath + ".tmp-b-save",
+                kind: "write",
+                done: false,
+              },
+            ],
+          },
+          null,
+          2,
+        ) + "\n",
+      );
 
       const resumeMemory = fakeMemory();
       const resumeRoles = fakeRoles();
@@ -285,6 +308,10 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       expect(readManifest(cwd, first.runId).state).toBe("completed");
       expect(resumeRoles.scribe).not.toHaveBeenCalled();
       expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(true);
+      // The pending journaled op must have been applied from its staged temp.
+      expect(readFileSync(join(cwd, ".context/memory/demo-pending.md"), "utf8")).toBe("# Pending demo\n");
+      expect(existsSync(pendingPath + ".tmp-b-save")).toBe(false);
+      expect(readManifest(cwd, first.runId).journal.status).toBe("completed");
     } finally {
       cleanup();
     }

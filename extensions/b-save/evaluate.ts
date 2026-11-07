@@ -1,3 +1,4 @@
+import { lstatSync } from "node:fs";
 import { join, normalize, relative, resolve, sep } from "node:path";
 import type { RoleId, ScribeProposal } from "./roles.js";
 import type { SnapshotAmbiguous, SnapshotOk, SubjectCandidate } from "./snapshot.js";
@@ -362,10 +363,30 @@ export function dependentKeys(changed: string): string[] {
   return [changed];
 }
 
+// CWE-59: lexical containment is not enough — a symlinked component inside
+// .context could redirect writes outside the repo. Every existing component
+// of the resolved path must be real, never a symlink.
+function assertNoSymlinkComponents(root: string, abs: string, rel: string) {
+  const rootAbs = resolve(root);
+  if (abs === rootAbs) return;
+  let cur = rootAbs;
+  for (const part of abs.slice(rootAbs.length + 1).split(sep)) {
+    cur = join(cur, part);
+    let st;
+    try {
+      st = lstatSync(cur);
+    } catch {
+      return; // component missing; nothing below it can be an existing symlink
+    }
+    if (st.isSymbolicLink()) throw new ContainmentError(rel);
+  }
+}
+
 export function contextRootJoin(root: string, rel: string) {
   assertContextPath(rel);
   const abs = resolve(root, rel);
   const relToRoot = relative(resolve(root), abs);
   if (relToRoot.startsWith("..") || relToRoot.split(sep).includes("..")) throw new ContainmentError(rel);
+  assertNoSymlinkComponents(root, abs, rel);
   return abs;
 }

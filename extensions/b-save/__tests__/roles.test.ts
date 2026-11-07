@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runOmpModelSession } from "../../omp-models.js";
+import { runOmpModelSession } from "../../omp-model-session.js";
 import {
   evidencePrompt,
   parseAuditorVerdicts,
@@ -10,7 +10,7 @@ import {
   runScribe,
 } from "../roles.js";
 
-vi.mock("../../omp-models.js", () => ({
+vi.mock("../../omp-model-session.js", () => ({
   runOmpModelSession: vi.fn(),
 }));
 

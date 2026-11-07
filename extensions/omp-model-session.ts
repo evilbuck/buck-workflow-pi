@@ -2,7 +2,7 @@ import { createAgentSession, SessionManager } from "@mariozechner/pi-coding-agen
 import { randomUUID } from "node:crypto";
 import { EmptyModelResponseError, lastAssistantText, normalizeActivityEvent, ompAgentDir, type ActivityEvent } from "./omp-models.js";
 
-function isolationExtras(opts) {
+function isolationExtras(opts: Parameters<typeof runOmpModelSession>[0]) {
   const extra: Record<string, unknown> = { enableIrc: opts.enableIrc ?? false };
   if (opts.systemPrompt !== undefined) extra.systemPrompt = opts.systemPrompt;
   if (opts.outputSchema !== undefined) {

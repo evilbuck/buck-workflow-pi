@@ -19,7 +19,7 @@ export type ApplyJournal = {
 };
 
 export type ApplyResult = {
-  status: "applied" | "resumed" | "rolled-back";
+  status: "applied" | "resumed" | "rolled-back" | "conflict";
   journal: ApplyJournal;
 };
 
@@ -108,7 +108,7 @@ function abortIfBeforeChanged(root: string, op: JournalOp) {
   if (now !== op.before) throw new Error("before-image changed: " + op.path);
 }
 
-function resumeOps(root: string, journal: ApplyJournal) {
+function resumeOps(root: string, journal: ApplyJournal, jPath: string) {
   for (const op of journal.ops) {
     abortIfBeforeChanged(root, op);
     if (op.done) continue;
@@ -120,11 +120,15 @@ function resumeOps(root: string, journal: ApplyJournal) {
       op.after = hashContent(readFileSync(abs, "utf8"));
     }
     op.done = true;
+    // Persist after each recovered op so a crash mid-resume leaves the
+    // journal matching what actually landed (same pattern as applyPatch).
+    writeJournal(jPath, journal);
   }
   journal.status = "completed";
 }
 
-function rollbackOps(root: string, journal: ApplyJournal) {
+function rollbackOps(root: string, journal: ApplyJournal, jPath: string): boolean {
+  let drifted = false;
   for (const op of [...journal.ops].reverse()) {
     const abs = contextRootJoin(root, op.path);
     if (op.tmp && existsSync(op.tmp)) rmSync(op.tmp);
@@ -132,21 +136,34 @@ function rollbackOps(root: string, journal: ApplyJournal) {
     const now = beforeImage(abs);
     if (op.kind === "delete") {
       const before = op.before;
-      if (now !== null || before === null) continue;
+      if (before === null) continue; // apply's delete was a no-op; nothing to revert
+      if (now !== null) {
+        drifted = true;
+        continue;
+      }
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, before);
       op.done = false;
+      writeJournal(jPath, journal);
       continue;
     }
-    if (op.after === null || now === null || hashContent(now) !== op.after) continue;
+    if (op.after === null || now === null || hashContent(now) !== op.after) {
+      drifted = true;
+      continue;
+    }
     if (op.before === null) rmSync(abs);
     else {
       mkdirSync(dirname(abs), { recursive: true });
       writeFileSync(abs, op.before);
     }
     op.done = false;
+    writeJournal(jPath, journal);
   }
+  // A drifted target means the partial apply cannot be reverted: keep the
+  // journal recoverable instead of labelling it rolled-back.
+  if (drifted) return true;
   journal.status = "rolled-back";
+  return false;
 }
 
 export function recoverApply(root: string, runId: string, mode: "resume" | "rollback"): ApplyResult {
@@ -154,9 +171,11 @@ export function recoverApply(root: string, runId: string, mode: "resume" | "roll
   const journal = readJournal(jPath);
   if (!journal) throw new ContainmentError("missing journal");
   if (journal.status === "completed") return { status: "resumed", journal };
-  if (mode === "resume") resumeOps(root, journal);
-  else rollbackOps(root, journal);
+  let drifted = false;
+  if (mode === "resume") resumeOps(root, journal, jPath);
+  else drifted = rollbackOps(root, journal, jPath);
   writeJournal(jPath, journal);
+  if (drifted) return { status: "conflict", journal };
   return { status: mode === "resume" ? "resumed" : "rolled-back", journal };
 }
 

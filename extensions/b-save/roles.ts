@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import { runOmpModelSession } from "../omp-models.js";
+import { runOmpModelSession } from "../omp-model-session.js";
 
 export const ROLE_IDS = ["scribe", "evidence-auditor", "goal-classifier"] as const;
 export type RoleId = (typeof ROLE_IDS)[number];

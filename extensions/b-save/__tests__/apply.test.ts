@@ -54,10 +54,12 @@ describe("applyPatch", () => {
       expect(rolled.status).toBe("rolled-back");
       expect(existsSync(join(f.root, ".context/memory/note.md"))).toBe(false);
 
-      applyPatch(f.root, { ops: [plan.ops[0]], moves: [] }, { runId: "r3", failAfter: 1 });
-    } catch {
+      applyPatch(f.root, { ops: [plan.ops[0]], moves: [] }, { runId: "r3", failAfter: 0 });
+    } catch (error) {
+      expect((error as Error).message).toBe("injected apply failure");
       const resumed = recoverApply(f.root, "r3", "resume");
-      expect(["resumed", "rolled-back"]).toContain(resumed.status);
+      expect(resumed.status).toBe("resumed");
+      expect(existsSync(join(f.root, ".context/memory/note.md"))).toBe(true);
     } finally {
       f.cleanup();
     }
