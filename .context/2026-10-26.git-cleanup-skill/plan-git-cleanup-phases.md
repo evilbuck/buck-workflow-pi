@@ -83,11 +83,11 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Classifier JSON — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Apply deletes — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Skill, redirect, and docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Skill, redirect, and docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes
 
-- Phase 2 is blocked on backlog item `phase-1-refname-collision`: the Phase 1 classifier uses `%(refname:short)` as canonical branch identity, so a tag/branch name collision puts the integration branch into `auto-delete`. `--apply` must not run until that is fixed.
+- Phase 2's `phase-1-refname-collision` blocker is resolved: the classifier keeps branch identity distinct from colliding tag names, and Phase 2 ran with `--apply` proven by the fixture CLI smoke. Phase 3 landed the skill and redirect in commit `878afee` (`docs(git-cleanup): publish skill and redirect git-clean-orphans`).
 
 - Parent assumptions A-1 through A-6 are validated. None are deferred or blocking, so no phase owns an assumption-validation task.
 - Do not run `--apply` against this checkout while landing the skill. Classify-only smoke should show `feat/git-cleanup-skill` as `skip`.

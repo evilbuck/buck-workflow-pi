@@ -11,6 +11,7 @@ related:
   - .context/2026-10-26.git-cleanup-skill/phase-1-classify-json.md
   - skills/git-clean-orphans/SKILL.md
   - prompts/git-clean-orphans.md
+---
 
 # Add git-cleanup skill
 

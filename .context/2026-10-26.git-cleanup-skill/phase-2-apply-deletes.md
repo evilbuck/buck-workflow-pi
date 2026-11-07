@@ -57,7 +57,7 @@ Extend `skills/git-cleanup/scripts/classify.ts`. Do not add a second script. Sam
 3. For each surviving worktree: `git worktree remove <path>` with no `--force`. If that command fails, do not delete that branch. Leave the directory on disk.
 4. Then delete the branch: `git branch -d <name>` when the tip is an ancestor of the base; otherwise `git branch -D <name>` only because the fresh result still says `auto-delete`. Never `-D` a name that failed the second classify.
 5. After the proven deletes, `git worktree prune` only for registrations the fresh classify already marked prunable. That drops a stale registration whose gitdir is gone. It is not directory removal.
-6. No network write. Fetch stays in the classify path and is not a write. Do not call `git push`, `git reflog expire`, or `git gc`.
+6. Fetch (`git fetch --prune origin`) is a local write only: it updates and prunes remote-tracking refs in this repository. It never writes to the remote — deleting remote branches is forbidden. Do not call `git push`, `git reflog expire`, or `git gc`.
 
 Stdout remains one JSON document. Add an `applied` array of `{ "name", "action", "ok" }` and a `refused` array of `{ "name", "reason" }` so a stale name is visible. Do not change Phase 1 field names.
 

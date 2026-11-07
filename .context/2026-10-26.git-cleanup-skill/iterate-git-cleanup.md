@@ -24,7 +24,7 @@ from_review: b-review
 - **Proposed fix**: Diagnose why the fixture's `refs/remotes/origin/HEAD`/local base is not visible to the classifier under the test Git shim, fix the fixture or implementation without weakening fail-closed base resolution, then rerun the focused test and durable guardrails contract.
 
 
-- **Jev failure**: Jev failed: missing, unreadable, or oversized file skills/git-cleanup/scripts/classify.ts`, `skills/git-cleanup/scripts/classify.test.ts. Re-review this finding with Jev.
+- **Jev failure**: Jev failed: missing, unreadable, or oversized file `skills/git-cleanup/scripts/classify.ts`, `skills/git-cleanup/scripts/classify.test.ts`. Re-review this finding with Jev.
 
 Resolution: escaped the newline in the generated Git shim and updated the squash fixture's remote base after landing. Split apply validation into helpers to satisfy the complexity gate. Focused suite: 28 passed; durable guardrails: pass (unit, ratchet, complexity); fixture CLI smoke deleted a landed branch and refused the current integration branch.
 
