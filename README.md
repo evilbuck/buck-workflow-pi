@@ -246,6 +246,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-review` | `b-review` | Review implementation for correctness and regressions |
 | `/code-review` | `code-review` | Portable prompt: release-PR review; with the Pi/OMP extension loaded, the same command name runs the bounded local Reviewer → optional Fixer → fresh-Reviewer loop |
 | `/code-review-universal` | `code-review-universal` | Universal PR review — one atomic severity-tagged GitHub review with inline comments |
+| `/adversarial-review` | `adversarial-review` | Prove-it-fails review of one PR — asks post vs local; post leaves inline comments on exact diff lines |
 | `/b-docs` | `b-docs` | Update living docs (conventions, decisions, language) when b-review flags impact |
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `/b-recap` | `b-recap` | Summarize the session plus branch delta (commits and staged/unstaged/untracked work) in one read-only page (<500 words) |
@@ -327,6 +328,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
 | `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
+| `adversarial-review` | Prove-it-fails review of one GitHub PR. Asks post vs local. Post mode leaves inline comments on exact diff lines and submits one atomic review. Reuses `code-review` plumbing. Not the constructive `code-review-universal` review |
 | `b-create-styleguide` | Guided UX styleguide creation + idempotent maintenance, with a managed AGENTS.md/CLAUDE.md block |
 | `b-create-ux-guide` | Site → component inventory → markdown style guide + HTML research guide + `design-brief.json` |
 | `code-smells` | Reference catalog of the 23 code smells + parallel-subagent audit producing a remediation report |

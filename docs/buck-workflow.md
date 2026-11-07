@@ -99,6 +99,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
 | `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
+| `/adversarial-review` | Prompt template + Skill | Slash command symlink | `prompts/adversarial-review.md`; `commands/adversarial-review.md`; `skills/adversarial-review/` |
 | `workflow_state` (native tool) | Extension tool | Extension tool | `extensions/workflow-state/`; always registered. `sql_memory` is not registered |
 
 Practical translation rules:
@@ -527,6 +528,7 @@ flowchart TD
 | [**b-eval-upstream-prs**](#b-eval-upstream-prs--upstream-pr-evaluation) | Prompt template + Skill | `/b-eval-upstream-prs` | `prompts/b-eval-upstream-prs.md` + `skills/b-eval-upstream-prs/SKILL.md` | Triage/evaluate a fork's upstream PRs (importance/friction/risk, isolated validation, merge order); local-only |
 | [**code-review**](#code-review--release-pr-review) | Prompt template + Skill + extension command | `/code-review` | Portable: `prompts/code-review.md` + `skills/code-review/`; local runtime: `extensions/code-review-iteration/` | Portable release-PR review; wired Pi/OMP command runs bounded local Reviewer → optional Fixer → fresh-Reviewer passes |
 | [**code-review-universal**](#code-review-universal--universal-pr-review) | Prompt template + Skill | `/code-review-universal` | `prompts/code-review-universal.md` + `skills/code-review-universal/` | Language-agnostic PR review; posts one atomic severity-tagged GitHub review with inline comments |
+| [**adversarial-review**](#adversarial-review--prove-it-fails-pr-review) | Prompt template + Skill | `/adversarial-review` | `prompts/adversarial-review.md` + `skills/adversarial-review/` | Prove-it-fails review of one PR. Asks post vs local. Post mode inlines exact diff lines and submits one atomic review |
 | [**skill-explainer**](#skill-explainer--skill-walkthrough-reports) | Skill | `/skill:skill-explainer` | `skills/skill-explainer/SKILL.md` | Explain a skill/command and produce a visual HTML report of its flow and effects (skill-only) |
 | [**git-clean-orphans**](#git-clean-orphans--stale-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Inventory/remove stale worktrees and remote-gone branches; destructive steps gated on confirmation |
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
@@ -1487,6 +1489,17 @@ Suggested next step
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/code-review-universal.md`, `commands/code-review-universal.md` symlink, `skills/code-review-universal/`).
 
+
+#### `/adversarial-review` — Prove-it-fails PR Review
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Hostile skeptical review of one GitHub pull request. Prove the work fails. Asks whether to post or save locally, then writes a four-section report under `.context/`. Post mode leaves inline comments only on exact diff lines and submits one atomic `REQUEST_CHANGES` review when a critical failure is proven on a diff line. Reuses `code-review`'s pr-context/submit-review plumbing. Not a Check Run.
+
+**Pi/OMP primitive**: Prompt command + skill (`prompts/adversarial-review.md`, `commands/adversarial-review.md` symlink, `skills/adversarial-review/`).
+
+**Not the same as**: `code-review-universal` (constructive review), `code-review` (release-PR fan-out / local Reviewer-Fixer loop), `b-review` (plan gate).
+
 ---
 
 #### `/b-eval-upstream-prs` — Upstream PR Evaluation
@@ -2237,6 +2250,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/b-eval-upstream-prs` — triage a fork's upstream PRs (local-only)
 - `/code-review` — portable release-PR review, or bounded local review/fix iteration when the extension is loaded
 - `/code-review-universal` — universal atomic PR review
+- `/adversarial-review` — prove-it-fails review of one PR; post or local
 
 **Save & Commit**
 - `/b-recap` — read-only session + branch-delta recap

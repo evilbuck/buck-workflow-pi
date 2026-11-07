@@ -41,6 +41,7 @@ const curatedBundle = {
     "b-research",
     "b-review",
     "b-save",
+    "adversarial-review",
     "code-review-universal",
     "codebase-design",
     "crawl4ai",

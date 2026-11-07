@@ -13,6 +13,7 @@ description: |
   on GitHub, self-reviewing a PR before requesting review, code review, reviewing code changes,
   establishing review standards, mentoring developers, architecture reviews, security audits,
   performance reviews, checking code quality, finding bugs, giving feedback on code.
+  Do not use for adversarial, hostile, or prove-it-fails reviews. Those belong to adversarial-review.
 ---
 
 # Code Review Skill
@@ -50,6 +51,7 @@ This skill is a **supporting reviewer**, not a workflow gate. It complements `b-
 | `code-review-universal` | **Code-quality reviewer** of any diff or PR (yours or a teammate's): language-depth checks, severity-tagged constructive feedback, GitHub posting. Never gates the workflow. |
 | `code-review` | Brutally-honest tone variant; same PR plumbing, writes `CODE-REVIEW.md` at repo root. |
 | `b-pr-review-2-issues` | Inverse direction: ingests comments **others** left on **your** PR and turns them into a plan. |
+| `adversarial-review` | Prove-it-fails review of one PR. Not this skill. |
 
 `b-review` MAY consult this skill's `reference/` guides for language-specific checks.
 
