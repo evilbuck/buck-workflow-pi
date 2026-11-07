@@ -40,6 +40,11 @@ steps, then **Eat** — the check that it worked.
 6. [Roll back a storage cutover](rollback-storage-cutover.md)
 7. [Quarantine legacy memory](quarantine-legacy-memory.md)
 
+## Git housekeeping
+
+1. [Inspect local Git cleanup candidates](inspect-git-cleanup-candidates.md)
+2. [Clean up landed local Git work](clean-up-landed-git-work.md)
+
 ## Why
 
 - [Local-only isolated code-review loop](../adr/0001-local-only-isolated-code-review-loop.md)

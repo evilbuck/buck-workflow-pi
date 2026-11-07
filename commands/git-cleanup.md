@@ -1,0 +1,1 @@
+../prompts/git-cleanup.md
