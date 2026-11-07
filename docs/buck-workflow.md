@@ -1366,7 +1366,7 @@ for the operator sequence.
 
 **Pi/OMP primitives**: Prompt command (`prompts/b-graph.md` / `commands/b-graph.md` symlink) + Skill (`skills/b-graph/SKILL.md`)
 
-**Artifacts**: `graph.md` (nodes, edges, checks, learned rules), `checks.md` (`node | requirement | verdict | evidence`), `progress.md` (handoff state) — written to the active subject folder.
+**Artifacts**: `graph.md` (nodes, edges, checks, learned rules), `checks.md` (`node | requirement | verdict | evidence`), `progress.md` (handoff state) — written to the active subject folder, or under `.context/` when no subject is active (`/b-save` consolidates the subject at session end).
 
 **When to use**: Fan-out work with independent subtasks, evidence-gated verification per step, or long tasks that must survive session handoff.
 

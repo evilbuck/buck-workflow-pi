@@ -22,6 +22,8 @@ Complete the task as a **graph** of bounded **nodes**, not one long session. A n
 
 ## Inputs
 
+When no arguments or explicit context exist, resolve the subject with the shared subject-resolution protocol before resolving inputs or starting graph work.
+
 Resolve all six before starting — from the invocation, the active subject, or one focused question when the missing answer changes the outcome.
 
 | Field | Meaning | Default |
@@ -41,7 +43,7 @@ Write nodes, edges, and checks into `graph.md` and pause for approval.
 
 ## Layer 2 — Dispatch
 
-Run each node as its own subagent with only the context it needs:
+Run each judgment node as its own subagent with only the context it needs. Run each code node through its deterministic implementation:
 
 1. Pass the node spec, its inputs, and its check.
 2. Build the artifact for that node only.
@@ -101,7 +103,7 @@ If a limit or blocker stops the run, return a partial status with the exact step
 3. Pass every output through its gate.
 4. Return failed nodes, never the whole batch.
 5. Merge accepted outputs and run the full checks.
-6. Continue until completion, a blocker, or `LIMIT`.
+6. Continue until completion, a global blocker, or no ready nodes remain. A node that exhausts `LIMIT` is blocked; independent ready nodes continue.
 
 Do not weaken a gate to obtain a pass.
 
