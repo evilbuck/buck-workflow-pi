@@ -668,6 +668,39 @@ describe("runReviewLoop", () => {
     expect(`${report}\n${state.terminal.reason}`).not.toContain("thirdsecret");
   });
 
+  it("redacts the complete userinfo of URLs containing multiple @ signs", async () => {
+    const { origin, clone } = makeOriginClone();
+    cleanup.push(origin, clone);
+    const upstream = mkdtempSync(join(tmpdir(), "loop-multi-at-redaction-"));
+    cleanup.push(upstream);
+    g(upstream, ["clone", "-q", origin, "."]);
+    g(upstream, ["config", "user.email", "t@t"]);
+    g(upstream, ["config", "user.name", "t"]);
+    writeFileSync(join(upstream, "app.js"), "function login() { return false; }\n");
+    g(upstream, ["add", "-A"]);
+    g(upstream, ["commit", "-qm", "base rewrites app.js"]);
+    g(upstream, ["push", "-q", "origin", "master"]);
+    const deps = makeDeps();
+    deps.availableSelectors = async () => { throw new Error("registry should not be queried for an explicit fixer"); };
+    deps.runFixerSession = async (opts) => {
+      if (opts.model !== "explicit/hard") throw new Error("unexpected fixer model");
+      throw new Error("provider offline: https://alice:one@two@example.test");
+    };
+
+    const result = await runReviewLoop(deps, clone, { ...OPTIONS, fixerModel: "explicit/hard" });
+    const report = readFileSync(result.reportPath!, "utf-8");
+    const runDir = join(commonDirAbsolute(clone), "code-review-iteration", "feature_x", result.runId);
+    const state = JSON.parse(readFileSync(join(runDir, "state.json"), "utf-8"));
+
+    expect(result.status).toBe("failed");
+    expect(deps.reviewerCalls).toBe(0);
+    expect(report).toContain("rebase-conflict fixer session failed");
+    expect(report).toContain("provider offline");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("alice");
+    expect(`${report}\n${state.terminal.reason}`).not.toContain("one@two@example");
+    expect(`${report}\n${state.terminal.reason}`).toContain("[REDACTED]@");
+  });
+
   it("aborts the rebase if the fixer model registry cannot be read", async () => {
     const { origin, clone } = makeOriginClone();
     cleanup.push(origin, clone);

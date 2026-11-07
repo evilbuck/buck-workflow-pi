@@ -39,6 +39,9 @@ Implementation files changed:
 Commits:
 <<COMMITS>>
 
+Base-to-HEAD diff stat (the authoritative record of what changed):
+<<DIFF_STAT>>
+
 Planning context that informed the work (reference as background only — NOT deliverables):
 <<PLANNING_CONTEXT>>
 

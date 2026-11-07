@@ -130,12 +130,6 @@ export function continueRebase(cwd: string): RebaseResult {
   return { status: "failed", files: [], error: result.stderr };
 }
 
-export function stageFiles(cwd: string, files: string[]): void {
-  for (const file of files) {
-    tryGit(cwd, ["add", "--", file]);
-  }
-}
-
 /** Check staged resolutions without treating unrelated whitespace as a conflict. */
 function stagedConflictError(cwd: string, files: string[]): string | null {
   try {
@@ -155,15 +149,29 @@ function stagedConflictError(cwd: string, files: string[]): string | null {
   }
 }
 
+/** Stage the given files individually; errors are caller-reported. */
+export function stageFiles(cwd: string, files: string[]): void {
+  for (const file of files) {
+    tryGit(cwd, ["add", "--", file]);
+  }
+}
+
 /** Stage resolved conflict files and continue; loops are driven by the caller. */
 export function resolveAndContinue(cwd: string, resolvedFiles: string[]): RebaseResult {
-  stageFiles(cwd, resolvedFiles);
+  for (const file of resolvedFiles) {
+    const added = tryGit(cwd, ["add", "--", file]);
+    // A staging failure must surface before the conflict-index check, which
+    // would otherwise inspect the stale index and mask the real error.
+    if (!added.ok) return { status: "failed", files: [], error: added.stderr };
+  }
   const error = stagedConflictError(cwd, resolvedFiles);
   return error ? { status: "failed", files: [], error } : continueRebase(cwd);
 }
 
-export function abortRebase(cwd: string): void {
-  tryGit(cwd, ["rebase", "--abort"]);
+/** Abort the in-progress rebase; returns the git error on failure, else null. */
+export function abortRebase(cwd: string): string | null {
+  const result = tryGit(cwd, ["rebase", "--abort"]);
+  return result.ok ? null : result.stderr;
 }
 
 export interface PreRunState {

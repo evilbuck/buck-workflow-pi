@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +35,7 @@ describe.skipIf(process.platform !== "linux" || !existsSync("/usr/bin/bwrap"))("
     const machine = join(root, "machine");
     mkdirSync(cwd); mkdirSync(machine);
     cpSync(resolve("skills/_shared"), join(cwd, "skills/_shared"), { recursive: true });
-    symlinkSync(resolve("node_modules"), join(cwd, "node_modules"));
+    symlinkSync(realpathSync(resolve("node_modules")), join(cwd, "node_modules"));
     const git = (args: string[]) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
     git(["init", "-q", "-b", "topic"]);
     git(["config", "user.email", "fixture@example.test"]); git(["config", "user.name", "fixture"]);

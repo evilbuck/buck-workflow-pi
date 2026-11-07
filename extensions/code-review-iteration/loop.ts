@@ -151,7 +151,7 @@ async function terminalize(ctx: LoopContext, status: RunState["status"], reason:
 function safePreparationDetail(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error ?? "unknown");
   return message
-    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]*@/gi, "$1[REDACTED]@")
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/]*@/gi, "$1[REDACTED]@")
     .replace(/\bBearer\s+\S+/gi, "Bearer [REDACTED]")
     .replace(/\b([\w.-]*(?:api[_-]?key|secret|token|password|credential)[\w.-]*)\b\s*["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,"'}]+)/gi, "$1=[REDACTED]")
     .slice(0, 2048);
@@ -237,8 +237,13 @@ async function prepareBaseAndCheckpoint(deps: LoopDeps, ctx: LoopContext): Promi
     deps.notify(`rebase conflict in ${rebase.files.length} file(s); routing to a hard-capability Fixer.`, "info");
     const error = await resolveRebaseConflictsWithFixer(deps, ctx, ctx.options.fixerModel ?? null);
     if (error !== null) {
-      abortRebase(ctx.cwd);
-      const reason = `${error}; rebase abort attempted.`;
+      // continueRebase already aborts after a failed continuation, so only
+      // abort (and only report an abort failure) when a rebase is still live.
+      const abortFailure = hasOngoingGitOperation(ctx.cwd) ? abortRebase(ctx.cwd) : null;
+      const abortNote = abortFailure === null
+        ? "rebase abort attempted."
+        : `rebase abort also failed: ${safePreparationDetail(abortFailure)}; recovery may be needed.`;
+      const reason = `${error}; ${abortNote}`;
       deps.notify(reason, "error");
       return reason;
     }

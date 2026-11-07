@@ -186,6 +186,18 @@ function fallbackDescription(gather: Record<string, unknown>): string {
   ].join("\n");
 }
 
+const MAX_DIFF_STAT_CHARS = 8000;
+
+function descriptionDiffStat(cwd: string, gather: Record<string, unknown>): string {
+  try {
+    const base = (gather.chosen_base as string) ?? "base";
+    return execGit(["diff", "--stat", `${base}...HEAD`], cwd).trim().slice(0, MAX_DIFF_STAT_CHARS);
+  } catch {
+    // Best-effort context: a missing base ref must not block description synthesis.
+    return "";
+  }
+}
+
 async function synthesizeDescription(
   cwd: string,
   gather: Record<string, unknown>,
@@ -201,11 +213,13 @@ async function synthesizeDescription(
   const artifacts = ((gather.context_artifacts as Array<{ type: string; path: string; title?: string; goal?: string }>) ?? [])
     .map((a) => `- [${a.type}] ${a.path}: ${a.title ?? ""} — ${a.goal ?? ""}`)
     .join("\n");
+  const diffStat = descriptionDiffStat(cwd, gather);
   const template = readFileSync(DESCRIPTION_PROMPT, "utf8");
   const prompt = template
     .replaceAll("<<IMPLEMENTATION_FILES>>", impl || "(none)")
     .replaceAll("<<COMMITS>>", commits || "(none)")
-    .replaceAll("<<PLANNING_CONTEXT>>", artifacts || "(none)");
+    .replaceAll("<<PLANNING_CONTEXT>>", artifacts || "(none)")
+    .replaceAll("<<DIFF_STAT>>", diffStat || "(none)");
   try {
     const desc = await runModelSession(cwd, ["read"], prompt, modelOverride, onActivity);
     if (desc) return desc;

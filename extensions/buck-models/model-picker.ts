@@ -347,7 +347,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
     const onSaveTab = state.tab === SAVE_TAB;
     const help = onSaveTab
       ? "Tab/Shift+Tab tabs · Enter/Space saves · Esc cancels"
-      : "Tab/Shift+Tab tabs · Left/Right columns · Up/Down rows · Space/Enter toggle · Ctrl+T thinking · Esc cancels";
+      : "Tab tabs · ←→ cols · ↑↓ rows · Space toggle · ⌃T think · Esc";
     const key = onSaveTab ? undefined : stageKey();
     const meta = onSaveTab
       ? `${BUCK_STAGE_KEYS.filter((k) => deriveStageUpdates(state.drafts, input.baselines)[k] !== undefined).length} deliberate edit(s)`

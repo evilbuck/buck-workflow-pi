@@ -128,7 +128,8 @@ describe("b-pr-improved drafting", () => {
       const filled = template
         .replaceAll("<<IMPLEMENTATION_FILES>>", "(none)")
         .replaceAll("<<COMMITS>>", "- feat: add feature (t)")
-        .replaceAll("<<PLANNING_CONTEXT>>", "(none)");
+        .replaceAll("<<PLANNING_CONTEXT>>", "(none)")
+        .replaceAll("<<DIFF_STAT>>", "feature.txt | 1 +\n 1 file changed, 1 insertion(+)");
       expect(captured.prompts).toEqual([filled]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
