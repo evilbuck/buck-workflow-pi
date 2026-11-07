@@ -269,6 +269,23 @@
     if (id) goTo(id, true);
   });
 
+  function digitTabSelect(ev, order){
+    if (!/^[1-9]$/.test(ev.key)) return false;
+    var k = order[+ev.key - 1];
+    if (k) { ev.preventDefault(); select(currentDoc, k); }
+    return true;
+  }
+
+  function tabArrowSelect(ev, doc, order){
+    if (!(ev.target && ev.target.classList && ev.target.classList.contains("tab"))) return false;
+    if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft") return false;
+    ev.preventDefault();
+    var i = order.indexOf(doc.current);
+    var n = ev.key === "ArrowRight" ? (i + 1) % order.length : (i - 1 + order.length) % order.length;
+    select(currentDoc, order[n], { focusTab: true });
+    return true;
+  }
+
   document.addEventListener("keydown", function(ev){
     if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
     var t = ev.target;
@@ -276,17 +293,8 @@
     var doc = DOCS[currentDoc];
     if (!doc) return;
     var order = doc.TABS.map(function(x){ return x.dataset.tab; });
-    if (/^[1-9]$/.test(ev.key)) {
-      var k = order[+ev.key - 1];
-      if (k) { ev.preventDefault(); select(currentDoc, k); }
-      return;
-    }
-    if (t && t.classList && t.classList.contains("tab") && (ev.key === "ArrowRight" || ev.key === "ArrowLeft")) {
-      ev.preventDefault();
-      var i = order.indexOf(doc.current);
-      var n = ev.key === "ArrowRight" ? (i + 1) % order.length : (i - 1 + order.length) % order.length;
-      select(currentDoc, order[n], { focusTab: true });
-    }
+    if (digitTabSelect(ev, order)) return;
+    tabArrowSelect(ev, doc, order);
   });
 
   Object.keys(DOCS).forEach(function(k){
