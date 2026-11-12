@@ -55,7 +55,7 @@ function setupFixtures() {
     writeFileSync(full, "// shipped\n");
   }
 
-  // Home: all 7 harness dirs detected
+  // Home: all 8 harness dirs detected
   mkdirSync(join(home, ".pi", "agent"), { recursive: true });
   mkdirSync(join(home, ".omp", "agent"), { recursive: true });
   mkdirSync(join(home, ".claude"), { recursive: true });
@@ -63,6 +63,7 @@ function setupFixtures() {
   mkdirSync(join(home, ".config", "opencode"), { recursive: true });
   mkdirSync(join(home, ".cursor"), { recursive: true });
   mkdirSync(join(home, ".grok"), { recursive: true });
+  mkdirSync(join(home, ".gemini", "config"), { recursive: true });
 
   return { repo, home };
 }
@@ -83,8 +84,8 @@ describe("shipped storage", () => {
 // Registry
 // ---------------------------------------------------------------------------
 describe("HARNESSES registry", () => {
-  it("has 7 harness entries", () => {
-    expect(HARNESSES).toHaveLength(7);
+  it("has 8 harness entries", () => {
+    expect(HARNESSES).toHaveLength(8);
   });
 
   it("has unique ids", () => {
@@ -139,6 +140,18 @@ describe("HARNESSES registry", () => {
       "skills",
     ]);
     expect(h.surfaces.bootstrap.dest).toBe(".grok/rules/buck-workflow.md");
+  });
+
+  it("Antigravity (agy) has bootstrap + skills under .gemini/config", () => {
+    const h = HARNESSES.find((h) => h.id === "agy");
+    expect(h.detectDir).toBe(".gemini/config");
+    expect(Object.keys(h.surfaces).sort()).toEqual(["bootstrap", "skills"]);
+    expect(h.surfaces.bootstrap.dest).toBe(".gemini/config/AGENTS.md");
+    expect(h.surfaces.skills.dest).toBe(".gemini/config/skills");
+    expect(h.surfaces.skills.extra).toEqual([
+      "plugins/buck-workflow/skills/b-build-hard",
+      "plugins/buck-workflow/skills/b-commit",
+    ]);
   });
 });
 
@@ -298,7 +311,7 @@ describe("detectHarnesses", () => {
     expect(detected).toEqual([]);
   });
 
-  it("detects all seven when all dirs present", () => {
+  it("detects all eight when all dirs present", () => {
     const home = join(TEST_ROOT, "home");
     mkdirSync(join(home, ".pi", "agent"), { recursive: true });
     mkdirSync(join(home, ".omp", "agent"), { recursive: true });
@@ -307,10 +320,11 @@ describe("detectHarnesses", () => {
     mkdirSync(join(home, ".config", "opencode"), { recursive: true });
     mkdirSync(join(home, ".cursor"), { recursive: true });
     mkdirSync(join(home, ".grok"), { recursive: true });
+    mkdirSync(join(home, ".gemini", "config"), { recursive: true });
 
     const detected = detectHarnesses(home);
 
-    expect(detected).toHaveLength(7);
+    expect(detected).toHaveLength(8);
   });
 });
 
@@ -401,6 +415,49 @@ describe("install", () => {
     expect(readlinkSync(join(home, ".grok", "skills", "b-plan"))).toBe(
       join(repo, "skills", "b-plan"),
     );
+  });
+
+  it("Antigravity (agy) gets bootstrap + canonical and extra wrapper skills", () => {
+    const { repo, home } = setupFixtures();
+    mkdirSync(join(repo, "plugins", "buck-workflow", "skills", "b-build-hard"), {
+      recursive: true,
+    });
+    mkdirSync(join(repo, "plugins", "buck-workflow", "skills", "b-commit"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(repo, "plugins", "buck-workflow", "skills", "b-build-hard", "SKILL.md"),
+      "# b-build-hard\n",
+    );
+    writeFileSync(
+      join(repo, "plugins", "buck-workflow", "skills", "b-commit", "SKILL.md"),
+      "# b-commit\n",
+    );
+
+    const result = install({ source: repo, home, harnessIds: ["agy"] });
+    expect(result.exitCode).toBe(0);
+
+    expect(readlinkSync(join(home, ".gemini", "config", "AGENTS.md"))).toBe(
+      join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"),
+    );
+    expect(readlinkSync(join(home, ".gemini", "config", "skills", "b-build"))).toBe(
+      join(repo, "skills", "b-build"),
+    );
+    expect(readlinkSync(join(home, ".gemini", "config", "skills", "b-plan"))).toBe(
+      join(repo, "skills", "b-plan"),
+    );
+    expect(
+      readlinkSync(join(home, ".gemini", "config", "skills", "b-build-hard")),
+    ).toBe(join(repo, "plugins", "buck-workflow", "skills", "b-build-hard"));
+    expect(
+      readlinkSync(join(home, ".gemini", "config", "skills", "b-commit")),
+    ).toBe(join(repo, "plugins", "buck-workflow", "skills", "b-commit"));
+
+    const verified = verifySurfaces({ source: repo, home, harnessIds: ["agy"] });
+    expect(verified.exitCode).toBe(0);
+    expect(verified.results.every((r) => r.state === "linked-here")).toBe(true);
+    // 1 bootstrap + 3 canonical skill dirs (_shared, b-build, b-plan) + 2 extra
+    expect(verified.results).toHaveLength(6);
   });
 
   it("dryRun reports actions but writes nothing", () => {

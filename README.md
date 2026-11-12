@@ -48,7 +48,7 @@ The global AGENTS.md is kept compact (~120 lines). Buck owns the detailed workfl
 > **For installing agents:** Read
 > [`agent-install_instructions.md`](./agent-install_instructions.md) and
 > **ask the user which harness they're on** (Pi, OMP, Codex, OpenCode,
-> Claude Code, Cursor, Grok Build, or ZCode) before running any install commands.
+> Claude Code, Cursor, Grok Build, Antigravity, or ZCode) before running any install commands.
 
 ### Standalone B-Plan
 
@@ -115,10 +115,10 @@ node scripts/install.mjs
 ```
 
 **What it does:**
-- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor, Grok Build, ZCode)
+- Detects installed harnesses (Pi, OMP, Claude Code, Codex, OpenCode, Cursor, Grok Build, Antigravity, ZCode)
 - Symlinks `GLOBAL_OR_PROJECT-AGENTS.md` for detected harnesses with a global bootstrap surface
 - Symlinks `prompts/*.md` as slash commands for Claude Code, OpenCode, and Grok Build
-- Symlinks `skills/<name>/` directories for Claude Code, OpenCode, Grok Build, and ZCode
+- Symlinks `skills/<name>/` directories for Claude Code, OpenCode, Grok Build, Antigravity, and ZCode
 - Idempotent — re-run anytime, existing correct symlinks are skipped
 
 **Check what you actually have:**
@@ -164,6 +164,7 @@ works as a guard in a script.
 | **OpenCode** | ✅ → `AGENTS.md` | ✅ `~/.config/opencode/commands/` | ✅ `~/.config/opencode/skills/` | |
 | **Cursor** | — | — | — | Project-scoped only (`.cursor/rules/`); no global install |
 | **Grok Build** | ✅ → `~/.grok/rules/buck-workflow.md` | ✅ `~/.grok/commands/` | ✅ `~/.grok/skills/` | Native Grok surfaces; do not rely on Claude-compat |
+| **Antigravity (`agy`)** | ✅ → `~/.gemini/config/AGENTS.md` | ❌ (skills invoke directly) | ✅ `~/.gemini/config/skills/` | Includes `b-build-hard` and `b-commit` wrapper skills; invoke as `/<skill-name>` |
 | **ZCode** | ✅ → `~/.zcode/AGENTS.md` | ❌ (skills invoke directly) | ✅ `~/.zcode/skills/` | Invoke discovered skills as `/<skill-name>` |
 
 **Bootstrap drift fix:** The installer uses symlinks instead of copies, so `git pull` + re-run keeps every harness in sync. No more manual re-copying when the bootstrap file changes.

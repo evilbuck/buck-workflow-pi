@@ -8,6 +8,8 @@
   "type": "module",
   "files": [
     "skills",
+    "plugins/buck-workflow/skills/b-build-hard",
+    "plugins/buck-workflow/skills/b-commit",
     "prompts",
     "commands",
     "extensions",

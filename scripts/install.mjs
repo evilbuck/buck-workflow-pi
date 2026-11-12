@@ -20,7 +20,7 @@ import {
   readdirSync,
   realpathSync,
 } from "node:fs";
-import { join, dirname, resolve, isAbsolute, sep } from "node:path";
+import { join, dirname, basename, resolve, isAbsolute, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { hooksInstall, hooksStatus, hooksRemove } from "./hooks.mjs";
@@ -98,6 +98,22 @@ export const HARNESSES = [
       bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".grok/rules/buck-workflow.md" },
       commands:  { src: "prompts", dest: ".grok/commands" },
       skills:    { src: "skills",  dest: ".grok/skills" },
+    },
+  },
+  {
+    id: "agy",
+    name: "Antigravity",
+    detectDir: ".gemini/config",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".gemini/config/AGENTS.md" },
+      skills: {
+        src: "skills",
+        dest: ".gemini/config/skills",
+        extra: [
+          "plugins/buck-workflow/skills/b-build-hard",
+          "plugins/buck-workflow/skills/b-commit",
+        ],
+      },
     },
   },
 ];
@@ -301,6 +317,68 @@ export function detectHarnesses(home) {
 // Surface enumeration
 // ---------------------------------------------------------------------------
 
+function enumerateExtraItems(harnessId, surfaceName, extra, source, destBase) {
+  if (!extra) return [];
+  const items = [];
+  for (const relPath of extra) {
+    const src = join(source, relPath);
+    if (!existsSync(src)) continue;
+    items.push({
+      harness: harnessId,
+      surface: surfaceName,
+      src,
+      dest: join(destBase, basename(relPath)),
+      relPath,
+    });
+  }
+  return items;
+}
+
+function enumerateSurfaceItems(harnessId, surfaceName, surface, source, home) {
+  const srcBase = join(source, surface.src);
+  const destBase = join(home, surface.dest);
+
+  // Single file symlink
+  if (surfaceName === "bootstrap") {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      src: srcBase,
+      dest: destBase,
+      relPath: surface.src,
+    }];
+  }
+
+  if (!existsSync(srcBase)) {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      dest: destBase,
+      note: `Source dir missing: ${srcBase}`,
+    }];
+  }
+
+  // commands: each .md file → one symlink. skills: each subdirectory.
+  const names =
+    surfaceName === "commands"
+      ? readdirSync(srcBase).filter((f) => f.endsWith(".md"))
+      : readdirSync(srcBase, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name);
+
+  const items = names.map((name) => ({
+    harness: harnessId,
+    surface: surfaceName,
+    src: join(srcBase, name),
+    dest: join(destBase, name),
+    relPath: join(surface.src, name),
+  }));
+
+  return items.concat(
+    enumerateExtraItems(harnessId, surfaceName, surface.extra, source, destBase),
+  );
+}
+
 /**
  * Enumerate every (harness, surface, src, dest) pair the installer manages,
  * in output order. `install` and `verifySurfaces` share this walk so the two
@@ -336,48 +414,9 @@ function enumerateSurfaces({ source, home, harnessIds = null }) {
     }
 
     for (const [surfaceName, surface] of Object.entries(harness.surfaces)) {
-      const srcBase = join(source, surface.src);
-      const destBase = join(home, surface.dest);
-
-      // Single file symlink
-      if (surfaceName === "bootstrap") {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          src: srcBase,
-          dest: destBase,
-          relPath: surface.src,
-        });
-        continue;
-      }
-
-      if (!existsSync(srcBase)) {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          dest: destBase,
-          note: `Source dir missing: ${srcBase}`,
-        });
-        continue;
-      }
-
-      // commands: each .md file → one symlink. skills: each subdirectory.
-      const names =
-        surfaceName === "commands"
-          ? readdirSync(srcBase).filter((f) => f.endsWith(".md"))
-          : readdirSync(srcBase, { withFileTypes: true })
-              .filter((d) => d.isDirectory())
-              .map((d) => d.name);
-
-      for (const name of names) {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          src: join(srcBase, name),
-          dest: join(destBase, name),
-          relPath: join(surface.src, name),
-        });
-      }
+      items.push(
+        ...enumerateSurfaceItems(harness.id, surfaceName, surface, source, home),
+      );
     }
   }
 

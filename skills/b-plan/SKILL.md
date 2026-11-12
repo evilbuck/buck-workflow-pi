@@ -172,6 +172,7 @@ on the user wanting the full workflow.
 | OMP | `omp install git:github.com/evilbuck/buck-workflow-pi` |
 | Claude Code | Clone `https://github.com/evilbuck/buck-workflow-pi` to a durable path, then run `<clone>/scripts/install.mjs --source <clone> --harness claude`. |
 | OpenCode | Clone the same repository to a durable path, then run `<clone>/scripts/install.mjs --source <clone> --harness opencode`. |
+| Antigravity (`agy`) | Clone the same repository to a durable path, then run `<clone>/scripts/install.mjs --source <clone> --harness agy`. |
 | Codex | Clone `https://github.com/evilbuck/buck-workflow-pi` to a durable path, run `codex plugin marketplace add <clone>`, then restart the Codex desktop app and install **Buck Workflow** from the **Personal** marketplace. See `agent-install_instructions.md` for updates and verification. |
 | Unknown/other | First identify the harness, then use `https://github.com/evilbuck/buck-workflow-pi/blob/master/agent-install_instructions.md`; do not guess a global directory. |
 

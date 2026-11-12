@@ -3,7 +3,7 @@
 A loose collection of skills, prompts, and extensions for agentic development workflows.
 
 ## Targets
-The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
+The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, antigravity (agy), goose.
  
  ## Cross-Platform Agent Reference
  
@@ -15,6 +15,7 @@ The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
  | **Oh My Pi (omp)** | `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md` | `~/.omp/agent/skills/`, `.omp/skills/` + Pi paths | [Agent Skills](https://agentskills.io) | TypeScript (`~/.omp/agent/extensions/`) | [docs/oh-my-pi.md](docs/oh-my-pi.md) |
  | **Claude Code** | `CLAUDE.md` (root + subdirs) | `~/.claude/skills/`, `.claude/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents | [docs/claude-code.md](docs/claude-code.md) |
  | **Codex** | `AGENTS.md`, `AGENTS.override.md` (walk root→cwd) | `$HOME/.agents/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins (`.codex/plugins/`) | [docs/codex.md](docs/codex.md) |
+ | **Antigravity (`agy`)** | `AGENTS.md`, `GEMINI.md` (`~/.gemini/config/`, walk root→cwd) | `~/.gemini/config/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents, MCP | [agent-install_instructions.md](agent-install_instructions.md) |
  | **Goose** | `.goosehints`, `AGENTS.md` | Via Summon extension | Skills via Summon | MCP servers (all extensions are MCP) | [docs/goose.md](docs/goose.md) |
 
 ### Bootstrap vs Project `AGENTS.md`
