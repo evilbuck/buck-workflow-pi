@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { checkSchema } from "../typebox-check.js";
 import { runOmpModelSession } from "../omp-model-session.js";
 
 export const ROLE_IDS = ["scribe", "evidence-auditor", "goal-classifier"] as const;
@@ -120,7 +120,7 @@ function parseJson(text: string) {
 }
 
 export function isScribeProposal(value: unknown): value is ScribeProposal {
-  return Value.Check(ScribeSchema, value);
+  return checkSchema(ScribeSchema, value);
 }
 
 export function parseScribeProposal(text: string) {
@@ -131,13 +131,13 @@ export function parseScribeProposal(text: string) {
 
 export function parseAuditorVerdicts(text: string) {
   const data = parseJson(text);
-  if (!Value.Check(AuditorSchema, data)) throw new Error("Auditor schema violation");
+  if (!checkSchema(AuditorSchema, data)) throw new Error("Auditor schema violation");
   return data;
 }
 
 export function parseGoalClassification(text: string) {
   const data = parseJson(text);
-  if (!Value.Check(GoalSchema, data)) throw new Error("Goal classifier schema violation");
+  if (!checkSchema(GoalSchema, data)) throw new Error("Goal classifier schema violation");
   return data;
 }
 

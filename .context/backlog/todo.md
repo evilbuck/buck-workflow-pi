@@ -1,5 +1,10 @@
 # Backlog
 
+
+## Host typebox mismatch
+
+- [ ] [Host-agnostic typebox schema checks](items/host-typebox-mismatch.md) — high; OMP Unknown type on attribution persistence — see `.context/2026-11-11.host-typebox-mismatch/plan-host-typebox-mismatch.md`
+
 ## Security
 
 - [ ] [Prevent workflow_exec dependency symlinks from exposing host directories](items/workflow-exec-dependency-sandbox-escape.md) — high; a sandboxed process can redirect a later dependency mount to a host-private directory

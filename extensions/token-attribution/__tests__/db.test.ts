@@ -28,6 +28,15 @@ for (const adapter of ["repo-files", "external-files", "sqlite", "postgres"] as 
       expect(await restarted.insert({ ...original, entryKey: "local-only" })).toBe(true);
     });
 
+    it("returns false instead of throwing when inserting an already-stored attribution row", async () => {
+      const { root, projection } = fixture(adapter);
+      const ledger = openLedger(projection);
+      const original = record(root);
+      expect(await ledger.insert(original)).toBe(true);
+      expect(await ledger.insert(original)).toBe(false);
+      expect(await ledger.records(root)).toEqual([original]);
+    });
+
     it("reconciles fallback and canonical IDs durably without collapsing distinct entries", async () => {
       const { root } = fixture(adapter);
       const ledger = openLedger();

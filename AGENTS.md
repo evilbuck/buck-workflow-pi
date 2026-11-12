@@ -322,6 +322,7 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 <!-- BEGIN b-docs:conventions -->
 ### Conventions
 
+- Runtime schema checks in extensions go through `checkSchema` in `extensions/typebox-check.ts`. Do not call `Value.Check` from `@sinclair/typebox/value` in extension runtime code. OMP rewrites `@sinclair/typebox` and leaves the `/value` subpath on real typebox, so a direct `Value.Check` throws `Unknown type` on shim schemas.
 - The `code-review-iteration` extension owns the full bounded Reviewer → Fixer → fresh-Reviewer loop. It lives at `extensions/code-review-iteration/`; `wire()` is registered in `extensions/index.ts` alongside the other wires.
 - The Reviewer runs in a **detached disposable worktree per pass** with `REVIEWER_TOOLS = [read, grep, find, ls, review_exec]` (`extensions/code-review-iteration/index.ts`). The Fixer runs in the review checkout with `FIXER_TOOLS = [read, edit, grep, find, ls]`. These are the only tools either role receives. No `bash`, no `write` for the Reviewer.
 - Reproduction evidence flows through a **single trust boundary** (`review_exec` in `extensions/code-review-iteration/policy.ts`, allowlist in `extensions/code-review-iteration/review-exec-policy.md`): allowlisted command id + full argv + repo-relative cwd. No shell. Sanitized env. Denials are records, never exceptions.

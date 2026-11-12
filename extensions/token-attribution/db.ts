@@ -7,7 +7,7 @@ import { resolveConsumerContext, withBoundStore, type TrustedWorkflowContext } f
 import type { StorageStore } from "../../skills/_shared/storage/contract.js";
 import { createRunId } from "../../skills/_shared/storage/identity.js";
 import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { checkSchema } from "../typebox-check.js";
 
 const TABLE = "buck_token_attribution";
 const SUBJECT = "token-attribution";
@@ -22,9 +22,13 @@ const RecordSchema = Type.Object({
 });
 export type AttributionRecord = Static<typeof RecordSchema>;
 
+function isAttributionRecord(value: unknown): value is AttributionRecord {
+  return checkSchema(RecordSchema, value);
+}
+
 function parseRecord(bytes: Uint8Array): AttributionRecord {
   const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
-  if (!Value.Check(RecordSchema, value)) throw new Error("Invalid retained attribution row");
+  if (!isAttributionRecord(value)) throw new Error("Invalid retained attribution row");
   return value;
 }
 
