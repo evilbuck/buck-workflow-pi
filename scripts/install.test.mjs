@@ -460,6 +460,55 @@ describe("install", () => {
     expect(verified.results).toHaveLength(6);
   });
 
+  it("does not auto-detect Antigravity until .gemini/config exists", () => {
+    const { repo, home } = setupFixtures();
+    rmSync(join(home, ".gemini"), { recursive: true, force: true });
+
+    const result = install({ source: repo, home });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.results.some((r) => r.harness === "agy")).toBe(false);
+    expect(existsSync(join(home, ".pi", "agent", "AGENTS.md"))).toBe(true);
+    expect(existsSync(join(home, ".gemini"))).toBe(false);
+  });
+
+  it("explicit --harness agy creates the config dir when Antigravity has not", () => {
+    const { repo, home } = setupFixtures();
+    rmSync(join(home, ".gemini"), { recursive: true, force: true });
+    mkdirSync(join(repo, "plugins", "buck-workflow", "skills", "b-commit"), {
+      recursive: true,
+    });
+    writeFileSync(
+      join(repo, "plugins", "buck-workflow", "skills", "b-commit", "SKILL.md"),
+      "# b-commit\n",
+    );
+
+    const result = install({ source: repo, home, harnessIds: [" agy ", "agy"] });
+
+    expect(result.exitCode).toBe(0);
+    expect(result.unknownIds).toEqual([]);
+    expect(readlinkSync(join(home, ".gemini", "config", "AGENTS.md"))).toBe(
+      join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"),
+    );
+    expect(readlinkSync(join(home, ".gemini", "config", "skills", "b-commit"))).toBe(
+      join(repo, "plugins", "buck-workflow", "skills", "b-commit"),
+    );
+    expect(existsSync(join(home, ".claude", "CLAUDE.md"))).toBe(false);
+    expect(result.results.filter((r) => r.dest.endsWith("b-commit"))).toHaveLength(1);
+  });
+
+  it("refuses an unknown harness id and writes nothing", () => {
+    const { repo, home } = setupFixtures();
+
+    const result = install({ source: repo, home, harnessIds: ["agy", "nope"] });
+
+    expect(result.exitCode).toBe(1);
+    expect(result.unknownIds).toEqual(["nope"]);
+    expect(result.results).toEqual([]);
+    expect(existsSync(join(home, ".gemini", "config", "AGENTS.md"))).toBe(false);
+    expect(existsSync(join(home, ".pi", "agent", "AGENTS.md"))).toBe(false);
+  });
+
   it("dryRun reports actions but writes nothing", () => {
     const { repo, home } = setupFixtures();
 
@@ -987,6 +1036,46 @@ describe("CLI handlers", () => {
 
     expect(runVerify({ harnessIds: null }, home, repo)).toBe(1);
     expect(runInstall({ harnessIds: null }, home, repo)).toBe(1);
+    expect(text()).toContain("No harnesses detected");
+  });
+
+  it("names an unknown harness instead of saying none are installed", () => {
+    const { repo, home } = setupFixtures();
+
+    expect(runInstall({ harnessIds: ["nope"] }, home, repo)).toBe(1);
+    expect(text()).toContain("Unknown harness: nope");
+    expect(text()).toContain("agy");
+    expect(text()).not.toContain("No harnesses detected");
+    expect(existsSync(join(home, ".pi", "agent", "AGENTS.md"))).toBe(false);
+  });
+
+  it("verify names an unknown harness", () => {
+    const { repo, home } = setupFixtures();
+
+    expect(runVerify({ harnessIds: ["nope"] }, home, repo)).toBe(1);
+    expect(text()).toContain("Unknown harness: nope");
+    expect(text()).toContain("Known:");
+  });
+
+  it("wires an explicit harness whose detect directory is absent", () => {
+    const { repo, home } = setupFixtures();
+    rmSync(join(home, ".gemini"), { recursive: true, force: true });
+
+    expect(runInstall({ harnessIds: ["agy"] }, home, repo)).toBe(0);
+    expect(readlinkSync(join(home, ".gemini", "config", "AGENTS.md"))).toBe(
+      join(repo, "GLOBAL_OR_PROJECT-AGENTS.md"),
+    );
+    expect(text()).toContain("[agy:bootstrap]");
+  });
+
+  it("verify lists an explicit harness that is not detected yet", () => {
+    const { repo, home } = setupFixtures();
+    rmSync(join(home, ".gemini"), { recursive: true, force: true });
+
+    expect(runVerify({ harnessIds: ["agy"] }, home, repo)).toBe(0);
+    expect(text()).toContain("not installed");
+    expect(text()).toContain(join(home, ".gemini", "config", "AGENTS.md"));
+    expect(text()).not.toContain("No harnesses detected");
   });
 
   it("list reports the source the links would resolve from", () => {

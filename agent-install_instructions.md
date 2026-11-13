@@ -565,6 +565,11 @@ node /path/to/buck-workflow-pi/scripts/install.mjs \
   --source /path/to/buck-workflow-pi --harness agy
 ```
 
+`--harness agy` installs Antigravity even when `~/.gemini/config` does not
+exist yet. The installer creates that directory and the skill links inside it.
+A run with no `--harness` flag still detects Antigravity only after
+`~/.gemini/config` is already present.
+
 In addition to canonical `skills/*`, the installer links the `b-build-hard` and
 `b-commit` wrapper skills from `plugins/buck-workflow/skills/` so `/b-build-hard`
 and `/b-commit` resolve directly as slash commands without duplicating entries

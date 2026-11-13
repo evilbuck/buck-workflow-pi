@@ -149,7 +149,7 @@ works as a guard in a script.
 | `--dry-run` | Print planned symlinks, write nothing |
 | `--force` | Replace real files at destination (e.g., chezmoi-managed configs) |
 | `--source <path>` | Repo root symlinks resolve from (default: auto-detect) |
-| `--harness <id,...>` | Wire only named harnesses (comma-separated) |
+| `--harness <id,...>` | Wire only these harnesses, even when their detect directory is not present yet |
 | `--list` | Print detected harnesses and exit |
 | `--verify` | Report what each harness resolves to; write nothing (exit 1 on problems) |
 
