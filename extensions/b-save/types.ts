@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { Type, type Static } from "@sinclair/typebox";
-import { Value } from "@sinclair/typebox/value";
+import { checkSchema } from "../typebox-check.js";
 
 export const SCHEMA_VERSION = 1 as const;
 
@@ -94,7 +94,11 @@ export const TERMINAL_STATES = [
   "awaiting_policy",
 ] as const;
 
-export function parseRunManifest(data: unknown) {
+function isRunManifest(data: object): data is RunManifest {
+  return checkSchema(RunManifestSchema, data);
+}
+
+export function parseRunManifest(data: unknown): RunManifest {
   if (!data || typeof data !== "object") {
     throw new Error("Run manifest must be an object");
   }
@@ -102,7 +106,7 @@ export function parseRunManifest(data: unknown) {
   if (version !== SCHEMA_VERSION) {
     throw new UnknownSchemaVersionError(version);
   }
-  if (!Value.Check(RunManifestSchema, data)) {
+  if (!isRunManifest(data)) {
     throw new Error("Run manifest failed schema validation");
   }
   return data;

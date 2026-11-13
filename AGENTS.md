@@ -3,7 +3,7 @@
 A loose collection of skills, prompts, and extensions for agentic development workflows.
 
 ## Targets
-The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
+The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, antigravity (agy), goose.
  
  ## Cross-Platform Agent Reference
  
@@ -15,6 +15,7 @@ The targets for this are pi-coding-agent, oh-my-pi (omp), claude, codex, goose.
  | **Oh My Pi (omp)** | `AGENTS.md`, `CLAUDE.md`, `SYSTEM.md` | `~/.omp/agent/skills/`, `.omp/skills/` + Pi paths | [Agent Skills](https://agentskills.io) | TypeScript (`~/.omp/agent/extensions/`) | [docs/oh-my-pi.md](docs/oh-my-pi.md) |
  | **Claude Code** | `CLAUDE.md` (root + subdirs) | `~/.claude/skills/`, `.claude/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents | [docs/claude-code.md](docs/claude-code.md) |
  | **Codex** | `AGENTS.md`, `AGENTS.override.md` (walk root→cwd) | `$HOME/.agents/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins (`.codex/plugins/`) | [docs/codex.md](docs/codex.md) |
+ | **Antigravity (`agy`)** | `AGENTS.md`, `GEMINI.md` (`~/.gemini/config/`, walk root→cwd) | `~/.gemini/config/skills/`, `.agents/skills/` | [Agent Skills](https://agentskills.io) | Plugins, hooks, subagents, MCP | [agent-install_instructions.md](agent-install_instructions.md) |
  | **Goose** | `.goosehints`, `AGENTS.md` | Via Summon extension | Skills via Summon | MCP servers (all extensions are MCP) | [docs/goose.md](docs/goose.md) |
 
 ### Bootstrap vs Project `AGENTS.md`
@@ -322,6 +323,7 @@ GitHub Issues on `evilbuck/buck-workflow-pi`, addressed via the `gh` CLI and `is
 <!-- BEGIN b-docs:conventions -->
 ### Conventions
 
+- Runtime schema checks in extensions go through `checkSchema` in `extensions/typebox-check.ts`. Do not call `Value.Check` from `@sinclair/typebox/value` in extension runtime code. OMP rewrites `@sinclair/typebox` and leaves the `/value` subpath on real typebox, so a direct `Value.Check` throws `Unknown type` on shim schemas.
 - The `code-review-iteration` extension owns the full bounded Reviewer → Fixer → fresh-Reviewer loop. It lives at `extensions/code-review-iteration/`; `wire()` is registered in `extensions/index.ts` alongside the other wires.
 - The Reviewer runs in a **detached disposable worktree per pass** with `REVIEWER_TOOLS = [read, grep, find, ls, review_exec]` (`extensions/code-review-iteration/index.ts`). The Fixer runs in the review checkout with `FIXER_TOOLS = [read, edit, grep, find, ls]`. These are the only tools either role receives. No `bash`, no `write` for the Reviewer.
 - Reproduction evidence flows through a **single trust boundary** (`review_exec` in `extensions/code-review-iteration/policy.ts`, allowlist in `extensions/code-review-iteration/review-exec-policy.md`): allowlisted command id + full argv + repo-relative cwd. No shell. Sanitized env. Denials are records, never exceptions.

@@ -20,7 +20,7 @@ import {
   readdirSync,
   realpathSync,
 } from "node:fs";
-import { join, dirname, resolve, isAbsolute, sep } from "node:path";
+import { join, dirname, basename, resolve, isAbsolute, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { hooksInstall, hooksStatus, hooksRemove } from "./hooks.mjs";
@@ -98,6 +98,22 @@ export const HARNESSES = [
       bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".grok/rules/buck-workflow.md" },
       commands:  { src: "prompts", dest: ".grok/commands" },
       skills:    { src: "skills",  dest: ".grok/skills" },
+    },
+  },
+  {
+    id: "agy",
+    name: "Antigravity",
+    detectDir: ".gemini/config",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".gemini/config/AGENTS.md" },
+      skills: {
+        src: "skills",
+        dest: ".gemini/config/skills",
+        extra: [
+          "plugins/buck-workflow/skills/b-build-hard",
+          "plugins/buck-workflow/skills/b-commit",
+        ],
+      },
     },
   },
 ];
@@ -297,9 +313,105 @@ export function detectHarnesses(home) {
   return HARNESSES.filter((h) => existsSync(join(home, h.detectDir)));
 }
 
+/**
+ * Harnesses this run will wire.
+ *
+ * With no `--harness` list, only harnesses whose detect directory exists are
+ * selected. An explicit id is selected from the registry even when that
+ * directory is absent, so `install.mjs --harness agy` can create
+ * `~/.gemini/config` on a machine that has not launched Antigravity yet.
+ *
+ * @param {string} home
+ * @param {string[]|null} harnessIds
+ * @returns {{ harnesses: Array<typeof HARNESSES[number]>, unknownIds: string[] }}
+ */
+function selectHarnesses(home, harnessIds) {
+  if (!harnessIds) return { harnesses: detectHarnesses(home), unknownIds: [] };
+
+  const byId = new Map(HARNESSES.map((h) => [h.id, h]));
+  const unknownIds = [];
+  const harnesses = [];
+  const seen = new Set();
+  for (const raw of harnessIds) {
+    const id = String(raw).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const harness = byId.get(id);
+    if (!harness) unknownIds.push(id);
+    else harnesses.push(harness);
+  }
+  return { harnesses, unknownIds };
+}
+
+function knownHarnessIds() {
+  return HARNESSES.map((h) => h.id);
+}
+
 // ---------------------------------------------------------------------------
 // Surface enumeration
 // ---------------------------------------------------------------------------
+
+function enumerateExtraItems(harnessId, surfaceName, extra, source, destBase) {
+  if (!extra) return [];
+  const items = [];
+  for (const relPath of extra) {
+    const src = join(source, relPath);
+    if (!existsSync(src)) continue;
+    items.push({
+      harness: harnessId,
+      surface: surfaceName,
+      src,
+      dest: join(destBase, basename(relPath)),
+      relPath,
+    });
+  }
+  return items;
+}
+
+function enumerateSurfaceItems(harnessId, surfaceName, surface, source, home) {
+  const srcBase = join(source, surface.src);
+  const destBase = join(home, surface.dest);
+
+  // Single file symlink
+  if (surfaceName === "bootstrap") {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      src: srcBase,
+      dest: destBase,
+      relPath: surface.src,
+    }];
+  }
+
+  if (!existsSync(srcBase)) {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      dest: destBase,
+      note: `Source dir missing: ${srcBase}`,
+    }];
+  }
+
+  // commands: each .md file → one symlink. skills: each subdirectory.
+  const names =
+    surfaceName === "commands"
+      ? readdirSync(srcBase).filter((f) => f.endsWith(".md"))
+      : readdirSync(srcBase, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name);
+
+  const items = names.map((name) => ({
+    harness: harnessId,
+    surface: surfaceName,
+    src: join(srcBase, name),
+    dest: join(destBase, name),
+    relPath: join(surface.src, name),
+  }));
+
+  return items.concat(
+    enumerateExtraItems(harnessId, surfaceName, surface.extra, source, destBase),
+  );
+}
 
 /**
  * Enumerate every (harness, surface, src, dest) pair the installer manages,
@@ -310,20 +422,15 @@ export function detectHarnesses(home) {
  * surfaces, or a missing source directory) — they have no destination state.
  *
  * @param {{ source: string, home: string, harnessIds?: string[]|null }} opts
- * @returns {{ detectedCount: number, items: Array<{ harness: string, surface: string, dest: string, src?: string, relPath?: string, note?: string }> }}
+ * @returns {{ detectedCount: number, unknownIds: string[], items: Array<{ harness: string, surface: string, dest: string, src?: string, relPath?: string, note?: string }> }}
  */
 function enumerateSurfaces({ source, home, harnessIds = null }) {
-  let detected = detectHarnesses(home);
-
-  // Filter to requested harnesses
-  if (harnessIds) {
-    const ids = new Set(harnessIds);
-    detected = detected.filter((h) => ids.has(h.id));
-  }
+  const { harnesses, unknownIds } = selectHarnesses(home, harnessIds);
+  if (unknownIds.length > 0) return { detectedCount: 0, unknownIds, items: [] };
 
   const items = [];
 
-  for (const harness of detected) {
+  for (const harness of harnesses) {
     // Cursor: no global surfaces to wire
     if (Object.keys(harness.surfaces).length === 0) {
       items.push({
@@ -336,52 +443,13 @@ function enumerateSurfaces({ source, home, harnessIds = null }) {
     }
 
     for (const [surfaceName, surface] of Object.entries(harness.surfaces)) {
-      const srcBase = join(source, surface.src);
-      const destBase = join(home, surface.dest);
-
-      // Single file symlink
-      if (surfaceName === "bootstrap") {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          src: srcBase,
-          dest: destBase,
-          relPath: surface.src,
-        });
-        continue;
-      }
-
-      if (!existsSync(srcBase)) {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          dest: destBase,
-          note: `Source dir missing: ${srcBase}`,
-        });
-        continue;
-      }
-
-      // commands: each .md file → one symlink. skills: each subdirectory.
-      const names =
-        surfaceName === "commands"
-          ? readdirSync(srcBase).filter((f) => f.endsWith(".md"))
-          : readdirSync(srcBase, { withFileTypes: true })
-              .filter((d) => d.isDirectory())
-              .map((d) => d.name);
-
-      for (const name of names) {
-        items.push({
-          harness: harness.id,
-          surface: surfaceName,
-          src: join(srcBase, name),
-          dest: join(destBase, name),
-          relPath: join(surface.src, name),
-        });
-      }
+      items.push(
+        ...enumerateSurfaceItems(harness.id, surfaceName, surface, source, home),
+      );
     }
   }
 
-  return { detectedCount: detected.length, items };
+  return { detectedCount: harnesses.length, unknownIds, items };
 }
 
 // ---------------------------------------------------------------------------
@@ -392,7 +460,7 @@ function enumerateSurfaces({ source, home, harnessIds = null }) {
  * Run the full install.
  *
  * @param {{ source?: string, home?: string, dryRun?: boolean, force?: boolean, harnessIds?: string[]|null }} opts
- * @returns {{ results: Array<{ harness: string, surface: string, dest: string, action: string, message: string, crossRoot?: boolean, oldRoot?: string }>, exitCode: number }}
+ * @returns {{ results: Array<{ harness: string, surface: string, dest: string, action: string, message: string, crossRoot?: boolean, oldRoot?: string }>, unknownIds: string[], exitCode: number }}
  */
 export function install({
   source = REPO_ROOT,
@@ -401,11 +469,12 @@ export function install({
   force = false,
   harnessIds = null,
 } = {}) {
-  const { detectedCount, items } = enumerateSurfaces({ source, home, harnessIds });
+  const { detectedCount, unknownIds, items } = enumerateSurfaces({ source, home, harnessIds });
 
-  if (detectedCount === 0) {
+  if (unknownIds.length > 0 || detectedCount === 0) {
     return {
       results: [],
+      unknownIds,
       exitCode: 1,
     };
   }
@@ -451,6 +520,7 @@ export function install({
   const hasConflict = results.some((r) => r.action === "conflict");
   return {
     results,
+    unknownIds,
     exitCode: hasConflict ? 1 : 0,
   };
 }
@@ -468,17 +538,17 @@ export function install({
  * (a copy), `missing` (nothing installed).
  *
  * @param {{ source?: string, home?: string, harnessIds?: string[]|null }} opts
- * @returns {{ results: Array<{ harness: string, surface: string, dest: string, target: string|null, state: string, root: string|null }>, roots: string[], exitCode: number }}
+ * @returns {{ results: Array<{ harness: string, surface: string, dest: string, target: string|null, state: string, root: string|null }>, roots: string[], unknownIds: string[], exitCode: number }}
  */
 export function verifySurfaces({
   source = REPO_ROOT,
   home = homedir(),
   harnessIds = null,
 } = {}) {
-  const { detectedCount, items } = enumerateSurfaces({ source, home, harnessIds });
+  const { detectedCount, unknownIds, items } = enumerateSurfaces({ source, home, harnessIds });
 
-  if (detectedCount === 0) {
-    return { results: [], roots: [], exitCode: 1 };
+  if (unknownIds.length > 0 || detectedCount === 0) {
+    return { results: [], roots: [], unknownIds, exitCode: 1 };
   }
 
   const results = [];
@@ -541,7 +611,7 @@ export function verifySurfaces({
       r.state === "real-file",
   );
 
-  return { results, roots, exitCode: broken ? 1 : 0 };
+  return { results, roots, unknownIds, exitCode: broken ? 1 : 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -647,7 +717,7 @@ Options:
   --dry-run              Print planned symlinks, write nothing
   --force                Replace real files at destination
   --source <path>        Repo root symlinks resolve from (default: auto-detect)
-  --harness <id,...>     Wire only named harnesses (comma-separated)
+  --harness <id,...>     Wire only these harnesses, even if not detected yet
   --list                 Print detected harnesses and exit
   --verify               Report what each harness resolves to; write nothing
   --help                 Show this help
@@ -739,6 +809,11 @@ export function runVerify(args, home, source) {
 
   const report = verifySurfaces({ source, home, harnessIds: args.harnessIds });
 
+  if (report.unknownIds.length > 0) {
+    console.error(`Unknown harness: ${report.unknownIds.join(", ")}. Known: ${knownHarnessIds().join(", ")}`);
+    return 1;
+  }
+
   if (report.results.length === 0) {
     console.error("No harnesses detected. Install at least one agent harness first.");
     return 1;
@@ -780,6 +855,11 @@ export function runInstall(args, home, source) {
     force: args.force,
     harnessIds: args.harnessIds,
   });
+
+  if (result.unknownIds.length > 0) {
+    console.error(`Unknown harness: ${result.unknownIds.join(", ")}. Known: ${knownHarnessIds().join(", ")}`);
+    return 1;
+  }
 
   if (result.results.length === 0 && result.exitCode === 1) {
     console.error("No harnesses detected. Install at least one agent harness first.");

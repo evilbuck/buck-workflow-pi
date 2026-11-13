@@ -2,7 +2,7 @@
 
 > **For the installing agent:** Before running any install command, **ask the
 > user which agent they're installing for** — Pi, OMP, Codex, OpenCode,
-> Claude Code, or Grok Build. Then jump to that section and run only those
+> Claude Code, Grok Build, or Antigravity (`agy`). Then jump to that section and run only those
 > commands. Do **not** blast through every section in sequence.
 
 Buck Workflow is a portable set of agent skills (the Buck workflow: brainstorm,
@@ -80,6 +80,7 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
 | **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 | **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
+| **Antigravity (`agy`)** | Durable clone + `scripts/install.mjs --harness agy` | `~/.gemini/config/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 
 ---
 
@@ -541,6 +542,63 @@ and Plugins (`09-plugins.md`).
 
 ---
 
+## Antigravity (`agy` — `antigravity.google`)
+
+Google Antigravity (CLI `agy`, IDE, and Desktop App) follows the
+[Agent Skills](https://agentskills.io) standard and loads machine-local global
+customizations from `~/.gemini/config/`. Every skill directory under
+`~/.gemini/config/skills/<name>/SKILL.md` is injected into the active
+available-skills catalog and maps directly to a `/<name>` slash command.
+
+### Install — durable clone + installer (recommended)
+
+```bash
+git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
+node ~/.local/share/buck-workflow-pi/scripts/install.mjs \
+  --source ~/.local/share/buck-workflow-pi --harness agy
+```
+
+From an existing checkout:
+
+```bash
+node /path/to/buck-workflow-pi/scripts/install.mjs \
+  --source /path/to/buck-workflow-pi --harness agy
+```
+
+`--harness agy` installs Antigravity even when `~/.gemini/config` does not
+exist yet. The installer creates that directory and the skill links inside it.
+A run with no `--harness` flag still detects Antigravity only after
+`~/.gemini/config` is already present.
+
+In addition to canonical `skills/*`, the installer links the `b-build-hard` and
+`b-commit` wrapper skills from `plugins/buck-workflow/skills/` so `/b-build-hard`
+and `/b-commit` resolve directly as slash commands without duplicating entries
+under `skills/` for command-file harnesses.
+
+### Where things go
+
+| Surface | Location |
+|---|---|
+| Skills (global) | `~/.gemini/config/skills/<name>/SKILL.md` |
+| Skills (project) | `.agents/skills/<name>/SKILL.md` |
+| Commands | derived from skill name (`/b-plan`, `/b-build`, `/b-commit`, etc.) |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.gemini/config/AGENTS.md` |
+
+### Verify
+
+```bash
+node /path/to/buck-workflow-pi/scripts/install.mjs --verify --harness agy
+```
+
+Then run `/skills reload` in a running `agy` session (or start a new session)
+and confirm `b-build`, `b-review`, and `b-save` resolve in the active
+available-skills catalog before `/b-plan` reports `full`.
+
+Reference: <https://antigravity.google/docs/skills> and
+<https://antigravity.google/docs/rules-workflows>
+
+---
+
 ## Companion bootstrap (`.context/` conventions)
 
 Buck workflow is durable by design — the skills write session memory,
@@ -559,6 +617,7 @@ Install it once per agent:
 | OpenCode | `~/.config/opencode/AGENTS.md` (or any ancestor) | `./AGENTS.md` |
 | Claude Code | `~/.claude/CLAUDE.md` | `./CLAUDE.md` |
 | Grok Build | `~/.grok/rules/buck-workflow.md` | `./AGENTS.md` |
+| Antigravity (`agy`) | `~/.gemini/config/AGENTS.md` | `./AGENTS.md` |
 
 The file is plain Markdown and contains no agent-specific tool calls — it
 works as-is on every harness.
