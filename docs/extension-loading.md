@@ -276,8 +276,7 @@ Restart the agent after updating for changes to take effect.
 
 ## See also
 
-- `skills/cross-platform-pi-omp-loading/SKILL.md` — package authoring pattern for shipping one package that works in both runtimes (manifest keys, directory layout, OMP API shim gaps).
-- `skills/cross-platform-pi-omp-loading/slash-command-mirror/SKILL.md` — the `prompts/` ↔ `commands/` symlink pattern in depth, including the per-file vs single-directory trade-off and drift mitigation.
+- `docs/cross-platform-pi-omp-loading.md` — package authoring pattern for shipping one package that works in both runtimes (manifest keys, directory layout, `prompts/` ↔ `commands/` symlink mirror, and OMP API shim gaps).
 
 ## Multi-Harness Installer (`buck-workflow install`)
 

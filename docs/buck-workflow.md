@@ -124,7 +124,7 @@ buck-workflow plans and phase files are omp-aware. When run inside an
 omp session, the workflow can opt into omp's three autonomous-loop
 primitives. **None of these are auto-enabled by the workflow** — the
 primitives are user-toggled, and the workflow only *recommends* them.
-See `skills/cross-platform-pi-omp-loading/SKILL.md` for the
+See `docs/cross-platform-pi-omp-loading.md` for the
 package-level pattern, and `.context/2026-06-06.omp-integration-buck-workflow/`
 for the decision log.
 
@@ -263,7 +263,7 @@ for the decision log.
 
 ### Cross-references
 
-- **In-repo skill**: `skills/cross-platform-pi-omp-loading/SKILL.md` —
+- **Package-loading reference**: `docs/cross-platform-pi-omp-loading.md` —
   cross-platform package loading (Pi + OMP), the `prompts/` ↔ `commands/`
   per-file symlink mirror pattern, and extension API shim gaps.
 - **Research**: `.context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md` —
@@ -2314,7 +2314,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 
 **Prompt-backed slash commands:** every `commands/*.md` entry is a symlink to the matching `prompts/*.md`; Pi and OMP share the same prompt bodies.
 
-**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `skill-explainer`, `code-smells`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
+**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `skill-explainer`, `code-smells`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes` (plus maintainer reference doc `docs/cross-platform-pi-omp-loading.md`).
 
 
 ## Version

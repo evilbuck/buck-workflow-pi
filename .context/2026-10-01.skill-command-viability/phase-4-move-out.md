@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-viability-cleanup.md
@@ -23,13 +23,13 @@ from_plan_steps: ["M1", "M2", "M3", "M4", "M5"]
 depends_on: [3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] M3: docs/cross-platform-pi-omp-loading.md exists and skills/cross-platform-pi-omp-loading/ does not"
-  - "[ ] M4: skills/node5-code-review/ does not exist and rg -n 'node5-code-review' README.md docs/buck-workflow.md returns no hit"
-  - "[ ] A-3: each of M1, M2, and M5 either has Destination filled and the skill is moved to Destination and absent from skills/, or Destination is empty and the skill is left in place with Status updated to skip (so no todo remains at recommended or do)"
-  - "[ ] README.md and docs/buck-workflow.md do not name a skill this phase deleted or moved"
-  - "[ ] npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts scripts/skill-frontmatter.test.ts passes"
-completed_at: null
-completed_by: null
+  - "[x] M3: docs/cross-platform-pi-omp-loading.md exists and skills/cross-platform-pi-omp-loading/ does not"
+  - "[x] M4: skills/node5-code-review/ does not exist and rg -n 'node5-code-review' README.md docs/buck-workflow.md returns no hit"
+  - "[x] A-3: each of M1, M2, and M5 either has Destination filled and the skill is moved to Destination and absent from skills/, or Destination is empty and the skill is left in place with Status updated to skip (so no todo remains at recommended or do)"
+  - "[x] README.md and docs/buck-workflow.md do not name a skill this phase deleted or moved"
+  - "[x] npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts scripts/skill-frontmatter.test.ts passes"
+completed_at: 2026-11-16
+completed_by: b-build
 ---
 
 # Phase 4: Move or remove project/environment-specific skills (M1–M5)

@@ -1,3 +1,7 @@
+- 2026-11-16 — [Viability cleanup Phase 4 (M1–M5): move cross-platform-pi-omp-loading to docs/, delete node5-code-review, and close out 2026-10-01.skill-command-viability](viability-cleanup-phase-4-move-out-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-4-move-out-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, cross-platform-pi-omp-loading, node5-code-review, catalog-cleanup] | status: completed
+
 - 2026-11-16 — [Viability cleanup Phase 3 (G1): unify b-grill, b-grill-me, and b-grill-with-docs into canonical skills/b-grill/ with domain docs on by default and --no-docs opt-out](viability-cleanup-phase-3-unify-b-grill-2026-11-16.md) — `completed`
 
   - 2026-11-16 | `viability-cleanup-phase-3-unify-b-grill-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, b-grill, b-grill-me, b-grill-with-docs, domain-docs, consolidation] | status: completed

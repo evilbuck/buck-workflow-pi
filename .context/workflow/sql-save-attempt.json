@@ -1,8 +1,8 @@
 {
-  "attemptId": "d3c9a50f-ba34-48de-a2dc-4e724c7f2316",
-  "runId": "run-e16d908e-a20b-4f21-b43c-040e1de7e6cf",
+  "attemptId": "9dab0522-67f8-479c-8f8e-5126d941ca82",
+  "runId": "run-32227844-78e4-4481-a26c-6f56768c1a67",
   "subject": "2026-10-01.skill-command-viability",
   "project": "git@github.com:evilbuck/buck-workflow-pi.git",
   "phase": null,
-  "receiptRel": ".context/2026-10-01.skill-command-viability/sql-memory-receipts/d3c9a50f-ba34-48de-a2dc-4e724c7f2316.json"
+  "receiptRel": ".context/2026-10-01.skill-command-viability/sql-memory-receipts/9dab0522-67f8-479c-8f8e-5126d941ca82.json"
 }

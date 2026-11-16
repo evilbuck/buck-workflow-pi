@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-10-01
 updated: 2026-11-16
 subject: 2026-10-01.skill-command-viability
@@ -28,7 +28,7 @@ format: discrete
 | 1: OMP stubs to docs | completed | medium | none | [phase-1-omp-stubs.md](phase-1-omp-stubs.md) |
 | 2: Fold duplicates (F1–F8) | completed | medium | none | [phase-2-fold-duplicates.md](phase-2-fold-duplicates.md) |
 | 3: Unify grill family (G1) | completed | medium | none | [phase-3-grill-shell.md](phase-3-grill-shell.md) |
-| 4: Move or remove misfits (M1–M5) | pending | medium | none | [phase-4-move-out.md](phase-4-move-out.md) |
+| 4: Move or remove misfits (M1–M5) | completed | medium | none | [phase-4-move-out.md](phase-4-move-out.md) |
 
 ## Dependency Matrix
 
@@ -89,7 +89,7 @@ Use this overview as the durable navigation map. For each phase:
 - [x] Phase 1: OMP stubs to docs — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Fold duplicates (F1–F8) — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 3: Unify grill family (G1) — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 4: Move or remove misfits (M1–M5) — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 4: Move or remove misfits (M1–M5) — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 
 ## Notes
 

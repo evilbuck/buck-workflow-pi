@@ -1,8 +1,3 @@
----
-name: cross-platform-pi-omp-loading
-description: Author a package that loads cleanly under both Pi and OMP from a single source-of-truth checkout. Covers directory layout, manifest keys, slash command resolution, sub-directory auto-discovery, and OMP extension API shim gaps. Use when publishing a package that targets both runtimes, debugging why a slash command or skill works in one runtime but not the other, or adopting the buck-workflow-pi pattern for a new package.
----
-
 # Cross-Platform Pi + OMP Package Loading
 
 Pi and OMP are two runtime surfaces for the same underlying agent protocol. They share a directory-walk discovery model but disagree on three points that bite every cross-platform package author:
@@ -64,7 +59,7 @@ Rules of thumb:
   auto-discovers supported sibling directories.
 - OMP slash commands come from `commands/`, not `prompts/`; keep
   `commands/*.md` as same-named symlinks to the canonical prompt bodies.
-- JSON disallows comments. Keep loader rationale in this skill or project docs,
+- JSON disallows comments. Keep loader rationale in project docs,
   not in `package.json`.
 
 ## OMP sub-directory auto-discovery

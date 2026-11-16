@@ -1,12 +1,12 @@
 ---
-status: active
+status: completed
 date: 2026-10-01
 updated: 2026-11-16
 subject: 2026-10-01.skill-command-viability
 topics: [skills, commands, viability, cleanup, consolidation]
 research: [research-low-viability.md]
 iterations: []
-memory: [viability-cleanup-phase-2-fold-duplicates-2026-11-16.md, viability-cleanup-phase-3-unify-b-grill-2026-11-16.md]
+memory: [viability-cleanup-phase-2-fold-duplicates-2026-11-16.md, viability-cleanup-phase-3-unify-b-grill-2026-11-16.md, viability-cleanup-phase-4-move-out-2026-11-16.md]
 ---
 # Plan: Viability cleanup checklist
 
@@ -46,8 +46,8 @@ Next action: re-run `/skill:b-phase` to refresh phase files for F1–F8, G1, and
 |---|---|---|---|---|
 | A-1 | `skills/design-brief/` is a skill, not the design-language file `skills/_shared/design-brief.jsonc` | validated | false | Separate paths. F1 forbids deleting the JSONC. |
 | A-2 | A prompt delete that leaves `commands/<name>.md` fails `scripts/commands-mirror.test.ts` | validated | false | Docs and the symlink inventory. Any prompt delete removes both `prompts/<name>.md` and `commands/<name>.md` together. |
-| A-3 | External move-out todos (`M1`, `M2`, `M5`) need an external filesystem destination before moving | deferred | false | Operator writes `Destination:` on M1, M2, and M5 before moving them out of the repo. M3 (`docs/cross-platform-pi-omp-loading.md`) and M4 (`node5-code-review` deletion) have in-repo resolution and are `do`. |
-| A-4 | `/b-kamal-release` is not a confirmed delete | deferred | false | Jev fit 0.88, confidence 0.27. X2 stays `keep` until the operator changes it. |
+| A-3 | External move-out todos (`M1`, `M2`, `M5`) need an external filesystem destination before moving | validated | false | Operator writes `Destination:` on M1, M2, and M5 before moving them out of the repo. M3 (`docs/cross-platform-pi-omp-loading.md`) and M4 (`node5-code-review` deletion) have in-repo resolution and are `done`; M1, M2, and M5 have empty `Destination:` and are recorded as `skip` (left in place, no guessed paths). |
+| A-4 | `/b-kamal-release` is not a confirmed delete | validated | false | Jev fit 0.88, confidence 0.27. X2 stays `keep` until the operator changes it. |
 | A-5 | `b-docs` and `GLOBAL_OR_PROJECT-AGENTS.md` cite `b-grill-with-docs/ADR-FORMAT.md` and `CONTEXT-FORMAT.md` | validated | false | Moving those format files into `skills/b-grill/` under G1 requires updating references in `skills/b-docs/SKILL.md`, `GLOBAL_OR_PROJECT-AGENTS.md`, and `AGENTS.md` in the same step. |
 
 ## Material Risks
@@ -207,51 +207,56 @@ One `done` todo per commit (or one cohesive phase commit after `/skill:b-phase`)
 
 For external moves (`M1`, `M2`, `M5`), fill `Destination:` before executing the move (A-3). `M3` and `M4` have in-repo resolution and are ready now.
 
-- [ ] **M1** Status: `do` Destination:
+- [x] **M1** Status: `skip` Destination:
   - Action: move `skills/rails-app/` to `Destination:` once specified. Drop the README row and Codex copy if any.
   - Why: fit 0.33, 0 mentions. One app's footguns (`pp-*`, `snapselect`, `magic_links`).
   - Done when: the skill is not under this repo's `skills/` and the destination has the file.
+  - Skipped 2026-11-16: `Destination:` is unset; per A-3, left `skills/rails-app/` in place rather than guessing an external destination.
 
-- [ ] **M2** Status: `do` Destination:
+- [x] **M2** Status: `skip` Destination:
   - Action: move `skills/llm-wiki-vault/` to `Destination:` once specified. Drop the README row and the `AGENTS.md` vault-wiki paragraph.
   - Why: distinct 3.72, fit 0.21, confidence 0.82. Unique job tied to `~/Documents/second brain`.
   - Done when: this repo no longer contains the skill or the `AGENTS.md` advertisement.
+  - Skipped 2026-11-16: `Destination:` is unset; per A-3, left `skills/llm-wiki-vault/` in place rather than guessing an external destination.
 
-- [ ] **M3** Status: `do` Destination: `docs/cross-platform-pi-omp-loading.md`
+- [x] **M3** Status: `done` Destination: `docs/cross-platform-pi-omp-loading.md`
   - Action: move the parent skill body (after F2) to `docs/cross-platform-pi-omp-loading.md`. Delete `skills/cross-platform-pi-omp-loading/`. Update docs that link the skill path.
   - Why: fit 1.00, confidence 1.00. Maintainer meta documentation, not a runtime task skill.
   - Depends on: F2 `done`.
   - Done when: no `skills/cross-platform-pi-omp-loading/` directory, and `docs/cross-platform-pi-omp-loading.md` exists.
+  - Verified 2026-11-16: `test ! -d skills/cross-platform-pi-omp-loading && test -f docs/cross-platform-pi-omp-loading.md` passed; updated references in `README.md`, `docs/buck-workflow.md`, and `docs/extension-loading.md`.
 
-- [ ] **M4** Status: `do` Destination: `delete (superseded by b-review and code-review-universal)`
+- [x] **M4** Status: `done` Destination: `delete (superseded by b-review and code-review-universal)`
   - Action: delete `skills/node5-code-review/` (and any Codex copy if present) and remove its catalog rows from `README.md` and `docs/buck-workflow.md`.
   - Why: viability 0.19, fit 0.08 (confidence 0.93). Hardcoded to the `node5` project and superseded by portable reviewers.
   - Done when: `test ! -d skills/node5-code-review` and `rg -n "node5-code-review" README.md docs/` returns no live catalog hits.
+  - Verified 2026-11-16: `test ! -d skills/node5-code-review` and `! rg -n "node5-code-review" README.md docs/buck-workflow.md` passed.
 
-- [ ] **M5** Status: `do` Destination:
+- [x] **M5** Status: `skip` Destination:
   - Action: move `skills/manage-herdr-panes/` to `Destination:` once specified (e.g. personal `~/.agents/skills/` or Herdr repo) and drop its README row.
   - Why: requires `HERDR_ENV=1`; environment-specific cookbook in a portable workflow package.
   - Done when: `skills/manage-herdr-panes/` is moved to `Destination:` and removed from `README.md`.
+  - Skipped 2026-11-16: `Destination:` is unset; per A-3, left `skills/manage-herdr-panes/` in place rather than guessing an external destination.
 
 ### Decide, do not apply the default
 
-- [ ] **X2** Status: `keep`
+- [x] **X2** Status: `keep`
   - Surface: `/b-kamal-release` plus `extensions/b-kamal-release/`. Fit confidence 0.27. One mention. Wired in `extensions/index.ts`.
   - Leave it. Set Status to `do` only with a written destination and a note that the extension wire must be removed in the same commit.
 
-- [ ] **X3** Status: `keep`
+- [x] **X3** Status: `keep`
   - Surface: `product-tour`. Partially scored (fit 1.99 only). Unused here, not a duplicate.
   - Leave it.
 
 ## Acceptance criteria
 
-- [ ] Every todo is `keep`, `skip`, or `done`. None left at `recommended` or `do`.
-- [ ] Each `done` todo has its done-when check recorded as passed in the todo body.
-- [ ] `skills/_shared/design-brief.jsonc` still exists.
-- [ ] `skills/b-grill/SKILL.md` is the single canonical grill skill with domain docs enabled by default, `--no-docs` documented to opt out, and `ADR-FORMAT.md` + `CONTEXT-FORMAT.md` co-located in `skills/b-grill/`.
-- [ ] `skills/b-save/SKILL.md` is the single canonical save skill with `save-preflight.ts` and `save-apply.ts` under `skills/b-save/scripts/`.
-- [ ] `npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts` passes after the last `done` todo that touches those surfaces.
-- [ ] README and `docs/buck-workflow.md` do not name a skill or command this plan deleted.
+- [x] Every todo is `keep`, `skip`, or `done`. None left at `recommended` or `do`.
+- [x] Each `done` todo has its done-when check recorded as passed in the todo body.
+- [x] `skills/_shared/design-brief.jsonc` still exists.
+- [x] `skills/b-grill/SKILL.md` is the single canonical grill skill with domain docs enabled by default, `--no-docs` documented to opt out, and `ADR-FORMAT.md` + `CONTEXT-FORMAT.md` co-located in `skills/b-grill/`.
+- [x] `skills/b-save/SKILL.md` is the single canonical save skill with `save-preflight.ts` and `save-apply.ts` under `skills/b-save/scripts/`.
+- [x] `npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts` passes after the last `done` todo that touches those surfaces.
+- [x] README and `docs/buck-workflow.md` do not name a skill or command this plan deleted.
 
 ## Verification
 
