@@ -44,8 +44,6 @@ const curatedBundle = {
     "adversarial-review",
     "code-review-universal",
     "codebase-design",
-    "crawl4ai",
-    "design-brief",
     "fix-pr",
     "git-commit",
     "pack-self-contained-html-reports",

@@ -91,15 +91,13 @@ source of truth for command bodies and mirrors only the registration surface:
 | `/buck-models` | Extension command | Slash command (extension) | `extensions/buck-models/` — create, edit, and activate named Buck model profiles |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
-| `b-hindsight-import-projects` (skill-only) | Skill | Skill | `skills/b-hindsight-import-projects/SKILL.md` — multi-project wrapper over `b-memory-import` |
-| `/b-commit-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-commit-improved.md`; `commands/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit-improved/` |
-| `/b-save-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-save-improved.md`; `commands/b-save-improved.md`; `extensions/b-save-improved/`; falls back to `skills/b-save-improved/` |
+| `/b-commit-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-commit-improved.md`; `commands/b-commit-improved.md`; `extensions/b-commit-improved/`; falls back to `skills/git-commit/` |
+| `/b-save-improved` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-save-improved.md`; `commands/b-save-improved.md`; `extensions/b-save/`; falls back to `skills/b-save/` |
 | `/b-kamal-release` | Prompt template + extension command | Slash command symlink + extension command | `prompts/b-kamal-release.md`; `commands/b-kamal-release.md`; `extensions/b-kamal-release/` |
 | `/git-cleanup` | Prompt template + Skill | Slash command symlink | `prompts/git-cleanup.md`; `commands/git-cleanup.md`; `skills/git-cleanup/SKILL.md` — proven-landed clean locals are deleted; everything else is asked |
-| `/git-clean-orphans` | Prompt template + Skill | Slash command symlink | Alias of `/git-cleanup` (same contract): `prompts/git-clean-orphans.md`; `commands/git-clean-orphans.md`; `skills/git-clean-orphans/SKILL.md` |
+| `/git-clean-orphans` | Prompt template | Slash command symlink | Alias of `/git-cleanup` (same contract): `prompts/git-clean-orphans.md`; `commands/git-clean-orphans.md`; loads `skills/git-cleanup/SKILL.md` |
 | `/product-tour` | Prompt template + Skill | Slash command symlink | `prompts/product-tour.md`; `commands/product-tour.md`; `skills/product-tour/SKILL.md` |
 | `/code-review` | Prompt template + Skill + extension command | Slash command symlink + extension command | Portable release-PR workflow: `prompts/code-review.md` + `skills/code-review/`; wired local iteration: `extensions/code-review-iteration/` |
-| `thought-dump-writer` (skill-only) | Skill | Skill | `skills/thought-dump-writer/SKILL.md` — single living note with lightweight cleanup and git checkpoints |
 | `/code-review-universal` | Prompt template + Skill | Slash command symlink | `prompts/code-review-universal.md`; `commands/code-review-universal.md`; `skills/code-review-universal/` |
 | `/adversarial-review` | Prompt template + Skill | Slash command symlink | `prompts/adversarial-review.md`; `commands/adversarial-review.md`; `skills/adversarial-review/` |
 | `workflow_state` (native tool) | Extension tool | Extension tool | `extensions/workflow-state/`; always registered. `sql_memory` is not registered |
@@ -266,10 +264,8 @@ for the decision log.
 ### Cross-references
 
 - **In-repo skill**: `skills/cross-platform-pi-omp-loading/SKILL.md` —
-  cross-platform package loading (Pi + OMP), slash-command mirror
-  pattern, extension API shim gaps.
-- **In-repo skill**: `skills/cross-platform-pi-omp-loading/slash-command-mirror/SKILL.md` —
-  the `prompts/` ↔ `commands/` per-file symlink pattern.
+  cross-platform package loading (Pi + OMP), the `prompts/` ↔ `commands/`
+  per-file symlink mirror pattern, and extension API shim gaps.
 - **Research**: `.context/2026-06-06.omp-integration-buck-workflow/research-omp-integration.md` —
   full source-verified analysis of the three primitives.
 - **Decision log**: `.context/2026-06-06.omp-integration-buck-workflow/follow-ups.md` —
@@ -487,8 +483,7 @@ flowchart TD
 |-----------|-------------------|------------------|--------------|---------|
 | [**b-explore**](#1-discovery-phase) | Prompt template | `/b-explore` | `prompts/b-explore.md` | Explore codebases, trace architecture, map data flows |
 | [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
-| [**b-capture**](#b-capture--note-taking-mode) | Prompt template + Skill | `/b-capture` | `prompts/b-capture.md` + `skills/b-capture/SKILL.md` | Note-taking mode — dump as we go via subagent; no polish until told |
-| **thought-dump-writer** | Skill | `/skill:thought-dump-writer` | `skills/thought-dump-writer/SKILL.md` | One lightly cleaned living markdown note with a git checkpoint after every change |
+| [**b-capture**](#b-capture--note-taking-mode) | Prompt template + Skill | `/b-capture` | `prompts/b-capture.md` + `skills/b-capture/SKILL.md` | Note-taking mode — dump as we go via subagent (or single-file checkpoint mode via `--single-file <path>`); no polish until told |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
 | [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
 | [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
@@ -534,10 +529,9 @@ flowchart TD
 | [**adversarial-review**](#adversarial-review--prove-it-fails-pr-review) | Prompt template + Skill | `/adversarial-review` | `prompts/adversarial-review.md` + `skills/adversarial-review/` | Prove-it-fails review of one PR. Asks post vs local. Post mode inlines exact diff lines and submits one atomic review |
 | [**skill-explainer**](#skill-explainer--skill-walkthrough-reports) | Skill | `/skill:skill-explainer` | `skills/skill-explainer/SKILL.md` | Explain a skill/command and produce a visual HTML report of its flow and effects (skill-only) |
 | [**git-cleanup**](#git-cleanup--landed-git-cleanup) | Prompt template + Skill | `/git-cleanup` | `prompts/git-cleanup.md` + `commands/git-cleanup.md` + `skills/git-cleanup/SKILL.md` | Delete proven-landed clean local branches and worktrees; everything else is asked |
-| [**git-clean-orphans**](#git-clean-orphans--alias-of-git-cleanup) | Prompt template + Skill | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-clean-orphans/SKILL.md` | Alias of `/git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
+| [**git-clean-orphans**](#git-clean-orphans--alias-of-git-cleanup) | Prompt template | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-cleanup/SKILL.md` | Alias of `/git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
-| [**b-hindsight-import-projects**](#b-hindsight-import-projects--multi-project-import) | Skill | `/skill:b-hindsight-import-projects` | `skills/b-hindsight-import-projects/SKILL.md` | Bulk-import many projects' `.context/memory` into Hindsight in one pass (skill-only) |
-| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save-improved` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save-improved,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
+| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
 
 **Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-models`, `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
 
@@ -568,10 +562,9 @@ Its default export composes every wired subsystem:
    (`extensions/b-commit-improved/`); counterpart to `/b-commit`.
 5. **`/b-kamal-release`** — Deterministic kamal deploy/release pipeline
    (`extensions/b-kamal-release/`).
-6. **`/b-save-improved`** — Deterministic session checkpoint: preflight,
-   scribe + auditor model roles, apply (`extensions/b-save-improved/`);
-   counterpart to `/b-save`, leaving the harness `retain`/`learn` step to
-   the mainline agent.
+6. **`/b-save`** — Deterministic session checkpoint: snapshot,
+   scribe + auditor + goal model roles, journaled apply (`extensions/b-save/`);
+   portable fallback in `skills/b-save/` (`save-preflight.ts` + `save-apply.ts`).
 7. **Plan-artifact bridge** — Opt-in (`buckPlanArtifact.enabled` or
    `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook in `extensions/plan-artifact.ts`
    that detects OMP plan-mode exit and persists the plan file into the
@@ -589,10 +582,10 @@ Its default export composes every wired subsystem:
    (`extensions/workflow-state/`). Always registered. `extensions/sql-memory/`
    remains loaded but does not register a model-facing tool.
 
-The four `*-improved` / `b-kamal-release` commands report progress through
+The deterministic extension commands report progress through
 the shared `extensions/extension-activity.ts` helper and fall back to their
-skill counterparts where one exists (`b-pr`, `git-commit-improved`,
-`b-save-improved`). The local review loop uses the same activity surface.
+skill counterparts where one exists (`b-pr`, `git-commit`,
+`b-save`). The local review loop uses the same activity surface.
 `extensions/subprocess.ts` and `extensions/omp-models.ts` are shared libraries,
 not standalone subsystems.
 
@@ -660,7 +653,7 @@ informs: []  # Plans/specs this exploration fed into
 - Writes incremental notes in `research/` subdirectory during long sessions
 - Consolidates into `research-<topic>.md` as the canonical summary
 - Uses the **Research Source Dictionary** (`docs/research-source-dictionary.md`) for source selection
-- Optional: invokes the `crawl4ai` skill for deep website crawling
+- Optional: uses Crawl4AI (`crawl4ai crawl`) for deep multi-page website crawling
 - Graceful degradation when web tools are unavailable
 
 **Delegation & Execution**:
@@ -1793,26 +1786,20 @@ status: active
 
 #### `b-memory-import` — Hindsight backfill
 
-**Purpose**: Deterministic one-shot/backfill of project `.context/memory/**/*.md` into the configured Hindsight bank. Not part of the every-session loop.
+**Purpose**: Deterministic one-shot/backfill of project `.context/memory/**/*.md` (and optional `.context/backlog/items/`) into the configured Hindsight bank. Supports single-project runs (`import-context-memory.ts`) and multi-project workspace runs (`import-projects.ts` with `--root ~/projects`, `--include`, `--exclude`, `--all`). Not part of the every-session loop.
 
 **Run** (from the target project root, or pass `--root`):
 
 ```bash
+# Single project
 bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.ts --dry-run
 bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-context-memory.ts
+
+# Multi-project workspace
+bun path/to/buck-workflow-pi/skills/b-memory-import/scripts/import-projects.ts --root ~/projects --all --dry-run
 ```
 
-Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.*`. Idempotent via stable `document_id` + local `.omp-hindsight-import-manifest.json` (gitignored).
-
-#### `b-hindsight-import-projects` — Multi-Project Import
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
-**Purpose**: Bulk-import Buck `.context/memory` from many projects into OMP Hindsight in one pass. Wraps `b-memory-import` with multi-project discovery (e.g. `~/projects/*`), per-project isolation, and aggregate reporting.
-
-**Pi/OMP primitive**: Skill only (`skills/b-hindsight-import-projects/SKILL.md`).
-
-**When to use**: Seeding Hindsight across a whole workspace, resuming a partial run, or running the same pipeline on a different machine. Like `b-memory-import`, this is one-shot/backfill — not part of the every-session loop.
+Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.*`. Idempotent via stable `document_id` + run-private retained cursor (and optional local `.omp-hindsight-import-manifest.json` export).
 
 ### 6. Commit Phase
 
@@ -1879,8 +1866,8 @@ Seven slash commands are backed by **code, not only prompt-following**, when `ex
 | `/buck-models` | `extensions/buck-models/` | Creates, edits, and activates named Buck model profiles in project or user-global scope | — |
 | `/buck-loop` | `extensions/buck-loop/` | Observably invoked existing-plan runner: nested isolated sessions, artifact-wins resume | — |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop | `prompts/code-review.md` + `skills/code-review/` (release-PR workflow) |
-| `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit-improved/` |
-| `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session-record checkpoint: preflight → scribe + auditor model roles → apply. Leaves step 8 (`retain`/`learn`) to the mainline agent | `skills/b-save-improved/` |
+| `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit/` |
+| `/b-save` (`/b-save-improved`) | `extensions/b-save/` | Deterministic session-record checkpoint: snapshot → scribe + auditor + goal model roles → journaled apply. Portable script fallback: `save-preflight.ts` + `save-apply.ts` | `skills/b-save/` |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation: preflight, base resolution, rebase with bounded model-assisted conflict resolution, `gh pr create` | `skills/b-pr/` |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Kamal deploy/release pipeline with ring-buffered output (last ~20 lines kept only on failure) | — |
 
@@ -1902,7 +1889,7 @@ Seven slash commands are backed by **code, not only prompt-following**, when `ex
 
 #### `/git-clean-orphans` — Alias of `/git-cleanup`
 
-Same contract and same procedure under the old name. Proven-landed clean branches are deleted without the old confirmation pause, and a checkout outside the main repository's parent is no longer skipped when it is registered to this common Git directory. `prompts/git-clean-orphans.md` and `skills/git-clean-orphans/SKILL.md` load `git-cleanup`; there is no second delete procedure.
+Same contract and same procedure under the old name. Proven-landed clean branches are deleted without the old confirmation pause, and a checkout outside the main repository's parent is no longer skipped when it is registered to this common Git directory. `prompts/git-clean-orphans.md` loads `skills/git-cleanup/SKILL.md` directly; there is no second delete procedure or duplicate skill directory.
 
 ---
 #### Git cleanup classifier — Local Containment Inventory
@@ -2123,7 +2110,7 @@ Registered commands (runtime code paths; fallback behavior is named where one ex
 |---|---|---|
 | `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation — code-driven counterpart to `/b-pr` |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Deterministic Conventional Commit from `draft-commit.md` or model draft |
-| `/b-save-improved` | `extensions/b-save-improved/` | Deterministic session checkpoint (preflight + scribe/auditor + apply) |
+| `/b-save` (`/b-save-improved`) | `extensions/b-save/` | Deterministic session checkpoint (snapshot + scribe/auditor/goal + journaled apply) |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
 | `/buck-models` | `extensions/buck-models/` | Create, edit, and activate named Buck model profiles |
 | `/buck-loop` | `extensions/buck-loop/` | Existing-plan runner with nested isolated sessions and artifact-wins resume |
@@ -2354,20 +2341,20 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/b-save` — session recordkeeping (run before `/b-commit`)
 - `/b-commit` — Conventional Commit, backed by the `git-commit` skill
 - `/skill:b-backlog` *(skill-only)* — delegate backlog-item capture
-- `/skill:b-memory-import` / `/skill:b-hindsight-import-projects` *(skill-only)* — Hindsight backfill (one project / many projects)
+- `/skill:b-memory-import` *(skill-only)* — Hindsight backfill (single project via `import-context-memory.ts` or multi-project workspace via `import-projects.ts` / `--root`)
 
 **Runtime extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
 - `/buck-models` — create, edit, and activate named Buck model profiles
 - `/buck-loop` — existing-plan happy-path runner
 - `/code-review` — bounded local Reviewer → optional Fixer → fresh-Reviewer loop
-- `/b-commit-improved` — code-driven Conventional Commit
-- `/b-save-improved` — code-driven session checkpoint
+- `/b-commit-improved` — code-driven Conventional Commit (`extensions/b-commit-improved/`, falls back to `skills/git-commit/`)
+- `/b-save` (`/b-save-improved`) — code-driven session checkpoint (`extensions/b-save/`, falls back to `skills/b-save/`)
 - `/b-pr-improved` — code-driven PR creation
 - `/b-kamal-release` — kamal release pipeline
 
 **Prompt-backed slash commands:** every `commands/*.md` entry is a symlink to the matching `prompts/*.md`; Pi and OMP share the same prompt bodies.
 
-**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `thought-dump-writer`, `skill-explainer`, `code-smells`, `crawl4ai`, `design-brief`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
+**Reference skills** (no slash wrapper): `codebase-design`, `writing-for-agents`, `skill-explainer`, `code-smells`, `run-in-idle-pane`, `pi-rpc`, `llm-wiki-vault`, `rails-app`, `manage-herdr-panes`, `cross-platform-pi-omp-loading`.
 
 
 ## Version

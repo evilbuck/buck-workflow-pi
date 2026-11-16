@@ -4,11 +4,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { executeWorkflowState, withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
-import { runApply } from "../../../skills/b-save-improved/scripts/save-apply.js";
+import { runApply } from "../../../skills/b-save/scripts/save-apply.js";
 import { classifyContextPath, consumerKey } from "../../../skills/_shared/storage/consumers.js";
 import { completeSaveAttempt, loadSaveAttempt, prepareSaveAttempt, recordSaveMetadata, saveSqlFacts, verifySqlSave } from "../sql-save.js";
 
-const PREFLIGHT = resolve(import.meta.dirname, "../../../skills/b-save-improved/scripts/save-preflight.ts");
+const PREFLIGHT = resolve(import.meta.dirname, "../../../skills/b-save/scripts/save-preflight.ts");
 const SUBJECT = "2026-10-15.save-repair";
 const original = { cwd: process.cwd(), config: process.env.BUCK_WORKFLOW_CONFIG, xdg: process.env.XDG_CONFIG_HOME, sql: process.env.SQL_MEMORY_URL };
 let root = "";

@@ -1,3 +1,7 @@
+- 2026-11-16 — [Viability cleanup Phase 2 (F1–F8): fold design-brief, slash-command-mirror, crawl4ai, b-save-improved, deprecated-b-save, b-create-ux-guide, git-clean-orphans, git-commit-improved, b-hindsight-import-projects, and thought-dump-writer into canonical siblings](viability-cleanup-phase-2-fold-duplicates-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-2-fold-duplicates-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, skill-consolidation, b-save, git-commit, b-create-styleguide, b-memory-import, b-capture] | status: completed
+
 - 2026-11-05 — [PR #65 restricted Bun runtime CI repair](fix-pr-65-2026-11-05.md) — active (isolated executable mount; external-installation and cross-branch privacy tests pass; final checks and independent review pending)
 - 2026-11-05 — [buck-models category tabs review iteration](buck-models-category-tabs-iterate-2026-11-05.md) — completed (Save-button clipping + catalog-removal cursor clamp fixed with red-then-green tests; live OMP/Pi smoke at 120×40, 80×24, 80×18, 80×16, 40×16 including byte-identical cancellation; guardrails pass at 89.6% coverage)
 

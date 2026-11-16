@@ -1,10 +1,12 @@
 ---
 name: b-memory-import
-description: Deterministically import publication-proven project memory and backlog revisions from the configured workflow adapter into OMP Hindsight. Use for one-shot/backfill seeding of native agent memory from Buck session records.
+description: Deterministically import publication-proven project memory and backlog revisions from the configured workflow adapter into OMP Hindsight (single-project or multi-project workspace via --root / import-projects.ts). Use for one-shot/backfill seeding of native agent memory from Buck session records.
 triggers:
   - /b-memory-import
   - import context memory
   - seed hindsight from .context
+  - import all projects into hindsight
+  - bulk seed hindsight
 ---
 
 Import publication-proven memory and backlog bytes from the configured workflow store into OMP Hindsight via HTTP retain. `.context/memory/` is the default logical source prefix, not a required local directory. Private branch drafts, subject receipts, and ambiguous legacy records are excluded before payload construction. No local-file union or outage fallback is permitted. Without trusted published-revision evidence, withhold imports; historical Markdown is not automatically migrated.
@@ -16,11 +18,11 @@ pointers. Do not feed those recovery records to Hindsight or infer publication
 from their old branch names. Use the [storage migration guides](../../docs/howto/README.md#storage-migration)
 for export/import, verified backend switching, and rollback.
 
-The deterministic Bun script uses no LLM or qmd. Configure `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, and `HINDSIGHT_SCOPING`, or `~/.omp/agent/config.yml` → `hindsight.*`.
+The deterministic Bun scripts use no LLM or qmd. Configure `HINDSIGHT_API_URL`, `HINDSIGHT_API_TOKEN`, `HINDSIGHT_BANK_ID`, and `HINDSIGHT_SCOPING`, or `~/.omp/agent/config.yml` → `hindsight.*`.
 
 Default scoping matches OMP: `per-project-tagged` with tag `project:<git-root-basename>`.
 
-## Agent procedure
+## Agent procedure (single project)
 
 1. Confirm cwd is the **target project** (or pass `--root`).
 2. Dry-run first:
@@ -38,6 +40,41 @@ bun "${SKILL_DIR}/scripts/import-context-memory.ts"
 ```
 
 5. Optional: `--force` to re-upsert all; `--limit N` for a pilot batch; `--sync` to wait for extraction; `--source-dirs` to extend beyond `.context/memory`.
+
+## Multi-project workspace mode (`import-projects.ts` / `--root`)
+
+When seeding Hindsight across many projects in a workspace (e.g. `~/projects/*`) or resuming a partial run across multiple repositories, run `scripts/import-projects.ts`. It discovers projects under one or more `--root <dir>` arguments, invokes `import-context-memory.ts` per project with isolation (one project failing does not stop the rest), and emits a single aggregate JSON envelope (`results[]` + `totals`).
+
+### Discovery rules
+
+For each `--root <dir>` (repeatable; defaults to `~/projects`):
+1. If `<root>/.context/memory/` exists, treat `<root>` as a single project.
+2. Otherwise scan immediate non-hidden subdirectories of `<root>` that contain `<sub>/.context/memory/`.
+3. Filter by basename with `--include <name>...`, `--exclude <name>...`, or `--all` (default).
+
+### Multi-project examples
+
+```bash
+# Dry-run across named projects
+bun "${SKILL_DIR}/scripts/import-projects.ts" \
+  --root ~/projects \
+  --include partypix qrpro \
+  --dry-run
+
+# Pilot import (3 files per project, wait for extraction)
+bun "${SKILL_DIR}/scripts/import-projects.ts" \
+  --root ~/projects \
+  --include partypix qrpro \
+  --sync --limit 3
+
+# Full bulk import across all discovered projects (memory + backlog items)
+bun "${SKILL_DIR}/scripts/import-projects.ts" \
+  --root ~/projects \
+  --all \
+  --source-dirs .context/memory,.context/backlog/items
+```
+
+Exit codes for `import-projects.ts`: `0` if every project succeeded (or was a no-op), `2` if any project had retain errors, `1` for usage/discovery failure.
 
 ## Source dirs (multi-dir import)
 
@@ -90,19 +127,27 @@ planning to do."
 ## Flags
 
 ```
+# import-context-memory.ts (single project)
 --root <dir>
 --source-dirs <list>   # comma-separated; greedy flag-repeatable
 --memory-dir <dir>     # deprecated alias for the .context/memory entry
 --dry-run --force --limit <n> --sync
 --api-url --api-token --bank-id --scoping --omp-config
+
+# import-projects.ts (multi-project wrapper; forwards all inner flags above)
+--root <dir>...        # repeatable workspace or project roots
+--include <name>...    # basename filter
+--exclude <name>...    # basename exclusion
+--all                  # process all discovered projects (default)
+--concurrency <n>      # parallel projects (default: 1)
 ```
+
 ## Verification
 
 - Live run: `imported` plus retained cursor readback; spot-check with OMP `recall` on a known topic from an imported published revision
-- Tests: `bun test skills/b-memory-import/scripts/import-context-memory.test.ts`; `npx vitest run skills/b-memory-import/scripts/import-context-memory.storage.test.ts`
+- Tests: `bun test skills/b-memory-import/scripts/import-context-memory.test.ts skills/b-memory-import/scripts/import-projects.test.ts`; `npx vitest run skills/b-memory-import/scripts/import-context-memory.storage.test.ts`
 
 ## Related
-- `b-hindsight-import-projects` — bulk wrapper that drives this script
-  across many projects in one pass
+- `b-save` — writes session records and metadata to the configured workflow adapter
 - OMP tools `retain` / `recall` / `reflect` — interactive memory during sessions
 - Import skip authority is the configured adapter's run-private cursor, not a local manifest. Stable `document_id` still makes re-import idempotent without skip state.

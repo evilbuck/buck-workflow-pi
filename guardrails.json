@@ -19,7 +19,7 @@
     "baseline_coverage": 84,
     "baseline_complexity_inventory": [
       {
-        "file": "skills/b-hindsight-import-projects/scripts/import-projects.ts",
+        "file": "skills/b-memory-import/scripts/import-projects.ts",
         "function": "parseArgs",
         "complexity": 68
       },

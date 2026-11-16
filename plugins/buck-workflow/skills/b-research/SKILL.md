@@ -110,7 +110,7 @@ Workflow:
 
 - **Web search**: Use available web search tools for documentation, APIs, and solutions.
 - **Fetch content**: Use URL fetching tools to read full pages when search snippets are insufficient.
-- **Crawl4AI**: For deep website crawling or bulk extraction, invoke the `crawl4ai` skill. See `skills/crawl4ai/SKILL.md` for install/bootstrap guidance and usage patterns.
+- **Crawl4AI (optional bulk extraction)**: When single-page fetching is insufficient and multi-page documentation crawling or JS-rendered extraction is needed, check `command -v crawl4ai` (or `python3 -c "import crawl4ai"`). If needed, bootstrap with `pip install crawl4ai && crawl4ai-setup` (or `uv pip install crawl4ai && crawl4ai-setup`), then run `crawl4ai crawl "<url>" --max-depth 3 --max-pages 50 --output-dir .context/YYYY-MM-DD.subject/research/crawl-output/ --format markdown`. If unavailable, fall back to the configured URL reader/web search and note the limitation.
 - **Code search**: Use code search tools for library source code and implementation examples.
 - **Local docs**: Check local project docs and README files first — they may already contain the answer.
 

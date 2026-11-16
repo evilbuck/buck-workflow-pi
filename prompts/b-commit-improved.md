@@ -8,10 +8,10 @@ $ARGUMENTS
 
 Under Pi/OMP with the `b-commit-improved` extension loaded, this slash command
 runs the deterministic code path (`extensions/b-commit-improved/index.ts`).
-Without it, load the `git-commit-improved` skill and follow it manually:
+Without it, load the `git-commit` skill and follow it manually:
 
 ```
-../skills/git-commit-improved/SKILL.md
+../skills/git-commit/SKILL.md
 ```
 
 The skill encodes the same contract: protected-branch guard, draft-or-model

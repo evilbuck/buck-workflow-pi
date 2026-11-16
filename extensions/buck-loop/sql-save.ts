@@ -95,7 +95,7 @@ export function saveDirective(attempt: SaveAttempt): string {
     "Durable save attempt.", `attemptId: ${attempt.attemptId}`, `runId: ${attempt.runId}`, `subject: ${attempt.subject}`,
     `project: ${attempt.project}`, `phase: ${attempt.phase ?? "null"}`, `receipt: ${attempt.receiptRel}`,
     `Persist facts first: run bun ${JSON.stringify(fileURLToPath(import.meta.url))} facts with stdin JSON {"attemptId":${JSON.stringify(attempt.attemptId)},"facts":[...]} (strings or {body,supersedes}; [] for no reusable facts). Use its returned receipt.path and receipt.ids in sql_receipt.`,
-    `Apply ALL metadata using bun ${JSON.stringify(fileURLToPath(new URL("../../skills/b-save-improved/scripts/save-apply.ts", import.meta.url)))} with the normal save payload on stdin, including sql_receipt and storage_snapshot from save-preflight. This seals metadata and completes this same durable attempt. Do not perform separate manual metadata writes or completion.`,
+    `Apply ALL metadata using bun ${JSON.stringify(fileURLToPath(new URL("../../skills/b-save/scripts/save-apply.ts", import.meta.url)))} with the normal save payload on stdin, including sql_receipt and storage_snapshot from save-preflight. This seals metadata and completes this same durable attempt. Do not perform separate manual metadata writes or completion.`,
     "Do not write .context/memory files or the memory index in SQL save mode. Do not call sql_memory or record credentials.",
     "A local completed flag is not proof; missing facts or metadata evidence must block completion.",
   ].join("\n");

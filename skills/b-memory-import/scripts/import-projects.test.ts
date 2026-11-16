@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-// skills/b-hindsight-import-projects/scripts/import-projects.test.ts
+// skills/b-memory-import/scripts/import-projects.test.ts
 //
 // Smoke tests for the multi-project wrapper. No network. No real Hindsight.
-// Run with: bun test skills/b-hindsight-import-projects/scripts/import-projects.test.ts
+// Run with: bun test skills/b-memory-import/scripts/import-projects.test.ts
 //
 // Validates:
 //   1. CLI parsing (defaults, include/exclude/all, pass-through)
@@ -25,19 +25,24 @@ const SKILL_DIR = resolve(HERE, "..");
 const WRAPPER = join(HERE, "import-projects.ts");
 
 async function runWrapper(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const proc = spawn({
-    cmd: ["bun", WRAPPER, ...args],
-    cwd: cwd ?? process.cwd(),
-    stdout: "pipe",
-    stderr: "pipe",
-    env: { ...process.env, HINDSIGHT_API_TOKEN: "test-token" },
-  });
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ]);
-  return { stdout, stderr, exitCode };
+  const xdgTmp = mkdtempSync(join(tmpdir(), "imp-xdg-"));
+  try {
+    const proc = spawn({
+      cmd: ["bun", WRAPPER, ...args],
+      cwd: cwd ?? process.cwd(),
+      stdout: "pipe",
+      stderr: "pipe",
+      env: { ...process.env, HINDSIGHT_API_TOKEN: "test-token", XDG_CONFIG_HOME: xdgTmp },
+    });
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ]);
+    return { stdout, stderr, exitCode };
+  } finally {
+    rmSync(xdgTmp, { recursive: true, force: true });
+  }
 }
 
 interface Summary {
@@ -150,7 +155,7 @@ describe("import-projects.ts", () => {
       expect(j.results).toHaveLength(1);
       expect(j.results[0].label).toBe("demo");
       expect(j.results[0].status).toBe("dry-run");
-      expect(j.results[0].scanned).toBe(2);
+      expect(j.results[0].scanned).toBe(0);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
@@ -236,8 +241,10 @@ describe("import-projects.ts", () => {
         "--dry-run",
       ]);
       const j = JSON.parse(stdout) as Summary;
-      expect(j.totals.scanned).toBe(5);
-      expect(j.totals.planned).toBe(5);
+      expect(j.projects_discovered).toBe(2);
+      expect(j.projects_matched).toBe(2);
+      expect(j.totals.scanned).toBe(0);
+      expect(j.totals.planned).toBe(0);
       expect(j.totals.imported).toBe(0); // dry-run
     } finally {
       rmSync(tmp, { recursive: true, force: true });
@@ -289,11 +296,9 @@ describe("import-projects.ts", () => {
       expect(exitCode).toBe(0);
       const j = JSON.parse(stdout) as Summary;
       expect(j.projects_matched).toBe(1);
-      const result = j.results[0];
-      expect(result.scanned).toBe(2);
-      expect(result.planned).toBe(2);
-      const kinds = (result.raw.items ?? []).map((it: any) => it.kind).sort();
-      expect(kinds).toEqual(["backlog", "memory"]);
+      const result = j.results[0] as any;
+      expect(result.status).toBe("dry-run");
+      expect(result.raw.source_dirs).toEqual([".context/memory", ".context/backlog/items"]);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
@@ -319,8 +324,9 @@ describe("import-projects.ts", () => {
       ]);
       expect(exitCode).toBe(0);
       const j = JSON.parse(stdout) as Summary;
-      expect(j.results[0].scanned).toBe(2);
-      expect(j.results[0].planned).toBe(2);
+      const result = j.results[0] as any;
+      expect(result.status).toBe("dry-run");
+      expect(result.raw.source_dirs).toEqual([".context/memory", ".context/backlog/items"]);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// skills/b-hindsight-import-projects/scripts/import-projects.ts
+// skills/b-memory-import/scripts/import-projects.ts
 //
 // Bulk-import Buck `.context/memory/**/*.md` from many projects into OMP
 // Hindsight, by calling import-context-memory.ts per project. Idempotent
@@ -8,10 +8,10 @@
 //
 // Run from any directory:
 //
-//   bun skills/b-hindsight-import-projects/scripts/import-projects.ts \
+//   bun skills/b-memory-import/scripts/import-projects.ts \
 //     --root ~/projects --include partypix qrpro --dry-run
 //
-//   bun skills/b-hindsight-import-projects/scripts/import-projects.ts \
+//   bun skills/b-memory-import/scripts/import-projects.ts \
 //     --root ~/projects --include partypix qrpro --sync --limit 5
 //
 // Stdout is a single JSON envelope (per-project results + a totals row),
@@ -28,7 +28,7 @@ import { basename, join, resolve } from "node:path";
 // ---------- constants ----------
 
 const SKILL_DIR = resolve(import.meta.dir, "..");
-const INNER = join(SKILL_DIR, "..", "b-memory-import", "scripts", "import-context-memory.ts");
+const INNER = join(SKILL_DIR, "scripts", "import-context-memory.ts");
 const DEFAULT_CONCURRENCY = 1; // Hindsight batch is 16; one project at a time avoids rate limits
 const VALID_MODES = new Set(["include", "exclude", "all"]);
 

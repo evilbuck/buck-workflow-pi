@@ -3,7 +3,7 @@
  *
  * Deterministic, code-driven Conventional Commits flow — the extension counterpart
  * to the git-commit skill. The whole flow is orchestrated in code (not
- * agent-interpreted prose): it runs skills/git-commit-improved/scripts/commit-preflight.ts
+ * agent-interpreted prose): it runs skills/git-commit/scripts/commit-preflight.ts
  * for staged-diff/git-status context, invokes the model inline via
  * createAgentSession to draft a Conventional Commit message, and falls back to a
  * sentinel-filled draft-commit.md stub when no model is available.
@@ -25,7 +25,7 @@ import { runOmpModelSession } from "../omp-models.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Single source of truth for git plumbing — same pattern as b-pr-improved.
-const PREFLIGHT = join(HERE, "..", "..", "skills", "git-commit-improved", "scripts", "commit-preflight.ts");
+const PREFLIGHT = join(HERE, "..", "..", "skills", "git-commit", "scripts", "commit-preflight.ts");
 
 // ---------- git helpers ----------
 

@@ -198,13 +198,3 @@ At the end, produce a table for quick assignment:
 
 Files written to: `.context/YYYY-MM-DD.<pr-number>-<kebab-title>/review-pr-<N>.md`
 
----
-
-## Notes on this project
-
-- Use `bun` not `npm` for all commands
-- Database is PostgreSQL/Supabase; migrations are Drizzle ORM
-- Admin app is at `apps/admin/`; frontend is at `frontend/`; shared DB queries at `database/src/queries/`
-- oRPC is the RPC framework; procedures live in `router.ts` files
-- Wiki is a git submodule at `wiki/` — run `git submodule update --remote wiki` before reading it
-- Do not run `git add`, `git commit`, or `git push` — the user handles all git operations

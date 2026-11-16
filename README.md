@@ -264,8 +264,8 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 
 | Command | Backing | Skill fallback |
 |---------|---------|----------------|
-| `/b-commit-improved` | `extensions/b-commit-improved/` | `git-commit-improved` skill |
-| `/b-save-improved` | `extensions/b-save-improved/` | `b-save-improved` skill |
+| `/b-commit-improved` | `extensions/b-commit-improved/` | `git-commit` skill |
+| `/b-save-improved` | `extensions/b-save/` | `b-save` skill |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | `b-pr` skill |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | — |
 | `/buck-loop` | `extensions/buck-loop/` | — |
@@ -288,9 +288,8 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
 | `b-init-factory` | Nested agent software factory init — factory-scoped AGENTS.md + empty factory `docs/`; target is told, project default, or asked |
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
-| `b-research` | Investigate external sources — APIs, libraries, documentation, web resources |
-| `b-capture` | Note-taking mode — user dumps, subagent writes messy notes as-we-go; polish deferred until told |
-| `crawl4ai` | Deep website crawling and content extraction (helper skill for b-research) |
+| `b-research` | Investigate external sources — APIs, libraries, documentation, web resources (includes optional Crawl4AI bulk extraction) |
+| `b-capture` | Note-taking mode — user dumps, subagent writes messy notes as-we-go (or single-file checkpoint mode via `--single-file <path>`); polish deferred until told |
 | `b-nasa-prd` | NASA-standard PRD authoring and audit — shall/will/should, tolerances, traceable and verifiable requirements (bundled Appendix C source) |
 | `b-plan` | Create a bounded plan standalone or within the full workflow; detect missing companions |
 | `b-plan-update` | Update an existing plan in place — interweave additions, remove with review, revision log |
@@ -312,9 +311,8 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-docs` | Update living documentation (CONTEXT.md, docs/adr/, conventions block, docs/) from implementation |
 | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `b-recap` | Summarize the session plus branch delta (commits and staged/unstaged/untracked work) in one read-only page (<500 words); does not replace `/b-save` |
-| `b-save` | Session checkpoint to `.context/`; optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
-| `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight (one-shot/backfill) |
-| `b-hindsight-import-projects` | Multi-project wrapper over `b-memory-import` — bulk-import many projects' `.context/memory` in one pass (skill-only) |
+| `b-save` | Session checkpoint to `.context/` (`save-preflight.ts` + `save-apply.ts`); optional OMP `retain`/`learn` mirror; optional non-OMP memory-skill re-index |
+| `b-memory-import` | Deterministic bulk import of `.context/memory/*.md` into OMP Hindsight — single-project (`import-context-memory.ts`) or multi-project workspace (`import-projects.ts` / `--root`) |
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
@@ -322,31 +320,25 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
 | `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
-| `git-commit` | Create a Conventional Commits message and commit |
-| `git-commit-improved` | Deterministic Conventional Commits — code-driven counterpart (`/b-commit-improved` extension command) |
-| `b-save-improved` | Deterministic session checkpoint — code-driven counterpart to `b-save` (`/b-save-improved` extension command) |
+| `git-commit` | Create a Conventional Commits message and commit (`commit-preflight.ts` backs `/b-commit` and `/b-commit-improved`) |
 | `b-grill` | Stress-test a plan or design through structured interviewing |
 | `b-grill-me` | Grill the user directly about a plan |
 | `b-grill-with-docs` | Grill against existing domain documentation |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
-| `design-brief` | Extract UI design briefs from screenshots, files, text, and subject-folder context |
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
 | `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
 | `adversarial-review` | Prove-it-fails review of one GitHub PR. Asks post vs local. Post mode leaves inline comments on exact diff lines and submits one atomic review. Reuses `code-review` plumbing. Not the constructive `code-review-universal` review |
 | `b-design-palette` | Deterministic OKLCH UI palette → consumer `design-brief.jsonc` from one brand hex (script-backed) |
-| `b-create-styleguide` | Guided UX styleguide creation + idempotent maintenance, with a managed AGENTS.md/CLAUDE.md block |
-| `b-create-ux-guide` | Site → component inventory → markdown style guide + HTML research guide + `design-brief.json` |
+| `b-create-styleguide` | Guided UX styleguide creation + idempotent maintenance (with managed `AGENTS.md`/`CLAUDE.md` block), plus `--inventory-only` component inventory + HTML research guide (`docs/ux-research.html`) + `design-brief.json` |
 | `code-smells` | Reference catalog of the 23 code smells + parallel-subagent audit producing a remediation report |
 | `cross-platform-pi-omp-loading` | Package-authoring pattern for shipping one package that loads under both Pi and OMP |
-| `git-cleanup` | Delete proven-landed clean local branches and worktrees (containment-proven, including after squash, rebase, or rewritten history) through the bundled classify/apply script; everything else is asked |
-| `git-clean-orphans` | Alias of `git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
+| `git-cleanup` | Delete proven-landed clean local branches and worktrees (containment-proven, including after squash, rebase, or rewritten history) through the bundled classify/apply script; everything else is asked (`/git-clean-orphans` prompt alias) |
 | `llm-wiki-vault` | Vault-native LLM Wiki for Obsidian PARA vaults — ingest, interlinked notes, knowledge-base maintenance |
 | `manage-herdr-panes` | Split, start, prompt, and read Herdr panes (requires `HERDR_ENV=1`) |
 | `node5-code-review` | Code review specialized for the node5 project |
 | `pi-rpc` | Drive a `pi --mode rpc` subprocess via JSON RPC over stdio |
 | `product-tour` | First-run guided product tours over real UI, stack-agnostic |
 | `skill-explainer` | Explain a skill/command and produce a visual HTML walkthrough report |
-| `thought-dump-writer` | Maintain one lightly cleaned living markdown thought dump with a git checkpoint after every change |
 
 ### Extension (Runtime Hooks)
 

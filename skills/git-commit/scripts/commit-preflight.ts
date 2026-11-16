@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
-// skills/git-commit-improved/scripts/commit-preflight.ts
+// skills/git-commit/scripts/commit-preflight.ts
 //
 // Commit preflight: detect active subject folder, read draft-commit.md if present,
 // run the protected-branch guard, and gather the staged diff. Deterministic plumbing
-// for b-commit-improved — no model calls, no LLM step.
+// for b-commit-improved and git-commit — no model calls, no LLM step.
 //
 // Usage (run from the repo root):
-//   bun skills/git-commit-improved/scripts/commit-preflight.ts            # default
-//   bun skills/git-commit-improved/scripts/commit-preflight.ts --force   # bypass protected-branch check
-//   bun skills/git-commit-improved/scripts/commit-preflight.ts --no-draft
-//   bun skills/git-commit-improved/scripts/commit-preflight.ts --dry-run
+//   bun skills/git-commit/scripts/commit-preflight.ts            # default
+//   bun skills/git-commit/scripts/commit-preflight.ts --force   # bypass protected-branch check
+//   bun skills/git-commit/scripts/commit-preflight.ts --no-draft
+//   bun skills/git-commit/scripts/commit-preflight.ts --dry-run
 //
 // Exit codes:
 //   0 = ready to commit; payload includes staged files, diff, current branch, draft (if any)

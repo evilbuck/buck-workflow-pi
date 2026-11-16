@@ -178,7 +178,6 @@ Phases share no files; recommended order is Phase 1 first.
 
 ### Follow-up
 
-- [ ] [Sync living docs to canonical b-save skill](items/sync-b-save-canonical-docs.md) — low; replace stale wording that says the prompt executes the procedure directly
 
 ## buck-loop Extension Phases (2026-09-18)
 
@@ -277,13 +276,12 @@ Phases form a HARD chain (1 → 2), SOFT (2 → 3, sequencing only), HARD join (
 Overview: [`plan-viability-cleanup-phases.md`](../2026-10-01.skill-command-viability/plan-viability-cleanup-phases.md).
 HARD chain: 1 → 2 → 3 → 4. X1–X3 are not phased.
 
-- [ ] [Phase 1: OMP stubs to docs](items/phase-1-omp-stubs.md) — medium, `/b-build` — [phase-1-omp-stubs.md](../2026-10-01.skill-command-viability/phase-1-omp-stubs.md)
 
 ### Upcoming Phases
 
-- [ ] Phase 2: Fold duplicates — medium, `/b-build` — [phase-2-fold-duplicates.md](../2026-10-01.skill-command-viability/phase-2-fold-duplicates.md)
-- [ ] Phase 3: Delete the grill shell — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md)
-- [ ] Phase 4: Move out of the package — medium, `/b-build` — [phase-4-move-out.md](../2026-10-01.skill-command-viability/phase-4-move-out.md)
+- [x] Phase 2: Fold duplicates (F1–F8) — medium, `/b-build` — [phase-2-fold-duplicates.md](../2026-10-01.skill-command-viability/phase-2-fold-duplicates.md) — done 2026-11-16
+- [ ] Phase 3: Unify grill family (G1) — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md)
+- [ ] Phase 4: Move or remove misfits (M1–M5) — medium, `/b-build` — [phase-4-move-out.md](../2026-10-01.skill-command-viability/phase-4-move-out.md)
 
 ## b-save State-Machine Phases (2026-09-10)
 - [x] [Phase 1: Boundaries & contract freeze](archive/2026-09/phase-1-b-save-boundaries.md) — done 2026-09-10; Hindsight `unsupported` on OMP 18.1.17
