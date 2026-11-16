@@ -436,8 +436,8 @@ flowchart TD
         C12["/b-commit"]
         C8["/b-save"]
         C9["/skill:b-phase"]
-        C10["/skill:b-grill-me"]
-        C11["/skill:b-grill-with-docs"]
+        C10["/b-grill-me"]
+        C11["/b-grill-with-docs"]
     end
 
     subgraph PiPrimitives["Pi Package Primitives"]
@@ -451,8 +451,8 @@ flowchart TD
         P7["prompts/b-review.md"]
         P13["prompts/b-docs.md<br/>+ skills/b-docs/SKILL.md"]
         P8["skills/b-phase/SKILL.md"]
-        P9["skills/b-grill-me/SKILL.md"]
-        P10["skills/b-grill-with-docs/SKILL.md"]
+        P9["prompts/b-grill-me.md<br/>+ skills/b-grill/SKILL.md"]
+        P10["prompts/b-grill-with-docs.md<br/>+ skills/b-grill/SKILL.md"]
         P11["prompts/b-save.md<br/>+ skills/b-save/SKILL.md"]
         P12["prompts/b-commit.md<br/>+ skills/git-commit/SKILL.md"]
     end
@@ -485,8 +485,7 @@ flowchart TD
 | [**b-research**](#1-discovery-phase) | Prompt template | `/b-research` | `prompts/b-research.md` | External/web research, source collection, evidence capture |
 | [**b-capture**](#b-capture--note-taking-mode) | Prompt template + Skill | `/b-capture` | `prompts/b-capture.md` + `skills/b-capture/SKILL.md` | Note-taking mode — dump as we go via subagent (or single-file checkpoint mode via `--single-file <path>`); no polish until told |
 | [**b-brainstorm**](#b-brainstorm--interview-style-intake) | Prompt template | `/b-brainstorm` | `prompts/b-brainstorm.md` | Interview-style intake, loose draft plan |
-| [**b-grill-me**](#b-grill-me--complexity-tracked-grilling) | Skill | `/skill:b-grill-me` | `skills/b-grill-me/SKILL.md` | Stress-test plan via interview, track complexity for phasing |
-| [**b-grill-with-docs**](#b-grill-with-docs--domain-aware-grilling) | Skill | `/skill:b-grill-with-docs` | `skills/b-grill-with-docs/SKILL.md` | Grill against domain docs (CONTEXT.md, ADRs), track complexity |
+| [**b-grill**](#skillb-grill--unified-grilling) | Prompt template + Skill | `/b-grill-me`, `/b-grill-with-docs`, `/skill:b-grill` | `prompts/b-grill-me.md` + `prompts/b-grill-with-docs.md` + `skills/b-grill/SKILL.md` | Stress-test plan via interview with domain docs (`CONTEXT.md`, ADRs) on by default (`--no-docs` to opt out; `--mode auto` for RPC grilling) |
 | [**b-init-guardrails**](#b-init-guardrails--quality-guardrails-init) | Prompt template | `/b-init-guardrails` | `prompts/b-init-guardrails.md` + `skills/b-init-guardrails/SKILL.md` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet |
 | [**b-init-factory**](#b-init-factory--nested-agent-software-factory) | Prompt template + Skill | `/b-init-factory` | `prompts/b-init-factory.md` + `skills/b-init-factory/SKILL.md` | Initialize a nested agent software factory: write factory-scoped AGENTS.md in a told path, project default, or asked choice — never assume `.claude/` |
 | [**b-guardrails-check**](#b-guardrails-check--guardrails-measurement) | Prompt template | `/b-guardrails-check` | `prompts/b-guardrails-check.md` + `skills/b-guardrails-check/SKILL.md` | Resolve the check contract by the resolution chain, run lint/unit/functional/coverage/complexity gates, return structured verdict. Measures only — never edits |
@@ -766,65 +765,26 @@ informs: []  # Plans/specs this research fed into
 
 ### 2. Planning Phase
 
-#### `/skill:b-grill-me` — Complexity-Tracked Grilling
+#### `/b-grill-me`, `/b-grill-with-docs`, & `/skill:b-grill` — Unified Grilling
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-**Purpose**: Interview the user relentlessly about a plan, tracking decision-tree complexity. When questions exceed a configurable threshold (default 20), identifies natural break points for phasing.
+**Purpose**: Single canonical entrypoint for plan stress-testing (`skills/b-grill/SKILL.md`). User mode (`/b-grill-me`, `/b-grill-with-docs`, or `/skill:b-grill --mode user`) interviews the user directly while challenging against existing domain documentation (`CONTEXT.md`, `docs/adr/`) by default; pass `--no-docs` to opt out of domain-doc lookups and inline updates. Auto mode (`/skill:b-grill --mode auto`) sends questions to a different AI model via RPC (`skills/b-grill/grill.py`).
 
-**Pi/OMP primitive**: Skill (`skills/b-grill-me/SKILL.md`)
+**Pi/OMP primitive**: Prompt templates (`prompts/b-grill-me.md`, `prompts/b-grill-with-docs.md`, mirrored in `commands/`) + Skill (`skills/b-grill/SKILL.md`, with `CONTEXT-FORMAT.md`, `ADR-FORMAT.md`, and `grill.py`).
 
-**When to Use**: Before or after `/b-plan`, when the user wants to stress-test a plan or design through rapid-fire questions.
+**When to Use**: Before or after `/b-plan`, when the user wants to stress-test a plan or design through rapid-fire questions, track decision-tree complexity for phasing, and keep `CONTEXT.md` and `docs/adr/` aligned.
 
 **Behavior**:
 - Asks questions one at a time, walking the decision tree
-- Tracks: question count, decision domains, question types, resolutions
-- Creates `grill-session-<topic>.md` in the subject folder
-- When threshold exceeded: pauses, identifies break points, recommends `/skill:b-phase`
-- Model determines break points based on decision tree shape
+- Classifies user turns via Jev (`direct_answer`, `addendum`, `arbitrary`)
+- Tracks question count, decision domains, question types, and resolutions in `grill-session-<topic>.md` (or `grill-auto-session-<topic>.md`)
+- By default in user mode (unless `--no-docs` is passed): challenges terms against `CONTEXT.md` (`skills/b-grill/CONTEXT-FORMAT.md`), updates `CONTEXT.md` inline, and offers ADRs (`skills/b-grill/ADR-FORMAT.md`) for hard-to-reverse trade-offs
+- At the assessment threshold (default 20): pauses, evaluates separation-of-concerns boundaries, and recommends `/skill:b-phase` when boundaries are found
 
-**Output**: `grill-session-<topic>.md` with frontmatter metadata:
-- `total_questions`, `threshold`, `phasing_recommended`
-- `decision_domains` with question ranges and resolution counts
-- `break_points` at natural domain boundaries
+**Output**: `grill-session-<topic>.md` (with `total_questions`, `decision_domains`, `break_points`, `## Documentation Decisions`, `## Addenda`, `## Parked`) plus inline updates to `CONTEXT.md` and `docs/adr/` when domain docs are active.
 
 **Next Steps**: `/b-plan` (to formalize findings), `/skill:b-phase` (if phasing recommended)
-
----
-
-#### `/skill:b-grill-with-docs` — Domain-Aware Grilling
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
-**Purpose**: Same as `b-grill-me`, but also challenges the plan against existing domain documentation (CONTEXT.md, ADRs). Updates documentation inline as decisions crystallize.
-
-**Pi/OMP primitive**: Skill (`skills/b-grill-with-docs/SKILL.md`)
-
-**When to Use**: When the project has domain documentation (CONTEXT.md, ADRs) and the user wants to stress-test a plan against established terminology and decisions.
-
-**Additional Behavior** (beyond `b-grill-me`):
-- Challenges terms against CONTEXT.md glossary
-- Proposes precise canonical terms for fuzzy language
-- Updates CONTEXT.md inline when terms are resolved
-- Offers ADRs for hard-to-reverse, surprising, trade-off-driven decisions
-- Cross-references user claims with actual code
-
-**Output**: Same `grill-session-<topic>.md` plus inline updates to CONTEXT.md and new ADRs.
-
-**Next Steps**: `/b-plan` (to formalize), `/skill:b-phase` (if phasing recommended)
-
----
-
-#### `/skill:b-grill` — Unified Grilling
-
-**[↑ Back to Quick Reference Table](#quick-reference-table)**
-
-**Purpose**: Single entrypoint for plan stress-testing. Mode `user` interviews the user directly (equivalent to `b-grill-me`); mode `auto` sends the questions to a different AI model via RPC. Same complexity tracking and phasing-threshold behavior as the specialized variants.
-
-**Pi/OMP primitive**: Skill only (`skills/b-grill/SKILL.md`) — no `prompts/`/`commands/` wrapper.
-
-**When to use**: You want grilling without choosing the variant up front; pass the mode or let the skill ask. Prefer `b-grill-with-docs` when the project has CONTEXT.md/ADRs to challenge against.
-
 
 ---
 #### `/b-init-guardrails` — Quality Guardrails Init
@@ -1632,8 +1592,8 @@ Suggested next step
 **Conditional**: `/b-docs` runs only when `/b-review` flags documentation impact. Most changes need no doc update and skip it.
 
 **Canonical doc locations** (the writer's surface — reuse existing formats, never invent parallel docs):
-- Domain language → `CONTEXT.md` (or `CONTEXT-MAP.md` + per-context) — format in `skills/b-grill-with-docs/CONTEXT-FORMAT.md`
-- Architecture decisions → `docs/adr/0001-slug.md` (sequential) — format in `skills/b-grill-with-docs/ADR-FORMAT.md`
+- Domain language → `CONTEXT.md` (or `CONTEXT-MAP.md` + per-context) — format in `skills/b-grill/CONTEXT-FORMAT.md`
+- Architecture decisions → `docs/adr/0001-slug.md` (sequential) — format in `skills/b-grill/ADR-FORMAT.md`
 - Agent/dev conventions → idempotent managed block in `AGENTS.md` / `CLAUDE.md`
 - Architecture narrative → `docs/`
 - `README.md` → read-only (flag only)
@@ -2310,7 +2270,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/b-phase` — break a large plan into phases
 - `/b-present` — presentation package
 - `/b-blueprint` *(skill-only)* — single-page HTML architecture blueprint
-- `/skill:b-grill` / `/skill:b-grill-me` / `/skill:b-grill-with-docs` *(skill-only)* — plan stress-testing variants
+- `/b-grill-me`, `/b-grill-with-docs`, `/skill:b-grill` — plan stress-testing (`skills/b-grill/SKILL.md`; domain docs on by default, `--no-docs` to opt out)
 - `/b-init-guardrails` + `/b-guardrails-check` — quality gate init and measurement
 - `/b-init-factory` — nested agent software factory
 - `/b-init-tracker` — issue tracker + triage label config

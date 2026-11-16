@@ -280,7 +280,7 @@ HARD chain: 1 → 2 → 3 → 4. X1–X3 are not phased.
 ### Upcoming Phases
 
 - [x] Phase 2: Fold duplicates (F1–F8) — medium, `/b-build` — [phase-2-fold-duplicates.md](../2026-10-01.skill-command-viability/phase-2-fold-duplicates.md) — done 2026-11-16
-- [ ] Phase 3: Unify grill family (G1) — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md)
+- [x] Phase 3: Unify grill family (G1) — medium, `/b-build` — [phase-3-grill-shell.md](../2026-10-01.skill-command-viability/phase-3-grill-shell.md) — done 2026-11-16
 - [ ] Phase 4: Move or remove misfits (M1–M5) — medium, `/b-build` — [phase-4-move-out.md](../2026-10-01.skill-command-viability/phase-4-move-out.md)
 
 ## b-save State-Machine Phases (2026-09-10)

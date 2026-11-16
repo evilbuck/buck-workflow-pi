@@ -10,8 +10,8 @@ This project includes material derived from the following third-party projects:
 
 Derived files in this repository (derived from upstream `skills/engineering/domain-modeling/`):
 
-- `skills/b-grill-with-docs/CONTEXT-FORMAT.md`
-- `skills/b-grill-with-docs/ADR-FORMAT.md`
+- `skills/b-grill/CONTEXT-FORMAT.md`
+- `skills/b-grill/ADR-FORMAT.md`
 
 Files ported (rewritten to this repository's conventions, with substantial
 prose lifted) from upstream `skills/`:

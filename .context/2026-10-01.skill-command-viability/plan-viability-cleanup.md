@@ -6,7 +6,7 @@ subject: 2026-10-01.skill-command-viability
 topics: [skills, commands, viability, cleanup, consolidation]
 research: [research-low-viability.md]
 iterations: []
-memory: [viability-cleanup-phase-2-fold-duplicates-2026-11-16.md]
+memory: [viability-cleanup-phase-2-fold-duplicates-2026-11-16.md, viability-cleanup-phase-3-unify-b-grill-2026-11-16.md]
 ---
 # Plan: Viability cleanup checklist
 
@@ -191,7 +191,7 @@ One `done` todo per commit (or one cohesive phase commit after `/skill:b-phase`)
 
 ### Unify the grill family into `b-grill` (domain docs on by default, `--no-docs` to opt out)
 
-- [ ] **G1** Status: `do`
+- [x] **G1** Status: `done`
   - Action: consolidate `skills/b-grill/`, `skills/b-grill-me/`, and `skills/b-grill-with-docs/` into a single canonical `skills/b-grill/SKILL.md`:
     1. Make **domain-documentation awareness (`CONTEXT.md` + `docs/adr/` challenge, glossary sharpening, and inline updates) the default behavior** of `b-grill` in user mode.
     2. Require an explicit **`--no-docs`** flag to skip `CONTEXT.md` / `docs/adr/` lookups and inline documentation writes.
@@ -201,6 +201,7 @@ One `done` todo per commit (or one cohesive phase commit after `/skill:b-phase`)
     6. Delete `skills/b-grill-me/` and `skills/b-grill-with-docs/` (plus `plugins/buck-workflow/skills/b-grill-me/` and `plugins/buck-workflow/skills/b-grill-with-docs/`), and update `scripts/codex-plugin.test.ts`, `README.md`, and `docs/buck-workflow.md`.
   - Why: eliminates ~400 lines of three-way copy-paste drift while making domain-doc alignment the standard grilling contract unless `--no-docs` is passed.
   - Done when: `test -d skills/b-grill && test -f skills/b-grill/grill.py && test -f skills/b-grill/ADR-FORMAT.md && test -f skills/b-grill/CONTEXT-FORMAT.md && test ! -d skills/b-grill-me && test ! -d skills/b-grill-with-docs`, `rg -n "--no-docs" skills/b-grill/SKILL.md` hits, and `npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts` passes.
+  - Verified 2026-11-16: `skills/b-grill/` (and `plugins/buck-workflow/skills/b-grill/`) contains `SKILL.md`, `grill.py`, `ADR-FORMAT.md`, and `CONTEXT-FORMAT.md`; `skills/b-grill-me/` and `skills/b-grill-with-docs/` (and Codex copies) are deleted; `rg -n -- "--no-docs" skills/b-grill/SKILL.md` matches; `! rg -n "b-grill-with-docs/(ADR|CONTEXT)-FORMAT" skills/ GLOBAL_OR_PROJECT-AGENTS.md AGENTS.md docs/buck-workflow.md` passed; `npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts` passed (10/10 tests).
 
 ### Move or remove project/environment-specific skills from the portable package
 

@@ -27,8 +27,6 @@ const curatedBundle = {
     "b-explore",
     "b-fix-rebase-conflict",
     "b-grill",
-    "b-grill-me",
-    "b-grill-with-docs",
     "b-guardrails-check",
     "b-init-factory",
     "b-init-guardrails",

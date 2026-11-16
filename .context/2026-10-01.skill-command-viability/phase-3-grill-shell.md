@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-viability-cleanup.md
@@ -28,14 +28,14 @@ from_plan_steps: ["G1"]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] skills/b-grill/SKILL.md is the single canonical grill skill with domain docs (CONTEXT.md + docs/adr/) enabled by default in user mode and --no-docs documented to opt out"
-  - "[ ] skills/b-grill/grill.py, skills/b-grill/ADR-FORMAT.md, and skills/b-grill/CONTEXT-FORMAT.md exist (and match in plugins/buck-workflow/skills/b-grill/)"
-  - "[ ] skills/b-grill-me/, skills/b-grill-with-docs/, plugins/buck-workflow/skills/b-grill-me/, and plugins/buck-workflow/skills/b-grill-with-docs/ are gone"
-  - "[ ] prompts/b-grill-me.md and prompts/b-grill-with-docs.md load ../skills/b-grill/SKILL.md"
-  - "[ ] A-5: rg -n 'b-grill-with-docs/(ADR|CONTEXT)-FORMAT' skills/ GLOBAL_OR_PROJECT-AGENTS.md AGENTS.md docs/buck-workflow.md returns no hit"
-  - "[ ] npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts passes"
-completed_at: null
-completed_by: null
+  - "[x] skills/b-grill/SKILL.md is the single canonical grill skill with domain docs (CONTEXT.md + docs/adr/) enabled by default in user mode and --no-docs documented to opt out"
+  - "[x] skills/b-grill/grill.py, skills/b-grill/ADR-FORMAT.md, and skills/b-grill/CONTEXT-FORMAT.md exist (and match in plugins/buck-workflow/skills/b-grill/)"
+  - "[x] skills/b-grill-me/, skills/b-grill-with-docs/, plugins/buck-workflow/skills/b-grill-me/, and plugins/buck-workflow/skills/b-grill-with-docs/ are gone"
+  - "[x] prompts/b-grill-me.md and prompts/b-grill-with-docs.md load ../skills/b-grill/SKILL.md"
+  - "[x] A-5: rg -n 'b-grill-with-docs/(ADR|CONTEXT)-FORMAT' skills/ GLOBAL_OR_PROJECT-AGENTS.md AGENTS.md docs/buck-workflow.md returns no hit"
+  - "[x] npx vitest run scripts/commands-mirror.test.ts scripts/codex-plugin.test.ts passes"
+completed_at: 2026-11-16
+completed_by: b-build
 ---
 
 # Phase 3: Unify the grill family into `b-grill`

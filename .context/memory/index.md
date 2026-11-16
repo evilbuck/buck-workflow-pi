@@ -1,3 +1,7 @@
+- 2026-11-16 — [Viability cleanup Phase 3 (G1): unify b-grill, b-grill-me, and b-grill-with-docs into canonical skills/b-grill/ with domain docs on by default and --no-docs opt-out](viability-cleanup-phase-3-unify-b-grill-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-3-unify-b-grill-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, b-grill, b-grill-me, b-grill-with-docs, domain-docs, consolidation] | status: completed
+
 - 2026-11-16 — [Viability cleanup Phase 2 (F1–F8): fold design-brief, slash-command-mirror, crawl4ai, b-save-improved, deprecated-b-save, b-create-ux-guide, git-clean-orphans, git-commit-improved, b-hindsight-import-projects, and thought-dump-writer into canonical siblings](viability-cleanup-phase-2-fold-duplicates-2026-11-16.md) — `completed`
 
   - 2026-11-16 | `viability-cleanup-phase-2-fold-duplicates-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, skill-consolidation, b-save, git-commit, b-create-styleguide, b-memory-import, b-capture] | status: completed

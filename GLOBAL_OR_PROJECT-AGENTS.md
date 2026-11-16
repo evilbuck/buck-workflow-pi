@@ -209,8 +209,8 @@ Living documentation (what the code *means*) lives in fixed locations, separate 
 
 | What | Where | Notes |
 |---|---|---|
-| Domain language / ubiquitous language | `CONTEXT.md` (repo root); `CONTEXT-MAP.md` + per-context `CONTEXT.md` for multi-context repos | Terms meaningful to domain experts only. Format: `b-grill-with-docs/CONTEXT-FORMAT.md` |
-| Architecture decisions | `docs/adr/0001-slug.md` (sequential) | Only when hard to reverse, surprising, and a real trade-off. Format: `b-grill-with-docs/ADR-FORMAT.md` |
+| Domain language / ubiquitous language | `CONTEXT.md` (repo root); `CONTEXT-MAP.md` + per-context `CONTEXT.md` for multi-context repos | Terms meaningful to domain experts only. Format: `b-grill/CONTEXT-FORMAT.md` |
+| Architecture decisions | `docs/adr/0001-slug.md` (sequential) | Only when hard to reverse, surprising, and a real trade-off. Format: `b-grill/ADR-FORMAT.md` |
 | Agent & dev conventions | Managed block in `AGENTS.md` / `CLAUDE.md` | Idempotent `<!-- BEGIN b-docs:conventions -->` block; preserve hand-authored content outside it |
 | Architecture narrative | `docs/` | Structure, data flow, module boundaries |
 | README | `README.md` | Hand-authored; `/b-docs` flags needed changes, does not rewrite prose |

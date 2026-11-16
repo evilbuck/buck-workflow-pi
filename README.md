@@ -321,9 +321,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
 | `code-review` | Release-candidate PR review — parallel agents over high-risk areas, per-PR handoff files |
 | `git-commit` | Create a Conventional Commits message and commit (`commit-preflight.ts` backs `/b-commit` and `/b-commit-improved`) |
-| `b-grill` | Stress-test a plan or design through structured interviewing |
-| `b-grill-me` | Grill the user directly about a plan |
-| `b-grill-with-docs` | Grill against existing domain documentation |
+| `b-grill` | Stress-test a plan or design through structured interviewing (`/b-grill-me` and `/b-grill-with-docs` run user mode with `CONTEXT.md`/ADRs enabled by default; pass `--no-docs` to opt out, or `--mode auto` for RPC grilling via `grill.py`) |
 | `run-in-idle-pane` | Detect least-active tmux pane and run commands there |
 | `rails-app` | Rails project conventions and gotchas — subpath deployment, Tailwind build coupling, `assert_select` patterns, BEM theming |
 | `code-review-universal` | Universal language-agnostic PR review — severity-tagged feedback, 23 language/framework reference guides (React/Vue/Angular/Rust/TS/Python/Go/etc.), cross-cutting patterns (security, performance, N+1, async), `scripts/pr-analyzer.py` for triaging large diffs, and GitHub PR reviews posted as one atomic review with inline comments (reuses `code-review` plumbing). Writes durable review reports to `.context/` |
