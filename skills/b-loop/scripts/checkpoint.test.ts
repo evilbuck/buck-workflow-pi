@@ -601,9 +601,27 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
       xdgConfigHome: xdg,
       bridges: bChecked,
       checkpointBackend: validBackend,
+      stageAdapters: {
+        build: {
+          dispatchWorking: async () => ({ handle: "b" }),
+          verifyResult: async () => ({ status: "verified", proof: { phaseRevision: "r", worktreeFingerprint: "fp", acceptanceEvidence: [], verifiedAt: "now" } }),
+        },
+        review: {
+          dispatchWorking: async () => ({ handle: "r" }),
+          verifyResult: async () => ({ status: "verified", proof: { phaseRevision: "r", worktreeFingerprint: "fp", verdict: "clean", verifiedAt: "now" } }),
+        },
+        save: {
+          dispatchWorking: async () => ({ handle: "s" }),
+          verifyResult: async () => ({ status: "verified", proof: { attemptId: "a", receiptStatus: "complete", artifactRevisions: [], verifiedAt: "now" } }),
+        },
+        commit: {
+          dispatchWorking: async () => ({ handle: "c" }),
+          verifyResult: async () => ({ status: "verified", commitId: commit1, proof: { baselineHead: commit1, commitId: commit1, verifiedAt: "now" } }),
+        },
+      },
     });
     expect(rValidPreflight.ok).toBe(true);
-    expect(rValidPreflight.state).toBe("pinned");
+    expect(rValidPreflight.state).toBe("done");
 
     // 3) Unreachable SHA in completedPhaseCommits when phases look pending in frontmatter still blocks in preflight mode!
     const { backend: badShaBackend } = makeMemoryBackend();

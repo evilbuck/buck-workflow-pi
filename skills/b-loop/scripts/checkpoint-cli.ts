@@ -16,6 +16,7 @@ import type { StorageStore } from "../../_shared/storage/contract.js";
 
 interface CliArgs {
   op: "read" | "write";
+  kind: "checkpoint" | "run-state";
   cwd: string;
   subjectId: string;
   branchRef: string;
@@ -44,6 +45,12 @@ function parseExpectedRevision(raw: string | undefined): string | null | undefin
   return raw === "null" ? null : raw;
 }
 
+function parseKind(raw: string | undefined): "checkpoint" | "run-state" {
+  if (!raw || raw === "checkpoint") return "checkpoint";
+  if (raw === "run-state") return "run-state";
+  throw new Error(`Unsupported checkpoint-cli --kind "${raw}"`);
+}
+
 function parseCliArgs(argv: readonly string[]): CliArgs {
   const op = argv[0];
   if (op !== "read" && op !== "write") {
@@ -59,6 +66,7 @@ function parseCliArgs(argv: readonly string[]): CliArgs {
   }
   return {
     op,
+    kind: parseKind(map.get("--kind")),
     cwd: realpathSync(rawCwd),
     subjectId,
     branchRef,
@@ -92,8 +100,12 @@ function consumerScopeOf(context: TrustedWorkflowContext): ConsumerScope {
   };
 }
 
-async function readPrivateCheckpoint(store: StorageStore, scope: ConsumerScope, subjectId: string, logicalName: string) {
-  const key = consumerKey(scope, "checkpoint", subjectId, logicalName);
+async function readPrivateRecord(
+  store: StorageStore,
+  scope: ConsumerScope,
+  input: Pick<CliArgs, "kind" | "subjectId" | "logicalName">,
+) {
+  const key = consumerKey(scope, input.kind, input.subjectId, input.logicalName);
   const found = await store.read(key);
   if (!found) return { found: false };
   if (found.key.worktreeId !== scope.worktreeId || found.key.runId !== scope.runId) {
@@ -146,7 +158,7 @@ async function writePrivateCheckpoint(store: StorageStore, scope: ConsumerScope,
     throw new Error("write requires --expected-revision");
   }
   const { bytes, sha256 } = parseWritePayload(input.payloadMode);
-  const key = consumerKey(scope, "checkpoint", input.subjectId, input.logicalName);
+  const key = consumerKey(scope, input.kind, input.subjectId, input.logicalName);
   const revision = randomUUID();
   const [written] = await store.writeBatch([
     {
@@ -182,7 +194,7 @@ async function main(): Promise<void> {
   const scope = consumerScopeOf(context);
   const output = await withBoundStore(args.cwd, context, async (store) => {
     return args.op === "read"
-      ? readPrivateCheckpoint(store, scope, args.subjectId, args.logicalName)
+      ? readPrivateRecord(store, scope, args)
       : writePrivateCheckpoint(store, scope, args);
   });
   process.stdout.write(`${JSON.stringify(output)}\n`);

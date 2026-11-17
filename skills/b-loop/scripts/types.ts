@@ -159,6 +159,25 @@ export interface StoredCheckpointRecord {
   checkpoint: LoopCheckpoint;
 }
 
+export interface RunStateBackend {
+  readRunState<T = unknown>(input: {
+    cwd: string;
+    subjectId: string;
+    branchRef: string;
+    logicalName: string;
+    configPath?: string;
+  }): Promise<{ revision: string; sha256: string; data: T } | null>;
+  writeRunState<T = unknown>(input: {
+    cwd: string;
+    subjectId: string;
+    branchRef: string;
+    logicalName: string;
+    data: T;
+    expectedRevision: string | null;
+    configPath?: string;
+  }): Promise<{ revision: string; sha256: string; data: T }>;
+}
+
 export interface CheckpointBackend {
   read(input: {
     cwd: string;
@@ -202,6 +221,7 @@ export interface StageContext {
 export type StartingCheckResult =
   | { status: "dispatch"; jobHandle?: string }
   | { status: "already-finished" }
+  | { status: "rewind"; targetStage: LoopStage; reason: string }
   | { status: "blocked"; reason: string; nextSafeAction: string };
 
 export type WorkingRecoveryResult =
@@ -211,7 +231,7 @@ export type WorkingRecoveryResult =
 
 export type StageVerifyResult =
   | { status: "verified"; proof: StageProof; commitId?: string }
-  | { status: "stale_or_missing"; reason: string }
+  | { status: "stale_or_missing"; reason: string; rewindTo?: LoopStage }
   | { status: "blocked"; reason: string; nextSafeAction: string; proof?: StageProof };
 
 export interface StageAdapter {
@@ -233,6 +253,7 @@ export interface BuckLoopOptions {
   configPath?: string;
   xdgConfigHome?: string;
   checkpointBackend?: CheckpointBackend;
+  runStateBackend?: RunStateBackend;
   stageAdapters?: Partial<StageAdapters>;
   isPidAlive?: (pid: number) => boolean;
 }

@@ -25,7 +25,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Entry, Invocation Contract & Pre-Flight Validation | completed | medium | none | [phase-1-entry-and-validation.md](phase-1-entry-and-validation.md) |
 | 2: Private Checkpoint, Locking, Milestones & Recovery | completed | hard | none | [phase-2-checkpoint-and-recovery.md](phase-2-checkpoint-and-recovery.md) |
-| 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance | pending | hard | none | [phase-3-stage-boundaries.md](phase-3-stage-boundaries.md) |
+| 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance | completed | hard | none | [phase-3-stage-boundaries.md](phase-3-stage-boundaries.md) |
 | 4: Scoped Git Staging, Tree-Pinning Commit & Closeout | pending | hard | none | [phase-4-git-commit-and-closeout.md](phase-4-git-commit-and-closeout.md) |
 | 5: Real OMP E2E Test Suite & Documentation Sync | pending | medium | none | [phase-5-omp-e2e-and-docs.md](phase-5-omp-e2e-and-docs.md) |
 

@@ -16,6 +16,7 @@ import type {
   LoopStage,
   Milestone,
   PinnedPlan,
+  RunStateBackend,
   StoredCheckpointRecord,
   ValidatedBridges,
   WriterLockOwner,
@@ -228,59 +229,130 @@ function parseCliJson(raw: string, op: string): unknown {
   }
 }
 
+function createPrivateRecordClient<T>(
+  kind: "checkpoint" | "run-state",
+  sh: ValidatedBridges["sh"],
+  options: { xdgConfigHome?: string; configPath?: string } = {},
+) {
+  const xdgTrimmed = options.xdgConfigHome?.trim();
+  const envPrefix = xdgTrimmed ? `XDG_CONFIG_HOME=${shellQuote(xdgTrimmed)} ` : "";
+  const cfgSuffix = (configPath?: string) => {
+    const resolved = configPath ?? options.configPath;
+    return resolved ? ` --config-path ${shellQuote(resolved)}` : "";
+  };
+
+  return {
+    async read(input: { cwd: string; subjectId: string; branchRef: string; logicalName: string; configPath?: string }) {
+      const cmd = [
+        `${envPrefix}bun`,
+        shellQuote(CLI_PATH),
+        "read",
+        "--kind",
+        kind,
+        "--cwd",
+        shellQuote(canonicalWorktreeRoot(input.cwd)),
+        "--subject",
+        shellQuote(input.subjectId),
+        "--branch-ref",
+        shellQuote(input.branchRef),
+        "--logical-name",
+        shellQuote(input.logicalName),
+      ].join(" ") + cfgSuffix(input.configPath);
+      const parsed = parseCliJson(await runSh(sh, cmd), "read") as {
+        found?: boolean;
+        revision?: string;
+        sha256?: string;
+        checkpoint?: T;
+      };
+      if (!parsed.found) return null;
+      if (!parsed.revision || !parsed.sha256 || parsed.checkpoint === undefined) {
+        throw new Error(`Checkpoint CLI returned an incomplete ${kind} read payload.`);
+      }
+      return { revision: parsed.revision, sha256: parsed.sha256, data: parsed.checkpoint };
+    },
+
+    async write(input: {
+      cwd: string;
+      subjectId: string;
+      branchRef: string;
+      logicalName: string;
+      data: T;
+      expectedRevision: string | null;
+      configPath?: string;
+    }) {
+      const eof = `__BLOOP_CKPT_${randomUUID().replace(/-/g, "")}__`;
+      const expectedArg = input.expectedRevision === null ? "null" : input.expectedRevision;
+      const jsonLine = JSON.stringify(input.data);
+      const cliCmd = [
+        `${envPrefix}bun`,
+        shellQuote(CLI_PATH),
+        "write",
+        "--kind",
+        kind,
+        "--cwd",
+        shellQuote(canonicalWorktreeRoot(input.cwd)),
+        "--subject",
+        shellQuote(input.subjectId),
+        "--branch-ref",
+        shellQuote(input.branchRef),
+        "--logical-name",
+        shellQuote(input.logicalName),
+        "--expected-revision",
+        shellQuote(expectedArg),
+        "--payload-stdin",
+        "json",
+      ].join(" ") + cfgSuffix(input.configPath);
+      const fullCmd = `${cliCmd} <<'${eof}'\n${jsonLine}\n${eof}`;
+      const parsed = parseCliJson(await runSh(sh, fullCmd), "write") as {
+        revision?: string;
+        sha256?: string;
+        checkpoint?: T;
+      };
+      if (!parsed.revision || !parsed.sha256 || parsed.checkpoint === undefined) {
+        throw new Error(`Checkpoint CLI ${kind} write response missing revision readback.`);
+      }
+      return { revision: parsed.revision, sha256: parsed.sha256, data: parsed.checkpoint };
+    },
+  };
+}
+
 /** Build the default production checkpoint backend backed by `checkpoint-cli.ts` (`FileStorageStore`). */
 export function createWorkflowCliCheckpointBackend(
   sh: ValidatedBridges["sh"],
   options: { xdgConfigHome?: string; configPath?: string } = {},
 ): CheckpointBackend {
-  const xdgTrimmed = options.xdgConfigHome?.trim();
-  const envPrefix = xdgTrimmed ? `XDG_CONFIG_HOME=${shellQuote(xdgTrimmed)} ` : "";
-
+  const client = createPrivateRecordClient<LoopCheckpoint>("checkpoint", sh, options);
   return {
-    async read({ cwd, subjectId, branchRef, logicalName, configPath }) {
-      const cfgFlag = configPath ?? options.configPath ? ` --config-path ${shellQuote(configPath ?? options.configPath!)}` : "";
-      const cmd = `${envPrefix}bun ${shellQuote(CLI_PATH)} read --cwd ${shellQuote(canonicalWorktreeRoot(cwd))} --subject ${shellQuote(subjectId)} --branch-ref ${shellQuote(branchRef)} --logical-name ${shellQuote(logicalName)}${cfgFlag}`;
-      const parsed = parseCliJson(await runSh(sh, cmd), "read") as {
-        found?: boolean;
-        revision?: string;
-        sha256?: string;
-        checkpoint?: LoopCheckpoint;
-      };
-      if (!parsed.found) return null;
-      if (!parsed.revision || !parsed.sha256 || !parsed.checkpoint) {
-        throw new Error("Checkpoint CLI returned an incomplete checkpoint read payload.");
-      }
-      return { revision: parsed.revision, sha256: parsed.sha256, checkpoint: parsed.checkpoint };
+    async read(input) {
+      const res = await client.read(input);
+      return res ? { revision: res.revision, sha256: res.sha256, checkpoint: res.data } : null;
     },
+    async write(input) {
+      const res = await client.write({ ...input, data: input.checkpoint });
+      return { revision: res.revision, sha256: res.sha256, checkpoint: res.data };
+    },
+  };
+}
 
-    async write({ cwd, subjectId, branchRef, logicalName, checkpoint, expectedRevision, configPath }) {
-      const eof = `__BLOOP_CKPT_${randomUUID().replace(/-/g, "")}__`;
-      const cfgFlag = configPath ?? options.configPath ? ` --config-path ${shellQuote(configPath ?? options.configPath!)}` : "";
-      const expectedArg = expectedRevision === null ? "null" : expectedRevision;
-      const jsonLine = JSON.stringify(checkpoint);
-      const cliCmd = [
-        `${envPrefix}bun`,
-        shellQuote(CLI_PATH),
-        "write",
-        "--cwd",
-        shellQuote(canonicalWorktreeRoot(cwd)),
-        "--subject",
-        shellQuote(subjectId),
-        "--branch-ref",
-        shellQuote(branchRef),
-        "--logical-name",
-        shellQuote(logicalName),
-        "--expected-revision",
-        shellQuote(expectedArg),
-        "--payload-stdin",
-        "json",
-      ].join(" ") + cfgFlag;
-      const fullCmd = `${cliCmd} <<'${eof}'\n${jsonLine}\n${eof}`;
-      const parsed = parseCliJson(await runSh(sh, fullCmd), "write") as Partial<StoredCheckpointRecord>;
-      if (!parsed.revision || !parsed.sha256 || !parsed.checkpoint) {
-        throw new Error("Checkpoint CLI write response missing revision readback.");
-      }
-      return parsed as StoredCheckpointRecord;
+/** Build the private `run-state` backend backed by `checkpoint-cli.ts` (`FileStorageStore`, never `.context/`). */
+export function createWorkflowCliRunStateBackend(
+  sh: ValidatedBridges["sh"],
+  options: { xdgConfigHome?: string; configPath?: string } = {},
+): RunStateBackend {
+  return {
+    readRunState<T = unknown>(input: Parameters<RunStateBackend["readRunState"]>[0]) {
+      return createPrivateRecordClient<T>("run-state", sh, options).read(input);
+    },
+    writeRunState<T = unknown>(input: {
+      cwd: string;
+      subjectId: string;
+      branchRef: string;
+      logicalName: string;
+      data: T;
+      expectedRevision: string | null;
+      configPath?: string;
+    }) {
+      return createPrivateRecordClient<T>("run-state", sh, options).write(input);
     },
   };
 }

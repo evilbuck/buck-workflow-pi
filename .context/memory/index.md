@@ -1,3 +1,7 @@
+- 2026-11-17 — [`/b-loop` repair Phase 3: restricted stage boundaries, keyed `judge()`, build-fingerprinted `b-review`, receipt-bound `b-save`](b-loop-phase-3-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-3-2026-11-17.md` | domains: [b-loop, omp, workflow, recovery, stages] | topics: [b-loop, stage-tools, omp-judge, review-fingerprint, save-receipt, run-state] | status: completed
+
 - 2026-11-17 — [`/b-loop` repair Phase 2: private `FileStorageStore` checkpoint CAS/readback, writer locking, shared 4 milestones & proof-driven recovery](b-loop-phase-2-2026-11-17.md) — `completed`
 
   - 2026-11-17 | `b-loop-phase-2-2026-11-17.md` | domains: [b-loop, checkpoints, recovery, locking, storage] | topics: [b-loop, private-checkpoint, cas-readback, writer-lock, milestones, recovery] | status: completed

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parseAcceptanceCriteria, parseFrontmatter, unwrapToolResult } from "./frontmatter.js";
-import { parseSubjectArgument, validateBridges, validateStorageConfig } from "./validation.js";
+import { parseSubjectArgument, resolveAndPinPlan, validateBridges, validateStorageConfig } from "./validation.js";
 import { runBuckLoop } from "./eval-buck-loop.js";
 import type { EvalBridges } from "./types.js";
 
@@ -513,13 +513,33 @@ describe("branch, storage config, and plan pinning pre-flight", () => {
     expect(rDup.message).toMatch(/duplicate/i);
 
     const valid = makeValidBridges();
-    const rOk = await runBuckLoop({ args: "2026-11-17.demo-subject", cwd: dir, xdgConfigHome: xdg, bridges: valid.bridges });
-    expect(rOk.ok).toBe(true);
-    expect(rOk.state).toBe("pinned");
-    expect(rOk.pinnedPlan?.phases.map(p => [p.order, p.logicalName, p.revision, p.buckHint])).toEqual([
+    const pinned = await resolveAndPinPlan(
+      valid.bridges.tool!.workflow_state!,
+      "2026-11-17.demo-subject",
+      { branchRef: "refs/heads/feat/demo", branchName: "feat/demo", headCommit: "a".repeat(40) },
+    );
+    expect(pinned.phases.map(p => [p.order, p.logicalName, p.revision, p.buckHint])).toEqual([
       [1, "phase-1-first.md", "rev-p1-1", "/b-build"],
       [2, "phase-2-second.md", "rev-p2-1", "/b-build-hard"],
     ]);
+
+    const rDefault = await runBuckLoop({
+      args: "2026-11-17.demo-subject",
+      cwd: dir,
+      xdgConfigHome: xdg,
+      bridges: valid.bridges,
+      checkpointBackend: {
+        async read() { return null; },
+        async write({ checkpoint }) {
+          const cloned = structuredClone(checkpoint);
+          const { createHash } = await import("node:crypto");
+          const sha256 = createHash("sha256").update(JSON.stringify(cloned), "utf8").digest("hex");
+          return { revision: "r1", sha256, checkpoint: cloned };
+        },
+      },
+    });
+    expect(rDefault.subject).toBe("2026-11-17.demo-subject");
+    expect(valid.calls.agent).toBeGreaterThanOrEqual(1);
   });
 });
 
@@ -542,6 +562,7 @@ describe("installed path resolution & zero-bare-specifier constraints (Assumptio
 
   it.skipIf(!HAS_OMP)(
     "executes prompts/b-loop.md in installed OMP from a separate worktree across plugin, config.yml, BUCK_LOOP_RUNNER, injection args, and missing globals (A-4)",
+    { timeout: 90_000 },
     () => {
       const fixtureRepo = createTempDir("a4-target-repo-");
       execSync("git init -b feat/a4-test", { cwd: fixtureRepo, stdio: "ignore" });
@@ -582,6 +603,15 @@ const items = ${JSON.stringify(items)};
 const repoDir = ${JSON.stringify(fixtureRepo)};
 const runCell = (env: Record<string, string | undefined>, cellCode: string) => new Promise((resolveRun, rejectRun) => {
   let out = "";
+  let agentSeq = 0;
+  let revSeq = 10;
+  const agentLabels = new Map<string, { label: string; prompt: string }>();
+  const artifacts = new Map<string, Record<string, unknown>>(
+    items.map((it) => [it.subjectId + ":" + it.kind + ":" + it.logicalName, it as unknown as Record<string, unknown>]),
+  );
+  let receipt: Record<string, unknown> | null = null;
+  const wfReply = (val: unknown) => ({ ok: true, value: { content: [{ type: "text", text: JSON.stringify(val) }], details: val } });
+
   const proc = Bun.spawn({
     cmd: ["omp", "__omp_worker_js_eval_process"],
     env: { ...process.env, ...env },
@@ -590,7 +620,7 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
       if (msg.type === "tool-call") {
         if (msg.name === "__shell__") {
           try {
-            const stdout = hostExecSync(msg.args.command, { cwd: msg.args.cwd || repoDir, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+            const stdout = hostExecSync(msg.args.command, { cwd: msg.args.cwd || repoDir, env: { ...process.env, ...env }, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
             proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { output: stdout, exitCode: 0 } } });
           } catch (err) {
             const e = err as { status?: number; stdout?: string; stderr?: string };
@@ -598,14 +628,77 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
           }
           return;
         }
-        if (msg.name === "workflow_state" && msg.args?.operation === "list") {
-          proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { content: [{ type: "text", text: JSON.stringify(items) }], details: items } } });
+        if (msg.name === "__agent__") {
+          agentSeq += 1;
+          const id = "a4-agent-" + agentSeq;
+          agentLabels.set(id, { label: String(msg.args?.label ?? ""), prompt: String(msg.args?.prompt ?? "") });
+          proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { id, agent: "task" } } });
           return;
+        }
+        if (msg.name === "__wait__") {
+          const waitItems = Array.isArray(msg.args?.items) ? msg.args.items : [];
+          const results = waitItems.map((entry: { id: string }) => {
+            const meta = agentLabels.get(entry.id);
+            const label = meta?.label ?? "";
+            if (label.startsWith("b-review")) {
+              return { status: "completed", text: JSON.stringify({ verdict: "clean", criticalCount: 0, warningCount: 0, summary: "clean", findings: [], reportMarkdown: "# Review\\nClean.\\n" }) };
+            }
+            if (label.startsWith("b-save")) {
+              revSeq += 1;
+              const rev = "a4-mem-rev-" + revSeq;
+              const memItem = { token: "workflow-artifact:a4-mem-" + revSeq, revision: rev, sha256: "sha-" + rev, subjectId: "memory", kind: "memory", logicalName: "a4-saved.md", text: "# Saved\\n" };
+              artifacts.set("memory:memory:a4-saved.md", memItem);
+              return { status: "completed", text: JSON.stringify({ summary: "saved", savedArtifacts: [{ subjectId: "memory", kind: "memory", logicalName: "a4-saved.md", revision: rev, token: memItem.token }] }) };
+            }
+            return { status: "completed", text: "## Acceptance evidence\\n- first criterion: verified\\n" };
+          });
+          proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { items: results } } });
+          return;
+        }
+        if (msg.name === "__judge__") {
+          const q = (msg.args?.questions && typeof msg.args.questions === "object") ? msg.args.questions : {};
+          const answers = Object.fromEntries(Object.keys(q).map((k) => [k, { type: "bool", bool: 0.95 }]));
+          proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { answers, model: "a4-jev" } } });
+          return;
+        }
+        if (msg.name === "workflow_state") {
+          const op = msg.args?.operation;
+          if (op === "list") {
+            const list = [...artifacts.values()].filter((a) => !msg.args.subjectId || a.subjectId === msg.args.subjectId);
+            proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(list) });
+            return;
+          }
+          if (op === "read") {
+            const hit = msg.args?.token
+              ? [...artifacts.values()].find((a) => a.token === msg.args.token)
+              : artifacts.get(msg.args?.subjectId + ":" + msg.args?.kind + ":" + msg.args?.logicalName) ?? null;
+            proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(hit ?? null) });
+            return;
+          }
+          if (op === "write") {
+            revSeq += 1;
+            const rev = "a4-rev-" + revSeq;
+            const k = msg.args?.subjectId + ":" + msg.args?.kind + ":" + msg.args?.logicalName;
+            const saved = { token: "workflow-artifact:" + rev, revision: rev, sha256: "sha-" + rev, subjectId: msg.args?.subjectId, kind: msg.args?.kind, logicalName: msg.args?.logicalName, text: msg.args?.body };
+            artifacts.set(k, saved);
+            proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(saved) });
+            return;
+          }
+          if (op === "write-receipt") {
+            receipt = { projectId: "a4", branchId: "b1", worktreeId: "wt1", runId: "a4-run", attemptId: msg.args?.attemptId, status: msg.args?.status, artifactRevisions: msg.args?.artifactRevisions ?? [] };
+            proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(receipt) });
+            return;
+          }
+          if (op === "read-receipt") {
+            proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(receipt) });
+            return;
+          }
         }
         proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: {} } });
         return;
       }
       if (msg.type === "result") {
+        clearTimeout(cellTimer);
         proc.kill();
         resolveRun({ ok: msg.ok, error: msg.error, out });
       }
@@ -614,7 +707,7 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
   });
   proc.send({ type: "init", snapshot: { cwd: repoDir, sessionId: "a4" } });
   setTimeout(() => proc.send({ type: "run", runId: "r1", code: cellCode, filename: "entry.ts", snapshot: { cwd: repoDir, sessionId: "a4" } }), 150);
-  setTimeout(() => { proc.kill(); rejectRun(new Error("timeout")); }, 7000);
+  const cellTimer = setTimeout(() => { proc.kill(); rejectRun(new Error("timeout")); }, 30_000);
 });
 
 const wrap = (code: string) => "const __res = await (async () => {" + code + "})(); console.log('RES=' + JSON.stringify(__res));";
@@ -629,7 +722,7 @@ console.log("ALL=" + JSON.stringify({ rPluginInvalid, rPluginValid, rConfigValid
 `,
       );
 
-      const raw = execSync(`bun ${JSON.stringify(driver)}`, { encoding: "utf8", timeout: 25_000 });
+      const raw = execSync(`bun ${JSON.stringify(driver)}`, { encoding: "utf8", timeout: 85_000 });
       const line = raw.split(/\r?\n/).find((l) => l.startsWith("ALL="));
       expect(line).toBeDefined();
       const summary = JSON.parse(line!.slice(4));
@@ -646,13 +739,15 @@ console.log("ALL=" + JSON.stringify({ rPluginInvalid, rPluginValid, rConfigValid
       expect(invalid.state).toBe("blocked");
 
       const pinnedPlugin = parseOut(summary.rPluginValid);
-      expect(pinnedPlugin.ok).toBe(true);
-      expect(pinnedPlugin.state).toBe("pinned");
-      expect(pinnedPlugin.pinnedPlan.phases).toHaveLength(2);
+      expect(pinnedPlugin.subject, JSON.stringify(pinnedPlugin)).toBe("2026-11-17.a4-fixture");
+      expect(pinnedPlugin.phase, JSON.stringify(pinnedPlugin)).toBe("phase-1-first.md");
+      expect(pinnedPlugin.stage, JSON.stringify(pinnedPlugin)).toBe("commit");
+      expect(pinnedPlugin.checkpointRevision).toBeTruthy();
 
       const pinnedCfg = parseOut(summary.rConfigValid);
-      expect(pinnedCfg.ok).toBe(true);
-      expect(pinnedCfg.state).toBe("pinned");
+      expect(pinnedCfg.subject, JSON.stringify(pinnedCfg)).toBe("2026-11-17.a4-fixture");
+      expect(pinnedCfg.stage, JSON.stringify(pinnedCfg)).toBe("commit");
+      expect(pinnedCfg.checkpointRevision).toBeTruthy();
 
       const injected = parseOut(summary.rInject);
       expect(injected.ok).toBe(false);

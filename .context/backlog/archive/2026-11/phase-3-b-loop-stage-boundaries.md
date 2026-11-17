@@ -1,10 +1,10 @@
 ---
 title: "Phase 3: b-loop Stage Boundaries (build, review, save) & Acceptance"
-status: active
+status: completed
 priority: high
 created: 2026-11-17
 updated: 2026-11-17
-completed: null
+completed: 2026-11-17
 related: [.context/2026-11-17.b-loop-repair/phase-3-stage-boundaries.md, .context/2026-11-17.b-loop-repair/plan-b-loop-repair-phases.md]
 ---
 

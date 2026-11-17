@@ -17,6 +17,7 @@ export {
   checkpointDigest,
   createInitialCheckpoint,
   createWorkflowCliCheckpointBackend,
+  createWorkflowCliRunStateBackend,
   derivePhaseMilestone,
   emitLoopProgress,
   formatStageProgress,
@@ -25,6 +26,11 @@ export {
   writerLockPath,
 } from "./checkpoint.js";
 export { detectPlanCompletionGap, executeCheckpointLoop, STAGE_SEQUENCE } from "./recovery.js";
+export {
+  computeWorktreeFingerprint,
+  createDefaultStageAdapters,
+  STAGE_TOOLS,
+} from "./stages.js";
 export type * from "./types.js";
 export {
   parseSubjectArgument,
@@ -38,15 +44,14 @@ export {
 
 import {
   acquireWriterLock,
-  assertCheckpointBinding,
-  CHECKPOINT_LOGICAL_NAME,
   createWorkflowCliCheckpointBackend,
+  createWorkflowCliRunStateBackend,
 } from "./checkpoint.js";
-import { detectPlanCompletionGap, executeCheckpointLoop } from "./recovery.js";
+import { executeCheckpointLoop } from "./recovery.js";
+import { createDefaultStageAdapters } from "./stages.js";
 import type {
   BuckLoopOptions,
   BuckLoopResult,
-  CheckpointBackend,
   PinnedPlan,
   StageAdapters,
   ValidatedBridges,
@@ -67,25 +72,23 @@ function blockFailure(options: Pick<BuckLoopOptions, "bridges">, message: string
   return { ok: false, state: "blocked", message };
 }
 
-function unconfiguredStageAdapter(stage: "build" | "review" | "save" | "commit") {
-  return {
-    async dispatchWorking(): Promise<{ jobHandle?: string | null; handle?: unknown }> {
-      throw new Error(`Stage adapter for ${stage} is not configured.`);
-    },
-    async verifyResult(): Promise<never> {
-      throw new Error(`Stage adapter for ${stage} is not configured.`);
-    },
-  };
-}
-
-function resolveRunAdapters(overrides?: Partial<StageAdapters>): StageAdapters | null {
-  if (!overrides) return null;
-  return {
-    build: overrides.build ?? unconfiguredStageAdapter("build"),
-    review: overrides.review ?? unconfiguredStageAdapter("review"),
-    save: overrides.save ?? unconfiguredStageAdapter("save"),
-    commit: overrides.commit ?? unconfiguredStageAdapter("commit"),
-  };
+function resolveRunAdapters(
+  options: BuckLoopOptions,
+  bridges: ValidatedBridges,
+): StageAdapters {
+  const runStateBackend =
+    options.runStateBackend ??
+    (options.checkpointBackend
+      ? undefined
+      : createWorkflowCliRunStateBackend(bridges.sh, {
+          xdgConfigHome: options.xdgConfigHome,
+          configPath: options.configPath,
+        }));
+  const defaults = createDefaultStageAdapters({
+    runStateBackend,
+    xdgConfigHome: options.xdgConfigHome,
+  });
+  return options.stageAdapters ? { ...defaults, ...options.stageAdapters } : defaults;
 }
 
 function yieldResult(
@@ -107,71 +110,18 @@ function yieldResult(
   };
 }
 
-async function runPinnedPreflightResult(options: {
-  cwd: string;
-  pinnedPlan: PinnedPlan;
-  branchName: string;
-  bridges: ValidatedBridges;
-  backend: CheckpointBackend;
-  configPath?: string;
-}): Promise<BuckLoopResult> {
-  const { cwd, pinnedPlan, branchName, bridges, backend, configPath } = options;
-  const existing = await backend.read({
-    cwd,
-    subjectId: pinnedPlan.subjectId,
-    branchRef: pinnedPlan.branchRef,
-    logicalName: CHECKPOINT_LOGICAL_NAME,
-    configPath,
-  });
-  if (existing) {
-    assertCheckpointBinding(existing.checkpoint, {
-      cwd,
-      subjectId: pinnedPlan.subjectId,
-      branchRef: pinnedPlan.branchRef,
-      pinnedPlan,
-    });
-  }
-
-  const gap = await detectPlanCompletionGap(pinnedPlan, existing?.checkpoint ?? null, cwd, bridges.sh);
-  if (gap) return blockFailure({ bridges }, gap);
-
-  bridges.phase(`Pinned ${pinnedPlan.subjectId} (${pinnedPlan.phases.length} phases on ${branchName})`);
-  bridges.log(
-    `[b-loop pinned] subject=${pinnedPlan.subjectId} branch=${branchName} phases=${pinnedPlan.phases.map((p) => p.logicalName).join(",")}`,
-  );
-  return {
-    ok: true,
-    state: "pinned",
-    subject: pinnedPlan.subjectId,
-    branch: branchName,
-    pinnedPlan,
-    checkpointRevision: existing?.revision,
-    message: `Pinned ${pinnedPlan.phases.length} discrete phases for ${pinnedPlan.subjectId}`,
-  };
-}
-
 async function runWithAcquiredLock(
   options: BuckLoopOptions,
   cwd: string,
   pinnedPlan: PinnedPlan,
-  branchName: string,
+  _branchName: string,
   bridges: ValidatedBridges,
 ): Promise<BuckLoopResult> {
   const backend = options.checkpointBackend ?? createWorkflowCliCheckpointBackend(bridges.sh, {
     xdgConfigHome: options.xdgConfigHome,
     configPath: options.configPath,
   });
-  const adapters = resolveRunAdapters(options.stageAdapters);
-  if (!adapters) {
-    return runPinnedPreflightResult({
-      cwd,
-      pinnedPlan,
-      branchName,
-      bridges,
-      backend,
-      configPath: options.configPath,
-    });
-  }
+  const adapters = resolveRunAdapters(options, bridges);
   return executeCheckpointLoop({
     cwd,
     pinnedPlan,

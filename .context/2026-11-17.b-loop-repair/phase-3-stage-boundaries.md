@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-b-loop-repair.md
@@ -17,13 +17,13 @@ from_plan_steps: [3]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Restricted tool sets are enforced cleanly per stage (`build`, `review`, `save`, `commit`) matching Buck stage responsibilities."
-  - "[ ] `build` stage tracks phase revision, acceptance evidence, and exact resulting worktree fingerprint; uses existing Buck build acceptance checks including OMP 18.22.0 native `judge(state, keyedQuestionsObject)` (`noul >= 0.7`, reading `result.answers`) when acceptance criteria require judgment; failed/missing/stale acceptance preserves partial worktree changes and blocks/reruns appropriately."
-  - "[ ] Separate runner `judgeBatch` finding-ranking and automatic `b-iterate` loop are removed from `/b-loop`; `review` runs a fresh `b-review` tied strictly to the accepted build revision and worktree fingerprint."
-  - "[ ] Review recovery reuses matching review evidence, retries interrupted review, and when actionable findings exist keeps the report, records `b-review finished · blocked` (preserving milestone), and blocks `save`."
-  - "[ ] `save` persists `attemptId` (or save run ID) before apply, binds to existing journal (`sql-save-attempt.json` / adapter attempt journal) or `write-receipt` before apply, reads back the same attempt + exact saved artifact revisions via `workflow_state`, recovers/accepts an already-completed apply without duplicating save effects, and blocks on ambiguous outcome."
-completed_at: null
-completed_by: null
+  - "[x] Restricted tool sets are enforced cleanly per stage (`build`, `review`, `save`, `commit`) matching Buck stage responsibilities."
+  - "[x] `build` stage tracks phase revision, acceptance evidence, and exact resulting worktree fingerprint; uses existing Buck build acceptance checks including OMP 18.22.0 native `judge(state, keyedQuestionsObject)` (`noul >= 0.7`, reading `result.answers`) when acceptance criteria require judgment; failed/missing/stale acceptance preserves partial worktree changes and blocks/reruns appropriately."
+  - "[x] Separate runner `judgeBatch` finding-ranking and automatic `b-iterate` loop are removed from `/b-loop`; `review` runs a fresh `b-review` tied strictly to the accepted build revision and worktree fingerprint."
+  - "[x] Review recovery reuses matching review evidence, retries interrupted review, and when actionable findings exist keeps the report, records `b-review finished · blocked` (preserving milestone), and blocks `save`."
+  - "[x] `save` persists `attemptId` (or save run ID) before apply, binds to existing journal (`sql-save-attempt.json` / adapter attempt journal) or `write-receipt` before apply, reads back the same attempt + exact saved artifact revisions via `workflow_state`, recovers/accepts an already-completed apply without duplicating save effects, and blocks on ambiguous outcome."
+completed_at: 2026-11-17
+completed_by: claude-opus-4-6
 ---
 
 # Phase 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance

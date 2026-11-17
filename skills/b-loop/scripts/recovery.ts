@@ -16,6 +16,7 @@ import type {
   BlockerRecord,
   BuckLoopResult,
   CheckpointBackend,
+  CommitStageProof,
   LoopCheckpoint,
   LoopStage,
   Milestone,
@@ -254,12 +255,17 @@ async function applyVerifiedResult(
   if (verdict.status === "stale_or_missing") {
     return null;
   }
-  if (stage === "commit" && (!verdict.commitId || !COMMIT_SHA_RE.test(verdict.commitId))) {
-    return recordBlocker(session, phase, stage, "finished", {
-      reason: "Commit stage verified without a valid 40/64-char commit SHA.",
-      nextSafeAction: "Inspect git HEAD and verify commit proof before retrying.",
-      attemptId,
-    });
+  if (stage === "commit") {
+    const commitProof = verdict.proof as CommitStageProof | undefined;
+    const validSha = typeof verdict.commitId === "string" && COMMIT_SHA_RE.test(verdict.commitId);
+    const matchingProof = commitProof?.commitId === verdict.commitId;
+    if (!validSha || !matchingProof) {
+      return recordBlocker(session, phase, stage, "finished", {
+        reason: "Commit stage verified without a valid 40/64-char commit SHA matching proof.",
+        nextSafeAction: "Inspect git HEAD and verify commit proof before retrying.",
+        attemptId,
+      });
+    }
   }
   const updates = setStageProof(session.checkpoint, phase, stage, verdict.proof, verdict.commitId);
   await saveTransition(session, {
@@ -275,13 +281,89 @@ async function applyVerifiedResult(
   return { ok: true, state: "pinned" };
 }
 
+type StageRunOutcome = { result: BuckLoopResult; rewound?: boolean };
+
+function clearProofsFromStage(
+  checkpoint: LoopCheckpoint,
+  phase: PinnedPhase,
+  targetStage: LoopStage,
+): Pick<LoopCheckpoint, "phases"> {
+  const prev = checkpoint.phases[phase.logicalName];
+  if (!prev) return { phases: checkpoint.phases };
+  const idx = STAGE_SEQUENCE.indexOf(targetStage);
+  const next = { ...prev };
+  for (let i = idx; i < STAGE_SEQUENCE.length; i++) {
+    delete next[STAGE_SEQUENCE[i]];
+  }
+  return {
+    phases: {
+      ...checkpoint.phases,
+      [phase.logicalName]: next,
+    },
+  };
+}
+
+async function rewindPhaseToStage(
+  session: LoopSession,
+  phase: PinnedPhase,
+  targetStage: LoopStage,
+  reason: string,
+): Promise<StageRunOutcome> {
+  session.bridges.log(`[b-loop rewind] Phase ${phase.order} (${phase.logicalName}) -> ${targetStage}: ${reason}`);
+  const cleared = clearProofsFromStage(session.checkpoint, phase, targetStage);
+  await saveTransition(session, {
+    ...cleared,
+    currentPhaseOrder: phase.order,
+    currentPhaseLogicalName: phase.logicalName,
+    currentStage: targetStage,
+    currentMilestone: "starting",
+    attemptId: null,
+    jobHandle: null,
+    blocker: null,
+  });
+  return { result: { ok: true, state: "pinned" }, rewound: true };
+}
+
+async function finalizeStageVerification(
+  session: LoopSession,
+  phase: PinnedPhase,
+  stage: LoopStage,
+  attemptId: string,
+  verified: StageVerifyResult,
+  adapters?: StageAdapters,
+): Promise<StageRunOutcome> {
+  if (verified.status === "stale_or_missing") {
+    const canRewind = verified.rewindTo && STAGE_SEQUENCE.indexOf(verified.rewindTo) < STAGE_SEQUENCE.indexOf(stage) && adapters;
+    if (canRewind && verified.rewindTo) {
+      return rewindPhaseToStage(session, phase, verified.rewindTo, verified.reason);
+    }
+    return {
+      result: await recordBlocker(session, phase, stage, "finished", {
+        reason: verified.reason,
+        nextSafeAction: `Re-run /b-loop ${session.pinnedPlan.subjectId} to rebuild/reverify ${stage}.`,
+        attemptId,
+      }),
+    };
+  }
+  const applied = await applyVerifiedResult(session, phase, stage, attemptId, verified);
+  if (applied) return { result: applied };
+  return {
+    result: await recordBlocker(session, phase, stage, "finished", {
+      reason: "Stage verification failed",
+      nextSafeAction: `Re-run /b-loop ${session.pinnedPlan.subjectId} to rebuild/reverify ${stage}.`,
+      attemptId,
+    }),
+  };
+}
+
 async function dispatchAndVerifyStage(
   session: LoopSession,
   phase: PinnedPhase,
   stage: LoopStage,
   adapter: StageAdapter,
   existingAttemptId?: string,
-): Promise<BuckLoopResult> {
+  adapters?: StageAdapters,
+): Promise<StageRunOutcome> {
   const attemptId = existingAttemptId ?? randomUUID();
   const ctx = makeStageContext(session, phase, stage, attemptId);
 
@@ -313,19 +395,7 @@ async function dispatchAndVerifyStage(
   });
 
   const verified = await adapter.verifyResult(ctx);
-  if (verified.status === "stale_or_missing") {
-    return recordBlocker(session, phase, stage, "finished", {
-      reason: verified.reason,
-      nextSafeAction: `Re-run /b-loop ${session.pinnedPlan.subjectId} to rebuild/reverify ${stage}.`,
-      attemptId,
-    });
-  }
-  const applied = await applyVerifiedResult(session, phase, stage, attemptId, verified);
-  return applied ?? recordBlocker(session, phase, stage, "finished", {
-    reason: "Stage verification failed",
-    nextSafeAction: `Re-run /b-loop ${session.pinnedPlan.subjectId} to rebuild/reverify ${stage}.`,
-    attemptId,
-  });
+  return finalizeStageVerification(session, phase, stage, attemptId, verified, adapters);
 }
 
 async function resumeStarting(
@@ -333,23 +403,29 @@ async function resumeStarting(
   phase: PinnedPhase,
   stage: LoopStage,
   adapter: StageAdapter,
-): Promise<BuckLoopResult> {
+  adapters: StageAdapters,
+): Promise<StageRunOutcome> {
   const attemptId = session.checkpoint.attemptId ?? randomUUID();
   const ctx = makeStageContext(session, phase, stage, attemptId);
   const check = adapter.checkStarting ? await adapter.checkStarting(ctx) : { status: "dispatch" as const };
 
+  if (check.status === "rewind") {
+    return rewindPhaseToStage(session, phase, check.targetStage, check.reason);
+  }
   if (check.status === "blocked") {
-    return recordBlocker(session, phase, stage, "starting", {
-      reason: check.reason,
-      nextSafeAction: check.nextSafeAction,
-      attemptId,
-    });
+    return {
+      result: await recordBlocker(session, phase, stage, "starting", {
+        reason: check.reason,
+        nextSafeAction: check.nextSafeAction,
+        attemptId,
+      }),
+    };
   }
   if (check.status === "already-finished") {
     await saveTransition(session, { currentMilestone: "finished", attemptId, blocker: null });
-    return resumeFinished(session, phase, stage, adapter);
+    return resumeFinished(session, phase, stage, adapter, adapters);
   }
-  return dispatchAndVerifyStage(session, phase, stage, adapter, attemptId);
+  return dispatchAndVerifyStage(session, phase, stage, adapter, attemptId, adapters);
 }
 
 async function resumeWorking(
@@ -357,7 +433,8 @@ async function resumeWorking(
   phase: PinnedPhase,
   stage: LoopStage,
   adapter: StageAdapter,
-): Promise<BuckLoopResult> {
+  adapters: StageAdapters,
+): Promise<StageRunOutcome> {
   const attemptId = session.checkpoint.attemptId ?? randomUUID();
   const ctx = makeStageContext(session, phase, stage, attemptId);
   const rec = adapter.recoverWorking
@@ -365,17 +442,19 @@ async function resumeWorking(
     : { status: "uncertain" as const, reason: "Interrupted while working", nextSafeAction: "Inspect stage output before retrying" };
 
   if (rec.status === "uncertain") {
-    return recordBlocker(session, phase, stage, "working", {
-      reason: rec.reason,
-      nextSafeAction: rec.nextSafeAction,
-      attemptId,
-    });
+    return {
+      result: await recordBlocker(session, phase, stage, "working", {
+        reason: rec.reason,
+        nextSafeAction: rec.nextSafeAction,
+        attemptId,
+      }),
+    };
   }
   if (rec.status === "finished") {
     await saveTransition(session, { currentMilestone: "finished", attemptId, jobHandle: null, blocker: null });
-    return resumeFinished(session, phase, stage, adapter);
+    return resumeFinished(session, phase, stage, adapter, adapters);
   }
-  return dispatchAndVerifyStage(session, phase, stage, adapter);
+  return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
 }
 
 async function resumeFinished(
@@ -383,34 +462,39 @@ async function resumeFinished(
   phase: PinnedPhase,
   stage: LoopStage,
   adapter: StageAdapter,
-): Promise<BuckLoopResult> {
+  adapters: StageAdapters,
+): Promise<StageRunOutcome> {
   const attemptId = session.checkpoint.attemptId ?? randomUUID();
   const ctx = makeStageContext(session, phase, stage, attemptId);
   const verified = await adapter.verifyResult(ctx);
+  if (verified.status === "stale_or_missing" && verified.rewindTo && STAGE_SEQUENCE.indexOf(verified.rewindTo) < STAGE_SEQUENCE.indexOf(stage)) {
+    return rewindPhaseToStage(session, phase, verified.rewindTo, verified.reason);
+  }
   const applied = await applyVerifiedResult(session, phase, stage, attemptId, verified);
-  if (applied) return applied;
+  if (applied) return { result: applied };
 
-  return dispatchAndVerifyStage(session, phase, stage, adapter);
+  return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
 }
 
 async function runStageWithRecovery(
   session: LoopSession,
   phase: PinnedPhase,
   stage: LoopStage,
-  adapter: StageAdapter,
+  adapters: StageAdapters,
   isExactCheckpointTarget: boolean,
-): Promise<BuckLoopResult> {
+): Promise<StageRunOutcome> {
+  const adapter = adapters[stage];
   if (!isExactCheckpointTarget) {
-    return dispatchAndVerifyStage(session, phase, stage, adapter);
+    return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
   }
   const m = session.checkpoint.currentMilestone;
   if (m === "verified") {
-    if (session.checkpoint.phases[phase.logicalName]?.[stage]) return { ok: true, state: "pinned" };
-    return dispatchAndVerifyStage(session, phase, stage, adapter);
+    if (session.checkpoint.phases[phase.logicalName]?.[stage]) return { result: { ok: true, state: "pinned" } };
+    return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
   }
-  if (m === "finished") return resumeFinished(session, phase, stage, adapter);
-  if (m === "working") return resumeWorking(session, phase, stage, adapter);
-  return resumeStarting(session, phase, stage, adapter);
+  if (m === "finished") return resumeFinished(session, phase, stage, adapter, adapters);
+  if (m === "working") return resumeWorking(session, phase, stage, adapter, adapters);
+  return resumeStarting(session, phase, stage, adapter, adapters);
 }
 
 async function runPhaseFromStage(
@@ -419,7 +503,7 @@ async function runPhaseFromStage(
   startStage: LoopStage,
   adapters: StageAdapters,
   hasPriorCheckpoint: boolean,
-): Promise<BuckLoopResult> {
+): Promise<StageRunOutcome> {
   const startIdx = STAGE_SEQUENCE.indexOf(startStage);
   for (let i = startIdx; i < STAGE_SEQUENCE.length; i++) {
     const stage = STAGE_SEQUENCE[i];
@@ -427,10 +511,10 @@ async function runPhaseFromStage(
       hasPriorCheckpoint &&
       session.checkpoint.currentPhaseLogicalName === phase.logicalName &&
       session.checkpoint.currentStage === stage;
-    const stepRes = await runStageWithRecovery(session, phase, stage, adapters[stage], isExactTarget);
-    if (!stepRes.ok) return stepRes;
+    const outcome = await runStageWithRecovery(session, phase, stage, adapters, isExactTarget);
+    if (!outcome.result.ok || outcome.rewound) return outcome;
   }
-  return { ok: true, state: "pinned" };
+  return { result: { ok: true, state: "pinned" } };
 }
 
 async function loadValidatedSession(options: {
@@ -500,11 +584,26 @@ export async function executeCheckpointLoop(options: {
   if (loaded.blocked) return loaded.blocked;
   const session = loaded.session!;
 
+  const rewindsByPhase = new Map<string, number>();
+  const MAX_PHASE_REWINDS = 3;
+
   for (;;) {
     const pos = pickStartPosition(options.pinnedPlan, session.checkpoint);
     if (!pos) break;
-    const phaseRes = await runPhaseFromStage(session, options.pinnedPlan.phases[pos.phaseIndex], pos.stage, options.adapters, loaded.hasPrior);
-    if (!phaseRes.ok) return phaseRes;
+    const activePhase = options.pinnedPlan.phases[pos.phaseIndex];
+    const hasPrior = loaded.hasPrior || session.revision !== null;
+    const phaseRes = await runPhaseFromStage(session, activePhase, pos.stage, options.adapters, hasPrior);
+    if (!phaseRes.result.ok) return phaseRes.result;
+    if (phaseRes.rewound) {
+      const count = (rewindsByPhase.get(activePhase.logicalName) ?? 0) + 1;
+      rewindsByPhase.set(activePhase.logicalName, count);
+      if (count > MAX_PHASE_REWINDS) {
+        return recordBlocker(session, activePhase, session.checkpoint.currentStage, "starting", {
+          reason: `Phase ${activePhase.order} (${activePhase.logicalName}) exceeded ${MAX_PHASE_REWINDS} rewinds because worktree/upstream proofs keep drifting.`,
+          nextSafeAction: "Stop external file mutations in the worktree and re-run /b-loop.",
+        });
+      }
+    }
   }
 
   return {
