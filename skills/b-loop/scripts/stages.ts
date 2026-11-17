@@ -23,7 +23,15 @@ import type {
   StageVerifyResult,
   ValidatedBridges,
 } from "./types.js";
-import { runSh, shellQuote } from "./validation.js";
+import {
+  agentHandleId,
+  extractJsonObject,
+  isWorkflowScratchPath,
+  parsePorcelainZ,
+  runSh,
+  shellQuote,
+  xdgEnvPrefixFor,
+} from "./validation.js";
 
 export const STAGE_TOOLS: Readonly<Record<LoopStage, readonly string[]>> = {
   build: ["read", "edit", "write", "grep", "find", "ls", "bash", "workflow_state"],
@@ -137,7 +145,7 @@ async function loadHandoff<T>(
 
 function shouldIgnoreForFingerprint(relPath: string): boolean {
   const norm = relPath.replace(/\\/g, "/");
-  if (norm === ".context/workflow" || norm.startsWith(".context/workflow/")) return true;
+  if (isWorkflowScratchPath(norm)) return true;
   if (!norm.startsWith(".context/")) return false;
   return /^\.context\/[^/]+\/(?:review|iterate)-[^/]+\.md$/.test(norm);
 }
@@ -160,21 +168,6 @@ function hashWorkingTreeEntry(cwd: string, relPath: string): string {
     return `FILE:${modeBits}:${bytesHash}`;
   }
   return `DIR:${st.mode}`;
-}
-
-function parsePorcelainZ(raw: string): Array<{ xy: string; path: string; origPath?: string }> {
-  const tokens = raw.split("\0").filter((t) => t.length > 0);
-  const out: Array<{ xy: string; path: string; origPath?: string }> = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const rec = tokens[i];
-    if (rec.length < 4) continue;
-    const xy = rec.slice(0, 2);
-    const path = rec.slice(3);
-    const isRenameOrCopy = xy[0] === "R" || xy[0] === "C" || xy[1] === "R" || xy[1] === "C";
-    const origPath = isRenameOrCopy ? tokens[++i] : undefined;
-    out.push({ xy, path, origPath });
-  }
-  return out;
 }
 
 function compareCodePoints(a: string, b: string): number {
@@ -250,43 +243,6 @@ async function waitForAgentOutput(bridges: ValidatedBridges, handle: unknown): P
     return JSON.stringify(rec);
   }
   return String(item ?? "");
-}
-
-function agentHandleId(handle: unknown): string | null {
-  if (!handle || typeof handle !== "object") return null;
-  const rec = handle as Record<string, unknown>;
-  if (typeof rec.handle === "string") return rec.handle;
-  if (typeof rec.id === "string") return rec.id;
-  return null;
-}
-
-function extractJsonObject(raw: string): Record<string, unknown> | null {
-  const trimmed = raw.trim();
-  const tryParse = (s: string): Record<string, unknown> | null => {
-    try {
-      const val = JSON.parse(s);
-      return val && typeof val === "object" && !Array.isArray(val) ? (val as Record<string, unknown>) : null;
-    } catch {
-      return null;
-    }
-  };
-  const direct = tryParse(trimmed);
-  if (direct) return direct;
-  const fenceStart = trimmed.indexOf("```json");
-  if (fenceStart >= 0) {
-    const bodyStart = fenceStart + 7;
-    const fenceEnd = trimmed.indexOf("```", bodyStart);
-    if (fenceEnd > bodyStart) {
-      const inner = tryParse(trimmed.slice(bodyStart, fenceEnd).trim());
-      if (inner) return inner;
-    }
-  }
-  const firstBrace = trimmed.indexOf("{");
-  const lastBrace = trimmed.lastIndexOf("}");
-  if (firstBrace >= 0 && lastBrace > firstBrace) {
-    return tryParse(trimmed.slice(firstBrace, lastBrace + 1));
-  }
-  return null;
 }
 
 const EVIDENCE_HEADING_RE = new RegExp("^##\\s+Acceptance evidence\\b", "i");
@@ -760,8 +716,7 @@ async function runWorkflowStateCliReceipt(
   fallbackXdgHome: string | undefined,
   payload?: Record<string, unknown>,
 ): Promise<ReceiptRecord | null> {
-  const xdgEnv = ctx.xdgConfigHome?.trim() || fallbackXdgHome?.trim() || process.env.XDG_CONFIG_HOME?.trim();
-  const xdgPrefix = xdgEnv ? `XDG_CONFIG_HOME=${shellQuote(xdgEnv)} ` : "";
+  const xdgPrefix = xdgEnvPrefixFor(ctx.xdgConfigHome, fallbackXdgHome);
   const argPart = payload ? ` ${shellQuote(JSON.stringify(payload))}` : "";
   const cmd = `cd ${shellQuote(resolve(ctx.cwd))} && ${xdgPrefix}bun ${shellQuote(WORKFLOW_STATE_CLI_PATH)} ${operation}${argPart}`;
   const out = (await runSh(ctx.bridges.sh, cmd)).trim();

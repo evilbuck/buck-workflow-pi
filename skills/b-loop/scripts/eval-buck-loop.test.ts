@@ -564,12 +564,27 @@ describe("installed path resolution & zero-bare-specifier constraints (Assumptio
     "executes prompts/b-loop.md in installed OMP from a separate worktree across plugin, config.yml, BUCK_LOOP_RUNNER, injection args, and missing globals (A-4)",
     { timeout: 90_000 },
     () => {
-      const fixtureRepo = createTempDir("a4-target-repo-");
-      execSync("git init -b feat/a4-test", { cwd: fixtureRepo, stdio: "ignore" });
-      execSync('git config user.email "test@example.com" && git config user.name "Test"', { cwd: fixtureRepo, stdio: "ignore" });
-      writeFileSync(join(fixtureRepo, "README.md"), "# External Project\n");
-      execSync("git add README.md && git commit -m init", { cwd: fixtureRepo, stdio: "ignore" });
-      expect(existsSync(join(fixtureRepo, "skills"))).toBe(false);
+      const makeA4Repo = (prefix: string) => {
+        const repo = createTempDir(prefix);
+        execSync("git init -b feat/a4-test", { cwd: repo, stdio: "ignore" });
+        execSync('git config user.email "test@example.com" && git config user.name "Test"', { cwd: repo, stdio: "ignore" });
+        const subjDir = join(repo, ".context", "2026-11-17.a4-fixture");
+        mkdirSync(subjDir, { recursive: true });
+        mkdirSync(join(repo, "src"), { recursive: true });
+        writeFileSync(join(repo, "README.md"), "# External Project\n");
+        writeFileSync(join(repo, "src", "first.ts"), "export const first = 0;\n");
+        writeFileSync(join(repo, "src", "second.ts"), "export const second = 0;\n");
+        const fixtureItems = makeWorkflowItems("2026-11-17.a4-fixture");
+        for (const item of fixtureItems) {
+          writeFileSync(join(subjDir, item.logicalName), item.text);
+        }
+        execSync("git add . && git commit -m init", { cwd: repo, stdio: "ignore" });
+        expect(existsSync(join(repo, "skills"))).toBe(false);
+        return { repo, fixtureItems };
+      };
+
+      const { repo: fixtureRepo, fixtureItems: items } = makeA4Repo("a4-target-repo-");
+      const { repo: cfgRepo } = makeA4Repo("a4-cfg-repo-");
 
       const isolatedHome = createTempDir("a4-omp-home-");
       const pluginPkg = join(isolatedHome, ".omp", "plugins", "node_modules", "buck-workflow");
@@ -593,15 +608,16 @@ describe("installed path resolution & zero-bare-specifier constraints (Assumptio
       const buildCell = (argStr: string): string => rawCode.replace('"__BUCK_LOOP_ARGS__"', JSON.stringify(argStr));
 
       const injectionArg = '2026-11-17.bad"; throw new Error("pwned"); //\n${1+1}';
-      const items = makeWorkflowItems("2026-11-17.a4-fixture");
       const driver = join(createTempDir("a4-driver-"), "run-a4.ts");
       writeFileSync(
         driver,
         `
 import { execSync as hostExecSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 const items = ${JSON.stringify(items)};
-const repoDir = ${JSON.stringify(fixtureRepo)};
-const runCell = (env: Record<string, string | undefined>, cellCode: string) => new Promise((resolveRun, rejectRun) => {
+const runCell = (env: Record<string, string | undefined>, repoDir: string, cellCode: string) => new Promise((resolveRun, rejectRun) => {
   let out = "";
   let agentSeq = 0;
   let revSeq = 10;
@@ -640,17 +656,32 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
           const results = waitItems.map((entry: { id: string }) => {
             const meta = agentLabels.get(entry.id);
             const label = meta?.label ?? "";
+            if (label.startsWith("b-build-hard")) {
+              writeFileSync(join(repoDir, "src", "second.ts"), "export const second = 1;\\n");
+              return { status: "completed", text: "## Acceptance evidence\\n- second criterion: verified\\n" };
+            }
+            if (label.startsWith("b-build")) {
+              writeFileSync(join(repoDir, "src", "first.ts"), "export const first = 1;\\n");
+              return { status: "completed", text: "## Acceptance evidence\\n- first criterion: verified\\n" };
+            }
             if (label.startsWith("b-review")) {
               return { status: "completed", text: JSON.stringify({ verdict: "clean", criticalCount: 0, warningCount: 0, summary: "clean", findings: [], reportMarkdown: "# Review\\nClean.\\n" }) };
             }
             if (label.startsWith("b-save")) {
               revSeq += 1;
               const rev = "a4-mem-rev-" + revSeq;
-              const memItem = { token: "workflow-artifact:a4-mem-" + revSeq, revision: rev, sha256: "sha-" + rev, subjectId: "memory", kind: "memory", logicalName: "a4-saved.md", text: "# Saved\\n" };
-              artifacts.set("memory:memory:a4-saved.md", memItem);
-              return { status: "completed", text: JSON.stringify({ summary: "saved", savedArtifacts: [{ subjectId: "memory", kind: "memory", logicalName: "a4-saved.md", revision: rev, token: memItem.token }] }) };
+              const memDir = join(repoDir, ".context", "memory");
+              mkdirSync(memDir, { recursive: true });
+              const memName = "a4-saved-" + revSeq + ".md";
+              writeFileSync(join(memDir, memName), "# Saved\\n");
+              const memItem = { token: "workflow-artifact:a4-mem-" + revSeq, revision: rev, sha256: "sha-" + rev, subjectId: "memory", kind: "memory", logicalName: memName, text: "# Saved\\n" };
+              artifacts.set("memory:memory:" + memName, memItem);
+              return { status: "completed", text: JSON.stringify({ summary: "saved", savedArtifacts: [{ subjectId: "memory", kind: "memory", logicalName: memName, revision: rev, token: memItem.token }] }) };
             }
-            return { status: "completed", text: "## Acceptance evidence\\n- first criterion: verified\\n" };
+            if (label.startsWith("b-commit")) {
+              return { status: "completed", text: JSON.stringify({ title: "feat(a4): complete " + label, body: "Verified" }) };
+            }
+            return { status: "completed", text: "ok" };
           });
           proc.send({ type: "tool-reply", id: msg.id, reply: { ok: true, value: { items: results } } });
           return;
@@ -679,7 +710,11 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
             revSeq += 1;
             const rev = "a4-rev-" + revSeq;
             const k = msg.args?.subjectId + ":" + msg.args?.kind + ":" + msg.args?.logicalName;
-            const saved = { token: "workflow-artifact:" + rev, revision: rev, sha256: "sha-" + rev, subjectId: msg.args?.subjectId, kind: msg.args?.kind, logicalName: msg.args?.logicalName, text: msg.args?.body };
+            const subDir = msg.args?.subjectId === "memory" ? join(repoDir, ".context", "memory") : join(repoDir, ".context", String(msg.args?.subjectId));
+            mkdirSync(subDir, { recursive: true });
+            writeFileSync(join(subDir, String(msg.args?.logicalName)), String(msg.args?.body ?? ""));
+            const sha256 = createHash("sha256").update(String(msg.args?.body ?? ""), "utf8").digest("hex");
+            const saved = { token: "workflow-artifact:" + rev, revision: rev, sha256, subjectId: msg.args?.subjectId, kind: msg.args?.kind, logicalName: msg.args?.logicalName, text: msg.args?.body };
             artifacts.set(k, saved);
             proc.send({ type: "tool-reply", id: msg.id, reply: wfReply(saved) });
             return;
@@ -713,11 +748,11 @@ const runCell = (env: Record<string, string | undefined>, cellCode: string) => n
 const wrap = (code: string) => "const __res = await (async () => {" + code + "})(); console.log('RES=' + JSON.stringify(__res));";
 const wrapNoBudget = (code: string) => "const budget = undefined; " + wrap(code);
 
-const rPluginInvalid = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, wrap(${JSON.stringify(buildCell("--status"))}));
-const rPluginValid = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, wrapNoBudget(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
-const rConfigValid = await runCell({ HOME: ${JSON.stringify(cfgHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(cfgHome, ".config"))} }, wrap(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
-const rInject = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, wrap(${JSON.stringify(buildCell(injectionArg))}));
-const rBadExplicit = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, BUCK_LOOP_RUNNER: "/tmp/definitely-missing-runner.ts" }, wrap(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
+const rPluginInvalid = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, ${JSON.stringify(fixtureRepo)}, wrap(${JSON.stringify(buildCell("--status"))}));
+const rPluginValid = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, ${JSON.stringify(fixtureRepo)}, wrapNoBudget(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
+const rConfigValid = await runCell({ HOME: ${JSON.stringify(cfgHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(cfgHome, ".config"))} }, ${JSON.stringify(cfgRepo)}, wrap(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
+const rInject = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, XDG_CONFIG_HOME: ${JSON.stringify(join(isolatedHome, ".config"))} }, ${JSON.stringify(fixtureRepo)}, wrap(${JSON.stringify(buildCell(injectionArg))}));
+const rBadExplicit = await runCell({ HOME: ${JSON.stringify(isolatedHome)}, BUCK_LOOP_RUNNER: "/tmp/definitely-missing-runner.ts" }, ${JSON.stringify(fixtureRepo)}, wrap(${JSON.stringify(buildCell("2026-11-17.a4-fixture"))}));
 console.log("ALL=" + JSON.stringify({ rPluginInvalid, rPluginValid, rConfigValid, rInject, rBadExplicit }));
 `,
       );
@@ -739,15 +774,16 @@ console.log("ALL=" + JSON.stringify({ rPluginInvalid, rPluginValid, rConfigValid
       expect(invalid.state).toBe("blocked");
 
       const pinnedPlugin = parseOut(summary.rPluginValid);
-      expect(pinnedPlugin.subject, JSON.stringify(pinnedPlugin)).toBe("2026-11-17.a4-fixture");
-      expect(pinnedPlugin.phase, JSON.stringify(pinnedPlugin)).toBe("phase-1-first.md");
-      expect(pinnedPlugin.stage, JSON.stringify(pinnedPlugin)).toBe("commit");
-      expect(pinnedPlugin.checkpointRevision).toBeTruthy();
+      expect(pinnedPlugin.ok, JSON.stringify(pinnedPlugin)).toBe(true);
+      expect(pinnedPlugin.subject).toBe("2026-11-17.a4-fixture");
+      expect(pinnedPlugin.state).toBe("done");
+      expect(Object.keys(pinnedPlugin.completedPhaseCommits ?? {})).toEqual(["phase-1-first.md", "phase-2-second.md"]);
 
       const pinnedCfg = parseOut(summary.rConfigValid);
-      expect(pinnedCfg.subject, JSON.stringify(pinnedCfg)).toBe("2026-11-17.a4-fixture");
-      expect(pinnedCfg.stage, JSON.stringify(pinnedCfg)).toBe("commit");
-      expect(pinnedCfg.checkpointRevision).toBeTruthy();
+      expect(pinnedCfg.ok, JSON.stringify(pinnedCfg)).toBe(true);
+      expect(pinnedCfg.subject).toBe("2026-11-17.a4-fixture");
+      expect(pinnedCfg.state).toBe("done");
+      expect(Object.keys(pinnedCfg.completedPhaseCommits ?? {})).toEqual(["phase-1-first.md", "phase-2-second.md"]);
 
       const injected = parseOut(summary.rInject);
       expect(injected.ok).toBe(false);

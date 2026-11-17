@@ -27,12 +27,12 @@ import type {
   StageContext,
   StageProof,
   StageVerifyResult,
+  SubjectCloseoutVerifier,
   ValidatedBridges,
 } from "./types.js";
-import { runSh, shellQuote } from "./validation.js";
+import { COMMIT_SHA_RE, runSh, shellQuote } from "./validation.js";
 
 export const STAGE_SEQUENCE: readonly LoopStage[] = ["build", "review", "save", "commit"];
-const COMMIT_SHA_RE = /^[a-f0-9]{40}(?:[a-f0-9]{24})?$/i;
 
 interface LoopSession {
   cwd: string;
@@ -83,6 +83,48 @@ function hasCompletePhaseStageProofs(checkpoint: LoopCheckpoint | null, phaseNam
   );
 }
 
+async function verifyPinnedCommitTreeAndParent(
+  cwd: string,
+  sh: ValidatedBridges["sh"],
+  commitSha: string,
+  commitProof: CommitStageProof | undefined,
+): Promise<boolean> {
+  if (!commitProof || !COMMIT_SHA_RE.test(commitProof.expectedTree ?? "") || !COMMIT_SHA_RE.test(commitProof.baselineHead ?? "")) {
+    return true;
+  }
+  const qCwd = shellQuote(cwd);
+  try {
+    const actualTree = (await runSh(sh, `git -C ${qCwd} rev-parse --verify ${shellQuote(`${commitSha}^{tree}`)}`)).trim();
+    if (actualTree !== commitProof.expectedTree) return false;
+    const revLine = (await runSh(sh, `git -C ${qCwd} rev-list --parents -n 1 ${shellQuote(commitSha)}`)).trim();
+    const parts = revLine.split(/\s+/);
+    return parts.length === 2 && parts[0] === commitSha && parts[1] === commitProof.baselineHead;
+  } catch {
+    return false;
+  }
+}
+
+function hasVerifiedUpstreamProofs(ps: LoopCheckpoint["phases"][string] | undefined): boolean {
+  if (!ps) return false;
+  return Boolean(ps.build && ps.review?.verdict === "clean" && ps.save?.receiptStatus === "complete");
+}
+
+function commitMatchesInFlightPhase(commit: LoopCheckpoint["phases"][string]["commit"], phase: PinnedPhase): boolean {
+  if (!commit?.baselineHead) return false;
+  if (COMMIT_SHA_RE.test(commit.expectedTree ?? "")) {
+    return commit.completedPhaseRevision === phase.revision && commit.completedPhaseSha256 === phase.sha256;
+  }
+  return Boolean(commit.expectedPhaseSha256 && commit.expectedPhaseSha256 === phase.sha256);
+}
+
+function isInFlightCommitCompletion(checkpoint: LoopCheckpoint | null, phase: PinnedPhase): boolean {
+  if (!checkpoint || checkpoint.currentStage !== "commit" || checkpoint.currentPhaseLogicalName !== phase.logicalName) {
+    return false;
+  }
+  const ps = checkpoint.phases?.[phase.logicalName];
+  return hasVerifiedUpstreamProofs(ps) && commitMatchesInFlightPhase(ps?.commit, phase);
+}
+
 /** Detect phases marked completed whose Git commit proof or full stage proofs are missing/unreachable. */
 export async function detectPlanCompletionGap(
   pinned: PinnedPlan,
@@ -99,9 +141,13 @@ export async function detectPlanCompletionGap(
       if (!(await verifyReachableCommit(cwd, sh, recordedSha))) {
         return `Phase ${phase.order} (${phase.logicalName}) commit proof ${recordedSha} is missing or unreachable from HEAD; inspect Git history before continuing.`;
       }
+      const lineageOk = await verifyPinnedCommitTreeAndParent(cwd, sh, recordedSha, checkpoint?.phases?.[phase.logicalName]?.commit);
+      if (!lineageOk) {
+        return `Phase ${phase.order} (${phase.logicalName}) commit ${recordedSha} failed parent/tree proof check against checkpoint; inspect Git history before continuing.`;
+      }
       continue;
     }
-    if (isPhaseMarkedCompleted(phase)) {
+    if (isPhaseMarkedCompleted(phase) && !isInFlightCommitCompletion(checkpoint, phase)) {
       return `Phase ${phase.order} (${phase.logicalName}) is marked complete in plan metadata without verified Git commit proof; inspect Git history or reset phase status before continuing.`;
     }
   }
@@ -132,7 +178,7 @@ function pickStartPosition(
   return null;
 }
 
-async function saveTransition(session: LoopSession, patch: Partial<LoopCheckpoint>): Promise<void> {
+async function persistCheckpointPatch(session: LoopSession, patch: Partial<LoopCheckpoint>): Promise<LoopCheckpoint> {
   const next: LoopCheckpoint = {
     ...session.checkpoint,
     ...patch,
@@ -149,6 +195,11 @@ async function saveTransition(session: LoopSession, patch: Partial<LoopCheckpoin
   });
   session.checkpoint = stored.checkpoint;
   session.revision = stored.revision;
+  return stored.checkpoint;
+}
+
+async function saveTransition(session: LoopSession, patch: Partial<LoopCheckpoint>): Promise<void> {
+  const next = await persistCheckpointPatch(session, patch);
   emitLoopProgress(
     session.bridges,
     next.currentPhaseOrder,
@@ -234,6 +285,19 @@ function makeStageContext(session: LoopSession, phase: PinnedPhase, stage: LoopS
     attemptId,
     bridges: session.bridges,
     xdgConfigHome: session.xdgConfigHome,
+    pinStageProof: async (proof) => {
+      const updates = setStageProof(session.checkpoint, phase, stage, proof);
+      await persistCheckpointPatch(session, {
+        ...updates,
+        currentPhaseOrder: phase.order,
+        currentPhaseLogicalName: phase.logicalName,
+        currentStage: stage,
+        currentMilestone: "starting",
+        attemptId,
+        jobHandle: null,
+        blocker: null,
+      });
+    },
   };
 }
 
@@ -356,6 +420,28 @@ async function finalizeStageVerification(
   };
 }
 
+async function runStageStarting(
+  session: LoopSession,
+  phase: PinnedPhase,
+  stage: LoopStage,
+  adapter: StageAdapter,
+  ctx: StageContext,
+): Promise<void> {
+  const prep = adapter.prepareStarting ? await adapter.prepareStarting(ctx) : undefined;
+  const prepProof = prep && typeof prep === "object" && "proof" in prep ? prep.proof : undefined;
+  const prepUpdates = prepProof ? setStageProof(session.checkpoint, phase, stage, prepProof) : {};
+  await saveTransition(session, {
+    ...prepUpdates,
+    currentPhaseOrder: phase.order,
+    currentPhaseLogicalName: phase.logicalName,
+    currentStage: stage,
+    currentMilestone: "starting",
+    attemptId: ctx.attemptId,
+    jobHandle: null,
+    blocker: null,
+  });
+}
+
 async function dispatchAndVerifyStage(
   session: LoopSession,
   phase: PinnedPhase,
@@ -365,18 +451,11 @@ async function dispatchAndVerifyStage(
   adapters?: StageAdapters,
 ): Promise<StageRunOutcome> {
   const attemptId = existingAttemptId ?? randomUUID();
-  const ctx = makeStageContext(session, phase, stage, attemptId);
+  const initialCtx = makeStageContext(session, phase, stage, attemptId);
 
-  if (adapter.prepareStarting) await adapter.prepareStarting(ctx);
-  await saveTransition(session, {
-    currentPhaseOrder: phase.order,
-    currentPhaseLogicalName: phase.logicalName,
-    currentStage: stage,
-    currentMilestone: "starting",
-    attemptId,
-    jobHandle: null,
-    blocker: null,
-  });
+  await runStageStarting(session, phase, stage, adapter, initialCtx);
+  // Refresh context after `runStageStarting` persists initial stage proofs (e.g. commit baseline/tree).
+  const ctx = makeStageContext(session, phase, stage, attemptId);
 
   const dispatched = await adapter.dispatchWorking(ctx);
   await saveTransition(session, {
@@ -567,6 +646,63 @@ async function loadValidatedSession(options: {
   };
 }
 
+async function verifyAllPhaseCommitsReachable(
+  session: LoopSession,
+  pinnedPlan: PinnedPlan,
+): Promise<BuckLoopResult | null> {
+  for (const phase of pinnedPlan.phases) {
+    const sha = session.checkpoint.completedPhaseCommits?.[phase.logicalName];
+    if (!sha || !(await verifyReachableCommit(session.cwd, session.bridges.sh, sha))) {
+      return {
+        ok: false,
+        state: "blocked",
+        subject: pinnedPlan.subjectId,
+        branch: pinnedPlan.branchName,
+        checkpointRevision: session.revision ?? undefined,
+        completedPhaseCommits: session.checkpoint.completedPhaseCommits,
+        message: `Phase ${phase.order} (${phase.logicalName}) lacks a verified reachable commit before done.`,
+      };
+    }
+  }
+  return null;
+}
+
+async function verifyDoneInvariants(
+  session: LoopSession,
+  pinnedPlan: PinnedPlan,
+  verifySubjectCloseout?: SubjectCloseoutVerifier,
+): Promise<BuckLoopResult | null> {
+  const missingCommit = await verifyAllPhaseCommitsReachable(session, pinnedPlan);
+  if (missingCommit) return missingCommit;
+  if (!verifySubjectCloseout) return null;
+  const gap = await detectPlanCompletionGap(pinnedPlan, session.checkpoint, session.cwd, session.bridges.sh);
+  if (gap) {
+    return {
+      ok: false,
+      state: "blocked",
+      subject: pinnedPlan.subjectId,
+      branch: pinnedPlan.branchName,
+      checkpointRevision: session.revision ?? undefined,
+      completedPhaseCommits: session.checkpoint.completedPhaseCommits,
+      message: gap,
+    };
+  }
+  const lastPhase = pinnedPlan.phases[pinnedPlan.phases.length - 1];
+  const closeout = await verifySubjectCloseout({
+    cwd: session.cwd,
+    subjectId: pinnedPlan.subjectId,
+    sh: session.bridges.sh,
+    xdgConfigHome: session.xdgConfigHome,
+  });
+  if (!closeout.ok) {
+    return recordBlocker(session, lastPhase, "commit", "verified", {
+      reason: closeout.reason,
+      nextSafeAction: `Run subject closeout verification and re-run /b-loop ${pinnedPlan.subjectId}.`,
+    });
+  }
+  return null;
+}
+
 /**
  * Load checkpoint first, validate binding & plan drift, check completion/Git gaps,
  * then drive phases and stages using CAS readback and shared four-milestone progression.
@@ -579,6 +715,7 @@ export async function executeCheckpointLoop(options: {
   adapters: StageAdapters;
   xdgConfigHome?: string;
   configPath?: string;
+  verifySubjectCloseout?: SubjectCloseoutVerifier;
 }): Promise<BuckLoopResult> {
   const loaded = await loadValidatedSession(options);
   if (loaded.blocked) return loaded.blocked;
@@ -605,6 +742,9 @@ export async function executeCheckpointLoop(options: {
       }
     }
   }
+
+  const doneBlock = await verifyDoneInvariants(session, options.pinnedPlan, options.verifySubjectCloseout);
+  if (doneBlock) return doneBlock;
 
   return {
     ok: true,

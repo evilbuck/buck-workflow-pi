@@ -31,6 +31,7 @@ export {
   createDefaultStageAdapters,
   STAGE_TOOLS,
 } from "./stages.js";
+export { createCommitStageAdapter, verifySubjectCloseoutWithLifecycle } from "./git-commit.js";
 export type * from "./types.js";
 export {
   parseSubjectArgument,
@@ -47,6 +48,7 @@ import {
   createWorkflowCliCheckpointBackend,
   createWorkflowCliRunStateBackend,
 } from "./checkpoint.js";
+import { createCommitStageAdapter, verifySubjectCloseoutWithLifecycle } from "./git-commit.js";
 import { executeCheckpointLoop } from "./recovery.js";
 import { createDefaultStageAdapters } from "./stages.js";
 import type {
@@ -87,6 +89,7 @@ function resolveRunAdapters(
   const defaults = createDefaultStageAdapters({
     runStateBackend,
     xdgConfigHome: options.xdgConfigHome,
+    commitAdapter: createCommitStageAdapter({ xdgConfigHome: options.xdgConfigHome }),
   });
   return options.stageAdapters ? { ...defaults, ...options.stageAdapters } : defaults;
 }
@@ -122,6 +125,9 @@ async function runWithAcquiredLock(
     configPath: options.configPath,
   });
   const adapters = resolveRunAdapters(options, bridges);
+  const verifySubjectCloseout =
+    options.verifySubjectCloseout ??
+    (options.stageAdapters?.commit ? undefined : verifySubjectCloseoutWithLifecycle);
   return executeCheckpointLoop({
     cwd,
     pinnedPlan,
@@ -130,6 +136,7 @@ async function runWithAcquiredLock(
     adapters,
     xdgConfigHome: options.xdgConfigHome,
     configPath: options.configPath,
+    verifySubjectCloseout,
   });
 }
 

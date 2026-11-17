@@ -375,18 +375,73 @@ export function checkpointDigest(checkpoint: LoopCheckpoint): string {
   return createHash("sha256").update(JSON.stringify(checkpoint), "utf8").digest("hex");
 }
 
+function isInFlightCommitStage(
+  checkpoint: LoopCheckpoint,
+  logicalName: string,
+  commitProof: NonNullable<LoopCheckpoint["phases"][string]["commit"]>,
+): boolean {
+  if (checkpoint.currentStage !== "commit" || checkpoint.currentPhaseLogicalName !== logicalName) {
+    return false;
+  }
+  return Boolean(commitProof.expectedTree || commitProof.expectedPhaseSha256);
+}
+
+function commitAuthorizedPhaseUpdate(
+  checkpoint: LoopCheckpoint,
+  logicalName: string,
+  phase: PinnedPlan["phases"][number],
+): boolean {
+  const commitProof = checkpoint.phases[logicalName]?.commit;
+  if (!commitProof) return false;
+  const landed = Boolean(checkpoint.completedPhaseCommits[logicalName]);
+  if (!landed && !isInFlightCommitStage(checkpoint, logicalName, commitProof)) return false;
+  if (
+    commitProof.completedPhaseRevision === phase.revision &&
+    commitProof.completedPhaseSha256 === phase.sha256
+  ) {
+    return true;
+  }
+  return !landed && commitProof.expectedPhaseSha256 === phase.sha256;
+}
+
+function commitAuthorizedPlanUpdate(checkpoint: LoopCheckpoint, plan: PinnedPlan): boolean {
+  if (!plan.overviewLogicalName || plan.planLogicalName !== plan.overviewLogicalName) return false;
+  let latestOverviewSha: string | undefined;
+  for (const entry of checkpoint.phaseOrder) {
+    const commitProof = checkpoint.phases[entry.logicalName]?.commit;
+    if (!commitProof?.expectedOverviewSha256) continue;
+    const landed = Boolean(checkpoint.completedPhaseCommits[entry.logicalName]);
+    const inFlight =
+      checkpoint.currentStage === "commit" && checkpoint.currentPhaseLogicalName === entry.logicalName;
+    if (landed || inFlight) {
+      latestOverviewSha = commitProof.expectedOverviewSha256;
+    }
+  }
+  return latestOverviewSha === plan.planSha256;
+}
+
+function planHeaderMatchesPin(checkpoint: LoopCheckpoint, plan: PinnedPlan): boolean {
+  if (checkpoint.planLogicalName !== plan.planLogicalName) return false;
+  if (checkpoint.planRevision === plan.planRevision && checkpoint.planSha256 === plan.planSha256) return true;
+  return commitAuthorizedPlanUpdate(checkpoint, plan);
+}
+
+function phaseEntryMatchesPin(
+  checkpoint: LoopCheckpoint,
+  entry: LoopCheckpoint["phaseOrder"][number],
+  phase: PinnedPlan["phases"][number] | undefined,
+): boolean {
+  if (!phase || entry.order !== phase.order || entry.logicalName !== phase.logicalName) return false;
+  if (entry.revision === phase.revision && entry.sha256 === phase.sha256) return true;
+  return commitAuthorizedPhaseUpdate(checkpoint, entry.logicalName, phase);
+}
+
 function assertPlanMatches(checkpoint: LoopCheckpoint, plan: PinnedPlan): void {
-  const samePlan =
-    checkpoint.planLogicalName === plan.planLogicalName &&
-    checkpoint.planRevision === plan.planRevision &&
-    checkpoint.planSha256 === plan.planSha256;
+  const samePlan = planHeaderMatchesPin(checkpoint, plan);
   const sameLength = checkpoint.phaseOrder.length === plan.phases.length;
   const samePhases =
     sameLength &&
-    checkpoint.phaseOrder.every((entry, idx) => {
-      const p = plan.phases[idx];
-      return entry.order === p.order && entry.logicalName === p.logicalName && entry.revision === p.revision && entry.sha256 === p.sha256;
-    });
+    checkpoint.phaseOrder.every((entry, idx) => phaseEntryMatchesPin(checkpoint, entry, plan.phases[idx]));
   if (!samePlan || !samePhases) {
     throw new Error(
       `Pinned plan or phase sequence drifted since checkpoint (${checkpoint.planLogicalName}@${checkpoint.planRevision} vs ${plan.planLogicalName}@${plan.planRevision}).`,

@@ -1,3 +1,7 @@
+- 2026-11-17 — [`/b-loop` repair Phase 4: scoped Git staging, tree-pinned commit & closeout folding](b-loop-phase-4-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-4-2026-11-17.md` | domains: [b-loop, git, lifecycle, recovery, workflow] | topics: [b-loop, git-commit, tree-pinning, close-verified, crash-recovery, validation] | status: completed
+
 - 2026-11-17 — [`/b-loop` repair Phase 3: restricted stage boundaries, keyed `judge()`, build-fingerprinted `b-review`, receipt-bound `b-save`](b-loop-phase-3-2026-11-17.md) — `completed`
 
   - 2026-11-17 | `b-loop-phase-3-2026-11-17.md` | domains: [b-loop, omp, workflow, recovery, stages] | topics: [b-loop, stage-tools, omp-judge, review-fingerprint, save-receipt, run-state] | status: completed

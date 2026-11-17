@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-b-loop-repair.md
@@ -17,15 +17,15 @@ from_plan_steps: [4]
 depends_on: [2, 3]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] `sh` command runner fails closed on non-zero exit / `ShellError` (never swallows thrown command errors as exit 0) and failed Git probes halt advancement."
-  - "[ ] Fresh commit prep refuses unrelated dirty working tree changes outside verified metadata + declared phase `files:`, and refuses pre-existing staged index changes before staging."
-  - "[ ] Staging includes only verified Buck metadata for the subject/backlog/memory and declared phase `files:`; baseline `HEAD` before staging and `git write-tree` before commit are persisted in the checkpoint prior to executing `commit`."
-  - "[ ] On the final phase (after verifying earlier phase commits and final save), commit preparation runs `subject-lifecycle.ts close-verified` (resolved via `import.meta.url`), verifies clean closeout, and includes resulting index changes in the pinned staged tree."
-  - "[ ] Post-commit verification confirms `HEAD^ === baselineHead` and `HEAD^{tree} === expectedTree`, persists commit proof ID in checkpoint, and marks stage + phase `verified`."
-  - "[ ] Commit recovery handles interruptions: continues matching staged baseline+tree when `HEAD === baselineHead`; adopts single commit matching `(baselineHead, expectedTree)` if already landed; blocks on unexpected `HEAD`, index, or tree; re-running `/b-loop <subject>` after verified completion makes zero new commits."
-  - "[ ] `done` is derived strictly from verified Git commits for every phase AND verified subject closeout (`subject-lifecycle.ts inspect` / closeout proof)."
-completed_at: null
-completed_by: null
+  - "[x] `sh` command runner fails closed on non-zero exit / `ShellError` (never swallows thrown command errors as exit 0) and failed Git probes halt advancement."
+  - "[x] Fresh commit prep refuses unrelated dirty working tree changes outside verified metadata + declared phase `files:`, and refuses pre-existing staged index changes before staging."
+  - "[x] Staging includes only verified Buck metadata for the subject/backlog/memory and declared phase `files:`; baseline `HEAD` before staging and `git write-tree` before commit are persisted in the checkpoint prior to executing `commit`."
+  - "[x] On the final phase (after verifying earlier phase commits and final save), commit preparation runs `subject-lifecycle.ts close-verified` (resolved via `import.meta.url`), verifies clean closeout, and includes resulting index changes in the pinned staged tree."
+  - "[x] Post-commit verification confirms `HEAD^ === baselineHead` and `HEAD^{tree} === expectedTree`, persists commit proof ID in checkpoint, and marks stage + phase `verified`."
+  - "[x] Commit recovery handles interruptions: continues matching staged baseline+tree when `HEAD === baselineHead`; adopts single commit matching `(baselineHead, expectedTree)` if already landed; blocks on unexpected `HEAD`, index, or tree; re-running `/b-loop <subject>` after verified completion makes zero new commits."
+  - "[x] `done` is derived strictly from verified Git commits for every phase AND verified subject closeout (`subject-lifecycle.ts inspect` / closeout proof)."
+completed_at: 2026-11-17
+completed_by: claude-opus-4-6
 ---
 
 # Phase 4: Scoped Git Staging, Tree-Pinning Commit & Closeout

@@ -111,6 +111,10 @@ export interface CommitStageProof {
   expectedTree?: string;
   commitId?: string;
   closeoutApplied?: boolean;
+  completedPhaseRevision?: string;
+  completedPhaseSha256?: string;
+  expectedPhaseSha256?: string;
+  expectedOverviewSha256?: string;
   verifiedAt?: string;
 }
 
@@ -216,6 +220,7 @@ export interface StageContext {
   attemptId: string;
   bridges: ValidatedBridges;
   xdgConfigHome?: string;
+  pinStageProof?: (proof: StageProof) => Promise<void>;
 }
 
 export type StartingCheckResult =
@@ -236,7 +241,7 @@ export type StageVerifyResult =
 
 export interface StageAdapter {
   checkStarting?(ctx: StageContext): Promise<StartingCheckResult>;
-  prepareStarting?(ctx: StageContext): Promise<void>;
+  prepareStarting?(ctx: StageContext): Promise<void | { proof?: StageProof }>;
   dispatchWorking(ctx: StageContext): Promise<{ jobHandle?: string | null; handle?: unknown }>;
   recoverWorking?(ctx: StageContext): Promise<WorkingRecoveryResult>;
   awaitFinished?(ctx: StageContext, dispatched: { jobHandle?: string | null; handle?: unknown }): Promise<void>;
@@ -244,6 +249,13 @@ export interface StageAdapter {
 }
 
 export type StageAdapters = Record<LoopStage, StageAdapter>;
+
+export type SubjectCloseoutVerifier = (options: {
+  cwd: string;
+  subjectId: string;
+  sh: ValidatedBridges["sh"];
+  xdgConfigHome?: string;
+}) => Promise<{ ok: true } | { ok: false; reason: string }>;
 
 export interface BuckLoopOptions {
   args?: string;
@@ -255,6 +267,7 @@ export interface BuckLoopOptions {
   checkpointBackend?: CheckpointBackend;
   runStateBackend?: RunStateBackend;
   stageAdapters?: Partial<StageAdapters>;
+  verifySubjectCloseout?: SubjectCloseoutVerifier;
   isPidAlive?: (pid: number) => boolean;
 }
 

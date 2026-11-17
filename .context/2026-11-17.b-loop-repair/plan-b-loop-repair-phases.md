@@ -26,7 +26,7 @@ format: discrete
 | 1: Entry, Invocation Contract & Pre-Flight Validation | completed | medium | none | [phase-1-entry-and-validation.md](phase-1-entry-and-validation.md) |
 | 2: Private Checkpoint, Locking, Milestones & Recovery | completed | hard | none | [phase-2-checkpoint-and-recovery.md](phase-2-checkpoint-and-recovery.md) |
 | 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance | completed | hard | none | [phase-3-stage-boundaries.md](phase-3-stage-boundaries.md) |
-| 4: Scoped Git Staging, Tree-Pinning Commit & Closeout | pending | hard | none | [phase-4-git-commit-and-closeout.md](phase-4-git-commit-and-closeout.md) |
+| 4: Scoped Git Staging, Tree-Pinning Commit & Closeout | completed | hard | none | [phase-4-git-commit-and-closeout.md](phase-4-git-commit-and-closeout.md) |
 | 5: Real OMP E2E Test Suite & Documentation Sync | pending | medium | none | [phase-5-omp-e2e-and-docs.md](phase-5-omp-e2e-and-docs.md) |
 
 ## Dependency Matrix
@@ -88,6 +88,6 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Entry, Invocation Contract & Pre-Flight Validation — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: Private Checkpoint, Locking, Milestones & Recovery — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 4: Scoped Git Staging, Tree-Pinning Commit & Closeout — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 4: Scoped Git Staging, Tree-Pinning Commit & Closeout — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 5: Real OMP E2E Test Suite & Documentation Sync — build → review → iterate if in-plan issues → docs if doc impact → save → commit
