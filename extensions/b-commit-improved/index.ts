@@ -165,6 +165,22 @@ function writeDraft(cwd: string, subjectFolder: string | null, title: string, bo
   return relPath;
 }
 
+function persistDryRunDraft(
+  cwd: string,
+  subjectFolder: string | null,
+  title: string,
+  body: string,
+  notify: Notify,
+): void {
+  const existing = draftPathFor(subjectFolder);
+  if (existsSync(join(cwd, existing))) {
+    notify(`[dry-run] Left the existing draft at ${existing} untouched.`, "info");
+    return;
+  }
+  const path = writeDraft(cwd, subjectFolder, title, body);
+  notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+}
+
 // Best-effort draft deletion. Tolerates ENOENT (race with another process).
 function deleteDraft(path: string): void {
   try {
@@ -419,15 +435,7 @@ async function runBCommitImproved(
     if (opts.dryRun) {
       const firstBodyLine = body.split("\n", 1)[0] ?? "";
       notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
-      if (source === "model") {
-        const existing = draftPathFor(subjectFolder);
-        if (existsSync(join(cwd, existing))) {
-          notify(`[dry-run] Left the existing draft at ${existing} untouched.`, "info");
-        } else {
-          const path = writeDraft(cwd, subjectFolder, title, body);
-          notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
-        }
-      }
+      if (source === "model") persistDryRunDraft(cwd, subjectFolder, title, body, notify);
       return;
     }
 

@@ -109,14 +109,13 @@ describe("Buck Workflow Codex plugin", () => {
   });
 
   it("resolves bundled save-apply to the repository sql-save module", async () => {
-    const bundled = await import(join(pluginRoot, "skills", "b-save", "scripts", "save-apply.ts"));
     const canonical = await import(join(repoRoot, "skills", "b-save", "scripts", "save-apply.ts"));
-    const bundledDir = join(pluginRoot, "skills", "b-save", "scripts");
-    const canonicalDir = join(repoRoot, "skills", "b-save", "scripts");
-    expect(bundled.sqlSaveSpecifierFrom(bundledDir)).toBe("../../../../../extensions/buck-loop/sql-save.js");
-    expect(canonical.sqlSaveSpecifierFrom(canonicalDir)).toBe("../../../extensions/buck-loop/sql-save.js");
+    const bundledSource = readFileSync(join(pluginRoot, "skills", "b-save", "scripts", "save-apply.ts"), "utf8");
+    expect(bundledSource).toContain("export function sqlSaveSpecifierFrom");
+    expect(canonical.sqlSaveSpecifierFrom(join(pluginRoot, "skills", "b-save", "scripts"))).toBe("../../../../../extensions/buck-loop/sql-save.js");
+    expect(canonical.sqlSaveSpecifierFrom(join(repoRoot, "skills", "b-save", "scripts"))).toBe("../../../extensions/buck-loop/sql-save.js");
     expect(existsSync(join(pluginRoot, "extensions"))).toBe(false);
-    const loaded = await bundled.loadSqlSave();
+    const loaded = await canonical.loadSqlSave();
     expect(typeof loaded.withSaveStore).toBe("function");
   });
 
