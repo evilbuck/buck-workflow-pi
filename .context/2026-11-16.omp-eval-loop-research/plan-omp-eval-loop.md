@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 date: 2026-11-17
 subject: 2026-11-16.omp-eval-loop-research
 topics: [omp, eval, workflowz, buck-loop, typescript, buck-models, before-subagent-spawn]
@@ -152,13 +152,13 @@ Replace the wired `extensions/buck-loop/` runtime supervisor with:
    - Update `skills/b-plan/SKILL.md` and `skills/b-phase/SKILL.md` so `workflow` / `workflowz` recommendations support TypeScript `eval` cells (`eval-<topic>.ts`, `language: "js"`) and `%load`.
 
 ## Acceptance criteria
-- [ ] `extensions/interactive-model-switch.ts` handles `before_subagent_spawn` for `invocationKind: "eval"`, routing `b-*` subagent labels through the active `/buck-models` profile and blocking spawns when the profile is invalid or missing the stage.
-- [ ] `skills/b-loop/scripts/eval-buck-loop.ts` imports `extensions/buck-loop/machine.ts` and links cleanly in `omp __omp_worker_js_eval_process` with zero bare npm specifier errors.
-- [ ] `skills/b-loop/scripts/eval-buck-loop.ts` drives `resolving → building → reviewing → ranking → iterating → documenting → saving → committing → done` using `agent()`, `judge()`, `judgeBatch()`, `tool.workflow_state()`, `sh`, `phase()`, and `log()`.
-- [ ] `prompts/b-loop.md`, `commands/b-loop.md` (symlink), and `skills/b-loop/SKILL.md` exist and pass `scripts/commands-mirror.test.ts`.
-- [ ] `wireBuckLoop(pi)` is unwired from `extensions/index.ts`, while `extensions/buck-loop/` remains on disk.
-- [ ] `docs/buck-workflow.md`, `docs/eval-kernel.md`, `skills/b-plan/SKILL.md`, and `skills/b-phase/SKILL.md` accurately document OMP 18.x `workflowz`, TypeScript `eval` (`language: "js"`), `%load`, `judgeBatch()`, and `/b-loop`.
-- [ ] `npm run guardrails:check` and `npm run subject-lifecycle:check` pass.
+- [x] `extensions/interactive-model-switch.ts` handles `before_subagent_spawn` for `invocationKind: "eval"`, routing `b-*` subagent labels through the active `/buck-models` profile and blocking spawns when the profile is invalid or missing the stage.
+- [x] `skills/b-loop/scripts/eval-buck-loop.ts` imports `extensions/buck-loop/machine.ts` and links cleanly in `omp __omp_worker_js_eval_process` with zero bare npm specifier errors.
+- [x] `skills/b-loop/scripts/eval-buck-loop.ts` drives `resolving → building → reviewing → ranking → iterating → documenting → saving → committing → done` using `agent()`, `judge()`, `judgeBatch()`, `tool.workflow_state()`, `sh`, `phase()`, and `log()`.
+- [x] `prompts/b-loop.md`, `commands/b-loop.md` (symlink), and `skills/b-loop/SKILL.md` exist and pass `scripts/commands-mirror.test.ts`.
+- [x] `wireBuckLoop(pi)` is unwired from `extensions/index.ts`, while `extensions/buck-loop/` remains on disk.
+- [x] `docs/buck-workflow.md`, `docs/eval-kernel.md`, `skills/b-plan/SKILL.md`, and `skills/b-phase/SKILL.md` accurately document OMP 18.x `workflowz`, TypeScript `eval` (`language: "js"`), `%load`, `judgeBatch()`, and `/b-loop`.
+- [x] `npm run guardrails:check` and `npm run subject-lifecycle:check` pass.
 
 ## Verification
 - `npx vitest run extensions/index.test.ts skills/b-loop/scripts/eval-buck-loop.test.ts scripts/commands-mirror.test.ts`

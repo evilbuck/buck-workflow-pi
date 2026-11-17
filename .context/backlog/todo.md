@@ -9,7 +9,7 @@ Phases: 1 (routing) - -→ 2 (runner) ──(HARD)──→ 3 (cutover) - -→ 4
 - [x] [Phase 1: Subagent Model Routing for eval Spawns](items/phase-1-subagent-model-routing.md) — medium, `/b-build` — [phase-1-subagent-model-routing.md](../2026-11-16.omp-eval-loop-research/phase-1-subagent-model-routing.md)
 - [x] [Phase 2: TypeScript eval Buck Loop Runner & Bridge Tests](items/phase-2-eval-loop-runner.md) — hard, `/b-build-hard` — [phase-2-eval-loop-runner.md](../2026-11-16.omp-eval-loop-research/phase-2-eval-loop-runner.md)
 - [x] [Phase 3: Command & Prompt Entrypoints and Extension Cutover](items/phase-3-command-prompt-cutover.md) — easy, `/b-build` — [phase-3-command-prompt-cutover.md](../2026-11-16.omp-eval-loop-research/phase-3-command-prompt-cutover.md)
-- [ ] [Phase 4: Documentation & Workflow Skill Updates for OMP 18.x](items/phase-4-docs-and-skill-updates.md) — easy, `/b-build` — [phase-4-docs-and-skill-updates.md](../2026-11-16.omp-eval-loop-research/phase-4-docs-and-skill-updates.md)
+- [x] [Phase 4: Documentation & Workflow Skill Updates for OMP 18.x](items/phase-4-docs-and-skill-updates.md) — easy, `/b-build` — [phase-4-docs-and-skill-updates.md](../2026-11-16.omp-eval-loop-research/phase-4-docs-and-skill-updates.md)
 
 
 ## Host typebox mismatch

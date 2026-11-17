@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 4
 order: 4
 plan: plan-omp-eval-loop.md
@@ -18,13 +18,13 @@ from_plan_steps: [6]
 depends_on: [3]
 dependency_type: SOFT
 acceptance_criteria:
-  - "[ ] docs/eval-kernel.md documents language: \"js\" Bun TypeScript transpilation, LocalModuleLoader bare npm specifier constraints, %load script execution, judgeBatch(), and before_subagent_spawn stage model routing."
-  - "[ ] docs/buck-workflow.md updates the Runtime package mapping table to reflect extensions/buck-loop/ as unwired, documents /b-loop as the workflowz eval loop, and notes OMP 18.x keyword changes."
-  - "[ ] skills/b-plan/SKILL.md adds a TypeScript eval cell option (eval-<topic>.ts, language: \"js\") alongside the Python template, and updates omp_execution references to include workflowz."
-  - "[ ] skills/b-phase/SKILL.md updates Per-Phase Execution Loop table and omp_execution documentation to mention workflowz and %load."
-  - "[ ] npm run guardrails:check and npm run subject-lifecycle:check pass cleanly."
-completed_at: null
-completed_by: null
+  - "[x] docs/eval-kernel.md documents language: \"js\" Bun TypeScript transpilation, LocalModuleLoader bare npm specifier constraints, %load script execution, judgeBatch(), and before_subagent_spawn stage model routing."
+  - "[x] docs/buck-workflow.md updates the Runtime package mapping table to reflect extensions/buck-loop/ as unwired, documents /b-loop as the workflowz eval loop, and notes OMP 18.x keyword changes."
+  - "[x] skills/b-plan/SKILL.md adds a TypeScript eval cell option (eval-<topic>.ts, language: \"js\") alongside the Python template, and updates omp_execution references to include workflowz."
+  - "[x] skills/b-phase/SKILL.md updates Per-Phase Execution Loop table and omp_execution documentation to mention workflowz and %load."
+  - "[x] npm run guardrails:check and npm run subject-lifecycle:check pass cleanly."
+completed_at: 2026-11-17
+completed_by: Antigravity
 ---
 
 # Phase 4: Documentation & Workflow Skill Updates for OMP 18.x
