@@ -592,7 +592,7 @@ The following older subsystems are **not** wired by the package manifest:
 
 | Subsystem | Current state |
 |---|---|
-| `/b-save` extension command | Removed; `/b-save` is a pure prompt + skill |
+| `/b-save` extension command | Wired as `/b-save` from `extensions/b-save/`. `prompts/b-save-improved.md` is a prompt alias, not a second command. |
 | `/b-mode` and plan-mode write guards | Removed from the wired extension |
 | `/b-flow` / `/b-next` orchestration | Removed 2026-09-20 |
 | `b-grill-auto` extension command and skill | Removed 2026-09-21; auto grilling is `/skill:b-grill --mode auto` |
