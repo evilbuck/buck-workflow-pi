@@ -244,7 +244,7 @@ describe("runBuckLoop execution and bridge orchestration", () => {
     expect(judgeCalls.length).toBeGreaterThan(0);
 
     // Verified scoped git staging and subject-lifecycle closeout were invoked via sh
-    expect(shCalls.some(cmd => cmd.includes("git add .context/"))).toBe(true);
+    expect(shCalls.some(cmd => cmd.includes("git add --") && cmd.includes(".context/"))).toBe(true);
     expect(shCalls.some(cmd => cmd.includes("subject-lifecycle.ts close-verified"))).toBe(true);
 
     // Verified TUI updates were emitted
@@ -364,6 +364,114 @@ describe("runBuckLoop execution and bridge orchestration", () => {
     expect(result.ok).toBe(false);
     expect(result.state).toBe("blocked");
     expect(result.message).toContain("Budget exhausted");
+  });
+
+  it("does not rebuild a subject whose phases are already complete", async () => {
+    const cwd = createTempProject();
+    const subjectDir = setupSampleSubject(cwd);
+    for (const name of ["phase-1-first-step.md", "phase-2-second-step.md"]) {
+      const path = join(subjectDir, name);
+      writeFileSync(path, readFileSync(path, "utf8").replace("status: pending", "status: completed"));
+    }
+    const agent = vi.fn();
+    const result = await runBuckLoop({
+      cwd,
+      bridges: {
+        agent,
+        sh: vi.fn(async () => ({ exitCode: 0 })),
+        log: vi.fn(),
+        phase: vi.fn(),
+        budget: { remaining: async () => 10 },
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(result.state).toBe("done");
+    expect(agent).not.toHaveBeenCalled();
+  });
+
+  it("blocks when the loop limit is hit before the last phase", async () => {
+    const cwd = createTempProject();
+    setupSampleSubject(cwd);
+    const labels: string[] = [];
+    const result = await runBuckLoop({
+      cwd,
+      maxLoops: 1,
+      bridges: {
+        agent: vi.fn(async (_prompt: string, options?: { label?: string }) => {
+          labels.push(options?.label ?? "");
+          return { ok: true };
+        }),
+        judge: vi.fn(async () => ({ ok: true, bool: true })),
+        sh: vi.fn(async () => ({ exitCode: 0 })),
+        log: vi.fn(),
+        phase: vi.fn(),
+        budget: { remaining: async () => 10 },
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.state).toBe("blocked");
+    expect(result.message).toContain("Loop limit");
+    expect(labels.some(label => label.startsWith("b-build-hard"))).toBe(false);
+  });
+
+  it("blocks save and commit when judge rejects a criterion", async () => {
+    const cwd = createTempProject();
+    setupSampleSubject(cwd);
+    const labels: string[] = [];
+    const result = await runBuckLoop({
+      cwd,
+      bridges: {
+        agent: vi.fn(async (_prompt: string, options?: { label?: string }) => {
+          labels.push(options?.label ?? "");
+          return { ok: true };
+        }),
+        judge: vi.fn(async () => ({ ok: true, bool: false })),
+        sh: vi.fn(async () => ({ exitCode: 0 })),
+        log: vi.fn(),
+        phase: vi.fn(),
+        budget: { remaining: async () => 10 },
+      },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.message).toContain("Acceptance criteria");
+    expect(labels).toContain("b-build-phase-1-first-step");
+    expect(labels).not.toContain("b-save-phase-1-first-step");
+    expect(labels).not.toContain("b-commit-phase-1-first-step");
+  });
+
+  it("resumes the recorded phase instead of restarting at phase 1", async () => {
+    const cwd = createTempProject();
+    setupSampleSubject(cwd);
+    writeStatusSnapshot(cwd, {
+      state: "building",
+      subject: "2026-11-17.test-feature",
+      planPath: ".context/2026-11-17.test-feature/plan-test-phases.md",
+      phasePath: ".context/2026-11-17.test-feature/phase-2-second-step.md",
+      loopCount: 1,
+      maxLoops: 24,
+      iterateCyclesOnPhase: 0,
+      lastChoice: null,
+      history: [],
+    } as any);
+    const labels: string[] = [];
+    const result = await runBuckLoop({
+      cwd,
+      args: "--resume",
+      bridges: {
+        agent: vi.fn(async (_prompt: string, options?: { label?: string }) => {
+          labels.push(options?.label ?? "");
+          return { ok: true };
+        }),
+        judge: vi.fn(async () => ({ ok: true, bool: true })),
+        sh: vi.fn(async () => ({ exitCode: 0 })),
+        log: vi.fn(),
+        phase: vi.fn(),
+        budget: { remaining: async () => 10 },
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(labels[0]).toBe("b-build-hard-phase-2-second-step");
+    expect(labels).not.toContain("b-build-phase-1-first-step");
   });
 });
 

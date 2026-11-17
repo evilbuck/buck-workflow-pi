@@ -26,7 +26,7 @@ description: Run unattended Buck phase loops in OMP via hot-reloadable TypeScrip
 
 - `[target]`: Optional path to a specific subject directory (e.g. `.context/2026-11-16.feature/`), plan overview (`plan-*-phases.md`), or phase file (`phase-1-*.md`). If omitted, `/b-loop` automatically discovers the active subject and earliest incomplete phase in `.context/`.
 - `--status`: Inspect the status of the current or last loop run recorded in `.context/workflow/buck-loop.json` without modifying state.
-- `--resume`: Resume an interrupted or stopped loop from the saved `.context/workflow/buck-loop.json` snapshot.
+- `--resume`: Resume an interrupted or stopped loop from the saved `.context/workflow/buck-loop.json` snapshot. Resume restarts the recorded phase at build and keeps the saved loop count. A snapshot whose state is already `done` is reported and not rebuilt. With no snapshot, the runner starts at the first incomplete phase.
 - `--stop`: Safely abort the running loop and checkpoint its state in `.context/workflow/buck-loop.json`.
 
 ## Architecture & Flow
@@ -43,8 +43,8 @@ eval({
 
 The runner:
 1. **Discovers**: Scans `.context/` for active plans and phase files, loading frontmatter and acceptance criteria with zero bare npm specifiers.
-2. **Orchestrates**: Drives the formal state machine (`extensions/buck-loop/machine.ts`) across each phase through the standard Buck lifecycle:
-   - **Build**: Dispatches `agent(prompt, { agent: "task", label: "b-build-<phase>" })` (or `b-build-hard` for hard phases) and verifies acceptance criteria via `judge()`.
+2. **Orchestrates**: Runs the phase cycle in this script. `extensions/buck-loop/` remains on disk and is not wired from `extensions/index.ts`; this runner does not call `machine.ts`.
+   - **Build**: Dispatches `agent(prompt, { agent: "task", label: "b-build-<phase>" })` (or `b-build-hard` for hard phases) and verifies acceptance criteria via `judge()`. A `bool: false` or `ok: false` verdict blocks save and commit.
    - **Review**: Dispatches `agent(prompt, { agent: "task", label: "b-review-<phase>" })`. If findings are generated, ranks them via `judgeBatch()` and iterates via `b-iterate`.
    - **Save**: Dispatches `agent(prompt, { agent: "task", label: "b-save-<phase>" })` to persist session memory and metadata.
    - **Commit**: Stages `.context/` and phase `files:`, runs `b-commit`, and verifies git status baseline.

@@ -5,20 +5,10 @@
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve } from "node:path";
-import {
-  buckMachine,
-  start,
-  next,
-  applyChoice,
-  legalChoices,
-} from "../../../extensions/buck-loop/machine.ts";
 import type {
-  AcceptedChoice,
-  Choice,
   LoopState,
   Snapshot,
   TransitionRecord,
-  WorkSkill,
 } from "../../../extensions/buck-loop/types.ts";
 
 export const PROJECTION_PATH = ".context/workflow/buck-loop.json";
@@ -69,6 +59,8 @@ export interface BuckLoopOptions {
   args?: string;
   cwd?: string;
   bridges?: EvalBridges;
+  /** Test seam. The CLI default is 24. */
+  maxLoops?: number;
 }
 
 export interface BuckLoopResult {
@@ -404,15 +396,25 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
 
   bridges.phase(`Starting Buck Loop for ${snapshot.subject}`);
   bridges.log(`Subject: ${snapshot.subject}, Plan: ${snapshot.planPath}, Phases: ${planInfo.phases.length}`);
+  if (options.maxLoops !== undefined) snapshot.maxLoops = options.maxLoops;
 
-  let activePhaseIndex = 0;
-  for (let i = 0; i < planInfo.phases.length; i++) {
-    const p = planInfo.phases[i];
-    const crit = parseAcceptanceCriteria(p.content);
-    const isDone = (crit.total > 0 && crit.checked === crit.total) || p.status === "completed";
-    if (!isDone) {
-      activePhaseIndex = i;
-      break;
+  let activePhaseIndex = firstIncompletePhaseIndex(planInfo.phases);
+  if (args.resume) {
+    const existing = readStatusSnapshot(cwd);
+    if (existing?.state === "done") {
+      bridges.log("Buck loop already completed.");
+      return { ok: true, state: "done", subject: existing.subject, phase: existing.phasePath, message: "Loop already completed" };
+    }
+    if (!existing) {
+      bridges.log("No snapshot to resume; starting from the first incomplete phase.");
+    } else {
+      snapshot.loopCount = existing.loopCount ?? 0;
+      snapshot.maxLoops = options.maxLoops ?? existing.maxLoops ?? snapshot.maxLoops;
+      snapshot.iterateCyclesOnPhase = existing.iterateCyclesOnPhase ?? 0;
+      snapshot.history = existing.history ?? [];
+      const recorded = phaseIndexFromSnapshot(planInfo.phases, cwd, existing.phasePath);
+      if (recorded !== null) activePhaseIndex = recorded;
+      bridges.log(`Resuming at phase index ${activePhaseIndex} with loopCount ${snapshot.loopCount}.`);
     }
   }
 
@@ -434,7 +436,15 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
       writeStatusSnapshot(cwd, snapshot);
       bridges.phase("All phases completed");
       bridges.log("Closing verified subject via subject-lifecycle.ts");
-      await executeCommand(bridges.sh, `bun skills/_shared/scripts/subject-lifecycle.ts close-verified --subject ${planInfo.subjectDir} --json`);
+      const closed = await executeCommand(
+        bridges.sh,
+        `bun skills/_shared/scripts/subject-lifecycle.ts close-verified --subject ${shellQuote(planInfo.subjectDir)} --json`,
+      );
+      if (commandFailed(closed)) {
+        snapshot.state = "blocked";
+        writeStatusSnapshot(cwd, snapshot);
+        return { ok: false, state: "blocked", message: "subject close-verified failed" };
+      }
       return { ok: true, state: "done", subject: snapshot.subject, history: snapshot.history };
     }
 
@@ -455,10 +465,16 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
     const crit = parseAcceptanceCriteria(readFileSync(currentPhase.path, "utf8"));
     if (crit.total > 0) {
       for (const item of crit.items) {
-        await bridges.judge(
+        const verdict = await bridges.judge(
           { phase: snapshot.phasePath, item },
           [{ id: "criterion", type: "bool", question: `Is criterion satisfied: ${item}?`, threshold: 0.7 }],
         );
+        if (verdict?.ok === false || verdict?.bool === false) {
+          snapshot.state = "blocked";
+          writeStatusSnapshot(cwd, snapshot);
+          bridges.log(`Acceptance criterion not satisfied: ${item}`);
+          return { ok: false, state: "blocked", phase: snapshot.phasePath, message: "Acceptance criteria were not satisfied" };
+        }
       }
     }
 
@@ -511,9 +527,13 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
     writeStatusSnapshot(cwd, snapshot);
     bridges.phase(`Phase ${currentPhase.phaseNum}: Commit`);
 
-    // Scoped staging to .context/ and phase files
-    const stagePaths = [".context/", ...currentPhase.files].join(" ");
-    await executeCommand(bridges.sh, `git add ${stagePaths}`);
+    const stagePaths = [".context/", ...currentPhase.files];
+    const staged = await executeCommand(bridges.sh, `git add -- ${stagePaths.map(shellQuote).join(" ")}`);
+    if (commandFailed(staged)) {
+      snapshot.state = "blocked";
+      writeStatusSnapshot(cwd, snapshot);
+      return { ok: false, state: "blocked", phase: snapshot.phasePath, message: "git add failed" };
+    }
 
     const commitLabel = `b-commit-${currentPhase.slug}`;
     const commitPrompt = `Execute b-commit for ${snapshot.phasePath}`;
@@ -528,9 +548,36 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
     snapshot.iterateCyclesOnPhase = 0;
   }
 
-  snapshot.state = "done";
+  snapshot.state = "blocked";
   writeStatusSnapshot(cwd, snapshot);
-  return { ok: true, state: "done", subject: snapshot.subject, history: snapshot.history };
+  bridges.log("Loop limit reached before every phase finished.");
+  return { ok: false, state: "blocked", subject: snapshot.subject, phase: snapshot.phasePath, message: "Loop limit reached" };
+}
+
+function phaseIsDone(phase: PhaseInfo): boolean {
+  const crit = parseAcceptanceCriteria(phase.content);
+  return (crit.total > 0 && crit.checked === crit.total) || phase.status === "completed";
+}
+
+function firstIncompletePhaseIndex(phases: PhaseInfo[]): number {
+  const index = phases.findIndex(phase => !phaseIsDone(phase));
+  return index === -1 ? phases.length : index;
+}
+
+function phaseIndexFromSnapshot(phases: PhaseInfo[], cwd: string, phasePath: string | null | undefined): number | null {
+  if (!phasePath) return null;
+  const index = phases.findIndex(phase => relative(cwd, phase.path) === phasePath);
+  return index >= 0 ? index : null;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function commandFailed(result: any): boolean {
+  if (!result || typeof result !== "object") return false;
+  const code = result.exitCode ?? result.status ?? result.code;
+  return typeof code === "number" && code !== 0;
 }
 
 function findReviewFindings(subjectDir: string, phaseSlug: string): string[] {

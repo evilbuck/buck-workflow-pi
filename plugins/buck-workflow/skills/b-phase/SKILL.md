@@ -201,7 +201,7 @@ See `docs/buck-workflow.md#omp-autonomous-loops` for the full contract.
 |---|---|
 | `none` (or omit) | Plain first turn — standard Buck build cycle. |
 | `orchestrate` | Type the `orchestrate` keyword anywhere in the first turn. omp injects the orchestrator contract. |
-| `workflow` | Type the `workflow` keyword in the first turn after running the `eval-<topic>.py` cell b-plan wrote into the subject folder. |
+| `workflow` | Type the `workflow` or `workflowz` keyword in the first turn after running the `eval-<topic>.py` or `eval-<topic>.ts` (`%load`) cell b-plan wrote into the subject folder. |
 | `goal` | Run `/goal set <objective> --budget <omp_goal_budget>` first; then proceed under active goal mode. |
 
 **`omp_goal_budget` field.** Optional companion to `omp_execution: goal`. Hints
@@ -244,7 +244,7 @@ expand step 1 above with a one-liner **before** the build command runs:
 | `omp_execution` | First-turn precondition |
 |---|---|
 | `orchestrate` | "Type the `orchestrate` keyword anywhere in your first turn of this phase. omp will inject the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase)." |
-| `workflow` | "Open `.context/<subject>/eval-<topic>.py`, run the cell, then type the `workflow` keyword in your first turn. The eval kernel fans out one `agent()` per phase." |
+| `workflow` | "Open `.context/<subject>/eval-<topic>.py` (or `eval-<topic>.ts` via `%load`), run the cell, then type the `workflow` or `workflowz` keyword in your first turn. The eval kernel fans out one `agent()` per phase." |
 | `goal` | "Run `/goal set <plan User Goal> --budget <omp_goal_budget>`, then begin the build. The active goal persists across turns and triggers the 6-step completion-audit on `goal({op:'complete'}).`" |
 ```
 
@@ -369,7 +369,7 @@ Use this canonical text when creating execution-ready phased output. Adapt the p
 Use this overview as the durable navigation map for an OMP execution session. For each phase:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
-3. If the phase's `omp_execution` is `orchestrate | workflow`, drop the matching keyword on the first turn before the build command. If it is `goal`, run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first instead. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.
+3. If the phase's `omp_execution` is `orchestrate | workflow`, drop the matching keyword (orchestrate, workflow, or workflowz) on the first turn before the build command. If it is `goal`, run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first instead. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this phase), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this phase. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 6. Run `/b-save` so memory, draft commits, phase state, and review/iteration artifacts are durable.
