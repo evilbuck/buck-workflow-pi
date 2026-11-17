@@ -1,10 +1,10 @@
 ---
 title: "Phase 2: TypeScript eval Buck Loop Runner & Bridge Tests"
-status: active
+status: completed
 priority: high
 created: 2026-11-17
 updated: 2026-11-17
-completed: null
+completed: 2026-11-17
 related: [.context/2026-11-16.omp-eval-loop-research/phase-2-eval-loop-runner.md, .context/2026-11-16.omp-eval-loop-research/plan-omp-eval-loop-phases.md]
 ---
 

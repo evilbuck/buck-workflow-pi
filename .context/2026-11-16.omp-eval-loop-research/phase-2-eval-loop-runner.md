@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-omp-eval-loop.md
@@ -16,17 +16,17 @@ from_plan_steps: [2, 3]
 depends_on: [1]
 dependency_type: SOFT
 acceptance_criteria:
-  - "[ ] Validate deferred assumption A-3: automated test harness in eval-buck-loop.test.ts simulates eval host bridges (__agent__, __wait__, __judge__, __judge_batch__, __shell__, workflow_state) and proves artifact scanning, stage orchestration, lifecycle transitions, and commit verification without extensions/buck-loop/scan.ts."
-  - "[ ] skills/b-loop/scripts/eval-buck-loop.ts contains zero bare npm package specifiers, importing only relative .ts modules (machine.ts, types.ts, phase-completion.ts)."
-  - "[ ] Scans active subject, plan, phase, review, and iterate artifacts via await tool.workflow_state(...) and pure frontmatter helpers."
-  - "[ ] Spawns stage subagents via await agent(prompt, { agent: \"task\", label: `${skill}-${phaseSlug}` }) and awaits completion via await handle.wait()."
-  - "[ ] Implements native judgments: await judge(state, questions) for transition choice, acceptance criterion checking (bool with >= 0.7 threshold), and ambiguity lift; await judgeBatch() for review finding ranking."
-  - "[ ] Performs scoped git staging and commit baseline verification via sh and subject-lifecycle.ts."
-  - "[ ] Emits live TUI progress via phase() and log(), checks budget.remaining(), and persists .context/workflow/buck-loop.json status snapshots for --status and --resume."
-  - "[ ] Unit tests in eval-buck-loop.test.ts cover happy-path execution, review iteration, and blocked recovery."
-  - "[ ] Smoke test in eval-buck-loop.test.ts loads eval-buck-loop.ts through omp __omp_worker_js_eval_process (when omp binary is present) with zero module linking errors."
-completed_at: null
-completed_by: null
+  - "[x] Validate deferred assumption A-3: automated test harness in eval-buck-loop.test.ts simulates eval host bridges (__agent__, __wait__, __judge__, __judge_batch__, __shell__, workflow_state) and proves artifact scanning, stage orchestration, lifecycle transitions, and commit verification without extensions/buck-loop/scan.ts."
+  - "[x] skills/b-loop/scripts/eval-buck-loop.ts contains zero bare npm package specifiers, importing only relative .ts modules (machine.ts, types.ts, phase-completion.ts)."
+  - "[x] Scans active subject, plan, phase, review, and iterate artifacts via await tool.workflow_state(...) and pure frontmatter helpers."
+  - "[x] Spawns stage subagents via await agent(prompt, { agent: \"task\", label: `${skill}-${phaseSlug}` }) and awaits completion via await handle.wait()."
+  - "[x] Implements native judgments: await judge(state, questions) for transition choice, acceptance criterion checking (bool with >= 0.7 threshold), and ambiguity lift; await judgeBatch() for review finding ranking."
+  - "[x] Performs scoped git staging and commit baseline verification via sh and subject-lifecycle.ts."
+  - "[x] Emits live TUI progress via phase() and log(), checks budget.remaining(), and persists .context/workflow/buck-loop.json status snapshots for --status and --resume."
+  - "[x] Unit tests in eval-buck-loop.test.ts cover happy-path execution, review iteration, and blocked recovery."
+  - "[x] Smoke test in eval-buck-loop.test.ts loads eval-buck-loop.ts through omp __omp_worker_js_eval_process (when omp binary is present) with zero module linking errors."
+completed_at: 2026-11-17
+completed_by: Antigravity
 ---
 
 # Phase 2: TypeScript `eval` Buck Loop Runner & Bridge Tests
