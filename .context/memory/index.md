@@ -1,3 +1,7 @@
+- 2026-11-17 — [`/b-loop` repair Phase 1: explicit module import, `A-4` validation in OMP, fail-closed preflight & YAML storage parser](b-loop-phase-1-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-1-2026-11-17.md` | domains: [b-loop, omp, validation, workflow] | topics: [b-loop, omp-eval, module-import, preflight-validation, a-4] | status: completed
+
 - 2026-11-16 — [Viability cleanup Phase 4 (M1–M5): move cross-platform-pi-omp-loading to docs/, delete node5-code-review, and close out 2026-10-01.skill-command-viability](viability-cleanup-phase-4-move-out-2026-11-16.md) — `completed`
 
   - 2026-11-16 | `viability-cleanup-phase-4-move-out-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, cross-platform-pi-omp-loading, node5-code-review, catalog-cleanup] | status: completed
