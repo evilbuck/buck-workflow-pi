@@ -17,8 +17,7 @@ This skill writes a **consumer** `design-brief.jsonc` for the project UI. That f
 
 ## Do not use when
 
-- The user wants a qualitative UI brief from screenshots/layout (use `design-brief`)
-- The user wants a living component styleguide (use `b-create-styleguide` / `b-create-ux-guide`)
+- The user wants a qualitative UI brief or living component styleguide (use `b-create-styleguide`)
 - The task is restyling Buck’s internal HTML deliverables (edit `skills/_shared/design-brief.jsonc` + `render-design-tokens.ts` instead)
 
 ## Procedure
@@ -85,5 +84,4 @@ Commented sections inside `design-brief.jsonc`:
 
 ## Related skills
 
-- `design-brief` — qualitative UI extraction (layout, type, imagery)
-- `b-create-styleguide` / `b-create-ux-guide` — styleguide / inventory workflows that can consume this palette
+- `b-create-styleguide` — styleguide and component-inventory workflow that can consume this palette

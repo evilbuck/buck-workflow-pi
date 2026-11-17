@@ -27,8 +27,6 @@ const curatedBundle = {
     "b-explore",
     "b-fix-rebase-conflict",
     "b-grill",
-    "b-grill-me",
-    "b-grill-with-docs",
     "b-guardrails-check",
     "b-init-factory",
     "b-init-guardrails",
@@ -44,8 +42,6 @@ const curatedBundle = {
     "adversarial-review",
     "code-review-universal",
     "codebase-design",
-    "crawl4ai",
-    "design-brief",
     "fix-pr",
     "git-commit",
     "pack-self-contained-html-reports",
@@ -110,6 +106,17 @@ describe("Buck Workflow Codex plugin", () => {
     expect(manifest).not.toHaveProperty("hooks");
     expect(manifest).not.toHaveProperty("mcpServers");
     expect(existsSync(join(pluginRoot, "assets", "buck-workflow.svg"))).toBe(true);
+  });
+
+  it("resolves bundled save-apply to the repository sql-save module", async () => {
+    const canonical = await import(join(repoRoot, "skills", "b-save", "scripts", "save-apply.ts"));
+    const bundledSource = readFileSync(join(pluginRoot, "skills", "b-save", "scripts", "save-apply.ts"), "utf8");
+    expect(bundledSource).toContain("export function sqlSaveSpecifierFrom");
+    expect(canonical.sqlSaveSpecifierFrom(join(pluginRoot, "skills", "b-save", "scripts"))).toBe("../../../../../extensions/buck-loop/sql-save.js");
+    expect(canonical.sqlSaveSpecifierFrom(join(repoRoot, "skills", "b-save", "scripts"))).toBe("../../../extensions/buck-loop/sql-save.js");
+    expect(existsSync(join(pluginRoot, "extensions"))).toBe(false);
+    const loaded = await canonical.loadSqlSave();
+    expect(typeof loaded.withSaveStore).toBe("function");
   });
 
   it("includes every curated workflow and no runtime extension bundle", () => {

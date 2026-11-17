@@ -1,0 +1,12 @@
+{
+  "attemptId": "9dab0522-67f8-479c-8f8e-5126d941ca82",
+  "runId": "run-32227844-78e4-4481-a26c-6f56768c1a67",
+  "subject": "2026-10-01.skill-command-viability",
+  "project": "git@github.com:evilbuck/buck-workflow-pi.git",
+  "phase": null,
+  "receiptRel": ".context/2026-10-01.skill-command-viability/sql-memory-receipts/9dab0522-67f8-479c-8f8e-5126d941ca82.json",
+  "ids": [],
+  "kind": "no-fact",
+  "probed": true,
+  "completed": true
+}

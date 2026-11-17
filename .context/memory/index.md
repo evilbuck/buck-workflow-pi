@@ -1,3 +1,15 @@
+- 2026-11-16 — [Viability cleanup Phase 4 (M1–M5): move cross-platform-pi-omp-loading to docs/, delete node5-code-review, and close out 2026-10-01.skill-command-viability](viability-cleanup-phase-4-move-out-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-4-move-out-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, cross-platform-pi-omp-loading, node5-code-review, catalog-cleanup] | status: completed
+
+- 2026-11-16 — [Viability cleanup Phase 3 (G1): unify b-grill, b-grill-me, and b-grill-with-docs into canonical skills/b-grill/ with domain docs on by default and --no-docs opt-out](viability-cleanup-phase-3-unify-b-grill-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-3-unify-b-grill-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, b-grill, b-grill-me, b-grill-with-docs, domain-docs, consolidation] | status: completed
+
+- 2026-11-16 — [Viability cleanup Phase 2 (F1–F8): fold design-brief, slash-command-mirror, crawl4ai, b-save-improved, deprecated-b-save, b-create-ux-guide, git-clean-orphans, git-commit-improved, b-hindsight-import-projects, and thought-dump-writer into canonical siblings](viability-cleanup-phase-2-fold-duplicates-2026-11-16.md) — `completed`
+
+  - 2026-11-16 | `viability-cleanup-phase-2-fold-duplicates-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, skill-consolidation, b-save, git-commit, b-create-styleguide, b-memory-import, b-capture] | status: completed
+
 - 2026-11-05 — [PR #65 restricted Bun runtime CI repair](fix-pr-65-2026-11-05.md) — active (isolated executable mount; external-installation and cross-branch privacy tests pass; final checks and independent review pending)
 - 2026-11-05 — [buck-models category tabs review iteration](buck-models-category-tabs-iterate-2026-11-05.md) — completed (Save-button clipping + catalog-removal cursor clamp fixed with red-then-green tests; live OMP/Pi smoke at 120×40, 80×24, 80×18, 80×16, 40×16 including byte-identical cancellation; guardrails pass at 89.6% coverage)
 

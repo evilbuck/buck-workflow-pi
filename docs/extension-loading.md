@@ -126,7 +126,7 @@ buck-workflow-pi/
     subprocess.ts           # (library) shared subprocess helpers
     b-pr-improved/          # (wired) deterministic /b-pr-improved command
     b-commit-improved/      # (wired) deterministic /b-commit-improved command
-    b-save-improved/        # (wired) deterministic /b-save-improved command
+    b-save/                 # (wired) deterministic /b-save command
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
     buck-loop/              # (wired) observably invoked /buck-loop runner
     code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
@@ -137,7 +137,7 @@ buck-workflow-pi/
     b-build/SKILL.md
     b-plan/SKILL.md
     b-research/SKILL.md
-    b-save/SKILL.md         # b-save as pure skill (no extension backing)
+    b-save/SKILL.md         # canonical /b-save procedure; extension command is extensions/b-save/
     ... (64 skill directories total)
   prompts/                  # source of truth for slash command bodies
     b-build.md
@@ -162,7 +162,7 @@ buck-workflow-pi/
 2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
 3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
 4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.
-5. **`/b-save-improved`** (`b-save-improved/`) — deterministic session checkpoint (preflight → scribe/auditor → apply).
+5. **`/b-save`** (`b-save/`) — deterministic session checkpoint (snapshot → scribe/auditor/goal → journaled apply). `prompts/b-save-improved.md` is a prompt alias for the same skill, not a second registered command.
 6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
 8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the portable synchronous module in `extensions/state_machine/` for graph validation and guarded transitions; the adapter enforces route cardinality, and the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
@@ -170,9 +170,9 @@ buck-workflow-pi/
 10. **Token attribution** (`token-attribution/`) — records assistant and current-session nested usage in a plugin-owned `~/.omp/stats.db` table, keyed by Git origin/common directory plus branch, and exposes estimated project totals through `/tokens` (or `/token-use` on command collision). It never modifies OMP-owned stats tables. See `docs/oh-my-pi.md` and `docs/howto/inspect-project-token-use.md`.
 11. **Workflow state** (`workflow-state/`) — registers native `workflow_state` on every load. `sql-memory/` `wire()` does not register `sql_memory` and does not load `pg` at registration. Administration is the shared CLI `migrate` operation.
 
-`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save-improved` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
+`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
 
-Everything older (b-mode, b-restrict, plan mode write guard, b-save command, b-flow, the b-grill-auto extension command and skill, session state machine, and tmux status) has been removed. Auto grilling is `/skill:b-grill --mode auto`. `/b-save` proper remains a pure skill reached through a thin prompt loader — `skills/b-save/SKILL.md` is the canonical procedure and reads `.context/workflow/current-session.json` directly instead of receiving injected state from an extension handler.
+Everything older (b-mode, b-restrict, plan mode write guard, b-flow, the b-grill-auto extension command and skill, session state machine, and tmux status) has been removed. Auto grilling is `/skill:b-grill --mode auto`. `/b-save` is registered by `extensions/b-save/index.ts`. `skills/b-save/SKILL.md` is the canonical procedure for the prompt loaders and for runs outside that extension. There is no `extensions/b-save-improved/` directory.
 
 
 ## Sub-directory auto-discovery in OMP
@@ -202,10 +202,9 @@ Auto-discovery supplements the explicit `omp` manifest arrays. This package decl
   "extensions": ["+extensions/index.ts"],
   "skills": [
     "+skills/b-blueprint/", "+skills/b-brainstorm/", "+skills/b-build/",
-    "+skills/b-explore/", "+skills/b-grill/",
-    "+skills/b-grill-me/", "+skills/b-grill-with-docs/", "+skills/b-iterate/",
+    "+skills/b-explore/", "+skills/b-grill/", "+skills/b-iterate/",
     "+skills/b-phase/", "+skills/b-plan/", "+skills/b-present/",
-    "+skills/b-research/", "+skills/b-review/", "+skills/crawl4ai/",
+    "+skills/b-research/", "+skills/b-review/",
     "+skills/git-commit/", "+skills/pi-rpc/", "+skills/run-in-idle-pane/",
     "+skills/_shared/"
   ],
@@ -276,8 +275,7 @@ Restart the agent after updating for changes to take effect.
 
 ## See also
 
-- `skills/cross-platform-pi-omp-loading/SKILL.md` — package authoring pattern for shipping one package that works in both runtimes (manifest keys, directory layout, OMP API shim gaps).
-- `skills/cross-platform-pi-omp-loading/slash-command-mirror/SKILL.md` — the `prompts/` ↔ `commands/` symlink pattern in depth, including the per-file vs single-directory trade-off and drift mitigation.
+- `docs/cross-platform-pi-omp-loading.md` — package authoring pattern for shipping one package that works in both runtimes (manifest keys, directory layout, `prompts/` ↔ `commands/` symlink mirror, and OMP API shim gaps).
 
 ## Multi-Harness Installer (`buck-workflow install`)
 

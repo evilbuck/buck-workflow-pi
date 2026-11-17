@@ -3,7 +3,7 @@
  *
  * Deterministic, code-driven Conventional Commits flow — the extension counterpart
  * to the git-commit skill. The whole flow is orchestrated in code (not
- * agent-interpreted prose): it runs skills/git-commit-improved/scripts/commit-preflight.ts
+ * agent-interpreted prose): it runs skills/git-commit/scripts/commit-preflight.ts
  * for staged-diff/git-status context, invokes the model inline via
  * createAgentSession to draft a Conventional Commit message, and falls back to a
  * sentinel-filled draft-commit.md stub when no model is available.
@@ -25,7 +25,7 @@ import { runOmpModelSession } from "../omp-models.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // Single source of truth for git plumbing — same pattern as b-pr-improved.
-const PREFLIGHT = join(HERE, "..", "..", "skills", "git-commit-improved", "scripts", "commit-preflight.ts");
+const PREFLIGHT = join(HERE, "..", "..", "skills", "git-commit", "scripts", "commit-preflight.ts");
 
 // ---------- git helpers ----------
 
@@ -165,6 +165,22 @@ function writeDraft(cwd: string, subjectFolder: string | null, title: string, bo
   return relPath;
 }
 
+function persistDryRunDraft(
+  cwd: string,
+  subjectFolder: string | null,
+  title: string,
+  body: string,
+  notify: Notify,
+): void {
+  const existing = draftPathFor(subjectFolder);
+  if (existsSync(join(cwd, existing))) {
+    notify(`[dry-run] Left the existing draft at ${existing} untouched.`, "info");
+    return;
+  }
+  const path = writeDraft(cwd, subjectFolder, title, body);
+  notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+}
+
 // Best-effort draft deletion. Tolerates ENOENT (race with another process).
 function deleteDraft(path: string): void {
   try {
@@ -297,10 +313,8 @@ async function draftFromModel(
     }
     return null;
   }
-  if (dryRun) {
-    // --dry-run + model source → write the draft so the user can re-run.
-    writeDraft(cwd, subjectFolder, parsed.title, parsed.body);
-  }
+  // The command handler writes a new dry-run draft. It must not overwrite
+  // a pre-existing draft-commit.md, so this function does not write.
   return parsed;
 }
 
@@ -421,10 +435,7 @@ async function runBCommitImproved(
     if (opts.dryRun) {
       const firstBodyLine = body.split("\n", 1)[0] ?? "";
       notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
-      if (source === "model") {
-        const path = writeDraft(cwd, subjectFolder, title, body);
-        notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
-      }
+      if (source === "model") persistDryRunDraft(cwd, subjectFolder, title, body, notify);
       return;
     }
 

@@ -1,1 +1,0 @@
-../prompts/deprecated-b-save.md

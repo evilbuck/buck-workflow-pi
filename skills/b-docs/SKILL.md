@@ -42,8 +42,8 @@ prohibited. Reuse the formats that already exist:
 
 | What | Where | Format source |
 |---|---|---|
-| **Domain language** (glossary / ubiquitous language) | `CONTEXT.md` (repo root); `CONTEXT-MAP.md` + per-context `CONTEXT.md` for multi-context repos | [`b-grill-with-docs/CONTEXT-FORMAT.md`](../b-grill-with-docs/CONTEXT-FORMAT.md) |
-| **Architecture decisions** | `docs/adr/0001-slug.md` (sequential) | [`b-grill-with-docs/ADR-FORMAT.md`](../b-grill-with-docs/ADR-FORMAT.md) |
+| **Domain language** (glossary / ubiquitous language) | `CONTEXT.md` (repo root); `CONTEXT-MAP.md` + per-context `CONTEXT.md` for multi-context repos | [`b-grill/CONTEXT-FORMAT.md`](../b-grill/CONTEXT-FORMAT.md) |
+| **Architecture decisions** | `docs/adr/0001-slug.md` (sequential) | [`b-grill/ADR-FORMAT.md`](../b-grill/ADR-FORMAT.md) |
 | **Agent & dev conventions** | Managed block in `AGENTS.md` / `CLAUDE.md` | idempotent managed block (see below) |
 | **Architecture narrative** (structure, data flow, module boundaries) | `docs/` | free-form; extend existing docs, don't fork |
 | **README** | `README.md` | **read-only** — flag needed changes in the report; do not rewrite hand-authored prose |
@@ -55,7 +55,7 @@ no how-to, follow the Sibling rule below and load `b-howto` — do not
 only flag it for later.
 
 Create files **lazily** — only when you have something to write. `CONTEXT.md`
-and `docs/adr/` are created on first use, same as `b-grill-with-docs`.
+and `docs/adr/` are created on first use, same as `b-grill`.
 
 ## Sources (what to read before writing)
 
@@ -101,7 +101,7 @@ finding is present, use it as the priority list.
 ## ADR Gate
 
 Only create an ADR when **all three** are true (reuse
-[`ADR-FORMAT.md`](../b-grill-with-docs/ADR-FORMAT.md)):
+[`ADR-FORMAT.md`](../b-grill/ADR-FORMAT.md)):
 
 1. **Hard to reverse** — changing your mind later is meaningful.
 2. **Surprising without context** — a future reader will wonder "why this way?"
@@ -137,7 +137,7 @@ Rules:
 
 ## CONTEXT.md Updates
 
-Follow [`CONTEXT-FORMAT.md`](../b-grill-with-docs/CONTEXT-FORMAT.md) exactly:
+Follow [`CONTEXT-FORMAT.md`](../b-grill/CONTEXT-FORMAT.md) exactly:
 - Single context → one root `CONTEXT.md`. Multi-context (a `CONTEXT-MAP.md`
   exists) → the relevant per-context `CONTEXT.md`.
 - Only terms **meaningful to domain experts** — not implementation details.
@@ -214,8 +214,8 @@ it instead of stopping. Otherwise recommend `/b-save` → `/b-commit`.
 
 ## Related
 
-- `skills/b-grill-with-docs/CONTEXT-FORMAT.md` — domain-language format (source of truth)
-- `skills/b-grill-with-docs/ADR-FORMAT.md` — ADR format (source of truth)
+- `skills/b-grill/CONTEXT-FORMAT.md` — domain-language format (source of truth)
+- `skills/b-grill/ADR-FORMAT.md` — ADR format (source of truth)
 - `skills/b-review/SKILL.md` — produces the documentation-impact finding that triggers this skill
 - `skills/b-save/SKILL.md` — records the session event in `.context/` (complementary, not overlapping)
 - `skills/b-howto/SKILL.md` — user-facing how-tos in `docs/howto/` (how, not why)

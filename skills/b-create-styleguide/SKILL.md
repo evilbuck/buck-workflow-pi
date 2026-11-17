@@ -1,30 +1,31 @@
 ---
 name: b-create-styleguide
-description: Guide an inexperienced user through creating a UX styleguide for their project from scratch, and idempotently keep it up-to-date on every re-run. Interviews about colors, format, scope, and reverse-engineering. Produces the styleguide (including type, breakpoints/responsive, and interactions — not only components), writes a managed block into AGENTS.md/CLAUDE.md so all agents reference and extend it on any design-surface change, reconciles design-brief.json by component id on refresh, and deprecates rather than deletes missing components.
+description: Guide an inexperienced user through creating a UX styleguide for their project from scratch, idempotently keep it up-to-date on every re-run, or run an analytical component inventory (--inventory-only). Interviews about colors, format, scope, and reverse-engineering. Produces the styleguide (including type, breakpoints/responsive, and interactions — not only components), writes a managed block into AGENTS.md/CLAUDE.md so all agents reference and extend it on any design-surface change, reconciles design-brief.json by component id on refresh, and deprecates rather than deletes missing components.
 ---
 
-# b-create-styleguide: Guided Styleguide Creation & Maintenance
+# b-create-styleguide: Guided Styleguide Creation, Maintenance & Component Inventory
 
-Walk a user — even one who has never heard the word "styleguide" — through creating one for their project. The skill explains what a styleguide is in plain terms, interviews the user through key decisions (colors, format, scope, codebase analysis), generates the artifacts, and wires AGENTS.md or CLAUDE.md so every future agent references and maintains it whenever UI design surfaces change — components, fonts/type, breakpoints/responsive behavior, and interactions. **It is also a living keeper: re-running it idempotently reconciles the styleguide with the codebase, adding new components, updating changed ones, and deprecating missing ones.**
+Walk a user — even one who has never heard the word "styleguide" — through creating one for their project, maintaining it over time, or running an analytical component inventory of a site/section. The skill explains what a styleguide is in plain terms, interviews the user through key decisions (colors, format, scope, codebase analysis), generates the artifacts, and wires AGENTS.md or CLAUDE.md so every future agent references and maintains it whenever UI design surfaces change — components, fonts/type, breakpoints/responsive behavior, and interactions. **It is also a living keeper: re-running it idempotently reconciles the styleguide with the codebase, adding new components, updating changed ones, and deprecating missing ones.**
 
-**This is a guided, conversational skill.** It does not dump artifacts and walk away. It explains, asks, confirms, builds, and wires the result into the project's agent conventions — and keeps it in sync over time.
-
-**Two modes in one skill:**
+**Three modes in one skill:**
 1. **Create mode** — first run. Full interview, full generation, full wiring.
 2. **Refresh/update mode** — re-run. Re-scan scope, reconcile by component `id`, update in place via managed blocks, deprecate missing components.
-Run it whenever you ship UI changes, add a component, change type/breakpoints/interactions, or change the palette.
+3. **Inventory-only mode (`--inventory-only [section]`)** — non-interactive / analytical component inventory of a site or named section without `AGENTS.md` wiring. Produces the markdown component inventory (`docs/ux-style-guide.md`), visual HTML research guide (`docs/ux-research.html`), and machine-readable `docs/ux-design-brief.json` (or user-specified paths).
+
+Run it whenever you ship UI changes, add a component, change type/breakpoints/interactions, change the palette, or want an analytical UX inventory before refactoring.
 
 ## Use when
 
 - The user says "I want a styleguide," "let's build a design system," or "make a component reference"
 - The user wants to formalize their project's look and feel before or alongside building
 - Someone wants agents to stop inventing UI patterns and follow a documented standard
-- A project has grown organically and needs visual consistency going forward
+- A project has grown organically and needs visual consistency or a component inventory (`--inventory-only`) going forward
+- The user wants a UI design brief or component taxonomy extracted from existing views, screenshots, or design context
 
 ## Do not use when
 
-- The user wants a quick component inventory of existing code only (use `b-create-ux-guide`)
 - The user wants to implement components rather than document them (use `b-plan` → `b-build`)
+- The user only wants a deterministic OKLCH color palette from a single brand hex (use `b-design-palette`)
 - The project has zero UI (CLI-only, API-only with no frontend)
 
 ## What a styleguide is (plain-terms explanation the skill uses)
@@ -33,12 +34,31 @@ If the user is unfamiliar, explain it like this:
 
 > A styleguide is your project's visual dictionary. It lists every building block of your UI — buttons, inputs, cards, colors, type, spacing, how layouts adapt to screen size, and how things behave on hover/focus/motion — and shows exactly what each one looks like, when to use it, and when not to. It keeps your app looking consistent as it grows, and it gives every developer (human or AI agent) a single reference so nobody invents their own version of a button, type size, or interaction.
 
+## Component taxonomy (the 12-category organizing frame)
+
+Organize every reverse-engineered or inventoried component into these 12 categories. Omit a category only when the target surface genuinely has nothing in it; never invent entries to fill one. Every entry MUST cite **exact file paths** (and class names where relevant).
+
+1. **Surfaces / layouts / shells** — app shells, page compositions, responsive shells, drawers-as-layout
+2. **Navigation** — sidebars, topbars, breadcrumbs, tab bars, back links, brand blocks
+3. **Buttons & CTAs** — primary, secondary/ghost, icon-only, CTA cards, segmented/filter buttons
+4. **Forms & inputs** — every input *type* (text, email, tel, url, color, date, select, checkbox, textarea, file, search), plus form layouts and inline-edit affordances
+5. **Cards & panels** — hero cards, KPI/stat cards, content cards, instructional cards, callouts
+6. **Tables / lists / data views** — sortable tables, list rows, activity tables, breakdown bars, pagination
+7. **Badges / pills / chips / status indicators** — status badges, plan badges, filter pills, swatches, toasts
+8. **Feedback states** — loading, empty, error, success, warning/destructive banners, inline no-data
+9. **Dialogs / drawers / tabs / disclosure** — modals, off-canvas drawers, tab panels, accordions, dropdowns
+10. **Charts / data viz** — chart canvases, bar breakdowns, sparklines, stat visualizations
+11. **Responsive / mobile behavior** — breakpoints, column collapses, drawer toggles, hidden-column rules
+12. **Duplication & DRY hotspots** — the same component family implemented multiple ways; dead/legacy components
+
 ## Procedure
 
-### Phase 0 — Idempotency check & maintenance mode
+### Phase 0 — Idempotency check, maintenance mode & inventory-only routing
 
-Before asking questions, check whether a styleguide already exists. The skill has two top-level modes — **create** and **refresh/update** — and must be safe to run on either.
+Before asking questions, check the invocation mode and whether a styleguide already exists.
 
+0. **Check for `--inventory-only` (or an analytical inventory-only request)**:
+   - If the user passed `--inventory-only [section]` or explicitly asked for an analytical UX inventory / research guide without `AGENTS.md` wiring, jump directly to **Inventory-Only Mode** below.
 1. **Detect existing styleguide**: look for the agreed/default paths (`docs/styleguide.html`, `views/styleguide/index.ejs`, `docs/styleguide.md`, `docs/styleguide-design-brief.json`). If any exist, the styleguide has already been created.
 2. **Detect existing agent wiring**: search `AGENTS.md` / `CLAUDE.md` for a `<!-- BEGIN b-create-styleguide -->` block. Managed blocks are how the skill keeps its wiring idempotent — see "Managed blocks" below.
 3. **Choose mode**:
@@ -47,11 +67,31 @@ Before asking questions, check whether a styleguide already exists. The skill ha
 4. **If only the styleguide files exist but AGENTS wiring is missing**: run Phase 5 to add the managed block.
 5. **If only AGENTS wiring exists but the styleguide files are gone**: offer to recreate the styleguide from the codebase (and re-insert the files inside the managed block contract).
 6. **If neither exists**: create mode.
-7. **If ux-guide deliverables are detected** (`docs/ux-style-guide.md`, `docs/ux-research.html`, or `docs/ux-design-brief.json` from a previous `b-create-ux-guide` run): **offer**, do not auto-act. Surface the detected files and ask the user:
-   - **(a) Consume as seed inventory** — use `docs/ux-design-brief.json` as the starting `components` + `tokens`, then run the create-mode interview to choose format/palette/wiring. Skip the reverse-engineer scan (the inventory is already done). Pro: faster, captures duplication already flagged. Con: requires the JSON to be current with the codebase.
-   - **(b) Reverse-engineer fresh** — ignore ux-guide deliverables, scan the codebase as if starting from scratch. Pro: catches drift. Con: duplicates work ux-guide already did.
-   - **(c) Run ux-guide first** — if the existing ux-guide deliverables are stale or incomplete, defer and ask the user to re-run `b-create-ux-guide` with a fresh scope, then return.
-   This is an offer, never a default. The user must choose. Do not read, copy, or delete ux-guide files without explicit consent.
+7. **If inventory-only deliverables are detected** (`docs/ux-style-guide.md`, `docs/ux-research.html`, or `docs/ux-design-brief.json` from a previous `--inventory-only` run): **offer**, do not auto-act. Surface the detected files and ask the user:
+   - **(a) Consume as seed inventory** — use `docs/ux-design-brief.json` as the starting `components` + `tokens`, then run the create-mode interview to choose format/palette/wiring. Skip the reverse-engineer scan.
+   - **(b) Reverse-engineer fresh** — ignore existing inventory deliverables, scan the codebase as if starting from scratch.
+   - **(c) Refresh inventory first** — re-run `--inventory-only` with a fresh scope, then return.
+   This is an offer, never a default. The user must choose.
+
+#### Inventory-Only Mode (`--inventory-only [section]`)
+
+When invoked with `--inventory-only` (or when the user wants a non-interactive / section-scoped analytical UX inventory without `AGENTS.md` wiring):
+
+1. **Resolve scope and outputs**:
+   - If a section/area argument is present (e.g. `admin`, `/u`, `checkout`, `marketing landers`), scope the entire inventory to that section only and state it in one sentence. Otherwise use active session context (or ask which surface to inventory if ambiguous).
+   - Ask where to write the three deliverables, offering defaults:
+     1. **Markdown style guide** — `docs/ux-style-guide.md`
+     2. **HTML research guide** — `docs/ux-research.html`
+     3. **Design brief JSON** — `docs/ux-design-brief.json`
+   - Create `.context/YYYY-MM-DD.<surface>-ux-guide/`, invoke lifecycle `initialize` then `activate`, and keep rolling notes as you scan.
+2. **Analyze & Organize**:
+   - Scan views/templates, partials/components, CSS/token files, and UI tests (fan out read-only explorer subagents for large surfaces).
+   - Group every finding into the 12-category **Component taxonomy** above with exact file paths, concrete variants, and duplication merge targets.
+3. **Write the three deliverables**:
+   - **Markdown style guide (`docs/ux-style-guide.md`)**: Scope, Files inspected, numbered sections for each populated taxonomy category (`- **<component>** — <variants>. \`path/to/file\``), Duplication & DRY hotspots (naming merge targets), Responsive / mobile behavior, Gaps / unknowns, and Recommended next step.
+   - **HTML research guide (`docs/ux-research.html`)**: Self-contained, dark-first, scannable single-file HTML (pure HTML + CSS, Mermaid via CDN only, no JS frameworks). Includes Header (title, scope badge, date, one-liner), Component Taxonomy Map (Mermaid `flowchart` of sub-areas → shared families + per-category cards), Inventory Surface Files table, Duplication Patterns with illustrative snippets, Styling split (if any), Key decisions/scope, Risks/DRY debt cards, and Next steps.
+   - **Design brief JSON (`docs/ux-design-brief.json`)**: Valid JSON describing the exact same inventory (`meta`, `tokens`, exhaustive `components[]` with `id`, `category`, `name`, `description`, `whenToUse`, `whenNotToUse`, `anatomy`, `variants`, `states`, `options`, `locations`, `duplication`, `responsive`, `accessibility`, `do`, `dont`, plus `duplications[]` and `gaps[]`).
+4. **Closeout**: Verify all three deliverables exist, cite real files, and parse cleanly. Do **not** wire `AGENTS.md` / `CLAUDE.md` in `--inventory-only` mode; recommend running `b-create-styleguide` in full mode when ready to make the guide living and agent-wired.
 
 #### Managed blocks (idempotency contract)
 
@@ -108,7 +148,7 @@ Ask these questions in order. Each one has a recommended default. The user can a
 | 1 | **What surface does this styleguide cover?** (e.g. the whole app, just the admin area, just the user dashboard, just marketing pages) | The user's current working surface or the most active UI area | Defines scope. A small first styleguide is better than an incomplete big one. |
 | 2 | **Do you have brand colors or a palette in mind?** If yes, accept any format: hex codes, color names, a screenshot, a CSS file, or a description. | None (start with sensible neutral defaults; user can add later) | Colors are the first thing a styleguide needs. If none provided, derive from existing codebase or use a clean neutral base. |
 | 3 | **Should the styleguide reverse-engineer the existing codebase?** (Scan views/components/CSS to find what you already have and document it, vs. start from a blank slate with new canonical components) | **Yes** — reverse-engineer first, then propose cleanups | Saves work; documents reality. Starting from scratch risks a styleguide nobody uses. |
-| 4 | **What format should the styleguide be?** Options: (a) Static HTML page (single file, open in browser, self-contained), (b) EJS/route-served page (lives in the app, uses asset pipeline), (c) Markdown only (docs, no visual page) | **(a) Static HTML** for a standalone visual reference; **(b) EJS/route** if they want it living inside the app | Determines the artifact shape. Static HTML is simplest and works anywhere. Route-served integrates with the build. |
+| 4 | **What format should the styleguide be?** Options: (a) Static HTML page (single file, open in browser, self-contained), (b) EJS/route-served page (lives in the app, uses asset pipeline), (c) Markdown only (docs, no visual page), (d) HTML research guide + Markdown inventory (`docs/ux-research.html` + `docs/ux-style-guide.md`) | **(a) Static HTML** for a standalone visual reference; **(b) EJS/route** if they want it living inside the app | Determines the artifact shape. Static HTML is simplest and works anywhere. Route-served integrates with the build. |
 | 5 | **Where should the styleguide files live?** (File path for the main artifact) | `docs/styleguide.html` for static, `views/styleguide/index.ejs` for route-served, or `docs/styleguide.md` for markdown-only | Keeps files discoverable. Offer the default; accept alternatives. |
 | 6 | **Should we also produce a machine-readable JSON spec** (design-brief.json) so agents can implement components programmatically? | **Yes** — `docs/styleguide-design-brief.json` | Enables agent-driven UI implementation. Low cost to include. |
 | 7 | **Any other context or constraints?** (e.g. "use Tailwind," "no gradients," "must be accessible," "dark mode only," "mobile-first") | None | Captures project-specific rules. |
@@ -120,7 +160,7 @@ Ask these questions in order. Each one has a recommended default. The user can a
 If the user chose to reverse-engineer:
 
 1. Scan the scoped surface: views/templates, partials/components, CSS/token files, and any browser/UI tests.
-2. Inventory every component using the `b-create-ux-guide` taxonomy (shells, navigation, buttons, forms, cards, tables, badges, states, dialogs, charts, responsive, duplication).
+2. Inventory every component using the 12-category **Component taxonomy** above (shells, navigation, buttons, forms, cards, tables, badges, states, dialogs, charts, responsive, duplication).
 3. Cite exact file paths and class names. Do not invent.
 4. Identify duplication hotspots and dead/legacy components.
 
@@ -172,7 +212,7 @@ Write `docs/styleguide.md` with:
 
 #### Always: machine-readable JSON spec
 
-Write the agreed JSON path (default `docs/styleguide-design-brief.json`) with the same schema as `b-create-ux-guide`. The JSON MUST carry a `_managed` object so the skill can locate and reconcile it on re-run:
+Write the agreed JSON path (default `docs/styleguide-design-brief.json`) with the 12-category component schema. The JSON MUST carry a `_managed` object so the skill can locate and reconcile it on re-run:
 
 ```json
 {
@@ -212,7 +252,7 @@ Component `status` values: `active` (default), `draft` (being authored), `deprec
 
 ### Phase 5 — Wire AGENTS.md / CLAUDE.md
 
-This is the step that makes the styleguide **living** rather than a dead doc.
+This is the step that makes the styleguide **living** rather than a dead doc (skipped only in `--inventory-only` mode).
 
 1. **Find the project's agent instruction file**: check for `AGENTS.md`, `CLAUDE.md`, or similar at the repo root. If multiple exist, update all of them. If none exist, create `AGENTS.md`.
 2. **Add a Styleguide section** (or update the existing one) that tells every agent:
@@ -274,11 +314,11 @@ The same block-marker contract applies to the visual guide and markdown referenc
 
 Before yielding, confirm:
 
-1. The styleguide exists at the agreed path and is the correct format.
+1. The styleguide (or `--inventory-only` deliverables) exists at the agreed path and is the correct format.
 2. The JSON spec parses as valid JSON and has at least one component entry.
-3. If reverse-engineered: the styleguide cites real file paths from the codebase.
-4. AGENTS.md or CLAUDE.md exists and contains the Styleguide managed block with correct file paths.
-5. The Styleguide managed block requires same-change updates for **components, fonts/type, breakpoints/responsive, and interactions** (not components alone).
+3. If reverse-engineered or `--inventory-only`: the styleguide cites real file paths from the codebase.
+4. In full create/refresh mode: AGENTS.md or CLAUDE.md exists and contains the Styleguide managed block with correct file paths.
+5. In full create/refresh mode: The Styleguide managed block requires same-change updates for **components, fonts/type, breakpoints/responsive, and interactions** (not components alone).
 6. The visual guide (when present) has foundation sections for **Typography**, **Breakpoints / responsive**, and **Interactions / state** (may be sparse, must exist).
 7. The user's palette (if provided) is reflected in the styleguide's color tokens.
 8. `.context/` subject folder, memory, and memory index are updated.
@@ -289,7 +329,7 @@ Before yielding, confirm:
 - **Ask one question at a time** during the interview. Batch only if the user answers multiple at once.
 - **Defaults are your friend.** If the user says "defaults" or "I don't know," use the recommended defaults and move on.
 - **Reverse-engineer by default** when the codebase has UI. It's faster and more useful than inventing from scratch.
-- **Always wire AGENTS.md/CLAUDE.md.** A styleguide without agent wiring is a dead doc. This step is mandatory. The managed block MUST include the full design-surface trigger list (components, fonts/type, breakpoints/responsive, interactions) on every create and refresh.
+- **Always wire AGENTS.md/CLAUDE.md in full mode.** A styleguide without agent wiring is a dead doc. This step is mandatory unless `--inventory-only` was requested.
 - **Do not refactor views or migrate CSS.** The skill creates documentation and agent instructions. App wiring (registering `vite.config.mjs` entries and `server.js` routes for format (b) EJS/route-served mode) is explicitly allowed and expected.
 - **If the project has no UI** (API-only, CLI-only), say so and stop. A styleguide requires a visual surface.
 - **If the user provides a palette in an unusual format** (screenshot, description, CSS file), parse it or ask for clarification. Do not silently ignore it.
@@ -301,9 +341,9 @@ Before yielding, confirm:
 Styleguide created for <scope>.
 
 Deliverables:
-- <styleguide path> (<format>: static-html / ejs / markdown)
+- <styleguide path> (<format>: static-html / ejs / markdown / inventory-only)
 - <design-brief json path>
-- AGENTS.md / CLAUDE.md updated with Styleguide section
+- AGENTS.md / CLAUDE.md updated with Styleguide section (or skipped in --inventory-only mode)
 
 Palette: <provided palette summary or "none — used defaults">
 
@@ -320,6 +360,7 @@ Context:
 
 Recommended next step:
 - Open the styleguide in a browser to review. /b-plan to migrate existing views to the new canonical components.
+```
 
 **Refresh/update mode closeout:**
 
@@ -343,10 +384,11 @@ Managed block status:
 Recommended next step:
 - Review deprecated components and migrate any remaining callers, or re-introduce them with a new id.
 ```
+
 ## Related skills
 
-- `b-create-ux-guide` — analytical inventory of existing code (no generation, no agent wiring)
+- `b-design-palette` — deterministic OKLCH color palette generator from a single brand hex
 - `b-plan` — turn the styleguide into a migration plan for existing views
 - `b-build` / `b-build-hard` — implement the styleguide's canonical components
-- `b-grill-me` — stress-test the styleguide decisions before locking them
+- `b-grill` — stress-test the styleguide decisions before locking them
 - `b-blueprint` — visualize a styleguide implementation plan

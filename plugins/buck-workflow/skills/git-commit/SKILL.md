@@ -1,52 +1,66 @@
 ---
 name: git-commit
-description: Create a Conventional Commits message from staged changes and commit immediately. Standalone utility that also integrates with Buck workflow via draft-commit.md artifacts.
+description: Create a Conventional Commits message from staged changes and commit immediately. Standalone utility that also integrates with Buck workflow via draft-commit.md artifacts and deterministic preflight plumbing.
 ---
 
 # git-commit: Conventional Commit Agent
 
 Durable Buck artifacts are addressed through `workflow_state` or `bun skills/_shared/scripts/workflow-state-cli.ts`, per `skills/_shared/workflow-state-access.md`. The logical names below are the artifact identity. A `.context/` path is only the repo-files projection, not a required input. Do not construct SQL or call `sql_memory`.
 
-Create a Conventional Commits message from staged changes and commit immediately. Works standalone or as part of the Buck workflow (reads draft-commit.md if present).
+Create a Conventional Commits message from staged changes and commit immediately. Works standalone or as part of the Buck workflow (reads `draft-commit.md` if present).
 
-Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash command). The skill name remains `git-commit` because it is the generic, reusable implementation.
+Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash command) or `/b-commit-improved` (the deterministic extension-backed path in `extensions/b-commit-improved/index.ts`, which uses `skills/git-commit/scripts/commit-preflight.ts`). The skill name remains `git-commit` because it is the generic, reusable implementation.
 
 ## Inputs
 
 - Staged changes only. Do not infer work from unstaged or untracked files.
 - Utilize any staged memory or spec files in `.context/memory/` or `.context/specs/` as guidance, but verify the work was done.
 - Additional user context (if provided).
-- **`force`** — if present in arguments (e.g. `/b-commit force` or `/b-commit force: emergency hotfix`), override the protected-branch restriction and allow committing directly to `main`, `master`, `dev`, or `develop`. Use deliberately — this exists for hotfixes and emergencies. (The skill also accepts `/git-commit force` when invoked directly outside the Buck workflow.)
+- **`force` / `--force`** — if present in arguments (e.g. `/b-commit force`, `/b-commit-improved --force`), override the protected-branch restriction and allow committing directly to `main`, `master`, `dev`, or `develop`. Use deliberately — this exists for hotfixes and emergencies.
+- **`--no-draft`** — skip reading a draft; force inline drafting from the staged diff.
+- **`--dry-run`** — preview only; never mutate git history. If a message was drafted from the model, write `draft-commit.md` so the user can re-run; leave any pre-existing draft untouched.
+- **`--model <provider/id>`** — override the default model when running via `/b-commit-improved`.
 
 ## Safety Rules
 
-- Never commit to or merge into these branches: `main`, `master`, `dev`, `develop` — **unless `force` is specified** (see Inputs).
-- If the current branch is protected and `force` is NOT specified, stop and instruct the user to create/switch to a feature branch (or re-run with `force`).
+- Never commit to or merge into these branches: `main`, `master`, `dev`, `develop` — **unless `force` / `--force` is specified** (see Inputs).
+- If the current branch is protected and `force` / `--force` is NOT specified, stop and instruct the user to create/switch to a feature branch (or re-run with `force`).
 - Do not stage files automatically. If nothing is staged, stop and tell the user to stage changes first.
+- Never commit a message that contains `$TITLE`, `$BODY`, or leftover `<short summary>`. Unfilled drafts use `$TITLE` / `$BODY` sentinels only.
+
+## Deterministic Preflight Script
+
+`skills/git-commit/scripts/commit-preflight.ts` provides deterministic git/draft inspection (`bun skills/git-commit/scripts/commit-preflight.ts [--force] [--no-draft] [--dry-run]`):
+- Exit `0`: ready to commit (`current_branch`, `subject_folder`, `draft_path`, `draft`, `staged_files`, `diff`).
+- Exit `2`: protected branch (`main`, `master`, `dev`, `develop`) and `--force` not set.
+- Exit `3`: nothing staged.
+- Exit `1`: git error (not a repo, detached HEAD).
+
+Under Pi/OMP with `extensions/b-commit-improved/index.ts` loaded, `/b-commit-improved` orchestrates this preflight, model drafting, commit, draft cleanup, and verification in code. For `/b-commit` or cross-platform usage without the extension, follow the procedure below.
 
 ## Procedure
 
-1. **Check for draft commit message**:
+1. **Check for draft commit message** (unless `--no-draft` is passed):
 
-   Find the active subject folder — the most recently modified `.context/YYYY-MM-DD.*/` directory:
+   Run `bun skills/git-commit/scripts/commit-preflight.ts` (or find the active subject folder — the most recently modified `.context/YYYY-MM-DD.*/` directory):
    ```bash
    ls -dt .context/????-??-??.*/ 2>/dev/null | head -1
    ```
    If a subject folder exists, read `.context/<subject>/draft-commit.md`. If that doesn't exist, fall back to `.context/draft-commit.md`.
 
-   If a draft exists and contains a non-empty `## Title`:
+   If a draft exists and contains a non-empty `## Title` without `$TITLE` / `<short summary>` placeholders:
    - Use it directly — **skip diff analysis entirely**.
    - Proceed to step 5 with the drafted message.
    - After successful commit, delete the draft from whichever path it was found at.
 
-2. **Fallback: gather current state** (only if no draft exists):
+2. **Fallback: gather current state** (only if no usable draft exists):
 
    - Branch + working tree: `git status -sb`
    - Staged file list: `git diff --cached --name-only`
    - Staged diff (patch): `git diff --cached`
    - Recent commits (style reference): `git log -10 --oneline`
 
-3. If the current branch is protected (`main`/`master`/`dev`/`develop`) **and `force` is NOT specified**, do not commit. Warn the user and suggest creating a feature branch or re-running with `force`.
+3. If the current branch is protected (`main`/`master`/`dev`/`develop`) **and `force` / `--force` is NOT specified**, do not commit. Warn the user and suggest creating a feature branch or re-running with `force`.
 
 4. If there are no staged changes, do not commit.
 
@@ -56,6 +70,7 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
    - Title: `<type>(<optional scope>): <short summary>` (<= 72 chars)
    - Body: 1-3 lines focusing on why, key constraints, and notable behavior changes.
    - If breaking change, include `BREAKING CHANGE:` in the body.
+   - If `--dry-run` is set, preview the message and stop here without running `git commit`.
 
 6. **Commit NOW:**
 
@@ -110,4 +125,3 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
 
 - Print the final commit message used (title + body).
 - Include the important lines from the post-commit status/log.
-

@@ -100,7 +100,7 @@ function makeProtectedRepo(): string {
 const SCRIPT = join(
   process.cwd(),
   "skills",
-  "git-commit-improved",
+  "git-commit",
   "scripts",
   "commit-preflight.ts",
 );
