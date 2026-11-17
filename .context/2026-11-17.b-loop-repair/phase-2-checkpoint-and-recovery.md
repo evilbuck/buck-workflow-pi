@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 2
 order: 2
 plan: plan-b-loop-repair.md
@@ -10,20 +10,25 @@ buck_hint: /b-build-hard
 goal: "Implement one versioned private checkpoint per (subject, branch, worktree) with writer serialization, shared four-stage/phase milestones, blockers, progress labels, and proof-driven recovery."
 omp_execution: none
 files:
+  - skills/b-loop/scripts/types.ts
+  - skills/b-loop/scripts/validation.ts
+  - skills/b-loop/scripts/checkpoint-cli.ts
   - skills/b-loop/scripts/checkpoint.ts
+  - skills/b-loop/scripts/recovery.ts
   - skills/b-loop/scripts/eval-buck-loop.ts
+  - skills/b-loop/scripts/checkpoint.test.ts
   - skills/b-loop/scripts/eval-buck-loop.test.ts
 from_plan_steps: [2]
 depends_on: [1]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] One versioned private checkpoint per `(subject, branch, worktree)` is persisted and read back via `workflow_state` CAS (`expectedRevision` / revision verification), and any checkpoint write or readback mismatch blocks further side effects."
-  - "[ ] Checkpoint schema stores pinned plan & phase identity, completed phase commit IDs, current phase/stage/milestone, `attemptId`, `updatedAt`, stage proof references, and optional structured blocker (`reason`, `nextSafeAction`)."
-  - "[ ] Shared 4 milestones (`starting`, `working`, `finished`, `verified`) are persisted and emitted for every stage, alongside derived phase milestones (`starting`, `working`, `finished`, `verified`), matching format `Phase N · <stage> <milestone>` and `· blocked` when blocked."
-  - "[ ] Concurrent invocations in the same `(subject, branch, worktree)` serialize via trusted writer ownership/lock check so a second live invocation yields to the active writer rather than mutating checkpoint or stages."
-  - "[ ] Recovery reads the private checkpoint before plan completion markers: detects Git-proof gaps when a plan already marks a phase complete, preserves existing work, reloads the first stage with missing/invalid proof, checks attempt acceptance/effects at `starting`/`working`, verifies `finished` results before `verified`, and reuses `verified` proofs."
-completed_at: null
-completed_by: null
+  - "[x] One versioned private checkpoint per `(subject, branch, worktree)` is persisted and read back via `workflow_state` CAS (`expectedRevision` / revision verification), and any checkpoint write or readback mismatch blocks further side effects."
+  - "[x] Checkpoint schema stores pinned plan & phase identity, completed phase commit IDs, current phase/stage/milestone, `attemptId`, `updatedAt`, stage proof references, and optional structured blocker (`reason`, `nextSafeAction`)."
+  - "[x] Shared 4 milestones (`starting`, `working`, `finished`, `verified`) are persisted and emitted for every stage, alongside derived phase milestones (`starting`, `working`, `finished`, `verified`), matching format `Phase N · <stage> <milestone>` and `· blocked` when blocked."
+  - "[x] Concurrent invocations in the same `(subject, branch, worktree)` serialize via trusted writer ownership/lock check so a second live invocation yields to the active writer rather than mutating checkpoint or stages."
+  - "[x] Recovery reads the private checkpoint before plan completion markers: detects Git-proof gaps when a plan already marks a phase complete, preserves existing work, reloads the first stage with missing/invalid proof, checks attempt acceptance/effects at `starting`/`working`, verifies `finished` results before `verified`, and reuses `verified` proofs."
+completed_at: 2026-11-17
+completed_by: Antigravity
 ---
 
 # Phase 2: Private Checkpoint, Locking, Milestones & Recovery

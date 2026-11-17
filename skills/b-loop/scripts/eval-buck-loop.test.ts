@@ -174,6 +174,9 @@ function makeValidBridges(overrides: {
         if (!overrides.remoteOrigin) throw shellError("no remote origin", 1);
         return `${overrides.remoteOrigin}\n`;
       }
+      if (command.includes("checkpoint-cli.ts") && command.includes(" read ")) {
+        return '{"found":false}\n';
+      }
       return "";
     }),
     tool: {

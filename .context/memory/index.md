@@ -1,3 +1,7 @@
+- 2026-11-17 — [`/b-loop` repair Phase 2: private `FileStorageStore` checkpoint CAS/readback, writer locking, shared 4 milestones & proof-driven recovery](b-loop-phase-2-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-2-2026-11-17.md` | domains: [b-loop, checkpoints, recovery, locking, storage] | topics: [b-loop, private-checkpoint, cas-readback, writer-lock, milestones, recovery] | status: completed
+
 - 2026-11-17 — [`/b-loop` repair Phase 1: explicit module import, `A-4` validation in OMP, fail-closed preflight & YAML storage parser](b-loop-phase-1-2026-11-17.md) — `completed`
 
   - 2026-11-17 | `b-loop-phase-1-2026-11-17.md` | domains: [b-loop, omp, validation, workflow] | topics: [b-loop, omp-eval, module-import, preflight-validation, a-4] | status: completed

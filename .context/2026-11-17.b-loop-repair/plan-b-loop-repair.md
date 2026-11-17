@@ -5,8 +5,8 @@ updated: 2026-11-17
 subject: 2026-11-17.b-loop-repair
 topics: [b-loop, omp, checkpoints, recovery]
 research: []
-iterations: [iterate-phase-1-entry-and-validation.md]
-memory: [b-loop-phase-1-2026-11-17.md]
+iterations: [iterate-phase-1-entry-and-validation.md, iterate-phase-2-checkpoint-and-recovery.md]
+memory: [b-loop-phase-1-2026-11-17.md, b-loop-phase-2-2026-11-17.md]
 ---
 
 # Repair and simplify `/b-loop`
