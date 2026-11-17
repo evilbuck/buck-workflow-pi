@@ -1,12 +1,13 @@
 ---
-status: active
+status: completed
 date: 2026-11-17
 updated: 2026-11-17
+completed_at: 2026-11-17
 subject: 2026-11-17.b-loop-repair
 topics: [b-loop, omp, checkpoints, recovery]
 research: []
-iterations: [iterate-phase-1-entry-and-validation.md, iterate-phase-2-checkpoint-and-recovery.md]
-memory: [b-loop-phase-1-2026-11-17.md, b-loop-phase-2-2026-11-17.md]
+iterations: [iterate-phase-1-entry-and-validation.md, iterate-phase-2-checkpoint-and-recovery.md, iterate-phase-3-stage-boundaries.md, iterate-phase-4-git-commit-and-closeout.md, iterate-phase-5-omp-e2e-and-docs.md]
+memory: [b-loop-phase-1-2026-11-17.md, b-loop-phase-2-2026-11-17.md, b-loop-phase-3-2026-11-17.md, b-loop-phase-4-2026-11-17.md, b-loop-phase-5-2026-11-17.md]
 ---
 
 # Repair and simplify `/b-loop`
@@ -77,11 +78,11 @@ Fold final subject closeout into the final commit preparation. After verifying e
 
 ## Acceptance criteria
 
-- [ ] The packaged `/b-loop <subject>` prompt starts in OMP from a separate project checkout and executes a two-phase fixture in order.
-- [ ] The normal path exposes `starting`, `working`, `finished`, and `verified` for each stage and phase. A blocker preserves the last milestone. Re-entry checks a finished stage's proof before retrying it and dispatches the next stage only after verification.
-- [ ] Failed acceptance, actionable or stale review, missing or unverified save, failed Git probes, and failed closeout each prevent advancement at the applicable boundary.
-- [ ] Interruptions after durable save and after Git commit reuse the recorded effects. A changed branch, stale input, or mismatched committed tree cannot be adopted.
-- [ ] The final commit contains the verified subject closeout, and invoking the same finished subject again makes no new commit.
+- [x] The packaged `/b-loop <subject>` prompt starts in OMP from a separate project checkout and executes a two-phase fixture in order.
+- [x] The normal path exposes `starting`, `working`, `finished`, and `verified` for each stage and phase. A blocker preserves the last milestone. Re-entry checks a finished stage's proof before retrying it and dispatches the next stage only after verification.
+- [x] Failed acceptance, actionable or stale review, missing or unverified save, failed Git probes, and failed closeout each prevent advancement at the applicable boundary.
+- [x] Interruptions after durable save and after Git commit reuse the recorded effects. A changed branch, stale input, or mismatched committed tree cannot be adopted.
+- [x] The final commit contains the verified subject closeout, and invoking the same finished subject again makes no new commit.
 
 ## Verification
 
@@ -96,7 +97,7 @@ Use one normal invocation and one private checkpoint. The audit proved the impor
 | ID | Statement | Status | Blocking | Evidence or validation path |
 | --- | --- | --- | --- | --- |
 | A-1 | OMP 18.22.0 can load the TypeScript runner through its module import path. | validated | false | The audit imported the module and read the fixture snapshot through installed OMP. |
-| A-4 | The packaged command can resolve the installed runner from a separate target worktree. | deferred | false | In step 1, exercise the entry with the installed package and a fixture worktree that lacks Buck's source files before enabling any stage effects. |
+| A-4 | The packaged command can resolve the installed runner from a separate target worktree. | validated | false | Validated in live OMP 18.22.0 worker `eval` on a separate linked worktree without `skills/` in Phase 1 (`eval-buck-loop.test.ts`) and Phase 5 (`eval-buck-loop.e2e.test.ts`). |
 
 ## Material Risks
 
