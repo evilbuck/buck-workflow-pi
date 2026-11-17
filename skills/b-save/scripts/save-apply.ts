@@ -49,8 +49,9 @@ export async function loadSqlSave(): Promise<SqlSaveModule> {
   if (sqlSaveModule) return sqlSaveModule;
   const specifier = sqlSaveSpecifierFrom(dirname(fileURLToPath(import.meta.url)));
   if (!specifier) throw new Error(SQL_SAVE_MISSING);
-  sqlSaveModule = await import(specifier);
-  return sqlSaveModule;
+  const loaded = await import(specifier) as SqlSaveModule;
+  sqlSaveModule = loaded;
+  return loaded;
 }
 
 const dryRun = process.argv.includes("--dry-run");
