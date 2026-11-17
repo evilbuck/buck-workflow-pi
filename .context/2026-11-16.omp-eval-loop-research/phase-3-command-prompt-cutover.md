@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 3
 order: 3
 plan: plan-omp-eval-loop.md
@@ -18,14 +18,14 @@ from_plan_steps: [4, 5]
 depends_on: [2]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] skills/b-loop/SKILL.md documents /b-loop arguments, OMP eval kernel execution requirement, and non-OMP harness fallback."
-  - "[ ] prompts/b-loop.md instructs the agent to set globalThis.BUCK_LOOP_ARGS from $ARGUMENTS and execute eval({ language: \"js\", code: \"%load skills/b-loop/scripts/eval-buck-loop.ts\", timeout: 0 })."
-  - "[ ] commands/b-loop.md is created as a symlink to ../prompts/b-loop.md."
-  - "[ ] npx vitest run scripts/commands-mirror.test.ts passes."
-  - "[ ] wireBuckLoop(pi) and its import are removed from extensions/index.ts, while extensions/buck-loop/ remains intact on disk."
-  - "[ ] Vitest test suites for extensions and prompts pass without errors."
-completed_at: null
-completed_by: null
+  - "[x] skills/b-loop/SKILL.md documents /b-loop arguments, OMP eval kernel execution requirement, and non-OMP harness fallback."
+  - "[x] prompts/b-loop.md instructs the agent to set globalThis.BUCK_LOOP_ARGS from $ARGUMENTS and execute eval({ language: \"js\", code: \"%load skills/b-loop/scripts/eval-buck-loop.ts\", timeout: 0 })."
+  - "[x] commands/b-loop.md is created as a symlink to ../prompts/b-loop.md."
+  - "[x] npx vitest run scripts/commands-mirror.test.ts passes."
+  - "[x] wireBuckLoop(pi) and its import are removed from extensions/index.ts, while extensions/buck-loop/ remains intact on disk."
+  - "[x] Vitest test suites for extensions and prompts pass without errors."
+completed_at: 2026-11-17
+completed_by: Antigravity
 ---
 
 # Phase 3: Command & Prompt Entrypoints and Extension Cutover

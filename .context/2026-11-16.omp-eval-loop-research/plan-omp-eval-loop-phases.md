@@ -25,7 +25,7 @@ format: discrete
 |-------|--------|------------|---------------|------|
 | 1: Subagent Model Routing for `eval` Spawns | completed | medium | none | [phase-1-subagent-model-routing.md](phase-1-subagent-model-routing.md) |
 | 2: TypeScript `eval` Buck Loop Runner & Bridge Tests | completed | hard | none | [phase-2-eval-loop-runner.md](phase-2-eval-loop-runner.md) |
-| 3: Command & Prompt Entrypoints and Extension Cutover | pending | easy | none | [phase-3-command-prompt-cutover.md](phase-3-command-prompt-cutover.md) |
+| 3: Command & Prompt Entrypoints and Extension Cutover | completed | easy | none | [phase-3-command-prompt-cutover.md](phase-3-command-prompt-cutover.md) |
 | 4: Documentation & Workflow Skill Updates for OMP 18.x | pending | easy | none | [phase-4-docs-and-skill-updates.md](phase-4-docs-and-skill-updates.md) |
 
 ## Dependency Matrix
@@ -84,5 +84,5 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 
 - [x] Phase 1: Subagent Model Routing for `eval` Spawns — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [x] Phase 2: TypeScript `eval` Buck Loop Runner & Bridge Tests — build → review → iterate if in-plan issues → docs if doc impact → save → commit
-- [ ] Phase 3: Command & Prompt Entrypoints and Extension Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [x] Phase 3: Command & Prompt Entrypoints and Extension Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit
 - [ ] Phase 4: Documentation & Workflow Skill Updates for OMP 18.x — build → review → iterate if in-plan issues → docs if doc impact → save → commit

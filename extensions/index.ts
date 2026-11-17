@@ -7,7 +7,6 @@ import { wire as wirePlanArtifact } from "./plan-artifact.js";
 import { wire as wireZaiDiscountBanner } from "./zai-discount-banner.js";
 import { wire as wireBSave } from "./b-save/index.js";
 import { wire as wireCodeReviewIteration } from "./code-review-iteration/index.js";
-import { wireBuckLoop } from "./buck-loop/index.js";
 import { wireBuckModels } from "./buck-models/index.js";
 import { wire as wireJevTool } from "./jev-tool/index.js";
 import { wire as wireFixPrFeedback } from "./fix-pr-feedback/index.js";
@@ -29,7 +28,6 @@ export default function (pi: ExtensionAPI) {
   wireBSave(pi);
   // --- code-review-iteration: isolated Reviewer/Fixer loop ---
   wireCodeReviewIteration(pi);
-  wireBuckLoop(pi);
   wireBuckModels(pi);
   wireJevTool(pi);
   wireFixPrFeedback(pi);

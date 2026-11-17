@@ -1,10 +1,10 @@
 ---
 title: "Phase 3: Command & Prompt Entrypoints and Extension Cutover"
-status: active
+status: completed
 priority: medium
 created: 2026-11-17
 updated: 2026-11-17
-completed: null
+completed: 2026-11-17
 related: [.context/2026-11-16.omp-eval-loop-research/phase-3-command-prompt-cutover.md, .context/2026-11-16.omp-eval-loop-research/plan-omp-eval-loop-phases.md]
 ---
 
