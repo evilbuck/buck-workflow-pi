@@ -9,6 +9,8 @@ import {
   CONVERSATION_TAIL_MESSAGES,
   INTERACTIVE_STAGE_BY_SKILL,
   conversationTail,
+  refusal,
+  stageSkillFromSpawnKey,
   wireInteractiveModelSwitch,
   type InteractiveSelectRequest,
   type InteractiveSelectResult,
@@ -228,5 +230,154 @@ describe("interactive host adapter", () => {
     await emit(handlers, "model_select", {}, ctx);
     await emit(handlers, "agent_end", {}, ctx);
     expect(setModel).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("stageSkillFromSpawnKey", () => {
+  it("maps stage skill prefixes to their respective BuckStageKey", () => {
+    expect(stageSkillFromSpawnKey("b-build-hard")).toEqual({ skill: "b-build-hard", stage: "build" });
+    expect(stageSkillFromSpawnKey("b-build-hard-phase-1")).toEqual({ skill: "b-build-hard", stage: "build" });
+    expect(stageSkillFromSpawnKey("b-build")).toEqual({ skill: "b-build", stage: "build" });
+    expect(stageSkillFromSpawnKey("b-build-phase-2")).toEqual({ skill: "b-build", stage: "build" });
+    expect(stageSkillFromSpawnKey("b-review")).toEqual({ skill: "b-review", stage: "review" });
+    expect(stageSkillFromSpawnKey("b-review-phase-3")).toEqual({ skill: "b-review", stage: "review" });
+    expect(stageSkillFromSpawnKey("b-iterate")).toEqual({ skill: "b-iterate", stage: "iterate" });
+    expect(stageSkillFromSpawnKey("b-iterate-issue-1")).toEqual({ skill: "b-iterate", stage: "iterate" });
+    expect(stageSkillFromSpawnKey("b-docs")).toEqual({ skill: "b-docs", stage: "docs" });
+    expect(stageSkillFromSpawnKey("b-howto")).toEqual({ skill: "b-howto", stage: "docs" });
+    expect(stageSkillFromSpawnKey("b-save")).toEqual({ skill: "b-save", stage: "save" });
+    expect(stageSkillFromSpawnKey("b-commit")).toEqual({ skill: "b-commit", stage: "commit" });
+    expect(stageSkillFromSpawnKey("b-research")).toEqual({ skill: "b-research", stage: "research" });
+    expect(stageSkillFromSpawnKey("b-explore")).toEqual({ skill: "b-explore", stage: "research" });
+    expect(stageSkillFromSpawnKey("b-plan")).toEqual({ skill: "b-plan", stage: "brainstorm-plan" });
+    expect(stageSkillFromSpawnKey("b-phase")).toEqual({ skill: "b-phase", stage: "phase" });
+    expect(stageSkillFromSpawnKey("b-brainstorm")).toEqual({ skill: "b-brainstorm", stage: "brainstorm-plan" });
+    expect(stageSkillFromSpawnKey("b-grill")).toEqual({ skill: "b-grill", stage: "grill" });
+    expect(stageSkillFromSpawnKey("b-present")).toEqual({ skill: "b-present", stage: "present" });
+  });
+
+  it("returns null for non-matching or unrecognized spawnKeys", () => {
+    expect(stageSkillFromSpawnKey("")).toBeNull();
+    expect(stageSkillFromSpawnKey("task-1")).toBeNull();
+    expect(stageSkillFromSpawnKey("b-builder")).toBeNull();
+    expect(stageSkillFromSpawnKey("random-agent")).toBeNull();
+  });
+});
+
+describe("before_subagent_spawn eval model routing", () => {
+  it("routes eval subagents with valid stage profile", async () => {
+    const seen: InteractiveSelectRequest[] = [];
+    const { api, handlers } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async (request) => {
+        seen.push(request);
+        return { ok: true, id: "provider/eval-picked", thinking: "high" };
+      },
+    });
+    const ctx = host(tempDir());
+    await emit(handlers, "session_start", {}, ctx);
+    const result = await emit(
+      handlers,
+      "before_subagent_spawn",
+      { invocationKind: "eval", spawnKey: "b-build-phase-1", prompt: "implement feature" },
+      ctx,
+    );
+    expect(result).toEqual({ model: "provider/eval-picked", note: "buckModels:build" });
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({
+      skill: "b-build",
+      stage: "build",
+      commandText: "implement feature",
+    });
+  });
+
+  it("returns refusal block when stage profile resolution fails", async () => {
+    const { api, handlers } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async (): Promise<InteractiveSelectResult> => ({
+        ok: false,
+        message: 'buckModels profile "work" is missing stage "build"',
+      }),
+    });
+    const ctx = host(tempDir());
+    await emit(handlers, "session_start", {}, ctx);
+    const result = await emit(
+      handlers,
+      "before_subagent_spawn",
+      { invocationKind: "eval", spawnKey: "b-build-hard-phase-2" },
+      ctx,
+    );
+    expect(result).toEqual({
+      block: true,
+      reason: refusal('buckModels profile "work" is missing stage "build"'),
+    });
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining('missing stage "build"'),
+      "error",
+    );
+  });
+
+  it("passes through non-eval invocations without modification", async () => {
+    const seen: InteractiveSelectRequest[] = [];
+    const { api, handlers } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async (request) => {
+        seen.push(request);
+        return { ok: true, id: "provider/eval-picked", thinking: "high" };
+      },
+    });
+    const ctx = host(tempDir());
+    const result = await emit(
+      handlers,
+      "before_subagent_spawn",
+      { invocationKind: "interactive", spawnKey: "b-build-phase-1" },
+      ctx,
+    );
+    expect(result).toBeUndefined();
+    expect(seen).toHaveLength(0);
+  });
+
+  it("passes through unrecognized spawnKeys without modification", async () => {
+    const seen: InteractiveSelectRequest[] = [];
+    const { api, handlers } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async (request) => {
+        seen.push(request);
+        return { ok: true, id: "provider/eval-picked", thinking: "high" };
+      },
+    });
+    const ctx = host(tempDir());
+    const result = await emit(
+      handlers,
+      "before_subagent_spawn",
+      { invocationKind: "eval", spawnKey: "custom-worker-task" },
+      ctx,
+    );
+    expect(result).toBeUndefined();
+    expect(seen).toHaveLength(0);
+  });
+
+  it("returns refusal block when select throws", async () => {
+    const { api, handlers } = fakeApi();
+    wireInteractiveModelSwitch(api, {
+      select: async () => {
+        throw new Error("profile read error");
+      },
+    });
+    const ctx = host(tempDir());
+    const result = await emit(
+      handlers,
+      "before_subagent_spawn",
+      { invocationKind: "eval", spawnKey: "b-review" },
+      ctx,
+    );
+    expect(result).toEqual({
+      block: true,
+      reason: refusal("profile read error"),
+    });
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("profile read error"),
+      "error",
+    );
   });
 });
