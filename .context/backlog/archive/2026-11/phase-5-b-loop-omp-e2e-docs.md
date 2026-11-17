@@ -1,10 +1,10 @@
 ---
 title: "Phase 5: b-loop Real OMP E2E Test Suite & Documentation Sync"
-status: active
+status: completed
 priority: medium
 created: 2026-11-17
 updated: 2026-11-17
-completed: null
+completed: 2026-11-17
 related: [.context/2026-11-17.b-loop-repair/phase-5-omp-e2e-and-docs.md, .context/2026-11-17.b-loop-repair/plan-b-loop-repair-phases.md]
 ---
 

@@ -10,10 +10,7 @@ Phases form a HARD chain (1 → 2 → 3 → 4 → 5).
 - [x] [Phase 2: Private Checkpoint, Locking, Milestones & Recovery](archive/2026-11/phase-2-b-loop-checkpoint-recovery.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-2-checkpoint-and-recovery.md](../2026-11-17.b-loop-repair/phase-2-checkpoint-and-recovery.md)
 - [x] [Phase 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance](archive/2026-11/phase-3-b-loop-stage-boundaries.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-3-stage-boundaries.md](../2026-11-17.b-loop-repair/phase-3-stage-boundaries.md)
 - [x] [Phase 4: Scoped Git Staging, Tree-Pinning Commit & Closeout](archive/2026-11/phase-4-b-loop-commit-closeout.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-4-git-commit-and-closeout.md](../2026-11-17.b-loop-repair/phase-4-git-commit-and-closeout.md)
-
-### Upcoming Phases
-
-- [ ] [Phase 5: Real OMP E2E Test Suite & Documentation Sync](items/phase-5-b-loop-omp-e2e-docs.md) — medium, `/b-build` — [phase-5-omp-e2e-and-docs.md](../2026-11-17.b-loop-repair/phase-5-omp-e2e-and-docs.md)
+- [x] [Phase 5: Real OMP E2E Test Suite & Documentation Sync](archive/2026-11/phase-5-b-loop-omp-e2e-docs.md) — medium, `/b-build` — done 2026-11-17 — [phase-5-omp-e2e-and-docs.md](../2026-11-17.b-loop-repair/phase-5-omp-e2e-and-docs.md)
 
 
 ## OMP TypeScript Eval Loop Phases (2026-11-16)

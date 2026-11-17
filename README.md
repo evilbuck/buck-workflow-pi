@@ -185,13 +185,13 @@ Most agents load both global and project-level files — the project-level one e
 
 1. **Canonical skills** (`skills/`) — Portable workflow logic. Agent-neutral Markdown files that define *how* each workflow behaves. These are the source of truth.
 2. **Thin wrappers** (`prompts/` + `commands/`) — Agent-native invocation surface. Pi reads `prompts/*.md` as slash commands. OMP reads the test-enforced one-to-one `commands/*.md` symlink mirror, so every slash-command body has one source in `prompts/`.
-3. **Runtime automation** (`extensions/index.ts`) — Composed Pi/OMP extension surface: model auto-switch, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, and the opt-in plan-artifact bridge. Historical subsystems that remain under `extensions/` are not wired by the package manifest.
+3. **Runtime automation** (`extensions/index.ts`) — Composed Pi/OMP extension surface: model auto-switch, TPS tracking, deterministic commands, the local `/code-review` iteration loop, and the opt-in plan-artifact bridge. Historical subsystems that remain under `extensions/` (including `extensions/buck-loop/`) are not wired by the package manifest; autonomous phased runs in OMP use `/b-loop <subject>` (`prompts/b-loop.md` + `skills/b-loop/`).
 
 **Runtime mapping:**
 
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
-- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic commands, `/buck-loop`, local `/code-review` iteration, and the opt-in plan-artifact bridge
+- **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic commands, local `/code-review` iteration, and the opt-in plan-artifact bridge
 - **`/b-save`** → wired extension command (`extensions/b-save/`, `pi.registerCommand("b-save")`) with prompt loaders `prompts/b-save.md` and `prompts/b-save-improved.md` both reading `skills/b-save/SKILL.md`. There is no `extensions/b-save-improved/` directory and no `/b-save-improved` extension command. Run it before `/b-commit`.
 
 ### Cross-Agent Parallels
@@ -260,7 +260,7 @@ Every `commands/*.md` entry is a symlink to the matching `prompts/*.md` source. 
 
 ### Extension-Backed Commands
 
-When the package extension is loaded (Pi/OMP), six commands use wired runtime implementations instead of only following prompt text:
+When the package extension is loaded (Pi/OMP), five commands use wired runtime implementations instead of only following prompt text:
 
 | Command | Backing | Skill fallback |
 |---------|---------|----------------|
@@ -268,13 +268,13 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `/b-save` | `extensions/b-save/` | `b-save` skill (`prompts/b-save-improved.md` is a prompt alias, not a second command) |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | `b-pr` skill |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | — |
-| `/buck-loop` | `extensions/buck-loop/` | — |
 | `/code-review` | `extensions/code-review-iteration/` | Portable `code-review` prompt/skill (release-PR workflow) |
 
 ### Pure Prompt Commands
 
 | Command | Purpose |
 |---------|---------|
+| `/b-loop <subject>` | Autonomous OMP `eval` phased-plan runner via installed `skills/b-loop/scripts/eval-buck-loop.ts` (`repo-files`, named Git branch, discrete phases, crash recovery across shared `starting`/`working`/`finished`/`verified` milestones, and built-in `close-verified` commit folding) |
 | `/b-save` | Write `.context/memory` + backlog/index/cross-refs; on OMP, also `retain` session facts when tools exist; non-OMP agents optionally re-index via the configured Memory Search Tool |
 
 ### Skills
@@ -316,6 +316,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | `b-present` | Generate async-readable presentation package from artifacts |
 | `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
+| `b-loop` | Run `/b-loop <subject>` sequentially across discrete phases in OMP `eval` with private `(subject, branch, worktree)` checkpoints, native `judge()` acceptance, read-only fingerprinted `b-review`, receipt-bound `b-save`, tree-pinned commits, and final `close-verified` folding |
 | `fix-pr` | Validate PR review comments against code; fix+push every valid finding on the head branch, then poll re-review until settled; `--issues-only` files issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
 | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
@@ -341,7 +342,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
-- **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
+- **Runtime commands**: local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands); `extensions/buck-loop/` is unwired in favor of `/b-loop <subject>`)
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
 Removed: `/b-mode`, plan-mode write guards, `b-flow`, the `b-grill-auto` extension command and skill, tmux status, and session-state injection. `/b-save` is the wired checkpoint command. Auto grilling is `/skill:b-grill --mode auto`. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.

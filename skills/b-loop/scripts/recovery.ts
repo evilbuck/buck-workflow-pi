@@ -426,8 +426,16 @@ async function runStageStarting(
   stage: LoopStage,
   adapter: StageAdapter,
   ctx: StageContext,
-): Promise<void> {
+): Promise<BuckLoopResult | null> {
   const prep = adapter.prepareStarting ? await adapter.prepareStarting(ctx) : undefined;
+  if (prep && typeof prep === "object" && "blocked" in prep && prep.blocked) {
+    return recordBlocker(session, phase, stage, "starting", {
+      reason: prep.blocked.reason,
+      nextSafeAction: prep.blocked.nextSafeAction,
+      attemptId: ctx.attemptId,
+      ...(prep.proof ? { proof: prep.proof } : {}),
+    });
+  }
   const prepProof = prep && typeof prep === "object" && "proof" in prep ? prep.proof : undefined;
   const prepUpdates = prepProof ? setStageProof(session.checkpoint, phase, stage, prepProof) : {};
   await saveTransition(session, {
@@ -440,6 +448,7 @@ async function runStageStarting(
     jobHandle: null,
     blocker: null,
   });
+  return null;
 }
 
 async function dispatchAndVerifyStage(
@@ -453,7 +462,8 @@ async function dispatchAndVerifyStage(
   const attemptId = existingAttemptId ?? randomUUID();
   const initialCtx = makeStageContext(session, phase, stage, attemptId);
 
-  await runStageStarting(session, phase, stage, adapter, initialCtx);
+  const startBlocked = await runStageStarting(session, phase, stage, adapter, initialCtx);
+  if (startBlocked) return { result: startBlocked };
   // Refresh context after `runStageStarting` persists initial stage proofs (e.g. commit baseline/tree).
   const ctx = makeStageContext(session, phase, stage, attemptId);
 

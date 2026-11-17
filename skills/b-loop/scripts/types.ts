@@ -241,7 +241,7 @@ export type StageVerifyResult =
 
 export interface StageAdapter {
   checkStarting?(ctx: StageContext): Promise<StartingCheckResult>;
-  prepareStarting?(ctx: StageContext): Promise<void | { proof?: StageProof }>;
+  prepareStarting?(ctx: StageContext): Promise<void | { proof?: StageProof; blocked?: { reason: string; nextSafeAction: string } }>;
   dispatchWorking(ctx: StageContext): Promise<{ jobHandle?: string | null; handle?: unknown }>;
   recoverWorking?(ctx: StageContext): Promise<WorkingRecoveryResult>;
   awaitFinished?(ctx: StageContext, dispatched: { jobHandle?: string | null; handle?: unknown }): Promise<void>;

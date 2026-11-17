@@ -128,7 +128,7 @@ buck-workflow-pi/
     b-commit-improved/      # (wired) deterministic /b-commit-improved command
     b-save/                 # (wired) deterministic /b-save command
     b-kamal-release/        # (wired) deterministic /b-kamal-release command
-    buck-loop/              # (wired) observably invoked /buck-loop runner
+    buck-loop/              # (unwired historical prototype; replaced by prompt-backed /b-loop)
     code-review-iteration/   # (wired) local Reviewer → Fixer → fresh-Reviewer /code-review loop
     token-attribution/      # (wired) project/branch token ledger + /tokens report
     workflow-state/         # (wired) workflow_state tool; sql-memory wire does not register a tool
@@ -158,21 +158,20 @@ buck-workflow-pi/
 
 `extensions/index.ts` is the single manifest entry; its default export composes every wired subsystem:
 
-1. **Named Buck model routing** (`interactive-model-switch.ts`, `omp-models.ts`) — resolves the active `buckModels` profile stage for mapped interactive Buck commands and `/buck-loop` nested calls, picks an available configured id via Jev (uniform random on no answer), applies the stage thinking level, restores on `agent_end`, and refuses instead of using the host model. `/buck-models` (`buck-models/`) edits the profiles.
+1. **Named Buck model routing** (`interactive-model-switch.ts`, `omp-models.ts`) — resolves the active `buckModels` profile stage for mapped interactive Buck commands, picks an available configured id via Jev (uniform random on no answer), applies the stage thinking level, restores on `agent_end`, and refuses instead of using the host model. `/buck-models` (`buck-models/`) edits the profiles.
 2. **TPS tracker** (`tps-tracker.ts`) — Token-per-second tracking during model generation.
 3. **`/b-pr-improved`** (`b-pr-improved/`) — deterministic, code-driven PR creation.
 4. **`/b-commit-improved`** (`b-commit-improved/`) — deterministic Conventional Commit.
 5. **`/b-save`** (`b-save/`) — deterministic session checkpoint (snapshot → scribe/auditor/goal → journaled apply). `prompts/b-save-improved.md` is a prompt alias for the same skill, not a second registered command.
 6. **`/b-kamal-release`** (`b-kamal-release/`) — deterministic kamal release pipeline.
 7. **Plan-artifact bridge** (`plan-artifact.ts`) — opt-in (`buckPlanArtifact.enabled` / `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention.
-8. **`/buck-loop`** (`buck-loop/`) — observably invoked happy-path runner for an existing Buck plan. Its Buck-specific workflow definition uses the portable synchronous module in `extensions/state_machine/` for graph validation and guarded transitions; the adapter enforces route cardinality, and the Buck supervisor interprets effects and owns scanning, persistence, model calls, retries, clocks, and nested isolated sessions. Nested work and closed-set choice sessions subscribe to the SDK event stream and render the newest six sanitized activity rows in the shared widget. See `docs/adr/0002-observably-invoked-happy-path-loop.md`.
-9. **`/code-review` local iteration** (`code-review-iteration/`) — bounded local Reviewer → optional Fixer → fresh-Reviewer passes. Reviewer work runs in disposable detached worktrees; reproduction commands cross the `review_exec` allowlist boundary; pass artifacts are immutable under the Git common directory. This runtime command is distinct from the portable release-PR review prompt/skill with the same name.
-10. **Token attribution** (`token-attribution/`) — records assistant and current-session nested usage in a plugin-owned `~/.omp/stats.db` table, keyed by Git origin/common directory plus branch, and exposes estimated project totals through `/tokens` (or `/token-use` on command collision). It never modifies OMP-owned stats tables. See `docs/oh-my-pi.md` and `docs/howto/inspect-project-token-use.md`.
-11. **Workflow state** (`workflow-state/`) — registers native `workflow_state` on every load. `sql-memory/` `wire()` does not register `sql_memory` and does not load `pg` at registration. Administration is the shared CLI `migrate` operation.
+8. **`/code-review` local iteration** (`code-review-iteration/`) — bounded local Reviewer → optional Fixer → fresh-Reviewer passes. Reviewer work runs in disposable detached worktrees; reproduction commands cross the `review_exec` allowlist boundary; pass artifacts are immutable under the Git common directory. This runtime command is distinct from the portable release-PR review prompt/skill with the same name.
+9. **Token attribution** (`token-attribution/`) — records assistant and current-session nested usage in a plugin-owned `~/.omp/stats.db` table, keyed by Git origin/common directory plus branch, and exposes estimated project totals through `/tokens` (or `/token-use` on command collision). It never modifies OMP-owned stats tables. See `docs/oh-my-pi.md` and `docs/howto/inspect-project-token-use.md`.
+10. **Workflow state** (`workflow-state/`) — registers native `workflow_state` on every load. `sql-memory/` `wire()` does not register `sql_memory` and does not load `pg` at registration. Administration is the shared CLI `migrate` operation.
 
-`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. The shared prompt sources under `prompts/` document these behaviors.
+`extension-activity.ts` (live progress UI) and `subprocess.ts` are shared libraries used by the deterministic commands and review loop. `/b-pr-improved`, `/b-commit-improved`, and `/b-save` fall back to their skill counterparts when the extension is not loaded. `/b-kamal-release` has no skill fallback. Autonomous phased runs in OMP use prompt-backed `/b-loop <subject>` (`prompts/b-loop.md`, `commands/b-loop.md`, `skills/b-loop/`); `extensions/buck-loop/` is a historical unwired prototype and is not composed by `extensions/index.ts`. The shared prompt sources under `prompts/` document these behaviors.
 
-Everything older (b-mode, b-restrict, plan mode write guard, b-flow, the b-grill-auto extension command and skill, session state machine, and tmux status) has been removed. Auto grilling is `/skill:b-grill --mode auto`. `/b-save` is registered by `extensions/b-save/index.ts`. `skills/b-save/SKILL.md` is the canonical procedure for the prompt loaders and for runs outside that extension. There is no `extensions/b-save-improved/` directory.
+Everything older (`extensions/buck-loop/`, b-mode, b-restrict, plan mode write guard, b-flow, the b-grill-auto extension command and skill, session state machine, and tmux status) is unwired or removed. Auto grilling is `/skill:b-grill --mode auto`. `/b-save` is registered by `extensions/b-save/index.ts`. `skills/b-save/SKILL.md` is the canonical procedure for the prompt loaders and for runs outside that extension. There is no `extensions/b-save-improved/` directory.
 
 
 ## Sub-directory auto-discovery in OMP

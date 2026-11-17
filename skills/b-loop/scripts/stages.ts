@@ -16,7 +16,6 @@ import type {
   LoopStage,
   ReviewStageProof,
   RunStateBackend,
-  SaveStageProof,
   StageAdapter,
   StageAdapters,
   StageContext,
@@ -821,6 +820,30 @@ function assertUpstreamReviewClean(ctx: StageContext): string | null {
   return null;
 }
 
+async function checkReviewWorktreeFresh(ctx: StageContext): Promise<string | null> {
+  const phaseCheck = await verifyPhaseRevisionMatches(ctx);
+  if (!phaseCheck.ok) return phaseCheck.reason;
+  const phaseState = ctx.checkpoint.phases[ctx.phase.logicalName]!;
+  const currentFp = await computeWorktreeFingerprint(ctx.cwd, ctx.bridges.sh);
+  const revMatch =
+    phaseState.build!.phaseRevision === ctx.phase.revision &&
+    phaseState.review!.phaseRevision === ctx.phase.revision;
+  if (!revMatch || phaseState.review!.worktreeFingerprint !== currentFp) {
+    return "Worktree or phase content changed since clean review; rebuild and re-review before save.";
+  }
+  return null;
+}
+
+async function checkReviewFreshForSave(
+  ctx: StageContext,
+): Promise<{ ok: true } | { ok: false; kind: "blocked" | "stale"; reason: string }> {
+  const reviewErr = assertUpstreamReviewClean(ctx);
+  if (reviewErr) return { ok: false, kind: "blocked", reason: reviewErr };
+  const staleReason = await checkReviewWorktreeFresh(ctx);
+  if (staleReason) return { ok: false, kind: "stale", reason: staleReason };
+  return { ok: true };
+}
+
 async function readRefRevision(ctx: StageContext, ref: SavedArtifactRef): Promise<string | null> {
   const target = ref.token
     ? { token: ref.token }
@@ -1017,10 +1040,19 @@ async function verifySaveFromCompletedReceipt(
   };
 }
 
+function upstreamSaveStartBlock(
+  fresh: { ok: false; kind: "blocked" | "stale"; reason: string },
+) {
+  if (fresh.kind === "stale") {
+    return { status: "rewind" as const, targetStage: "build" as const, reason: fresh.reason };
+  }
+  return { status: "blocked" as const, reason: fresh.reason, nextSafeAction: "Complete clean review before save." };
+}
+
 async function checkSaveStarting(ctx: StageContext, backend: RunStateBackend | undefined) {
-  const reviewErr = assertUpstreamReviewClean(ctx);
-  if (reviewErr) {
-    return { status: "blocked" as const, reason: reviewErr, nextSafeAction: "Complete clean review before save." };
+  const fresh = await checkReviewFreshForSave(ctx);
+  if (!fresh.ok) {
+    return upstreamSaveStartBlock(fresh);
   }
   const outcome = await inspectSaveOutcome(ctx, backend);
   if (outcome.conflict) {
@@ -1186,6 +1218,15 @@ function createSaveStageAdapter(
       if (reviewErr) throw new Error(reviewErr);
       const sqlErr = sqlAttemptConflict(ctx, readSqlAttemptFile(ctx.cwd));
       if (sqlErr) throw new Error(sqlErr);
+      const staleReason = await checkReviewWorktreeFresh(ctx);
+      if (staleReason) {
+        return {
+          blocked: {
+            reason: staleReason,
+            nextSafeAction: `Re-run /b-loop ${ctx.pinnedPlan.subjectId} to rebuild and re-review before save.`,
+          },
+        };
+      }
       await writeReceiptSafe(ctx, {
         attemptId: ctx.attemptId,
         status: "attempted",

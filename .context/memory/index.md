@@ -1,3 +1,7 @@
+- 2026-11-17 — [`/b-loop` repair Phase 5: real OMP E2E suite, stale-review `save` start guard & doc sync](b-loop-phase-5-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-5-2026-11-17.md` | domains: [b-loop, omp, e2e, docs, recovery] | topics: [b-loop, omp-eval, e2e-testing, stale-review-guard, docs-sync] | status: completed
+
 - 2026-11-17 — [`/b-loop` repair Phase 4: scoped Git staging, tree-pinned commit & closeout folding](b-loop-phase-4-2026-11-17.md) — `completed`
 
   - 2026-11-17 | `b-loop-phase-4-2026-11-17.md` | domains: [b-loop, git, lifecycle, recovery, workflow] | topics: [b-loop, git-commit, tree-pinning, close-verified, crash-recovery, validation] | status: completed

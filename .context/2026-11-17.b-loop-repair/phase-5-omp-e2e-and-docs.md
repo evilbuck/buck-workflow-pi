@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 phase: 5
 order: 5
 plan: plan-b-loop-repair.md
@@ -22,12 +22,12 @@ from_plan_steps: [5]
 depends_on: [1, 2, 3, 4]
 dependency_type: HARD
 acceptance_criteria:
-  - "[ ] Packaged `/b-loop <subject>` executes end-to-end in installed OMP from a separate checkout/worktree without Buck source files on a two-phase `repo-files` fixture using local fixture agents and real Git."
-  - "[ ] Automated E2E / integration tests assert milestone order (`starting`, `working`, `finished`, `verified`) for every stage & phase, blocker preservation, crash recovery (before dispatch, after dispatch, between `finished` & `verified`, after save apply before checkpoint writeback, after commit before checkpoint writeback), mutated input/ref/tree blocking, concurrent live-writer yield, rejected flags/wrong-subject/unphased/non-`repo-files`/dirty-staged rejections, and idempotent zero-commit re-run after closeout."
-  - "[ ] Updated docs (`README.md`, `docs/buck-workflow.md`, `docs/buck-loop.md`, `docs/howto/recover-buck-loop.md`, `skills/b-loop/SKILL.md`, and checked `docs/howto/resume-buck-loop-after-repair.md`/`docs/eval-kernel.md` if referencing old flags) accurately describe `/b-loop <subject>`, four shared milestones, blockers, and checkpoint recovery without documenting removed `--status`/`--resume`/`--stop` flags."
-  - "[ ] `npx vitest run scripts/commands-mirror.test.ts`, focused runner/E2E tests, `npm run subject-lifecycle:check`, and `npm run guardrails:check` all pass."
-completed_at: null
-completed_by: null
+  - "[x] Packaged `/b-loop <subject>` executes end-to-end in installed OMP from a separate checkout/worktree without Buck source files on a two-phase `repo-files` fixture using local fixture agents and real Git."
+  - "[x] Automated E2E / integration tests assert milestone order (`starting`, `working`, `finished`, `verified`) for every stage & phase, blocker preservation, crash recovery (before dispatch, after dispatch, between `finished` & `verified`, after save apply before checkpoint writeback, after commit before checkpoint writeback), mutated input/ref/tree blocking, concurrent live-writer yield, rejected flags/wrong-subject/unphased/non-`repo-files`/dirty-staged rejections, and idempotent zero-commit re-run after closeout."
+  - "[x] Updated docs (`README.md`, `docs/buck-workflow.md`, `docs/buck-loop.md`, `docs/howto/recover-buck-loop.md`, `skills/b-loop/SKILL.md`, and checked `docs/howto/resume-buck-loop-after-repair.md`/`docs/eval-kernel.md` if referencing old flags) accurately describe `/b-loop <subject>`, four shared milestones, blockers, and checkpoint recovery without documenting removed `--status`/`--resume`/`--stop` flags."
+  - "[x] `npx vitest run scripts/commands-mirror.test.ts`, focused runner/E2E tests, `npm run subject-lifecycle:check`, and `npm run guardrails:check` all pass."
+completed_at: 2026-11-17
+completed_by: claude-opus-4-6
 ---
 
 # Phase 5: Real OMP E2E Test Suite & Documentation Sync
