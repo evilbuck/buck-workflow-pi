@@ -108,6 +108,18 @@ describe("Buck Workflow Codex plugin", () => {
     expect(existsSync(join(pluginRoot, "assets", "buck-workflow.svg"))).toBe(true);
   });
 
+  it("resolves bundled save-apply to the repository sql-save module", async () => {
+    const bundled = await import(join(pluginRoot, "skills", "b-save", "scripts", "save-apply.ts"));
+    const canonical = await import(join(repoRoot, "skills", "b-save", "scripts", "save-apply.ts"));
+    const bundledDir = join(pluginRoot, "skills", "b-save", "scripts");
+    const canonicalDir = join(repoRoot, "skills", "b-save", "scripts");
+    expect(bundled.sqlSaveSpecifierFrom(bundledDir)).toBe("../../../../../extensions/buck-loop/sql-save.js");
+    expect(canonical.sqlSaveSpecifierFrom(canonicalDir)).toBe("../../../extensions/buck-loop/sql-save.js");
+    expect(existsSync(join(pluginRoot, "extensions"))).toBe(false);
+    const loaded = await bundled.loadSqlSave();
+    expect(typeof loaded.withSaveStore).toBe("function");
+  });
+
   it("includes every curated workflow and no runtime extension bundle", () => {
     for (const skill of bundledSkills) {
       expect(existsSync(join(pluginRoot, "skills", skill, "SKILL.md"))).toBe(true);

@@ -21,7 +21,7 @@ Record the current session's work into durable `.context/` artifacts through the
 `skills/b-save/SKILL.md` is the single canonical `/b-save` procedure.
 - Under Pi/OMP with the extension loaded, `/b-save` runs the deterministic state-machine engine in `extensions/b-save/index.ts` (snapshot, bounded scribe/auditor/goal roles, journaled apply, effects).
 - `prompts/b-save.md` and `prompts/b-save-improved.md` (mirrored in `commands/`) load this canonical skill when running without the extension or on other harnesses.
-- `skills/b-save/scripts/save-preflight.ts` and `skills/b-save/scripts/save-apply.ts` provide the deterministic preflight and apply plumbing for cross-platform script execution and `/buck-loop` save attempts.
+- `skills/b-save/scripts/save-preflight.ts` and `skills/b-save/scripts/save-apply.ts` provide the deterministic preflight and apply plumbing for cross-platform script execution and `/buck-loop` save attempts. `save-apply.ts` loads `extensions/buck-loop/sql-save.ts` by walking up from the script file to the repository root. The same file under `plugins/buck-workflow/skills/b-save/scripts/` resolves that module in a full checkout. A fixed `../../../extensions` import does not, because three levels up from the plugin copy is `plugins/buck-workflow/`, not the repo root. The Codex bundle does not vendor Pi/OMP extensions; outside a checkout that contains `extensions/buck-loop/sql-save.ts`, the script fails with that missing-module error.
 
 Before running the responsibilities manually, resolve `SUBJECT_LIFECYCLE` to the absolute path `../_shared/scripts/subject-lifecycle.ts` relative to this loaded `SKILL.md`. Never resolve the helper from the session project's working directory.
 

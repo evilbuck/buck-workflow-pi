@@ -192,7 +192,7 @@ Most agents load both global and project-level files — the project-level one e
 - **Pi `/b-*` commands** → prompt templates in `prompts/` that invoke skills in `skills/`
 - **OMP `/b-*` commands** → symlinks in `commands/` that point to the same prompt templates
 - **Runtime hooks** → `extensions/index.ts` only: model auto-switch for phased plans, token-per-second tracking, deterministic commands, `/buck-loop`, local `/code-review` iteration, and the opt-in plan-artifact bridge
-- **`/b-save`** → pure prompt + skill (`prompts/b-save.md`, `skills/b-save/SKILL.md`), not an extension command; run before `/b-commit` to record durable session state
+- **`/b-save`** → wired extension command (`extensions/b-save/`, `pi.registerCommand("b-save")`) with prompt loaders `prompts/b-save.md` and `prompts/b-save-improved.md` both reading `skills/b-save/SKILL.md`. There is no `extensions/b-save-improved/` directory and no `/b-save-improved` extension command. Run it before `/b-commit`.
 
 ### Cross-Agent Parallels
 
@@ -265,7 +265,7 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 | Command | Backing | Skill fallback |
 |---------|---------|----------------|
 | `/b-commit-improved` | `extensions/b-commit-improved/` | `git-commit` skill |
-| `/b-save-improved` | `extensions/b-save/` | `b-save` skill |
+| `/b-save` | `extensions/b-save/` | `b-save` skill (`prompts/b-save-improved.md` is a prompt alias, not a second command) |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | `b-pr` skill |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | — |
 | `/buck-loop` | `extensions/buck-loop/` | — |
@@ -341,10 +341,10 @@ When the package extension is loaded (Pi/OMP), six commands use wired runtime im
 One manifest entry (`extensions/index.ts`) composes the wired surface:
 - **Model auto-switch** for phased plans on `/b-build`, `/b-build-hard`, `/b-iterate`, and `/b-review`
 - **Token-per-second tracking** during model generation
-- **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
+- **Runtime commands**: `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-save`, `/b-kamal-release` (see [Extension-Backed Commands](#extension-backed-commands))
 - **Plan-artifact bridge**: opt-in `turn_end` hook that persists an exited OMP plan-mode plan into the `.context/` subject-folder convention
 
-Removed: `/b-mode`, plan-mode write guards, `/b-save` as an extension command, `b-flow`, the `b-grill-auto` extension command and skill, tmux status, and session-state injection. Auto grilling is `/skill:b-grill --mode auto`. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
+Removed: `/b-mode`, plan-mode write guards, `b-flow`, the `b-grill-auto` extension command and skill, tmux status, and session-state injection. `/b-save` is the wired checkpoint command. Auto grilling is `/skill:b-grill --mode auto`. See [`docs/extension-loading.md`](docs/extension-loading.md) for the package loading truth table.
 
 ## Workflow Overview
 

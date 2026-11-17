@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   existsSync as fileExistsSync, lstatSync, readFileSync as fileReadSync, realpathSync, rmSync,
 } from "node:fs";
@@ -14,7 +15,8 @@ import {
 import { contextPathOf, readSaveSources } from "./save-preflight.js";
 import { classifyContextPath, consumerKey, type ConsumerScope } from "../../_shared/storage/consumers.js";
 import type { ArtifactKey, ArtifactRevision, StorageStore } from "../../_shared/storage/contract.js";
-import { completeSaveAttempt, loadSaveAttempt, prepareSaveAttempt, recordSaveMetadata, resumeSaveMetadata, saveSqlFacts, verifySqlSave, withSaveStore, type SaveAttempt, type SaveStoreDeps } from "../../../extensions/buck-loop/sql-save.js";
+import type { SaveAttempt, SaveStoreDeps } from "../../../extensions/buck-loop/sql-save.js";
+type SqlSaveModule = typeof import("../../../extensions/buck-loop/sql-save.js");
 import { randomUUID } from "node:crypto";
 import { revisionHash } from "../../_shared/storage/adapter-utils.js";
 declare const Bun: { stdin: { text(): Promise<string> } };
@@ -22,6 +24,34 @@ declare const Bun: { stdin: { text(): Promise<string> } };
 type Applied = { path: string; action: "created" | "updated" | "moved" | "skipped"; reason: string };
 type Report = { applied: Applied[]; staged_inferred: unknown[]; errors: string[]; error?: string; lifecycle?: SubjectLifecycleResult; run_id?: string };
 type AnyRecord = Record<string, any>;
+
+/** Relative specifier from this script to `extensions/buck-loop/sql-save.ts`, or null. */
+export function sqlSaveSpecifierFrom(scriptDir: string): string | null {
+  let dir = scriptDir;
+  for (;;) {
+    const candidate = join(dir, "extensions", "buck-loop", "sql-save.ts");
+    if (fileExistsSync(candidate)) {
+      let rel = relative(scriptDir, candidate);
+      if (!rel.startsWith(".")) rel = `./${rel}`;
+      return rel.split(sep).join("/").replace(/\.ts$/, ".js");
+    }
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+const SQL_SAVE_MISSING = "save-apply requires extensions/buck-loop/sql-save.ts in the Buck repository checkout. The Codex plugin does not vendor Pi/OMP extensions; run this script from a checkout that contains them.";
+
+let sqlSaveModule: SqlSaveModule | undefined;
+
+export async function loadSqlSave(): Promise<SqlSaveModule> {
+  if (sqlSaveModule) return sqlSaveModule;
+  const specifier = sqlSaveSpecifierFrom(dirname(fileURLToPath(import.meta.url)));
+  if (!specifier) throw new Error(SQL_SAVE_MISSING);
+  sqlSaveModule = await import(specifier);
+  return sqlSaveModule;
+}
 
 const dryRun = process.argv.includes("--dry-run");
 const archiveInferred = process.argv.includes("--archive-inferred");
@@ -661,6 +691,7 @@ function validateSourceSnapshots(payload: AnyRecord): void {
 
 /** Capture read revisions before any local mutation; seal against that snapshot. */
 async function loadSources(payload: AnyRecord, deps: SaveStoreDeps): Promise<void> {
+  const { withSaveStore } = await loadSqlSave();
   await withSaveStore(cwd(), deps, async (store, context) => {
     const { artifacts } = await readSaveSources(store, context, cwd());
     for (const item of artifacts.values()) {
@@ -703,6 +734,7 @@ function metadataRevision(scope: ConsumerScope, path: string, content: string, p
 async function sealAppliedBytes(deps: SaveStoreDeps, metadataDigest: string): Promise<void> {
   if (!saveAttempt) throw new Error("Save attempt is not bound");
   const attempt = saveAttempt;
+  const { withSaveStore, recordSaveMetadata, completeSaveAttempt } = await loadSqlSave();
   await withSaveStore(cwd(), deps, async (store, context) => {
     const local: ArtifactRevision[] = [];
     const corrections: ArtifactRevision[] = [];
@@ -730,6 +762,7 @@ async function sealAppliedBytes(deps: SaveStoreDeps, metadataDigest: string): Pr
 }
 
 async function bindApplyAttempt(payload: AnyRecord, deps: SaveStoreDeps): Promise<SaveAttempt> {
+  const { prepareSaveAttempt, saveSqlFacts, loadSaveAttempt, verifySqlSave, withSaveStore } = await loadSqlSave();
   if (!sqlMemoryMode()) {
     const prepared = prepareSaveAttempt(cwd(), payload.subject.name);
     if ("error" in prepared) throw new Error(prepared.error);
@@ -773,6 +806,7 @@ export async function runApply(payload: AnyRecord, deps: SaveStoreDeps = {}): Pr
   try {
     validatePayload(payload);
     if (!dryRun) saveAttempt = await bindApplyAttempt(payload, deps);
+    const { resumeSaveMetadata } = await loadSqlSave();
     const replayed = !dryRun && saveAttempt && await resumeSaveMetadata(cwd(), saveAttempt, metadataDigest, deps);
     if (replayed) report.run_id = saveAttempt!.runId;
     else {

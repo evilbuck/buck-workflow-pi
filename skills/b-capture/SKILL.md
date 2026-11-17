@@ -106,8 +106,61 @@ When the user passes `--single-file <path>` (or explicitly asks to accumulate th
 ### Turn-1 scaffold (`--single-file`)
 1. **Resolve the target path.** Require a single `.md` file path (not a directory). If missing, ask: "Which file should I capture into?"
 2. **Create the file** if it does not exist, with only a top-level `# <Title>` heading. If it already exists, leave its contents untouched.
-3. **Create `checkpoint.sh`** alongside the target file (`chmod +x`) using a fixed, argv-driven script that stages and commits **only** `$1` (`git add -- "$TARGET"` and `git commit -m "docs: checkpoint ${TARGET##*/}"`, appending `-m "Issue: #$BRANCH"` when the branch name is a bare integer, and exiting `0` when `git diff --cached --quiet`). Reject leading `-` or `..` segments in `$1`; never interpolate user input into the script source.
+3. **Create `checkpoint.sh`** alongside the target file (`chmod +x`) by copying the template below verbatim. The target path is `$1` on every run. Never interpolate the path into the script source.
 4. **Run `./checkpoint.sh <target-path>`** once to capture the scaffold commit.
+
+### Checkpoint script (template)
+
+Copy this verbatim. It accepts one repo-relative file, stages and commits only that path (other staged files stay staged), and exits 0 when that file has no staged change. It appends an `Issue:` trailer only when the current branch name is a bare integer.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+# Usage: ./checkpoint.sh <repo-relative-target-file>
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: $0 <repo-relative-target-file>" >&2
+  exit 64
+fi
+
+TARGET="$1"
+
+case "$TARGET" in
+  -*|"" )
+    echo "checkpoint: refusing unsafe target '$TARGET'" >&2
+    exit 64
+    ;;
+  */* )
+    LEAD="${TARGET%%/*}"
+    if [[ "$LEAD" == ".." || "$LEAD" == "." || -z "$LEAD" ]]; then
+      echo "checkpoint: refusing path with '$LEAD' segment: '$TARGET'" >&2
+      exit 64
+    fi
+    ;;
+esac
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ ! -f "$TARGET" ]]; then
+  echo "checkpoint: target '$TARGET' is not a regular file" >&2
+  exit 1
+fi
+
+MSG="docs: checkpoint ${TARGET##*/}"
+git add -- "$TARGET"
+if git diff --cached --quiet -- "$TARGET"; then
+  echo "no changes to checkpoint"
+  exit 0
+fi
+
+BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+if [[ "$BRANCH" =~ ^[0-9]+$ ]]; then
+  git commit -m "$MSG" -m "Issue: #$BRANCH" -- "$TARGET"
+else
+  git commit -m "$MSG" -- "$TARGET"
+fi
+```
 
 ### Per-dump procedure (`--single-file`, every turn, no batching)
 1. **Edit the file.** Add the dump as a new `## Heading` section or append a bullet under an existing section.

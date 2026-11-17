@@ -532,7 +532,7 @@ flowchart TD
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
 | [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
 
-**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-models`, `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save-improved`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. See [Runtime Extension Scope](#runtime-extension-scope).
+**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-models`, `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save-improved`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. `prompts/b-save-improved.md` is only a prompt alias for `skills/b-save/SKILL.md`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -1827,7 +1827,7 @@ Seven slash commands are backed by **code, not only prompt-following**, when `ex
 | `/buck-loop` | `extensions/buck-loop/` | Observably invoked existing-plan runner: nested isolated sessions, artifact-wins resume | — |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop | `prompts/code-review.md` + `skills/code-review/` (release-PR workflow) |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit/` |
-| `/b-save` (`/b-save-improved`) | `extensions/b-save/` | Deterministic session-record checkpoint: snapshot → scribe + auditor + goal model roles → journaled apply. Portable script fallback: `save-preflight.ts` + `save-apply.ts` | `skills/b-save/` |
+| `/b-save` | `extensions/b-save/` | Deterministic session-record checkpoint: snapshot → scribe + auditor + goal model roles → journaled apply. Portable script fallback: `save-preflight.ts` + `save-apply.ts`. `prompts/b-save-improved.md` loads the same skill and is not a separate extension command. | `skills/b-save/` |
 | `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation: preflight, base resolution, rebase with bounded model-assisted conflict resolution, `gh pr create` | `skills/b-pr/` |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Kamal deploy/release pipeline with ring-buffered output (last ~20 lines kept only on failure) | — |
 
@@ -2070,7 +2070,7 @@ Registered commands (runtime code paths; fallback behavior is named where one ex
 |---|---|---|
 | `/b-pr-improved` | `extensions/b-pr-improved/` | Deterministic PR creation — code-driven counterpart to `/b-pr` |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Deterministic Conventional Commit from `draft-commit.md` or model draft |
-| `/b-save` (`/b-save-improved`) | `extensions/b-save/` | Deterministic session checkpoint (snapshot + scribe/auditor/goal + journaled apply) |
+| `/b-save` | `extensions/b-save/` | Deterministic session checkpoint (snapshot + scribe/auditor/goal + journaled apply) |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
 | `/buck-models` | `extensions/buck-models/` | Create, edit, and activate named Buck model profiles |
 | `/buck-loop` | `extensions/buck-loop/` | Existing-plan runner with nested isolated sessions and artifact-wins resume |
@@ -2128,7 +2128,7 @@ the host model. See [Named Buck model profiles](#named-buck-model-profiles).
 
 ### What is no longer extension-owned
 
-- `/b-save` is pure prompt/skill recordkeeping (the deterministic variant is `/b-save-improved`).
+- `/b-save` is the wired checkpoint command (`extensions/b-save/`). `prompts/b-save.md` and `prompts/b-save-improved.md` load `skills/b-save/SKILL.md` when the extension is not running the command. There is no `/b-save-improved` extension command.
 - `/b-commit` is a prompt wrapping the `git-commit` skill (the deterministic variant is `/b-commit-improved`).
 - There is no wired `/b-mode` command or plan-mode write guard.
 - `/b-flow` / `/b-next` were removed.
@@ -2308,7 +2308,7 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 - `/buck-loop` — existing-plan happy-path runner
 - `/code-review` — bounded local Reviewer → optional Fixer → fresh-Reviewer loop
 - `/b-commit-improved` — code-driven Conventional Commit (`extensions/b-commit-improved/`, falls back to `skills/git-commit/`)
-- `/b-save` (`/b-save-improved`) — code-driven session checkpoint (`extensions/b-save/`, falls back to `skills/b-save/`)
+- `/b-save` — code-driven session checkpoint (`extensions/b-save/`, falls back to `skills/b-save/`)
 - `/b-pr-improved` — code-driven PR creation
 - `/b-kamal-release` — kamal release pipeline
 
