@@ -297,10 +297,8 @@ async function draftFromModel(
     }
     return null;
   }
-  if (dryRun) {
-    // --dry-run + model source → write the draft so the user can re-run.
-    writeDraft(cwd, subjectFolder, parsed.title, parsed.body);
-  }
+  // The command handler writes a new dry-run draft. It must not overwrite
+  // a pre-existing draft-commit.md, so this function does not write.
   return parsed;
 }
 
@@ -422,8 +420,13 @@ async function runBCommitImproved(
       const firstBodyLine = body.split("\n", 1)[0] ?? "";
       notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
       if (source === "model") {
-        const path = writeDraft(cwd, subjectFolder, title, body);
-        notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+        const existing = draftPathFor(subjectFolder);
+        if (existsSync(join(cwd, existing))) {
+          notify(`[dry-run] Left the existing draft at ${existing} untouched.`, "info");
+        } else {
+          const path = writeDraft(cwd, subjectFolder, title, body);
+          notify(`[dry-run] Wrote draft to ${path} (re-run without --dry-run to commit).`, "info");
+        }
       }
       return;
     }
