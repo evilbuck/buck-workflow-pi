@@ -44,6 +44,25 @@ export const INTERACTIVE_STAGE_BY_SKILL: Readonly<Record<string, BuckStageKey>> 
   "b-present": "present",
 };
 
+const SKILL_PREFIXES: readonly (readonly [string, BuckStageKey])[] = Object.entries(
+  INTERACTIVE_STAGE_BY_SKILL,
+).sort(([a], [b]) => b.length - a.length);
+
+function matchesSkillPrefix(spawnKey: string, skill: string): boolean {
+  if (spawnKey === skill) return true;
+  if (!spawnKey.startsWith(skill)) return false;
+  const nextChar = spawnKey.charAt(skill.length);
+  return nextChar === "-" || nextChar === "_" || nextChar === ":" || nextChar === "/";
+}
+
+export function stageSkillFromSpawnKey(
+  spawnKey: string,
+): { skill: string; stage: BuckStageKey } | null {
+  if (!spawnKey || typeof spawnKey !== "string") return null;
+  const match = SKILL_PREFIXES.find(([skill]) => matchesSkillPrefix(spawnKey, skill));
+  return match ? { skill: match[0], stage: match[1] } : null;
+}
+
 const SKILL_PREFIX = /^\/(?:skill:)?(b-[\w-]+)(\s|$)/;
 const AUTO_SWITCH_GRACE_MS = 100;
 
@@ -196,6 +215,60 @@ export function wireInteractiveModelSwitch(pi: ExtensionAPI, deps: InteractiveSw
       if (value) lastAutoSwitchAt = now();
     });
   });
+
+  pi.on("before_subagent_spawn", async (event: unknown, ctx: unknown) => {
+    return handleBeforeSubagentSpawn(event, ctx, cwd, select);
+  });
+}
+
+export interface SubagentSpawnHookEvent {
+  invocationKind?: string;
+  spawnKey?: string;
+  prompt?: string;
+}
+
+export interface SubagentSpawnHookResult {
+  model?: string;
+  note?: string;
+  block?: boolean;
+  reason?: string;
+}
+
+export async function handleBeforeSubagentSpawn(
+  event: unknown,
+  ctx: unknown,
+  cwd: string,
+  select: (request: InteractiveSelectRequest) => Promise<InteractiveSelectResult>,
+): Promise<SubagentSpawnHookResult | undefined> {
+  if (!event || typeof event !== "object") return undefined;
+  const spawnEvent = event as SubagentSpawnHookEvent;
+  if (spawnEvent.invocationKind !== "eval" || !spawnEvent.spawnKey) return undefined;
+  const mapped = stageSkillFromSpawnKey(spawnEvent.spawnKey);
+  if (!mapped) return undefined;
+
+  const host = ctx as SwitchHost;
+  const effectiveCwd = cwd || host.cwd || "";
+  try {
+    const request = await buildRequest(
+      effectiveCwd,
+      mapped.stage,
+      mapped.skill,
+      spawnEvent.prompt ?? spawnEvent.spawnKey,
+      host,
+    );
+    const picked = await select(request);
+    if (!picked.ok) {
+      const reason = refusal(picked.message);
+      host.ui?.notify(reason, "error");
+      return { block: true, reason };
+    }
+    return { model: picked.id, note: `buckModels:${mapped.stage}` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const reason = refusal(message);
+    host.ui?.notify(reason, "error");
+    return { block: true, reason };
+  }
 }
 
 interface MappedInput {
@@ -268,7 +341,7 @@ function sessionMessages(host: SwitchHost): ConversationMessage[] {
   return [];
 }
 
-function refusal(message: string): string {
+export function refusal(message: string): string {
   return `${message} Refusing the command before it runs. No host-default model was used.`;
 }
 

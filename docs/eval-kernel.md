@@ -4,13 +4,17 @@ This document describes the current OMP `eval` runtime and the separate asynchro
 
 ## Runtime model
 
-`eval` runs code in a persistent Python or JavaScript kernel:
+`eval` runs code in a persistent Python (`language: "py"`) or JavaScript/TypeScript (`language: "js"`, running on Bun) kernel:
 
 - Python and JavaScript have separate state.
+- In `language: "js"`, TypeScript syntax is transparently transpiled on the fly by Bun's transpiler for inline cells and relative imports.
 - Top-level names survive later cells in the same language. Reuse them; do not redeclare JavaScript `const` / `let` names.
 - `reset: true` wipes only the selected language kernel.
-- Top-level `await` works. In Python, use it directly; `asyncio.run(...)` fails because an event loop already exists.
+- Top-level `await` works. In Python, use it directly; `asyncio.run(...)` fails because an event loop already exists. In JavaScript/TypeScript, use `await` directly in top-level expressions.
 - Child agents use independent kernels. Parent-kernel variables are not shared with them.
+- **`%load <path>`**: Both Python and JavaScript kernels support `%load path/to/script.ts` (or `.py`/`.js`), executing a repository script inside the persistent kernel without echoing the source into the chat transcript.
+- **Compiled binary module resolution**: In compiled OMP binaries, `LocalModuleLoader` loads relative `.ts`, `.tsx`, `.mts`, and `node:*`/`bun` builtins cleanly. However, bare npm specifiers (`import { parse } from "yaml"`) cannot resolve against the embedded virtual filesystem; modules executed under `eval` should use relative `.ts` imports and zero bare npm dependencies, delegating heavy package operations to `tool.<name>` (e.g. `await tool.workflow_state(...)`) or ``await sh`bun ...` ``.
+- **Subagent model routing**: In OMP 18.x, subagents spawned during `eval` (`agent()`) are intercepted by the `before_subagent_spawn` extension hook (`invocationKind: "eval"`). In Buck workflow, `extensions/interactive-model-switch.ts` parses the `b-*` stage prefix from `spawnKey` (sanitized `label`) and routes the child model to the active `/buck-models` stage profile automatically, without requiring `task.perCallModel`.
 - Work incrementally: imports → definitions → checks → use. Re-run setup only after a reset or kernel crash.
 
 The helpers below are predeclared globals in the kernel. A source file used as an eval cell does not need `from prelude import ...`.
@@ -65,11 +69,24 @@ findings = wait(handles, raise_errors=False)
 
 Dependencies must form an acyclic graph. A child cannot wait on its own descendant. For dependent waves, wait for or reference upstream output in the downstream prompt; use `local://...` artifacts for larger shared payloads.
 
-### `completion(...)` and `judge(...)`
+### `completion(...)`, `judge(...)`, and `judgeBatch(...)`
 
 `completion(...)` is a stateless oneshot model call. It returns a handle; call `.wait()` for text or a schema-parsed object. Model tiers are `smol`, `default`, and `slow`.
 
 `judge(state, questions)` performs inexpensive typed classification, boolean, or score judgments over one shared state. Prefer it to a free-form completion when the decision fits one of those shapes.
+
+`judgeBatch(states, questions, options)` evaluates multiple items in parallel against the question schema. Use it to rank or score batches of findings or candidates concurrently without spawning full chat completions:
+
+```typescript
+const ranked = await judgeBatch(
+  findings.map((f) => ({ finding: f, phase: "phase-1" })),
+  [
+    { id: "impact", type: "score", question: "Rate impact from 0 (none) to 4 (critical)" },
+    { id: "confidence", type: "score", question: "Rate confidence from 0 to 4" },
+    { id: "effort", type: "score", question: "Rate effort from 0 (trivial) to 4 (extensive)" },
+  ]
+);
+```
 
 ```python
 import json

@@ -384,7 +384,7 @@ match, pick the strongest one (goal > workflow > orchestrate > none).
 | If the active harness is not OMP, return `none` (omit) immediately. The remaining rules assume OMP. | `none` (omit) | Prevents recommending a primitive the harness cannot invoke. Detect from session state (omp has an `omp` tool / `omp.runtime` field; Pi has `pi.runtime`; Claude Code has none) or from the package's `package.json` `omp` field presence. |
 | Plan is phased and ≥ 4 phases with at least one HARD dependency between them | `orchestrate` | The orchestrator contract ("do not yield between phases", "parallelize maximally", "verify after every phase") maps to phased work with hard gates. |
 | Plan User Goal is one sentence with no clear phase boundary, AND total work is one persistent objective | `goal` | A single `/goal` session is the right envelope when the work is unified. The plan's phases compete for one budget. |
-| Plan title / scope / affected files contain `review`, `audit`, `sweep`, `migrate`, or `coverage-check` | `workflow` | Cross-cutting review/audit work benefits from `eval`-cell fan-out with a budget ceiling. The user edits `eval-<topic>.py` before invoking. |
+| Plan title / scope / affected files contain `review`, `audit`, `sweep`, `migrate`, or `coverage-check` | `workflow` | Cross-cutting review/audit work benefits from `eval`-cell fan-out with a budget ceiling. In OMP 18.x, trigger via `workflow` or `workflowz` keywords. The user edits `eval-<topic>.py` (Python) or `eval-<topic>.ts` (TypeScript) before invoking. |
 | Plan is non-phased, single-session, bounded, low-risk | `none` (omit) | Default. No opt-in. |
 | All other cases | `none` (omit) | Default. No opt-in. |
 
@@ -401,35 +401,34 @@ a mode is recommended (omit the section entirely if no mode is recommended):
 ## Execution Instructions
 
 <!-- OMP opt-in: this plan is recommended to run under
-     <orchestrate|workflow|goal> mode. <one-sentence rationale> -->
+     <orchestrate|workflow|workflowz|goal> mode. <one-sentence rationale> -->
 
 This is a phased execution-ready plan. Treat each phase as one unit:
 1. Read the first non-completed phase from the Phase Summary table.
 2. Read that discrete phase file and execute only its scope using the listed `buck_hint`.
-3. <If orchestrate|workflow: drop the matching omp keyword on the first turn before the build command. If goal: run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.>
+3. <If orchestrate|workflow: drop the matching omp keyword (orchestrate, workflow, or workflowz) on the first turn before the build command. If goal: run `/goal set "<plan User Goal>" --budget <omp_goal_budget>` first. Either way, see the phase file's "Per-Phase Execution Loop" for the precondition.>
 4. Run `/b-review` against the phase file after implementation.
 5. If review creates an `iterate-*.md` artifact (in-plan issues), run `/b-iterate`, then re-run `/b-review`. If review surfaces **out-of-plan issues** (new scope beyond this plan), do not iterate — route them to a separate `/b-plan` → `/b-build` follow-up; they do not block this plan. If `/b-review` flags documentation impact, run `/b-docs` before `/b-save`.
 6. Run `/b-save` to consolidate memory, draft commits, and phase state.
 7. Run `/b-commit` to checkpoint durable state.
 ```
 
-## Eval Cell Template for `workflow` Plans
+## Eval Cell Template for `workflow` / `workflowz` Plans
 
 This section is full-mode-only and applies only when the active OMP capability
 needed for `workflow` plans is available.
 
 When the recommendation above is `workflow`, `b-plan` writes a starter
-`.context/<subject>/eval-<topic>.py` file into the subject folder. The cell is
-a **deliverable artifact** that the user edits before invoking the `workflow`
-keyword. OMP's `eval` tool executes it in the persistent Python kernel, where
-`agent()`, `completion()`, `wait()`, `phase()`, and `log()` are
+`.context/<subject>/eval-<topic>.py` (Python) or `.context/<subject>/eval-<topic>.ts` (TypeScript)
+file into the subject folder. The cell is a **deliverable artifact** that the user edits before invoking
+the `workflow` or `workflowz` keyword. OMP's `eval` tool executes it in the persistent kernel (`language: "py"`
+or `language: "js"`), where `agent()`, `completion()`, `judge()`, `judgeBatch()`, `wait()`, `phase()`, and `log()` are
 predeclared globals. Do not import a `prelude` module.
 
-**Why an artifact, not a hint.** A real `.py` file is:
+**Why an artifact, not a hint.** A real `.py` or `.ts` file is:
 
 - Editable in the IDE and reusable across workflow turns.
-- Verifiable — `python -c "import ast; ast.parse(open(path).read())"`
-  catches syntax errors before the workflow keyword is invoked.
+- Verifiable — syntax errors are caught before the workflow keyword is invoked.
 - Self-contained — the cell carries the schema and per-phase dispatch in one
   place. Hint-only snippets get fragmented across turns.
 
@@ -562,6 +561,45 @@ if PRELUDE_AVAILABLE:
         log(f"blocking phases: {overall['blocking_phases']}")
 else:
     print("eval cell: OMP eval-kernel helpers are unavailable; skipped.")
+```
+
+**TypeScript Template** (`.context/<subject>/eval-<topic>.ts`, executed under `eval` `language: "js"`):
+
+```typescript
+// .context/<subject>/eval-<topic>.ts
+/**
+ * <plan title> — TypeScript workflow-mode fan-out.
+ *
+ * Edit this cell before invoking `workflow` or `workflowz` in OMP.
+ * Executed in Bun eval kernel (language: "js") via inline eval or %load.
+ */
+
+const SUBJECT = "<subject-folder-name>";
+const PHASES = [
+  { phase: 1, slug: "<slug-1>", difficulty: "medium", brief: "<one-sentence phase-1 brief>" },
+  { phase: 2, slug: "<slug-2>", difficulty: "easy", brief: "<one-sentence phase-2 brief>" },
+];
+
+function buildPrompt(entry: (typeof PHASES)[number]): string {
+  return (
+    `You are reviewing Phase ${entry.phase} (${entry.slug}) of ${SUBJECT}.\n\n` +
+    `Brief: ${entry.brief}\n\n` +
+    `Verify each acceptance criterion in .context/${SUBJECT}/phase-${entry.phase}-${entry.slug}.md.`
+  );
+}
+
+if (typeof agent !== "undefined") {
+  phase("workflow: fan out per-phase review");
+  const handles = PHASES.map((p) =>
+    agent(buildPrompt(p), { agent: "task", label: `phase-${p.phase}` }),
+  );
+  const results = await wait(handles, { raiseErrors: false });
+  for (const r of results) {
+    log(`Phase review completed: ${JSON.stringify(r)}`);
+  }
+} else {
+  console.log("eval cell: OMP eval-kernel helpers unavailable; skipped.");
+}
 ```
 
 > **See also:** [`docs/eval-kernel.md`](https://github.com/evilbuck/buck-workflow-pi/blob/master/docs/eval-kernel.md)

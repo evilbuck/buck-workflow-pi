@@ -304,9 +304,9 @@ describe("wireBuckLoop", () => {
 });
 
 describe("extensions/index.ts wiring", () => {
-  it("invokes wireBuckLoop and does not wire b-flow", () => {
+  it("unwires wireBuckLoop and does not wire b-flow", () => {
     const src = readFileSync(join(import.meta.dirname, "../../index.ts"), "utf8");
-    expect(src).toMatch(/wireBuckLoop\(pi\)/);
+    expect(src).not.toMatch(/wireBuckLoop\(pi\)/);
     expect(src).not.toMatch(/b-flow/);
     expect(src).not.toMatch(/wireBflow/i);
   });

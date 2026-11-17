@@ -87,7 +87,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-backlog` (skill-only) | Skill | Skill | `skills/b-backlog/SKILL.md` — backlog item authoring delegated to a subagent |
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
-| `/buck-loop` | Extension command | Slash command (extension) | `extensions/buck-loop/` — observably invoked existing-plan runner |
+| `/b-loop` | Prompt template + Skill | Slash command symlink | `prompts/b-loop.md`; `commands/b-loop.md`; `skills/b-loop/SKILL.md` + `scripts/eval-buck-loop.ts` — hot-reloadable OMP `workflowz` eval loop; `extensions/buck-loop/` is unwired |
 | `/buck-models` | Extension command | Slash command (extension) | `extensions/buck-models/` — create, edit, and activate named Buck model profiles |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
@@ -106,7 +106,7 @@ Practical translation rules:
 - Use a **prompt template** when the main job is to expand a workflow prompt.
 - Mirror each prompt into **`commands/`** with a symlink when it must be visible as an OMP slash command.
 - Use a **skill** when the behavior is reusable helper logic, not the primary workflow entrypoint.
-- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, `/buck-loop`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and native `workflow_state`. `sql_memory` is not registered.
+- Use an **extension** only for runtime behavior that cannot be expressed as prompts or skills. Currently wired via `extensions/index.ts`: named Buck model routing and `/buck-models`, TPS tracking, `/b-pr-improved`, `/b-commit-improved`, `/b-save-improved`, `/b-kamal-release`, the local `/code-review` iteration loop, the opt-in plan-artifact `turn_end` hook, and native `workflow_state`. `extensions/buck-loop/` is unwired in favor of `/b-loop` (`eval`). `sql_memory` is not registered.
 
 **Important:** `package.json` wires only `extensions/index.ts`, but that entry composes several subsystems — see [Runtime Extension Scope](#runtime-extension-scope). The obsolete `b-grill-auto`, grill dialog, and tmux status extension modules were removed; auto grilling is `/skill:b-grill --mode auto`. See `docs/extension-loading.md` for the loading truth table.
 
@@ -114,7 +114,7 @@ Practical translation rules:
 
 ## b-flow — Removed
 
-XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/buck-loop` for an existing-plan runner. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
+XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/b-loop` for an existing-plan runner (`%load skills/b-loop/scripts/eval-buck-loop.ts`). `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
 
 ---
 
@@ -134,7 +134,7 @@ for the decision log.
 |---|---|---|
 | **`/goal set <objective>`** | User-invoked slash command — **persistent runtime state** | Adds a `goal` tool; injects `goal-mode-active.md`; tracks a token+time budget; enforces a 6-step completion-audit protocol on every active-goal turn. |
 | **`orchestrate` keyword** | User types `orchestrate` as a standalone lowercase prose word | Injects a hidden `orchestrate-notice`; switches the model into the orchestrator contract (parallel `task` subagents, no-yield between phases, verify-after-every-phase). |
-| **`workflow` keyword** | User types `workflow` or `workflows` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python in the `eval` tool, fanning out via `agent()` handles and joining them with `wait()` under the active budget ceiling. |
+| **`workflow` / `workflowz` keyword** | User types `workflow`, `workflows`, or `workflowz` as a standalone lowercase prose word | Injects a hidden `workflow-notice`; steers the model to author Python (`eval-<topic>.py`) or TypeScript (`eval-<topic>.ts`, `%load`) in the `eval` tool, fanning out via `agent()` handles and joining them with `wait()` under the active budget ceiling. |
 
 ### How buck-workflow documents them
 
@@ -189,7 +189,7 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/buck-loop` is the one observably invoked exception: an existing-plan runner whose Buck-specific workflow definition uses an internal synchronous evaluator for pure dispatch and fail-closed validation. The Buck supervisor still owns effects, persistence, retries, model calls, and nested isolated sessions. The evaluator is not an actor system, async orchestration runtime, or reusable effect runner. `/buck-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/b-loop` is the observably invoked plan runner executed via `%load skills/b-loop/scripts/eval-buck-loop.ts` inside OMP's Bun `eval` kernel (`language: "js"`). It replaces the unwired `extensions/buck-loop/` background supervisor. The eval script runs the phase cycle itself and does not call `extensions/buck-loop/machine.ts`. `/b-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 
 - **Ambiguous postconditions are diagnosed, then lifted.** A phase whose acceptance boxes are all
   checked but whose status is not completed is marked complete by the supervisor.
