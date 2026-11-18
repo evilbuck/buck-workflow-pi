@@ -213,7 +213,8 @@ function makeHappyStageAdapters(commits: Record<string, string>, trace: string[]
           commitId,
           proof: {
             baselineHead: ctx.pinnedPlan.headCommit,
-            expectedTree: `tree-${ctx.phase.order}`,
+            // Full SHA form required by fail-closed commit pin checks (tree object may be synthetic in unit tests).
+            expectedTree: "c".repeat(40),
             commitId,
             verifiedAt: new Date().toISOString(),
           },
@@ -586,7 +587,7 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
   });
 
   it("detects completion gaps (frontmatter status, [x] checkboxes, missing stage proofs, unreachable commits) even in preflight mode", async () => {
-    const { repoDir, commit1 } = initGitRepo("feat/gap");
+    const { repoDir, commit1, commit2 } = initGitRepo("feat/gap");
     const xdg = createTempDir("b-loop-xdg-");
 
     // 1) Checkbox-only [x] with status: pending in preflight mode without checkpoint blocks
@@ -609,8 +610,15 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
     validCkpt.phases["phase-1-one.md"].build = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", acceptanceEvidence: ["ok"], verifiedAt: "now" };
     validCkpt.phases["phase-1-one.md"].review = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", verdict: "clean", verifiedAt: "now" };
     validCkpt.phases["phase-1-one.md"].save = { attemptId: "a1", receiptStatus: "complete", artifactRevisions: ["r1"], verifiedAt: "now" };
-    validCkpt.phases["phase-1-one.md"].commit = { baselineHead: commit1, expectedTree: "t1", commitId: commit1, verifiedAt: "now" };
-    validCkpt.completedPhaseCommits = { "phase-1-one.md": commit1 };
+    const tree2 = execSync(`git rev-parse ${commit2}^{tree}`, { cwd: repoDir, encoding: "utf8" }).trim();
+    // Use commit2 (has parent commit1) so fail-closed HEAD^ / HEAD^{tree} proof can succeed.
+    validCkpt.phases["phase-1-one.md"].commit = {
+      baselineHead: commit1,
+      expectedTree: tree2,
+      commitId: commit2,
+      verifiedAt: "now",
+    };
+    validCkpt.completedPhaseCommits = { "phase-1-one.md": commit2 };
     await validBackend.write({
       cwd: repoDir,
       subjectId: "2026-11-17.gap",
@@ -640,7 +648,11 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
         },
         commit: {
           dispatchWorking: async () => ({ handle: "c" }),
-          verifyResult: async () => ({ status: "verified", commitId: commit1, proof: { baselineHead: commit1, commitId: commit1, verifiedAt: "now" } }),
+          verifyResult: async () => ({
+            status: "verified",
+            commitId: commit2,
+            proof: { baselineHead: commit1, expectedTree: tree2, commitId: commit2, verifiedAt: "now" },
+          }),
         },
       },
     });
@@ -653,7 +665,12 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
     badCkpt.phases["phase-1-one.md"].build = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", acceptanceEvidence: ["ok"], verifiedAt: "now" };
     badCkpt.phases["phase-1-one.md"].review = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", verdict: "clean", verifiedAt: "now" };
     badCkpt.phases["phase-1-one.md"].save = { attemptId: "a1", receiptStatus: "complete", artifactRevisions: ["r1"], verifiedAt: "now" };
-    badCkpt.phases["phase-1-one.md"].commit = { baselineHead: commit1, expectedTree: "t1", commitId: "f".repeat(40), verifiedAt: "now" };
+    badCkpt.phases["phase-1-one.md"].commit = {
+      baselineHead: commit1,
+      expectedTree: tree2,
+      commitId: "f".repeat(40),
+      verifiedAt: "now",
+    };
     badCkpt.completedPhaseCommits = { "phase-1-one.md": "f".repeat(40) };
     await badShaBackend.write({
       cwd: repoDir,
@@ -711,7 +728,8 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
     const badAdapters = makeHappyStageAdapters({ "phase-1-one.md": commit1 }, trace);
     badAdapters.commit.verifyResult = async () => ({
       status: "verified",
-      proof: { baselineHead: commit1, expectedTree: "t1", verifiedAt: "now" },
+      // Missing commitId (and non-matching pins) must fail closed.
+      proof: { baselineHead: commit1, expectedTree: "c".repeat(40), verifiedAt: "now" },
     });
     const resNoCommit = await runBuckLoop({
       args: subjectId,
@@ -723,7 +741,7 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
     });
     expect(resNoCommit.ok).toBe(false);
     expect(resNoCommit.state).toBe("blocked");
-    expect(resNoCommit.message).toMatch(/valid 40\/64-char commit SHA/i);
+    expect(resNoCommit.message).toMatch(/commit SHA|baselineHead|expectedTree/i);
   });
 
   it("recovers every milestone branch (starting dispatch/finished/blocked, working finished/retry/uncertain, finished verified/stale/blocked, verified reuse, multi-phase)", async () => {
@@ -835,8 +853,15 @@ describe("milestones, plan drift checks, completion gaps, and checkpoint-first r
       ck.phases["phase-1-one.md"].build = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", acceptanceEvidence: ["ok"], verifiedAt: "now" };
       ck.phases["phase-1-one.md"].review = { phaseRevision: "rev-p1-1", worktreeFingerprint: "fp1", verdict: "clean", verifiedAt: "now" };
       ck.phases["phase-1-one.md"].save = { attemptId: "a1", receiptStatus: "complete", artifactRevisions: ["r1"], verifiedAt: "now" };
-      ck.phases["phase-1-one.md"].commit = { baselineHead: commit1, expectedTree: "t1", commitId: commit1, verifiedAt: "now" };
-      ck.completedPhaseCommits = { "phase-1-one.md": commit1 };
+      // commit1 is root — lineage proof requires a parented commit; use commit2 with parent commit1.
+      const tree2 = execSync(`git rev-parse ${commit2}^{tree}`, { cwd: repoDir, encoding: "utf8" }).trim();
+      ck.phases["phase-1-one.md"].commit = {
+        baselineHead: commit1,
+        expectedTree: tree2,
+        commitId: commit2,
+        verifiedAt: "now",
+      };
+      ck.completedPhaseCommits = { "phase-1-one.md": commit2 };
       ck.currentPhaseOrder = 2;
       ck.currentPhaseLogicalName = "phase-2-two.md";
       await backend.write({ cwd: repoDir, subjectId, branchRef: "refs/heads/feat/recovery", logicalName: CHECKPOINT_LOGICAL_NAME, checkpoint: ck, expectedRevision: null });

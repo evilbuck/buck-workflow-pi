@@ -550,29 +550,36 @@ async function stageAndWriteExpectedTree(ctx: StageContext): Promise<string> {
   return gitWriteTree(ctx.cwd, ctx.bridges.sh);
 }
 
+async function assertFreshCommitHygiene(
+  ctx: StageContext,
+  baselineHead: string,
+  existingPrep: CommitStageProof | undefined,
+  fallbackXdgHome: string | undefined,
+  isFinalPhase: boolean,
+): Promise<void> {
+  const qCwd = shellQuote(ctx.cwd);
+  const resumingIncompletePrep = Boolean(existingPrep?.baselineHead && !existingPrep.expectedTree);
+  await validatePreExistingStagedIndex(ctx, resumingIncompletePrep);
+  const initialStatus = await runSh(ctx.bridges.sh, `git -C ${qCwd} status --porcelain=v1 --untracked-files=all -z`);
+  const save = ctx.checkpoint.phases[ctx.phase.logicalName]?.save;
+  assertAllowedDirtyEntries(parsePorcelainZ(initialStatus), ctx.pinnedPlan.subjectId, ctx.phase.files, save);
+  if (isFinalPhase) {
+    await verifyPriorPhaseCommits(ctx, baselineHead);
+    await preflightSubjectCloseout(ctx, fallbackXdgHome);
+  }
+}
+
 async function prepareFreshCommitTree(
   ctx: StageContext,
   baselineHead: string,
   existingPrep?: CommitStageProof,
   fallbackXdgHome?: string,
 ): Promise<CommitStageProof> {
-  const qCwd = shellQuote(ctx.cwd);
-  const resumingIncompletePrep = Boolean(existingPrep?.baselineHead && !existingPrep.expectedTree);
-  await validatePreExistingStagedIndex(ctx, resumingIncompletePrep);
-
-  const initialStatus = await runSh(ctx.bridges.sh, `git -C ${qCwd} status --porcelain=v1 --untracked-files=all -z`);
-  const save = ctx.checkpoint.phases[ctx.phase.logicalName]?.save;
-  assertAllowedDirtyEntries(parsePorcelainZ(initialStatus), ctx.pinnedPlan.subjectId, ctx.phase.files, save);
-
   const isFinalPhase = ctx.pinnedPlan.phases[ctx.pinnedPlan.phases.length - 1]?.logicalName === ctx.phase.logicalName;
-  if (isFinalPhase) {
-    await verifyPriorPhaseCommits(ctx, baselineHead);
-    await preflightSubjectCloseout(ctx, fallbackXdgHome);
-  }
+  await assertFreshCommitHygiene(ctx, baselineHead, existingPrep, fallbackXdgHome, isFinalPhase);
 
   const phaseSnap = await readArtifactSnapshot(ctx, "phase", ctx.phase.logicalName);
   const phasePlan = computeExpectedText(phaseSnap, existingPrep?.expectedPhaseSha256, renderCompletedPhaseMarkdown);
-
   const overviewLogical = ctx.pinnedPlan.overviewLogicalName;
   const overviewSnap = overviewLogical ? await readArtifactSnapshot(ctx, "plan", overviewLogical) : null;
   const overviewPlan = computeExpectedText(overviewSnap, existingPrep?.expectedOverviewSha256, (raw) =>
@@ -580,7 +587,6 @@ async function prepareFreshCommitTree(
   );
 
   await pinPreMutationCommitProof(ctx, baselineHead, phasePlan?.expectedSha256, overviewPlan?.expectedSha256);
-
   const phaseRes = await commitArtifactUpdate(ctx, "phase", ctx.phase.logicalName, phaseSnap, phasePlan?.nextText ?? null);
   if (overviewLogical && overviewPlan) {
     await commitArtifactUpdate(ctx, "plan", overviewLogical, overviewSnap, overviewPlan.nextText);
@@ -600,43 +606,64 @@ async function prepareFreshCommitTree(
   });
 }
 
-async function checkCommitStarting(ctx: StageContext) {
-  const existing = ctx.checkpoint.phases[ctx.phase.logicalName]?.commit;
-  if (existing?.baselineHead && existing.expectedTree) {
-    const currentHead = await gitRevParse(ctx.cwd, ctx.bridges.sh, "HEAD");
-    if (currentHead === existing.baselineHead) {
-      const currentTree = await gitWriteTree(ctx.cwd, ctx.bridges.sh);
-      if (currentTree === existing.expectedTree) return { status: "dispatch" as const };
-      return {
-        status: "blocked" as const,
-        reason: `Staged index tree ${currentTree} does not match pinned expectedTree ${existing.expectedTree} at baselineHead ${existing.baselineHead}.`,
-        nextSafeAction: `Inspect git status/diff against expectedTree ${existing.expectedTree} before re-running /b-loop.`,
-      };
-    }
-    // Adoption path: HEAD moved; skip source-freshness (fingerprint includes HEAD).
-    const match = await verifyCommitMatchesPin(ctx.cwd, ctx.bridges.sh, currentHead, existing.baselineHead, existing.expectedTree);
-    if (match.matches) {
-      const clean = await assertCleanIndexForCommitAdoption(
-        ctx.cwd,
-        ctx.bridges.sh,
-        ctx.pinnedPlan.subjectId,
-        ctx.phase.files,
-        ctx.checkpoint.phases[ctx.phase.logicalName]?.save,
-      );
-      if (!clean.ok) {
-        return {
-          status: "blocked" as const,
-          reason: clean.reason,
-          nextSafeAction: `Inspect index/worktree before adopting commit ${currentHead}.`,
-        };
-      }
-      return { status: "already-finished" as const };
-    }
+async function checkPinnedCommitAtBaseline(
+  ctx: StageContext,
+  existing: CommitStageProof & { expectedTree: string },
+) {
+  const currentTree = await gitWriteTree(ctx.cwd, ctx.bridges.sh);
+  if (currentTree === existing.expectedTree) return { status: "dispatch" as const };
+  return {
+    status: "blocked" as const,
+    reason: `Staged index tree ${currentTree} does not match pinned expectedTree ${existing.expectedTree} at baselineHead ${existing.baselineHead}.`,
+    nextSafeAction: `Inspect git status/diff against expectedTree ${existing.expectedTree} before re-running /b-loop.`,
+  };
+}
+
+async function checkPinnedCommitAdoption(
+  ctx: StageContext,
+  existing: CommitStageProof & { expectedTree: string },
+  currentHead: string,
+) {
+  const match = await verifyCommitMatchesPin(ctx.cwd, ctx.bridges.sh, currentHead, existing.baselineHead, existing.expectedTree);
+  if (!match.matches) {
     return {
       status: "blocked" as const,
       reason: match.reason,
       nextSafeAction: `Inspect HEAD ${currentHead} against expected baselineHead ${existing.baselineHead} and expectedTree ${existing.expectedTree}.`,
     };
+  }
+  const clean = await assertCleanIndexForCommitAdoption(
+    ctx.cwd,
+    ctx.bridges.sh,
+    ctx.pinnedPlan.subjectId,
+    ctx.phase.files,
+    ctx.checkpoint.phases[ctx.phase.logicalName]?.save,
+  );
+  if (!clean.ok) {
+    return {
+      status: "blocked" as const,
+      reason: clean.reason,
+      nextSafeAction: `Inspect index/worktree before adopting commit ${currentHead}.`,
+    };
+  }
+  return { status: "already-finished" as const };
+}
+
+async function checkFullyPinnedCommitStarting(
+  ctx: StageContext,
+  existing: CommitStageProof & { expectedTree: string },
+) {
+  const currentHead = await gitRevParse(ctx.cwd, ctx.bridges.sh, "HEAD");
+  if (currentHead === existing.baselineHead) {
+    return checkPinnedCommitAtBaseline(ctx, existing);
+  }
+  return checkPinnedCommitAdoption(ctx, existing, currentHead);
+}
+
+async function checkCommitStarting(ctx: StageContext) {
+  const existing = ctx.checkpoint.phases[ctx.phase.logicalName]?.commit;
+  if (existing?.baselineHead && existing.expectedTree) {
+    return checkFullyPinnedCommitStarting(ctx, existing as CommitStageProof & { expectedTree: string });
   }
   try {
     await assertUpstreamReadyForCommit(ctx);

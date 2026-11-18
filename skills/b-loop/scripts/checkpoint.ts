@@ -163,16 +163,7 @@ interface ReclaimLockOwner {
   pidStartTicks?: string;
 }
 
-function readReclaimLockOwner(reclaimFile: string): ReclaimLockOwner | null {
-  let raw: string;
-  try {
-    const lst = lstatSync(reclaimFile);
-    if (lst.isSymbolicLink() || !lst.isFile()) return null;
-    raw = readFileSync(reclaimFile, "utf8");
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    return null;
-  }
+function parseReclaimLockOwner(raw: string): ReclaimLockOwner | null {
   try {
     const parsed = JSON.parse(raw) as Partial<ReclaimLockOwner>;
     if (typeof parsed.ownerId !== "string" || !parsed.ownerId) return null;
@@ -182,6 +173,16 @@ function readReclaimLockOwner(reclaimFile: string): ReclaimLockOwner | null {
       pid: parsed.pid,
       ...(typeof parsed.pidStartTicks === "string" ? { pidStartTicks: parsed.pidStartTicks } : {}),
     };
+  } catch {
+    return null;
+  }
+}
+
+function readReclaimLockOwner(reclaimFile: string): ReclaimLockOwner | null {
+  try {
+    const lst = lstatSync(reclaimFile);
+    if (lst.isSymbolicLink() || !lst.isFile()) return null;
+    return parseReclaimLockOwner(readFileSync(reclaimFile, "utf8"));
   } catch {
     return null;
   }

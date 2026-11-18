@@ -1080,6 +1080,51 @@ function upstreamSaveStartBlock(
   return { status: "blocked" as const, reason: fresh.reason, nextSafeAction: "Complete clean review before save." };
 }
 
+async function journalMatchesReceiptRevisions(
+  ctx: StageContext,
+  revs: readonly string[],
+  savedRefs: readonly SavedArtifactRef[],
+): Promise<"ok" | "resolve-failed" | "mismatch"> {
+  if (savedRefs.length === 0) return "ok";
+  try {
+    const journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
+    return sameSortedIds(revs, journalResolved) ? "ok" : "mismatch";
+  } catch {
+    return "resolve-failed";
+  }
+}
+
+async function adoptCompletedSaveReceipt(
+  ctx: StageContext,
+  receipt: ReceiptRecord,
+  savedRefs: readonly SavedArtifactRef[],
+) {
+  const revs = receipt.artifactRevisions ?? [];
+  const journalMatch = await journalMatchesReceiptRevisions(ctx, revs, savedRefs);
+  if (journalMatch === "resolve-failed") {
+    return {
+      status: "blocked" as const,
+      reason: `Completed save receipt for attemptId ${ctx.attemptId} failed journal revision resolution.`,
+      nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
+    };
+  }
+  if (journalMatch === "mismatch") {
+    return {
+      status: "blocked" as const,
+      reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
+      nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
+    };
+  }
+  if (await verifyRevisionsReadback(ctx, revs, savedRefs)) {
+    return { status: "already-finished" as const };
+  }
+  return {
+    status: "blocked" as const,
+    reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
+    nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
+  };
+}
+
 async function checkSaveStarting(ctx: StageContext, backend: RunStateBackend | undefined) {
   const fresh = await checkReviewFreshForSave(ctx);
   if (!fresh.ok) {
@@ -1094,35 +1139,7 @@ async function checkSaveStarting(ctx: StageContext, backend: RunStateBackend | u
     };
   }
   if (outcome.receipt?.status === "complete" && outcome.receipt.attemptId === ctx.attemptId) {
-    const revs = outcome.receipt.artifactRevisions ?? [];
-    const savedRefs = outcome.journal?.savedRefs ?? [];
-    if (savedRefs.length > 0) {
-      let journalResolved: string[] = [];
-      try {
-        journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
-      } catch {
-        return {
-          status: "blocked" as const,
-          reason: `Completed save receipt for attemptId ${ctx.attemptId} failed journal revision resolution.`,
-          nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
-        };
-      }
-      if (!sameSortedIds(revs, journalResolved)) {
-        return {
-          status: "blocked" as const,
-          reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
-          nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
-        };
-      }
-    }
-    if (await verifyRevisionsReadback(ctx, revs, savedRefs)) {
-      return { status: "already-finished" as const };
-    }
-    return {
-      status: "blocked" as const,
-      reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
-      nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
-    };
+    return adoptCompletedSaveReceipt(ctx, outcome.receipt, outcome.journal?.savedRefs ?? []);
   }
   return { status: "dispatch" as const };
 }
@@ -1133,24 +1150,20 @@ async function recoverCompletedReceiptWorking(
   savedRefs: readonly SavedArtifactRef[],
 ) {
   const revs = receipt.artifactRevisions ?? [];
-  if (savedRefs.length > 0) {
-    let journalResolved: string[] = [];
-    try {
-      journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
-    } catch (error) {
-      return {
-        status: "uncertain" as const,
-        reason: `${error instanceof Error ? error.message : String(error)} (attemptId ${ctx.attemptId}).`,
-        nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
-      };
-    }
-    if (!sameSortedIds(revs, journalResolved)) {
-      return {
-        status: "uncertain" as const,
-        reason: `Completed receipt revisions do not exactly match journal for attemptId ${ctx.attemptId}.`,
-        nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
-      };
-    }
+  const journalMatch = await journalMatchesReceiptRevisions(ctx, revs, savedRefs);
+  if (journalMatch === "resolve-failed") {
+    return {
+      status: "uncertain" as const,
+      reason: `Completed receipt for attemptId ${ctx.attemptId} failed journal revision resolution.`,
+      nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
+    };
+  }
+  if (journalMatch === "mismatch") {
+    return {
+      status: "uncertain" as const,
+      reason: `Completed receipt revisions do not exactly match journal for attemptId ${ctx.attemptId}.`,
+      nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
+    };
   }
   if (await verifyRevisionsReadback(ctx, revs, savedRefs)) {
     return { status: "finished" as const };
@@ -1159,6 +1172,32 @@ async function recoverCompletedReceiptWorking(
     status: "uncertain" as const,
     reason: `Completed receipt for attemptId ${ctx.attemptId} failed artifact readback.`,
     nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
+  };
+}
+
+function canIdempotentAttemptedSaveRetry(
+  receipt: ReceiptRecord,
+  journal: { status?: string; savedRefs?: readonly SavedArtifactRef[] } | null | undefined,
+): boolean {
+  return (
+    journal != null &&
+    journal.status === "attempted" &&
+    (journal.savedRefs?.length ?? 0) === 0 &&
+    (receipt.artifactRevisions?.length ?? 0) === 0
+  );
+}
+
+function recoverAttemptedSaveWorking(ctx: StageContext, receipt: ReceiptRecord, journal: {
+  status?: string;
+  savedRefs?: readonly SavedArtifactRef[];
+} | null | undefined) {
+  if (canIdempotentAttemptedSaveRetry(receipt, journal)) {
+    return { status: "retry" as const };
+  }
+  return {
+    status: "uncertain" as const,
+    reason: `Ambiguous attempted save for attemptId ${ctx.attemptId}: idempotent apply recovery is not established.`,
+    nextSafeAction: `Inspect save receipt and journal for attemptId ${ctx.attemptId} before retrying.`,
   };
 }
 
@@ -1178,21 +1217,7 @@ async function recoverSaveWorking(ctx: StageContext, backend: RunStateBackend | 
     return { status: "finished" as const };
   }
   if (outcome.receipt?.status === "attempted" && outcome.receipt.attemptId === ctx.attemptId) {
-    // Retry only when apply has a recorded empty attempted journal (idempotent; no partial effects).
-    const journal = outcome.journal;
-    const canIdempotentRetry =
-      journal != null &&
-      journal.status === "attempted" &&
-      (journal.savedRefs?.length ?? 0) === 0 &&
-      (outcome.receipt.artifactRevisions?.length ?? 0) === 0;
-    if (canIdempotentRetry) {
-      return { status: "retry" as const };
-    }
-    return {
-      status: "uncertain" as const,
-      reason: `Ambiguous attempted save for attemptId ${ctx.attemptId}: idempotent apply recovery is not established.`,
-      nextSafeAction: `Inspect save receipt and journal for attemptId ${ctx.attemptId} before retrying.`,
-    };
+    return recoverAttemptedSaveWorking(ctx, outcome.receipt, outcome.journal);
   }
   return {
     status: "uncertain" as const,

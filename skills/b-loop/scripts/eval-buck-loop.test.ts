@@ -123,7 +123,7 @@ function makeWorkflowItems(subjectId: string, opts: { unphased?: boolean; duplic
   return items;
 }
 
-function makeValidBridges(overrides: {
+type BridgeOverrides = {
   subjectId?: string;
   branchRef?: string;
   headCommit?: string;
@@ -133,7 +133,71 @@ function makeValidBridges(overrides: {
   insideWorkTree?: boolean;
   listItems?: unknown[];
   listIsError?: boolean;
-} = {}): { bridges: EvalBridges; calls: { agent: number; sh: string[]; workflow: unknown[] } } {
+};
+
+function requireInsideWorkTree(overrides: BridgeOverrides): void {
+  if (overrides.insideWorkTree === false) {
+    throw shellError("not a git repository", 128, "fatal: not a git repository");
+  }
+}
+
+function mockShowToplevel(command: string, overrides: BridgeOverrides): string {
+  requireInsideWorkTree(overrides);
+  const cwdMatch = /git -C (?:'((?:\\'|[^'])*)'|"((?:\\"|[^"])*)"|(\S+))/.exec(command);
+  const root = (cwdMatch?.[1] ?? cwdMatch?.[2] ?? cwdMatch?.[3] ?? ".").replace(/\\'/g, "'");
+  return `${root}\n`;
+}
+
+function mockSymbolicRef(overrides: BridgeOverrides): string {
+  const ref = overrides.branchRef ?? "refs/heads/feat/demo";
+  if (!ref) throw shellError("HEAD is detached", 1);
+  return `${ref}\n`;
+}
+
+function mockHeadCommit(overrides: BridgeOverrides): string {
+  const sha = overrides.headCommit ?? "a".repeat(40);
+  if (!sha) throw shellError("Needed a single revision", 128, "fatal: Needed a single revision");
+  return `${sha}\n`;
+}
+
+function mockOriginUrl(overrides: BridgeOverrides): string {
+  if (!overrides.remoteOrigin) throw shellError("no remote origin", 1);
+  return `${overrides.remoteOrigin}\n`;
+}
+
+function mockGitSh(command: string, overrides: BridgeOverrides): string {
+  if (command.includes("rev-parse --is-inside-work-tree")) {
+    requireInsideWorkTree(overrides);
+    return "true\n";
+  }
+  if (command.includes("rev-parse --show-toplevel")) return mockShowToplevel(command, overrides);
+  if (command.includes("symbolic-ref --quiet HEAD")) return mockSymbolicRef(overrides);
+  if (command.includes("rev-parse --verify HEAD^{commit}")) return mockHeadCommit(overrides);
+  if (command.includes("config --get remote.origin.url")) return mockOriginUrl(overrides);
+  if (command.includes("checkpoint-cli.ts") && command.includes(" read ")) return '{"found":false}\n';
+  return "";
+}
+
+function mockWorkflowState(
+  args: Record<string, unknown>,
+  overrides: BridgeOverrides,
+  items: unknown[],
+  calls: { workflow: unknown[] },
+) {
+  calls.workflow.push(args);
+  if (overrides.listIsError) {
+    return { isError: true, content: [{ type: "text", text: "workflow database locked" }] };
+  }
+  if (args.operation === "list") {
+    return { content: [{ type: "text", text: JSON.stringify(items) }], details: items };
+  }
+  return {};
+}
+
+function makeValidBridges(overrides: BridgeOverrides = {}): {
+  bridges: EvalBridges;
+  calls: { agent: number; sh: string[]; workflow: unknown[] };
+} {
   const subjectId = overrides.subjectId ?? "2026-11-17.demo-subject";
   const calls = { agent: 0, sh: [] as string[], workflow: [] as unknown[] };
   const items = overrides.listItems ?? makeWorkflowItems(subjectId, {
@@ -154,53 +218,10 @@ function makeValidBridges(overrides: {
     sh: vi.fn(async (cmd: unknown) => {
       const command = String(cmd);
       calls.sh.push(command);
-      if (command.includes("rev-parse --is-inside-work-tree")) {
-        if (overrides.insideWorkTree === false) {
-          throw shellError("not a git repository", 128, "fatal: not a git repository");
-        }
-        return "true\n";
-      }
-      if (command.includes("rev-parse --show-toplevel")) {
-        if (overrides.insideWorkTree === false) {
-          throw shellError("not a git repository", 128, "fatal: not a git repository");
-        }
-        const cwdMatch = /git -C (?:'((?:\\'|[^'])*)'|"((?:\\"|[^"])*)"|(\S+))/.exec(command);
-        const root = (cwdMatch?.[1] ?? cwdMatch?.[2] ?? cwdMatch?.[3] ?? ".").replace(/\\'/g, "'");
-        return `${root}\n`;
-      }
-      if (command.includes("symbolic-ref --quiet HEAD")) {
-        const ref = overrides.branchRef ?? "refs/heads/feat/demo";
-        if (!ref) throw shellError("HEAD is detached", 1);
-        return `${ref}\n`;
-      }
-      if (command.includes("rev-parse --verify HEAD^{commit}")) {
-        const sha = overrides.headCommit ?? "a".repeat(40);
-        if (!sha) throw shellError("Needed a single revision", 128, "fatal: Needed a single revision");
-        return `${sha}\n`;
-      }
-      if (command.includes("config --get remote.origin.url")) {
-        if (!overrides.remoteOrigin) throw shellError("no remote origin", 1);
-        return `${overrides.remoteOrigin}\n`;
-      }
-      if (command.includes("checkpoint-cli.ts") && command.includes(" read ")) {
-        return '{"found":false}\n';
-      }
-      return "";
+      return mockGitSh(command, overrides);
     }),
     tool: {
-      workflow_state: vi.fn(async (args: Record<string, unknown>) => {
-        calls.workflow.push(args);
-        if (overrides.listIsError) {
-          return { isError: true, content: [{ type: "text", text: "workflow database locked" }] };
-        }
-        if (args.operation === "list") {
-          return {
-            content: [{ type: "text", text: JSON.stringify(items) }],
-            details: items,
-          };
-        }
-        return {};
-      }),
+      workflow_state: vi.fn(async (args: Record<string, unknown>) => mockWorkflowState(args, overrides, items, calls)),
     },
   };
   return { bridges, calls };

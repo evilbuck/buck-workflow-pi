@@ -89,8 +89,9 @@ async function verifyPinnedCommitTreeAndParent(
   commitSha: string,
   commitProof: CommitStageProof | undefined,
 ): Promise<boolean> {
+  // Fail closed: missing or non-SHA pins mean the promised HEAD^ / HEAD^{tree} proof cannot run.
   if (!commitProof || !COMMIT_SHA_RE.test(commitProof.expectedTree ?? "") || !COMMIT_SHA_RE.test(commitProof.baselineHead ?? "")) {
-    return true;
+    return false;
   }
   const qCwd = shellQuote(cwd);
   try {
@@ -301,6 +302,15 @@ function makeStageContext(session: LoopSession, phase: PinnedPhase, stage: LoopS
   };
 }
 
+function commitVerifyPinsOk(verdict: StageVerifyResult): boolean {
+  const commitProof = verdict.proof as CommitStageProof | undefined;
+  const validSha = typeof verdict.commitId === "string" && COMMIT_SHA_RE.test(verdict.commitId);
+  const matchingProof = commitProof?.commitId === verdict.commitId;
+  const pinsOk =
+    COMMIT_SHA_RE.test(commitProof?.expectedTree ?? "") && COMMIT_SHA_RE.test(commitProof?.baselineHead ?? "");
+  return Boolean(validSha && matchingProof && pinsOk);
+}
+
 async function applyVerifiedResult(
   session: LoopSession,
   phase: PinnedPhase,
@@ -319,17 +329,12 @@ async function applyVerifiedResult(
   if (verdict.status === "stale_or_missing") {
     return null;
   }
-  if (stage === "commit") {
-    const commitProof = verdict.proof as CommitStageProof | undefined;
-    const validSha = typeof verdict.commitId === "string" && COMMIT_SHA_RE.test(verdict.commitId);
-    const matchingProof = commitProof?.commitId === verdict.commitId;
-    if (!validSha || !matchingProof) {
-      return recordBlocker(session, phase, stage, "finished", {
-        reason: "Commit stage verified without a valid 40/64-char commit SHA matching proof.",
-        nextSafeAction: "Inspect git HEAD and verify commit proof before retrying.",
-        attemptId,
-      });
-    }
+  if (stage === "commit" && !commitVerifyPinsOk(verdict)) {
+    return recordBlocker(session, phase, stage, "finished", {
+      reason: "Commit stage verified without a valid commit SHA plus baselineHead/expectedTree pins matching proof.",
+      nextSafeAction: "Inspect git HEAD and verify commit proof before retrying.",
+      attemptId,
+    });
   }
   const updates = setStageProof(session.checkpoint, phase, stage, verdict.proof, verdict.commitId);
   await saveTransition(session, {
@@ -578,7 +583,8 @@ async function resumeWorking(
     await saveTransition(session, { currentMilestone: "finished", attemptId, jobHandle: null, blocker: null });
     return resumeFinished(session, phase, stage, adapter, adapters);
   }
-  return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
+  // Preserve the checkpoint attemptId on retry so save receipts/journals stay bound.
+  return dispatchAndVerifyStage(session, phase, stage, adapter, attemptId, adapters);
 }
 
 async function resumeFinished(
@@ -597,7 +603,8 @@ async function resumeFinished(
   const applied = await applyVerifiedResult(session, phase, stage, attemptId, verified);
   if (applied) return { result: applied };
 
-  return dispatchAndVerifyStage(session, phase, stage, adapter, undefined, adapters);
+  // Preserve the checkpoint attemptId on re-dispatch after a non-adoptable verify.
+  return dispatchAndVerifyStage(session, phase, stage, adapter, attemptId, adapters);
 }
 
 async function runStageWithRecovery(
