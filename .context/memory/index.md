@@ -1,6 +1,6 @@
-- 2026-11-17 — [fix-pr #73: validate and address CodeRabbit review on b-loop repair](fix-pr-73-2026-11-17.md) — `active` (loop 1 fixes pushed; settlement review pending)
+- 2026-11-17 — [fix-pr #73: validate and address CodeRabbit review on b-loop repair](fix-pr-73-2026-11-17.md) — `review_pending` (3 fix loops; CI green @ a60786f; 8/8 settlement polls; no independent re-review)
 
-  - 2026-11-17 | `fix-pr-73-2026-11-17.md` | domains: [b-loop, review, recovery, git, ci] | topics: [fix-pr, coderabbit, checkpoint-lock, commit-tree, save-receipt, e2e-skip] | status: active
+  - 2026-11-17 | `fix-pr-73-2026-11-17.md` | domains: [b-loop, review, recovery, git, ci] | topics: [fix-pr, coderabbit, checkpoint-lock, commit-tree, save-receipt, e2e-skip] | status: review_pending
 
 - 2026-11-17 — [`/b-loop` repair Phase 5: real OMP E2E suite, stale-review `save` start guard & doc sync](b-loop-phase-5-2026-11-17.md) — `completed`
 
