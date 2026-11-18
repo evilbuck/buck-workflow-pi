@@ -141,11 +141,18 @@ function requireInsideWorkTree(overrides: BridgeOverrides): void {
   }
 }
 
+function cwdFromGitDashC(command: string): string {
+  const single = /git -C '((?:\\'|[^'])*)'/.exec(command);
+  if (single) return single[1].replace(/\\'/g, "'");
+  const double = /git -C "((?:\\"|[^"])*)"/.exec(command);
+  if (double) return double[1].replace(/\\"/g, '"');
+  const bare = /git -C (\S+)/.exec(command);
+  return bare?.[1] ?? ".";
+}
+
 function mockShowToplevel(command: string, overrides: BridgeOverrides): string {
   requireInsideWorkTree(overrides);
-  const cwdMatch = /git -C (?:'((?:\\'|[^'])*)'|"((?:\\"|[^"])*)"|(\S+))/.exec(command);
-  const root = (cwdMatch?.[1] ?? cwdMatch?.[2] ?? cwdMatch?.[3] ?? ".").replace(/\\'/g, "'");
-  return `${root}\n`;
+  return `${cwdFromGitDashC(command)}\n`;
 }
 
 function mockSymbolicRef(overrides: BridgeOverrides): string {
