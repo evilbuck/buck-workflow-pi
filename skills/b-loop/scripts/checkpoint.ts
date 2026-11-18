@@ -73,11 +73,13 @@ function checkLockOwnerAlive(owner: WriterLockOwner, isPidAliveOverride?: (pid: 
     process.kill(owner.pid, 0);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
+    // ESRCH = no such process → dead. EPERM/other = permission or uncertain → treat as live.
     if (code === "ESRCH") return false;
-    return !(code === "EPERM" && owner.pidStartTicks);
+    return true;
   }
   if (!owner.pidStartTicks) return true;
   const liveTicks = readPidStartTicks(owner.pid);
+  // Confirmed PID reuse (start-ticks mismatch) means the recorded owner exited.
   return !liveTicks || liveTicks === owner.pidStartTicks;
 }
 
@@ -155,6 +157,46 @@ function releaseLockIfOwned(lockFile: string, ownerId: string): void {
   }
 }
 
+interface ReclaimLockOwner {
+  ownerId: string;
+  pid: number;
+  pidStartTicks?: string;
+}
+
+function readReclaimLockOwner(reclaimFile: string): ReclaimLockOwner | null {
+  let raw: string;
+  try {
+    const lst = lstatSync(reclaimFile);
+    if (lst.isSymbolicLink() || !lst.isFile()) return null;
+    raw = readFileSync(reclaimFile, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(raw) as Partial<ReclaimLockOwner>;
+    if (typeof parsed.ownerId !== "string" || !parsed.ownerId) return null;
+    if (typeof parsed.pid !== "number" || !Number.isInteger(parsed.pid) || parsed.pid <= 0) return null;
+    return {
+      ownerId: parsed.ownerId,
+      pid: parsed.pid,
+      ...(typeof parsed.pidStartTicks === "string" ? { pidStartTicks: parsed.pidStartTicks } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function tryRecoverStaleReclaimLock(
+  reclaimFile: string,
+  isPidAliveOverride?: (pid: number) => boolean,
+): void {
+  const owner = readReclaimLockOwner(reclaimFile);
+  if (!owner) return;
+  if (checkLockOwnerAlive(owner, isPidAliveOverride)) return;
+  unlinkSafeNoSymlink(reclaimFile);
+}
+
 function tryReclaimDeadLock(
   lockFile: string,
   expectedOwnerId: string,
@@ -162,8 +204,16 @@ function tryReclaimDeadLock(
 ): void {
   const reclaimFile = `${lockFile}.reclaim`;
   const reclaimOwner = randomUUID();
-  if (!tryAtomicLinkLock(reclaimFile, reclaimOwner, `${reclaimOwner}\n`)) {
-    return;
+  const reclaimPayload: ReclaimLockOwner = {
+    ownerId: reclaimOwner,
+    pid: process.pid,
+    pidStartTicks: readPidStartTicks(process.pid),
+  };
+  if (!tryAtomicLinkLock(reclaimFile, reclaimOwner, `${JSON.stringify(reclaimPayload)}\n`)) {
+    tryRecoverStaleReclaimLock(reclaimFile, isPidAliveOverride);
+    if (!tryAtomicLinkLock(reclaimFile, reclaimOwner, `${JSON.stringify(reclaimPayload)}\n`)) {
+      return;
+    }
   }
   try {
     const fresh = readExistingLockOwner(lockFile);

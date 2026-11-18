@@ -10,9 +10,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 import { unwrapToolResult } from "./frontmatter.js";
-import { STAGE_TOOLS } from "./stages.js";
+import { computeWorktreeFingerprint, STAGE_TOOLS } from "./stages.js";
 import type {
   CommitStageProof,
+  SaveStageProof,
   StageAdapter,
   StageContext,
   StageVerifyResult,
@@ -76,15 +77,27 @@ function matchesDeclaredFile(relPath: string, declaredFiles: readonly string[]):
   return false;
 }
 
+function isDeterministicRunnerMetadataPath(relPath: string, subjectId: string): boolean {
+  const norm = relPath.replace(/\\/g, "/");
+  return norm.startsWith(`.context/${subjectId}/`);
+}
+
+function isVerifiedSaveOutputPath(relPath: string, save: SaveStageProof | undefined): boolean {
+  const norm = relPath.replace(/\\/g, "/");
+  if (!save || save.receiptStatus !== "complete") return false;
+  const allowed = save.savedPaths ?? [];
+  return allowed.some((p) => p.replace(/\\/g, "/") === norm);
+}
+
 function isAllowedCommitPath(
   relPath: string,
   subjectId: string,
   declaredFiles: readonly string[],
+  save?: SaveStageProof,
 ): boolean {
   const norm = relPath.replace(/\\/g, "/");
-  if (norm.startsWith(`.context/${subjectId}/`)) return true;
-  if (norm.startsWith(".context/memory/")) return true;
-  if (norm.startsWith(".context/backlog/")) return true;
+  if (isDeterministicRunnerMetadataPath(norm, subjectId)) return true;
+  if (isVerifiedSaveOutputPath(norm, save)) return true;
   return matchesDeclaredFile(norm, declaredFiles);
 }
 
@@ -120,6 +133,31 @@ async function inspectSingleParentCommit(
   };
 }
 
+async function assertCleanIndexForCommitAdoption(
+  cwd: string,
+  sh: ValidatedBridges["sh"],
+  subjectId: string,
+  declaredFiles: readonly string[],
+  save?: SaveStageProof,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  const qCwd = shellQuote(cwd);
+  const statusZ = await runSh(sh, `git -C ${qCwd} status --porcelain=v1 --untracked-files=all -z`);
+  try {
+    assertAllowedDirtyEntries(parsePorcelainZ(statusZ), subjectId, declaredFiles, save);
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) };
+  }
+  const stagedRaw = await runSh(sh, `git -C ${qCwd} diff --cached --name-only -z`);
+  const stagedNames = stagedRaw.split("\0").filter(Boolean);
+  if (stagedNames.length > 0) {
+    return {
+      ok: false,
+      reason: `Unexpected staged index changes present while adopting landed commit (${stagedNames.join(", ")}).`,
+    };
+  }
+  return { ok: true };
+}
+
 async function verifyCommitMatchesPin(
   cwd: string,
   sh: ValidatedBridges["sh"],
@@ -147,6 +185,7 @@ function assertAllowedDirtyEntries(
   dirtyEntries: readonly PorcelainEntry[],
   subjectId: string,
   declaredFiles: readonly string[],
+  save?: SaveStageProof,
 ): string[] {
   const unrelated: string[] = [];
   const toStage = new Set<string>();
@@ -154,7 +193,7 @@ function assertAllowedDirtyEntries(
     const candidates = entry.origPath ? [entry.path, entry.origPath] : [entry.path];
     for (const p of candidates) {
       if (isWorkflowScratchPath(p)) continue;
-      if (!isAllowedCommitPath(p, subjectId, declaredFiles)) {
+      if (!isAllowedCommitPath(p, subjectId, declaredFiles, save)) {
         unrelated.push(p);
       } else {
         toStage.add(p);
@@ -178,9 +217,12 @@ async function validatePreExistingStagedIndex(
   const stagedNames = stagedRaw.split("\0").filter(Boolean);
   if (stagedNames.length === 0) return;
 
+  const save = ctx.checkpoint.phases[ctx.phase.logicalName]?.save;
   const canResetResumed =
     allowResumedAllowedStaged &&
-    stagedNames.every((p) => !isWorkflowScratchPath(p) && isAllowedCommitPath(p, ctx.pinnedPlan.subjectId, ctx.phase.files));
+    stagedNames.every(
+      (p) => !isWorkflowScratchPath(p) && isAllowedCommitPath(p, ctx.pinnedPlan.subjectId, ctx.phase.files, save),
+    );
   if (!canResetResumed) {
     throw new Error(
       `Pre-existing staged index changes detected (${stagedNames.join(", ")}); unstage them before running /b-loop commit.`,
@@ -297,6 +339,8 @@ async function commitArtifactUpdate(
   if (!snapshot || nextText === null) return {};
   const diskPath = join(ctx.cwd, ".context", ctx.pinnedPlan.subjectId, logicalName);
   if (nextText === snapshot.text && typeof snapshot.revision === "string") {
+    // Unchanged revision: FileStorageStore already projected under its lock; only
+    // repair a missing/divergent editable file without racing a later locked write.
     syncArtifactDiskIfNeeded(diskPath, nextText);
     return { revision: snapshot.revision, sha256: snapshot.sha256 };
   }
@@ -310,8 +354,8 @@ async function commitArtifactUpdate(
       expectedRevision: snapshot.revision ?? null,
     }),
   ) as { revision?: string; sha256?: string } | null;
-  // Sync disk only after workflow_state CAS succeeds so failed writes cannot poison repo-files.
-  syncArtifactDiskIfNeeded(diskPath, nextText);
+  // Do not write the editable projection after writeBatch releases the store lock.
+  // repo-files adapters project under the same locked section as the CAS write.
   return { revision: written?.revision, sha256: written?.sha256 ?? sha256Hex(nextText) };
 }
 
@@ -438,10 +482,22 @@ async function stageAllowedPaths(cwd: string, sh: ValidatedBridges["sh"], paths:
   }
 }
 
-function assertUpstreamReadyForCommit(ctx: StageContext): void {
+async function assertUpstreamReadyForCommit(ctx: StageContext): Promise<void> {
   const ps = ctx.checkpoint.phases[ctx.phase.logicalName];
   if (!ps?.build || ps.review?.verdict !== "clean" || ps.save?.receiptStatus !== "complete") {
     throw new Error(`Cannot prepare commit for ${ctx.phase.logicalName} before build, clean review, and completed save are verified.`);
+  }
+  if (!ps.review.worktreeFingerprint) {
+    throw new Error(
+      `Cannot prepare commit for ${ctx.phase.logicalName}: reviewed source freshness cannot be established (missing review worktree fingerprint).`,
+    );
+  }
+  // Fingerprint ignores `.context/**`, so only declared source / HEAD drift invalidates review.
+  const currentFp = await computeWorktreeFingerprint(ctx.cwd, ctx.bridges.sh);
+  if (currentFp !== ps.review.worktreeFingerprint) {
+    throw new Error(
+      `Cannot prepare commit for ${ctx.phase.logicalName}: declared source snapshot changed since clean review.`,
+    );
   }
 }
 
@@ -481,7 +537,13 @@ async function pinPreMutationCommitProof(
 async function stageAndWriteExpectedTree(ctx: StageContext): Promise<string> {
   const qCwd = shellQuote(ctx.cwd);
   const postStatus = await runSh(ctx.bridges.sh, `git -C ${qCwd} status --porcelain=v1 --untracked-files=all -z`);
-  const toStage = assertAllowedDirtyEntries(parsePorcelainZ(postStatus), ctx.pinnedPlan.subjectId, ctx.phase.files);
+  const save = ctx.checkpoint.phases[ctx.phase.logicalName]?.save;
+  const toStage = assertAllowedDirtyEntries(
+    parsePorcelainZ(postStatus),
+    ctx.pinnedPlan.subjectId,
+    ctx.phase.files,
+    save,
+  );
   if (toStage.length > 0) {
     await stageAllowedPaths(ctx.cwd, ctx.bridges.sh, toStage);
   }
@@ -499,7 +561,8 @@ async function prepareFreshCommitTree(
   await validatePreExistingStagedIndex(ctx, resumingIncompletePrep);
 
   const initialStatus = await runSh(ctx.bridges.sh, `git -C ${qCwd} status --porcelain=v1 --untracked-files=all -z`);
-  assertAllowedDirtyEntries(parsePorcelainZ(initialStatus), ctx.pinnedPlan.subjectId, ctx.phase.files);
+  const save = ctx.checkpoint.phases[ctx.phase.logicalName]?.save;
+  assertAllowedDirtyEntries(parsePorcelainZ(initialStatus), ctx.pinnedPlan.subjectId, ctx.phase.files, save);
 
   const isFinalPhase = ctx.pinnedPlan.phases[ctx.pinnedPlan.phases.length - 1]?.logicalName === ctx.phase.logicalName;
   if (isFinalPhase) {
@@ -538,8 +601,45 @@ async function prepareFreshCommitTree(
 }
 
 async function checkCommitStarting(ctx: StageContext) {
+  const existing = ctx.checkpoint.phases[ctx.phase.logicalName]?.commit;
+  if (existing?.baselineHead && existing.expectedTree) {
+    const currentHead = await gitRevParse(ctx.cwd, ctx.bridges.sh, "HEAD");
+    if (currentHead === existing.baselineHead) {
+      const currentTree = await gitWriteTree(ctx.cwd, ctx.bridges.sh);
+      if (currentTree === existing.expectedTree) return { status: "dispatch" as const };
+      return {
+        status: "blocked" as const,
+        reason: `Staged index tree ${currentTree} does not match pinned expectedTree ${existing.expectedTree} at baselineHead ${existing.baselineHead}.`,
+        nextSafeAction: `Inspect git status/diff against expectedTree ${existing.expectedTree} before re-running /b-loop.`,
+      };
+    }
+    // Adoption path: HEAD moved; skip source-freshness (fingerprint includes HEAD).
+    const match = await verifyCommitMatchesPin(ctx.cwd, ctx.bridges.sh, currentHead, existing.baselineHead, existing.expectedTree);
+    if (match.matches) {
+      const clean = await assertCleanIndexForCommitAdoption(
+        ctx.cwd,
+        ctx.bridges.sh,
+        ctx.pinnedPlan.subjectId,
+        ctx.phase.files,
+        ctx.checkpoint.phases[ctx.phase.logicalName]?.save,
+      );
+      if (!clean.ok) {
+        return {
+          status: "blocked" as const,
+          reason: clean.reason,
+          nextSafeAction: `Inspect index/worktree before adopting commit ${currentHead}.`,
+        };
+      }
+      return { status: "already-finished" as const };
+    }
+    return {
+      status: "blocked" as const,
+      reason: match.reason,
+      nextSafeAction: `Inspect HEAD ${currentHead} against expected baselineHead ${existing.baselineHead} and expectedTree ${existing.expectedTree}.`,
+    };
+  }
   try {
-    assertUpstreamReadyForCommit(ctx);
+    await assertUpstreamReadyForCommit(ctx);
   } catch (error) {
     return {
       status: "blocked" as const,
@@ -547,34 +647,15 @@ async function checkCommitStarting(ctx: StageContext) {
       nextSafeAction: "Complete build, review, and save before commit.",
     };
   }
-  const existing = ctx.checkpoint.phases[ctx.phase.logicalName]?.commit;
   if (!existing?.baselineHead) {
     return { status: "dispatch" as const };
   }
   const currentHead = await gitRevParse(ctx.cwd, ctx.bridges.sh, "HEAD");
-  if (!existing.expectedTree) {
-    if (currentHead === existing.baselineHead) return { status: "dispatch" as const };
-    return {
-      status: "blocked" as const,
-      reason: `HEAD moved from pre-pinned baselineHead ${existing.baselineHead} to ${currentHead} before expectedTree was finalized.`,
-      nextSafeAction: "Inspect git log and reset or re-verify before re-running /b-loop.",
-    };
-  }
-  if (currentHead === existing.baselineHead) {
-    const currentTree = await gitWriteTree(ctx.cwd, ctx.bridges.sh);
-    if (currentTree === existing.expectedTree) return { status: "dispatch" as const };
-    return {
-      status: "blocked" as const,
-      reason: `Staged index tree ${currentTree} does not match pinned expectedTree ${existing.expectedTree} at baselineHead ${existing.baselineHead}.`,
-      nextSafeAction: `Inspect git status/diff against expectedTree ${existing.expectedTree} before re-running /b-loop.`,
-    };
-  }
-  const match = await verifyCommitMatchesPin(ctx.cwd, ctx.bridges.sh, currentHead, existing.baselineHead, existing.expectedTree);
-  if (match.matches) return { status: "already-finished" as const };
+  if (currentHead === existing.baselineHead) return { status: "dispatch" as const };
   return {
     status: "blocked" as const,
-    reason: match.reason,
-    nextSafeAction: `Inspect HEAD ${currentHead} against expected baselineHead ${existing.baselineHead} and expectedTree ${existing.expectedTree}.`,
+    reason: `HEAD moved from pre-pinned baselineHead ${existing.baselineHead} to ${currentHead} before expectedTree was finalized.`,
+    nextSafeAction: "Inspect git log and reset or re-verify before re-running /b-loop.",
   };
 }
 
@@ -599,12 +680,13 @@ async function prepareCommitStarting(
   ctx: StageContext,
   fallbackXdgHome?: string,
 ): Promise<{ proof: CommitStageProof }> {
-  assertUpstreamReadyForCommit(ctx);
   const existing = ctx.checkpoint.phases[ctx.phase.logicalName]?.commit;
   const currentHead = await gitRevParse(ctx.cwd, ctx.bridges.sh, "HEAD");
   if (existing?.baselineHead && existing.expectedTree) {
+    // Existing pin: adopt or continue without re-checking review freshness against post-commit HEAD.
     return verifyExistingPinnedTreeStage(ctx, existing as CommitStageProof & { expectedTree: string }, currentHead);
   }
+  await assertUpstreamReadyForCommit(ctx);
   if (existing?.baselineHead && currentHead !== existing.baselineHead) {
     throw new Error(`HEAD moved from pre-pinned baselineHead ${existing.baselineHead} to ${currentHead} before tree pinning finished.`);
   }
@@ -677,6 +759,20 @@ async function recoverCommitWorking(ctx: StageContext) {
   }
   const match = await verifyCommitMatchesPin(ctx.cwd, ctx.bridges.sh, currentHead, proof.baselineHead, proof.expectedTree);
   if (match.matches) {
+    const clean = await assertCleanIndexForCommitAdoption(
+      ctx.cwd,
+      ctx.bridges.sh,
+      ctx.pinnedPlan.subjectId,
+      ctx.phase.files,
+      ctx.checkpoint.phases[ctx.phase.logicalName]?.save,
+    );
+    if (!clean.ok) {
+      return {
+        status: "uncertain" as const,
+        reason: clean.reason,
+        nextSafeAction: `Inspect index/worktree before adopting commit ${currentHead}.`,
+      };
+    }
     return { status: "finished" as const };
   }
   return {
@@ -739,6 +835,20 @@ async function verifyCommitResult(
       nextSafeAction: `Inspect HEAD ${currentHead} vs expected parent ${proof.baselineHead} and expectedTree ${proof.expectedTree}.`,
     };
   }
+  const clean = await assertCleanIndexForCommitAdoption(
+    ctx.cwd,
+    ctx.bridges.sh,
+    ctx.pinnedPlan.subjectId,
+    ctx.phase.files,
+    ctx.checkpoint.phases[ctx.phase.logicalName]?.save,
+  );
+  if (!clean.ok) {
+    return {
+      status: "blocked",
+      reason: clean.reason,
+      nextSafeAction: `Inspect index/worktree before adopting commit ${currentHead}.`,
+    };
+  }
   const closeoutErr = await verifyFinalCommitCloseoutIfLast(ctx, currentHead, fallbackXdgHome);
   if (closeoutErr) return closeoutErr;
   return {
@@ -783,8 +893,24 @@ async function awaitCommitFinished(ctx: StageContext, dispatched: { handle?: unk
     throw new Error(`Refusing commit: staged tree ${currentTree} != expectedTree ${proof.expectedTree}.`);
   }
   const message = await extractCommitMessage(ctx, dispatched.handle);
+  const qCwd = shellQuote(ctx.cwd);
   const eof = `__BLOOP_COMMIT_${randomUUID().replace(/-/g, "")}__`;
-  await runSh(ctx.bridges.sh, `git -C ${shellQuote(ctx.cwd)} commit -F - <<'${eof}'\n${message}\n${eof}`);
+  // Create the commit from the pinned tree+parent, not whatever the index becomes after the wait.
+  const commitSha = (
+    await runSh(
+      ctx.bridges.sh,
+      `git -C ${qCwd} commit-tree ${shellQuote(proof.expectedTree)} -p ${shellQuote(proof.baselineHead)} -F - <<'${eof}'\n${message}\n${eof}`,
+    )
+  ).trim();
+  if (!COMMIT_SHA_RE.test(commitSha)) {
+    throw new Error(`Unexpected commit-tree SHA "${commitSha}".`);
+  }
+  const branchRef = ctx.pinnedPlan.branchRef;
+  // Conditionally advance the branch only if it still points at baselineHead.
+  await runSh(
+    ctx.bridges.sh,
+    `git -C ${qCwd} update-ref ${shellQuote(branchRef)} ${shellQuote(commitSha)} ${shellQuote(proof.baselineHead)}`,
+  );
 }
 
 /** Build the guarded `commit` stage adapter with scoped staging, tree pinning, and closeout folding. */

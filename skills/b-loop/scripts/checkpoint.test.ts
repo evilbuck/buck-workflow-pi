@@ -506,6 +506,30 @@ describe("concurrent writer serialization & locking", () => {
         xdgConfigHome: xdg,
       }),
     ).toThrow(/uncertain|corrupt/i);
+    rmSync(lockFile, { force: true });
+
+    // Uncertain/live owner (EPERM-equivalent) must not reclaim — yield instead.
+    writeFileSync(
+      lockFile,
+      JSON.stringify({
+        ownerId: "live-uncertain-owner",
+        pid: 1,
+        pidStartTicks: "1",
+        subjectId: "2026-11-17.dead",
+        branchRef: "refs/heads/feat/dead-lock",
+        worktreeRoot: repoDir,
+        startedAt: "2026-11-17T00:00:00Z",
+      }),
+    );
+    const yielded = acquireWriterLock({
+      cwd: repoDir,
+      subjectId: "2026-11-17.dead",
+      branchRef: "refs/heads/feat/dead-lock",
+      xdgConfigHome: xdg,
+      isPidAlive: () => true,
+    });
+    expect(yielded.acquired).toBe(false);
+    if (!yielded.acquired) expect(yielded.owner.ownerId).toBe("live-uncertain-owner");
   });
 });
 

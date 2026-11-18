@@ -144,9 +144,10 @@ async function loadHandoff<T>(
 
 function shouldIgnoreForFingerprint(relPath: string): boolean {
   const norm = relPath.replace(/\\/g, "/");
+  // Source-snapshot fingerprint: ignore all Buck metadata under `.context/` so
+  // verified save outputs and runner closeout edits do not invalidate review freshness.
   if (isWorkflowScratchPath(norm)) return true;
-  if (!norm.startsWith(".context/")) return false;
-  return /^\.context\/[^/]+\/(?:review|iterate)-[^/]+\.md$/.test(norm);
+  return norm === ".context" || norm.startsWith(".context/");
 }
 
 function hashWorkingTreeEntry(cwd: string, relPath: string): string {
@@ -1013,12 +1014,41 @@ async function bindAndSealRowsReceipt(
   }, fallbackXdgHome);
 }
 
+function savedRefsToContextPaths(savedRefs: readonly SavedArtifactRef[]): string[] {
+  const paths = new Set<string>();
+  for (const ref of savedRefs) {
+    paths.add(`.context/${ref.subjectId}/${ref.logicalName}`.replace(/\\/g, "/"));
+  }
+  return [...paths];
+}
+
 async function verifySaveFromCompletedReceipt(
   ctx: StageContext,
   receipt: ReceiptRecord,
   savedRefs: readonly SavedArtifactRef[],
 ): Promise<StageVerifyResult> {
   const revs = receipt.artifactRevisions ?? [];
+  if (savedRefs.length > 0) {
+    let journalResolved: string[] = [];
+    try {
+      journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
+    } catch (error) {
+      return {
+        status: "blocked",
+        reason: `${error instanceof Error ? error.message : String(error)} (attemptId ${ctx.attemptId}).`,
+        nextSafeAction: `Inspect save journal revisions for attemptId ${ctx.attemptId}.`,
+        proof: { attemptId: ctx.attemptId, runId: receipt.runId, receiptStatus: "ambiguous", artifactRevisions: [...revs] },
+      };
+    }
+    if (!sameSortedIds(revs, journalResolved)) {
+      return {
+        status: "blocked",
+        reason: `Save receipt revisions do not exactly match journal revisions for attemptId ${ctx.attemptId}.`,
+        nextSafeAction: `Inspect receipt and journal for attemptId ${ctx.attemptId} before re-running /b-loop.`,
+        proof: { attemptId: ctx.attemptId, runId: receipt.runId, receiptStatus: "ambiguous", artifactRevisions: [...revs] },
+      };
+    }
+  }
   const readable = await verifyRevisionsReadback(ctx, revs, savedRefs);
   if (!readable) {
     return {
@@ -1035,6 +1065,7 @@ async function verifySaveFromCompletedReceipt(
       runId: receipt.runId,
       receiptStatus: "complete",
       artifactRevisions: [...revs],
+      savedPaths: savedRefsToContextPaths(savedRefs),
       verifiedAt: new Date().toISOString(),
     },
   };
@@ -1064,12 +1095,32 @@ async function checkSaveStarting(ctx: StageContext, backend: RunStateBackend | u
   }
   if (outcome.receipt?.status === "complete" && outcome.receipt.attemptId === ctx.attemptId) {
     const revs = outcome.receipt.artifactRevisions ?? [];
-    if (await verifyRevisionsReadback(ctx, revs, outcome.journal?.savedRefs ?? [])) {
+    const savedRefs = outcome.journal?.savedRefs ?? [];
+    if (savedRefs.length > 0) {
+      let journalResolved: string[] = [];
+      try {
+        journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
+      } catch {
+        return {
+          status: "blocked" as const,
+          reason: `Completed save receipt for attemptId ${ctx.attemptId} failed journal revision resolution.`,
+          nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
+        };
+      }
+      if (!sameSortedIds(revs, journalResolved)) {
+        return {
+          status: "blocked" as const,
+          reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
+          nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
+        };
+      }
+    }
+    if (await verifyRevisionsReadback(ctx, revs, savedRefs)) {
       return { status: "already-finished" as const };
     }
     return {
       status: "blocked" as const,
-      reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback.`,
+      reason: `Completed save receipt for attemptId ${ctx.attemptId} failed artifact readback or journal match.`,
       nextSafeAction: `Inspect workflow_state artifacts for attemptId ${ctx.attemptId}.`,
     };
   }
@@ -1082,6 +1133,25 @@ async function recoverCompletedReceiptWorking(
   savedRefs: readonly SavedArtifactRef[],
 ) {
   const revs = receipt.artifactRevisions ?? [];
+  if (savedRefs.length > 0) {
+    let journalResolved: string[] = [];
+    try {
+      journalResolved = await resolveSavedRefsRevisions(ctx, savedRefs);
+    } catch (error) {
+      return {
+        status: "uncertain" as const,
+        reason: `${error instanceof Error ? error.message : String(error)} (attemptId ${ctx.attemptId}).`,
+        nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
+      };
+    }
+    if (!sameSortedIds(revs, journalResolved)) {
+      return {
+        status: "uncertain" as const,
+        reason: `Completed receipt revisions do not exactly match journal for attemptId ${ctx.attemptId}.`,
+        nextSafeAction: `Inspect workflow_state revisions for attemptId ${ctx.attemptId}.`,
+      };
+    }
+  }
   if (await verifyRevisionsReadback(ctx, revs, savedRefs)) {
     return { status: "finished" as const };
   }
@@ -1108,7 +1178,21 @@ async function recoverSaveWorking(ctx: StageContext, backend: RunStateBackend | 
     return { status: "finished" as const };
   }
   if (outcome.receipt?.status === "attempted" && outcome.receipt.attemptId === ctx.attemptId) {
-    return { status: "retry" as const };
+    // Retry only when apply has a recorded empty attempted journal (idempotent; no partial effects).
+    const journal = outcome.journal;
+    const canIdempotentRetry =
+      journal != null &&
+      journal.status === "attempted" &&
+      (journal.savedRefs?.length ?? 0) === 0 &&
+      (outcome.receipt.artifactRevisions?.length ?? 0) === 0;
+    if (canIdempotentRetry) {
+      return { status: "retry" as const };
+    }
+    return {
+      status: "uncertain" as const,
+      reason: `Ambiguous attempted save for attemptId ${ctx.attemptId}: idempotent apply recovery is not established.`,
+      nextSafeAction: `Inspect save receipt and journal for attemptId ${ctx.attemptId} before retrying.`,
+    };
   }
   return {
     status: "uncertain" as const,
@@ -1160,6 +1244,7 @@ async function sealAndVerifyAppliedRefs(
       runId: reread.runId,
       receiptStatus: "complete",
       artifactRevisions: resolvedRevs,
+      savedPaths: savedRefsToContextPaths(refs),
       verifiedAt: new Date().toISOString(),
     },
   };

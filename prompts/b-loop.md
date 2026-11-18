@@ -32,7 +32,7 @@ const rel = path.join("skills", "b-loop", "scripts", "eval-buck-loop.ts");
 const agentDir = (process.env.PI_CODING_AGENT_DIR || "").trim() || path.join(home, ".omp", "agent");
 const isFile = (p) => { try { return typeof p === "string" && p.length > 0 && path.isAbsolute(p) && fs.statSync(p).isFile(); } catch { return false; } };
 const expand = (p) => (p.startsWith("~/") ? path.join(home, p.slice(2)) : path.resolve(cwd, p));
-const stripComment = (line) => line.replace(/\s+#.*$/, "").trim();
+const stripComment = (line) => line.replace(/\\s+#.*$/, "").trim();
 const unquote = (v) => ((v.length >= 2 && ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'")))) ? v.slice(1, -1) : v);
 
 const explicitEnv = (process.env.BUCK_LOOP_RUNNER || "").trim();
@@ -53,12 +53,12 @@ if (explicitEnv) {
     try { rawCfg = fs.readFileSync(cfg, "utf8"); } catch { continue; }
     let inExtSection = false;
     let extIndent = 0;
-    for (const rawLine of rawCfg.split(/\r?\n/)) {
+    for (const rawLine of rawCfg.split(/\\r?\\n/)) {
       const cleaned = stripComment(rawLine);
       if (!cleaned || cleaned.startsWith("#")) continue;
       const indent = rawLine.length - rawLine.trimStart().length;
       if (!inExtSection || indent <= extIndent) {
-        const hdr = /^(extensions|skills|plugins)\s*:\s*$/.exec(cleaned);
+        const hdr = /^(extensions|skills|plugins)\\s*:\\s*$/.exec(cleaned);
         inExtSection = Boolean(hdr);
         extIndent = indent;
         continue;

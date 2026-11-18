@@ -188,6 +188,9 @@ async function main(): Promise<void> {
   const args = parseCliArgs(process.argv.slice(2));
   assertCurrentBranch(args.cwd, args.branchRef);
   const context = await resolveTrustedContext(args.cwd, { configPath: args.configPath });
+  // Re-assert on the same observation used for scope binding so a mid-flight
+  // checkout cannot write the checkpoint under a different branch identity.
+  assertCurrentBranch(args.cwd, args.branchRef);
   if (context.selection?.storage.adapter !== "repo-files" || context.selection?.integrationRef) {
     throw new Error("Checkpoint CLI supports only repo-files without integration_ref.");
   }

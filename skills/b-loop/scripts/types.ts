@@ -43,6 +43,8 @@ export interface BranchValidationResult {
   branchRef: string;
   branchName: string;
   headCommit: string;
+  /** Absolute Git top-level directory for this worktree (lock/checkpoint binding). */
+  worktreeRoot?: string;
 }
 
 export interface PinnedPhase {
@@ -103,6 +105,8 @@ export interface SaveStageProof {
   runId?: string;
   receiptStatus: "attempted" | "complete" | "ambiguous";
   artifactRevisions: string[];
+  /** Repo-relative paths of verified save outputs eligible for commit staging. */
+  savedPaths?: string[];
   verifiedAt?: string;
 }
 

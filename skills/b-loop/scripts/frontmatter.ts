@@ -106,7 +106,14 @@ function processFrontmatterLine(state: YamlParseState, line: string): void {
 
   const listMatch = /^\s*-\s+(.*)$/.exec(cleaned);
   if (listMatch && state.inList) {
-    state.listItems.push(stripOuterQuotes(listMatch[1].trim()));
+    const item = stripOuterQuotes(listMatch[1].trim());
+    // Reject YAML block/folded scalar indicators; this parser does not consume following lines.
+    if (/^(?:[>|][-+]?)$/.test(item)) {
+      throw new Error(
+        `Unsupported YAML block scalar "${item}" under "${state.currentKey}"; use a single-line list item.`,
+      );
+    }
+    state.listItems.push(item);
     return;
   }
 

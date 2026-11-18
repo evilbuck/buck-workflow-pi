@@ -161,7 +161,9 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
     const subjectId = parseSubjectArgument(rawArgs, options.subject);
     const bridges = validateBridges(options.bridges);
     const branch = await validateNamedBranch(cwd, bridges.sh);
-    const origin = await tryReadGitOrigin(cwd, bridges.sh);
+    // Bind lock + stages to the Git top-level so subdirectory cwd shares the same writer lock.
+    const worktreeRoot = branch.worktreeRoot;
+    const origin = await tryReadGitOrigin(worktreeRoot, bridges.sh);
     validateStorageConfig({
       configPath: options.configPath,
       xdgConfigHome: options.xdgConfigHome,
@@ -170,7 +172,7 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
 
     const pinnedPlan = await resolveAndPinPlan(bridges.tool.workflow_state, subjectId, branch);
     const lock = acquireWriterLock({
-      cwd,
+      cwd: worktreeRoot,
       subjectId: pinnedPlan.subjectId,
       branchRef: branch.branchRef,
       xdgConfigHome: options.xdgConfigHome,
@@ -182,7 +184,7 @@ export async function runBuckLoop(options: BuckLoopOptions = {}): Promise<BuckLo
 
     let primaryError: unknown;
     try {
-      return await runWithAcquiredLock(options, cwd, pinnedPlan, branch.branchName, bridges);
+      return await runWithAcquiredLock(options, worktreeRoot, pinnedPlan, branch.branchName, bridges);
     } catch (error) {
       primaryError = error;
       throw error;

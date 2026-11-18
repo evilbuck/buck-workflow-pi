@@ -505,20 +505,29 @@ describe("scoped Git staging, baseline/tree pinning, and hygiene guards", () => 
       },
     };
 
+    const syncReviewFingerprint = async () => {
+      const fp = await computeWorktreeFingerprint(repo.dir, sh);
+      baseCtx.checkpoint.phases[phase.logicalName]!.build!.worktreeFingerprint = fp;
+      baseCtx.checkpoint.phases[phase.logicalName]!.review!.worktreeFingerprint = fp;
+    };
+
     // 1) Pre-existing staged change in index is refused on fresh commit prep
     writeFileSync(join(repo.dir, "src", "first.ts"), "export const first = 1;\n");
     execSync("git add src/first.ts", { cwd: repo.dir, stdio: "ignore" });
+    await syncReviewFingerprint();
     await expect(commitAdapter.prepareStarting?.(baseCtx)).rejects.toThrow(/pre-existing staged/i);
     execSync("git reset -q", { cwd: repo.dir, stdio: "ignore" });
 
     // 2) Unrelated dirty working tree file outside phase.files & verified metadata is refused
     writeFileSync(join(repo.dir, "UNRELATED.txt"), "stray change\n");
+    await syncReviewFingerprint();
     await expect(commitAdapter.prepareStarting?.(baseCtx)).rejects.toThrow(/unrelated dirty/i);
     rmSync(join(repo.dir, "UNRELATED.txt"));
 
     // 3) Unrelated subject dir under .context/ is also refused
     mkdirSync(join(repo.dir, ".context", "2026-11-17.other-subject"), { recursive: true });
     writeFileSync(join(repo.dir, ".context", "2026-11-17.other-subject", "notes.md"), "other\n");
+    await syncReviewFingerprint();
     await expect(commitAdapter.prepareStarting?.(baseCtx)).rejects.toThrow(/unrelated dirty/i);
     rmSync(join(repo.dir, ".context", "2026-11-17.other-subject"), { recursive: true, force: true });
   });
@@ -964,6 +973,9 @@ describe("scoped Git staging, baseline/tree pinning, and hygiene guards", () => 
 
     mkdirSync(join(repo.dir, "src2"), { recursive: true });
     writeFileSync(join(repo.dir, "src2", "stray.ts"), "export const stray = 1;\n");
+    seedAlt.phases[pinnedAlt.phases[0].logicalName]!.build!.worktreeFingerprint = await computeWorktreeFingerprint(repo.dir, sh);
+    seedAlt.phases[pinnedAlt.phases[0].logicalName]!.review!.worktreeFingerprint =
+      seedAlt.phases[pinnedAlt.phases[0].logicalName]!.build!.worktreeFingerprint;
     await expect(
       commitAdapter.prepareStarting!({ cwd: repo.dir, phase: pinnedAlt.phases[0], stage: "commit", pinnedPlan: pinnedAlt, checkpoint: seedAlt, attemptId: "att-src2", bridges: makeDemoBridges(repo.dir, wfAlt.tool, sh) }),
     ).rejects.toThrow(/unrelated dirty/i);
@@ -976,6 +988,9 @@ describe("scoped Git staging, baseline/tree pinning, and hygiene guards", () => 
     for (let i = 0; i < 45; i++) {
       writeFileSync(join(repo.dir, "src", "nested", `file-${i}.ts`), `export const n${i} = ${i};\n`);
     }
+    const fpAfterNested = await computeWorktreeFingerprint(repo.dir, sh);
+    seedAlt.phases[pinnedAlt.phases[0].logicalName]!.build!.worktreeFingerprint = fpAfterNested;
+    seedAlt.phases[pinnedAlt.phases[0].logicalName]!.review!.worktreeFingerprint = fpAfterNested;
     const ckptBackend = makeMemoryCkptBackend();
     await ckptBackend.write({ cwd: repo.dir, subjectId: repo.subjectId, branchRef: repo.branchRef, logicalName: CHECKPOINT_LOGICAL_NAME, checkpoint: seedAlt, expectedRevision: null });
     const done = await executeCheckpointLoop({

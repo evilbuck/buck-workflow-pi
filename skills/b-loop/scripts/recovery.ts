@@ -451,6 +451,30 @@ async function runStageStarting(
   return null;
 }
 
+async function assertLiveBranchMatchesPin(session: LoopSession): Promise<BlockerRecord | null> {
+  const expected = session.pinnedPlan.branchRef;
+  let actual: string;
+  try {
+    actual = (await runSh(session.bridges.sh, `git -C ${shellQuote(session.cwd)} symbolic-ref --quiet HEAD`)).trim();
+  } catch (error) {
+    return {
+      reason: `Unable to read live branch before stage dispatch: ${error instanceof Error ? error.message : String(error)}`,
+      nextSafeAction: `Checkout ${expected} and re-run /b-loop ${session.pinnedPlan.subjectId}.`,
+      attemptId: session.checkpoint.attemptId ?? undefined,
+      recordedAt: new Date().toISOString(),
+    };
+  }
+  if (actual !== expected) {
+    return {
+      reason: `Branch drifted before stage dispatch: expected ${expected}, got ${actual || "unknown"}.`,
+      nextSafeAction: `Checkout ${expected} and re-run /b-loop ${session.pinnedPlan.subjectId}.`,
+      attemptId: session.checkpoint.attemptId ?? undefined,
+      recordedAt: new Date().toISOString(),
+    };
+  }
+  return null;
+}
+
 async function dispatchAndVerifyStage(
   session: LoopSession,
   phase: PinnedPhase,
@@ -466,6 +490,17 @@ async function dispatchAndVerifyStage(
   if (startBlocked) return { result: startBlocked };
   // Refresh context after `runStageStarting` persists initial stage proofs (e.g. commit baseline/tree).
   const ctx = makeStageContext(session, phase, stage, attemptId);
+
+  const drift = await assertLiveBranchMatchesPin(session);
+  if (drift) {
+    return {
+      result: await recordBlocker(session, phase, stage, "starting", {
+        reason: drift.reason,
+        nextSafeAction: drift.nextSafeAction,
+        attemptId,
+      }),
+    };
+  }
 
   const dispatched = await adapter.dispatchWorking(ctx);
   await saveTransition(session, {

@@ -160,6 +160,14 @@ function makeValidBridges(overrides: {
         }
         return "true\n";
       }
+      if (command.includes("rev-parse --show-toplevel")) {
+        if (overrides.insideWorkTree === false) {
+          throw shellError("not a git repository", 128, "fatal: not a git repository");
+        }
+        const cwdMatch = /git -C (?:'((?:\\'|[^'])*)'|"((?:\\"|[^"])*)"|(\S+))/.exec(command);
+        const root = (cwdMatch?.[1] ?? cwdMatch?.[2] ?? cwdMatch?.[3] ?? ".").replace(/\\'/g, "'");
+        return `${root}\n`;
+      }
       if (command.includes("symbolic-ref --quiet HEAD")) {
         const ref = overrides.branchRef ?? "refs/heads/feat/demo";
         if (!ref) throw shellError("HEAD is detached", 1);
@@ -223,9 +231,40 @@ describe("prompt & skill contract", () => {
     expect(skillText).not.toContain("--stop");
     expect(skillText).toContain("/b-loop <subject>");
   });
+
+  it("preserves regex escapes through the outer eval template literal", () => {
+    const promptText = readFileSync(join(REPO_ROOT, "prompts/b-loop.md"), "utf8");
+    // File source must double-escape so the outer template yields \r \n \s in worker source.
+    expect(promptText).toContain("rawCfg.split(/\\\\r?\\\\n/)");
+    expect(promptText).toContain("line.replace(/\\\\s+#.*$/, \"\")");
+    expect(promptText).toContain("/^(extensions|skills|plugins)\\\\s*:\\\\s*$/");
+    const code = extractPromptEvalCode();
+    // Extracted body is the raw template text (still double-escaped); evaluating as a template yields \r \n.
+    expect(code).toContain("rawCfg.split(/\\\\r?\\\\n/)");
+    expect(code).toContain("line.replace(/\\\\s+#.*$/, \"\")");
+    const evaluated = Function(`return \`${code.replace(/`/g, "\\`")}\`;`)() as string;
+    expect(evaluated).toContain("rawCfg.split(/\\r?\\n/)");
+    expect(evaluated).toContain("line.replace(/\\s+#.*$/, \"\")");
+    expect(evaluated).toContain("/^(extensions|skills|plugins)\\s*:\\s*$/");
+  });
 });
 
 describe("frontmatter & tool result helpers", () => {
+  it("rejects YAML folded/literal block scalar indicators in list items", () => {
+    expect(() =>
+      parseFrontmatter(
+        [
+          "---",
+          "acceptance_criteria:",
+          "  - >-",
+          "    multi-line criterion",
+          "---",
+          "# Body",
+        ].join("\n"),
+      ),
+    ).toThrow(/block scalar/i);
+  });
+
   it("parses frontmatter scalars, inline comments, 1-char quotes, block lists, and quoted inline arrays", () => {
     const fm = parseFrontmatter([
       "---",

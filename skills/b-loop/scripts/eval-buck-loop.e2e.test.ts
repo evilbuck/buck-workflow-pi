@@ -3,6 +3,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, 
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+function detectOmpBinary(): boolean {
+  try {
+    execSync("which omp", { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+const HAS_OMP = detectOmpBinary();
 import {
   executeWorkflowState,
   rejectCallerScope,
@@ -522,7 +532,7 @@ async function runYieldCheckInSubprocess(f: WorktreeFixture): Promise<string> {
   }
 }
 
-describe("real OMP command-path E2E suite for /b-loop", () => {
+describe.skipIf(!HAS_OMP)("real OMP command-path E2E suite for /b-loop", () => {
   it(
     "executes packaged /b-loop <subject> in OMP on a separate worktree (no skills/ dir) across rejections, 2-phase milestones, closeout, idempotent re-run, and live-writer yield",
     { timeout: 150_000 },

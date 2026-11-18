@@ -253,9 +253,21 @@ export async function validateNamedBranch(
     throw new Error("Target directory is not inside a Git worktree.");
   }
 
+  let worktreeRoot: string;
+  try {
+    worktreeRoot = (await runSh(sh, gitCommand(cwd, "rev-parse --show-toplevel"))).trim();
+  } catch (error) {
+    throw new Error(
+      `Unable to resolve Git top-level directory: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!worktreeRoot) {
+    throw new Error("Unable to resolve Git top-level directory.");
+  }
+
   let branchRef: string;
   try {
-    branchRef = (await runSh(sh, gitCommand(cwd, "symbolic-ref --quiet HEAD"))).trim();
+    branchRef = (await runSh(sh, gitCommand(worktreeRoot, "symbolic-ref --quiet HEAD"))).trim();
   } catch {
     throw new Error("Detached HEAD is not supported: checkout a named local branch before running `/b-loop <subject>`.");
   }
@@ -266,7 +278,7 @@ export async function validateNamedBranch(
 
   let headCommit: string;
   try {
-    headCommit = (await runSh(sh, gitCommand(cwd, "rev-parse --verify HEAD^{commit}"))).trim();
+    headCommit = (await runSh(sh, gitCommand(worktreeRoot, "rev-parse --verify HEAD^{commit}"))).trim();
   } catch {
     throw new Error(`Named branch ${branchRef} has no valid HEAD commit (unborn branch).`);
   }
@@ -279,6 +291,7 @@ export async function validateNamedBranch(
     branchRef,
     branchName: branchRef.slice("refs/heads/".length),
     headCommit,
+    worktreeRoot,
   };
 }
 
@@ -290,8 +303,13 @@ export async function tryReadGitOrigin(
   try {
     const out = (await runSh(sh, gitCommand(cwd, "config --get remote.origin.url"))).trim();
     return out || undefined;
-  } catch {
-    return undefined;
+  } catch (error) {
+    const detail = textFromError(error);
+    // `git config --get` exits 1 when the setting is absent; other failures must propagate.
+    if (/\bexit 1\b/.test(detail)) {
+      return undefined;
+    }
+    throw new Error(`Unable to probe git remote.origin.url: ${detail}`);
   }
 }
 
