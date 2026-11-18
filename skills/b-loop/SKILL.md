@@ -1,51 +1,45 @@
 ---
 name: b-loop
-description: Run unattended Buck phase loops in OMP via hot-reloadable TypeScript eval runner (%load skills/b-loop/scripts/eval-buck-loop.ts) using native agent() and judge().
+description: Run unattended Buck phase loops for one named subject in OMP via installed module import using native agent(), judge(), sh(), and workflow_state.
 ---
 
 # /b-loop: Autonomous Buck Phase Loop Runner (OMP 18.x)
 
-`/b-loop` runs multi-phase Buck workflow plans to completion autonomously within Oh My Pi (OMP 18.x). It replaces the legacy background node-worker extension with a hot-reloadable TypeScript script (`skills/b-loop/scripts/eval-buck-loop.ts`) executed in OMP's Bun `eval` kernel (`language: "js"`) via `%load`.
-
-## Prerequisites
-
-- **Harness**: Oh My Pi (`omp` v18.21+) with the `eval` tool enabled.
-- **Eval kernel**: Bun JavaScript/TypeScript backend (`language: "js"`).
-- **Subagent routing**: `extensions/interactive-model-switch.ts` intercepts subagent spawns via `before_subagent_spawn` to route models per `/buck-models` stage profiles.
-
-> [!NOTE]
-> Non-OMP harnesses (such as standalone Pi or Claude Code) do not feature OMP's built-in `eval` worker and native `judge()` host bridges. On non-OMP harnesses, execute each phase step sequentially using standard Buck workflow commands: `/b-build` → `/b-review` → `/b-save` → `/b-commit`.
+`/b-loop <subject>` runs one named subject's discrete phased Buck workflow plan in Oh My Pi (OMP 18.x). Each phase runs `build -> review -> save -> commit` on a named local Git branch with the `repo-files` store and no `integration_ref`.
 
 ## Syntax
 
 ```bash
-/b-loop [target] [--status | --resume | --stop]
+/b-loop <subject>
 ```
 
 ### Arguments
 
-- `[target]`: Optional path to a specific subject directory (e.g. `.context/2026-11-16.feature/`), plan overview (`plan-*-phases.md`), or phase file (`phase-1-*.md`). If omitted, `/b-loop` automatically discovers the active subject and earliest incomplete phase in `.context/`.
-- `--status`: Inspect the status of the current or last loop run recorded in `.context/workflow/buck-loop.json` without modifying state.
-- `--resume`: Resume an interrupted or stopped loop from the saved `.context/workflow/buck-loop.json` snapshot. Resume restarts the recorded phase at build and keeps the saved loop count. A snapshot whose state is already `done` is reported and not rebuilt. With no snapshot, the runner starts at the first incomplete phase.
-- `--stop`: Safely abort the running loop and checkpoint its state in `.context/workflow/buck-loop.json`.
+- `<subject>`: Required subject identifier for an existing discrete phased plan (for example `2026-11-17.b-loop-repair`). Automatic subject discovery, unphased plans, review candidate ranking, automatic `b-iterate` repair loops, and removed control or profile flags (status, resume, stop, profile) are unsupported and rejected before dispatching any stage.
 
-## Architecture & Flow
+## Invocation Contract
 
-When `/b-loop` is triggered, the outer agent assigns arguments to `globalThis.BUCK_LOOP_ARGS` and loads the runner via `eval`:
+When `/b-loop <subject>` is triggered, `prompts/b-loop.md` (and symlink `commands/b-loop.md`) resolves the installed `skills/b-loop/scripts/eval-buck-loop.ts` module path, imports it via `import()`, and calls `runBuckLoop` once inside `eval` (`language: "js"`, `timeout: 0`) with `{ args, cwd, bridges }`:
 
-```javascript
-eval({
-  language: "js",
-  code: "%load skills/b-loop/scripts/eval-buck-loop.ts",
-  timeout: 0
-});
-```
+- **Fail-closed bridge check**: `agent`, `wait`, `judge`, `sh`, `phase`, `log`, and `tool.workflow_state` must all be present; the runner never substitutes mock bridges.
+- **Pre-flight checks**: verifies a named Git branch with a valid `HEAD` commit (rejecting detached `HEAD` and unborn branches), checks effective storage configuration (`repo-files` only, no `integration_ref`), and pins the ordered discrete `phase-*.md` artifacts via `workflow_state`.
+- **Single-writer lock & private checkpoint**: stores one versioned private checkpoint per `(subject, branch, worktree)` using `FileStorageStore` (`b-loop/checkpoint.json`) with CAS + readback verification and an atomic writer lock (`state: "yielded"` if another live writer owns that binding).
+- **Non-OMP harnesses**: standalone Pi and Claude Code do not expose OMP's `eval` bridges; run `/b-build` → `/b-review` → `/b-save` → `/b-commit` manually per phase.
 
-The runner:
-1. **Discovers**: Scans `.context/` for active plans and phase files, loading frontmatter and acceptance criteria with zero bare npm specifiers.
-2. **Orchestrates**: Runs the phase cycle in this script. `extensions/buck-loop/` remains on disk and is not wired from `extensions/index.ts`; this runner does not call `machine.ts`.
-   - **Build**: Dispatches `agent(prompt, { agent: "task", label: "b-build-<phase>" })` (or `b-build-hard` for hard phases) and verifies acceptance criteria via `judge()`. A `bool: false` or `ok: false` verdict blocks save and commit.
-   - **Review**: Dispatches `agent(prompt, { agent: "task", label: "b-review-<phase>" })`. If findings are generated, ranks them via `judgeBatch()` and iterates via `b-iterate`.
-   - **Save**: Dispatches `agent(prompt, { agent: "task", label: "b-save-<phase>" })` to persist session memory and metadata.
-   - **Commit**: Stages `.context/` and phase `files:`, runs `b-commit`, and verifies git status baseline.
-3. **Closes**: When all phases are complete, executes `subject-lifecycle.ts close-verified` to close the subject.
+## Shared Milestones & Stage Boundaries
+
+Every stage (`build`, `review`, `save`, `commit`) and every phase reports the same four milestones in order:
+
+- **Stages**: `Phase N · b-build|b-review|b-save|b-commit starting|working|finished|verified` (logged with `· blocked` + `reason`, `nextSafeAction`, and optional `attemptId` on failure)
+- **Phases (derived)**: `Phase N · starting|working|finished|verified` (emitted via `phase()` for the status bar)
+
+Per-stage rules:
+
+- **`build`**: invokes `b-build` or `b-build-hard` (`STAGE_TOOLS.build`), preserves partial worktree edits on interruption, and checks each phase acceptance criterion via keyed native `judge()` (`bool >= 0.7`, reading direct OMP answers cleanly).
+- **`review`**: strictly read-only plus `workflow_state` (`STAGE_TOOLS.review` excludes `edit`, `write`, `bash`); binds to the verified build worktree fingerprint (including file permissions, symlinks, staged diffs, and deletions); preserves `review-*.md`/`iterate-*.md` and halts `save` at `b-review finished · blocked` if actionable findings exist (`MAX_PHASE_REWINDS = 3` on stale worktree drift).
+- **`save`**: binds `attemptId` (`write-receipt` `no-fact` `"attempted"` + private `run-state` journal, falling back cleanly to `workflow-state-cli.ts` when `workflow_state` uses `write` role) before saving, seals `"rows"` `complete` with `metadataDuties` + strict post-seal readback, and halts with `attemptId` if stale or ambiguous.
+- **`commit` & closeout**: refuses pre-existing staged index entries (including `.context/workflow/`) and unrelated dirty/untracked files outside `.context/<subject>/`, `.context/memory/`, `.context/backlog/`, and declared phase `files:`; pins deterministic phase/overview SHAs to the checkpoint before `workflow_state` writes; folds `subject-lifecycle.ts close-verified` into the final phase commit; pins `(baselineHead, expectedTree)` prior to committing; adopts single-parent commits matching that pin after crashes; and derives `done` strictly from reachable verified commits across all phases plus verified closeout.
+
+## Recovery
+
+Re-running `/b-loop <subject>` in the same branch/worktree loads the private checkpoint first, verifies plan/branch/worktree binding, adopts already-finished save/commit work when proofs match, or resumes cleanly once the reported blocker is fixed. See `docs/buck-loop.md` and `docs/howto/recover-buck-loop.md`.

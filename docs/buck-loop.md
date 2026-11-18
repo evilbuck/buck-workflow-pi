@@ -1,38 +1,39 @@
-# Buck-loop activity card
+# `/b-loop` Runner Contract (OMP 18.x)
 
-`/buck-loop` displays a stacked activity card with a closed heavy CURRENT box. `compact` shows state, skill, exact reported tokens and the animated spinner, followed by the legal continuations or deterministic next state; `standard` adds the previous visit's model/token cost, attempt and iteration, three activity rows and the known run total; `verbose` includes all retained activity rows, the continuation reason, per-visit input/output splits and the visit ledger. Tokens advance only when a completed assistant message reports usage, including cached input; missing usage remains `unknown`, never an estimate or an invented zero. Run totals include reported work-session usage only, not unreported judgment/selection costs. A visit that tried several models lists all of them beside its aggregate usage. Multi-choice continuations receive a separate native Jev score call and are labelled **ranked, not pre-selected**. Scores are fractional expectations on a 0–4 rubric, not probabilities. Native ranking failure shows the full legal set unranked and does not substitute a chat-model verdict or affect the existing chooser. The renderer and runtime observers do not change machine policy. The Loader stops and detaches when the command finishes, fails, or is stopped. Other extensions keep their existing activity widgets.
+`/b-loop <subject>` executes a single named subject's discrete phased plan inside Oh My Pi (`omp`) without extension-based background supervision (`extensions/buck-loop/` is unwired).
 
-Change density with `/buck-loop --profile compact|standard|verbose`, including during an active run. The setting lasts for the current host session and defaults to standard. See [Change Buck-loop activity density](howto/change-buck-loop-density.md) and [Watch Buck-loop activity](howto/watch-buck-loop-activity.md).
+## Invocation & Pre-Flight Scope
 
-Context occupancy is sampled from the running **child stage session**, not the parent supervisor chat or accumulated work tokens. It updates on child events and resets for each new child. Compact shows the percentage, standard shows `ctx 21%`, and verbose shows used tokens, window capacity and percentage (`ctx 42k / 200k · 21%`) alongside current input/output detail. After compaction, nullable occupancy shows only the known window (`ctx /200k`); if the entire usage value is unavailable, no context readout is shown. This display never triggers compaction or changes loop decisions.
+```text
+/b-loop <subject>
+```
 
-## Nested execution boundary
+- **Explicit installed module import**: `prompts/b-loop.md` (and symlink `commands/b-loop.md`) resolves installed `skills/b-loop/scripts/eval-buck-loop.ts` (from `BUCK_LOOP_RUNNER`, OMP plugin/agent skills paths, or local checkout) and invokes `runBuckLoop({ args, cwd, bridges })` inside `eval` (`language: "js"`, `timeout: 0`).
+- **Supported target**: one valid subject ID matching an existing discrete phased plan under `repo-files` storage without `integration_ref`, running on a named local Git branch with a resolved `HEAD` commit.
+- **Removed flags and paths**: legacy control/profile flags (status, resume, stop, profile), automatic subject discovery, unphased plans, review ranking (`judgeBatch`), and automatic `b-iterate` repair loops are unsupported and rejected before any stage runs.
 
-Restricted stages use native `workflow_state` for durable artifacts and Linux
-`workflow_exec` (Bubblewrap) for commands. They do not receive host `bash`.
-Commands see the checkout and installed runtime dependencies, but no machine
-storage/configuration, host credentials or network. Missing Bubblewrap or a failed
-namespace setup fails closed; there is no unrestricted-shell fallback.
-Git metadata is read-only inside `workflow_exec` until the commit checkpoint
-stage. The supervisor stages the declared checkpoint; the commit stage can
-mutate that Git metadata inside the same command isolation boundary. Host file
-tools do not yet enforce that Git-metadata rule. No child stage receives
-workflow administration permissions (`inspect`, `recover`, `migrate`).
-The standalone CLI remains available to operators and portable non-nested agents.
-Install the command boundary with [Install Bubblewrap for restricted stages](howto/install-bubblewrap-for-restricted-stages.md). Operators read artifacts with [Read a workflow artifact by token](howto/read-workflow-artifact-by-token.md).
+## Shared Four-Milestone Progress & Private Checkpoints
 
-## Completion authority
+- **Stages & phases**: every stage (`b-build`, `b-review`, `b-save`, `b-commit`) and enclosing phase advances through the same four milestones:
+  1. `starting`
+  2. `working`
+  3. `finished`
+  4. `verified`
+- **Status & log formatting**: OMP status displays `Phase <N> · starting|working|finished|verified` while logs emit `Phase <N> · b-<stage> starting|working|finished|verified` (with `· blocked` and `reason`, `nextSafeAction`, and optional `attemptId` when halted).
+- **Private binding & writer lock**: one versioned `FileStorageStore` checkpoint (`b-loop/checkpoint.json` via `skills/b-loop/scripts/checkpoint-cli.ts`) binds strictly to `(subject, branch, worktree)` with CAS + SHA-256 readback checks and a PID/liveness-checked writer lock (`state: "yielded"` if another writer owns the lock).
 
-The scanner reads phase, plan, review, and iterate artifacts from the configured
-workflow adapter, not from optional checkout exports. A non-empty phase
-`acceptance_criteria` list must be fully checked from observed evidence before
-the building postcondition confirms. A completed save receipt proves its bound
-attempt, not unfinished phase acceptance; a local `completed: true` flag cannot
-replace exact selected-store readback.
+## Per-Stage Execution & Safety Boundaries
 
-Storage selection follows the extension module actually loaded by OMP. Running
-in a feature worktree does not replace an older package registered in the host's
-`extensions` list. Integration proofs must load the intended implementation and
-use the same configuration for native tools, the scanner, save, and fresh-process
-resume. Restart the host after replacing an extension; `/reload` does not replace
-already imported modules.
+- **Restricted tool allowlists (`STAGE_TOOLS`)**:
+  - `build`: `read`, `edit`, `write`, `grep`, `find`, `ls`, `bash`, `workflow_state`
+  - `review`: `read`, `grep`, `find`, `ls`, `workflow_state` (read-only code inspection; no `edit`, `write`, or `bash`)
+  - `save`: `read`, `edit`, `write`, `grep`, `find`, `ls`, `workflow_state` (no `bash`)
+  - `commit`: `read`, `grep`, `find`, `ls` (drafts Conventional Commits message only; coordinator validates index/tree and executes Git commands)
+- **`build` & native `judge()`**: preserves partial worktree edits across crashes and evaluates acceptance criteria with keyed OMP `judge(state, questions)` (`bool >= 0.7`, reading `result.answers`).
+- **`review` freshness**: binds to `BuildStageProof.worktreeFingerprint` (tracking tracked files, untracked non-ignored files, symlinks, file permissions, staged diffs, and deletions while ignoring `.context/workflow/` and review/iterate reports). Clean reviews are reused across matching restarts; actionable findings write `review-*.md`/`iterate-*.md` and block `save` at `b-review finished · blocked`.
+- **`save` journal & receipt binding**: writes `no-fact` `"attempted"` receipt + private `run-state` journal before dispatching `b-save` (falling back cleanly to `skills/_shared/scripts/workflow-state-cli.ts` when `workflow_state` uses `write` role), verifies saved revision readback, seals `"rows"` `"complete"` with `metadataDuties`, requires strict post-seal `read-receipt` confirmation, and blocks `save` if the worktree drifted since clean review.
+- **Scoped `commit`, `close-verified`, and `done`**: refuses pre-existing staged changes (including `.context/workflow/`) and unrelated dirty/untracked paths outside `.context/<subject>/`, `.context/memory/`, `.context/backlog/`, and declared phase `files:` (exact paths or trailing-slash directory prefixes); pins phase/overview SHAs to the checkpoint prior to `workflow_state` writes; folds `subject-lifecycle.ts close-verified` into the final commit; pins `(baselineHead, expectedTree)` before committing; adopts single-parent commits matching that pin after crashes; and derives `done` strictly from reachable verified phase commits plus canonical closeout (`state === "completed"`, `canonical === true`, `verifiedClosed === true`, zero blockers).
+
+## Recovery
+
+To continue after an interruption or blocker, inspect the logged `reason`, `nextSafeAction`, and `attemptId` (see [Recover a blocked `/b-loop` run](howto/recover-buck-loop.md)), resolve the reported cause, and re-run the same `/b-loop <subject>` command in that branch and worktree.

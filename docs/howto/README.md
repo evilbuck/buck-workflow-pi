@@ -9,11 +9,11 @@ steps, then **Eat** — the check that it worked.
 2. [Configure and activate a Buck model profile](configure-buck-model-profiles.md)
 3. [Prune retained /code-review runtime](prune-code-review-runtime.md)
 4. [Inspect project token use](inspect-project-token-use.md)
-5. [Watch /buck-loop activity](watch-buck-loop-activity.md)
-6. [Recover a blocked /buck-loop run](recover-buck-loop.md)
+5. [Watch legacy `/buck-loop` activity (historical)](watch-buck-loop-activity.md)
+6. [Recover a blocked `/b-loop` run](recover-buck-loop.md)
 7. [Recall project memories](recall-project-memories.md)
-8. [Resume /buck-loop after a supervisor repair](resume-buck-loop-after-repair.md)
-9. [Change /buck-loop activity density](change-buck-loop-density.md)
+8. [Resume `/b-loop` after a runner or host update](resume-buck-loop-after-repair.md)
+9. [Change legacy `/buck-loop` activity density (historical)](change-buck-loop-density.md)
 10. [Turn automatic memory capture off](toggle-turn-memory.md)
 
 ## Durable workflow state

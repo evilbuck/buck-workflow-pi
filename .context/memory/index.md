@@ -1,3 +1,27 @@
+- 2026-11-17 — [fix-pr #73: validate and address CodeRabbit review on b-loop repair](fix-pr-73-2026-11-17.md) — `review_pending` (3 fix loops; CI green @ a60786f; 8/8 settlement polls; no independent re-review)
+
+  - 2026-11-17 | `fix-pr-73-2026-11-17.md` | domains: [b-loop, review, recovery, git, ci] | topics: [fix-pr, coderabbit, checkpoint-lock, commit-tree, save-receipt, e2e-skip] | status: review_pending
+
+- 2026-11-17 — [`/b-loop` repair Phase 5: real OMP E2E suite, stale-review `save` start guard & doc sync](b-loop-phase-5-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-5-2026-11-17.md` | domains: [b-loop, omp, e2e, docs, recovery] | topics: [b-loop, omp-eval, e2e-testing, stale-review-guard, docs-sync] | status: completed
+
+- 2026-11-17 — [`/b-loop` repair Phase 4: scoped Git staging, tree-pinned commit & closeout folding](b-loop-phase-4-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-4-2026-11-17.md` | domains: [b-loop, git, lifecycle, recovery, workflow] | topics: [b-loop, git-commit, tree-pinning, close-verified, crash-recovery, validation] | status: completed
+
+- 2026-11-17 — [`/b-loop` repair Phase 3: restricted stage boundaries, keyed `judge()`, build-fingerprinted `b-review`, receipt-bound `b-save`](b-loop-phase-3-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-3-2026-11-17.md` | domains: [b-loop, omp, workflow, recovery, stages] | topics: [b-loop, stage-tools, omp-judge, review-fingerprint, save-receipt, run-state] | status: completed
+
+- 2026-11-17 — [`/b-loop` repair Phase 2: private `FileStorageStore` checkpoint CAS/readback, writer locking, shared 4 milestones & proof-driven recovery](b-loop-phase-2-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-2-2026-11-17.md` | domains: [b-loop, checkpoints, recovery, locking, storage] | topics: [b-loop, private-checkpoint, cas-readback, writer-lock, milestones, recovery] | status: completed
+
+- 2026-11-17 — [`/b-loop` repair Phase 1: explicit module import, `A-4` validation in OMP, fail-closed preflight & YAML storage parser](b-loop-phase-1-2026-11-17.md) — `completed`
+
+  - 2026-11-17 | `b-loop-phase-1-2026-11-17.md` | domains: [b-loop, omp, validation, workflow] | topics: [b-loop, omp-eval, module-import, preflight-validation, a-4] | status: completed
+
 - 2026-11-16 — [Viability cleanup Phase 4 (M1–M5): move cross-platform-pi-omp-loading to docs/, delete node5-code-review, and close out 2026-10-01.skill-command-viability](viability-cleanup-phase-4-move-out-2026-11-16.md) — `completed`
 
   - 2026-11-16 | `viability-cleanup-phase-4-move-out-2026-11-16.md` | domains: [skills, refactor, docs, testing] | topics: [viability-cleanup, cross-platform-pi-omp-loading, node5-code-review, catalog-cleanup] | status: completed

@@ -12,7 +12,7 @@ The second principle is **make material decisions visible**. Routine, reversible
 - **Subject Folders**: Group related work (research, plans, specs) by topic and date
 - **Cross-References**: Link artifacts so agents can cold-start with full context
 - **Prompt/Command Mirrors**: Pi reads `prompts/`; OMP reads the one-to-one `commands/` symlink mirror. Every slash-command body lives in `prompts/`; `scripts/commands-mirror.test.ts` rejects physical exceptions and undeclared extras. See [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)
-- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands, `/buck-loop`, the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and native `workflow_state` over the configured storage adapter.
+- **Composed Runtime Extension**: One manifest entry (`extensions/index.ts`) wires named Buck model routing, `/buck-models`, TPS tracking, deterministic commands (`/b-save`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`), the local `/code-review` iteration loop, an opt-in plan-artifact bridge, and native `workflow_state` over the configured storage adapter (`extensions/buck-loop/` is unwired; autonomous phased runs in OMP use `/b-loop <subject>` via `eval`).
 - **b-prefix Discoverability**: Type `/b-` to find Buck workflow prompt commands in Pi or OMP
 
 ### Durable workflow storage
@@ -87,7 +87,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-backlog` (skill-only) | Skill | Skill | `skills/b-backlog/SKILL.md` — backlog item authoring delegated to a subagent |
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
-| `/b-loop` | Prompt template + Skill | Slash command symlink | `prompts/b-loop.md`; `commands/b-loop.md`; `skills/b-loop/SKILL.md` + `scripts/eval-buck-loop.ts` — hot-reloadable OMP `workflowz` eval loop; `extensions/buck-loop/` is unwired |
+| `/b-loop` | Prompt template + Skill | Slash command symlink | `prompts/b-loop.md`; `commands/b-loop.md`; `skills/b-loop/SKILL.md` + `scripts/eval-buck-loop.ts` — OMP `eval` single-subject (`repo-files`) phased runner; `extensions/buck-loop/` is unwired |
 | `/buck-models` | Extension command | Slash command (extension) | `extensions/buck-models/` — create, edit, and activate named Buck model profiles |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
@@ -114,7 +114,7 @@ Practical translation rules:
 
 ## b-flow — Removed
 
-XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/b-loop` for an existing-plan runner (`%load skills/b-loop/scripts/eval-buck-loop.ts`). `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
+XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/b-loop <subject>` for an existing discrete phased plan (explicitly imported from installed `skills/b-loop/scripts/eval-buck-loop.ts` inside OMP `eval`). `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
 
 ---
 
@@ -189,50 +189,13 @@ for the decision log.
   never trigger the notices. The user must say the keyword.
 - **Does not auto-`/goal set` for the user.** Goal mode is a
   user-toggled runtime state. The plan can recommend, not enable.
-- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/b-loop` is the observably invoked plan runner executed via `%load skills/b-loop/scripts/eval-buck-loop.ts` inside OMP's Bun `eval` kernel (`language: "js"`). It replaces the unwired `extensions/buck-loop/` background supervisor. The eval script runs the phase cycle itself and does not call `extensions/buck-loop/machine.ts`. `/b-loop` does not auto-plan, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+- **Does not hide a new orchestrator.** The b-flow deprecation (2026-06-01, see `.context/2026-06-01.deprecate-b-flow/`) still stands for *uninvoked* XState machines. `/b-loop <subject>` is the observably invoked plan runner executed via explicit installed module `import()` of `skills/b-loop/scripts/eval-buck-loop.ts` inside OMP's Bun `eval` kernel (`language: "js"`, `timeout: 0`). It replaces the unwired `extensions/buck-loop/` background supervisor and does not call `extensions/buck-loop/machine.ts`. `/b-loop <subject>` does not auto-discover subjects, run unphased plans, accept legacy status/resume/stop/profile flags, rank review options (`judgeBatch`), auto-run `b-iterate`, inject into the main session, or enable OMP loop keywords. `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md) and [docs/buck-loop.md](buck-loop.md).
 
-- **Ambiguous postconditions are diagnosed, then lifted.** A phase whose acceptance boxes are all
-  checked but whose status is not completed is marked complete by the supervisor.
-  An ok iterate session that leaves exactly one `status: active` `iterate-*.md` gets
-  the same treatment: the supervisor closes that one artifact and reviews the work.
-  `completed` and `below-waterline` artifacts are finished, not unfinished. Two
-  unfinished artifacts, a malformed one, or any failed close are left untouched.
-  Every remaining miss is diagnosed from the child report and the disk gap — an
-  iterating miss names each unfinished artifact and its status, not just the phase
-  status — and Jev classifies that diagnosis as a light, medium, operator, or heavy lift.
-  A finished build is not that miss. Session outcome `ok` goes to review and
-  does not classify a repair, even when acceptance boxes are open or the scan
-  is ambiguous. Review is the check that the build finished. If boxes are still
-  open after review, the supervisor writes an iterate artifact and the iterate
-  edge runs. Do not hold building to re-check them.
-  Light and medium lifts continue automatically once, with the diagnosis handed
-  to the next skill run. An operator lift is missing input the phase reserves
-  for the operator: a credential, a disposable database, a product decision, or
-  an approval. The loop blocks with `operator input required:` and does not
-  diagnose. Supply that input, then `/buck-loop --resume`; resume rebuilds the
-  phase. A heavy lift, or a lift call that does not return a legal class, is an
-  optional `diagnosing` transition: a nested session receives the halt and must
-  fix the store the scanner reads. Marking the phase file completed is not
-  enough when the scanner reads another adapter. One diagnose attempt per halt
-  is the ceiling; landed proof releases the allowance for a later independent
-  halt. The diagnosing bookmark is persisted before the child starts. Landed
-  build or iterate proof continues to review; landed documenting proof continues
-  to save; landed saving proof continues to commit. If that attempt does not
-  land the proof, the loop blocks and resume does not rebuild the phase. A
-  diagnose child that stops because operator input is actually missing ends
-  with `OPERATOR_INPUT_REQUIRED:`; that hold is resumable and does not use the
-  no-rebuild scanner-proof block.
-  A retry that changes `extensions/buck-loop/` blocks the loaded OMP process
-  until restart; see [resume after a supervisor repair](howto/resume-buck-loop-after-repair.md).
-- **Blocked resume preserves a completed phase's review.** If a build or iterate
-  was blocked and its projected phase is completed before the operator resumes,
-  the confirmed run enters review for that phase without incrementing the build
-  count. A still-incomplete phase follows the normal resolving/build path.
-- **Save and commit checkpoints trust durable artifacts.** A configured SQL save succeeds when the receipt verifies; pool teardown is an activity warning, not `SqlMemoryError`. Only an unresolved save-stage SQL work failure suppresses model retry. The commit checkpoint stages `.context/` and the active phase's `files:` list (exact paths, or a directory prefix ending in `/`), then refuses every other unstaged non-`.context` path. A missing `files:` field grants no extra scope. See [ADR 0003](adr/0003-checkpoint-trusts-durable-artifacts.md).
-- **Commit identity is pinned until Git proves completion.** Buck-loop persists the active target and pre-commit `HEAD` before commit effects, retains that marker across failures and restarts, and advances only when a clean worktree has exactly one verified commit after the baseline. A completed phase file or a clean tree alone is not commit proof. A live pin failure enters `repairing`, which re-probes Git for the current phase and then runs `b-commit`; a failed repair blocks, and resume retries that repair instead of starting the next phase. An inconsistent checkpoint marker still stays blocked for manual recovery rather than guessing the prior phase. See [recover a blocked run](howto/recover-buck-loop.md).
-- **Commit recovery does not create a second commit to clear dirt.** A commit effect is permitted only when Git positively observes the original baseline unchanged (or the original unborn HEAD still unborn). Advanced HEAD with remaining dirt, divergent history, and failed proof queries retain the checkpoint without invoking a commit child. After intended dirt is resolved, explicit resume rechecks the original baseline and can recognize the existing commit idempotently. Status reports the retained target/baseline and pending, verified, or unsafe evidence.
-- **An unphased commit is not completion evidence.** Both automatic and choice-advance commit paths require plan `status: completed` and no open box under `## Acceptance criteria` (only lowercase `[x]` is checked). The supervisor synchronizes status only from a non-empty, fully checked list; it never checks boxes. A missing or empty list keeps status-only eligibility. An ineligible historical `done` becomes `blocked` with the unchecked lines, and resume cannot restart build to bypass that hold. Eligible repair invokes `close-verified` and returns `done` without nested work only with committing history and a clean worktree before metadata synchronization. Lifecycle refusal stays blocked. See [recover a blocked run](howto/recover-buck-loop.md).
-- **Unrelated unphased blockers retain normal recovery.** The no-build closeout hold applies only to historical `done` or an existing unphased-closeout blocker. Interrupted build, review, or save work preserves its original failure reason and may resume through the normal confirmed work path even while acceptance remains open.
+- **Every stage uses four shared milestones and fail-closed checkpoints.** For a single named `<subject>` on a named local Git branch under the `repo-files` store without `integration_ref`, each stage (`b-build`, `b-review`, `b-save`, `b-commit`) and phase reports `starting`, `working`, `finished`, and `verified`, persisting one versioned private checkpoint per `(subject, branch, worktree)` with CAS + readback checks and a single-writer lock (`yielded` if another writer is live). Re-running the same `/b-loop <subject>` command after resolving any blocker resumes from the checkpoint and verifies proofs before continuing. See [recover a blocked run](howto/recover-buck-loop.md).
+
+- **Restricted tools, native `judge()` acceptance, and fingerprinted reviews.** `b-build` / `b-build-hard` (`STAGE_TOOLS.build`) preserves partial worktree edits on interruption and gates acceptance criteria on keyed OMP native `judge(state, questions)` (`bool >= 0.7`, reading direct `result.answers`). `b-review` runs read-only plus `workflow_state` (`STAGE_TOOLS.review` — no `edit`, `write`, or `bash`), hashes worktree state (including file modes, symlinks, staged diffs, and deletions while ignoring `.context/workflow/` and review/iterate reports), preserves `review-*.md` / `iterate-*.md`, halts `save` at `b-review finished · blocked` on actionable findings, and blocks `save` (`starting · blocked`, rewinding to `build` on re-run) if the worktree drifts after review.
+
+- **Journaled saves, scoped Git tree pinning, and built-in closeout.** `b-save` (`STAGE_TOOLS.save`, no `bash`) binds `attemptId` (`write-receipt` `no-fact` `"attempted"` + private `run-state` journal, falling back cleanly to `workflow-state-cli.ts` under `write`-role OMP tools), seals `"rows"` `complete` with `metadataDuties` + strict post-seal `read-receipt` verification, and adopts finished applies without duplicating saves. `b-commit` (`STAGE_TOOLS.commit`) refuses pre-existing staged index changes (including `.context/workflow/`) and unrelated dirty paths outside `.context/<subject>/`, `.context/memory/`, `.context/backlog/`, and declared phase `files:`, pins deterministic phase/overview SHAs to the checkpoint before `workflow_state` writes, runs `subject-lifecycle.ts close-verified` on the final phase and folds it into the pinned `(baselineHead, expectedTree)`, adopts matching single-parent commits (`HEAD^ === baselineHead`, `HEAD^{tree} === expectedTree`) without duplicating commits, and derives `done` strictly from reachable verified commits for every phase plus verified subject closeout. See [ADR 0003](adr/0003-checkpoint-trusts-durable-artifacts.md) and [restart OMP after a runner update](howto/resume-buck-loop-after-repair.md).
 - **Does not apply OMP controls on other harnesses.** The native
   `orchestrate` and `workflow` keywords and `/goal` command are OMP-only;
   the `b-plan` "OMP Execution Recommendation" table returns `none` on
@@ -530,9 +493,9 @@ flowchart TD
 | [**git-cleanup**](#git-cleanup--landed-git-cleanup) | Prompt template + Skill | `/git-cleanup` | `prompts/git-cleanup.md` + `commands/git-cleanup.md` + `skills/git-cleanup/SKILL.md` | Delete proven-landed clean local branches and worktrees; everything else is asked |
 | [**git-clean-orphans**](#git-clean-orphans--alias-of-git-cleanup) | Prompt template | `/git-clean-orphans` | `prompts/git-clean-orphans.md` + `commands/git-clean-orphans.md` + `skills/git-cleanup/SKILL.md` | Alias of `/git-cleanup` — proven-landed clean locals are deleted; everything else is asked |
 | [**product-tour**](#product-tour--guided-product-tours) | Prompt template + Skill | `/product-tour` | `prompts/product-tour.md` + `commands/product-tour.md` + `skills/product-tour/SKILL.md` | Design and ship a first-run guided product tour over real UI, stack-agnostic |
-| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/buck-loop` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save` `/b-kamal-release` | `extensions/{buck-models,buck-loop,code-review-iteration,b-pr-improved,b-commit-improved,b-save,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles, `/buck-loop` runs plans, and `/code-review` runs local review/fix passes |
+| [**Runtime extension commands**](#deterministic-extension-commands) | Extension commands | `/buck-models` `/code-review` `/b-pr-improved` `/b-commit-improved` `/b-save` `/b-kamal-release` | `extensions/{buck-models,code-review-iteration,b-pr-improved,b-commit-improved,b-save,b-kamal-release}/` | Wired via `extensions/index.ts`; `/buck-models` manages stage profiles and `/code-review` runs local review/fix passes (`extensions/buck-loop/` is unwired) |
 
-**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). The wired extension (`extensions/index.ts`) registers `/buck-models`, `/buck-loop`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/b-save-improved`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. `prompts/b-save-improved.md` is only a prompt alias for `skills/b-save/SKILL.md`. See [Runtime Extension Scope](#runtime-extension-scope).
+**Implementation note:** this package exposes prompt-backed slash commands from one source: `prompts/*.md`, mirrored one-to-one by `commands/*.md` symlinks and enforced by `scripts/commands-mirror.test.ts` (see [docs/extension-loading.md](extension-loading.md#the-commands-vs-prompts-discrepancy)). `/b-loop <subject>` is prompt-backed via `prompts/b-loop.md` → installed `skills/b-loop/scripts/eval-buck-loop.ts` inside OMP `eval`. The wired extension (`extensions/index.ts`) registers `/buck-models`, local `/code-review`, `/b-pr-improved`, `/b-commit-improved`, `/b-kamal-release`, and `/b-save`, plus the opt-in plan-artifact `turn_end` hook; it does not register `/buck-loop`, `/b-save-improved`, `/b-commit`, `/b-mode`, `/b-flow`, or `/b-next`. `prompts/b-save-improved.md` is only a prompt alias for `skills/b-save/SKILL.md`. See [Runtime Extension Scope](#runtime-extension-scope).
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
@@ -550,7 +513,7 @@ Its default export composes every wired subsystem:
 
 1. **Named Buck model routing** — Reads `buckModels` profiles through
    `extensions/omp-models.ts`; resolves a stage group for interactive Buck
-   commands and `/buck-loop`, asks Jev to choose an available configured id,
+   commands and `b-*` OMP `eval` subagents (`/b-loop`), asks Jev to choose an available configured id,
    applies that stage's thinking level, and refuses rather than inheriting the
    host model when resolution cannot produce a candidate.
 2. **TPS tracker** — Token-per-second generation metrics
@@ -568,9 +531,10 @@ Its default export composes every wired subsystem:
    `BUCK_PLAN_ARTIFACT=1`) `turn_end` hook in `extensions/plan-artifact.ts`
    that detects OMP plan-mode exit and persists the plan file into the
    `.context/<YYYY-MM-DD>.<slug>/plan-<slug>.md` subject convention so `/b-build` subject resolution finds it.
-8. **`/buck-loop`** — Observably invoked existing-plan runner
-   (`extensions/buck-loop/`). Its nested work and closed-set choice calls use
-   the active Buck model profile. Artifacts win on resume. See [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
+8. **`extensions/buck-loop/` (historical, unwired)** — Unwired in favor of
+   prompt-backed `/b-loop <subject>` (`prompts/b-loop.md` + `skills/b-loop/`),
+   which invokes nested `b-*` subagents via OMP `eval` with private
+   checkpoints (`FileStorageStore`) and artifacts-first recovery. See [docs/buck-loop.md](buck-loop.md) and [ADR 0002](adr/0002-observably-invoked-happy-path-loop.md).
 9. **`/buck-models`** — Interactive editor for project and user-global named
    Buck model profiles (`extensions/buck-models/`).
 10. **`/code-review` local iteration** — Bounded Reviewer → optional Fixer →
@@ -1106,14 +1070,13 @@ Each profile can define these twelve exact stage keys:
 | `save` | `/b-save` |
 | `commit` | `/b-commit` |
 | `docs` | `/b-docs`, `/b-howto` |
-| `choice` | `/buck-loop` closed-set choice only |
+| `choice` | Historical unwired `extensions/buck-loop/` choice key (not used by `/b-loop`, which removed `judgeBatch` ranking) |
 | `research` | `/b-research`, `/b-explore` |
 | `grill` | `/b-grill`, `/b-grill-me`, `/b-grill-auto`, `/b-grill-with-docs` |
 | `present` | `/b-present` |
 
 Unknown stage keys are ignored. Commands not listed above do not consult
-`buckModels`; in particular, `/buck-loop` is a supervisor, while its nested
-work and `choice` model calls are routed.
+`buckModels`; in particular, `/b-loop <subject>` itself is an `eval` coordinator while its nested `b-*` stage subagents are routed by stage key.
 
 ```yaml
 # .omp/config.yml or ~/.omp/agent/config.yml
@@ -1159,7 +1122,7 @@ Resolution is deterministic before selection:
    unless the user changed model manually.
 
 Missing profile, missing stage, and no-available-id outcomes are hard stops.
-Interactive commands are refused before execution; `/buck-loop` blocks. Buck
+Interactive commands are refused before execution; nested `/b-loop` stage spawns fail closed. Buck
 never silently uses the host session model.
 
 For a failed nested work or choice call, the host's own model retry/fallback
@@ -1681,7 +1644,7 @@ Git inspect lives in `skills/b-recap/SKILL.md` (exact command block, one scout).
 
 **Pi/OMP primitive**: Prompt command + skill (`prompts/b-save.md`, `commands/b-save.md`, `skills/b-save/SKILL.md`)
 
-In OMP `/buck-loop`, the save child writes reusable memory and metadata to the selected workflow adapter. A required receipt verifies exact project, branch, worktree, run, attempt, revision IDs, and completed metadata duties before commit. Local receipt exports and child prose cannot replace selected-store readback. Late teardown noise does not invalidate verified durable proof.
+In OMP `/b-loop <subject>`, the save child writes reusable memory and metadata to the selected workflow adapter (`repo-files` in current `/b-loop`). A required receipt verifies exact project, branch, worktree, run, attempt, revision IDs, and completed metadata duties before commit. Local receipt exports and child prose cannot replace selected-store readback. Late teardown noise does not invalidate verified durable proof.
 
 Portable `/b-save` uses native `workflow_state` or the shared CLI against that same adapter. `SQL_MEMORY_URL` gates required loop receipts; it never chooses a backend or authorizes a second memory store. Adapter outages fail closed rather than falling back to `.context/` or legacy SQL.
 
@@ -1819,12 +1782,11 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **[↑ Back to Quick Reference Table](#quick-reference-table)**
 
-Seven slash commands are backed by **code, not only prompt-following**, when `extensions/index.ts` is loaded. The four `*-improved` / `b-kamal-release` commands report live progress via `extensions/extension-activity.ts` and have a prompt/skill fallback where listed. `/buck-models` and `/buck-loop` have no skill fallback; `/code-review` falls back to the distinct portable release-PR workflow.
+Six slash commands are backed by **code, not only prompt-following**, when `extensions/index.ts` is loaded. The four `*-improved` / `b-kamal-release` commands report live progress via `extensions/extension-activity.ts` and have a prompt/skill fallback where listed. `/buck-models` has no skill fallback; `/code-review` falls back to the distinct portable release-PR workflow. (`/b-loop <subject>` is prompt-backed via `prompts/b-loop.md` + `skills/b-loop/scripts/eval-buck-loop.ts` inside OMP `eval`; `extensions/buck-loop/` is unwired.)
 
 | Command | Backing | What it does | Skill fallback |
 |---|---|---|---|
 | `/buck-models` | `extensions/buck-models/` | Creates, edits, and activates named Buck model profiles in project or user-global scope | — |
-| `/buck-loop` | `extensions/buck-loop/` | Observably invoked existing-plan runner: nested isolated sessions, artifact-wins resume | — |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop | `prompts/code-review.md` + `skills/code-review/` (release-PR workflow) |
 | `/b-commit-improved` | `extensions/b-commit-improved/` | Reads `draft-commit.md` (or drafts via the model), commits in line, cleans up the draft, verifies. Flags: `--force`, `--no-draft`, `--dry-run`, `--model` | `skills/git-commit/` |
 | `/b-save` | `extensions/b-save/` | Deterministic session-record checkpoint: snapshot → scribe + auditor + goal model roles → journaled apply. Portable script fallback: `save-preflight.ts` + `save-apply.ts`. `prompts/b-save-improved.md` loads the same skill and is not a separate extension command. | `skills/b-save/` |
@@ -2073,7 +2035,6 @@ Registered commands (runtime code paths; fallback behavior is named where one ex
 | `/b-save` | `extensions/b-save/` | Deterministic session checkpoint (snapshot + scribe/auditor/goal + journaled apply) |
 | `/b-kamal-release` | `extensions/b-kamal-release/` | Deterministic kamal release pipeline |
 | `/buck-models` | `extensions/buck-models/` | Create, edit, and activate named Buck model profiles |
-| `/buck-loop` | `extensions/buck-loop/` | Existing-plan runner with nested isolated sessions and artifact-wins resume |
 | `/code-review` | `extensions/code-review-iteration/` | Bounded local Reviewer → optional Fixer → fresh-Reviewer loop |
 
 Opt-in hook:
@@ -2120,7 +2081,7 @@ working-tree matches inside `.context/` audit documentation. Run
 
 ### Named Buck model routing
 
-The extension resolves interactive Buck commands and `/buck-loop` nested calls
+The extension resolves interactive Buck commands and `/b-loop <subject>` nested `b-*` calls
 through the active `buckModels` profile. Resolution uses project stage presence
 before user-global fallthrough, filters unavailable ids, then uses Jev or
 uniform random selection. Missing configuration stops rather than inheriting
@@ -2305,12 +2266,13 @@ Type `/b-` in Pi or OMP to see Buck workflow commands. Primary workflow catalog,
 
 **Runtime extension commands** (wired via `extensions/index.ts`; Pi/OMP only)
 - `/buck-models` — create, edit, and activate named Buck model profiles
-- `/buck-loop` — existing-plan happy-path runner
 - `/code-review` — bounded local Reviewer → optional Fixer → fresh-Reviewer loop
 - `/b-commit-improved` — code-driven Conventional Commit (`extensions/b-commit-improved/`, falls back to `skills/git-commit/`)
 - `/b-save` — code-driven session checkpoint (`extensions/b-save/`, falls back to `skills/b-save/`)
 - `/b-pr-improved` — code-driven PR creation
 - `/b-kamal-release` — kamal release pipeline
+
+*(Autonomous OMP phased plans use prompt-backed `/b-loop <subject>` via `prompts/b-loop.md` + `skills/b-loop/`; `extensions/buck-loop/` is unwired.)*
 
 **Prompt-backed slash commands:** every `commands/*.md` entry is a symlink to the matching `prompts/*.md`; Pi and OMP share the same prompt bodies.
 

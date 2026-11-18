@@ -1,14 +1,10 @@
-# Resume `/buck-loop` after a supervisor repair
+# Resume `/b-loop` after a runner or host update
 
-Use this when `/buck-loop` stops with `Restart OMP before continuing` after a non-test change under `extensions/buck-loop/`. Test-only edits (`__tests__/` directories and `*.test.*` / `*.spec.*` files) do not trip this stop — the running supervisor does not load them.
+Use this when installed files under `skills/b-loop/` or OMP package plugins changed while an OMP session already imported the runner module into its Bun `eval` worker. Because `import()` caches loaded TypeScript/ESM modules per worker lifetime, a fresh OMP session guarantees the updated runner loads cleanly.
 
 ## Steps
 
-1. Review the reported changed files and keep unrelated work out of the repair commit.
-2. Exit OMP and launch a fresh OMP process in the same repository. Reusing the current process keeps the old extension loaded.
-3. Run `/buck-loop --status` to check the saved reason and retained checkpoint. Run `/buck-loop --resume` only when status offers same-checkpoint recovery; missing identity or inconsistent ownership requires the manual recovery procedure below. If the working tree is dirty, review the paths before accepting any continuation prompt.
-   A retained commit checkpoint resumes the same phase only after `/buck-loop --resume` is explicitly confirmed. The supervisor verifies a clean one-commit successor of the stored baseline before advancing; it will not rerun a commit that already landed. If the marker is absent or inconsistent, follow [blocked-run recovery](recover-buck-loop.md) and complete the prior phase manually before starting another phase.
-   If the restart interrupted diagnosing, the attempt is already spent. Resume rescans that halt's original store without rebuilding or launching another diagnose child: landed proof continues to the successor; missing proof stays blocked with `diagnose did not land the scanner proof`.
-4. **Eat:** The restarted run no longer refuses with `Restart OMP before continuing`; it resumes work or reports the specific operator prerequisite still missing.
-
-If the phase names a missing disposable database or credential, provide it before expecting the phase to finish. A restart does not supply operator input.
+1. Review modified or uncommitted worktree files with `git status` and keep unrelated work outside the subject's `files:` scope before committing.
+2. Exit OMP and launch a fresh OMP process in the same repository/worktree and named branch so the cached `eval` worker restarts with the updated installed `skills/b-loop/scripts/eval-buck-loop.ts`.
+3. Re-run `/b-loop <subject>` with no extra flags (legacy status/resume/stop flags were removed). Completed saves, clean fingerprinted reviews, and matching single-parent commits are adopted idempotently from the private `(subject, branch, worktree)` checkpoint; see [Recover a blocked `/b-loop` run](recover-buck-loop.md) if a blocker remains.
+4. **Eat:** The new OMP session loads the updated runner, resumes from the last verified milestone (`starting`, `working`, `finished`, or `verified`), and advances or finishes with `state: "done"`.
