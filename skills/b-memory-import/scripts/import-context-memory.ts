@@ -239,6 +239,63 @@ function resolveSourceDir(root: string, raw: string): SourceDir {
   return { rel, abs, kind };
 }
 
+/**
+ * Greedily consume the values of one `--source-dirs` occurrence:
+ * every following non-flag argument, split on commas. Mirrors the
+ * wrapper's --include/--exclude convention. Returns the index of the
+ * last consumed value so the caller's loop can continue past them.
+ */
+function consumeSourceDirs(argv: string[], start: number): { end: number; parts: string[] } {
+  const parts: string[] = [];
+  let i = start;
+  while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+    parts.push(argv[++i]);
+  }
+  if (parts.length === 0) throw new Error("missing value for --source-dirs");
+  const split = parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean));
+  return { end: i, parts: split };
+}
+
+function parseLimitArg(raw: string): number {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) throw new Error("--limit must be >= 0");
+  return n;
+}
+
+function parseScopingArg(raw: string): Scoping {
+  if (!VALID_SCOPING.has(raw)) {
+    throw new Error(`--scoping must be one of ${[...VALID_SCOPING].join("|")}`);
+  }
+  return raw as Scoping;
+}
+
+/**
+ * Resolve source dirs in priority order: explicit --source-dirs wins;
+ * --memory-dir (deprecated) implies .context/memory; otherwise default
+ * is just .context/memory.
+ */
+function resolveConfiguredSourceDirs(
+  sourceDirsRaw: string[],
+  memoryDirOverride: string | null,
+  root: string,
+): SourceDir[] {
+  if (sourceDirsRaw.length > 0) {
+    return sourceDirsRaw.map((s) => resolveSourceDir(root, s));
+  }
+  if (memoryDirOverride !== null) {
+    // Treat the override as a memory-dir; re-express as a SourceDir relative path.
+    if (memoryDirOverride.startsWith(root + "/")) {
+      const rel = toPosix(memoryDirOverride.slice(root.length).replace(/^\/+/, ""));
+      return [resolveSourceDir(root, rel)];
+    }
+    throw new Error(
+      `--memory-dir "${memoryDirOverride}" is outside project root "${root}"; ` +
+      `pass --source-dirs with a relative path instead`,
+    );
+  }
+  return [resolveSourceDir(root, ".context/memory")];
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     root: process.cwd(),
@@ -284,23 +341,16 @@ export function parseArgs(argv: string[]): CliArgs {
         out.root = resolve(next());
         break;
       case "--source-dirs": {
-        // Greedy: consume all non-flag values and split on commas. Mirrors
-        // the wrapper's --include/--exclude convention.
-        const parts: string[] = [];
-        while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
-          parts.push(argv[++i]);
-        }
-        if (parts.length === 0) throw new Error(`missing value for ${a}`);
-        sourceDirsRaw.push(...parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean)));
+        const { end, parts } = consumeSourceDirs(argv, i);
+        i = end;
+        sourceDirsRaw.push(...parts);
         break;
       }
       case "--memory-dir":
         memoryDirOverride = resolve(next());
         break;
       case "--limit": {
-        const n = Number.parseInt(next(), 10);
-        if (!Number.isFinite(n) || n < 0) throw new Error("--limit must be >= 0");
-        out.limit = n;
+        out.limit = parseLimitArg(next());
         break;
       }
       case "--api-url":
@@ -313,11 +363,7 @@ export function parseArgs(argv: string[]): CliArgs {
         out.bankId = next();
         break;
       case "--scoping": {
-        const s = next();
-        if (!VALID_SCOPING.has(s)) {
-          throw new Error(`--scoping must be one of ${[...VALID_SCOPING].join("|")}`);
-        }
-        out.scoping = s as Scoping;
+        out.scoping = parseScopingArg(next());
         break;
       }
       case "--omp-config":
@@ -328,26 +374,7 @@ export function parseArgs(argv: string[]): CliArgs {
     }
   }
 
-  // Resolve source dirs in priority order: explicit --source-dirs wins;
-  // --memory-dir (deprecated) implies .context/memory; otherwise default
-  // is just .context/memory.
-  if (sourceDirsRaw.length > 0) {
-    out.sourceDirs = sourceDirsRaw.map((s) => resolveSourceDir(out.root, s));
-  } else if (memoryDirOverride !== null) {
-    // Treat the override as a memory-dir; re-express as a SourceDir relative path.
-    const trimmed = memoryDirOverride;
-    if (trimmed.startsWith(out.root + "/")) {
-      const rel = toPosix(trimmed.slice(out.root.length).replace(/^\/+/, ""));
-      out.sourceDirs = [resolveSourceDir(out.root, rel)];
-    } else {
-      throw new Error(
-        `--memory-dir "${memoryDirOverride}" is outside project root "${out.root}"; ` +
-        `pass --source-dirs with a relative path instead`,
-      );
-    }
-  } else {
-    out.sourceDirs = [resolveSourceDir(out.root, ".context/memory")];
-  }
+  out.sourceDirs = resolveConfiguredSourceDirs(sourceDirsRaw, memoryDirOverride, out.root);
   out.memoryDir = out.sourceDirs[0].abs;
   return out;
 }
