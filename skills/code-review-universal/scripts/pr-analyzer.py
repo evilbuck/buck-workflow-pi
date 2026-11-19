@@ -418,6 +418,23 @@ def estimate_review_time(files: List[FileStats], complexity: float) -> int:
     return max(5, min(120, int(adjusted_time)))
 
 
+def _first_security_sensitive_file(files: List[FileStats]) -> Optional[FileStats]:
+    """First file whose name matches a security-sensitive pattern, if any."""
+    security_patterns = ['.env', 'auth', 'security', 'password', 'token', 'secret']
+    for f in files:
+        if any(p in f.filename.lower() for p in security_patterns):
+            return f
+    return None
+
+
+def _has_database_changes(files: List[FileStats]) -> bool:
+    """True when any file is a migration or SQL."""
+    for f in files:
+        if 'migration' in f.filename.lower() or f.language == 'SQL':
+            return True
+    return False
+
+
 def identify_risk_factors(files: List[FileStats]) -> List[str]:
     """Identify potential risk factors in the PR."""
     risks = []
@@ -435,17 +452,13 @@ def identify_risk_factors(files: List[FileStats]) -> List[str]:
         risks.append("Low test ratio (<20%) - consider adding more tests")
 
     # Security-sensitive files
-    security_patterns = ['.env', 'auth', 'security', 'password', 'token', 'secret']
-    for f in files:
-        if any(p in f.filename.lower() for p in security_patterns):
-            risks.append(f"Security-sensitive file: {f.filename}")
-            break
+    security_file = _first_security_sensitive_file(files)
+    if security_file:
+        risks.append(f"Security-sensitive file: {security_file.filename}")
 
     # Database changes
-    for f in files:
-        if 'migration' in f.filename.lower() or f.language == 'SQL':
-            risks.append("Database changes detected - review carefully")
-            break
+    if _has_database_changes(files):
+        risks.append("Database changes detected - review carefully")
 
     # Config changes
     config_files = [f for f in files if f.is_config]
