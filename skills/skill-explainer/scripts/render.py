@@ -18,46 +18,50 @@ TRANSITION_KINDS = {"linear", "branch", "loop", "abort"}
 MUTATION_KINDS = {"create", "overwrite", "delete", "external"}
 INPUT_SOURCES = {"user", "file", "env", "tool"}
 
-
-def validate(a):
-    """Return a list of human-readable problems. Empty list means good."""
-    p = []
-
+def _identity_problems(a, p):
     ident = a.get("identity")
     if not isinstance(ident, dict):
         p.append("identity: missing (need an object with at least `name`)")
     elif not ident.get("name"):
         p.append("identity.name: missing")
 
+
+def _step_field_problems(s, where, p):
+    sid = s.get("id")
+    if not sid:
+        p.append(f"{where}.id: missing")
+    if not s.get("label"):
+        p.append(f"{where}.label: missing")
+    actor = s.get("actor")
+    if actor not in ACTORS:
+        p.append(f"{where}.actor: {actor!r} is not one of {sorted(ACTORS)}")
+    if not s.get("plain_english"):
+        p.append(f"{where}.plain_english: missing — this is the whole point of the report")
+    return sid
+
+
+def _step_problems(a, p):
+    """Report step problems; return the collected ids, or None when steps is unusable."""
     steps = a.get("steps")
     if not isinstance(steps, list) or not steps:
         p.append("steps: missing or empty (need at least one step)")
-        return p
-
+        return None
     ids = []
     for i, s in enumerate(steps):
         where = f"steps[{i}]"
         if not isinstance(s, dict):
             p.append(f"{where}: not an object")
             continue
-        sid = s.get("id")
-        if not sid:
-            p.append(f"{where}.id: missing")
-        else:
+        sid = _step_field_problems(s, where, p)
+        if sid:
             ids.append(sid)
-        if not s.get("label"):
-            p.append(f"{where}.label: missing")
-        actor = s.get("actor")
-        if actor not in ACTORS:
-            p.append(f"{where}.actor: {actor!r} is not one of {sorted(ACTORS)}")
-        if not s.get("plain_english"):
-            p.append(f"{where}.plain_english: missing — this is the whole point of the report")
-
     dupes = {i for i in ids if ids.count(i) > 1}
     if dupes:
         p.append(f"steps: duplicate ids {sorted(dupes)}")
-    known = set(ids)
+    return ids
 
+
+def _transition_problems(a, known, p):
     for i, t in enumerate(a.get("transitions", []) or []):
         where = f"transitions[{i}]"
         if not isinstance(t, dict):
@@ -71,16 +75,25 @@ def validate(a):
         if kind not in TRANSITION_KINDS:
             p.append(f"{where}.kind: {kind!r} is not one of {sorted(TRANSITION_KINDS)}")
 
-    for i, m in enumerate(a.get("mutations", []) or []):
-        kind = (m or {}).get("kind")
-        if kind not in MUTATION_KINDS:
-            p.append(f"mutations[{i}].kind: {kind!r} is not one of {sorted(MUTATION_KINDS)}")
 
-    for i, inp in enumerate(a.get("inputs", []) or []):
-        src = (inp or {}).get("source")
-        if src not in INPUT_SOURCES:
-            p.append(f"inputs[{i}].source: {src!r} is not one of {sorted(INPUT_SOURCES)}")
+def _enum_problems(items, label, key, allowed, p):
+    """Report entries whose `key` value is outside `allowed` (mutations/inputs sections)."""
+    for i, item in enumerate(items or []):
+        kind = (item or {}).get(key)
+        if kind not in allowed:
+            p.append(f"{label}[{i}].{key}: {kind!r} is not one of {sorted(allowed)}")
 
+
+def validate(a):
+    """Return a list of human-readable problems. Empty list means good."""
+    p = []
+    _identity_problems(a, p)
+    ids = _step_problems(a, p)
+    if ids is None:
+        return p
+    _transition_problems(a, set(ids), p)
+    _enum_problems(a.get("mutations"), "mutations", "kind", MUTATION_KINDS, p)
+    _enum_problems(a.get("inputs"), "inputs", "source", INPUT_SOURCES, p)
     return p
 
 
