@@ -52,7 +52,7 @@ async function importMigration(command: Command, legacy: boolean): Promise<unkno
   const snapshot: MigrationSnapshot = legacy ? legacySnapshot(context.projectId, original) : original;
   if (snapshot.projectId !== context.projectId) throw new Error("Import project identity mismatch");
   const destination = await openContextStore(command, context.selection!.storage);
-  try { await importSnapshot(destination.store, path, digest(context.selection!.storage), snapshot); return { complete: true, digest: digest(snapshot) }; }
+  try { await importSnapshot(destination.store, path, digest(context.selection!.storage), snapshot, legacy); return { complete: true, digest: digest(snapshot) }; }
   finally { await destination.close(); }
 }
 async function resumeCutover(command: Command, rollback: boolean): Promise<unknown> {

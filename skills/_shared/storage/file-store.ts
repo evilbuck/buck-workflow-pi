@@ -1,4 +1,4 @@
-import { assertEmptyOrReplay, emptySnapshot, quarantineMappedLegacy, revisionRow, rowRevision, rowKey, scopeSnapshot, validateSnapshot, type MigrationSnapshot } from "./migration.js";
+import { assertEmptyOrReplay, emptySnapshot, quarantineMappedLegacy, revisionRow, rowRevision, rowKey, scopeSnapshot, validateSnapshot, type MigrationInstallOptions, type MigrationSnapshot } from "./migration.js";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile, type FileHandle } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -370,7 +370,8 @@ export class FileStorageStore implements StorageStore {
     return scopeSnapshot(snapshot);
   }
 
-  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+  async installSnapshot(snapshot: MigrationSnapshot, options?: MigrationInstallOptions): Promise<void> {
+    if (options?.merge) throw new Error("Merge install is not supported on this adapter");
     validateSnapshot(snapshot);
     await this.#locked(async () => {
       if (assertEmptyOrReplay(await this.#snapshot(await this.#load(), snapshot.projectId), snapshot)) return;

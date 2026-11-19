@@ -3,7 +3,7 @@ import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { parseStorageConfig, resolveStorageConfig, type StorageSelection } from "./config.js";
 import { stringify } from "yaml";
-import { canonical, digest, emptySnapshot, MIGRATION_TABLES, validateSnapshot, type MigrationSnapshot, type MigrationStore, type MigrationTable } from "./migration.js";
+import { canonical, digest, emptySnapshot, MIGRATION_TABLES, validateSnapshot, verifyMergedInventory, type MigrationSnapshot, type MigrationStore, type MigrationTable } from "./migration.js";
 
 /** Private migration files contain exact payloads; stdout contains inventories/digests only. */
 export async function retainPrivate(path: string, value: unknown): Promise<void> {
@@ -25,12 +25,12 @@ export function dryRun(source: MigrationSnapshot, destination: MigrationSnapshot
 }
 interface ImportAttempt {
   version: 1; snapshot: MigrationSnapshot; sourceDigest: string; destination: string;
-  cursor: number; staged: MigrationSnapshot; status: "staging" | "installed";
+  cursor: number; staged: MigrationSnapshot; status: "staging" | "installed"; merge?: boolean;
 }
 /** Cursor and staged records share one atomic journal replacement. Visibility is a single adapter transaction. */
-export async function resumeImport(store: MigrationStore, path: string, destination: string, snapshot?: MigrationSnapshot, batchSize = 100): Promise<{ complete: boolean; cursor: number; digest: string }> {
+export async function resumeImport(store: MigrationStore, path: string, destination: string, snapshot?: MigrationSnapshot, batchSize = 100, merge = false): Promise<{ complete: boolean; cursor: number; digest: string }> {
   if (!Number.isSafeInteger(batchSize) || batchSize < 1) throw new Error("Invalid import batch size");
-  const attempt = await loadImportAttempt(path, destination, snapshot);
+  const attempt = await loadImportAttempt(path, destination, snapshot, merge);
   const records = (Object.keys(MIGRATION_TABLES) as MigrationTable[]).flatMap(table => attempt.snapshot.tables[table].map(row => ({ table, row })));
   const end = Math.min(records.length, attempt.cursor + batchSize);
   for (let index = attempt.cursor; index < end; index++) attempt.staged.tables[records[index]!.table].push(records[index]!.row);
@@ -38,29 +38,31 @@ export async function resumeImport(store: MigrationStore, path: string, destinat
   await retainPrivate(path, attempt);
   if (end < records.length) return { complete: false, cursor: end, digest: attempt.sourceDigest };
   if (digest(attempt.staged) !== attempt.sourceDigest) throw new Error("Staged import inventory mismatch");
-  await store.installSnapshot(attempt.staged);
-  if (digest(await store.migrationSnapshot(attempt.snapshot.projectId)) !== attempt.sourceDigest) throw new Error("Installed inventory readback mismatch");
+  await store.installSnapshot(attempt.staged, { merge });
+  const installed = await store.migrationSnapshot(attempt.snapshot.projectId);
+  if (merge) verifyMergedInventory(attempt.snapshot, installed);
+  else if (digest(installed) !== attempt.sourceDigest) throw new Error("Installed inventory readback mismatch");
   attempt.status = "installed";
   await retainPrivate(path, attempt);
   return { complete: true, cursor: end, digest: attempt.sourceDigest };
 }
-async function loadImportAttempt(path: string, destination: string, snapshot?: MigrationSnapshot): Promise<ImportAttempt> {
+async function loadImportAttempt(path: string, destination: string, snapshot: MigrationSnapshot | undefined, merge: boolean): Promise<ImportAttempt> {
   let attempt: ImportAttempt;
   try { attempt = JSON.parse(await readFile(path, "utf8")); }
   catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT" || !snapshot) throw error;
     validateSnapshot(snapshot);
-    attempt = { version: 1, snapshot, sourceDigest: digest(snapshot), destination, cursor: 0, staged: emptySnapshot(snapshot.projectId), status: "staging" };
+    attempt = { version: 1, snapshot, sourceDigest: digest(snapshot), destination, cursor: 0, staged: emptySnapshot(snapshot.projectId), status: "staging", ...(merge ? { merge: true } : {}) };
     await retainPrivate(path, attempt);
   }
   const expected = snapshot ? digest(snapshot) : attempt.sourceDigest;
-  if (attempt.version !== 1 || attempt.destination !== destination || attempt.sourceDigest !== digest(attempt.snapshot) || expected !== attempt.sourceDigest) throw new Error("Import attempt binding mismatch");
+  if (attempt.version !== 1 || attempt.destination !== destination || (attempt.merge ?? false) !== merge || attempt.sourceDigest !== digest(attempt.snapshot) || expected !== attempt.sourceDigest) throw new Error("Import attempt binding mismatch");
   validateSnapshot(attempt.snapshot);
   return attempt;
 }
 
-export async function importSnapshot(store: MigrationStore, path: string, destination: string, snapshot: MigrationSnapshot): Promise<void> {
-  while (!(await resumeImport(store, path, destination, snapshot)).complete) { /* persisted bounded batches */ }
+export async function importSnapshot(store: MigrationStore, path: string, destination: string, snapshot: MigrationSnapshot, merge = false): Promise<void> {
+  while (!(await resumeImport(store, path, destination, snapshot, 100, merge)).complete) { /* persisted bounded batches */ }
 }
 /** No branch or merge identity is synthesized. Original data and metadata remain recoverable, never discoverable. */
 export async function quarantineLegacy(directory: string, records: unknown): Promise<{ recoveryScope: string; count: number; digest: string }> {

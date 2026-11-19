@@ -7,7 +7,7 @@ import type { ArtifactKey, ArtifactRevision } from "../storage/contract.js";
 import { FileStorageStore } from "../storage/file-store.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
 import { dryRun, importSnapshot, prepareCutover, quarantineLegacy, resumeImport, switchCutover } from "../storage/cutover.js";
-import { digest, emptySnapshot, legacySnapshot, scopeSnapshot, selectSnapshot, type MigrationSnapshot } from "../storage/migration.js";
+import { assertMergeable, digest, emptySnapshot, legacySnapshot, missingRows, scopeSnapshot, selectSnapshot, verifyMergedInventory, type MigrationSnapshot } from "../storage/migration.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -146,6 +146,31 @@ describe("operational migration", () => {
     await file("selected").installSnapshot(selected);
     expect((await file("selected").list({ projectId: "project", branchId: "branch", publishedRevisionIds: [] })).map(row => row.revision)).toEqual([own.revision]);
     expect(await file("selected").list({ projectId: "project", branchId: "other", publishedRevisionIds: [] })).toEqual([]);
+  });
+
+  it("merge helpers allow disjoint inventories and refuse primary-key conflicts", () => {
+    const base = legacySnapshot("project", [{ id: "a", body: "a" }]);
+    const same = legacySnapshot("project", [{ id: "a", body: "a" }]);
+    const other = legacySnapshot("project", [{ id: "b", body: "b" }]);
+    const conflict = legacySnapshot("project", [{ id: "a", body: "CHANGED" }]);
+    expect(() => assertMergeable(base, same)).not.toThrow();
+    expect(() => assertMergeable(base, other)).not.toThrow();
+    expect(() => assertMergeable(base, conflict)).toThrow(/row conflict in artifact_revisions/);
+    expect(missingRows(base, same).tables.artifact_revisions).toEqual([]);
+    expect(missingRows(base, other).tables.artifact_revisions.map(row => row.revision)).toEqual(["b"]);
+    const merged = emptySnapshot("project");
+    for (const table of Object.keys(merged.tables) as (keyof typeof merged.tables)[]) merged.tables[table] = [...base.tables[table], ...other.tables[table]];
+    expect(() => verifyMergedInventory(other, merged)).not.toThrow();
+    expect(() => verifyMergedInventory(conflict, merged)).toThrow(/readback mismatch/);
+  });
+
+  it("merge installs are refused on adapters without merge support and stay strict by default", async () => {
+    const { root, file } = await fixture();
+    const existing = legacySnapshot("project", [{ id: "old", body: "old fact" }]);
+    const incoming = legacySnapshot("project", [{ id: "old", body: "old fact" }, { id: "fresh", body: "new fact" }]);
+    await file("destination").installSnapshot(existing);
+    await expect(importSnapshot(file("destination"), join(root, "strict.json"), "destination", incoming)).rejects.toThrow(/not empty or exact replay/);
+    await expect(importSnapshot(file("destination"), join(root, "merge.json"), "destination", incoming, true)).rejects.toThrow("Merge install is not supported on this adapter");
   });
 
   it("quarantines previously mapped legacy rows even when a branch name and valid hash exist", async () => {
