@@ -172,61 +172,63 @@ Config:
   CLI flags take precedence.`;
 
 // ── Parsing ────────────────────────────────────────────
+/** Boolean flags and the config key each sets. --list and --list-only are synonyms. */
+const BOOLEAN_FLAGS: Record<string, string> = {
+  help: "help",
+  yes: "yes",
+  list: "list",
+  "list-only": "list",
+  "dry-run": "dry_run",
+};
+
+/** Flags that consume the next non-flag token as their value. */
+const VALUE_FLAGS = new Set(["repo", "assignee", "base", "config", "max-issues"]);
+
+/** Parse a --format value; only "human" and "json" are legal. */
+function parseFormatValue(val: string): "human" | "json" {
+  if (val === "human" || val === "json") return val;
+  throw new Error(`Invalid --format value: ${val} (expected "human" or "json")`);
+}
+
+/**
+ * Apply one value flag. --max-issues validates as a positive integer
+ * (invalid values are ignored, as before); the rest assign by flag name.
+ */
+function applyValueFlag(key: string, val: string, overrides: Record<string, unknown>): void {
+  if (key === "max-issues") {
+    const n = parseInt(val, 10);
+    if (!isNaN(n) && n > 0) overrides.max_issues = n;
+  } else if (key === "repo" || key === "config") {
+    overrides[key === "config" ? "config" : "repo"] = val;
+  } else {
+    overrides[key] = val;
+  }
+}
+
 function parseFlags(args: string[]): Partial<AutoFixConfig> & { repo?: string; config?: string; yes?: boolean; help?: boolean; list?: boolean; format?: "human" | "json" } {
   const overrides: Record<string, unknown> = {};
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (!arg?.startsWith("--")) continue;
     const key = arg.slice(2);
-    switch (key) {
-      case "help":
-        overrides.help = true;
-        break;
-      case "yes":
-        overrides.yes = true;
-        break;
-      case "list":
-      case "list-only":
-        overrides.list = true;
-        break;
-      case "format": {
-        const val = args[i + 1];
-        if (val && !val.startsWith("--")) {
-          i++;
-          if (val === "human" || val === "json") {
-            overrides.format = val;
-          } else {
-            throw new Error(`Invalid --format value: ${val} (expected "human" or "json")`);
-          }
-        }
-        break;
-      }
-      case "dry-run":
-        overrides.dry_run = true;
-        break;
-      case "repo":
-      case "assignee":
-      case "base":
-      case "config":
-      case "max-issues": {
-        const val = args[i + 1];
-        if (val && !val.startsWith("--")) {
-          i++;
-          if (key === "max-issues") {
-            const n = parseInt(val, 10);
-            if (!isNaN(n) && n > 0) overrides.max_issues = n;
-          } else if (key === "repo" || key === "config") {
-            overrides[key === "config" ? "config" : "repo"] = val;
-          } else {
-            overrides[key] = val;
-          }
-        }
-        break;
-      }
+    const booleanKey = BOOLEAN_FLAGS[key];
+    if (booleanKey) {
+      overrides[booleanKey] = true;
+      continue;
+    }
+    const val = args[i + 1];
+    if (!val || val.startsWith("--")) continue;
+    if (key === "format") {
+      i++;
+      overrides.format = parseFormatValue(val);
+    } else if (VALUE_FLAGS.has(key)) {
+      i++;
+      applyValueFlag(key, val, overrides);
     }
   }
   return overrides as Partial<AutoFixConfig> & { repo?: string; config?: string; yes?: boolean; help?: boolean; list?: boolean; format?: "human" | "json" };
  }
+
 // ── Config loading ─────────────────────────────────────
 function loadConfig(configPath?: string): AutoFixConfig {
   const path = configPath ?? "auto-fix.config.json";
