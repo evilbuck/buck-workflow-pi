@@ -19,7 +19,7 @@ import { existsSync, writeFileSync, unlinkSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured } from "../subprocess.js";
-import { createActivity, type ActivityEvent } from "../extension-activity.js";
+import { createActivity, type Activity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
 
 
@@ -333,6 +333,185 @@ interface CommandUI {
   ) => void;
 }
 
+/** Preflight JSON fields the command handler consumes. */
+interface PreflightData {
+  currentBranch: string;
+  subjectFolder: string | null;
+  draftPath: string | null;
+  draftFromDisk: DraftBlock | null;
+  stagedFiles: string[];
+  diff: string;
+}
+
+/**
+ * Step 1: run the preflight script. Returns null (after notifying) when the
+ * command must stop — protected branch, nothing staged, or preflight failure.
+ */
+async function preflightOrNotify(opts: Options, cwd: string, notify: Notify): Promise<PreflightData | null> {
+  const pfArgs: string[] = [];
+  if (opts.force) pfArgs.push("--force");
+  if (opts.noDraft) pfArgs.push("--no-draft");
+  if (opts.dryRun) pfArgs.push("--dry-run");
+
+  const pf = await runPreflight(pfArgs, cwd);
+  if (pf.code === 2) {
+    const branch = (pf.json?.current_branch as string) ?? "unknown";
+    notify(`Protected branch '${branch}' — re-run with --force to commit here directly.`, "warning");
+    return null;
+  }
+  if (pf.code === 3) {
+    notify("Nothing staged. Stage changes first, then re-run.", "warning");
+    return null;
+  }
+  if (pf.code !== 0 || !pf.json) {
+    notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
+    return null;
+  }
+  const {
+    current_branch: currentBranch,
+    subject_folder: subjectFolder,
+    draft_path: draftPath,
+    draft: draftFromDisk,
+    staged_files: stagedFiles,
+    diff,
+  } = pf.json as {
+    current_branch: string;
+    subject_folder: string | null;
+    draft_path: string | null;
+    draft: DraftBlock | null;
+    staged_files: string[];
+    diff: string;
+  };
+  return { currentBranch, subjectFolder, draftPath, draftFromDisk, stagedFiles, diff };
+}
+
+/** The commit message once resolved, plus where it came from. */
+interface ResolvedMessage {
+  title: string;
+  body: string;
+  source: "draft" | "model";
+}
+
+/**
+ * Step 2: resolve {title, body} from the on-disk draft or the model.
+ * Returns null (after notifying) when no message could be produced.
+ */
+async function resolveMessage(
+  opts: Options,
+  data: PreflightData,
+  cwd: string,
+  activity: Activity,
+  notify: Notify,
+): Promise<ResolvedMessage | null> {
+  if (data.draftFromDisk && data.draftFromDisk.title.trim() !== "" && !opts.noDraft) {
+    return { title: data.draftFromDisk.title, body: data.draftFromDisk.body, source: "draft" };
+  }
+  activity.phase("Drafting commit message…");
+  const drafted = await draftFromModel(
+    cwd,
+    data.diff,
+    data.stagedFiles,
+    data.currentBranch,
+    opts.extraContext,
+    opts.model,
+    opts.dryRun,
+    data.subjectFolder,
+    activity.ingest,
+  );
+  if (!drafted) {
+    // In a normal run, fallbackDraft inside draftFromModel already wrote
+    // a stub draft-commit.md. In --dry-run, no file is written (per
+    // draftFromModel's contract), so the previous "Drafted to ${path}.
+    // Re-run ... to commit" message was misleading — it claimed a draft
+    // existed when it didn't. Tell the user the real story per mode.
+    if (opts.dryRun) {
+      notify(
+        `[dry-run] No model available and no draft on disk. Re-run /b-commit-improved (or /b-commit) once a model is available to draft.`,
+        "info",
+      );
+    } else {
+      const path = draftPathFor(data.subjectFolder);
+      notify(`Wrote a stub draft to ${path} ($TITLE/$BODY sentinels). Replace them or re-run once a model can draft.`, "info");
+    }
+    return null;
+  }
+  return { title: drafted.title, body: drafted.body, source: "model" };
+}
+
+/**
+ * Step 5: run the commit. Hooks may auto-stage files mid-commit; when the
+ * first attempt fails but the index now has entries, retry once. Returns
+ * false (after notifying) when the commit did not land.
+ */
+function commitWithRetry(commitArgs: string[], cwd: string, notify: Notify): boolean {
+  try {
+    execGit(commitArgs, cwd);
+  } catch (e: unknown) {
+    const msg = (e as Error).message;
+    const stagedNow = tryGit(["diff", "--cached", "--name-only"], cwd);
+    if (stagedNow.ok && stagedNow.stdout.trim() !== "") {
+      try {
+        execGit(commitArgs, cwd);
+      } catch (e2: unknown) {
+        notify(`git commit failed (after hook auto-stage retry): ${(e2 as Error).message}`, "warning");
+        return false;
+      }
+    } else {
+      notify(`git commit failed: ${msg}`, "warning");
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Step 6: delete the committed draft and amend the deletion into the commit.
+ * A lost race (another process deleting it first) is tolerated — the commit
+ * stands without the amend.
+ */
+function cleanupDraft(draftPath: string | null, cwd: string): void {
+  if (draftPath && existsSync(draftPath)) {
+    deleteDraft(draftPath);
+    try {
+      execGit(["add", "--", draftPath], cwd);
+    } catch {
+      // Race: another process deleted it first. Commit is fine without the amend.
+    }
+    try {
+      execGit(["commit", "--amend", "--no-edit"], cwd, { GIT_EDITOR: "true" });
+    } catch {
+      // Same race — commit stands as-is.
+    }
+  }
+}
+
+/**
+ * Step 7: paranoid verify — the committed message should never contain
+ * sentinels (step 3 refuses them), but if it does, amend with explicit values.
+ */
+function verifyCommitMessage(message: ResolvedMessage, cwd: string, notify: Notify): void {
+  const verifyRaw = tryGit(["log", "-1", "--format=%B"], cwd);
+  const committed = verifyRaw.ok ? verifyRaw.stdout.trim() : "";
+  if (hasCommitPlaceholders(committed)) {
+    try {
+      execGit(["commit", "--amend", "-m", message.title, "-m", message.body], cwd, { GIT_EDITOR: "true" });
+      notify("⚠️ commit message contained a $TITLE/$BODY placeholder; amended with explicit values.", "warning");
+    } catch (e: unknown) {
+      notify(`verify-pass amend failed: ${(e as Error).message}`, "warning");
+    }
+  }
+}
+
+/** Step 8: report the landed commit plus branch status. */
+function reportSuccess(message: ResolvedMessage, cwd: string, activity: Activity, notify: Notify): void {
+  notify(`✅ ${message.title}${message.body ? "\n" + message.body : ""}`, "info");
+  const status = tryGit(["status", "-sb"], cwd);
+  if (status.ok) notify(status.stdout.trimEnd(), "info");
+  const log = tryGit(["log", "-1", "--oneline"], cwd);
+  if (log.ok) notify(log.stdout.trimEnd(), "info");
+  activity.succeed("done");
+}
+
 async function runBCommitImproved(
   args: string,
   ctx: { cwd: string; ui: CommandUI },
@@ -344,157 +523,41 @@ async function runBCommitImproved(
 
   try {
     // 1. Preflight
-    const pfArgs: string[] = [];
-    if (opts.force) pfArgs.push("--force");
-    if (opts.noDraft) pfArgs.push("--no-draft");
-    if (opts.dryRun) pfArgs.push("--dry-run");
-
     activity.phase("preflight…");
-    const pf = await runPreflight(pfArgs, cwd);
-    if (pf.code === 2) {
-      const branch = (pf.json?.current_branch as string) ?? "unknown";
-      notify(`Protected branch '${branch}' — re-run with --force to commit here directly.`, "warning");
-      return;
-    }
-    if (pf.code === 3) {
-      notify("Nothing staged. Stage changes first, then re-run.", "warning");
-      return;
-    }
-    if (pf.code !== 0 || !pf.json) {
-      notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
-      return;
-    }
-
-    const {
-      current_branch: currentBranch,
-      subject_folder: subjectFolder,
-      draft_path: draftPath,
-      draft: draftFromDisk,
-      staged_files: stagedFiles,
-      diff,
-    } = pf.json as {
-      current_branch: string;
-      subject_folder: string | null;
-      draft_path: string | null;
-      draft: DraftBlock | null;
-      staged_files: string[];
-      diff: string;
-    };
+    const data = await preflightOrNotify(opts, cwd, notify);
+    if (!data) return;
 
     // 2. Resolve {title, body}. Commit in line once we have it.
-    let title = "";
-    let body = "";
-    let source: "draft" | "model" = "draft";
-
-    if (draftFromDisk && draftFromDisk.title.trim() !== "" && !opts.noDraft) {
-      title = draftFromDisk.title;
-      body = draftFromDisk.body;
-      source = "draft";
-    } else {
-      activity.phase("Drafting commit message…");
-      const drafted = await draftFromModel(
-        cwd,
-        diff,
-        stagedFiles,
-        currentBranch,
-        opts.extraContext,
-        opts.model,
-        opts.dryRun,
-        subjectFolder,
-        activity.ingest,
-      );
-      if (!drafted) {
-        // In a normal run, fallbackDraft inside draftFromModel already wrote
-        // a stub draft-commit.md. In --dry-run, no file is written (per
-        // draftFromModel's contract), so the previous "Drafted to ${path}.
-        // Re-run ... to commit" message was misleading — it claimed a draft
-        // existed when it didn't. Tell the user the real story per mode.
-        if (opts.dryRun) {
-          notify(
-            `[dry-run] No model available and no draft on disk. Re-run /b-commit-improved (or /b-commit) once a model is available to draft.`,
-            "info",
-          );
-        } else {
-          const path = draftPathFor(subjectFolder);
-          notify(`Wrote a stub draft to ${path} ($TITLE/$BODY sentinels). Replace them or re-run once a model can draft.`, "info");
-        }
-        return;
-      }
-      title = drafted.title;
-      body = drafted.body;
-      source = "model";
-    }
+    const message = await resolveMessage(opts, data, cwd, activity, notify);
+    if (!message) return;
 
     // 3. Pre-commit safety: refuse leftover template tokens.
-    if (hasCommitPlaceholders(title) || hasCommitPlaceholders(body)) {
+    if (hasCommitPlaceholders(message.title) || hasCommitPlaceholders(message.body)) {
       notify("Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.", "warning");
       return;
     }
 
     // 4. --dry-run: preview, optionally write the draft.
     if (opts.dryRun) {
-      const firstBodyLine = body.split("\n", 1)[0] ?? "";
-      notify(`[dry-run] ${title} — ${firstBodyLine}`, "info");
-      if (source === "model") persistDryRunDraft(cwd, subjectFolder, title, body, notify);
+      const firstBodyLine = message.body.split("\n", 1)[0] ?? "";
+      notify(`[dry-run] ${message.title} — ${firstBodyLine}`, "info");
+      if (message.source === "model") persistDryRunDraft(cwd, data.subjectFolder, message.title, message.body, notify);
       return;
     }
 
     // 5. Commit. Hooks may have auto-staged files — retry once on failure if so.
     activity.phase("Committing…");
-    const commitArgs = body ? ["commit", "-m", title, "-m", body] : ["commit", "-m", title];
-    try {
-      execGit(commitArgs, cwd);
-    } catch (e: unknown) {
-      const msg = (e as Error).message;
-      const stagedNow = tryGit(["diff", "--cached", "--name-only"], cwd);
-      if (stagedNow.ok && stagedNow.stdout.trim() !== "") {
-        try {
-          execGit(commitArgs, cwd);
-        } catch (e2: unknown) {
-          notify(`git commit failed (after hook auto-stage retry): ${(e2 as Error).message}`, "warning");
-          return;
-        }
-      } else {
-        notify(`git commit failed: ${msg}`, "warning");
-        return;
-      }
-    }
+    const commitArgs = message.body ? ["commit", "-m", message.title, "-m", message.body] : ["commit", "-m", message.title];
+    if (!commitWithRetry(commitArgs, cwd, notify)) return;
 
     // 6. Success cleanup: delete the draft and amend the deletion into the commit.
-    if (draftPath && existsSync(draftPath)) {
-      deleteDraft(draftPath);
-      try {
-        execGit(["add", "--", draftPath], cwd);
-      } catch {
-        // Race: another process deleted it first. Commit is fine without the amend.
-      }
-      try {
-        execGit(["commit", "--amend", "--no-edit"], cwd, { GIT_EDITOR: "true" });
-      } catch {
-        // Same race — commit stands as-is.
-      }
-    }
+    cleanupDraft(data.draftPath, cwd);
 
     // 7. Verify
-    const verifyRaw = tryGit(["log", "-1", "--format=%B"], cwd);
-    const message = verifyRaw.ok ? verifyRaw.stdout.trim() : "";
-    if (hasCommitPlaceholders(message)) {
-      // Paranoid: should never trigger given step 3, but mirror the existing skill.
-      try {
-        execGit(["commit", "--amend", "-m", title, "-m", body], cwd, { GIT_EDITOR: "true" });
-        notify("⚠️ commit message contained a $TITLE/$BODY placeholder; amended with explicit values.", "warning");
-      } catch (e: unknown) {
-        notify(`verify-pass amend failed: ${(e as Error).message}`, "warning");
-      }
-    }
+    verifyCommitMessage(message, cwd, notify);
 
     // 8. Final output
-    notify(`✅ ${title}${body ? "\n" + body : ""}`, "info");
-    const status = tryGit(["status", "-sb"], cwd);
-    if (status.ok) notify(status.stdout.trimEnd(), "info");
-    const log = tryGit(["log", "-1", "--oneline"], cwd);
-    if (log.ok) notify(log.stdout.trimEnd(), "info");
-    activity.succeed("done");
+    reportSuccess(message, cwd, activity, notify);
   } catch (e: unknown) {
     activity.fail(`error: ${(e as Error).message}`);
     throw e;
