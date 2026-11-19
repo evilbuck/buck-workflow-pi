@@ -61,20 +61,26 @@ export interface PlanExit {
 }
 
 /**
+ * Index of the LAST `mode_change → none` entry (the most recent exit
+ * from any mode), or -1 when the log never exits a mode.
+ */
+function lastModeNoneIndex(entries: unknown[]): number {
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i] as ModeChangeShape | undefined;
+    if (e?.type === "mode_change" && e.mode === "none") return i;
+  }
+  return -1;
+}
+
+/**
  * Find the most recent plan→none mode transition, if any.
  * Returns null when the session never entered plan mode, when the last exit
  * was entered from a different mode (e.g. goal→none), or when the plan entry
  * carries no `data.planFilePath`.
  */
+
 export function findPlanExit(entries: unknown[]): PlanExit | null {
-  let exitIdx = -1;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const e = entries[i] as ModeChangeShape | undefined;
-    if (e?.type === "mode_change" && e.mode === "none") {
-      exitIdx = i;
-      break;
-    }
-  }
+  const exitIdx = lastModeNoneIndex(entries);
   if (exitIdx < 0) return null;
 
   for (let i = exitIdx - 1; i >= 0; i--) {
