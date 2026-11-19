@@ -1,13 +1,13 @@
 ---
 name: b-save
-description: Record session history — checkpoint memory, backlog, cross-references, and optional OMP retain
+description: Record session history — checkpoint memory, backlog, cross-references, project changelog, and optional OMP retain
 triggers:
   - /b-save
 ---
 
 # b-save: Session Record Checkpoint
 
-Record the current session's work into durable `.context/` artifacts through the configured workflow adapter. Optionally mirror publication-proven revisions into OMP native memory (`retain` / `learn`) when those tools exist. Run at natural stopping points and at session end.
+Record the current session's work into durable `.context/` artifacts through the configured workflow adapter, and update the project's changelog when one exists. Optionally mirror publication-proven revisions into OMP native memory (`retain` / `learn`) when those tools exist. Run at natural stopping points and at session end.
 
 ## When to Use
 
@@ -19,9 +19,10 @@ Record the current session's work into durable `.context/` artifacts through the
 ## How It Works
 
 `skills/b-save/SKILL.md` is the single canonical `/b-save` procedure.
-- Under Pi/OMP with the extension loaded, `/b-save` runs the deterministic state-machine engine in `extensions/b-save/index.ts` (snapshot, bounded scribe/auditor/goal roles, journaled apply, effects).
+- Under Pi/OMP with the extension loaded, `/b-save` runs the deterministic state-machine engine in `extensions/b-save/index.ts` (snapshot, bounded scribe/auditor/goal roles, journaled apply, effects), which writes strictly under `.context/`.
 - `prompts/b-save.md` and `prompts/b-save-improved.md` (mirrored in `commands/`) load this canonical skill when running without the extension or on other harnesses.
-- `skills/b-save/scripts/save-preflight.ts` and `skills/b-save/scripts/save-apply.ts` provide the deterministic preflight and apply plumbing for cross-platform script execution and `/buck-loop` save attempts. `save-apply.ts` loads `extensions/buck-loop/sql-save.ts` by walking up from the script file to the repository root. The same file under `plugins/buck-workflow/skills/b-save/scripts/` resolves that module in a full checkout. A fixed `../../../extensions` import does not, because three levels up from the plugin copy is `plugins/buck-workflow/`, not the repo root. The Codex bundle does not vendor Pi/OMP extensions; outside a checkout that contains `extensions/buck-loop/sql-save.ts`, the script fails with that missing-module error.
+- `skills/b-save/scripts/save-preflight.ts` and `skills/b-save/scripts/save-apply.ts` provide the deterministic preflight and apply plumbing for cross-platform script execution and `/buck-loop` save attempts (also contained to `.context/`). `save-apply.ts` loads `extensions/buck-loop/sql-save.ts` by walking up from the script file to the repository root. The same file under `plugins/buck-workflow/skills/b-save/scripts/` resolves that module in a full checkout. A fixed `../../../extensions` import does not, because three levels up from the plugin copy is `plugins/buck-workflow/`, not the repo root. The Codex bundle does not vendor Pi/OMP extensions; outside a checkout that contains `extensions/buck-loop/sql-save.ts`, the script fails with that missing-module error.
+- Responsibility 13 (Project Changelog) updates the project's changelog outside `.context/` and runs in the agent-driven procedure (including post-apply when `save-apply.ts` is used).
 
 Before running the responsibilities manually, resolve `SUBJECT_LIFECYCLE` to the absolute path `../_shared/scripts/subject-lifecycle.ts` relative to this loaded `SKILL.md`. Never resolve the helper from the session project's working directory.
 
@@ -50,14 +51,15 @@ When the supervisor supplies a directive, it names `attemptId`, `runId`, `subjec
 
 ## Cross-Platform Script / Prompt Procedure
 
-When running outside `extensions/b-save/index.ts`, run the deterministic scripts around the two judgment roles (`scribe` and `auditor`), or execute the 12 responsibilities directly:
+When running outside `extensions/b-save/index.ts`, run the deterministic scripts around the two judgment roles (`scribe` and `auditor`), or execute the 13 responsibilities directly:
 
 1. **Preflight**: Run `bun skills/b-save/scripts/save-preflight.ts` (optional `--subject <name>`). Exit codes: `0` ready, `1` storage/read failure, `2` ambiguous subject (prompt user to pick from `subject_candidates` or create `suggested_subject`, then re-run with `--subject`).
 2. **Scribe** (steps 3 + 5): Draft the session narrative and backlog delta from the session digest + `backlog.open_items`. Produce `memory` (`path`, `frontmatter`, `title`, `body`), `index_entry` (`summary`, `status`), and `backlog` (`complete_explicit`, `complete_inferred`, `new_items`).
 3. **Auditor** (steps 6 + 10 + 11): Verify spec, phase, and active iterate claims against the repo with `file:line` evidence (`verification_evidence`). `phases.auto_completable` (all-`[x]` criteria) bypasses the auditor.
 4. **Apply**: Pipe the assembled JSON payload (preserving `storage_snapshot`, plus `sql_receipt` in SQL save mode) to `bun skills/b-save/scripts/save-apply.ts` on stdin (pass `--dry-run` or `--archive-inferred` when requested).
+5. **Post-apply**: `save-apply.ts` only mutates `.context/` artifacts, so execute the remaining responsibilities directly afterward — harness retain/reindex when applicable (steps 8–9), User Goal warning (step 12), and the project changelog update (step 13; preview only under `--dry-run`).
 
-## The 12 Responsibilities
+## The 13 Responsibilities
 
 1. **Read Session State** — Read `.context/workflow/current-session.json` for human context only (never used to select the subject).
 2. **Subject Folder** — Inspect with `bun "$SUBJECT_LIFECYCLE" inspect --subject <folder> --json`. If missing, create the folder and invoke `initialize`, then immediately inspect again and retain the refreshed state. Consolidate loose session-shaped artifacts at `.context/` root (`plan|spec|research|iterate|brainstorm|phase-*.md`, `draft-commit.md`) without editing lifecycle fields.
@@ -100,9 +102,15 @@ When running outside `extensions/b-save/index.ts`, run the deterministic scripts
     c. Include iterate filenames in the memory file's `artifacts:` array.
     d. If an iterate artifact references its source plan, back-fill that plan with `iterations: [iterate-<subject>.md]`.
 12. **User Goal Check** — Scan plan and brainstorm artifacts in the active subject. If any lack a `## User Goal` section and have no `Technical chore — <reason>` waiver, warn the user without blocking.
+13. **Project Changelog** — Update the project's changelog with verified work from this Buck workflow session:
+    a. **Locate the changelog**: Check `AGENTS.md`, `CLAUDE.md`, `README.md` (e.g., `[Changelog](...)`), and project manifests for a configured path first; otherwise search the repo case-insensitively (`CHANGELOG.md`, `changelog.md`, `CHANGELOG.mdx`, `CHANGELOG`, `docs/CHANGELOG.md`, `docs/changelog.md`, then `*changelog*`, `HISTORY.md`, `RELEASES.md`), excluding `node_modules/`, `vendor/`, `.git/`, `.context/`, `dist/`, `build/`, and `.venv/`. In a monorepo with multiple changelogs, choose the root project changelog or the package changelog matching the session's modified files (if ambiguous, list the candidates instead of guessing). If no changelog exists and none is configured or explicitly requested by the user, skip this step and report that no changelog file was found.
+    b. **Gate on session deliverables**: Derive entries from verified changes in this session (`git status`, `git diff`, `git diff --cached`, session branch commits, completed plan/spec/phase deliverables, and the session memory summary). Record meaningful code, behavior, CLI/API, configuration, or user/developer-facing doc changes; if the session modified only `.context/` workflow artifacts, leave the changelog untouched and note why.
+    c. **Match existing format**: Read the changelog before editing and follow its exact structure — place entries in the unreleased section (`## Unreleased` or `## [Unreleased]`, inserting one above the latest released entry if missing, or follow the file's dated-heading convention), matching Keep a Changelog categories (`Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security`) when used, bullet style, tense, and detail level. Keep existing released sections intact and leave version numbers unchanged unless explicitly asked to release.
+    d. **Deduplicate**: Check existing entries in the target unreleased/current section first so re-running `/b-save` or resuming with `--run-id` refines an existing matching entry rather than duplicating it.
+    e. **Respect modes and write boundaries**: Under `--dry-run`, preview the target path and proposed entry without editing. Under restricted loop or supervisor stages whose boundaries limit writes to `workflow_state`/`.context/` (e.g., `/b-loop` save stage), update the changelog only if declared in the active phase `files:` or permitted by the caller; otherwise include the proposed entry in the save summary.
 
 After responsibilities 10 and 11 and all loose-artifact consolidation, finish
-subject lifecycle last. Use the latest inspection result, including the required
+subject lifecycle last (with respect to `.context/` subject state). Use the latest inspection result, including the required
 re-inspection after `initialize`. If the current state is `draft` and plan work
 exists, invoke `activate`; then invoke `close-verified`. Exit 2 is a semantic
 refusal: report its blockers, retain every other saved artifact, leave lifecycle
@@ -119,18 +127,19 @@ Bulk seed of existing markdown into Hindsight: `skills/b-memory-import` (determi
 
 ## Key Principle
 
-Plans live in subject folders (intent). History lives in `.context/memory/` (record). `/b-save` turns intent into record, then optionally mirrors into harness memory.
+Plans live in subject folders (intent). History lives in `.context/memory/` (record) and the project changelog (release record). `/b-save` turns intent into record, updates the changelog when present, and optionally mirrors into harness memory.
 
 ## Write Scope
 
-- Write durable files only under `.context/` (or through the configured workflow adapter).
+- Write durable Buck artifacts only under `.context/` (or through the configured workflow adapter).
 - Responsibility 8 may also call harness memory tools (`retain` / `learn`) when publication proof is supplied.
+- Responsibility 13 may also update the project's existing changelog file (or a configured/user-requested changelog path), except under `--dry-run` or caller-imposed `.context/`-only stage restrictions.
 
-Execute all 12 responsibilities now.
+Execute all 13 responsibilities now.
 
 ## Commit Integration
 
-`/b-save` prepares durable context (memory, backlog, draft commit material) for `/b-commit`, but does not commit itself. The standard completion sequence is:
+`/b-save` prepares durable context (memory, backlog, changelog updates, draft commit material) for `/b-commit`, but does not commit itself. The standard completion sequence is:
 
 ```
 /b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact; follows /b-howto when needed) → /b-howto (if only how-to impact) → /b-save → /b-commit
@@ -138,7 +147,7 @@ Execute all 12 responsibilities now.
 
 Out-of-plan findings (new scope beyond the plan) do not iterate — close accepted work, then start a separate `/b-plan` → `/b-build`.
 
-Run `/b-save` before `/b-commit` so that memory and draft-commit artifacts are included in the commit.
+Run `/b-save` before `/b-commit` so that memory, changelog, and draft-commit artifacts are included in the commit.
 
 ## Related
 
