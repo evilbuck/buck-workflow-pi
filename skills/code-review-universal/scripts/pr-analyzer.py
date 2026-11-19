@@ -240,123 +240,114 @@ def _count_body_line(line: str, current_file: FileStats) -> None:
         current_file.deletions += 1
 
 
+class _DiffState:
+    """Mutable per-diff parse state threaded through the line handlers."""
+
+    def __init__(self) -> None:
+        self.files: List[FileStats] = []
+        self.current_file: Optional[FileStats] = None
+        # Header tokens carry letter prefixes (a/ b/, c/ w/, i/ o/) —
+        # needed when stripping prefixes from `+++`/`---` paths so
+        # noprefix paths like `s/x.py` aren't over-stripped.
+        self.header_prefixed = False
+        # Between a `diff --git` header and the first authoritative
+        # path line (`rename to`, `+++`/`---`).
+        self.saw_diff_header = False
+        # Old path from `---`, persisted until the `+++` mate arrives.
+        self.old_path: Optional[str] = None
+
+
+def _header_parts(line: str) -> List[str]:
+    """The two path tokens of a `diff --git` header line."""
+    return line[len('diff --git '):].strip().split(' ', 1)
+
+
+def _on_diff_header(line: str, state: _DiffState) -> None:
+    """Close out the previous file, then detect prefix style + fallback path.
+
+    Prefix-styled diffs always show two DIFFERENT letter-prefixed tokens
+    (a/foo b/foo, c/foo w/foo, i/foo w/foo); under diff.noprefix both
+    tokens are identical bare paths. The per-token letter+slash shape
+    alone is insufficient — noprefix `s/x.py s/x.py` would otherwise be
+    mistaken for a prefix style — so the inequality of the two tokens
+    is the signal. Same-path fallback tracks binary / chmod-only
+    entries that never produce `+++`/`---`/`rename to` body lines; the
+    later authoritative handlers replace the fallback entry.
+    """
+    if state.current_file is not None:
+        state.files.append(state.current_file)
+    parts = _header_parts(line)
+    if len(parts) == 2:
+        state.header_prefixed = parts[0] != parts[1]
+    else:
+        state.header_prefixed = False
+    state.current_file = None
+    state.old_path = None
+    state.saw_diff_header = True
+    fallback_path = _same_path_fallback(parts)
+    if fallback_path is not None:
+        state.current_file = _new_file_stats(fallback_path)
+
+
+def _on_rename_to(line: str, state: _DiffState) -> None:
+    # `rename to <path>` is the authoritative destination for rename
+    # entries; it never has a prefix. Commit immediately.
+    path = line[len('rename to '):].strip()
+    state.current_file = _new_file_stats(path)
+    state.saw_diff_header = False
+
+
+def _on_old_path_line(line: str, state: _DiffState) -> None:
+    # Unified diff order is `--- old` then `+++ new`. Record the old
+    # path; the `+++` handler commits it when `/dev/null` (deletion)
+    # makes the old path the file's identity.
+    raw = line[4:].strip()
+    if raw == '/dev/null':
+        state.old_path = None
+    else:
+        state.old_path = _strip_diff_path_prefix(raw, state.header_prefixed)
+
+
+def _on_new_path_line(line: str, state: _DiffState) -> None:
+    # `+++ <path>` is the authoritative destination for add/modify
+    # entries. `+++ /dev/null` means deletion; use the recorded old
+    # path, keeping any header-fallback entry when no `---` preceded
+    # (shouldn't happen in well-formed diffs).
+    raw = line[4:].strip()
+    if raw == '/dev/null':
+        if state.old_path is not None:
+            state.current_file = _new_file_stats(state.old_path)
+    else:
+        pending = _strip_diff_path_prefix(raw, state.header_prefixed)
+        state.current_file = _new_file_stats(pending)
+    state.saw_diff_header = False
+
+
+def _dispatch_diff_line(line: str, state: _DiffState) -> None:
+    if line.startswith('diff --git'):
+        _on_diff_header(line, state)
+    elif state.saw_diff_header and line.startswith('rename to '):
+        _on_rename_to(line, state)
+    elif state.saw_diff_header and line.startswith('--- '):
+        _on_old_path_line(line, state)
+    elif state.saw_diff_header and line.startswith('+++ '):
+        _on_new_path_line(line, state)
+    elif state.saw_diff_header:
+        # Other intermediate lines (index, mode, similarity, renames'
+        # `rename from`) don't identify the file. Keep waiting.
+        pass
+    elif state.current_file is not None:
+        _count_body_line(line, state.current_file)
+
+
 def parse_diff(diff_content: str) -> List[FileStats]:
     """Parse git diff output and extract file statistics."""
-    files = []
-    current_file = None
-
-    # Pending file state: collected between a `diff --git` header and
-    # the first authoritative path line (`rename to` for renames,
-    # `+++`/`---` for add/modify/delete). The diff header line itself
-    # is NOT used to extract the path because prefixes vary (a//b/
-    # default, c//i//w//o/ under diff.mnemonicprefix, nothing under
-    # diff.noprefix) and renames have different src/dst. The header
-    # IS used to detect whether the diff is prefix-styled — that
-    # answer is needed when stripping the prefix from the `+++`/`---`
-    # line so noprefix paths like `s/x.py` aren't mistaken for
-    # prefixed `s/x.py` and stripped to `x.py`.
-    pending_path = None     # the authoritative path once known
-    header_prefixed = False # does the diff style include a letter prefix?
-    saw_diff_header = False # between header and `+++`/`---`
-    old_path = None         # persists across `---` -> `+++` within one file
+    state = _DiffState()
     for line in diff_content.split('\n'):
-        if line.startswith('diff --git'):
-            # Close out the previous file (if any).
-            if current_file:
-                files.append(current_file)
-            # Detect prefix style from the header: prefix-styled diffs
-            # always show two DIFFERENT letter-prefixed tokens on the
-            # `diff --git` line (a/foo b/foo, c/foo w/foo, i/foo w/foo,
-            # etc.). Under diff.noprefix both tokens are identical bare
-            # paths. The per-token letter+slash shape alone is
-            # insufficient — noprefix `s/x.py s/x.py` would otherwise
-            # be mistaken for a prefix style. We use the inequality of
-            # the two tokens as the signal; this is robust against
-            # any single-letter config letter.
-            rest = line[len('diff --git '):].strip()
-            parts = rest.split(' ', 1)
-            if len(parts) == 2:
-                src_token, dst_token = parts
-                header_prefixed = src_token != dst_token
-            else:
-                header_prefixed = False
-            current_file = None
-            pending_path = None
-            old_path = None
-            saw_diff_header = True
-            # Best-effort same-path fallback: when the two header
-            # tokens refer to the SAME underlying path, extract it
-            # right now so the file is tracked even when no
-            # `---`/`+++`/`rename to` ever arrives. This covers
-            # modify entries (where the authoritative `+++` line
-            # will still arrive and override this), and critically
-            # binary / chmod-only entries that never produce body
-            # lines. The `+++` / `rename to` handlers below will
-            # override this by re-issuing `current_file =
-            # FileStats(...)` — they replace the fallback entry
-            # when they fire.
-            #
-            # Try prefix-styled same-path first
-            # (`a/foo b/foo`, `c/foo w/foo`), then noprefix same-token
-            # (`foo foo` / `s/x.py s/x.py`).
-            fallback_path = _same_path_fallback(parts)
-            if fallback_path is not None:
-                current_file = _new_file_stats(fallback_path)
-            continue
-        if saw_diff_header and line.startswith('rename to '):
-            # `rename to <path>` is the authoritative destination for
-            # rename entries; it never has a prefix. Commit immediately.
-            pending_path = line[len('rename to '):].strip()
-            current_file = _new_file_stats(pending_path)
-            saw_diff_header = False
-            continue
-        if saw_diff_header and line.startswith('rename from '):
-            # Source side of a rename; keep awaiting `rename to`.
-            continue
-        if saw_diff_header and line.startswith('--- '):
-            # Unified diff order is `--- old` then `+++ new`. Record
-            # the old path; we'll commit it (after prefix stripping)
-            # when the matching `+++` arrives, unless `+++` is
-            # `/dev/null` (deletion), in which case the old path IS
-            # the file's identity.
-            raw = line[4:].strip()
-            if raw != '/dev/null':
-                old_path = _strip_diff_path_prefix(raw, header_prefixed)
-            else:
-                old_path = None
-            continue
-        if saw_diff_header and line.startswith('+++ '):
-            # `+++ <path>` is the authoritative destination for
-            # add/modify entries. `+++ /dev/null` means the file was
-            # deleted; use the previously-recorded `old_path`.
-            raw = line[4:].strip()
-            if raw == '/dev/null':
-                if old_path:
-                    pending_path = old_path
-                else:
-                    # No prior `---` (shouldn't happen in well-formed
-                    # diffs); fall back to the dst side of the
-                    # `diff --git` header. Strip prefix by hand.
-                    rest = line[len('diff --git '):].strip()
-                    # We can't reconstruct here — just skip.
-                    saw_diff_header = False
-                    continue
-            else:
-                pending_path = _strip_diff_path_prefix(raw, header_prefixed)
-            current_file = _new_file_stats(pending_path)
-            saw_diff_header = False
-            continue
-        if saw_diff_header:
-            # Other intermediate lines (index, mode, similarity, etc.)
-            # don't identify the file. Keep waiting.
-            continue
-        if current_file:
-            _count_body_line(line, current_file)
-
-    if current_file:
-        files.append(current_file)
-
-    return files
+        _dispatch_diff_line(line, state)
+    if state.current_file is not None:
+        state.files.append(state.current_file)
+    return state.files
 
 
 def calculate_complexity(files: List[FileStats]) -> float:
