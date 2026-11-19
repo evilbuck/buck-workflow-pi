@@ -18,7 +18,7 @@ Then fall through to step 3.
 
 ## 3. `detect-stack.ts` reports ≥ 1 ecosystem
 
-Run `bun <skill_dir>/scripts/detect-stack.ts`. If it reports at least one ecosystem, build an **ephemeral** contract and run **only** the unit-test, functional-test, and lint gates. **Skip coverage, patch, and complexity gates** — those require a recorded baseline that does not exist, and running them without one produces a meaningless verdict.
+Run `bun skills/b-init-guardrails/scripts/detect-stack.ts` from the repo root. If that file is absent, run `bun <b-init-guardrails skill dir>/scripts/detect-stack.ts`. If it reports at least one ecosystem, build an **ephemeral** contract and run **only** the unit-test, functional-test, and lint gates. **Skip coverage, patch, and complexity gates** — those require a recorded baseline that does not exist, and running them without one produces a meaningless verdict.
 
 Emit exactly:
 

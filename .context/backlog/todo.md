@@ -1,6 +1,18 @@
 # Backlog
 
 
+## Workflow-state routing phases (2026-11-18)
+
+Overview: store subject `2026-11-18.workflow-state-routing-audit`, revision `abe549b6`.
+Phase A (b-save extension store retain) is DONE — commit `12c6ce9e9d`. B is hard and
+gates nothing; C and D are independent of B. The two code sites in the fourth item are
+small and can ride along with any phase.
+
+- [ ] [Phase B: subject-lifecycle store-backed transitions](items/subject-lifecycle-store-transitions.md) — high, hard, `/b-build-hard`
+- [ ] [Phase C: rewrite SKILL.md bodies that instruct direct .context writes](items/skill-instruction-store-routing.md) — high, medium, `/b-build`
+- [ ] [Phase D: bootstrap + prompt references point recall/search at workflow_state](items/bootstrap-search-reference-rewrite.md) — medium, easy, `/b-build`
+- [ ] [Close remaining code-level .context bypasses](items/remaining-code-context-bypasses.md) — medium, easy, `/b-build`
+
 ## Repair and simplify `/b-loop` Phases (2026-11-17)
 
 Overview: [`plan-b-loop-repair-phases.md`](../2026-11-17.b-loop-repair/plan-b-loop-repair-phases.md).
