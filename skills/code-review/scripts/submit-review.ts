@@ -171,6 +171,22 @@ function readJsonFile<T>(path: string, guard: (v: unknown) => v is T, label: str
 
 // ---------- arg parsing ----------
 
+/** argv[i] or the flag's "requires a value" death. */
+function requireValue(argv: readonly string[], i: number, flag: string): string {
+  const next = argv[i];
+  if (!next) die(`${flag} requires a path argument`);
+  return next;
+}
+
+/** argv[i] as a legal review event, or the event flag's death. */
+function requireEvent(argv: readonly string[], i: number): ReviewEvent {
+  const next = argv[i];
+  if (!next || !isReviewEvent(next)) {
+    die(`--event must be one of: ${REVIEW_EVENTS.join(", ")}`);
+  }
+  return next;
+}
+
 function parseArgs(argv: readonly string[]): CliArgs {
   let worktree = "";
   let event: ReviewEvent = "COMMENT";
@@ -179,15 +195,9 @@ function parseArgs(argv: readonly string[]): CliArgs {
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--worktree" || a === "-w") {
-      const next = argv[++i];
-      if (!next) die("--worktree requires a path argument");
-      worktree = next;
+      worktree = requireValue(argv, ++i, "--worktree");
     } else if (a === "--event" || a === "-e") {
-      const next = argv[++i];
-      if (!next || !isReviewEvent(next)) {
-        die(`--event must be one of: ${REVIEW_EVENTS.join(", ")}`);
-      }
-      event = next;
+      event = requireEvent(argv, ++i);
     } else if (a === "--dry-run") {
       dryRun = true;
     } else if (a === "--help" || a === "-h") {
