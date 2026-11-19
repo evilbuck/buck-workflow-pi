@@ -478,6 +478,29 @@ export function buildRetainContent(file: MemoryFile): string {
   return content;
 }
 
+/**
+ * Per-kind timestamp strategy: memory files use the file's calendar
+ * date (noon UTC keeps the day stable across offsets); backlog items
+ * prefer `updated:` over `created:`. Null when neither carries a
+ * usable date.
+ */
+function retainTimestamp(file: MemoryFile): string | null {
+  if (file.kind === "memory" && file.frontmatter.date && /^\d{4}-\d{2}-\d{2}/.test(file.frontmatter.date)) {
+    return `${file.frontmatter.date.slice(0, 10)}T12:00:00Z`;
+  }
+  if (file.kind === "backlog") {
+    const raw = file.frontmatter.raw;
+    const stamp =
+      typeof raw.updated === "string" ? raw.updated :
+      typeof raw.created === "string" ? raw.created :
+      null;
+    if (stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp)) {
+      return `${stamp.slice(0, 10)}T12:00:00Z`;
+    }
+  }
+  return null;
+}
+
 export function buildRetainItem(file: MemoryFile, retainTags?: string[]): RetainItem {
   const content = buildRetainContent(file);
   const meta: Record<string, string> = {
@@ -496,21 +519,8 @@ export function buildRetainItem(file: MemoryFile, retainTags?: string[]): Retain
     update_mode: "replace",
   };
 
-  // per-kind timestamp strategy: memory files use the file's calendar date
-  // (noon UTC keeps the day stable across offsets). backlog items have a
-  // `created:` or `updated:` field; prefer updated if present.
-  if (file.kind === "memory" && file.frontmatter.date && /^\d{4}-\d{2}-\d{2}/.test(file.frontmatter.date)) {
-    item.timestamp = `${file.frontmatter.date.slice(0, 10)}T12:00:00Z`;
-  } else if (file.kind === "backlog") {
-    const raw = file.frontmatter.raw;
-    const stamp =
-      typeof raw.updated === "string" ? raw.updated :
-      typeof raw.created === "string" ? raw.created :
-      null;
-    if (stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp)) {
-      item.timestamp = `${stamp.slice(0, 10)}T12:00:00Z`;
-    }
-  }
+  const timestamp = retainTimestamp(file);
+  if (timestamp) item.timestamp = timestamp;
   if (retainTags?.length) item.tags = [...retainTags];
   return item;
 }
