@@ -134,3 +134,5 @@
 - [x] Phase 1: OMP stubs to docs (2026-11-16) — `2026-10-01.skill-command-viability/index.md`. Phase 1 (D1) retired omp-goal/omp-orchestrate/omp-workflow stubs and moved the 6-step protocol to docs/buck-workflow.md.
 
 - [x] Sync living docs to canonical b-save skill (2026-11-16) — `2026-10-01.skill-command-viability/index.md`. Consolidated b-save, b-save-improved, and deprecated-b-save into canonical skills/b-save/SKILL.md and updated living docs.
+
+- [x] initialLabel profile-command narrowing (2026-11-19) — `archive/2026-11/buck-loop-index-initial-label-narrowing.md`. `supervisorFailure` now takes `RunArgs`, matching its only caller; the TS2345 at `initialLabel(parsed)` is gone and no new diagnostics appear.

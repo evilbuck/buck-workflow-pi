@@ -1,10 +1,10 @@
 ---
 title: initialLabel does not narrow the profile command, so index.ts fails tsc
-status: active
+status: completed
 priority: low
 created: 2026-10-03
-updated: 2026-10-03
-completed: null
+updated: 2026-11-19
+completed: 2026-11-19
 related:
   - extensions/buck-loop/index.ts
   - extensions/buck-loop/phase-difficulty.md
