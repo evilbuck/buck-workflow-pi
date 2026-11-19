@@ -177,6 +177,26 @@ function resolvePlanDiskPath(
  * Enabled check. First file that defines the key wins (project over global,
  * .pi over .omp at the same scope). Env BUCK_PLAN_ARTIFACT overrides all.
  */
+/**
+ * Enabled value from one settings file, or null when that file defines
+ * no buckPlanArtifact key (or cannot be read) so the next candidate
+ * in the priority order gets a say.
+ */
+function planArtifactSetting(path: string): boolean | null {
+  try {
+    if (!existsSync(path)) return null;
+    const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+    if (raw && typeof raw === "object" && "buckPlanArtifact" in raw) {
+      const planArtifact = (raw as Record<string, unknown>)["buckPlanArtifact"] as { enabled?: unknown } | undefined;
+      return planArtifact?.enabled === true;
+    }
+    return null;
+  } catch {
+    // unreadable/invalid settings file — try the next candidate
+    return null;
+  }
+}
+
 export function isPlanArtifactEnabled(cwd: string): boolean {
   const env = process.env.BUCK_PLAN_ARTIFACT;
   if (env === "1" || env === "true") return true;
@@ -189,15 +209,8 @@ export function isPlanArtifactEnabled(cwd: string): boolean {
     join(homedir(), ".omp", "agent", "settings.json"),
   ];
   for (const p of candidates) {
-    try {
-      if (!existsSync(p)) continue;
-      const raw = JSON.parse(readFileSync(p, "utf8"));
-      if (raw && typeof raw === "object" && "buckPlanArtifact" in raw) {
-        return raw.buckPlanArtifact?.enabled === true;
-      }
-    } catch {
-      // unreadable/invalid settings file — try the next candidate
-    }
+    const enabled = planArtifactSetting(p);
+    if (enabled !== null) return enabled;
   }
   return false;
 }
