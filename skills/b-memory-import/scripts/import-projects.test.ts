@@ -124,6 +124,36 @@ describe("parseArgs", () => {
     expect(parseArgs(["--concurrency", "1"]).concurrency).toBe(1);
     expect(parseArgs(["--concurrency", "4"]).concurrency).toBe(4);
   });
+
+  test("greedy flags consume every following non-flag value", () => {
+    const a = parseArgs(["--root", "/tmp/a", "/tmp/b", "--include", "alpha", "beta"]);
+    expect(a.roots).toEqual(["/tmp/a", "/tmp/b"]);
+    expect(a.mode).toBe("include");
+    expect(a.projects).toEqual(["alpha", "beta"]);
+  });
+
+  test("a greedy flag with no following value is a usage error", () => {
+    expect(() => parseArgs(["--root"])).toThrow("missing value for --root");
+    expect(() => parseArgs(["--include", "--all"])).toThrow("missing value for --include");
+  });
+
+  test("single-value flags take exactly the next token", () => {
+    const a = parseArgs(["--api-url", "http://h", "--bank-id", "omp"]);
+    expect(a.apiUrl).toBe("http://h");
+    expect(a.bankId).toBe("omp");
+    expect(() => parseArgs(["--api-url"])).toThrow("missing value for --api-url");
+  });
+
+  test("--limit accepts a non-negative number and rejects the rest", () => {
+    expect(parseArgs(["--limit", "3"]).limit).toBe(3);
+    expect(() => parseArgs(["--limit", "-1"])).toThrow("--limit must be a non-negative number");
+    expect(() => parseArgs(["--limit", "foo"])).toThrow("--limit must be a non-negative number");
+  });
+
+  test("unknown flags pass through to the child script", () => {
+    const a = parseArgs(["--frobnicate", "--api-url", "u"]);
+    expect(a.childArgs).toEqual(["--frobnicate"]);
+  });
 });
 
 describe("import-projects.ts", () => {
