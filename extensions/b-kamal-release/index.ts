@@ -24,7 +24,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { once } from "node:events";
 import { createLineRing, execFileCaptured, KAMAL_TAIL_LINES } from "../subprocess.js";
-import { createActivity } from "../extension-activity.js";
+import { createActivity, type Activity } from "../extension-activity.js";
 
 // ---------- exec helpers ----------
 
@@ -268,6 +268,9 @@ interface UI {
   input?: (title: string, placeholder?: string) => Promise<string | undefined>;
 }
 
+/** The command's user-facing notification channel. */
+type Notify = UI["notify"];
+
 interface CommandContext {
   cwd: string;
   hasUI: boolean;
@@ -291,13 +294,16 @@ async function resolveVersion(opts: Options, proposal: VersionProposal, ctx: Com
   options.push("Custom…");
   const choice = await ctx.ui.select("Release version", options);
   if (choice === undefined) return null; // cancelled
-  if (choice === "Custom…") {
-    if (!ctx.ui.input) return proposal.tag;
-    const entered = await ctx.ui.input("Custom version", proposal.tag);
-    if (!entered || !entered.trim()) return null;
-    return proposal.prefix + entered.trim().replace(/^v/, "");
-  }
+  if (choice === "Custom…") return promptCustomVersion(proposal, ctx);
   return choice.split("  (")[0].trim();
+}
+
+/** Interactive "Custom…" branch of the version prompt; null when cancelled. */
+async function promptCustomVersion(proposal: VersionProposal, ctx: CommandContext): Promise<string | null> {
+  if (!ctx.ui.input) return proposal.tag;
+  const entered = await ctx.ui.input("Custom version", proposal.tag);
+  if (!entered || !entered.trim()) return null;
+  return proposal.prefix + entered.trim().replace(/^v/, "");
 }
 
 async function confirmDirty(summary: { count: number; sample: string[] }, ctx: CommandContext): Promise<boolean> {
@@ -354,33 +360,37 @@ async function runKamal(
 
 // ---------- orchestrator ----------
 
-export async function runKamalRelease(args: string, ctx: CommandContext): Promise<void> {
-  const cwd = ctx.cwd;
-  const notify = ctx.ui.notify;
-  const opts = parseArgs(args);
-
-  // 1. Pre-checks.
+/** Step 1: repository + Kamal configuration. Null (after notifying) when the pre-checks fail. */
+function precheckOrNotify(cwd: string, notify: Notify): KamalEnv | null {
   try {
     execGit(["rev-parse", "--is-inside-work-tree"], cwd);
   } catch {
     notify("Not a git repository. Run from the project root.", "error");
-    return;
+    return null;
   }
   const env = detectKamalEnv(cwd);
   if (!env.configured) {
     notify("No config/deploy.yml found — this isn't a Kamal project. Run `kamal init` first.", "error");
-    return;
+    return null;
   }
+  return env;
+}
 
-  // 2. Destination.
-  let destination = await resolveDestination(env.destinations, opts, ctx);
+/** Step 2: resolve the deploy destination and its `-d` flag. Null (after notifying) on ambiguous headless. */
+async function destinationOrNotify(
+  env: KamalEnv,
+  opts: Options,
+  ctx: CommandContext,
+  notify: Notify,
+): Promise<{ destination: string | null; destFlag: string[] } | null> {
+  const destination = await resolveDestination(env.destinations, opts, ctx);
   if (destination === null && env.destinations.length > 1 && !opts.destination) {
     notify(
       `Multiple Kamal destinations configured (${env.destinations.join(", ")}). ` +
         "Pass --destination <name> (or run interactively to pick).",
       "error",
     );
-    return;
+    return null;
   }
   if (destination && !env.destinations.includes(destination)) {
     notify(
@@ -389,17 +399,98 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
       "warning",
     );
   }
-  const destFlag = destination ? [`-d`, destination] : [];
+  return { destination, destFlag: destination ? ["-d", destination] : [] };
+}
 
-  // 3. Dirty-tree gate.
+/** Step 3: dirty-tree gate. False (after notifying) when the user declines. */
+async function guardDirtyTree(opts: Options, cwd: string, ctx: CommandContext, notify: Notify): Promise<boolean> {
   if (isDirty(cwd) && !opts.allowDirty) {
     const summary = dirtySummary(cwd);
     const ok = await confirmDirty(summary, ctx);
     if (!ok) {
       notify(`Aborted: ${summary.count} uncommitted change(s). Commit, stash, or pass --allow-dirty.`, "warning");
-      return;
+      return false;
     }
   }
+  return true;
+}
+
+/**
+ * Step 5: create (and optionally push) the release tag. Returns false
+ * (after notifying) only when tag creation itself failed; a failed push is
+ * a warning — the tag exists locally and the deploy continues.
+ */
+async function tagAndPush(
+  tag: string,
+  opts: Options,
+  cwd: string,
+  activity: Activity,
+  notify: Notify,
+): Promise<boolean> {
+  if (opts.skipTag) return true;
+  activity.phase(`Tagging ${tag}…`);
+  try {
+    if (opts.force) execGit(["tag", "-d", tag], cwd);
+    execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
+    notify(`Tagged ${tag}.`, "info");
+  } catch (e: unknown) {
+    notify(`Failed to create tag ${tag}: ${(e as Error).message}`, "error");
+    return false;
+  }
+  if (!opts.noPush) {
+    activity.phase(`Pushing tag ${tag}…`);
+    const pushed = await execFileCaptured("git", ["push", "origin", `refs/tags/${tag}`], cwd);
+    if (pushed.code !== 0) {
+      notify(
+        `Could not push tag ${tag} (${pushed.stderr.trim() || pushed.stdout.trim() || "unknown"}). Tagged locally; deploy will continue. Pass --no-push to silence.`,
+        "warning",
+      );
+    } else {
+      notify(`Pushed tag ${tag} to origin.`, "info");
+    }
+  }
+  return true;
+}
+
+/** Step 6: run `kamal deploy` and report the outcome. */
+async function deployRelease(
+  tag: string,
+  version: string,
+  destination: string | null,
+  destFlag: string[],
+  opts: Options,
+  cwd: string,
+  activity: Activity,
+  notify: Notify,
+): Promise<void> {
+  activity.phase(`Deploying ${tag}…`);
+  const deployArgs = ["deploy", ...destFlag];
+  if (!opts.noVersion) deployArgs.push(`--version=${version}`);
+  const result = await runKamal(deployArgs, cwd);
+  if (result.code === 0) {
+    activity.succeed(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`);
+  } else {
+    const reason = result.signal ? `signal ${result.signal}` : `exit ${result.code}`;
+    notify(`kamal deploy failed (${reason}):\n${result.output}`, "error");
+  }
+}
+
+export async function runKamalRelease(args: string, ctx: CommandContext): Promise<void> {
+  const cwd = ctx.cwd;
+  const notify = ctx.ui.notify;
+  const opts = parseArgs(args);
+
+  // 1. Pre-checks.
+  const env = precheckOrNotify(cwd, notify);
+  if (!env) return;
+
+  // 2. Destination.
+  const dest = await destinationOrNotify(env, opts, ctx, notify);
+  if (!dest) return;
+  const { destination, destFlag } = dest;
+
+  // 3. Dirty-tree gate.
+  if (!(await guardDirtyTree(opts, cwd, ctx, notify))) return;
 
   // 4. Version.
   const latest = latestTag(cwd);
@@ -443,41 +534,10 @@ export async function runKamalRelease(args: string, ctx: CommandContext): Promis
   // 5. Tag + deploy — long children only after the dry-run gate.
   const activity = createActivity({ ui: ctx.ui, command: "b-kamal-release" });
   try {
-    if (!opts.skipTag) {
-      activity.phase(`Tagging ${tag}…`);
-      try {
-        if (opts.force) execGit(["tag", "-d", tag], cwd);
-        execGit(["tag", "-a", tag, "-m", `Release ${tag}`], cwd);
-        notify(`Tagged ${tag}.`, "info");
-      } catch (e: unknown) {
-        notify(`Failed to create tag ${tag}: ${(e as Error).message}`, "error");
-        return;
-      }
-      if (!opts.noPush) {
-        activity.phase(`Pushing tag ${tag}…`);
-        const pushed = await execFileCaptured("git", ["push", "origin", `refs/tags/${tag}`], cwd);
-        if (pushed.code !== 0) {
-          notify(
-            `Could not push tag ${tag} (${pushed.stderr.trim() || pushed.stdout.trim() || "unknown"}). Tagged locally; deploy will continue. Pass --no-push to silence.`,
-            "warning",
-          );
-        } else {
-          notify(`Pushed tag ${tag} to origin.`, "info");
-        }
-      }
-    }
+    if (!(await tagAndPush(tag, opts, cwd, activity, notify))) return;
 
     // 6. Deploy.
-    activity.phase(`Deploying ${tag}…`);
-    const deployArgs = ["deploy", ...destFlag];
-    if (!opts.noVersion) deployArgs.push(`--version=${version}`);
-    const result = await runKamal(deployArgs, cwd);
-    if (result.code === 0) {
-      activity.succeed(`✅ Deployed ${tag}${destination ? ` → ${destination}` : ""} via kamal.`);
-    } else {
-      const reason = result.signal ? `signal ${result.signal}` : `exit ${result.code}`;
-      notify(`kamal deploy failed (${reason}):\n${result.output}`, "error");
-    }
+    await deployRelease(tag, version, destination, destFlag, opts, cwd, activity, notify);
   } finally {
     activity.dispose();
   }
