@@ -462,6 +462,32 @@ def identify_risk_factors(files: List[FileStats]) -> List[str]:
     return risks
 
 
+LANGUAGE_SUGGESTIONS = {
+    "TypeScript": "Check for proper type usage (avoid 'any')",
+    "TypeScript/React": "Check for proper type usage (avoid 'any')",
+    "Rust": "Check for unwrap() usage and error handling",
+    "C": "Check for memory safety, bounds checks, and UB risks",
+    "C++": "Check for memory safety, bounds checks, and UB risks",
+    "C/C++": "Check for memory safety, bounds checks, and UB risks",
+    "SQL": "Review for SQL injection and query performance",
+}
+
+
+def _language_suggestions(files: List[FileStats]) -> List[str]:
+    """Per-language review hints, deduplicated per hint.
+
+    Several language keys share one hint (TypeScript variants, the C
+    family); each hint is appended at most once, as the original
+    `or`-chains did.
+    """
+    languages = set(f.language for f in files)
+    hints: List[str] = []
+    for language, hint in LANGUAGE_SUGGESTIONS.items():
+        if language in languages and hint not in hints:
+            hints.append(hint)
+    return hints
+
+
 def generate_suggestions(files: List[FileStats], complexity: float, risks: List[str]) -> List[str]:
     """Generate review suggestions."""
     suggestions = []
@@ -478,16 +504,7 @@ def generate_suggestions(files: List[FileStats], complexity: float, risks: List[
     if any(RISK_NO_TESTS in r for r in risks):
         suggestions.append("Request test additions before approval")
 
-    # Language-specific suggestions
-    languages = set(f.language for f in files)
-    if 'TypeScript' in languages or 'TypeScript/React' in languages:
-        suggestions.append("Check for proper type usage (avoid 'any')")
-    if 'Rust' in languages:
-        suggestions.append("Check for unwrap() usage and error handling")
-    if 'C' in languages or 'C++' in languages or 'C/C++' in languages:
-        suggestions.append("Check for memory safety, bounds checks, and UB risks")
-    if 'SQL' in languages:
-        suggestions.append("Review for SQL injection and query performance")
+    suggestions.extend(_language_suggestions(files))
 
     if not suggestions:
         suggestions.append("Standard review process should suffice")
