@@ -205,6 +205,67 @@ function parseConcurrency(raw: string): number {
   return n;
 }
 
+/** Boolean flags and the effect each has on the parsed args. */
+const BOOLEAN_SETTERS: Record<string, (out: CliArgs) => void> = {
+  "-h": (o) => {
+    o.help = true;
+  },
+  "--help": (o) => {
+    o.help = true;
+  },
+  "--all": (o) => {
+    o.mode = "all";
+  },
+  "--dry-run": (o) => {
+    o.dryRun = true;
+  },
+  "--sync": (o) => {
+    o.sync = true;
+  },
+  "--force": (o) => {
+    o.force = true;
+  },
+};
+
+/** Value flags: each consumes the next argv token via its parser. */
+const VALUE_SETTERS: Record<string, (raw: string, out: CliArgs) => void> = {
+  "--limit": (raw, o) => {
+    o.limit = parseLimit(raw);
+  },
+  "--concurrency": (raw, o) => {
+    o.concurrency = parseConcurrency(raw);
+  },
+  "--api-url": (raw, o) => {
+    o.apiUrl = raw;
+  },
+  "--api-token": (raw, o) => {
+    o.apiToken = raw;
+  },
+  "--bank-id": (raw, o) => {
+    o.bankId = raw;
+  },
+  "--omp-config": (raw, o) => {
+    o.ompConfig = raw;
+  },
+};
+
+/** The argv token after index i, or a thrown error when absent. */
+function requireValue(argv: string[], i: number, flag: string): string {
+  const v = argv[i + 1];
+  if (v === undefined) throw new Error(`missing value for ${flag}`);
+  return v;
+}
+
+/** Post-parse defaults: mode validation and the ~/projects root fallback. */
+function applyArgDefaults(out: CliArgs): void {
+  if (!VALID_MODES.has(out.mode)) {
+    throw new Error(`invalid mode: ${out.mode}`);
+  }
+  if (out.roots.length === 0) {
+    out.roots.push(resolve(process.env.HOME ?? "~", "projects"));
+  }
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     roots: [],
@@ -229,61 +290,25 @@ export function parseArgs(argv: string[]): CliArgs {
       i = applyGreedyFlag(a, argv, i, out);
       continue;
     }
-    const next = (): string => {
-      const v = argv[++i];
-      if (v === undefined) throw new Error(`missing value for ${a}`);
-      return v;
-    };
-    switch (a) {
-      case "-h":
-      case "--help":
-        out.help = true;
-        break;
-      case "--all":
-        out.mode = "all";
-        break;
-      case "--dry-run":
-        out.dryRun = true;
-        break;
-      case "--sync":
-        out.sync = true;
-        break;
-      case "--force":
-        out.force = true;
-        break;
-      case "--limit":
-        out.limit = parseLimit(next());
-        break;
-      case "--concurrency":
-        out.concurrency = parseConcurrency(next());
-        break;
-      case "--api-url":
-        out.apiUrl = next();
-        break;
-      case "--api-token":
-        out.apiToken = next();
-        break;
-      case "--bank-id":
-        out.bankId = next();
-        break;
-      case "--source-dirs":
-        i = parseSourceDirs(argv, i, a, out);
-        break;
-      case "--omp-config":
-        out.ompConfig = next();
-        break;
-      default:
-        // unknown flag — pass through to the child script
-        out.childArgs.push(a);
+    const bool = BOOLEAN_SETTERS[a];
+    if (bool) {
+      bool(out);
+      continue;
     }
+    const val = VALUE_SETTERS[a];
+    if (val) {
+      val(requireValue(argv, i, a), out);
+      i++;
+      continue;
+    }
+    if (a === "--source-dirs") {
+      i = parseSourceDirs(argv, i, a, out);
+      continue;
+    }
+    // unknown flag — pass through to the child script
+    out.childArgs.push(a);
   }
-
-  if (!VALID_MODES.has(out.mode)) {
-    throw new Error(`invalid mode: ${out.mode}`);
-  }
-  if (out.roots.length === 0) {
-    out.roots.push(resolve(process.env.HOME ?? "~", "projects"));
-  }
+  applyArgDefaults(out);
   return out;
 }
 
