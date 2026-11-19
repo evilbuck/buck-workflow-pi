@@ -94,25 +94,7 @@ def read_lines(stream, on_line, on_close) -> None:
         on_close()
 
 
-def main() -> int:
-    args = parse_args()
-    if args.help:
-        print(__doc__)
-        return 0
-
-    prompt = args.prompt
-    if prompt is None:
-        if sys.stdin.isatty():
-            die("no prompt provided (pass as arg or pipe via stdin)")
-        prompt = sys.stdin.read()
-    prompt = prompt.strip()
-    if not prompt:
-        die("empty prompt")
-
-    pi_path = shutil.which(args.pi) or args.pi
-    if not pi_path or (not os.path.isabs(pi_path) and not shutil.which(pi_path)):
-        die(f"pi binary not found: {args.pi}")
-
+def build_pi_command(args, pi_path):
     cmd = [pi_path, "--mode", "rpc"]
     if args.provider:
         cmd += ["--provider", args.provider]
@@ -122,9 +104,25 @@ def main() -> int:
         cmd += ["--no-session"]
     if args.session_dir:
         cmd += ["--session-dir", args.session_dir]
+    return cmd
 
+
+def resolve_prompt(args):
+    """Prompt from argv, or piped stdin. Dies when neither is usable."""
+    prompt = args.prompt
+    if prompt is None:
+        if sys.stdin.isatty():
+            die("no prompt provided (pass as arg or pipe via stdin)")
+        prompt = sys.stdin.read()
+    prompt = prompt.strip()
+    if not prompt:
+        die("empty prompt")
+    return prompt
+
+
+def spawn_pi(cmd, args):
     try:
-        proc = subprocess.Popen(
+        return subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
@@ -133,102 +131,10 @@ def main() -> int:
             bufsize=0,
         )
     except FileNotFoundError:
-        die(f"failed to spawn {pi_path}")
-        return 2
+        die(f"failed to spawn {cmd[0]}")
 
-    done = threading.Event()
-    exit_code = {"code": 0}
-    saw_agent_end = {"flag": False}
 
-    def handle_event(line: str) -> None:
-        try:
-            evt = json.loads(line)
-        except json.JSONDecodeError:
-            print(f"pi-prompt: bad JSON from pi: {line!r}", file=sys.stderr)
-            return
-
-        if args.json_mode:
-            print(line, flush=True)
-
-        etype = evt.get("type")
-
-        if etype == "response":
-            if not evt.get("success", False):
-                err = evt.get("error", "unknown error")
-                print(
-                    f"pi-prompt: command {evt.get('command')} failed: {err}",
-                    file=sys.stderr,
-                )
-                exit_code["code"] = 1
-                done.set()
-            return
-
-        if etype == "message_update" and not args.json_mode:
-            ame = evt.get("assistantMessageEvent") or {}
-            if ame.get("type") == "text_delta":
-                delta = ame.get("delta", "")
-                sys.stdout.write(delta)
-                sys.stdout.flush()
-            return
-
-        if etype == "tool_execution_start" and args.show_tools:
-            name = evt.get("toolName")
-            args_ = evt.get("args")
-            print(f"\n[tool:start] {name} {json.dumps(args_)[:200]}", file=sys.stderr)
-            return
-
-        if etype == "tool_execution_end" and args.show_tools:
-            name = evt.get("toolName")
-            is_err = evt.get("isError")
-            print(f"[tool:end] {name} error={is_err}", file=sys.stderr)
-            return
-
-        if etype == "extension_ui_request":
-            method = evt.get("method")
-            # Auto-cancel dialog methods so we don't hang. Fire-and-forget
-            # methods need no response.
-            if method in ("select", "confirm", "input", "editor"):
-                req_id = evt.get("id")
-                response = {
-                    "type": "extension_ui_response",
-                    "id": req_id,
-                    "cancelled": True,
-                }
-                try:
-                    proc.stdin.write((json.dumps(response) + "\n").encode())
-                    proc.stdin.flush()
-                except BrokenPipeError:
-                    pass
-                print(
-                    f"pi-prompt: auto-cancelled extension dialog {method!r}",
-                    file=sys.stderr,
-                )
-            return
-
-        if etype == "extension_error":
-            print(
-                f"pi-prompt: extension_error: {evt.get('error')}",
-                file=sys.stderr,
-            )
-            return
-
-        if etype == "agent_end":
-            saw_agent_end["flag"] = True
-            if not args.json_mode:
-                sys.stdout.write("\n")
-                sys.stdout.flush()
-            done.set()
-            return
-
-    def on_close() -> None:
-        done.set()
-
-    reader = threading.Thread(
-        target=read_lines, args=(proc.stdout, handle_event, on_close), daemon=True
-    )
-    reader.start()
-
-    # Send the prompt
+def send_prompt(proc, prompt):
     req = {"id": "req-1", "type": "prompt", "message": prompt}
     try:
         proc.stdin.write((json.dumps(req) + "\n").encode())
@@ -236,7 +142,9 @@ def main() -> int:
     except BrokenPipeError:
         die("pi closed stdin before prompt was accepted", code=1)
 
-    # Wait for completion or timeout
+
+def wait_for_completion(proc, done, args):
+    """Block until done or the deadline. Returns 3 on timeout, else None."""
     deadline = time.time() + args.timeout if args.timeout else None
     while not done.is_set():
         remaining = None if deadline is None else max(0.0, deadline - time.time())
@@ -252,8 +160,10 @@ def main() -> int:
                 proc.terminate()
             return 3
         done.wait(timeout=remaining if remaining is not None else 0.5)
+    return None
 
-    # Clean shutdown
+
+def shutdown_pi(proc):
     try:
         proc.stdin.close()
     except Exception:
@@ -264,15 +174,142 @@ def main() -> int:
         proc.terminate()
         proc.wait(timeout=2)
 
+
+def final_exit_code(proc, exit_code, saw_agent_end):
     if proc.returncode and proc.returncode != 0 and exit_code["code"] == 0:
         print(f"pi-prompt: pi exited with code {proc.returncode}", file=sys.stderr)
         return 1
-
     if not saw_agent_end["flag"] and exit_code["code"] == 0:
         # Stream closed without agent_end — treat as failure
         return 1
-
     return exit_code["code"]
+
+
+def _parse_event_line(line, args):
+    """Parsed event dict, or None after reporting unparseable JSON."""
+    try:
+        evt = json.loads(line)
+    except json.JSONDecodeError:
+        print(f"pi-prompt: bad JSON from pi: {line!r}", file=sys.stderr)
+        return None
+    if args.json_mode:
+        print(line, flush=True)
+    return evt
+
+
+def _on_response_event(evt, exit_code, done):
+    if not evt.get("success", False):
+        err = evt.get("error", "unknown error")
+        print(
+            f"pi-prompt: command {evt.get('command')} failed: {err}",
+            file=sys.stderr,
+        )
+        exit_code["code"] = 1
+        done.set()
+
+
+def _stream_text_delta(evt):
+    ame = evt.get("assistantMessageEvent") or {}
+    if ame.get("type") == "text_delta":
+        sys.stdout.write(ame.get("delta", ""))
+        sys.stdout.flush()
+
+
+def _show_tool_event(etype, evt):
+    if etype == "tool_execution_start":
+        print(
+            f"\n[tool:start] {evt.get('toolName')} {json.dumps(evt.get('args'))[:200]}",
+            file=sys.stderr,
+        )
+    else:
+        print(f"[tool:end] {evt.get('toolName')} error={evt.get('isError')}", file=sys.stderr)
+
+
+def _auto_cancel_dialog(evt, proc):
+    # Auto-cancel dialog methods so we don't hang. Fire-and-forget
+    # methods need no response.
+    method = evt.get("method")
+    if method not in ("select", "confirm", "input", "editor"):
+        return
+    response = {
+        "type": "extension_ui_response",
+        "id": evt.get("id"),
+        "cancelled": True,
+    }
+    try:
+        proc.stdin.write((json.dumps(response) + "\n").encode())
+        proc.stdin.flush()
+    except BrokenPipeError:
+        pass
+    print(
+        f"pi-prompt: auto-cancelled extension dialog {method!r}",
+        file=sys.stderr,
+    )
+
+
+def _on_agent_end(evt, args, saw_agent_end, done):
+    saw_agent_end["flag"] = True
+    if not args.json_mode:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+    done.set()
+
+
+def main() -> int:
+    args = parse_args()
+    if args.help:
+        print(__doc__)
+        return 0
+
+    prompt = resolve_prompt(args)
+
+    pi_path = shutil.which(args.pi) or args.pi
+    if not pi_path or (not os.path.isabs(pi_path) and not shutil.which(pi_path)):
+        die(f"pi binary not found: {args.pi}")
+
+    proc = spawn_pi(build_pi_command(args, pi_path), args)
+
+    done = threading.Event()
+    exit_code = {"code": 0}
+    saw_agent_end = {"flag": False}
+
+    def handle_event(line: str) -> None:
+        evt = _parse_event_line(line, args)
+        if evt is None:
+            return
+
+        etype = evt.get("type")
+        if etype == "response":
+            _on_response_event(evt, exit_code, done)
+        elif etype == "message_update" and not args.json_mode:
+            _stream_text_delta(evt)
+        elif args.show_tools and etype in ("tool_execution_start", "tool_execution_end"):
+            _show_tool_event(etype, evt)
+        elif etype == "extension_ui_request":
+            _auto_cancel_dialog(evt, proc)
+        elif etype == "extension_error":
+            print(
+                f"pi-prompt: extension_error: {evt.get('error')}",
+                file=sys.stderr,
+            )
+        elif etype == "agent_end":
+            _on_agent_end(evt, args, saw_agent_end, done)
+
+    def on_close() -> None:
+        done.set()
+
+    reader = threading.Thread(
+        target=read_lines, args=(proc.stdout, handle_event, on_close), daemon=True
+    )
+    reader.start()
+
+    send_prompt(proc, prompt)
+    timeout_result = wait_for_completion(proc, done, args)
+    if timeout_result is not None:
+        return timeout_result
+
+    shutdown_pi(proc)
+    return final_exit_code(proc, exit_code, saw_agent_end)
 
 
 if __name__ == "__main__":
