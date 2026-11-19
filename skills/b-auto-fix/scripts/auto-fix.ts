@@ -399,6 +399,106 @@ export function formatIssueList(
   return lines.join("\n");
 }
 
+
+function applyCliOverrides(flags: ReturnType<typeof parseFlags>): Partial<AutoFixConfig> {
+  const overrides: Partial<AutoFixConfig> = {};
+  if (flags.assignee) overrides.assignee = flags.assignee;
+  if (flags.base) overrides.base = flags.base;
+  if (flags.dry_run !== undefined) overrides.dry_run = flags.dry_run;
+  if (flags.max_issues !== undefined) overrides.max_issues = flags.max_issues;
+  return overrides;
+}
+
+async function defaultFirstRunToDryRun(
+  bound: AutoFixStore,
+  config: AutoFixConfig,
+  flags: ReturnType<typeof parseFlags>,
+): Promise<void> {
+  if (!config.dry_run && !flags.yes && (await listRunArtifacts(bound)).length === 0) {
+    console.log("First run on this repo — use --dry-run to preview? [Y/n]");
+    console.log("Defaulting to dry-run for safety. Use --yes to skip this prompt.");
+    config.dry_run = true;
+  }
+}
+
+async function fetchFilterIssues(config: AutoFixConfig, repo: string): Promise<GhIssue[]> {
+  const rawIssues = await listOpenIssues({
+    assignee: config.assignee,
+    repo,
+    limit: config.max_issues,
+  });
+
+  let filtered = rawIssues.filter(
+    (i) => !shouldSkipByLabel(i.labels.map((l) => l.name), config.labels_skip),
+  );
+
+  // Exclude issues with existing draft PRs
+  const prChecks: Promise<{ issue: typeof rawIssues[0]; excluded: boolean }>[] = filtered.map(
+    async (issue) => {
+      const branch = `${config.branch_prefix}${issue.number}`;
+      const existing = await findExistingDraftPr(branch, repo);
+      return { issue, excluded: existing !== null };
+    },
+  );
+  const prResults = await Promise.all(prChecks);
+  filtered = prResults.filter((r) => !r.excluded).map((r) => r.issue);
+
+  console.log(
+    `Found ${rawIssues.length} issues, ${filtered.length} passed filter. Processing ${filtered.length} issues.`,
+  );
+  return filtered;
+}
+
+async function stageIssueArtifacts(
+  bound: AutoFixStore,
+  runId: string,
+  issue: GhIssue,
+  config: AutoFixConfig,
+): Promise<void> {
+  // These prompts and routing plans are retained evidence; files are exports.
+  const issueData = JSON.stringify(issue, null, 2);
+
+  await writeRunArtifact(
+    bound, runId, `issue-${issue.number}/stages.json`,
+    JSON.stringify(
+      {
+        issue: issue.number,
+        stages: ["research", "plan", "build", "review"],
+        prompt: `Read skill://b-auto-fix and process this issue in worktree: <worktree-path>. Retain stage output with: bun ${JSON.stringify(import.meta.filename)} artifact write ${runId} issue-${issue.number}/<stage>.md <output-file> --cwd ${JSON.stringify(bound.cwd)}. Read prior output with artifact read; local files are exports only. Issue data: ${issueData}`,
+      },
+      null,
+      2,
+    ),
+  );
+
+  // Write completion routing plan (Phase 7)
+  await writeRunArtifact(
+    bound, runId, `issue-${issue.number}/completion-plan.json`,
+    JSON.stringify(
+      {
+        issue: issue.number,
+        successPath: [
+          "1. Read retained review.md with artifact read",
+          "2. If approved: push branch, create draft PR, post summary comment, remove worktree",
+          "3. If review_blocked: post needs-human comment, leave worktree",
+        ],
+        hardFailPath: [
+          "1. Post needs-human comment with failure mode",
+          "2. Leave worktree + branch on disk",
+          "3. Record hard-fail in run state",
+        ],
+        softFailPath: [
+          "1. Retain soft-fail.log through softFailPath",
+          "2. Continue to next issue",
+        ],
+        branch: `${config.branch_prefix}${issue.number}`,
+        worktreePath: `issue-${issue.number}`,
+      },
+      null,
+      2,
+    ),
+  );
+}
 // ── Main ───────────────────────────────────────────────
 export async function main(args: string[] = Bun.argv): Promise<RunState> {
   const flags = parseFlags(args);
@@ -416,15 +516,8 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
     process.exit(1);
   }
 
-  const configPath = flags.config;
-  const baseConfig = loadConfig(configPath);
-  const mergedConfig = loadLocalConfig(baseConfig);
-  const cliOverrides: Partial<AutoFixConfig> = {};
-  if (flags.assignee) cliOverrides.assignee = flags.assignee;
-  if (flags.base) cliOverrides.base = flags.base;
-  if (flags.dry_run !== undefined) cliOverrides.dry_run = flags.dry_run;
-  if (flags.max_issues !== undefined) cliOverrides.max_issues = flags.max_issues;
-  const finalConfig = { ...mergedConfig, ...cliOverrides };
+  const baseConfig = loadConfig(flags.config);
+  const finalConfig = { ...loadLocalConfig(baseConfig), ...applyCliOverrides(flags) };
 
   // List mode must not bind or write storage identity.
 
@@ -448,11 +541,7 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
     };
   }
   const bound = await bindAutoFixStore(process.cwd());
-  if (!finalConfig.dry_run && !flags.yes && (await listRunArtifacts(bound)).length === 0) {
-    console.log("First run on this repo — use --dry-run to preview? [Y/n]");
-    console.log("Defaulting to dry-run for safety. Use --yes to skip this prompt.");
-    finalConfig.dry_run = true;
-  }
+  await defaultFirstRunToDryRun(bound, finalConfig, flags);
 
   const { runId, runDir, revision } = await initRunState(bound, repo, finalConfig);
   console.log(`Run state: ${runDir}/run.json`);
@@ -460,34 +549,9 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
   // ── Fetch and filter issues ──────────────────────────
   const issues: GhIssue[] = [];
   try {
-    const rawIssues = await listOpenIssues({
-      assignee: finalConfig.assignee,
-      repo,
-      limit: finalConfig.max_issues,
-    });
-
-    let filtered = rawIssues.filter(
-      (i) => !shouldSkipByLabel(i.labels.map((l) => l.name), finalConfig.labels_skip),
-    );
-
-    // Exclude issues with existing draft PRs
-    const prChecks: Promise<{ issue: typeof rawIssues[0]; excluded: boolean }>[] =
-      filtered.map(async (issue) => {
-        const branch = `${finalConfig.branch_prefix}${issue.number}`;
-        const existing = await findExistingDraftPr(branch, repo);
-        return { issue, excluded: existing !== null };
-      });
-    const prResults = await Promise.all(prChecks);
-    filtered = prResults.filter((r) => !r.excluded).map((r) => r.issue);
-
-    console.log(
-      `Found ${rawIssues.length} issues, ${filtered.length} passed filter. Processing ${filtered.length} issues.`,
-    );
-
-    for (const issue of filtered) issues.push(issue);
+    issues.push(...(await fetchFilterIssues(finalConfig, repo)));
   } catch (err) {
-    const msg = `Warning: could not fetch issues: ${err}`;
-    console.error(msg);
+    console.error(`Warning: could not fetch issues: ${err}`);
   }
 
   // ── Per-issue pipeline setup ─────────────────────────
@@ -499,57 +563,12 @@ export async function main(args: string[] = Bun.argv): Promise<RunState> {
   }> = [];
 
   for (const issue of issues) {
-    const issueDir = join(runDir, `issue-${issue.number}`);
-
-    // These prompts and routing plans are retained evidence; files are exports.
-    const issueData = JSON.stringify(issue, null, 2);
-
-    await writeRunArtifact(
-      bound, runId, `issue-${issue.number}/stages.json`,
-      JSON.stringify(
-        {
-          issue: issue.number,
-          stages: ["research", "plan", "build", "review"],
-          prompt: `Read skill://b-auto-fix and process this issue in worktree: <worktree-path>. Retain stage output with: bun ${JSON.stringify(import.meta.filename)} artifact write ${runId} issue-${issue.number}/<stage>.md <output-file> --cwd ${JSON.stringify(bound.cwd)}. Read prior output with artifact read; local files are exports only. Issue data: ${issueData}`,
-        },
-        null,
-        2,
-      ),
-    );
-
-    // Write completion routing plan (Phase 7)
-    await writeRunArtifact(
-      bound, runId, `issue-${issue.number}/completion-plan.json`,
-      JSON.stringify(
-        {
-          issue: issue.number,
-          successPath: [
-            "1. Read retained review.md with artifact read",
-            "2. If approved: push branch, create draft PR, post summary comment, remove worktree",
-            "3. If review_blocked: post needs-human comment, leave worktree",
-          ],
-          hardFailPath: [
-            "1. Post needs-human comment with failure mode",
-            "2. Leave worktree + branch on disk",
-            "3. Record hard-fail in run state",
-          ],
-          softFailPath: [
-            "1. Retain soft-fail.log through softFailPath",
-            "2. Continue to next issue",
-          ],
-          branch: `${finalConfig.branch_prefix}${issue.number}`,
-          worktreePath: `issue-${issue.number}`,
-        },
-        null,
-        2,
-      ),
-    );
-
+    await stageIssueArtifacts(bound, runId, issue, finalConfig);
     results.push({
       issue: issue.number,
       stage: "setup",
       status: "completed",
-      artifact: join(issueDir, "completion-plan.json"),
+      artifact: join(runDir, `issue-${issue.number}`, "completion-plan.json"),
     });
   }
 
