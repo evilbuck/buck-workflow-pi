@@ -1,3 +1,4 @@
+- 2026-11-18 — [b-refactor skill](b-refactor-skill-2026-11-18.md) — completed (one accidental-complexity force per run; night loop is the caller)
 - 2026-11-17 — [fix-pr #73: validate and address CodeRabbit review on b-loop repair](fix-pr-73-2026-11-17.md) — `review_pending` (3 fix loops; CI green @ a60786f; 8/8 settlement polls; no independent re-review)
 
   - 2026-11-17 | `fix-pr-73-2026-11-17.md` | domains: [b-loop, review, recovery, git, ci] | topics: [fix-pr, coderabbit, checkpoint-lock, commit-tree, save-receipt, e2e-skip] | status: review_pending

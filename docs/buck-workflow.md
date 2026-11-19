@@ -462,6 +462,7 @@ flowchart TD
 | [**b-commit**](#b-commit--final-commit) | Prompt template | `/b-commit` | `prompts/b-commit.md` + `skills/git-commit/SKILL.md` | Final commit — backed by `git-commit` skill |
 | [**b-build-hard**](#b-build-hard--complexrisky-implementation) | Prompt template | `/b-build-hard` | `prompts/b-build-hard.md` | Complex, ambiguous, or risky implementation |
 | [**b-iterate**](#b-iterate--quick-follow-up-fixes) | Prompt template | `/b-iterate` | `prompts/b-iterate.md` | Quick fixes, polish, review-loop edits |
+| [**b-refactor**](#b-refactor--one-accidental-complexity-fix) | Prompt template + Skill | `/b-refactor` | `prompts/b-refactor.md` + `skills/b-refactor/SKILL.md` | One accidental-complexity fix, behavior preserved, one PR |
 | [**b-diagnose**](#b-diagnose--diagnosing-hard-bugs) | Prompt template + Skill | `/b-diagnose` | `prompts/b-diagnose.md` + `skills/b-diagnose/` | Diagnosis loop for hard bugs — red-capable loop gate before any hypothesis |
 | [**codebase-design**](#codebase-design--deep-module-vocabulary) | Skill | `/skill:codebase-design` | `skills/codebase-design/SKILL.md` | Deep-module design vocabulary; seam/depth/adapter language for design and testability (no slash wrapper) |
 | [**b-handoff**](#b-handoff--portable-session-handoff) | Prompt template + Skill | `/b-handoff` | `prompts/b-handoff.md` + `skills/b-handoff/` | Portable seed doc for a different agent/harness/machine (OS temp dir, redacted secrets) |
@@ -1240,6 +1241,31 @@ for the operator sequence.
 **Escalation Trigger**: When fix grows beyond "small iteration" scope.
 
 **Next Step**: `/b-review` to re-check changes
+
+---
+
+#### `/b-refactor` — One Accidental-Complexity Fix
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Remove one piece of accidental complexity from existing code. Behavior stays pinned. One invocation is one PR-sized diff, or a deliberate stop. A night of 1–4 PRs is 1–4 invocations.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-refactor.md` in Pi, `commands/b-refactor.md` symlink in OMP) + `skills/b-refactor/SKILL.md`.
+
+**Intake**:
+1. **Targeted** — a path, symbol, or smell. That is the only scope.
+2. **Find** — nothing named. Two looks, first real force wins. No third area. No smell inventory.
+
+**Behavior**:
+- One force. One reviewable diff. Then stop.
+- Pin behavior with an existing test or a characterization test before the first structural edit. No pin, no edit.
+- Does not commit, push, or open a PR.
+- Does not consult `buckModels`.
+- Not bundled in the Codex plugin.
+
+**Not this command**: new behavior (`/b-build`), a bug (`/b-diagnose`), a review nit (`/b-iterate`), a smell inventory (`code-smells`).
+
+**Next Step**: `/b-review`, then `/b-save`, then `/b-commit`, then `/b-pr`. No diff: do not open a PR.
 
 ---
 

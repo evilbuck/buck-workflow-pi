@@ -4,6 +4,10 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ## Unreleased
 
+### Added
+
+- **`/b-refactor` removes one piece of accidental complexity per run.** Targeted path, symbol, or smell — or one found candidate. Behavior stays pinned. Each run is one PR-sized diff; the night loop is the caller. Next step is `/b-review`.
+
 ### Changed
 
 - **Choose one durable storage backend per project.** Repository files, external project files, SQLite, and PostgreSQL share the trusted workflow-state interface; versioned checkpoint publication and explicit migration preserve branch privacy without environment-driven fallback or dual writes.

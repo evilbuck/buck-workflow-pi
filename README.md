@@ -238,6 +238,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-build-hard` | `b-build` (hard mode) | Complex, ambiguous, or higher-risk implementation |
 | `/b-graph` | `b-graph` | Run a task as a graph of bounded, verifiable nodes — parallel subagent dispatch, evidence-gated edges, node-level retries |
 | `/b-iterate` | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `/b-refactor` | `b-refactor` | One accidental-complexity fix, behavior preserved, sized for one PR |
 | `/b-diagnose` | `b-diagnose` | Diagnose hard bugs/regressions — tight red-capable loop before any hypothesis |
 | `/b-handoff` | `b-handoff` | Portable cross-harness/-directory/-machine handoff doc (OS temp dir, redacted secrets) |
 | `/b-wizard` | `b-wizard` | Generate an interactive bash wizard for human-only setup steps (credentials, dashboards, cutovers) |
@@ -296,6 +297,7 @@ When the package extension is loaded (Pi/OMP), five commands use wired runtime i
 | `b-build` | Implement well-defined work (standard or hard mode) |
 | `b-graph` | Execute a task as a graph of bounded nodes — split first, dispatch in parallel, gate on evidence, retry nodes not batches; resumable via graph.md/checks.md/progress.md (not bundled in the Codex plugin) |
 | `b-iterate` | Quick follow-up fixes, polish, review-loop edits |
+| `b-refactor` | One behavior-preserving accidental-complexity fix per run — targeted path or one found candidate (not bundled in the Codex plugin) |
 | `b-diagnose` | Diagnosis loop for hard bugs/regressions — Phase 1 red-capable-loop gate, ranked falsifiable hypotheses, regression test at a correct seam |
 | `codebase-design` | Deep-module design vocabulary (module/interface/depth/seam/adapter/leverage/locality), deletion test, design-it-twice fan-out (skill-only, no slash wrapper) |
 | `b-handoff` | Portable seed doc for a different agent/harness/machine — writes to OS temp dir, suggested-skills section, redacts secrets |
@@ -372,6 +374,7 @@ Starting from a vague idea through to durable completion. Every artifact survive
 | `/b-build → /b-review` | Quick fix — no planning needed |
 | `/b-graph <task> → /b-review → /b-save → /b-commit` | Fan-out work — bounded parallel nodes with evidence gates |
 | `/b-iterate → /b-review` | Follow-up fix loop |
+| `/b-refactor` → `/b-review` → `/b-commit` → `/b-pr` | One accidental-complexity fix, one PR |
 | `/skill:fix-pr <pr>` | Action PR review comments — validate, fix+push, poll re-review until settled; `--issues-only` to file issues instead (skill-only) |
 | `/b-plan → /b-review → /b-docs → /b-save → /b-commit` | Plan and review without exploration |
 
