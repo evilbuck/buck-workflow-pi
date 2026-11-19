@@ -14,6 +14,7 @@ import {
   parseFrontmatter,
   parseSimpleYaml,
   planImport,
+  resolveConfig,
   sha256Hex,
   splitFrontmatter,
 } from "./import-context-memory";
@@ -326,5 +327,41 @@ describe("adapter source-dir and frontmatter boundaries", () => {
     const item = storedSource("backlog", "items/item.md", "---\ntitle: Real\nstatus: active\n---\n# Item\n");
     const sourceDirs = parseArgs(["--root", "/project"]).sourceDirs;
     expect(listMemoryMarkdown(sourceDirs, "/project", [item], [item.revision])).toEqual([]);
+  });
+});
+
+describe("resolveConfig", () => {
+  // Point --omp-config at a missing file so the suite never reads the
+  // operator's real ~/.omp/agent/config.yml.
+  const noFile = ["--omp-config", "/nonexistent/omp-config.yml"];
+
+  test("defaults when nothing is set", () => {
+    const cfg = resolveConfig(parseArgs(noFile), {});
+    expect(cfg.apiUrl).toBe("http://localhost:8888");
+    expect(cfg.apiToken).toBe(null);
+    expect(cfg.bankIdBase).toBe("omp");
+    expect(cfg.scoping).toBe("per-project-tagged");
+  });
+
+  test("env beats built-in default; flag beats env", () => {
+    const byEnv = resolveConfig(parseArgs(noFile), { HINDSIGHT_API_URL: "http://env:1", HINDSIGHT_BANK_ID: "env-bank" });
+    expect(byEnv.apiUrl).toBe("http://env:1");
+    expect(byEnv.bankIdBase).toBe("env-bank");
+
+    const byFlag = resolveConfig(
+      parseArgs([...noFile, "--api-url", "http://flag:2", "--bank-id", "flag-bank"]),
+      { HINDSIGHT_API_URL: "http://env:1", HINDSIGHT_BANK_ID: "env-bank" },
+    );
+    expect(byFlag.apiUrl).toBe("http://flag:2");
+    expect(byFlag.bankIdBase).toBe("flag-bank");
+  });
+
+  test("trailing slashes are stripped from apiUrl and invalid scoping throws", () => {
+    const cfg = resolveConfig(parseArgs([...noFile, "--api-url", "http://host:8888///"]), {});
+    expect(cfg.apiUrl).toBe("http://host:8888");
+    // parseArgs already rejects unknown --scoping values, so reach
+    // resolveConfig's own guard through a hand-built args object.
+    const args = parseArgs(noFile);
+    expect(() => resolveConfig({ ...args, scoping: "bogus" }, {})).toThrow("invalid scoping");
   });
 });

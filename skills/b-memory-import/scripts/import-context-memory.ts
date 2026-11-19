@@ -660,27 +660,30 @@ export function parseOmpHindsightBlock(yamlText: string): OmpHindsightFileConfig
   return out;
 }
 
+/**
+ * Resolve one hindsight config key through the priority chain every
+ * key shares: CLI flag, then environment variable, then the omp
+ * config file block, then the built-in default.
+ */
+function configValue(
+  flag: string | null | undefined,
+  envVar: string | undefined,
+  fileValue: string | undefined,
+  fallback: string,
+): string {
+  return flag || envVar || fileValue || fallback;
+}
+
 export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.env): ResolvedConfig {
   let file: OmpHindsightFileConfig = {};
   if (args.ompConfig && existsSync(args.ompConfig)) {
     file = parseOmpHindsightBlock(readFileSync(args.ompConfig, "utf-8"));
   }
 
-  const apiUrl =
-    args.apiUrl ||
-    env.HINDSIGHT_API_URL ||
-    file.apiUrl ||
-    "http://localhost:8888";
-  const apiToken =
-    args.apiToken || env.HINDSIGHT_API_TOKEN || file.apiToken || null;
-  const bankIdBase =
-    args.bankId || env.HINDSIGHT_BANK_ID || file.bankId || DEFAULT_BANK;
-
-  const scopingRaw =
-    args.scoping ||
-    env.HINDSIGHT_SCOPING ||
-    file.scoping ||
-    DEFAULT_SCOPING;
+  const apiUrl = configValue(args.apiUrl, env.HINDSIGHT_API_URL, file.apiUrl, "http://localhost:8888");
+  const apiToken = configValue(args.apiToken, env.HINDSIGHT_API_TOKEN, file.apiToken, "") || null;
+  const bankIdBase = configValue(args.bankId, env.HINDSIGHT_BANK_ID, file.bankId, DEFAULT_BANK);
+  const scopingRaw = configValue(args.scoping, env.HINDSIGHT_SCOPING, file.scoping, DEFAULT_SCOPING);
   if (!VALID_SCOPING.has(scopingRaw)) {
     throw new Error(`invalid scoping: ${scopingRaw}`);
   }
