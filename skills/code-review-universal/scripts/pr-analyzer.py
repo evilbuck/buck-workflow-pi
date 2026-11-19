@@ -201,6 +201,45 @@ def _strip_diff_path_prefix(raw: str, header_prefixed: bool) -> str:
     return s
 
 
+def _new_file_stats(path: str) -> FileStats:
+    """Build a FileStats for a known path, classifying language/test/config."""
+    return FileStats(
+        filename=path,
+        language=detect_language(path),
+        is_test=is_test_file(path),
+        is_config=is_config_file(path),
+    )
+
+
+def _same_path_fallback(parts: List[str]) -> Optional[str]:
+    """
+    Best-effort same-path fallback from the two `diff --git` header tokens.
+
+    Covers binary / chmod-only entries that never produce `---`/`+++`
+    body lines: prefix-styled same-path (`a/foo b/foo`) via the back-
+    reference regex, then noprefix identical tokens (`foo foo`).
+    Returns None when the tokens name two different paths (a rename).
+    """
+    if len(parts) == 2:
+        joined = parts[0] + ' ' + parts[1]
+        m = re.match(r'^[a-z]/(.+?) [a-z]/\1$', joined)
+        if m:
+            return m.group(1)
+        if parts[0] == parts[1]:
+            # noprefix: tokens are identical. Pull the path off either
+            # token — but only the first, since `s/x.py` is one path.
+            return parts[0]
+    return None
+
+
+def _count_body_line(line: str, current_file: FileStats) -> None:
+    """Count one body line as an addition or deletion."""
+    if line.startswith('+') and not line.startswith('+++'):
+        current_file.additions += 1
+    elif line.startswith('-') and not line.startswith('---'):
+        current_file.deletions += 1
+
+
 def parse_diff(diff_content: str) -> List[FileStats]:
     """Parse git diff output and extract file statistics."""
     files = []
@@ -260,39 +299,15 @@ def parse_diff(diff_content: str) -> List[FileStats]:
             # Try prefix-styled same-path first
             # (`a/foo b/foo`, `c/foo w/foo`), then noprefix same-token
             # (`foo foo` / `s/x.py s/x.py`).
-            if len(parts) == 2:
-                joined = parts[0] + ' ' + parts[1]
-                m = re.match(r'^[a-z]/(.+?) [a-z]/\1$', joined)
-                if m:
-                    fallback_path = m.group(1)
-                    current_file = FileStats(
-                        filename=fallback_path,
-                        language=detect_language(fallback_path),
-                        is_test=is_test_file(fallback_path),
-                        is_config=is_config_file(fallback_path),
-                    )
-                elif parts[0] == parts[1]:
-                    # noprefix: tokens are identical. Pull the path
-                    # off either token — but only the first, since
-                    # `s/x.py` is one path, not two.
-                    fallback_path = parts[0]
-                    current_file = FileStats(
-                        filename=fallback_path,
-                        language=detect_language(fallback_path),
-                        is_test=is_test_file(fallback_path),
-                        is_config=is_config_file(fallback_path),
-                    )
+            fallback_path = _same_path_fallback(parts)
+            if fallback_path is not None:
+                current_file = _new_file_stats(fallback_path)
             continue
         if saw_diff_header and line.startswith('rename to '):
             # `rename to <path>` is the authoritative destination for
             # rename entries; it never has a prefix. Commit immediately.
             pending_path = line[len('rename to '):].strip()
-            current_file = FileStats(
-                filename=pending_path,
-                language=detect_language(pending_path),
-                is_test=is_test_file(pending_path),
-                is_config=is_config_file(pending_path),
-            )
+            current_file = _new_file_stats(pending_path)
             saw_diff_header = False
             continue
         if saw_diff_header and line.startswith('rename from '):
@@ -328,12 +343,7 @@ def parse_diff(diff_content: str) -> List[FileStats]:
                     continue
             else:
                 pending_path = _strip_diff_path_prefix(raw, header_prefixed)
-            current_file = FileStats(
-                filename=pending_path,
-                language=detect_language(pending_path),
-                is_test=is_test_file(pending_path),
-                is_config=is_config_file(pending_path),
-            )
+            current_file = _new_file_stats(pending_path)
             saw_diff_header = False
             continue
         if saw_diff_header:
@@ -341,10 +351,7 @@ def parse_diff(diff_content: str) -> List[FileStats]:
             # don't identify the file. Keep waiting.
             continue
         if current_file:
-            if line.startswith('+') and not line.startswith('+++'):
-                current_file.additions += 1
-            elif line.startswith('-') and not line.startswith('---'):
-                current_file.deletions += 1
+            _count_body_line(line, current_file)
 
     if current_file:
         files.append(current_file)
