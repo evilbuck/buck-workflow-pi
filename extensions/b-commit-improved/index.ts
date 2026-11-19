@@ -260,23 +260,31 @@ function buildPrompt(
   );
 }
 
-function parseModelResponse(raw: string): DraftBlock | null {
+/**
+ * Pull the first JSON object out of a model response: strip optional
+ * ```json fences, then slice from the first `{` to the last `}` and
+ * parse. Null when no object is present or the slice is not JSON.
+ */
+function extractJsonObject(raw: string): Record<string, unknown> | null {
   const trimmed = raw.trim();
-  // Strip optional ```json fences.
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   const body = fenced ? fenced[1] : trimmed;
   const start = body.indexOf("{");
   const end = body.lastIndexOf("}");
   if (start < 0 || end < 0 || end <= start) return null;
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(body.slice(start, end + 1));
+    const parsed: unknown = JSON.parse(body.slice(start, end + 1));
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
   }
-  if (!parsed || typeof parsed !== "object") return null;
-  const title = (parsed as Record<string, unknown>).title;
-  const bodyField = (parsed as Record<string, unknown>).body;
+}
+
+function parseModelResponse(raw: string): DraftBlock | null {
+  const parsed = extractJsonObject(raw);
+  if (!parsed) return null;
+  const title = parsed.title;
+  const bodyField = parsed.body;
   if (typeof title !== "string" || title.trim() === "") return null;
   return {
     title: title.trim(),
