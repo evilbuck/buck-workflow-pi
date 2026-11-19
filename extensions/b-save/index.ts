@@ -6,6 +6,7 @@ import { createActor } from "xstate";
 import { applyPatch, recoverApply, type ApplyResult } from "./apply.js";
 import { runEffects, type EffectOutcome, type MemoryCtx } from "./effects.js";
 import {
+  contextRootJoin,
   evaluateSnapshot,
   NeedsJudgmentError,
   SchemaError,
@@ -308,12 +309,36 @@ async function completeRecoveredApply(
   const scribe = persistedScribe(existing);
   const subject = existing.subject?.name ?? flags.subject;
   if (!scribe || !subject) return resumeFailure(existing.run_id, subject, "persisted proposals cannot safely resume effects", "failed_apply");
+  const patchOps = applied.journal.ops
+    .filter((op) => op.after !== null)
+    .map((op) => ({ path: op.path, content: readFileSync(contextRootJoin(ctx.cwd, op.path), "utf8") }));
   const effects = await runEffects({
     noRetain: flags.noRetain,
     memory: ctx.memory ?? null,
     facts: { run_id: existing.run_id, subject, scribe },
+    cwd: ctx.cwd,
+    patchOps,
   });
   const durableFiles = applied.journal.ops.map((op) => op.path);
+  const storeRetain = effects.find((effect) => effect.name === "store_retain");
+  if (storeRetain?.outcome === "failed_nonblocking") {
+    const manifest: RunManifest = {
+      ...existing,
+      state: "failed_apply",
+      effects,
+      user_decisions: [...existing.user_decisions, ...userDecisionsFor(flags, true)],
+      journal: { status: applied.journal.status, files: durableFiles },
+      terminal_error: "store retention failed: " + storeRetain.detail,
+    };
+    writeRunManifest(ctx.cwd, manifest);
+    return {
+      ok: false,
+      runId: existing.run_id,
+      state: "failed_apply",
+      report: formatReport({ runId: existing.run_id, state: "failed_apply", subject, effects, durableFiles, resumed: true }),
+      effects,
+    };
+  }
   const manifest: RunManifest = {
     ...existing,
     state: "completed",
@@ -542,8 +567,30 @@ async function applyAndComplete(args: {
     noRetain: flags.noRetain,
     memory: ctx.memory ?? null,
     facts: { run_id: runId, subject: snapshot.subject.name, scribe },
+    cwd: ctx.cwd,
+    patchOps: patch.ops,
   });
   actor.send({ type: "EFFECTS_DONE" });
+  const storeRetain = effects.find((effect) => effect.name === "store_retain");
+  if (storeRetain?.outcome === "failed_nonblocking") {
+    actor.send({ type: "APPLY_FAILED" });
+    return finish({
+      state: "failed_apply",
+      effects,
+      warnings: ["store retention failed: " + storeRetain.detail],
+      manifest: manifestFor({
+        runId,
+        state: "failed_apply",
+        flags,
+        effects,
+        ok: false,
+        snapshot,
+        proposals,
+        patch,
+        journal: { status: "completed", files: durableFiles },
+      }),
+    });
+  }
   return finish({
     state: machineState(),
     effects,

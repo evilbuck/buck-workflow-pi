@@ -1,4 +1,7 @@
-export type EffectName = "native_memory" | "reindex";
+import { Buffer } from "node:buffer";
+import { classifyContextPath, flushConfiguredRetains, scheduleConfiguredRetain } from "../../skills/_shared/storage/consumers.js";
+
+export type EffectName = "native_memory" | "reindex" | "store_retain";
 
 export type EffectOutcome = {
   name: EffectName;
@@ -24,7 +27,12 @@ export type EffectsInput = {
   noRetain?: boolean;
   memory?: MemoryCtx | null;
   facts?: unknown;
+  patchOps?: RetainOp[];
+  cwd?: string;
 };
+
+/** One applied patch op: a durable .context-relative write (content) or delete (null). */
+export type RetainOp = { path: string; content: string | null };
 
 const ALLOWED_SAVE: Record<string, true> = { local: true, mnemopi: true };
 
@@ -94,8 +102,30 @@ export async function reindexMemory(): Promise<EffectOutcome> {
   return skipped("reindex", "non-OMP adapter not claimed in this release");
 }
 
+// --no-retain only skips the native (LTM) mirror below; the store retain is the
+// durable save itself and always runs. Deletes cannot be expressed as store
+// writes (revisions are append-only; removal is a lifecycle/correction concern),
+// so they stay local-only and are reported here rather than silently dropped.
+export async function retainPatchToStore(input: EffectsInput & { patchOps: RetainOp[]; cwd: string }): Promise<EffectOutcome> {
+  let retained = 0;
+  let skippedDeletes = 0;
+  for (const op of input.patchOps) {
+    if (op.content === null) { skippedDeletes += 1; continue; }
+    const classified = classifyContextPath(op.path);
+    scheduleConfiguredRetain({ cwd: input.cwd, ...classified, bytes: Buffer.from(op.content, "utf8"), author: "b-save", source: "b-save-extension" });
+    retained += 1;
+  }
+  if (retained === 0) return skipped("store_retain", "no durable writes in patch");
+  try {
+    await flushConfiguredRetains();
+  } catch (error) {
+    return failed("store_retain", String(error));
+  }
+  return { name: "store_retain", outcome: "succeeded", detail: `retained ${retained} write(s) into the configured store; ${skippedDeletes} delete(s) left to lifecycle/corrections` };
+}
+
 export async function runEffects(input: EffectsInput): Promise<EffectOutcome[]> {
   const native = await deliverNativeMemory(input);
   const reindex = await reindexMemory();
-  return [native, reindex];
+  return [native, reindex, ...(input.patchOps ? [await retainPatchToStore(input)] : [])];
 }
