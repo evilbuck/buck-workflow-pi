@@ -447,6 +447,36 @@ async function resolveMessage(
 }
 
 /**
+ * Steps 3-4: refuse leftover template tokens, then honor --dry-run by
+ * previewing (and persisting model drafts for reuse). Returns true when
+ * the run stops there.
+ */
+function previewOrRefuse(
+  message: ResolvedMessage,
+  opts: Options,
+  cwd: string,
+  data: PreflightData,
+  notify: Notify,
+): boolean {
+  if (hasCommitPlaceholders(message.title) || hasCommitPlaceholders(message.body)) {
+    notify(
+      "Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.",
+      "warning",
+    );
+    return true;
+  }
+  if (opts.dryRun) {
+    const firstBodyLine = message.body.split("\n", 1)[0] ?? "";
+    notify(`[dry-run] ${message.title} — ${firstBodyLine}`, "info");
+    if (message.source === "model") {
+      persistDryRunDraft(cwd, data.subjectFolder, message.title, message.body, notify);
+    }
+    return true;
+  }
+  return false;
+}
+
+/**
  * Step 5: run the commit. Hooks may auto-stage files mid-commit; when the
  * first attempt fails but the index now has entries, retry once. Returns
  * false (after notifying) when the commit did not land.
@@ -539,19 +569,8 @@ async function runBCommitImproved(
     const message = await resolveMessage(opts, data, cwd, activity, notify);
     if (!message) return;
 
-    // 3. Pre-commit safety: refuse leftover template tokens.
-    if (hasCommitPlaceholders(message.title) || hasCommitPlaceholders(message.body)) {
-      notify("Refusing to commit: title or body contains $TITLE, $BODY, or leftover <short summary>. Fix the draft and re-run.", "warning");
-      return;
-    }
-
-    // 4. --dry-run: preview, optionally write the draft.
-    if (opts.dryRun) {
-      const firstBodyLine = message.body.split("\n", 1)[0] ?? "";
-      notify(`[dry-run] ${message.title} — ${firstBodyLine}`, "info");
-      if (message.source === "model") persistDryRunDraft(cwd, data.subjectFolder, message.title, message.body, notify);
-      return;
-    }
+    // 3-4. Pre-commit safety, then --dry-run preview.
+    if (previewOrRefuse(message, opts, cwd, data, notify)) return;
 
     // 5. Commit. Hooks may have auto-staged files — retry once on failure if so.
     activity.phase("Committing…");
