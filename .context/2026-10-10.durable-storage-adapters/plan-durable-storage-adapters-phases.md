@@ -1,5 +1,5 @@
 ---
-status: completed
+status: active
 date: 2026-10-10
 subject: 2026-10-10.durable-storage-adapters
 topics: [phasing, storage-adapters, configuration, branch-isolation, sqlite, postgresql]
@@ -29,9 +29,9 @@ format: discrete
 | 2: Four Storage Adapters | completed | hard | [phase-2-four-adapters.md](phase-2-four-adapters.md) |
 | 3: Domain Semantics | completed | hard | [phase-3-domain-semantics.md](phase-3-domain-semantics.md) |
 | 4: Native Tool, CLI & Skill Cutover | completed | hard | [phase-4-native-access.md](phase-4-native-access.md) |
-| 5: Remaining Durable Consumers | completed | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
-| 6: Publication, Reconciliation & Recovery | completed | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
-| 7: Existing-Data Cutover | completed | hard | [phase-7-data-cutover.md](phase-7-data-cutover.md) |
+| 5: Remaining Durable Consumers | pending | medium | [phase-5-remaining-consumers.md](phase-5-remaining-consumers.md) |
+| 6: Publication, Reconciliation & Recovery | pending | hard | [phase-6-publication-recovery.md](phase-6-publication-recovery.md) |
+| 7: Existing-Data Cutover | pending | hard | [phase-7-data-cutover.md](phase-7-data-cutover.md) |
 | 8: End-to-End Proof, Docs & Packaging | completed | easy | [phase-8-proof-docs-package.md](phase-8-proof-docs-package.md) |
 
 ## Dependency Matrix
@@ -85,8 +85,8 @@ Use this overview as the durable navigation map for an OMP execution session. Fo
 - [x] Phase 1: Contract, Config, Identity & A-4 — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-10, 065b776)
 - [x] Phase 2: Four Storage Adapters — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-12, 849ef5a)
 - [x] Phase 3: Domain Semantics — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-12)
-- [x] Phase 4: Native Tool, CLI & Skill Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-12, db31575)
-- [x] Phase 5: Remaining Durable Consumers — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-16, 390bc3b)
-- [x] Phase 6: Publication, Reconciliation & Recovery — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-16, 2adebce)
-- [x] Phase 7: Existing-Data Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-16, 08f4888)
-- [x] Phase 8: End-to-End Proof, Docs & Packaging — build → review → iterate if in-plan issues → docs if doc impact → save → commit (done 2026-10-16, closeout uncommitted)
+- [ ] Phase 4: Native Tool, CLI & Skill Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 5: Remaining Durable Consumers — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 6: Publication, Reconciliation & Recovery — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 7: Existing-Data Cutover — build → review → iterate if in-plan issues → docs if doc impact → save → commit
+- [ ] Phase 8: End-to-End Proof, Docs & Packaging — build → review → iterate if in-plan issues → docs if doc impact → save → commit

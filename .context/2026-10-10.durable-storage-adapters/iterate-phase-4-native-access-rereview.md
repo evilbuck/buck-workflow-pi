@@ -1,12 +1,12 @@
 ---
-status: completed
+status: active
 date: 2026-10-12
-updated: 2026-10-17
+updated: 2026-10-12
 subject: 2026-10-10.durable-storage-adapters
 topics: [review, iteration, native-access, scope-binding]
 informs: []
 addresses: phase-4-native-access.md
-completed: 2026-10-17
+completed: null
 from_review: b-review
 ---
 

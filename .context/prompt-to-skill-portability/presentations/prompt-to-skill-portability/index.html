@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prompt to Skill Portability — Buck Workflow</title>
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <div class="page-layout">
+    <aside class="sidebar">
+      <div class="sidebar-title">Navigation</div>
+      <ul class="sidebar-nav">
+        <li><a href="#summary" class="active">Summary</a></li>
+        <li><a href="#why">Why</a></li>
+        <li><a href="#what">What Changes</a></li>
+        <li><a href="#how">How It Works</a></li>
+        <li><a href="#delivery">Delivery Shape</a></li>
+        <li><a href="#risks">Risks &amp; Conflicts</a></li>
+        <li><a href="#sources">Sources</a></li>
+      </ul>
+    </aside>
+
+    <main class="main-content">
+      <div class="meta-header">
+        <h1>Convert Buck workflow prompts into portable skills</h1>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">
+          2026-05-12 &middot; Subject: prompt-to-skill-portability
+        </p>
+        <div class="meta-tags">
+          <span class="badge badge-status">active</span>
+          <span class="badge badge-topic">prompts</span>
+          <span class="badge badge-topic">skills</span>
+          <span class="badge badge-topic">portability</span>
+          <span class="badge badge-topic">agents</span>
+          <span class="badge badge-topic">commands</span>
+          <span class="badge badge-topic">plugins</span>
+        </div>
+      </div>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>
+          Buck workflow currently ships as <strong>Pi prompt templates</strong> in <code>prompts/</code>.
+          This limits portability to Claude Code, OpenCode, and Codex, which each use different
+          extension mechanisms (skills, commands, plugins).
+        </p>
+        <p>
+          The plan migrates the <strong>canonical workflow logic</strong> from prompts into
+          <strong>portable skills</strong> while keeping each agent's native command/prompt surface
+          as thin wrappers. Runtime automation (e.g. <code>/b-save</code>) stays in extensions/plugins.
+        </p>
+      </section>
+
+      <section id="why">
+        <h2>Why</h2>
+        <ul>
+          <li>
+            <strong>Agent lock-in:</strong> Prompt templates are Pi-specific. Claude Code uses
+            <code>commands/</code>, OpenCode uses <code>commands/</code>, Codex uses plugins.
+            None of these agents natively understand Pi prompt templates.
+          </li>
+          <li>
+            <strong>Duplicated logic:</strong> If we want Buck workflow on multiple agents, we'd
+            have to copy-paste the full instruction set into each agent's format.
+          </li>
+          <li>
+            <strong>Skills are portable:</strong> The Agent Skills standard is designed for
+            progressive disclosure and works across Pi, Claude Code, and Codex. OpenCode can
+            consume skill-like markdown via commands.
+          </li>
+        </ul>
+      </section>
+
+      <section id="what">
+        <h2>What Changes</h2>
+
+        <h3>Canonical skill layer (new)</h3>
+        <p>Create one portable skill per major workflow:</p>
+        <ul>
+          <li><code>skills/b-brainstorm/SKILL.md</code></li>
+          <li><code>skills/b-research/SKILL.md</code></li>
+          <li><code>skills/b-plan/SKILL.md</code></li>
+          <li><code>skills/b-build/SKILL.md</code></li>
+          <li><code>skills/b-build-hard/SKILL.md</code></li>
+          <li><code>skills/b-iterate/SKILL.md</code></li>
+          <li><code>skills/b-review/SKILL.md</code></li>
+          <li>Reconcile existing <code>skills/b-present/SKILL.md</code> with <code>prompts/b-present.md</code></li>
+        </ul>
+
+        <h3>Command / prompt shim layer (thin wrappers)</h3>
+        <p>Keep agent-native commands but shrink them to skill activators:</p>
+        <table>
+          <thead>
+            <tr><th>Agent</th><th>Wrapper Type</th><th>Example</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Pi</strong></td>
+              <td>Prompt template</td>
+              <td><code>/b-plan</code> → "Load and follow <code>/skill:b-plan</code>"</td>
+            </tr>
+            <tr>
+              <td><strong>Claude Code</strong></td>
+              <td>Command or plugin skill</td>
+              <td><code>/b-plan</code> or <code>/buck:b-plan</code> → skill activation</td>
+            </tr>
+            <tr>
+              <td><strong>OpenCode</strong></td>
+              <td>Command markdown</td>
+              <td><code>/b-plan</code> → routes to skill instructions</td>
+            </tr>
+            <tr>
+              <td><strong>Codex</strong></td>
+              <td>Plugin skill</td>
+              <td>Bundled skill in plugin; slash commands for UI</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Extension / plugin layer (unchanged scope)</h3>
+        <p>Runtime automation stays outside skills:</p>
+        <ul>
+          <li><code>/b-save</code> — session persistence, memory updates</li>
+          <li>Background/flow orchestration</li>
+          <li>Tmux/dev-server integration</li>
+        </ul>
+      </section>
+
+      <section id="how">
+        <h2>How It Works</h2>
+
+        <p>The architecture is a three-layer stack:</p>
+
+        <div class="card">
+          <div class="card-title">Layer 1: Canonical Skills</div>
+          <p>Self-contained <code>SKILL.md</code> files with frontmatter, role instructions, behavior rules, and output contracts. Agent-neutral terminology where possible.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Layer 2: Native Command Wrappers</div>
+          <p>Thin prompts/commands per agent that simply invoke or strongly reference the matching skill. The wrapper contains minimal logic — just enough for the agent's command discovery system.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Layer 3: Runtime Extensions/Plugins</div>
+          <p>TypeScript/JavaScript modules with event hooks, custom tools, persistence, and session automation. This is where <code>/b-save</code> lives.</p>
+        </div>
+
+        <p>A typical flow looks like:</p>
+        <ol>
+          <li>User types <code>/b-plan</code> in their agent</li>
+          <li>Agent resolves the native command/prompt</li>
+          <li>The wrapper loads the canonical <code>skills/b-plan/SKILL.md</code></li>
+          <li>The skill's instructions drive behavior</li>
+          <li>After implementation, <code>/b-save</code> (extension/plugin) persists state</li>
+        </ol>
+      </section>
+
+      <section id="delivery">
+        <h2>Delivery Shape</h2>
+
+        <table>
+          <thead>
+            <tr><th>Deliverable</th><th>Location</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Canonical skills for all <code>/b-*</code> workflows</td>
+              <td><code>skills/&lt;workflow&gt;/SKILL.md</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>Pi prompt wrappers</td>
+              <td><code>prompts/&lt;workflow&gt;.md</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>Claude Code adapter docs</td>
+              <td>README or <code>.claude/</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>OpenCode adapter docs</td>
+              <td>README or <code>.opencode/</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>Codex plugin adapter docs</td>
+              <td>README or <code>.codex/</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>Architecture docs update</td>
+              <td><code>README.md</code>, <code>AGENTS.md</code></td>
+              <td>Not started</td>
+            </tr>
+            <tr>
+              <td>Validation (plan → build → review → save)</td>
+              <td>Live agent sessions</td>
+              <td>Not started</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <p><strong>Recommended phasing:</strong> This plan is large enough to benefit from sequential phases. The plan itself recommends running <code>/skill:b-phase</code> before implementation.</p>
+      </section>
+
+      <section id="risks">
+        <h2>Risks &amp; Conflicts</h2>
+
+        <div class="warning-banner">
+          <strong>Over-conversion risk:</strong> Skills are not a replacement for commands/plugins.
+          Converting runtime automation like <code>/b-save</code> into a skill would lose event hooks
+          and persistence. Keep runtime behavior in extensions/plugins.
+        </div>
+
+        <table>
+          <thead>
+            <tr><th>Risk</th><th>Mitigation</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Invocation mismatch across agents</td>
+              <td>Thin wrappers per agent; canonical skill uses neutral terminology</td>
+            </tr>
+            <tr>
+              <td>Context bloat from large skills</td>
+              <td>Progressive disclosure: only name/description in system prompt; full skill loads on-demand</td>
+            </tr>
+            <tr>
+              <td>Duplicate source of truth</td>
+              <td>Prompts become thin wrappers, not parallel full implementations</td>
+            </tr>
+            <tr>
+              <td>Behavior regressions from Pi-specific assumptions</td>
+              <td>Validate old prompt vs new skill for representative workflows</td>
+            </tr>
+            <tr>
+              <td>Scope creep into full marketplace packaging</td>
+              <td>Out of scope: full multi-agent marketplace distribution in this pass</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="sources">
+        <h2>Sources</h2>
+        <ul>
+          <li>
+            <a href="sources/plan-prompt-to-skill-portability.md" class="source-link">
+              📄 plan-prompt-to-skill-portability.md
+            </a>
+          </li>
+          <li>
+            <a href="sources/tasks.md" class="source-link">
+              📄 tasks.md
+            </a>
+          </li>
+        </ul>
+      </section>
+
+      <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border-color); color: var(--text-muted); font-size: 0.875rem;">
+        Generated from <code>.context/2026-05-12.prompt-to-skill-portability/plan-prompt-to-skill-portability.md</code>
+        on 2026-05-12.
+      </footer>
+    </main>
+  </div>
+</body>
+</html>

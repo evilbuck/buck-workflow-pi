@@ -4,8 +4,8 @@ date: 2026-10-10
 subject: 2026-10-10.durable-storage-adapters
 topics: [storage-adapters, configuration, branch-isolation, sqlite, postgresql]
 research: [research-durable-storage-adapters.md]
-iterations: [iterate-phase-1-contract-config-identity.md, iterate-phase-2-four-adapters.md, iterate-phase-4-native-access-rereview.md, iterate-phase-8-proof-docs-package.md]
-memory: [storage-adapters-phase-1-save-2026-10-10.md, storage-adapters-phase-8-save-2026-10-16.md]
+iterations: [iterate-phase-1-contract-config-identity.md, iterate-phase-2-four-adapters.md]
+memory: [storage-adapters-phase-1-save-2026-10-10.md]
 sql_memory_ids:
   - 01a127c3-490a-74ad-8cb8-04f01a67dd53
   - 01a130f6-89ba-70a4-9b09-c181378c4836
