@@ -20,10 +20,10 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured } from "../subprocess.js";
+import { execGit } from "../git-exec.js";
 import { createActivity, type Activity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
 
@@ -38,19 +38,6 @@ const MAX_CONFLICT_ATTEMPTS = 20;
 
 // ---------- git / gh helpers ----------
 
-function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...env },
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    throw new Error(`git ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`);
-  }
-}
 
 async function execGitPush(args: string[], cwd: string): Promise<void> {
   const result = await execFileCaptured("git", args, cwd);

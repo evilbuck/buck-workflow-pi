@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { execFileCaptured } from "../subprocess.js";
 import { createActivity, type Activity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
+import { execGit } from "../git-exec.js";
 
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -29,19 +30,6 @@ const PREFLIGHT = join(HERE, "..", "..", "skills", "git-commit", "scripts", "com
 
 // ---------- git helpers ----------
 
-function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...env },
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    throw new Error(`git ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`);
-  }
-}
 
 // tryGit runs a git command without throwing — returns ok flag plus stdout.
 // Used for read-only checks (status, log, diff --cached --name-only after a hook).

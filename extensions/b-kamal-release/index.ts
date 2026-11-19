@@ -19,45 +19,15 @@
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { execFileSync, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { once } from "node:events";
 import { createLineRing, execFileCaptured, KAMAL_TAIL_LINES } from "../subprocess.js";
 import { createActivity, type Activity } from "../extension-activity.js";
-
-// ---------- exec helpers ----------
-
-function execText(bin: string, args: string[], cwd: string): string {
-  try {
-    return execFileSync(bin, args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    throw new Error(
-      `${bin} ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`,
-    );
-  }
-}
-
-function execGit(args: string[], cwd: string): string {
-  return execText("git", args, cwd);
-}
-
-function hasBin(bin: string): boolean {
-  try {
-    execFileSync(bin, ["--version"], { stdio: ["pipe", "pipe", "pipe"] });
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { execGit, hasBin } from "../git-exec.js";
 
 // ---------- kamal environment detection ----------
-
 /** Directory Kamal reads config from (cwd-relative). */
 const KAMAL_CONFIG_DIR = "config";
 const KAMAL_CONFIG_FILE = "deploy.yml";
