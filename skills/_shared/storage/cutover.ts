@@ -55,10 +55,19 @@ async function loadImportAttempt(path: string, destination: string, snapshot: Mi
     attempt = { version: 1, snapshot, sourceDigest: digest(snapshot), destination, cursor: 0, staged: emptySnapshot(snapshot.projectId), status: "staging", ...(merge ? { merge: true } : {}) };
     await retainPrivate(path, attempt);
   }
-  const expected = snapshot ? digest(snapshot) : attempt.sourceDigest;
-  if (attempt.version !== 1 || attempt.destination !== destination || (attempt.merge ?? false) !== merge || attempt.sourceDigest !== digest(attempt.snapshot) || expected !== attempt.sourceDigest) throw new Error("Import attempt binding mismatch");
+  assertAttemptBinding(attempt, destination, snapshot, merge);
   validateSnapshot(attempt.snapshot);
   return attempt;
+}
+
+/**
+ * The persisted attempt must still bind to this exact import request:
+ * same format version, same destination, same merge mode, and a source
+ * digest that matches both its own snapshot and the caller's snapshot.
+ */
+function assertAttemptBinding(attempt: ImportAttempt, destination: string, snapshot: MigrationSnapshot | undefined, merge: boolean): void {
+  const expected = snapshot ? digest(snapshot) : attempt.sourceDigest;
+  if (attempt.version !== 1 || attempt.destination !== destination || (attempt.merge ?? false) !== merge || attempt.sourceDigest !== digest(attempt.snapshot) || expected !== attempt.sourceDigest) throw new Error("Import attempt binding mismatch");
 }
 
 export async function importSnapshot(store: MigrationStore, path: string, destination: string, snapshot: MigrationSnapshot, merge = false): Promise<void> {
