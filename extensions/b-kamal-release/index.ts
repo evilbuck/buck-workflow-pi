@@ -280,10 +280,20 @@ interface CommandContext {
 
 // ---------- interactive prompts (deterministic when headless) ----------
 
+/** Explicit --tag/--bump resolution; null when neither flag is set. */
+function explicitVersion(opts: Options, proposal: VersionProposal): string | null {
+  if (opts.tag) return proposal.prefix + opts.tag.replace(/^v/, "");
+  if (opts.bump) {
+    const base = parseSemver(proposal.latest ?? "0.0.0") ?? { major: 0, minor: 0, patch: 0 };
+    return formatSemver(bumpSemver(base, opts.bump), proposal.prefix);
+  }
+  return null;
+}
+
 async function resolveVersion(opts: Options, proposal: VersionProposal, ctx: CommandContext): Promise<string | null> {
   // Explicit flag wins, no prompt.
-  if (opts.tag) return proposal.prefix + opts.tag.replace(/^v/, "");
-  if (opts.bump) return formatSemver(bumpSemver(parseSemver(proposal.latest ?? "0.0.0") ?? { major: 0, minor: 0, patch: 0 }, opts.bump), proposal.prefix);
+  const explicit = explicitVersion(opts, proposal);
+  if (explicit !== null) return explicit;
 
   // Headless: fall back to the detected default so the command is still runnable.
   if (!ctx.hasUI || !ctx.ui.select) return proposal.tag;
