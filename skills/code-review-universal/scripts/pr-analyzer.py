@@ -426,21 +426,24 @@ def _has_database_changes(files: List[FileStats]) -> bool:
     return False
 
 
-def identify_risk_factors(files: List[FileStats]) -> List[str]:
-    """Identify potential risk factors in the PR."""
-    risks = []
-
+def _size_and_test_risks(files: List[FileStats]) -> List[str]:
+    """Risk strings for PR size and test-change ratio."""
+    risks: List[str] = []
     total_changes = sum(f.additions + f.deletions for f in files)
     test_changes = sum(f.additions + f.deletions for f in files if f.is_test)
 
     if total_changes > 400:
         risks.append("Large PR (>400 lines) - harder to review thoroughly")
-
     if test_changes == 0 and total_changes > 50:
         risks.append(f"{RISK_NO_TESTS}: No test changes - verify test coverage")
-
     if total_changes > 100 and test_changes / max(total_changes, 1) < 0.2:
         risks.append("Low test ratio (<20%) - consider adding more tests")
+    return risks
+
+
+def identify_risk_factors(files: List[FileStats]) -> List[str]:
+    """Identify potential risk factors in the PR."""
+    risks = _size_and_test_risks(files)
 
     # Security-sensitive files
     security_file = _first_security_sensitive_file(files)
