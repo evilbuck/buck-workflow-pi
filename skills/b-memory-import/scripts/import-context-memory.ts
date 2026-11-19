@@ -296,6 +296,57 @@ function resolveConfiguredSourceDirs(
   return [resolveSourceDir(root, ".context/memory")];
 }
 
+/** Boolean flags and the effect each has on the parsed args. */
+const BOOLEAN_SETTERS: Record<string, (out: CliArgs) => void> = {
+  "-h": (o) => {
+    o.help = true;
+  },
+  "--help": (o) => {
+    o.help = true;
+  },
+  "--dry-run": (o) => {
+    o.dryRun = true;
+  },
+  "--force": (o) => {
+    o.force = true;
+  },
+  "--sync": (o) => {
+    o.sync = true;
+  },
+};
+
+/** Value flags: each consumes the next argv token via its parser. */
+const VALUE_SETTERS: Record<string, (raw: string, out: CliArgs) => void> = {
+  "--root": (raw, o) => {
+    o.root = resolve(raw);
+  },
+  "--limit": (raw, o) => {
+    o.limit = parseLimitArg(raw);
+  },
+  "--scoping": (raw, o) => {
+    o.scoping = parseScopingArg(raw);
+  },
+  "--api-url": (raw, o) => {
+    o.apiUrl = raw;
+  },
+  "--api-token": (raw, o) => {
+    o.apiToken = raw;
+  },
+  "--bank-id": (raw, o) => {
+    o.bankId = raw;
+  },
+  "--omp-config": (raw, o) => {
+    o.ompConfig = resolve(raw);
+  },
+};
+
+/** The argv token after index i, or a thrown error when absent. */
+function requireValue(argv: string[], i: number, flag: string): string {
+  const v = argv[i + 1];
+  if (v === undefined) throw new Error(`missing value for ${flag}`);
+  return v;
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     root: process.cwd(),
@@ -313,65 +364,34 @@ export function parseArgs(argv: string[]): CliArgs {
     help: false,
   };
 
-  let sourceDirsRaw: string[] = [];
+  const sourceDirsRaw: string[] = [];
   let memoryDirOverride: string | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => {
-      const v = argv[++i];
-      if (v === undefined) throw new Error(`missing value for ${a}`);
-      return v;
-    };
-    switch (a) {
-      case "-h":
-      case "--help":
-        out.help = true;
-        break;
-      case "--dry-run":
-        out.dryRun = true;
-        break;
-      case "--force":
-        out.force = true;
-        break;
-      case "--sync":
-        out.sync = true;
-        break;
-      case "--root":
-        out.root = resolve(next());
-        break;
-      case "--source-dirs": {
-        const { end, parts } = consumeSourceDirs(argv, i);
-        i = end;
-        sourceDirsRaw.push(...parts);
-        break;
-      }
-      case "--memory-dir":
-        memoryDirOverride = resolve(next());
-        break;
-      case "--limit": {
-        out.limit = parseLimitArg(next());
-        break;
-      }
-      case "--api-url":
-        out.apiUrl = next();
-        break;
-      case "--api-token":
-        out.apiToken = next();
-        break;
-      case "--bank-id":
-        out.bankId = next();
-        break;
-      case "--scoping": {
-        out.scoping = parseScopingArg(next());
-        break;
-      }
-      case "--omp-config":
-        out.ompConfig = resolve(next());
-        break;
-      default:
-        throw new Error(`unknown argument: ${a}`);
+    const bool = BOOLEAN_SETTERS[a];
+    if (bool) {
+      bool(out);
+      continue;
     }
+    const val = VALUE_SETTERS[a];
+    if (val) {
+      val(requireValue(argv, i, a), out);
+      i++;
+      continue;
+    }
+    if (a === "--source-dirs") {
+      const { end, parts } = consumeSourceDirs(argv, i);
+      i = end;
+      sourceDirsRaw.push(...parts);
+      continue;
+    }
+    if (a === "--memory-dir") {
+      memoryDirOverride = resolve(requireValue(argv, i, a));
+      i++;
+      continue;
+    }
+    throw new Error(`unknown argument: ${a}`);
   }
 
   out.sourceDirs = resolveConfiguredSourceDirs(sourceDirsRaw, memoryDirOverride, out.root);
