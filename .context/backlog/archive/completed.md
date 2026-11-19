@@ -136,3 +136,5 @@
 - [x] Sync living docs to canonical b-save skill (2026-11-16) — `2026-10-01.skill-command-viability/index.md`. Consolidated b-save, b-save-improved, and deprecated-b-save into canonical skills/b-save/SKILL.md and updated living docs.
 
 - [x] initialLabel profile-command narrowing (2026-11-19) — `archive/2026-11/buck-loop-index-initial-label-narrowing.md`. `supervisorFailure` now takes `RunArgs`, matching its only caller; the TS2345 at `initialLabel(parsed)` is gone and no new diagnostics appear.
+
+- [x] formatRecall dead branch + undocumented fail-open (2026-11-19) — `archive/2026-11/recall-format-empty-shortlist-unreachable.md`. Resolution 1: the below-threshold fail-open in `judgeShortlist` is now recorded in a comment, the unreachable "Jev selected no relevant candidates." fallback is dropped, and a characterization test pins that an all-below-threshold judgment injects the full shortlist.

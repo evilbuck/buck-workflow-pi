@@ -12,7 +12,7 @@ const { runJev } = vi.hoisted(() => ({ runJev: vi.fn() }));
 vi.mock("../../jev-tool/index.js", () => ({ runJev }));
 vi.mock("../../typed-output/evaluator.js", () => ({ createTypeSafeEvaluator: vi.fn() }));
 
-import { recallProjectMemories } from "../project-memory.js";
+import { formatRecall, recallProjectMemories } from "../project-memory.js";
 import { prepareSaveAttempt, saveSqlFacts } from "../sql-save.js";
 
 let cwd: string;
@@ -91,6 +91,22 @@ describe("project memory recall", () => {
     const result = await recallProjectMemories(cwd, stage);
     expect(result.kind).toBe("success-rows");
     if (result.kind === "success-rows") expect(result.rows.map((row) => row.id)).toEqual(["memory-b", "memory-a"]);
+  });
+
+  it("fails open to the full shortlist when every judgment is below the relevance threshold", async () => {
+    await writeMemory("memory-a", "first");
+    await writeMemory("memory-b", "second", "pitfall");
+    runJev.mockResolvedValue({ details: { answers: {
+      relevant_memory_a: { type: "noul", noul: 0.1 },
+      relevant_memory_b: { type: "noul", noul: 0.2 },
+    } } });
+    const result = await recallProjectMemories(cwd, stage);
+    expect(result.kind).toBe("success-rows");
+    if (result.kind !== "success-rows") throw new Error("recall failed");
+    expect(result.rows.map((row) => row.id).sort()).toEqual(["memory-a", "memory-b"]);
+    const rendered = formatRecall(result);
+    expect(rendered).toContain("memory-a");
+    expect(rendered).toContain("memory-b");
   });
 
   it("returns the store shortlist when a judgment names an unknown id", async () => {

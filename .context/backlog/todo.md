@@ -96,7 +96,7 @@ Each item was reproduced by direct execution, not inferred. Found during the
 `extensions/buck-loop/` 75%-per-file coverage pass; none is fixed by that work.
 
 - [x] [repairCheckedPhase rewrites a body status line outside the frontmatter](archive/2026-10/buck-loop-repair-checked-phase-escapes-frontmatter.md) — medium; whole-document regex, and `completed_at` receives a full ISO timestamp from `resolveAmbiguity` — done 2026-10-03
-- [ ] [formatRecall's "no relevant candidates" branch is unreachable](items/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented
+- [x] [formatRecall's "no relevant candidates" branch is unreachable](archive/2026-11/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented — done 2026-11-19 (fail-open documented, dead branch dropped, resolution 1)
 - [ ] [serializeCallError emits an empty message for a nameless, messageless Error](items/serialize-call-error-empty-message.md) — low; intentionally untested pending a product decision
 - [x] [initialLabel does not narrow the profile command, so index.ts fails tsc](archive/2026-11/buck-loop-index-initial-label-narrowing.md) — low; pre-existing typing gap, runtime-safe — done 2026-11-19 (supervisorFailure now takes RunArgs)
 - [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`

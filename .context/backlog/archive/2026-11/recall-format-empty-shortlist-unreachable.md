@@ -1,10 +1,10 @@
 ---
 title: formatRecall's "no relevant candidates" branch is unreachable, and the fail-open is undocumented
-status: active
+status: completed
 priority: low
 created: 2026-10-03
-updated: 2026-10-03
-completed: null
+updated: 2026-11-19
+completed: 2026-11-19
 related:
   - extensions/buck-loop/project-memory.ts
   - extensions/buck-loop/__tests__/project-memory.test.ts
