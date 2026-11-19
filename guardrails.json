@@ -29,11 +29,6 @@
         "complexity": 26
       },
       {
-        "file": "skills/b-memory-import/scripts/import-projects.ts",
-        "function": "parseArgs",
-        "complexity": 20
-      },
-      {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
         "function": "commandToken",
         "complexity": 18
@@ -44,16 +39,6 @@
         "complexity": 18
       },
       {
-        "file": "skills/b-auto-fix/scripts/auto-fix.ts",
-        "function": "main",
-        "complexity": 16
-      },
-      {
-        "file": "skills/b-memory-import/scripts/import-context-memory.ts",
-        "function": "parseArgs",
-        "complexity": 16
-      },
-      {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
         "function": "detectSimple",
         "complexity": 14
@@ -62,16 +47,6 @@
         "file": "extensions/omp-models.ts",
         "function": "parseModelRoles",
         "complexity": 13
-      },
-      {
-        "file": "extensions/b-commit-improved/index.ts",
-        "function": "runBCommitImproved",
-        "complexity": 12
-      },
-      {
-        "file": "extensions/b-kamal-release/index.ts",
-        "function": "resolveVersion",
-        "complexity": 11
       }
     ],
     "complexity_baseline_file": null,
