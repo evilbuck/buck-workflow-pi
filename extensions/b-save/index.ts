@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createActor } from "xstate";
 import { applyPatch, recoverApply, type ApplyResult } from "./apply.js";
-import { runEffects, type EffectOutcome, type MemoryCtx } from "./effects.js";
+import { runEffects, type EffectOutcome, type MemoryCtx, type RetainOp } from "./effects.js";
 import {
   contextRootJoin,
   evaluateSnapshot,
@@ -300,6 +300,29 @@ function persistedScribe(manifest: RunManifest): ScribeProposal | null {
   return isScribeProposal(proposal) ? proposal : null;
 }
 
+type RecoveredProjection =
+  | { patchOps: RetainOp[]; replayBaseline: Record<string, string | null> }
+  | { drift: string };
+
+/**
+ * Rebuild the replayed retain writes from the recovered journal. The journal
+ * records the applied content's hash (applyJournalOp), so a projection matches
+ * only when the local file still hashes to the journaled value; anything else
+ * drifted underneath the crashed run.
+ */
+function rebuildRecoveredProjection(cwd: string, applied: ApplyResult): RecoveredProjection {
+  const patchOps: RetainOp[] = [];
+  const replayBaseline: Record<string, string | null> = {};
+  for (const op of applied.journal.ops) {
+    if (op.after === null) continue;
+    const content = readFileSync(contextRootJoin(cwd, op.path), "utf8");
+    if (hashContent(content) !== op.after) return { drift: op.path };
+    patchOps.push({ path: op.path, content });
+    replayBaseline[op.path] = op.before;
+  }
+  return { patchOps, replayBaseline };
+}
+
 async function completeRecoveredApply(
   ctx: CommandCtx,
   flags: CommandFlags,
@@ -309,15 +332,17 @@ async function completeRecoveredApply(
   const scribe = persistedScribe(existing);
   const subject = existing.subject?.name ?? flags.subject;
   if (!scribe || !subject) return resumeFailure(existing.run_id, subject, "persisted proposals cannot safely resume effects", "failed_apply");
-  const patchOps = applied.journal.ops
-    .filter((op) => op.after !== null)
-    .map((op) => ({ path: op.path, content: readFileSync(contextRootJoin(ctx.cwd, op.path), "utf8") }));
+  const projection = rebuildRecoveredProjection(ctx.cwd, applied);
+  if ("drift" in projection) {
+    return resumeFailure(existing.run_id, subject, "recovered projection drifted from the journaled patch: " + projection.drift, "failed_apply");
+  }
   const effects = await runEffects({
     noRetain: flags.noRetain,
     memory: ctx.memory ?? null,
     facts: { run_id: existing.run_id, subject, scribe },
     cwd: ctx.cwd,
-    patchOps,
+    patchOps: projection.patchOps,
+    replayBaseline: projection.replayBaseline,
   });
   const durableFiles = applied.journal.ops.map((op) => op.path);
   const storeRetain = effects.find((effect) => effect.name === "store_retain");

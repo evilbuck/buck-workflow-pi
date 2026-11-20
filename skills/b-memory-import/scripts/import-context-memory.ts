@@ -369,12 +369,14 @@ export function parseArgs(argv: string[]): CliArgs {
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const bool = BOOLEAN_SETTERS[a];
+    // Object.hasOwn: inherited prototype keys (constructor, valueOf, toString)
+    // must fall through to unknown handling, never be invoked as setters.
+    const bool = Object.hasOwn(BOOLEAN_SETTERS, a) ? BOOLEAN_SETTERS[a] : undefined;
     if (bool) {
       bool(out);
       continue;
     }
-    const val = VALUE_SETTERS[a];
+    const val = Object.hasOwn(VALUE_SETTERS, a) ? VALUE_SETTERS[a] : undefined;
     if (val) {
       val(requireValue(argv, i, a), out);
       i++;

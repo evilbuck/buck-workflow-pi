@@ -12,6 +12,7 @@ describe("isOutputDelta", () => {
     expect(isOutputDelta({ type: "tool_execution_start" })).toBe(false);
     expect(isOutputDelta({ type: "usage" })).toBe(false);
     expect(isOutputDelta({ type: "" })).toBe(false);
+    expect(isOutputDelta({ type: "text_delta" })).toBe(false);
   });
 });
 

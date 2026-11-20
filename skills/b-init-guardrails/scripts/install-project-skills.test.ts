@@ -115,6 +115,73 @@ describe("installProjectSkills", () => {
     expect(contract.ecosystems[0].complexity_cmd).toContain('-x "*/skills/b-init-guardrails/*"');
     expect(contract.version).toBe(2);
   });
+
+  test("refuses to install through a symlinked skill directory without copying", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    const outside = tempDir();
+    mkdirSync(join(outside, "b-init-guardrails"), { recursive: true });
+    writeFileSync(join(outside, "b-init-guardrails/SKILL.md"), "# outside\n");
+    mkdirSync(join(cwd, "skills"), { recursive: true });
+    symlinkSync(join(outside, "b-init-guardrails"), join(cwd, "skills/b-init-guardrails"));
+
+    expect(() => installProjectSkills({ sourceSkillsDir: source, cwd })).toThrow(/symlinked directory/);
+    expect(readFileSync(join(outside, "b-init-guardrails/SKILL.md"), "utf8")).toBe("# outside\n");
+    expect(existsSync(join(cwd, "skills/b-guardrails-check/SKILL.md"))).toBe(false);
+  });
+
+  test("refuses to install when skills itself is a symlink", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    symlinkSync(tempDir(), join(cwd, "skills"));
+    expect(() => installProjectSkills({ sourceSkillsDir: source, cwd })).toThrow(/symlinked directory/);
+  });
+
+  test("updates both ecosystems when they record the same lizard command", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    writeFileSync(
+      join(cwd, "guardrails.json"),
+      `${JSON.stringify({
+        version: 2,
+        ecosystems: [
+          { name: "typescript", complexity_cmd: "lizard -C 10 ." },
+          { name: "python", complexity_cmd: "lizard -C 10 ." },
+        ],
+      }, null, 2)}\n`,
+    );
+    const result = installProjectSkills({ sourceSkillsDir: source, cwd });
+    expect(result.excludes).toBe("added");
+    const again = installProjectSkills({ sourceSkillsDir: source, cwd });
+    expect(again.excludes).toBe("present");
+    const contract = JSON.parse(readFileSync(join(cwd, "guardrails.json"), "utf8"));
+    for (const eco of contract.ecosystems) {
+      expect(eco.complexity_cmd).toContain('-x "*/skills/b-guardrails-check/*"');
+      expect(eco.complexity_cmd).toContain('-x "*/skills/b-init-guardrails/*"');
+    }
+  });
+
+  test("creates a scripts object when package.json has none", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    writeFileSync(join(cwd, "package.json"), '{\n  "name": "demo"\n}\n');
+    const result = installProjectSkills({ sourceSkillsDir: source, cwd });
+    expect(result.script).toBe("added");
+    const parsed = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
+    expect(parsed.name).toBe("demo");
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
+
+  test("adds the script to a compact one-line scripts object", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    writeFileSync(join(cwd, "package.json"), '{"scripts":{"build":"tsc"}}');
+    const result = installProjectSkills({ sourceSkillsDir: source, cwd });
+    expect(result.script).toBe("added");
+    const parsed = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8"));
+    expect(parsed.scripts.build).toBe("tsc");
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
 });
 
 describe("insertGuardrailsScript", () => {
@@ -135,6 +202,56 @@ describe("insertGuardrailsScript", () => {
     expect(result.status).toBe("added");
     expect(JSON.parse(result.text).scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
   });
+
+  test("creates a scripts object when package.json has none", () => {
+    const compact = insertGuardrailsScript('{"name":"demo"}');
+    expect(compact.status).toBe("added");
+    const parsed = JSON.parse(compact.text);
+    expect(parsed.name).toBe("demo");
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+    const pretty = insertGuardrailsScript('{\n  "name": "demo"\n}\n');
+    expect(pretty.status).toBe("added");
+    expect(JSON.parse(pretty.text).scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+    expect(pretty.text).toContain('"name": "demo"');
+  });
+
+  test("appends to a compact one-line scripts object", () => {
+    const result = insertGuardrailsScript('{"scripts":{"build":"tsc"}}');
+    expect(result.status).toBe("added");
+    const parsed = JSON.parse(result.text);
+    expect(parsed.scripts.build).toBe("tsc");
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
+
+  test("inserts after the opening brace when it sits on its own line", () => {
+    const result = insertGuardrailsScript('{\n  "scripts":\n  {\n    "test": "vitest"\n  }\n}\n');
+    expect(result.status).toBe("added");
+    const parsed = JSON.parse(result.text);
+    expect(parsed.scripts.test).toBe("vitest");
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
+
+  test("targets the root scripts object even when a nested one comes first", () => {
+    const text = JSON.stringify(
+      { config: { scripts: { nested: "echo hi" } }, scripts: { test: "vitest" } },
+      null,
+      2,
+    );
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("added");
+    const parsed = JSON.parse(result.text);
+    expect(parsed.scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+    expect(parsed.scripts.test).toBe("vitest");
+    expect(parsed.config.scripts).toEqual({ nested: "echo hi" });
+  });
+
+  test("leaves non-object scripts values untouched", () => {
+    for (const text of ['{"scripts":"x"}', '{"scripts":[]}', '{"scripts":null}']) {
+      const result = insertGuardrailsScript(text);
+      expect(result.status).toBe("unsupported-scripts-shape");
+      expect(result.text).toBe(text);
+    }
+  });
 });
 
 describe("complexity excludes", () => {
@@ -146,6 +263,21 @@ describe("complexity excludes", () => {
 
   test("ignores non-lizard commands", () => {
     expect(complexityExcludePatches({ ecosystems: [{ complexity_cmd: "scc --format csv" }] })).toEqual([]);
+  });
+
+  test("deduplicates identical ecosystem commands into one patch", () => {
+    const patches = complexityExcludePatches({
+      ecosystems: [
+        { name: "typescript", complexity_cmd: "lizard -C 10 ." },
+        { name: "python", complexity_cmd: "lizard -C 10 ." },
+      ],
+    });
+    expect(patches).toEqual([
+      {
+        from: "lizard -C 10 .",
+        to: 'lizard -C 10 -x "*/skills/b-guardrails-check/*" -x "*/skills/b-init-guardrails/*" .',
+      },
+    ]);
   });
 });
 

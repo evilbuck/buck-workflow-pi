@@ -1,41 +1,6 @@
 # Backlog
 
 
-## Workflow-state routing phases (2026-11-18)
-
-Overview: store subject `2026-11-18.workflow-state-routing-audit`, revision `abe549b6`.
-Phase A (b-save extension store retain) is DONE — commit `12c6ce9e9d`. B is hard and
-gates nothing; C and D are independent of B. The two code sites in the fourth item are
-small and can ride along with any phase.
-
-- [ ] [Phase B: subject-lifecycle store-backed transitions](items/subject-lifecycle-store-transitions.md) — high, hard, `/b-build-hard`
-- [ ] [Phase C: rewrite SKILL.md bodies that instruct direct .context writes](items/skill-instruction-store-routing.md) — high, medium, `/b-build`
-- [ ] [Phase D: bootstrap + prompt references point recall/search at workflow_state](items/bootstrap-search-reference-rewrite.md) — medium, easy, `/b-build`
-- [ ] [Close remaining code-level .context bypasses](items/remaining-code-context-bypasses.md) — medium, easy, `/b-build`
-
-## Repair and simplify `/b-loop` Phases (2026-11-17)
-
-Overview: [`plan-b-loop-repair-phases.md`](../2026-11-17.b-loop-repair/plan-b-loop-repair-phases.md).
-Phases form a HARD chain (1 → 2 → 3 → 4 → 5).
-
-- [x] [Phase 1: Entry, Invocation Contract & Pre-Flight Validation](archive/2026-11/phase-1-b-loop-entry-validation.md) — medium, `/b-build` — done 2026-11-17 — [phase-1-entry-and-validation.md](../2026-11-17.b-loop-repair/phase-1-entry-and-validation.md)
-- [x] [Phase 2: Private Checkpoint, Locking, Milestones & Recovery](archive/2026-11/phase-2-b-loop-checkpoint-recovery.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-2-checkpoint-and-recovery.md](../2026-11-17.b-loop-repair/phase-2-checkpoint-and-recovery.md)
-- [x] [Phase 3: Stage Boundaries (`build`, `review`, `save`) & Acceptance](archive/2026-11/phase-3-b-loop-stage-boundaries.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-3-stage-boundaries.md](../2026-11-17.b-loop-repair/phase-3-stage-boundaries.md)
-- [x] [Phase 4: Scoped Git Staging, Tree-Pinning Commit & Closeout](archive/2026-11/phase-4-b-loop-commit-closeout.md) — hard, `/b-build-hard` — done 2026-11-17 — [phase-4-git-commit-and-closeout.md](../2026-11-17.b-loop-repair/phase-4-git-commit-and-closeout.md)
-- [x] [Phase 5: Real OMP E2E Test Suite & Documentation Sync](archive/2026-11/phase-5-b-loop-omp-e2e-docs.md) — medium, `/b-build` — done 2026-11-17 — [phase-5-omp-e2e-and-docs.md](../2026-11-17.b-loop-repair/phase-5-omp-e2e-and-docs.md)
-
-
-## OMP TypeScript Eval Loop Phases (2026-11-16)
-
-Overview: [`plan-omp-eval-loop-phases.md`](../2026-11-16.omp-eval-loop-research/plan-omp-eval-loop-phases.md).
-Phases: 1 (routing) - -→ 2 (runner) ──(HARD)──→ 3 (cutover) - -→ 4 (docs).
-
-- [x] [Phase 1: Subagent Model Routing for eval Spawns](items/phase-1-subagent-model-routing.md) — medium, `/b-build` — [phase-1-subagent-model-routing.md](../2026-11-16.omp-eval-loop-research/phase-1-subagent-model-routing.md)
-- [x] [Phase 2: TypeScript eval Buck Loop Runner & Bridge Tests](items/phase-2-eval-loop-runner.md) — hard, `/b-build-hard` — [phase-2-eval-loop-runner.md](../2026-11-16.omp-eval-loop-research/phase-2-eval-loop-runner.md)
-- [x] [Phase 3: Command & Prompt Entrypoints and Extension Cutover](items/phase-3-command-prompt-cutover.md) — easy, `/b-build` — [phase-3-command-prompt-cutover.md](../2026-11-16.omp-eval-loop-research/phase-3-command-prompt-cutover.md)
-- [x] [Phase 4: Documentation & Workflow Skill Updates for OMP 18.x](items/phase-4-docs-and-skill-updates.md) — easy, `/b-build` — [phase-4-docs-and-skill-updates.md](../2026-11-16.omp-eval-loop-research/phase-4-docs-and-skill-updates.md)
-
-
 ## Host typebox mismatch
 
 - [ ] [Host-agnostic typebox schema checks](items/host-typebox-mismatch.md) — high; OMP Unknown type on attribution persistence — see `.context/2026-11-11.host-typebox-mismatch/plan-host-typebox-mismatch.md`
@@ -108,9 +73,9 @@ Each item was reproduced by direct execution, not inferred. Found during the
 `extensions/buck-loop/` 75%-per-file coverage pass; none is fixed by that work.
 
 - [x] [repairCheckedPhase rewrites a body status line outside the frontmatter](archive/2026-10/buck-loop-repair-checked-phase-escapes-frontmatter.md) — medium; whole-document regex, and `completed_at` receives a full ISO timestamp from `resolveAmbiguity` — done 2026-10-03
-- [x] [formatRecall's "no relevant candidates" branch is unreachable](archive/2026-11/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented — done 2026-11-19 (fail-open documented, dead branch dropped, resolution 1)
+- [ ] [formatRecall's "no relevant candidates" branch is unreachable](items/recall-format-empty-shortlist-unreachable.md) — low; the sub-threshold fail-open is real and undocumented
 - [ ] [serializeCallError emits an empty message for a nameless, messageless Error](items/serialize-call-error-empty-message.md) — low; intentionally untested pending a product decision
-- [x] [initialLabel does not narrow the profile command, so index.ts fails tsc](archive/2026-11/buck-loop-index-initial-label-narrowing.md) — low; pre-existing typing gap, runtime-safe — done 2026-11-19 (supervisorFailure now takes RunArgs)
+- [ ] [initialLabel does not narrow the profile command, so index.ts fails tsc](items/buck-loop-index-initial-label-narrowing.md) — low; pre-existing typing gap, runtime-safe
 - [ ] [Expose exhaustive fix-pr feedback as an agent tool](items/fix-pr-native-pr-tool.md) — medium; native PR orientation with typed tool over portable ingest — see `.context/2026-09-28.fix-pr-native-pr-tool/plan-fix-pr-native-pr-tool.md`
 
 ## Postgres Agent Memory Phases (2026-09-28)

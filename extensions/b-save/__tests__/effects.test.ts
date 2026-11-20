@@ -115,4 +115,99 @@ describe("retainPatchToStore", () => {
     });
     expect(outcome).toMatchObject({ name: "store_retain", outcome: "failed_nonblocking" });
   });
+
+  it("rejects a replay whose canonical artifact advanced past the recovered projection", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const projection = "---\ndate: 2026-11-18\n---\n# Retained fact\n";
+    // A later writer (e.g. workflow_state) advanced the canonical revision.
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path: ".context/memory/new-fact.md", content: projection }] })).outcome).toBe("succeeded");
+    const stale = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/new-fact.md", content: "# Older local projection\n" }],
+      replayBaseline: { ".context/memory/new-fact.md": "# Journaled before-image\n" },
+    });
+    expect(stale).toMatchObject({ name: "store_retain", outcome: "failed_nonblocking", detail: expect.stringContaining("stale replay rejected") });
+    await withConfiguredStore(root, async (store, context) => {
+      const current = await store.read({ projectId: context.projectId, branchId: context.branchId, subjectId: "memory", kind: "memory", logicalName: "new-fact.md" });
+      expect(current && new TextDecoder().decode(current.bytes)).toContain("Retained fact");
+    });
+  });
+
+  it("completes an already-canonical replay without rewriting the store", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const projection = "# Retained projection\n";
+    // The original flush already landed the projection before the crash.
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path: ".context/memory/new-fact.md", content: projection }] })).outcome).toBe("succeeded");
+    await withConfiguredStore(root, async (store, context) => {
+      const key = { projectId: context.projectId, branchId: context.branchId, subjectId: "memory", kind: "memory" as const, logicalName: "new-fact.md" };
+      const beforeRevision = (await store.read(key))?.revision;
+      const replay = await retainPatchToStore({
+        cwd: root,
+        patchOps: [{ path: ".context/memory/new-fact.md", content: projection }],
+        replayBaseline: { ".context/memory/new-fact.md": "# Journaled before-image\n" },
+      });
+      expect(replay).toMatchObject({ name: "store_retain", outcome: "succeeded", detail: expect.stringContaining("already canonical") });
+      expect((await store.read(key))?.revision).toBe(beforeRevision);
+    });
+  });
+
+  it("retains a pending replay only against the journaled baseline revision", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const before = "# Journaled before-image\n";
+    const projection = "# Retained projection\n";
+    // The store still mirrors the pre-apply baseline: the crash happened before the flush.
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path: ".context/memory/new-fact.md", content: before }] })).outcome).toBe("succeeded");
+    const replay = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/new-fact.md", content: projection }],
+      replayBaseline: { ".context/memory/new-fact.md": before },
+    });
+    expect(replay).toMatchObject({ name: "store_retain", outcome: "succeeded", detail: expect.stringContaining("retained 1 write(s)") });
+    await withConfiguredStore(root, async (store, context) => {
+      const current = await store.read({ projectId: context.projectId, branchId: context.branchId, subjectId: "memory", kind: "memory", logicalName: "new-fact.md" });
+      expect(current && new TextDecoder().decode(current.bytes)).toContain("Retained projection");
+    });
+  });
+
+  it("fails closed when a replayed write has no recorded baseline", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const stale = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/new-fact.md", content: "# Projection\n" }],
+      replayBaseline: {},
+    });
+    expect(stale).toMatchObject({ name: "store_retain", outcome: "failed_nonblocking", detail: expect.stringContaining("no canonical baseline") });
+  });
+
+  it("fails closed when a replayed modification's canonical predecessor is missing", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    // The journal says the patch replaced existing content, but the canonical
+    // entry is absent (never retained, or corrected/tombstoned away): the
+    // replay must not resurrect it either way.
+    const stale = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/never-retained.md", content: "# Projection\n" }],
+      replayBaseline: { ".context/memory/never-retained.md": "# Prior local content\n" },
+    });
+    expect(stale).toMatchObject({ name: "store_retain", outcome: "failed_nonblocking", detail: expect.stringContaining("canonical predecessor missing") });
+  });
+
+  it("treats a created file's replay as create-only against the canonical store", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    // Another writer already created the artifact: the created-file replay must not clobber it.
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path: ".context/memory/other-fact.md", content: "# Someone else\n" }] })).outcome).toBe("succeeded");
+    const stale = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/other-fact.md", content: "# Patch-created projection\n" }],
+      replayBaseline: { ".context/memory/other-fact.md": null },
+    });
+    expect(stale).toMatchObject({ name: "store_retain", outcome: "failed_nonblocking", detail: expect.stringContaining("stale replay rejected") });
+    // A genuinely absent artifact is created through the create-only CAS path.
+    const created = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/fresh-fact.md", content: "# Patch-created projection\n" }],
+      replayBaseline: { ".context/memory/fresh-fact.md": null },
+    });
+    expect(created).toMatchObject({ name: "store_retain", outcome: "succeeded" });
+  });
 });

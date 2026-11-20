@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -8,6 +9,8 @@ import { FileStorageStore } from "../storage/file-store.js";
 import { SQLiteStorageStore } from "../storage/sqlite-store.js";
 import { dryRun, importSnapshot, prepareCutover, quarantineLegacy, resumeImport, switchCutover } from "../storage/cutover.js";
 import { assertMergeable, digest, emptySnapshot, legacySnapshot, missingRows, scopeSnapshot, selectSnapshot, verifyMergedInventory, type MigrationSnapshot } from "../storage/migration.js";
+import { migrationCommand } from "./storage-migration-cli.js";
+import { resolveTrustedContext } from "./workflow-state.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -171,6 +174,73 @@ describe("operational migration", () => {
     await file("destination").installSnapshot(existing);
     await expect(importSnapshot(file("destination"), join(root, "strict.json"), "destination", incoming)).rejects.toThrow(/not empty or exact replay/);
     await expect(importSnapshot(file("destination"), join(root, "merge.json"), "destination", incoming, true)).rejects.toThrow("Merge install is not supported on this adapter");
+  });
+
+  it("treats artifact_lifecycle as unique on subject_id when merging", () => {
+    const base = emptySnapshot("project");
+    base.tables.artifact_lifecycle.push({ subject_id: "s", revision: "r1", state: "active", evidence: { a: 1 } });
+    const identical = emptySnapshot("project");
+    identical.tables.artifact_lifecycle.push({ subject_id: "s", revision: "r1", state: "active", evidence: { a: 1 } });
+    const superseded = emptySnapshot("project");
+    superseded.tables.artifact_lifecycle.push({ subject_id: "s", revision: "r2", state: "active", evidence: { b: 2 } });
+    expect(() => assertMergeable(base, identical)).not.toThrow();
+    expect(() => assertMergeable(base, superseded)).toThrow(/row conflict in artifact_lifecycle/);
+    expect(missingRows(base, superseded).tables.artifact_lifecycle).toEqual([]);
+    expect(missingRows(emptySnapshot("project"), superseded).tables.artifact_lifecycle).toEqual(superseded.tables.artifact_lifecycle);
+  });
+
+  it("resumes pre-change modeless journals strictly and keeps recorded-mode binding for new journals", async () => {
+    const { root, file } = await fixture();
+    const source = file("source");
+    await source.writeBatch([revision("old")]);
+    const snapshot = await source.migrationSnapshot("project");
+    const stage = (name: string, merge: boolean) => resumeImport(file(name), join(root, `${name}.json`), name, snapshot, 1, merge);
+    expect((await stage("modeless", true)).complete).toBe(false);
+    const preChange = JSON.parse(await readFile(join(root, "modeless.json"), "utf8")) as Record<string, unknown>;
+    delete preChange.merge; // journal written before merge installs recorded no mode
+    await writeFile(join(root, "modeless.json"), JSON.stringify(preChange));
+    await importSnapshot(file("modeless"), join(root, "modeless.json"), "modeless", snapshot, true);
+    expect(await file("modeless").migrationSnapshot("project")).toEqual(snapshot);
+    expect((await stage("recorded", true)).complete).toBe(false);
+    await expect(stage("recorded", false)).rejects.toThrow(/binding/);
+  });
+
+  it("migration-import-legacy installs through the CLI into an empty sqlite destination", async () => {
+    const { root } = await fixture();
+    const cwd = join(root, "repo");
+    const machine = join(root, "machine");
+    await mkdir(cwd, { recursive: true });
+    await mkdir(machine, { recursive: true });
+    const run = (...args: string[]) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    run("init", "-q", "-b", "loop-work");
+    run("config", "user.email", "test@example.invalid");
+    run("config", "user.name", "test");
+    await writeFile(join(cwd, "base"), "base");
+    run("add", "base");
+    run("commit", "-qm", "base");
+    run("remote", "add", "origin", "https://example.invalid/legacy-import.git");
+    const config = join(machine, "config.yaml");
+    await writeFile(config, `version: 1\nprojects:\n  legacyimport:\n    origins: [https://example.invalid/legacy-import.git]\n    integration_ref: refs/heads/main\n    storage:\n      adapter: sqlite\n      database: ${join(machine, "legacy.sqlite")}\n`);
+    const legacy = join(machine, "legacy.json");
+    await writeFile(legacy, JSON.stringify([{ id: "note-1", body: "legacy fact", createdAt: "2026-01-01T00:00:00.000Z" }]));
+    const journal = join(machine, "legacy-import.json");
+    const previous = { config: process.env.BUCK_WORKFLOW_CONFIG, xdg: process.env.XDG_CONFIG_HOME };
+    process.env.BUCK_WORKFLOW_CONFIG = config;
+    process.env.XDG_CONFIG_HOME = machine;
+    try {
+      const result = await migrationCommand("migration-import-legacy", { file: legacy, path: journal }, cwd) as { complete: boolean; digest: string };
+      expect(result.complete).toBe(true);
+      const context = await resolveTrustedContext(cwd);
+      const store = await SQLiteStorageStore.open(join(machine, "legacy.sqlite"), { readOnly: true });
+      try {
+        const snapshot = await store.migrationSnapshot(context.projectId);
+        expect(snapshot.tables.artifact_revisions.map(row => row.logical_name)).toEqual(["note-1.md"]);
+        expect(snapshot.tables.artifact_import_provenance).toEqual([expect.objectContaining({ source_id: "note-1" })]);
+      } finally { store.close(); }
+    } finally {
+      if (previous.config === undefined) delete process.env.BUCK_WORKFLOW_CONFIG; else process.env.BUCK_WORKFLOW_CONFIG = previous.config;
+      if (previous.xdg === undefined) delete process.env.XDG_CONFIG_HOME; else process.env.XDG_CONFIG_HOME = previous.xdg;
+    }
   });
 
   it("quarantines previously mapped legacy rows even when a branch name and valid hash exist", async () => {

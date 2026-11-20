@@ -1,4 +1,4 @@
-import { MIGRATION_TABLES, assertEmptyOrReplay, assertMergeable, missingRows, digest, emptySnapshot, legacySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationSnapshot, type MigrationTable } from "./migration.js";
+import { MIGRATION_TABLES, assertEmptyOrReplay, assertMergeable, missingRows, digest, emptySnapshot, legacySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationInstallOptions, type MigrationSnapshot, type MigrationTable } from "./migration.js";
 import { randomUUID } from "node:crypto";
 import type { MigrationClient, MigrationPool } from "./migrations.js";
 import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";

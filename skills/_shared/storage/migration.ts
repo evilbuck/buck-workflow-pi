@@ -105,10 +105,11 @@ export interface MigrationInstallOptions {
   /** Merge mode: coexist with unrelated existing rows instead of requiring an empty destination. */
   merge?: boolean;
 }
+/** Keys mirror the adapter table primary keys (sqlite-store DDL and migrations/*.sql); artifact_lifecycle is unique on subject_id alone. */
 const TABLE_PRIMARY_KEYS: Record<MigrationTable, string[]> = {
   artifact_revisions: ["project_id", "subject_id", "kind", "logical_name", "branch_id", "worktree_id", "run_id", "revision"],
   artifact_pointers: ["project_id", "subject_id", "kind", "logical_name", "branch_id", "worktree_id", "run_id"],
-  artifact_lifecycle: ["subject_id", "revision"],
+  artifact_lifecycle: ["subject_id"],
   artifact_runs: ["project_id", "run_id"],
   artifact_checkpoints: ["id"],
   artifact_publications: ["id"],

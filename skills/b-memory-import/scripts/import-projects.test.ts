@@ -154,6 +154,22 @@ describe("parseArgs", () => {
     const a = parseArgs(["--frobnicate", "--api-url", "u"]);
     expect(a.childArgs).toEqual(["--frobnicate"]);
   });
+
+  test("inherited object prototype keys are not invoked as flags", () => {
+    // value-flag lookups must reject inherited keys, not call them with the
+    // raw token; before the fix bare prototype keys were silently consumed
+    // as real flags. (--constructor etc. are never inherited; bare keys are.)
+    expect(parseArgs(["constructor", "v"]).childArgs).toEqual(["constructor", "v"]);
+    expect(parseArgs(["valueOf"]).childArgs).toEqual(["valueOf"]);
+    expect(parseArgs(["toString", "x"]).childArgs).toEqual(["toString", "x"]);
+    expect(parseArgs(["__proto__"]).childArgs).toEqual(["__proto__"]);
+    // boolean-flag lookups must reject inherited keys too.
+    expect(parseArgs(["hasOwnProperty"]).childArgs).toEqual(["hasOwnProperty"]);
+    const a = parseArgs(["constructor"]);
+    expect(a.dryRun).toBe(false);
+    expect(a.sync).toBe(false);
+    expect(a.force).toBe(false);
+  });
 });
 
 describe("import-projects.ts", () => {

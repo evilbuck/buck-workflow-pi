@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { retainConfiguredArtifact } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 import type { MemoryCtx } from "../effects.js";
+import { hashContent } from "../snapshot.js";
 import { formatReport, parseFlags, runBSaveCommand, wire, type CommandCtx, type RolesAdapter } from "../index.js";
 import type { RunManifest } from "../types.js";
 
@@ -347,6 +350,55 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       expect(resumed.ok).toBe(false);
       expect(resumed.state).toBe("failed_apply");
       expect(resumed.report).toContain("before-image changed");
+    } finally {
+      cleanup();
+    }
+  });
+
+  it("fails closed when a later canonical advance invalidates the recovered projection", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    try {
+      const memory = fakeMemory();
+      const first = await runBSaveCommand(ctxFor(cwd, fakeRoles(), memory), []);
+      expect(first.state).toBe("completed");
+      const memoryPath = join(cwd, ".context/memory/demo-2026-09-11.md");
+      const landed = readFileSync(memoryPath, "utf8");
+      // A later writer (e.g. workflow_state) advances the canonical revision;
+      // bound-store operations reconcile the working tree, so the local
+      // projection no longer matches what this run journaled.
+      const advanced = landed.replace("# Demo session", "# Demo session (advanced by workflow_state)");
+      expect(await retainConfiguredArtifact({
+        cwd,
+        kind: "memory",
+        subjectId: "memory",
+        logicalName: "demo-2026-09-11.md",
+        bytes: new TextEncoder().encode(advanced),
+        author: "workflow-state",
+        source: "workflow_state",
+      })).not.toBeNull();
+      // Model a crash after apply but before the manifest landed.
+      const runDirAbs = join(cwd, ".context/workflow/b-save", first.runId);
+      writeFileSync(
+        join(runDirAbs, "manifest.json"),
+        JSON.stringify({ ...readManifest(cwd, first.runId), state: "failed_apply" }, null, 2) + "\n",
+      );
+      writeFileSync(
+        join(runDirAbs, "apply-journal.json"),
+        JSON.stringify({
+          status: "completed",
+          ops: [{ path: ".context/memory/demo-2026-09-11.md", before: "older before-image\n", after: hashContent(landed), tmp: null, kind: "write", done: true }],
+        }, null, 2) + "\n",
+      );
+      const resumed = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), ["--run-id", first.runId]);
+      expect(resumed.ok).toBe(false);
+      expect(resumed.state).toBe("failed_apply");
+      // Fail-closed: the replay refuses to retain bytes the run never produced.
+      expect(resumed.report).toContain("recovered projection drifted");
+      // The advanced revision must stay canonical.
+      await withConfiguredStore(cwd, async (store, context) => {
+        const current = await store.read({ projectId: context.projectId, branchId: context.branchId, subjectId: "memory", kind: "memory", logicalName: "demo-2026-09-11.md" });
+        expect(current && new TextDecoder().decode(current.bytes)).toContain("advanced by workflow_state");
+      });
     } finally {
       cleanup();
     }

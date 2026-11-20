@@ -12,9 +12,11 @@
  *   node <skill_dir>/scripts/install-project-skills.mjs --cwd <repo root>
  *
  * Idempotent. Overwrites only the two managed skill trees. Never symlinks.
- * Never copies `*.test.*`. Leaves every other path under `skills/` alone.
- * Refuses to write when the source skills directory is the target's own
- * `skills/` (that is the plugin repo, or an already-vendored copy).
+ * Skips files named `*.test.[cm]?[jt]s`. Leaves every other path under
+ * `skills/` alone, and never deletes files the source dropped. Refuses to
+ * write through symlinked destination directories, and refuses to write when
+ * the source skills directory is the target's own `skills/` (that is the
+ * plugin repo, or an already-vendored copy).
  */
 
 import {
@@ -150,7 +152,15 @@ function patchForEcosystem(eco) {
 
 export function complexityExcludePatches(contract) {
   const ecosystems = Array.isArray(contract?.ecosystems) ? contract.ecosystems : [];
-  return ecosystems.flatMap(patchForEcosystem);
+  const seen = new Set();
+  const patches = [];
+  for (const patch of ecosystems.flatMap(patchForEcosystem)) {
+    const key = `${patch.from}\u0000${patch.to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    patches.push(patch);
+  }
+  return patches;
 }
 
 function replacePatch(text, patch) {
@@ -180,66 +190,149 @@ function isRecord(value) {
 }
 
 function scriptState(scripts, scriptValue) {
-  if (!isRecord(scripts)) return "no-scripts";
+  if (scripts === undefined) return "no-scripts";
+  if (!isRecord(scripts)) return "unsupported-scripts-shape";
   if (scripts["guardrails:check"] === scriptValue) return "present";
   if (Object.prototype.hasOwnProperty.call(scripts, "guardrails:check")) return "differs";
   return "missing";
 }
 
-function scriptsLineIndex(lines) {
-  return lines.findIndex((line) => /^\s*"scripts"\s*:/.test(line));
+function skipWs(text, index) {
+  while (index < text.length && /\s/.test(text[index])) index += 1;
+  return index;
 }
 
-function oneLineScripts(line) {
-  return line.includes("{") && line.includes("}");
+function scanString(text, start) {
+  let i = start + 1;
+  while (i < text.length) {
+    if (text[i] === "\\") i += 2;
+    else if (text[i] === '"') return i + 1;
+    else i += 1;
+  }
+  return i;
 }
 
-function indentOf(line) {
-  const match = line.match(/^(\s*)/);
-  return match ? match[1] : "";
+function scanContainer(text, start, close) {
+  let i = start + 1;
+  while (i < text.length) {
+    if (text[i] === '"') i = scanString(text, i);
+    else if (text[i] === "{" || text[i] === "[") i = scanContainer(text, i, text[i] === "{" ? "}" : "]");
+    else if (text[i] === close) return i + 1;
+    else i += 1;
+  }
+  return i;
 }
 
-function emptyScriptsLine(line, scriptValue) {
-  const base = indentOf(line);
-  const body = base + "  " + '"guardrails:check": ' + JSON.stringify(scriptValue);
-  const replacement = "{\n" + body + "\n" + base + "}";
-  const empty = "{" + "}";
-  if (!line.includes(empty)) return line;
-  return line.replace(empty, replacement);
+function scanValueEnd(text, start) {
+  const ch = text[start];
+  if (ch === '"') return scanString(text, start);
+  if (ch === "{" || ch === "[") return scanContainer(text, start, ch === "{" ? "}" : "]");
+  let i = start;
+  while (i < text.length && !"{}[],\"".includes(text[i]) && !/\s/.test(text[i])) i += 1;
+  return i;
 }
 
-function expandEmptyScripts(lines, idx, scriptValue) {
-  const replacement = emptyScriptsLine(lines[idx], scriptValue);
-  if (replacement === lines[idx]) return { status: "unsupported-scripts-shape", text: lines.join("\n") };
-  const copy = lines.slice();
-  copy[idx] = replacement;
-  return { status: "added", text: copy.join("\n") };
+function rootMemberRange(text, key) {
+  const open = skipWs(text, 0);
+  if (text[open] !== "{") return null;
+  let i = skipWs(text, open + 1);
+  while (i < text.length && text[i] !== "}") {
+    if (text[i] !== '"') return null;
+    const keyEnd = scanString(text, i);
+    const colon = skipWs(text, keyEnd);
+    if (text[colon] !== ":") return null;
+    const valueStart = skipWs(text, colon + 1);
+    const valueEnd = scanValueEnd(text, valueStart);
+    if (JSON.parse(text.slice(i, keyEnd)) === key) return { valueStart, valueEnd };
+    i = skipWs(text, valueEnd);
+    if (text[i] === ",") i = skipWs(text, i + 1);
+  }
+  return null;
 }
 
-function scriptEntry(indent, scriptValue, comma) {
-  return indent + '"guardrails:check": ' + JSON.stringify(scriptValue) + comma;
+function lineIndentBefore(text, index) {
+  const lineStart = text.lastIndexOf("\n", index - 1) + 1;
+  return (text.slice(lineStart, index).match(/^[ \t]*/) || [""])[0];
 }
 
-function insertAfterOpen(lines, idx, scriptValue, hasKeys) {
-  const indent = indentOf(lines[idx + 1] || "") || "  ";
-  const copy = lines.slice();
-  copy.splice(idx + 1, 0, scriptEntry(indent, scriptValue, hasKeys ? "," : ""));
-  return { status: "added", text: copy.join("\n") };
+function indentUnit(text) {
+  const match = text.match(/\n([ \t]+)\S/);
+  return match ? match[1] : "  ";
 }
-function insertMissingScript(text, scriptValue, hasKeys) {
-  const lines = text.split("\n");
-  const idx = scriptsLineIndex(lines);
-  if (idx < 0) return { status: "no-scripts", text };
-  if (!oneLineScripts(lines[idx])) return insertAfterOpen(lines, idx, scriptValue, hasKeys);
-  if (hasKeys) return { status: "unsupported-scripts-shape", text };
-  return expandEmptyScripts(lines, idx, scriptValue);
+
+function lastContentIndex(text, from, to) {
+  for (let i = to - 1; i >= from; i -= 1) {
+    if (!/\s/.test(text[i])) return i;
+  }
+  return -1;
+}
+
+function guardrailsEntry(scriptValue) {
+  return '"guardrails:check": ' + JSON.stringify(scriptValue);
+}
+
+function expandEmptyObject(text, open, close, body) {
+  if (!text.slice(open + 1, close).includes("\n")) {
+    return text.slice(0, open) + "{" + body + "}" + text.slice(close + 1);
+  }
+  const closeIndent = lineIndentBefore(text, close);
+  const innerIndent = closeIndent + indentUnit(text);
+  return text.slice(0, open) + "{\n" + innerIndent + body + "\n" + closeIndent + "}" + text.slice(close + 1);
+}
+
+function appendToObject(text, open, close, body) {
+  const inner = text.slice(open + 1, close);
+  const last = lastContentIndex(text, open + 1, close);
+  if (inner.includes("\n")) {
+    const innerIndent = lineIndentBefore(text, close) + indentUnit(text);
+    return text.slice(0, last + 1) + ",\n" + innerIndent + body + text.slice(last + 1);
+  }
+  const separator = inner.includes(", ") ? ", " : ",";
+  return text.slice(0, last + 1) + separator + body + text.slice(last + 1);
+}
+
+function insertIntoScriptsObject(text, range, scriptValue) {
+  if (!range || text[range.valueStart] !== "{") return null;
+  const open = range.valueStart;
+  const close = range.valueEnd - 1;
+  const body = guardrailsEntry(scriptValue);
+  if (lastContentIndex(text, open + 1, close) < 0) return expandEmptyObject(text, open, close, body);
+  return appendToObject(text, open, close, body);
+}
+
+function insertScriptsMember(text, scriptValue) {
+  const open = skipWs(text, 0);
+  if (text[open] !== "{") return null;
+  const close = scanContainer(text, open, "}") - 1;
+  const pretty = text.slice(open + 1, close).includes("\n");
+  const memberIndent = lineIndentBefore(text, close) + indentUnit(text);
+  const nested = pretty
+    ? "{\n" + memberIndent + indentUnit(text) + guardrailsEntry(scriptValue) + "\n" + memberIndent + "}"
+    : '{"guardrails:check": ' + JSON.stringify(scriptValue) + "}";
+  const body = '"scripts": ' + nested;
+  const last = lastContentIndex(text, open + 1, close);
+  if (last < 0) return expandEmptyObject(text, open, close, body);
+  const lead = pretty ? ",\n" + memberIndent : ", ";
+  return text.slice(0, last + 1) + lead + body + text.slice(last + 1);
 }
 
 export function insertGuardrailsScript(text, scriptValue = GUARDRAILS_CHECK_SCRIPT) {
   const scripts = JSON.parse(text).scripts;
   const state = scriptState(scripts, scriptValue);
-  if (state !== "missing") return { status: state, text };
-  return insertMissingScript(text, scriptValue, Object.keys(scripts).length > 0);
+  if (state !== "missing" && state !== "no-scripts") return { status: state, text };
+  const edited = state === "no-scripts"
+    ? insertScriptsMember(text, scriptValue)
+    : insertIntoScriptsObject(text, rootMemberRange(text, "scripts"), scriptValue);
+  if (edited === null) return { status: "unsupported-scripts-shape", text };
+  return { status: "added", text: edited };
+}
+
+function editedTextAddsScript(text) {
+  try {
+    return JSON.parse(text).scripts["guardrails:check"] === GUARDRAILS_CHECK_SCRIPT;
+  } catch {
+    return false;
+  }
 }
 
 function ensureScript(packageJsonPath, dryRun) {
@@ -247,6 +340,9 @@ function ensureScript(packageJsonPath, dryRun) {
   const text = readFileSync(packageJsonPath, "utf8");
   const result = insertGuardrailsScript(text);
   if (result.status !== "added") return result.status;
+  if (!editedTextAddsScript(result.text)) {
+    throw new Error("edited package.json failed validation; refusing to write");
+  }
   if (!dryRun) writeFileSync(packageJsonPath, result.text);
   return dryRun ? "would-add" : "added";
 }
@@ -271,6 +367,26 @@ function copyVendored(source, root, files, dryRun) {
   const unchanged = [];
   for (const rel of files) placeFile(source, root, rel, dryRun, copied, unchanged);
   return { copied, unchanged };
+}
+
+function destDirRels(files) {
+  const dirs = new Set(["skills"]);
+  for (const rel of files) {
+    let dir = dirname(join("skills", rel));
+    while (dir !== "." && !dirs.has(dir)) {
+      dirs.add(dir);
+      dir = dirname(dir);
+    }
+  }
+  return dirs;
+}
+
+function assertNoSymlinkedDestDirs(root, files) {
+  for (const rel of destDirRels(files)) {
+    const dest = join(root, rel);
+    const entry = statOrNull(dest);
+    if (entry?.isSymbolicLink()) throw new Error(`refusing to install through symlinked directory: ${dest}`);
+  }
 }
 
 function skippedResult(root, source, files) {
@@ -302,6 +418,7 @@ export function installProjectSkills({ sourceSkillsDir, cwd, dryRun = false }) {
   const root = resolve(cwd);
   const files = listVendoredFiles(source);
   if (isSelfInstall(root, source)) return skippedResult(root, source, files);
+  assertNoSymlinkedDestDirs(root, files);
   return installedResult(root, source, copyVendored(source, root, files, dryRun), dryRun);
 }
 

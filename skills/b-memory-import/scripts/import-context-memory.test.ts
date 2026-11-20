@@ -226,6 +226,18 @@ describe("parseArgs", () => {
     expect(a.root).toBe(resolve("/tmp/proj"));
     expect(a.memoryDir.endsWith(".context/memory")).toBe(true);
   });
+
+  test("inherited object prototype keys are rejected as unknown, not invoked", () => {
+    // value-flag lookups must reject inherited keys instead of consuming the
+    // next token; before the fix bare prototype keys parsed as real flags.
+    // (--constructor etc. are never inherited; bare keys are.)
+    expect(() => parseArgs(["constructor", "v"])).toThrow(/unknown argument: constructor/);
+    expect(() => parseArgs(["valueOf"])).toThrow(/unknown argument: valueOf/);
+    expect(() => parseArgs(["toString", "x"])).toThrow(/unknown argument: toString/);
+    expect(() => parseArgs(["__proto__"])).toThrow(/unknown argument: __proto__/);
+    // boolean-flag lookups must reject inherited keys too.
+    expect(() => parseArgs(["hasOwnProperty"])).toThrow(/unknown argument: hasOwnProperty/);
+  });
 });
 
 function storedSource(kind: "memory" | "backlog", logicalName: string, text: string): ArtifactRevision {

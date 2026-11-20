@@ -10,9 +10,10 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 /** Streamed-output delta kinds that count toward tok/s (skips tool output, usage-only updates). */
 export function isOutputDelta(event: { type: string; delta?: string }): event is { type: string; delta: string } {
   return (
-    event.type === "text_delta" ||
-    event.type === "thinking_delta" ||
-    event.type === "toolcall_delta"
+    typeof event.delta === "string" &&
+    (event.type === "text_delta" ||
+      event.type === "thinking_delta" ||
+      event.type === "toolcall_delta")
   );
 }
 

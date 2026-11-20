@@ -138,7 +138,7 @@ The managed block loads `skills/b-guardrails-check/` and `skills/b-init-guardrai
 node <skill_dir>/scripts/install-project-skills.mjs --cwd <repo root>
 ```
 
-The script copies those two skills (skill, docs, and scripts; not `*.test.*`) into `<repo>/skills/` as regular files, never symlinks. Re-runs overwrite only those managed files. Every other path under `skills/` is left alone. Local edits inside the two managed skill directories are replaced — fix them in buck-workflow-pi and re-run init. If `package.json` has no `guardrails:check` script, it adds `node skills/b-guardrails-check/scripts/check.mjs --cwd .`. A different existing value is reported and left unchanged. When `guardrails.json` records a lizard `complexity_cmd`, the script adds excludes for the two vendored trees so plugin copies are not project complexity debt. It does not rewrite the command otherwise.
+The script copies those two skills (skill, docs, and scripts; files named `*.test.js`, `*.test.ts`, `*.test.cjs`, `*.test.cts`, `*.test.mjs`, or `*.test.mts` are skipped) into `<repo>/skills/` as regular files, never symlinks. Re-runs overwrite only those managed files and never delete anything: files dropped from the source keep existing in the target until removed by hand. Every other path under `skills/` is left alone. Local edits inside the two managed skill directories are replaced — fix them in buck-workflow-pi and re-run init. If `package.json` has no `guardrails:check` script, it adds `node skills/b-guardrails-check/scripts/check.mjs --cwd .`, creating a `scripts` object when the file has none. A different existing value is reported and left unchanged. When `guardrails.json` records a lizard `complexity_cmd`, the script adds excludes for the two vendored trees so plugin copies are not project complexity debt. It does not rewrite the command otherwise.
 
 Do not skip this phase because the current machine already has the plugin. The next engineer may not. If the script reports `self: true`, it was pointed at the skill source tree; run it with `<skill_dir>` from the loaded plugin and `--cwd` set to the target repo.
 
@@ -177,7 +177,7 @@ Next steps:
 3. **Schema compliance**: `guardrails.json` matches the schema in `docs/ratchet-protocol.md`.
 4. **Managed block**: uses the correct markers; preserves hand-authored content outside.
 5. **Gradual improvement**: displays the burn-down plan with current state and next steps.
-6. **Local skills**: the installer leaves `skills/b-guardrails-check/SKILL.md`, `docs/contract-resolution.md`, `scripts/check.mjs`, and `skills/b-init-guardrails/scripts/detect-stack.ts` present, does not copy `*.test.*`, and does not modify unrelated skills. A second run copies nothing.
+6. **Local skills**: the installer leaves `skills/b-guardrails-check/SKILL.md`, `docs/contract-resolution.md`, `scripts/check.mjs`, and `skills/b-init-guardrails/scripts/detect-stack.ts` present, does not copy `*.test.[cm]?[jt]s` files, and does not modify unrelated skills. A second run with unchanged sources reports every managed file `unchanged` and copies nothing.
 
 ## Risks
 
