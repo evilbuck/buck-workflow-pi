@@ -497,6 +497,27 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       cleanup();
     }
   });
+
+  it("still applies local files when the canonical store cannot be opened", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+    const previousXdg = process.env.XDG_CONFIG_HOME;
+    writeFileSync(join(cwd, "buck-workflow.yaml"), "version: 1\nstorage:\n  adapter: postgres\n  connection_env: BUCK_MISSING_PG_URL\n");
+    process.env.BUCK_WORKFLOW_CONFIG = join(cwd, "buck-workflow.yaml");
+    process.env.XDG_CONFIG_HOME = cwd;
+    delete process.env.BUCK_MISSING_PG_URL;
+    try {
+      const result = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), []);
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(true);
+      expect(["completed", "failed_apply"]).toContain(result.state);
+    } finally {
+      if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdg;
+      cleanup();
+    }
+  });
 });
 
 describe("terminal and unknown runs", () => {

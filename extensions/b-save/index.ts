@@ -579,23 +579,30 @@ async function applyAndComplete(args: {
   if (flags.dryRun) {
     return finish({ state: "completed", durableFiles, warnings: ["dry-run: nothing applied or persisted"] });
   }
+  let predecessors: Record<string, string | null> | undefined;
+  try {
+    predecessors = await canonicalPredecessors(ctx.cwd, durableFiles);
+  } catch {
+    predecessors = undefined;
+  }
   let applied: ApplyResult;
   try {
-    const predecessors = await canonicalPredecessors(ctx.cwd, durableFiles);
-    if (existsSync(join(ctx.cwd, ".context"))) {
-      writeRunManifest(ctx.cwd, manifestFor({
-        runId,
-        state: "applying",
-        flags,
-        effects: [],
-        ok: true,
-        snapshot,
-        proposals,
-        patch,
-        journal: { status: "in-progress", files: durableFiles },
-      }));
-    }
-    applied = applyPatch(ctx.cwd, patch, { runId, expectedHashes: snapshot.input_hashes, predecessors });
+    writeRunManifest(ctx.cwd, manifestFor({
+      runId,
+      state: "applying",
+      flags,
+      effects: [],
+      ok: true,
+      snapshot,
+      proposals,
+      patch,
+      journal: { status: "in-progress", files: durableFiles },
+    }));
+    applied = applyPatch(ctx.cwd, patch, {
+      runId,
+      expectedHashes: snapshot.input_hashes,
+      ...(predecessors ? { predecessors } : {}),
+    });
   } catch (error) {
     actor.send({ type: "APPLY_FAILED" });
     return finish({
