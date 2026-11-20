@@ -1,7 +1,7 @@
 import { Buffer } from "node:buffer";
 import { revisionHash } from "../../skills/_shared/storage/adapter-utils.js";
 import type { StorageStore } from "../../skills/_shared/storage/contract.js";
-import { classifyContextPath, consumerKey, flushConfiguredRetains, scheduleConfiguredRetain, type ConsumerScope } from "../../skills/_shared/storage/consumers.js";
+import { classifyContextPath, consumerKey, flushConfiguredRetains, readCanonicalArtifact, repairLandedReceipt, scheduleConfiguredRetain, type ConsumerScope } from "../../skills/_shared/storage/consumers.js";
 import { resolveConsumerContext, withBoundStore } from "../../skills/_shared/scripts/workflow-state.js";
 
 export type EffectName = "native_memory" | "reindex" | "store_retain";
@@ -36,7 +36,7 @@ export type EffectsInput = {
   // store from the bound workspace. replayBaseline anchors a recovered replay
   // to the canonical revision each projection replaced; anchors it cannot
   // verify fail closed instead of writing unanchored.
-  | { patchOps: RetainOp[]; cwd: string; replayBaseline?: Record<string, string | null> }
+  | { patchOps: RetainOp[]; cwd: string; replayBaseline?: Record<string, string | null>; replayPredecessors?: Record<string, string | null> }
 );
 
 /** One applied patch op: a durable .context-relative write (content) or delete (null). */
@@ -139,24 +139,52 @@ type ReplayDecision =
  * only allowed predecessor, and everything else — including a missing anchor —
  * is stale and rejected before a single byte is scheduled.
  */
-async function classifyReplayWrite(store: StorageStore, scope: ConsumerScope, op: RetainWrite, baseline: string | null | undefined): Promise<ReplayDecision> {
+const SAVE_RETAIN_SCOPE = "b-save";
+
+function contentHash(text: string): string {
+  return revisionHash(Buffer.from(text, "utf8"));
+}
+
+function missingCanonical(path: string, baseline: string | null, recorded: string | null | undefined): ReplayDecision {
+  if (baseline !== null || recorded) {
+    return { action: "reject", reason: "canonical predecessor missing for " + path + "; refusing to recreate a possibly-corrected artifact" };
+  }
+  return { action: "schedule", expectedRevision: null };
+}
+
+function sameBeforeImage(currentSha: string, baseline: string | null): boolean {
+  return baseline !== null && currentSha === contentHash(baseline);
+}
+
+function rejectAdvanced(path: string): ReplayDecision {
+  return { action: "reject", reason: "canonical " + path + " advanced past the recovered projection" };
+}
+
+/**
+ * Classify one replayed write against the canonical store. A recovered replay
+ * may only replace the revision its journaled projection was produced from:
+ * identical bytes are already canonical, the journaled before-image is the
+ * only allowed predecessor, and everything else — including a missing anchor —
+ * is stale and rejected before a single byte is scheduled.
+ */
+async function classifyReplayWrite(
+  store: StorageStore,
+  scope: ConsumerScope,
+  op: RetainWrite,
+  baseline: string | null | undefined,
+  recorded: string | null | undefined,
+): Promise<ReplayDecision> {
   if (baseline === undefined) return { action: "reject", reason: "no canonical baseline recorded for " + op.path };
   const classified = classifyContextPath(op.path);
-  const current = await store.read(consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName));
-  if (!current) {
-    // The projection replaced an existing artifact, yet the canonical entry is
-    // absent: either it was never retained, or a correction/lifecycle removed
-    // it. The store cannot distinguish the two, so fail closed rather than
-    // resurrect possibly-corrected content; a fresh b-save run re-establishes
-    // the artifact deliberately.
-    if (baseline !== null) return { action: "reject", reason: "canonical predecessor missing for " + op.path + "; refusing to recreate a possibly-corrected artifact" };
-    return { action: "schedule", expectedRevision: null };
+  const current = await readCanonicalArtifact(store, consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName));
+  if (!current) return missingCanonical(op.path, baseline, recorded);
+  if (current.sha256 === contentHash(op.content)) {
+    await repairLandedReceipt(store, scope, current.revision);
+    return { action: "skip" };
   }
-  if (current.sha256 === revisionHash(Buffer.from(op.content, "utf8"))) return { action: "skip" };
-  if (baseline !== null && current.sha256 === revisionHash(Buffer.from(baseline, "utf8"))) {
-    return { action: "schedule", expectedRevision: current.revision };
-  }
-  return { action: "reject", reason: "canonical " + op.path + " advanced past the recovered projection" };
+  if (recorded !== undefined && current.revision !== recorded) return rejectAdvanced(op.path);
+  if (sameBeforeImage(current.sha256, baseline)) return { action: "schedule", expectedRevision: current.revision };
+  return rejectAdvanced(op.path);
 }
 
 type ReplayPlan =
@@ -164,7 +192,7 @@ type ReplayPlan =
   | { rejection: string };
 
 /** Pre-read the canonical store and decide every replayed write up front, so a stale batch schedules nothing. */
-async function planReplayWrites(cwd: string, writes: RetainWrite[], baseline: Record<string, string | null>): Promise<ReplayPlan> {
+async function planReplayWrites(cwd: string, writes: RetainWrite[], baseline: Record<string, string | null>, predecessors?: Record<string, string | null>): Promise<ReplayPlan> {
   const expected: Record<string, string | null> = {};
   let alreadyCanonical = 0;
   let rejection: string | null = null;
@@ -178,7 +206,7 @@ async function planReplayWrites(cwd: string, writes: RetainWrite[], baseline: Re
         runId: bound.runId ?? "",
       };
       for (const op of writes) {
-        const decision = await classifyReplayWrite(store, scope, op, baseline[op.path]);
+        const decision = await classifyReplayWrite(store, scope, op, baseline[op.path], predecessors?.[op.path]);
         if (decision.action === "reject") { rejection ??= decision.reason; return; }
         if (decision.action === "skip") { alreadyCanonical += 1; continue; }
         expected[op.path] = decision.expectedRevision;
@@ -193,7 +221,7 @@ async function planReplayWrites(cwd: string, writes: RetainWrite[], baseline: Re
 
 async function flushAndReport(retained: number, alreadyCanonical: number, skippedDeletes: number): Promise<EffectOutcome> {
   try {
-    await flushConfiguredRetains();
+    await flushConfiguredRetains(SAVE_RETAIN_SCOPE);
   } catch (error) {
     return failed("store_retain", String(error));
   }
@@ -210,7 +238,7 @@ export async function retainPatchToStore(input: EffectsInput & { patchOps: Retai
   let expectedRevisions: Record<string, string | null> | null = null;
   let alreadyCanonical = 0;
   if (input.replayBaseline) {
-    const plan = await planReplayWrites(input.cwd, writes, input.replayBaseline);
+    const plan = await planReplayWrites(input.cwd, writes, input.replayBaseline, input.replayPredecessors);
     if ("rejection" in plan) return failed("store_retain", "stale replay rejected: " + plan.rejection);
     expectedRevisions = plan.expectedRevisions;
     alreadyCanonical = plan.alreadyCanonical;
@@ -229,8 +257,8 @@ export async function retainPatchToStore(input: EffectsInput & { patchOps: Retai
       bytes: Buffer.from(op.content, "utf8"),
       author: "b-save",
       source: "b-save-extension",
-      ...(expected && op.path in expected ? { expectedRevision: expected[op.path] } : {}),
-    });
+      ...(expected && op.path in expected ? { reconcile: false, expectedRevision: expected[op.path] } : {}),
+    }, SAVE_RETAIN_SCOPE);
     retained += 1;
   }
   if (retained === 0) {
@@ -238,6 +266,26 @@ export async function retainPatchToStore(input: EffectsInput & { patchOps: Retai
     return { name: "store_retain", outcome: "succeeded", detail: `already canonical: ${alreadyCanonical} write(s) matched the store; ${skippedDeletes} delete(s) left to lifecycle/corrections` };
   }
   return flushAndReport(retained, alreadyCanonical, skippedDeletes);
+}
+
+/** Revision ids the upcoming apply is based on. Null means the artifact was absent. */
+export async function canonicalPredecessors(cwd: string, paths: string[]): Promise<Record<string, string | null>> {
+  const found: Record<string, string | null> = {};
+  const context = await resolveConsumerContext(cwd);
+  await withBoundStore(cwd, context, async (store, bound) => {
+    const scope: ConsumerScope = {
+      projectId: bound.projectId,
+      branchId: bound.branchId,
+      worktreeId: bound.worktreeId ?? "",
+      runId: bound.runId ?? "",
+    };
+    for (const path of paths) {
+      const classified = classifyContextPath(path);
+      const current = await readCanonicalArtifact(store, consumerKey(scope, classified.kind, classified.subjectId, classified.logicalName));
+      found[path] = current?.revision ?? null;
+    }
+  });
+  return found;
 }
 
 export async function runEffects(input: EffectsInput): Promise<EffectOutcome[]> {

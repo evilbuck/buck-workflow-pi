@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it, vi } from "vitest";
-import hook from "../../../hooks/post/turn-memory.js";
+import hook, { turnMemoryFileStem } from "../../../hooks/post/turn-memory.js";
 import { bindConsumerAttempt, withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 
 vi.mock("../../omp-models.js", () => ({ runOmpModelSession: async () => "Keep branch-private knowledge in the configured adapter." }));
@@ -36,7 +36,7 @@ it("completes distinct default-hook window receipts and replays a saved window w
     const binding = await bindConsumerAttempt(trusted, root, firstWindow);
     const receipt = await store.readReceipt(trusted.projectId, binding.runId);
     expect(receipt).toMatchObject({ status: "complete", attemptId: firstWindow });
-    const memory = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, subjectId: "turn-memory", kind: "memory", logicalName: `turn-memory/${firstWindow}.md` });
+    const memory = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, subjectId: "turn-memory", kind: "memory", logicalName: `turn-memory/${turnMemoryFileStem(firstWindow)}.md` });
     expect(new TextDecoder().decode(memory!.bytes)).toBe("Keep branch-private knowledge in the configured adapter.");
     expect(receipt!.artifactRevisions).toContain(memory!.revision);
     return memory!.revision;
@@ -52,11 +52,11 @@ it("completes distinct default-hook window receipts and replays a saved window w
     for (const [index, binding] of bindings.entries()) {
       const receipt = await store.readReceipt(trusted.projectId, binding.runId);
       expect(receipt).toMatchObject({ status: "complete", attemptId: windows[index], worktreeId: trusted.worktreeId });
-      const dedupe = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, worktreeId: trusted.worktreeId, runId: binding.runId, subjectId: "turn-memory", kind: "activity", logicalName: `dedupe/${windows[index]}.json` });
+      const dedupe = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, worktreeId: trusted.worktreeId, runId: binding.runId, subjectId: "turn-memory", kind: "activity", logicalName: `dedupe/${turnMemoryFileStem(windows[index]!)}.json` });
       expect(new TextDecoder().decode(dedupe!.bytes)).toBe(windows[index]);
       expect(receipt!.artifactRevisions).toContain(dedupe!.revision);
     }
-    const memory = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, subjectId: "turn-memory", kind: "memory", logicalName: `turn-memory/${firstWindow}.md` });
+    const memory = await store.read({ projectId: trusted.projectId, branchId: trusted.branchId, subjectId: "turn-memory", kind: "memory", logicalName: `turn-memory/${turnMemoryFileStem(firstWindow)}.md` });
     expect(memory!.revision).toBe(firstRevision);
   });
 });

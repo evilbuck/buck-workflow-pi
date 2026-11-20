@@ -11,6 +11,8 @@ export type JournalOp = {
   tmp: string | null;
   kind: "write" | "delete";
   done: boolean;
+  /** Canonical revision the apply was based on. Absent on journals written before this field. */
+  predecessor?: string | null;
 };
 
 export type ApplyJournal = {
@@ -76,7 +78,7 @@ function applyJournalOp(root: string, jPath: string, journal: ApplyJournal, jOp:
 export function applyPatch(
   root: string,
   plan: PatchPlan,
-  opts: { runId: string; failAfter?: number; expectedHashes?: Record<string, string> } = { runId: "run" },
+  opts: { runId: string; failAfter?: number; expectedHashes?: Record<string, string>; predecessors?: Record<string, string | null> } = { runId: "run" },
 ): ApplyResult {
   validatePatch(root, plan);
   if (plan.moves.length > 0) throw new Error("patch moves are not supported");
@@ -91,6 +93,7 @@ export function applyPatch(
       tmp: op.content === null ? null : abs + ".tmp-b-save",
       kind: op.content === null ? "delete" : "write",
       done: false,
+      ...(opts.predecessors ? { predecessor: opts.predecessors[op.path] ?? null } : {}),
     };
   });
   const journal: ApplyJournal = { status: "in-progress", ops };

@@ -50,13 +50,36 @@ afterAll(() => {
   for (const dir of REPO_DIRS) rmSync(dir, { recursive: true, force: true });
 });
 
-const GIT_ENV = {
-  ...process.env,
-  GIT_AUTHOR_NAME: "t",
-  GIT_AUTHOR_EMAIL: "t@t",
-  GIT_COMMITTER_NAME: "t",
-  GIT_COMMITTER_EMAIL: "t@t",
-};
+const REPO_LOCAL_GIT = [
+  "GIT_DIR",
+  "GIT_WORK_TREE",
+  "GIT_COMMON_DIR",
+  "GIT_INDEX_FILE",
+  "GIT_OBJECT_DIRECTORY",
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  "GIT_PREFIX",
+] as const;
+
+/** Git selects the repo from these variables before cwd. A copied developer env would mutate that repo. */
+function gitCommandEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...base };
+  for (const key of REPO_LOCAL_GIT) delete env[key];
+  env.GIT_AUTHOR_NAME = "t";
+  env.GIT_AUTHOR_EMAIL = "t@t";
+  env.GIT_COMMITTER_NAME = "t";
+  env.GIT_COMMITTER_EMAIL = "t@t";
+  return env;
+}
+
+const GIT_ENV = gitCommandEnv();
+
+it("drops repository-local Git variables before the test identity is added", () => {
+  const env = gitCommandEnv({ ...process.env, GIT_DIR: "/developer/repo/.git", GIT_WORK_TREE: "/developer/repo", PATH: "/usr/bin" });
+  expect(env.GIT_DIR).toBeUndefined();
+  expect(env.GIT_WORK_TREE).toBeUndefined();
+  expect(env.PATH).toBe("/usr/bin");
+  expect(env.GIT_AUTHOR_NAME).toBe("t");
+});
 
 /** Throwaway repo: one commit on `main`, checked-out `feature/x`. */
 function makeRepo(): string {

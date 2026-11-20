@@ -90,10 +90,15 @@ export class FileStorageStore implements StorageStore {
   }
 
   async read(key: ArtifactKey, revision?: string): Promise<ArtifactRevision | null> {
-    return this.#locked(() => this.#readLocked(key, revision));
+    return this.#locked(() => this.#readLocked(key, revision, true));
   }
 
-  async #readLocked(key: ArtifactKey, revision?: string): Promise<ArtifactRevision | null> {
+  /** Head revision only. Does not import checkout bytes as a direct edit. */
+  async readCanonical(key: ArtifactKey): Promise<ArtifactRevision | null> {
+    return this.#locked(() => this.#readLocked(key, undefined, false));
+  }
+
+  async #readLocked(key: ArtifactKey, revision: string | undefined, reconcile: boolean): Promise<ArtifactRevision | null> {
     validateArtifactKey(key);
     await this.#discardInterrupted();
     const manifest = await this.#load();
@@ -104,7 +109,7 @@ export class FileStorageStore implements StorageStore {
     if (!record) return null;
     if (revision === undefined && record.source === TOMBSTONE_SOURCE) return null;
     const bytes = new Uint8Array(await readFile(this.#blobPath(record.blob)));
-    if (revision !== undefined) return this.#materialize(record, revisionId, bytes);
+    if (!reconcile || revision !== undefined) return this.#materialize(record, revisionId, bytes);
     return this.#readCurrent(key, id, revisionId, record, bytes);
   }
 
