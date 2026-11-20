@@ -248,7 +248,7 @@ describe("readCheckContractCommands", () => {
     expect(readCheckContractCommands(dir)).toEqual([]);
   });
 
-  it("reads this repo's durable v2 contract as vitest run", () => {
-    expect(readCheckContractCommands(join(HERE, "..", "..", ".."))).toEqual(["vitest run"]);
+  it("reads this repo's durable v2 contract as Bun-hosted Vitest", () => {
+    expect(readCheckContractCommands(join(HERE, "..", "..", ".."))).toEqual(["bun --bun vitest run"]);
   });
 });

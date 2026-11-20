@@ -3,17 +3,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import {
-  parseArgv,
-  parseLcov,
-  parseComplexityCsv,
-  evaluateComplexity,
-  resolveEnforcement,
-  applyEnforcement,
-  runCheck,
-} from "./check.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+// Variable-specifier import: the repo tsconfig (module NodeNext, no
+// allowImportingTsExtensions) rejects both "./check.ts" (TS5097) and
+// extensionless static relative imports (TS2835).
+const { parseArgv, parseLcov, parseComplexityCsv, evaluateComplexity, resolveEnforcement, applyEnforcement, runCheck } =
+  await import(join(scriptDir, "check.ts"));
+
 const FIXTURE_ROOT = join("/tmp", "guardrails-check-test-" + process.pid);
 
 function fixtureRepo(name: string, guardrails: unknown): string {
@@ -260,7 +257,7 @@ describe("runCheck", () => {
   it("a required unit-gate failure fails the verdict", async () => {
     const dir = fixtureRepo(
       "required-fail",
-      baseContract({ ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })] }),
+      baseContract({ ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })] }),
     );
     const verdict = await runCheck({ cwd: dir });
     expect(verdict.gates.unit_test_gate).toBe("fail");
@@ -273,7 +270,7 @@ describe("runCheck", () => {
       "advisory-fail",
       baseContract({
         enforcement: { unit_test_gate: "advisory" },
-        ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })],
+        ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })],
       }),
     );
     const verdict = await runCheck({ cwd: dir });
@@ -288,7 +285,7 @@ describe("runCheck", () => {
         enforcement: { unit_test_gate: "disabled" },
         ecosystems: [
           ecosystem({
-            test_runner: `node -e "require('fs').writeFileSync('marker.txt','x')"`,
+            test_runner: `bun -e "require('fs').writeFileSync('marker.txt','x')"`,
           }),
         ],
       }),
@@ -313,7 +310,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node write-lcov.js", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun write-lcov.js", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -335,7 +332,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -350,7 +347,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -383,7 +380,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -409,12 +406,12 @@ describe("runCheck", () => {
 // CLI exit-code contract
 // ---------------------------------------------------------------------------
 
-describe("check.mjs CLI", () => {
+describe("check.ts CLI", () => {
   beforeEach(() => mkdirSync(FIXTURE_ROOT, { recursive: true }));
   afterEach(() => rmSync(FIXTURE_ROOT, { recursive: true, force: true }));
 
   function runCli(cwd: string) {
-    return spawnSync(process.execPath, [join(scriptDir, "check.mjs"), "--cwd", cwd], {
+    return spawnSync("bun", [join(scriptDir, "check.ts"), "--cwd", cwd], {
       encoding: "utf8",
     });
   }
@@ -422,13 +419,13 @@ describe("check.mjs CLI", () => {
   it("exits nonzero only when a required gate fails", () => {
     const failDir = fixtureRepo(
       "cli-fail",
-      baseContract({ ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })] }),
+      baseContract({ ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })] }),
     );
     const advisoryDir = fixtureRepo(
       "cli-advisory",
       baseContract({
         enforcement: { unit_test_gate: "advisory" },
-        ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })],
+        ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })],
       }),
     );
 
@@ -447,7 +444,7 @@ describe("check.mjs CLI", () => {
     const dir = fixtureRepo(
       "cli-stdout",
       baseContract({
-        ecosystems: [ecosystem({ test_runner: 'node -e "console.log(42); process.exit(0)"' })],
+        ecosystems: [ecosystem({ test_runner: 'bun -e "console.log(42); process.exit(0)"' })],
       }),
     );
     const proc = runCli(dir);

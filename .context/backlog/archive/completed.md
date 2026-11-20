@@ -124,6 +124,3 @@
 - [x] Phase 1: OMP stubs to docs (2026-11-16) — `2026-10-01.skill-command-viability/index.md`. Phase 1 (D1) retired omp-goal/omp-orchestrate/omp-workflow stubs and moved the 6-step protocol to docs/buck-workflow.md.
 
 - [x] Sync living docs to canonical b-save skill (2026-11-16) — `2026-10-01.skill-command-viability/index.md`. Consolidated b-save, b-save-improved, and deprecated-b-save into canonical skills/b-save/SKILL.md and updated living docs.
-
-- [x] [initialLabel does not narrow the profile command, so index.ts fails tsc](2026-11/buck-loop-index-initial-label-narrowing.md) — done 2026-11-19 — `supervisorFailure` now takes `RunArgs`, matching its only caller; the TS2345 at `initialLabel(parsed)` is gone.
-- [x] [formatRecall's "no relevant candidates" branch is unreachable, and the fail-open is undocumented](2026-11/recall-format-empty-shortlist-unreachable.md) — done 2026-11-19 — the below-threshold fail-open in `judgeShortlist` is recorded, the unreachable fallback is dropped, and a characterization test pins the full-shortlist injection.

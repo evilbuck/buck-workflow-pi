@@ -77,10 +77,10 @@ invoked by skill name — e.g. `/skill:fix-pr` on OMP/Pi — not via `/fix-pr`.
 | **Pi** | `pi install git:github.com/evilbuck/buck-workflow-pi` | `~/.pi/agent/skills/...` (package) | `~/.pi/agent/prompts/...` (package) |
 | **OMP** | `omp install git:github.com/evilbuck/buck-workflow-pi` | per-plugin skill dir | per-plugin command dir |
 | **Codex** | Add the repository marketplace, then install **Buck Workflow** | plugin cache managed by Codex | n/a — invoke by skill name |
-| **OpenCode** | Durable clone + `scripts/install.mjs --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
-| **Claude Code** | Durable clone + `scripts/install.mjs --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
-| **Grok Build** | Durable clone + `scripts/install.mjs --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
-| **Antigravity (`agy`)** | Durable clone + `scripts/install.mjs --harness agy` | `~/.gemini/config/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
+| **OpenCode** | Durable clone + `bun scripts/install.ts --harness opencode` | `~/.config/opencode/skills/<name>/` | `~/.config/opencode/commands/` |
+| **Claude Code** | Durable clone + `bun scripts/install.ts --harness claude`, or marketplace | `~/.claude/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
+| **Grok Build** | Durable clone + `bun scripts/install.ts --harness grok` | `~/.grok/skills/<name>/` | `~/.grok/commands/` (`/b-plan` etc.) |
+| **Antigravity (`agy`)** | Durable clone + `bun scripts/install.ts --harness agy` | `~/.gemini/config/skills/<name>/` | derived from skill name (`/b-plan` etc.) |
 
 ---
 
@@ -90,20 +90,22 @@ Every harness reads the same bootstrap file (`GLOBAL_OR_PROJECT-AGENTS.md`)
 under a harness-specific name. Wire it as a **symlink into a durable
 checkout**, produced by the installer.
 
+The installer requires Bun 1.4 or later.
+
 Installing from GitHub (the normal case):
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-node ~/.local/share/buck-workflow-pi/scripts/install.mjs                  # every detected harness
-node ~/.local/share/buck-workflow-pi/scripts/install.mjs --harness pi,omp # or a subset
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts                  # every detected harness
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts --harness pi,omp # or a subset
 ```
 
 Already have the repo checked out locally (development)? Point the installer
 at that checkout — do not clone a second copy:
 
 ```bash
-node scripts/install.mjs                                  # source = this checkout
-node scripts/install.mjs --source /abs/path/to/checkout    # or an explicit root
+bun scripts/install.ts                                  # source = this checkout
+bun scripts/install.ts --source /abs/path/to/checkout    # or an explicit root
 ```
 
 Rules:
@@ -124,7 +126,7 @@ Rules:
 Audit an existing install at any time — read-only, exits `1` on a problem:
 
 ```bash
-node ~/.local/share/buck-workflow-pi/scripts/install.mjs --verify
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts --verify
 ```
 
 It reports each destination that is not a symlink into the given checkout
@@ -178,7 +180,7 @@ pi -e git:github.com/evilbuck/buck-workflow-pi
 | Skills | discovered from the package's `skills/` dir (per `pi.skills` in `package.json`) |
 | Prompts (slash commands) | discovered from the package's `prompts/` dir (per `pi.prompts` in `package.json`) |
 | Extensions | `./extensions/index.ts` (per `pi.extensions`) |
-| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.pi/agent/AGENTS.md` — `scripts/install.mjs --harness pi` |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.pi/agent/AGENTS.md` — `bun scripts/install.ts --harness pi` |
 
 ### Verify
 
@@ -234,7 +236,7 @@ omp install buck-workflow@buck-workflow
 | Skills | per-plugin skill dir under OMP's plugin store |
 | Commands | per-plugin command dir (mirrored from this repo's `commands/`) |
 | Extensions | loaded from the package's `extensions/index.ts` (per `omp.extensions`) |
-| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.omp/agent/AGENTS.md` — `scripts/install.mjs --harness omp` |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.omp/agent/AGENTS.md` — `bun scripts/install.ts --harness omp` |
 
 ### Verify
 
@@ -314,7 +316,7 @@ itself.
 | Plugin source | `<repo>/plugins/buck-workflow/` |
 | Installed plugin | Codex-managed plugin cache |
 | Development fallback | `~/.agents/skills/<name>/SKILL.md` |
-| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.codex/AGENTS.md` — `scripts/install.mjs --harness codex`; a project-root `AGENTS.md` still layers on top |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.codex/AGENTS.md` — `bun scripts/install.ts --harness codex`; a project-root `AGENTS.md` still layers on top |
 
 ### Verify
 
@@ -344,7 +346,7 @@ Recommended user-scope install from a durable clone:
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-~/.local/share/buck-workflow-pi/scripts/install.mjs \
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts \
   --source ~/.local/share/buck-workflow-pi --harness opencode
 ```
 
@@ -394,7 +396,7 @@ done
 | Skills (agent compat) | `~/.agents/skills/<name>/SKILL.md` (auto-loaded) |
 | Commands (global) | `~/.config/opencode/commands/<name>.md` |
 | Commands (project) | `.opencode/commands/<name>.md` |
-| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.config/opencode/AGENTS.md` — `scripts/install.mjs --harness opencode`; a project-root `AGENTS.md` still layers on top |
+| Bootstrap | symlink to `GLOBAL_OR_PROJECT-AGENTS.md` at `~/.config/opencode/AGENTS.md` — `bun scripts/install.ts --harness opencode`; a project-root `AGENTS.md` still layers on top |
 
 ### Verify
 
@@ -423,7 +425,7 @@ command (when invoked explicitly).
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-~/.local/share/buck-workflow-pi/scripts/install.mjs \
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts \
   --source ~/.local/share/buck-workflow-pi --harness claude
 ```
 
@@ -489,14 +491,14 @@ from this checkout.
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-~/.local/share/buck-workflow-pi/scripts/install.mjs \
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts \
   --source ~/.local/share/buck-workflow-pi --harness grok
 ```
 
 From an existing checkout (this machine):
 
 ```bash
-/path/to/buck-workflow-pi/scripts/install.mjs \
+bun /path/to/buck-workflow-pi/scripts/install.ts \
   --source /path/to/buck-workflow-pi --harness grok
 ```
 
@@ -554,14 +556,14 @@ available-skills catalog and maps directly to a `/<name>` slash command.
 
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-node ~/.local/share/buck-workflow-pi/scripts/install.mjs \
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts \
   --source ~/.local/share/buck-workflow-pi --harness agy
 ```
 
 From an existing checkout:
 
 ```bash
-node /path/to/buck-workflow-pi/scripts/install.mjs \
+bun /path/to/buck-workflow-pi/scripts/install.ts \
   --source /path/to/buck-workflow-pi --harness agy
 ```
 
@@ -587,7 +589,7 @@ under `skills/` for command-file harnesses.
 ### Verify
 
 ```bash
-node /path/to/buck-workflow-pi/scripts/install.mjs --verify --harness agy
+bun /path/to/buck-workflow-pi/scripts/install.ts --verify --harness agy
 ```
 
 Then run `/skills reload` in a running `agy` session (or start a new session)

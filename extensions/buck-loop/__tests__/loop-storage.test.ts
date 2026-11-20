@@ -135,7 +135,11 @@ describe.each(adapters)("buck-loop %s authority", (adapter) => {
     await writeProjection(cwd, bookmark());
     const context = await resolveConsumerContext(cwd);
     if (adapter === "postgres") vi.stubEnv("LOOP_STORAGE_TEST_URL", "postgres://loop:unused@127.0.0.1:1/absent?connect_timeout=1");
-    else if (adapter === "sqlite") writeFileSync(storage.database!, "not a sqlite database");
+    else if (adapter === "sqlite") {
+      // A directory cannot be opened as a database, regardless of SQLite WAL caching.
+      rmSync(storage.database!, { force: true });
+      mkdirSync(storage.database!);
+    }
     else {
       const root = adapter === "repo-files" ? context.manifestRoot! : join(home, "external");
       mkdirSync(root, { recursive: true });

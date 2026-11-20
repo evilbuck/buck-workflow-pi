@@ -103,15 +103,17 @@ The installer detects which agent harnesses are present and symlinks only the
 surfaces declared for each harness. Run it **from a durable checkout** — every
 symlink it creates resolves back to wherever the installer itself lives:
 
+Requires Bun 1.4 or later.
+
 ```bash
 git clone https://github.com/evilbuck/buck-workflow-pi ~/.local/share/buck-workflow-pi
-node ~/.local/share/buck-workflow-pi/scripts/install.mjs
+bun ~/.local/share/buck-workflow-pi/scripts/install.ts
 ```
 
 Already have a clone (development)? Run it from there instead of cloning again:
 
 ```bash
-node scripts/install.mjs
+bun scripts/install.ts
 ```
 
 **What it does:**
@@ -124,7 +126,7 @@ node scripts/install.mjs
 **Check what you actually have:**
 
 ```bash
-node scripts/install.mjs --verify
+bun scripts/install.ts --verify
 ```
 
 Read-only. Prints every managed destination that is not a symlink into this

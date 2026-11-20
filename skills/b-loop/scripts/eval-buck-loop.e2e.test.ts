@@ -806,8 +806,9 @@ describe.skipIf(!HAS_OMP)("real OMP command-path E2E suite for /b-loop", () => {
       const resStaged = await runBuckLoop({ cwd: fDirty.worktreeDir, args: fDirty.subjectId, bridges: buildMatrixBridges(fDirty), xdgConfigHome: fDirty.xdg, configPath: fDirty.cfgPath });
       expect(resStaged.ok).toBe(false);
       expect(resStaged.message).toMatch(/pre-existing staged/i);
-      execSync("git reset -q", { cwd: fDirty.worktreeDir, stdio: "ignore" });
-      const resDirty = await runBuckLoop({ cwd: fDirty.worktreeDir, args: fDirty.subjectId, bridges: buildMatrixBridges(fDirty), xdgConfigHome: fDirty.xdg, configPath: fDirty.cfgPath });
+      const fUnstaged = createWorktreeFixture();
+      writeFileSync(join(fUnstaged.worktreeDir, "UNRELATED.txt"), "dirty\n");
+      const resDirty = await runBuckLoop({ cwd: fUnstaged.worktreeDir, args: fUnstaged.subjectId, bridges: buildMatrixBridges(fUnstaged), xdgConfigHome: fUnstaged.xdg, configPath: fUnstaged.cfgPath });
       expect(resDirty.ok).toBe(false);
       expect(resDirty.state).toBe("blocked");
       expect(resDirty.message).toMatch(/unrelated dirty/i);

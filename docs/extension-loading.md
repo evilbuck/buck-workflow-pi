@@ -278,7 +278,7 @@ Restart the agent after updating for changes to take effect.
 
 ## Multi-Harness Installer (`buck-workflow install`)
 
-The installer (`scripts/install.mjs`) handles the **external fan-out** that the package system cannot: symlinking bootstrap instructions and skill/command trees into harness directories that don't use Pi or OMP's package loading.
+The installer (`scripts/install.ts`) handles the **external fan-out** that the package system cannot: symlinking bootstrap instructions and skill/command trees into harness directories that don't use Pi or OMP's package loading.
 
 ### How it relates to package loading
 
