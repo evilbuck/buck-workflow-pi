@@ -628,6 +628,7 @@ async function applyAndComplete(args: {
     facts: { run_id: runId, subject: snapshot.subject.name, scribe },
     cwd: ctx.cwd,
     patchOps: patch.ops,
+    ...(predecessors ? { replayPredecessors: predecessors } : {}),
   });
   actor.send({ type: "EFFECTS_DONE" });
   const storeRetain = effects.find((effect) => effect.name === "store_retain");

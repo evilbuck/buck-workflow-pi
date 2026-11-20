@@ -146,6 +146,7 @@ function contentHash(text: string): string {
 }
 
 function missingCanonical(path: string, baseline: string | null, recorded: string | null | undefined): ReplayDecision {
+  if (recorded === null) return { action: "schedule", expectedRevision: null };
   if (baseline !== null || recorded) {
     return { action: "reject", reason: "canonical predecessor missing for " + path + "; refusing to recreate a possibly-corrected artifact" };
   }
@@ -182,7 +183,10 @@ async function classifyReplayWrite(
     await repairLandedReceipt(store, scope, current.revision);
     return { action: "skip" };
   }
-  if (recorded !== undefined && current.revision !== recorded) return rejectAdvanced(op.path);
+  if (recorded !== undefined) {
+    if (current.revision !== recorded) return rejectAdvanced(op.path);
+    return { action: "schedule", expectedRevision: current.revision };
+  }
   if (sameBeforeImage(current.sha256, baseline)) return { action: "schedule", expectedRevision: current.revision };
   return rejectAdvanced(op.path);
 }
@@ -233,6 +237,12 @@ async function flushAndReport(retained: number, alreadyCanonical: number, skippe
 // durable save itself and always runs. Deletes cannot be expressed as store
 // writes (revisions are append-only; removal is a lifecycle/correction concern),
 // so they stay local-only and are reported here rather than silently dropped.
+function retainPin(path: string, expected: Record<string, string | null> | null, predecessors?: Record<string, string | null>): { reconcile: false; expectedRevision: string | null } | null {
+  const source = expected ?? predecessors ?? null;
+  if (!source || !(path in source)) return null;
+  return { reconcile: false, expectedRevision: source[path] ?? null };
+}
+
 export async function retainPatchToStore(input: EffectsInput & { patchOps: RetainOp[]; cwd: string }): Promise<EffectOutcome> {
   const { writes, skippedDeletes } = partitionWrites(input.patchOps);
   let expectedRevisions: Record<string, string | null> | null = null;
@@ -245,19 +255,22 @@ export async function retainPatchToStore(input: EffectsInput & { patchOps: Retai
   }
   // Replay planning may have skipped ops as already canonical: only the ops
   // that received a schedule decision may reach the store, and each carries
-  // the canonical revision it is allowed to replace.
+  // the canonical revision it is allowed to replace. A normal retain uses the
+  // predecessor recorded before apply, so a revision committed while effects
+  // were in flight is not adopted as the compare-and-set anchor.
   const expected = expectedRevisions;
   const scheduled = expected ? writes.filter((op) => op.path in expected) : writes;
   let retained = 0;
   for (const op of scheduled) {
     const classified = classifyContextPath(op.path);
+    const pin = retainPin(op.path, expected, input.replayPredecessors);
     scheduleConfiguredRetain({
       cwd: input.cwd,
       ...classified,
       bytes: Buffer.from(op.content, "utf8"),
       author: "b-save",
       source: "b-save-extension",
-      ...(expected && op.path in expected ? { reconcile: false, expectedRevision: expected[op.path] } : {}),
+      ...(pin ?? {}),
     }, SAVE_RETAIN_SCOPE);
     retained += 1;
   }

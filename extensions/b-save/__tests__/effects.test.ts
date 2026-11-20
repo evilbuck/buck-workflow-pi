@@ -210,4 +210,63 @@ describe("retainPatchToStore", () => {
     });
     expect(created).toMatchObject({ name: "store_retain", outcome: "succeeded" });
   });
+
+  it("replays a never-stored file when the journal recorded an absent predecessor", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const created = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path: ".context/memory/local-only.md", content: "# Now stored\n" }],
+      replayBaseline: { ".context/memory/local-only.md": "# Local before-image\n" },
+      replayPredecessors: { ".context/memory/local-only.md": null },
+    });
+    expect(created).toMatchObject({ name: "store_retain", outcome: "succeeded" });
+  });
+
+  it("replays against an unchanged recorded predecessor when the checkout before-image differs", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const path = ".context/memory/fact.md";
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path, content: "# Canonical\n" }] })).outcome).toBe("succeeded");
+    const key = { projectId: "", branchId: "", subjectId: "memory", kind: "memory" as const, logicalName: "fact.md" };
+    let revision = "";
+    await withConfiguredStore(root, async (store, context) => {
+      key.projectId = context.projectId;
+      key.branchId = context.branchId;
+      revision = (await store.read(key))?.revision ?? "";
+    });
+    const replay = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path, content: "# Applied projection\n" }],
+      replayBaseline: { [path]: "# Unretained local edit\n" },
+      replayPredecessors: { [path]: revision },
+    });
+    expect(replay).toMatchObject({ name: "store_retain", outcome: "succeeded" });
+    await withConfiguredStore(root, async (store) => {
+      const current = await store.read(key);
+      expect(current && new TextDecoder().decode(current.bytes)).toContain("Applied projection");
+    });
+  });
+
+  it("does not let a normal retain replace a revision committed after the recorded predecessor", async () => {
+    fixtureConfig("sqlite", `  database: ${join(root, "state.sqlite")}\n`);
+    const path = ".context/memory/fact.md";
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path, content: "# R1\n" }] })).outcome).toBe("succeeded");
+    const key = { projectId: "", branchId: "", subjectId: "memory", kind: "memory" as const, logicalName: "fact.md" };
+    let revision = "";
+    await withConfiguredStore(root, async (store, context) => {
+      key.projectId = context.projectId;
+      key.branchId = context.branchId;
+      revision = (await store.read(key))?.revision ?? "";
+    });
+    expect((await retainPatchToStore({ cwd: root, patchOps: [{ path, content: "# R2\n" }] })).outcome).toBe("succeeded");
+    const raced = await retainPatchToStore({
+      cwd: root,
+      patchOps: [{ path, content: "# Older patch\n" }],
+      replayPredecessors: { [path]: revision },
+    });
+    expect(raced.outcome).toBe("failed_nonblocking");
+    await withConfiguredStore(root, async (store) => {
+      const current = await store.read(key);
+      expect(current && new TextDecoder().decode(current.bytes)).toContain("R2");
+    });
+  });
 });
