@@ -239,6 +239,114 @@ function resolveSourceDir(root: string, raw: string): SourceDir {
   return { rel, abs, kind };
 }
 
+/**
+ * Greedily consume the values of one `--source-dirs` occurrence:
+ * every following non-flag argument, split on commas. Mirrors the
+ * wrapper's --include/--exclude convention. Returns the index of the
+ * last consumed value so the caller's loop can continue past them.
+ */
+function consumeSourceDirs(argv: string[], start: number): { end: number; parts: string[] } {
+  const parts: string[] = [];
+  let i = start;
+  while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+    parts.push(argv[++i]);
+  }
+  if (parts.length === 0) throw new Error("missing value for --source-dirs");
+  const split = parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean));
+  return { end: i, parts: split };
+}
+
+function parseLimitArg(raw: string): number {
+  const n = Number.parseInt(raw, 10);
+  if (!Number.isFinite(n) || n < 0) throw new Error("--limit must be >= 0");
+  return n;
+}
+
+function parseScopingArg(raw: string): Scoping {
+  if (!VALID_SCOPING.has(raw)) {
+    throw new Error(`--scoping must be one of ${[...VALID_SCOPING].join("|")}`);
+  }
+  return raw as Scoping;
+}
+
+/**
+ * Resolve source dirs in priority order: explicit --source-dirs wins;
+ * --memory-dir (deprecated) implies .context/memory; otherwise default
+ * is just .context/memory.
+ */
+function resolveConfiguredSourceDirs(
+  sourceDirsRaw: string[],
+  memoryDirOverride: string | null,
+  root: string,
+): SourceDir[] {
+  if (sourceDirsRaw.length > 0) {
+    return sourceDirsRaw.map((s) => resolveSourceDir(root, s));
+  }
+  if (memoryDirOverride !== null) {
+    // Treat the override as a memory-dir; re-express as a SourceDir relative path.
+    if (memoryDirOverride.startsWith(root + "/")) {
+      const rel = toPosix(memoryDirOverride.slice(root.length).replace(/^\/+/, ""));
+      return [resolveSourceDir(root, rel)];
+    }
+    throw new Error(
+      `--memory-dir "${memoryDirOverride}" is outside project root "${root}"; ` +
+      `pass --source-dirs with a relative path instead`,
+    );
+  }
+  return [resolveSourceDir(root, ".context/memory")];
+}
+
+/** Boolean flags and the effect each has on the parsed args. */
+const BOOLEAN_SETTERS: Record<string, (out: CliArgs) => void> = {
+  "-h": (o) => {
+    o.help = true;
+  },
+  "--help": (o) => {
+    o.help = true;
+  },
+  "--dry-run": (o) => {
+    o.dryRun = true;
+  },
+  "--force": (o) => {
+    o.force = true;
+  },
+  "--sync": (o) => {
+    o.sync = true;
+  },
+};
+
+/** Value flags: each consumes the next argv token via its parser. */
+const VALUE_SETTERS: Record<string, (raw: string, out: CliArgs) => void> = {
+  "--root": (raw, o) => {
+    o.root = resolve(raw);
+  },
+  "--limit": (raw, o) => {
+    o.limit = parseLimitArg(raw);
+  },
+  "--scoping": (raw, o) => {
+    o.scoping = parseScopingArg(raw);
+  },
+  "--api-url": (raw, o) => {
+    o.apiUrl = raw;
+  },
+  "--api-token": (raw, o) => {
+    o.apiToken = raw;
+  },
+  "--bank-id": (raw, o) => {
+    o.bankId = raw;
+  },
+  "--omp-config": (raw, o) => {
+    o.ompConfig = resolve(raw);
+  },
+};
+
+/** The argv token after index i, or a thrown error when absent. */
+function requireValue(argv: string[], i: number, flag: string): string {
+  const v = argv[i + 1];
+  if (v === undefined) throw new Error(`missing value for ${flag}`);
+  return v;
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     root: process.cwd(),
@@ -256,98 +364,39 @@ export function parseArgs(argv: string[]): CliArgs {
     help: false,
   };
 
-  let sourceDirsRaw: string[] = [];
+  const sourceDirsRaw: string[] = [];
   let memoryDirOverride: string | null = null;
 
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    const next = () => {
-      const v = argv[++i];
-      if (v === undefined) throw new Error(`missing value for ${a}`);
-      return v;
-    };
-    switch (a) {
-      case "-h":
-      case "--help":
-        out.help = true;
-        break;
-      case "--dry-run":
-        out.dryRun = true;
-        break;
-      case "--force":
-        out.force = true;
-        break;
-      case "--sync":
-        out.sync = true;
-        break;
-      case "--root":
-        out.root = resolve(next());
-        break;
-      case "--source-dirs": {
-        // Greedy: consume all non-flag values and split on commas. Mirrors
-        // the wrapper's --include/--exclude convention.
-        const parts: string[] = [];
-        while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
-          parts.push(argv[++i]);
-        }
-        if (parts.length === 0) throw new Error(`missing value for ${a}`);
-        sourceDirsRaw.push(...parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean)));
-        break;
-      }
-      case "--memory-dir":
-        memoryDirOverride = resolve(next());
-        break;
-      case "--limit": {
-        const n = Number.parseInt(next(), 10);
-        if (!Number.isFinite(n) || n < 0) throw new Error("--limit must be >= 0");
-        out.limit = n;
-        break;
-      }
-      case "--api-url":
-        out.apiUrl = next();
-        break;
-      case "--api-token":
-        out.apiToken = next();
-        break;
-      case "--bank-id":
-        out.bankId = next();
-        break;
-      case "--scoping": {
-        const s = next();
-        if (!VALID_SCOPING.has(s)) {
-          throw new Error(`--scoping must be one of ${[...VALID_SCOPING].join("|")}`);
-        }
-        out.scoping = s as Scoping;
-        break;
-      }
-      case "--omp-config":
-        out.ompConfig = resolve(next());
-        break;
-      default:
-        throw new Error(`unknown argument: ${a}`);
+    // Object.hasOwn: inherited prototype keys (constructor, valueOf, toString)
+    // must fall through to unknown handling, never be invoked as setters.
+    const bool = Object.hasOwn(BOOLEAN_SETTERS, a) ? BOOLEAN_SETTERS[a] : undefined;
+    if (bool) {
+      bool(out);
+      continue;
     }
+    const val = Object.hasOwn(VALUE_SETTERS, a) ? VALUE_SETTERS[a] : undefined;
+    if (val) {
+      val(requireValue(argv, i, a), out);
+      i++;
+      continue;
+    }
+    if (a === "--source-dirs") {
+      const { end, parts } = consumeSourceDirs(argv, i);
+      i = end;
+      sourceDirsRaw.push(...parts);
+      continue;
+    }
+    if (a === "--memory-dir") {
+      memoryDirOverride = resolve(requireValue(argv, i, a));
+      i++;
+      continue;
+    }
+    throw new Error(`unknown argument: ${a}`);
   }
 
-  // Resolve source dirs in priority order: explicit --source-dirs wins;
-  // --memory-dir (deprecated) implies .context/memory; otherwise default
-  // is just .context/memory.
-  if (sourceDirsRaw.length > 0) {
-    out.sourceDirs = sourceDirsRaw.map((s) => resolveSourceDir(out.root, s));
-  } else if (memoryDirOverride !== null) {
-    // Treat the override as a memory-dir; re-express as a SourceDir relative path.
-    const trimmed = memoryDirOverride;
-    if (trimmed.startsWith(out.root + "/")) {
-      const rel = toPosix(trimmed.slice(out.root.length).replace(/^\/+/, ""));
-      out.sourceDirs = [resolveSourceDir(out.root, rel)];
-    } else {
-      throw new Error(
-        `--memory-dir "${memoryDirOverride}" is outside project root "${out.root}"; ` +
-        `pass --source-dirs with a relative path instead`,
-      );
-    }
-  } else {
-    out.sourceDirs = [resolveSourceDir(out.root, ".context/memory")];
-  }
+  out.sourceDirs = resolveConfiguredSourceDirs(sourceDirsRaw, memoryDirOverride, out.root);
   out.memoryDir = out.sourceDirs[0].abs;
   return out;
 }
@@ -451,6 +500,29 @@ export function buildRetainContent(file: MemoryFile): string {
   return content;
 }
 
+/**
+ * Per-kind timestamp strategy: memory files use the file's calendar
+ * date (noon UTC keeps the day stable across offsets); backlog items
+ * prefer `updated:` over `created:`. Null when neither carries a
+ * usable date.
+ */
+function retainTimestamp(file: MemoryFile): string | null {
+  if (file.kind === "memory" && file.frontmatter.date && /^\d{4}-\d{2}-\d{2}/.test(file.frontmatter.date)) {
+    return `${file.frontmatter.date.slice(0, 10)}T12:00:00Z`;
+  }
+  if (file.kind === "backlog") {
+    const raw = file.frontmatter.raw;
+    const stamp =
+      typeof raw.updated === "string" ? raw.updated :
+      typeof raw.created === "string" ? raw.created :
+      null;
+    if (stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp)) {
+      return `${stamp.slice(0, 10)}T12:00:00Z`;
+    }
+  }
+  return null;
+}
+
 export function buildRetainItem(file: MemoryFile, retainTags?: string[]): RetainItem {
   const content = buildRetainContent(file);
   const meta: Record<string, string> = {
@@ -469,21 +541,8 @@ export function buildRetainItem(file: MemoryFile, retainTags?: string[]): Retain
     update_mode: "replace",
   };
 
-  // per-kind timestamp strategy: memory files use the file's calendar date
-  // (noon UTC keeps the day stable across offsets). backlog items have a
-  // `created:` or `updated:` field; prefer updated if present.
-  if (file.kind === "memory" && file.frontmatter.date && /^\d{4}-\d{2}-\d{2}/.test(file.frontmatter.date)) {
-    item.timestamp = `${file.frontmatter.date.slice(0, 10)}T12:00:00Z`;
-  } else if (file.kind === "backlog") {
-    const raw = file.frontmatter.raw;
-    const stamp =
-      typeof raw.updated === "string" ? raw.updated :
-      typeof raw.created === "string" ? raw.created :
-      null;
-    if (stamp && /^\d{4}-\d{2}-\d{2}/.test(stamp)) {
-      item.timestamp = `${stamp.slice(0, 10)}T12:00:00Z`;
-    }
-  }
+  const timestamp = retainTimestamp(file);
+  if (timestamp) item.timestamp = timestamp;
   if (retainTags?.length) item.tags = [...retainTags];
   return item;
 }
@@ -633,27 +692,30 @@ export function parseOmpHindsightBlock(yamlText: string): OmpHindsightFileConfig
   return out;
 }
 
+/**
+ * Resolve one hindsight config key through the priority chain every
+ * key shares: CLI flag, then environment variable, then the omp
+ * config file block, then the built-in default.
+ */
+function configValue(
+  flag: string | null | undefined,
+  envVar: string | undefined,
+  fileValue: string | undefined,
+  fallback: string,
+): string {
+  return flag || envVar || fileValue || fallback;
+}
+
 export function resolveConfig(args: CliArgs, env: NodeJS.ProcessEnv = process.env): ResolvedConfig {
   let file: OmpHindsightFileConfig = {};
   if (args.ompConfig && existsSync(args.ompConfig)) {
     file = parseOmpHindsightBlock(readFileSync(args.ompConfig, "utf-8"));
   }
 
-  const apiUrl =
-    args.apiUrl ||
-    env.HINDSIGHT_API_URL ||
-    file.apiUrl ||
-    "http://localhost:8888";
-  const apiToken =
-    args.apiToken || env.HINDSIGHT_API_TOKEN || file.apiToken || null;
-  const bankIdBase =
-    args.bankId || env.HINDSIGHT_BANK_ID || file.bankId || DEFAULT_BANK;
-
-  const scopingRaw =
-    args.scoping ||
-    env.HINDSIGHT_SCOPING ||
-    file.scoping ||
-    DEFAULT_SCOPING;
+  const apiUrl = configValue(args.apiUrl, env.HINDSIGHT_API_URL, file.apiUrl, "http://localhost:8888");
+  const apiToken = configValue(args.apiToken, env.HINDSIGHT_API_TOKEN, file.apiToken, "") || null;
+  const bankIdBase = configValue(args.bankId, env.HINDSIGHT_BANK_ID, file.bankId, DEFAULT_BANK);
+  const scopingRaw = configValue(args.scoping, env.HINDSIGHT_SCOPING, file.scoping, DEFAULT_SCOPING);
   if (!VALID_SCOPING.has(scopingRaw)) {
     throw new Error(`invalid scoping: ${scopingRaw}`);
   }

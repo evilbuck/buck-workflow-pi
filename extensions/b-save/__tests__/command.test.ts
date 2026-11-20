@@ -2,7 +2,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { retainConfiguredArtifact } from "../../../skills/_shared/storage/consumers.js";
+import { withConfiguredStore } from "../../../skills/_shared/scripts/workflow-state.js";
 import type { MemoryCtx } from "../effects.js";
+import { hashContent } from "../snapshot.js";
 import { formatReport, parseFlags, runBSaveCommand, wire, type CommandCtx, type RolesAdapter } from "../index.js";
 import type { RunManifest } from "../types.js";
 
@@ -59,6 +62,21 @@ function fixtureRepo(subjects: string[] = ["2026-09-11.demo"]) {
     }),
   );
   return { cwd, cleanup: () => rmSync(cwd, { recursive: true, force: true }) };
+}
+
+function pinRepoFiles(cwd: string): () => void {
+  const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+  const previousXdg = process.env.XDG_CONFIG_HOME;
+  const configPath = join(cwd, "buck-workflow.yaml");
+  writeFileSync(configPath, "version: 1\nstorage:\n  adapter: repo-files\n");
+  process.env.BUCK_WORKFLOW_CONFIG = configPath;
+  process.env.XDG_CONFIG_HOME = cwd;
+  return () => {
+    if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+    else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+    if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = previousXdg;
+  };
 }
 
 function ctxFor(cwd: string, roles: RolesAdapter, memory: MemoryCtx): CommandCtx {
@@ -348,6 +366,155 @@ describe("failed_apply resume (issue #23 acceptance: continue through effects)",
       expect(resumed.state).toBe("failed_apply");
       expect(resumed.report).toContain("before-image changed");
     } finally {
+      cleanup();
+    }
+  });
+
+  it("fails closed when a later canonical advance invalidates the recovered projection", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const restore = pinRepoFiles(cwd);
+    try {
+      const memory = fakeMemory();
+      const first = await runBSaveCommand(ctxFor(cwd, fakeRoles(), memory), []);
+      expect(first.state).toBe("completed");
+      const memoryPath = join(cwd, ".context/memory/demo-2026-09-11.md");
+      const landed = readFileSync(memoryPath, "utf8");
+      // A later writer (e.g. workflow_state) advances the canonical revision;
+      // bound-store operations reconcile the working tree, so the local
+      // projection no longer matches what this run journaled.
+      const advanced = landed.replace("# Demo session", "# Demo session (advanced by workflow_state)");
+      expect(await retainConfiguredArtifact({
+        cwd,
+        kind: "memory",
+        subjectId: "memory",
+        logicalName: "demo-2026-09-11.md",
+        bytes: new TextEncoder().encode(advanced),
+        author: "workflow-state",
+        source: "workflow_state",
+      })).not.toBeNull();
+      // Model a crash after apply but before the manifest landed.
+      const runDirAbs = join(cwd, ".context/workflow/b-save", first.runId);
+      writeFileSync(
+        join(runDirAbs, "manifest.json"),
+        JSON.stringify({ ...readManifest(cwd, first.runId), state: "failed_apply" }, null, 2) + "\n",
+      );
+      writeFileSync(
+        join(runDirAbs, "apply-journal.json"),
+        JSON.stringify({
+          status: "completed",
+          ops: [{ path: ".context/memory/demo-2026-09-11.md", before: "older before-image\n", after: hashContent(landed), tmp: null, kind: "write", done: true }],
+        }, null, 2) + "\n",
+      );
+      const resumed = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), ["--run-id", first.runId]);
+      expect(resumed.ok).toBe(false);
+      expect(resumed.state).toBe("failed_apply");
+      // Fail-closed: the replay refuses to retain bytes the run never produced.
+      expect(resumed.report).toContain("recovered projection drifted");
+      // The advanced revision must stay canonical.
+      await withConfiguredStore(cwd, async (store, context) => {
+        const current = await store.read({ projectId: context.projectId, branchId: context.branchId, subjectId: "memory", kind: "memory", logicalName: "demo-2026-09-11.md" });
+        expect(current && new TextDecoder().decode(current.bytes)).toContain("advanced by workflow_state");
+      });
+    } finally {
+      restore();
+      cleanup();
+    }
+  });
+
+  it("does not retain or rewrite a recovered run during dry-run", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const restore = pinRepoFiles(cwd);
+    try {
+      const first = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), []);
+      writeFileSync(
+        join(cwd, ".context/workflow/b-save", first.runId, "manifest.json"),
+        JSON.stringify({ ...readManifest(cwd, first.runId), state: "failed_apply" }, null, 2) + "\n",
+      );
+      const resumed = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), ["--dry-run", "--run-id", first.runId]);
+      expect(resumed.ok).toBe(true);
+      expect(resumed.report).toContain("dry-run: nothing applied or persisted");
+      expect(readManifest(cwd, first.runId).state).toBe("failed_apply");
+    } finally {
+      restore();
+      cleanup();
+    }
+  });
+
+  it("returns failed_apply when a journaled file was removed", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const restore = pinRepoFiles(cwd);
+    try {
+      const first = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), []);
+      rmSync(join(cwd, ".context/memory/demo-2026-09-11.md"));
+      writeFileSync(
+        join(cwd, ".context/workflow/b-save", first.runId, "manifest.json"),
+        JSON.stringify({ ...readManifest(cwd, first.runId), state: "failed_apply" }, null, 2) + "\n",
+      );
+      const resumed = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), ["--run-id", first.runId]);
+      expect(resumed.ok).toBe(false);
+      expect(resumed.state).toBe("failed_apply");
+      expect(resumed.report).toContain("recovered projection drifted");
+    } finally {
+      restore();
+      cleanup();
+    }
+  });
+
+  it("resumes an applying manifest persisted before the patch finished", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const restore = pinRepoFiles(cwd);
+    try {
+      const runId = "applying-before-patch";
+      const rel = ".context/memory/demo-2026-09-11.md";
+      const body = "# Demo session\n";
+      writeFileSync(join(cwd, rel), body);
+      const runDirAbs = join(cwd, ".context/workflow/b-save", runId);
+      mkdirSync(runDirAbs, { recursive: true });
+      writeFileSync(join(runDirAbs, "manifest.json"), JSON.stringify({
+        schema_version: 1,
+        run_id: runId,
+        state: "applying",
+        flags: { dry_run: false, no_retain: false, archive_inferred: false, subject: "2026-09-11.demo", model: null },
+        subject: { name: "2026-09-11.demo", path: ".context/2026-09-11.demo", status: "active", created: false },
+        session_evidence: { present: false, valid: false, stale_reasons: [], fields: {} },
+        input_hashes: {},
+        proposals: [SCRIBE_OK],
+        user_decisions: [],
+        patch_set: null,
+        journal: { status: "in-progress", files: [rel] },
+        effects: [],
+        terminal_error: null,
+      }, null, 2) + "\n");
+      writeFileSync(join(runDirAbs, "apply-journal.json"), JSON.stringify({
+        status: "completed",
+        ops: [{ path: rel, before: null, after: hashContent(body), tmp: null, kind: "write", done: true, predecessor: null }],
+      }, null, 2) + "\n");
+      const resumed = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), ["--run-id", runId]);
+      expect(resumed.report).not.toMatch(/unknown run/);
+      expect(resumed.state).not.toBe("aborted");
+    } finally {
+      restore();
+      cleanup();
+    }
+  });
+
+  it("still applies local files when the canonical store cannot be opened", async () => {
+    const { cwd, cleanup } = fixtureRepo();
+    const previousConfig = process.env.BUCK_WORKFLOW_CONFIG;
+    const previousXdg = process.env.XDG_CONFIG_HOME;
+    writeFileSync(join(cwd, "buck-workflow.yaml"), "version: 1\nstorage:\n  adapter: postgres\n  connection_env: BUCK_MISSING_PG_URL\n");
+    process.env.BUCK_WORKFLOW_CONFIG = join(cwd, "buck-workflow.yaml");
+    process.env.XDG_CONFIG_HOME = cwd;
+    delete process.env.BUCK_MISSING_PG_URL;
+    try {
+      const result = await runBSaveCommand(ctxFor(cwd, fakeRoles(), fakeMemory()), []);
+      expect(existsSync(join(cwd, ".context/memory/demo-2026-09-11.md"))).toBe(true);
+      expect(["completed", "failed_apply"]).toContain(result.state);
+    } finally {
+      if (previousConfig === undefined) delete process.env.BUCK_WORKFLOW_CONFIG;
+      else process.env.BUCK_WORKFLOW_CONFIG = previousConfig;
+      if (previousXdg === undefined) delete process.env.XDG_CONFIG_HOME;
+      else process.env.XDG_CONFIG_HOME = previousXdg;
       cleanup();
     }
   });

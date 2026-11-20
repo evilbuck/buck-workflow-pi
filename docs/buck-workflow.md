@@ -766,6 +766,7 @@ informs: []  # Plans/specs this research fed into
 - Measures the current coverage, complexity, and lint baseline; runs unit and functional suites once.
 - Writes `guardrails.json` v2 with patch gate, global ratchet, base lint mode, per-ecosystem lint/functional/test commands, and an explicit `enforcement` block (`required` / `advisory` / `disabled` per gate — see `skills/b-init-guardrails/docs/ratchet-protocol.md` § Enforcement States; promotion is monotonic, demotion needs recorded approval).
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
+- Copies `b-guardrails-check` and `b-init-guardrails` into the repo's `skills/` directory so the managed block's paths resolve without a global plugin install. Re-runs overwrite those two trees only.
 
 **Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.mjs`, exposed as `npm run guardrails:check` and run in the PR CI `guardrails` job. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction. Exit 1 for a required-gate failure or a malformed contract; exit 2 when `guardrails.json` is missing.
 

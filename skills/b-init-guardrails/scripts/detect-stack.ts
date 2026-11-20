@@ -70,6 +70,16 @@ const IGNORED_DIRS = new Set([
   ".turbo",
 ]);
 
+const VENDORED_SKILL_ROOTS: Record<string, true> = {
+  "skills/b-init-guardrails": true,
+  "skills/b-guardrails-check": true,
+};
+
+function isVendoredSkillTree(root: string, absolute: string): boolean {
+  const rel = relative(root, absolute).split("\\").join("/");
+  return VENDORED_SKILL_ROOTS[rel] === true;
+}
+
 const LIZARD_EXCLUDES = Array.from(IGNORED_DIRS).map((dir) => `-x "*/${dir}/*"`).join(" ");
 const LIZARD_CMD = `lizard -C 10 -w --csv ${LIZARD_EXCLUDES} .`;
 const MAX_WALK_FILES = 20_000;
@@ -90,7 +100,7 @@ function walkFiles(root: string): string[] {
     for (const entry of entries) {
       const absolute = join(dir, entry.name);
       if (entry.isDirectory()) {
-        if (!IGNORED_DIRS.has(entry.name)) {
+        if (!IGNORED_DIRS.has(entry.name) && !isVendoredSkillTree(root, absolute)) {
           files.push(relative(root, absolute));
           visit(absolute);
         }

@@ -20,11 +20,11 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { readFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileCaptured } from "../subprocess.js";
-import { createActivity, type ActivityEvent } from "../extension-activity.js";
+import { execGit } from "../git-exec.js";
+import { createActivity, type Activity, type ActivityEvent } from "../extension-activity.js";
 import { runOmpModelSession } from "../omp-models.js";
 
 
@@ -38,19 +38,6 @@ const MAX_CONFLICT_ATTEMPTS = 20;
 
 // ---------- git / gh helpers ----------
 
-function execGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): string {
-  try {
-    return execFileSync("git", args, {
-      cwd,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-      env: { ...process.env, ...env },
-    });
-  } catch (e: unknown) {
-    const err = e as Error & { stderr?: Buffer };
-    throw new Error(`git ${args.join(" ")} failed: ${err.stderr?.toString().trim() || err.message}`);
-  }
-}
 
 async function execGitPush(args: string[], cwd: string): Promise<void> {
   const result = await execFileCaptured("git", args, cwd);
@@ -278,6 +265,86 @@ interface CommandUI {
   ) => void;
 }
 
+/** Forward the operator's flags to the preflight script. */
+function preflightArgs(opts: Options): string[] {
+  const pfArgs: string[] = [];
+  if (opts.base) pfArgs.push("--base", opts.base);
+  if (opts.noCache) pfArgs.push("--no-cache");
+  if (opts.dryRun) pfArgs.push("--dry-run");
+  return pfArgs;
+}
+
+/**
+ * Run the preflight script through its three outcomes: success,
+ * cache-miss (needs an explicit --base; caller stops after notifying),
+ * and rebase conflict (resolved inline, then re-run to gather).
+ * Returns the gathered preflight JSON plus whether a rebase happened,
+ * or null when the operator was notified and the command should stop.
+ */
+interface PreflightOutcome {
+  json: Record<string, unknown>;
+  rebased: boolean;
+}
+
+/**
+ * Resolve a rebase conflict inline (model edits the conflicted files,
+ * this side does the deterministic git dance), then re-run the
+ * preflight to gather. Null = operator was notified, stop the command.
+ */
+async function resolveConflictAndRerun(
+  pf: Preflight,
+  opts: Options,
+  cwd: string,
+  activity: Activity,
+  notify: Notify,
+): Promise<Preflight | null> {
+  const base = (pf.json?.chosen_base as string | undefined) ?? "base";
+  activity.phase(`Rebase conflict in ${(pf.json?.conflicted_files as unknown[]).length} file(s). Resolving…`);
+  const ok = await resolveRebaseConflicts(cwd, base, opts.model, activity.ingest, notify);
+  if (!ok) return null;
+  const rerunArgs = opts.base ? ["--base", opts.base] : [];
+  activity.phase("preflight…");
+  const rerun = await runPreflight(rerunArgs, cwd);
+  if (rerun.code !== 0) {
+    notify(`Preflight after rebase failed (exit ${rerun.code}): ${(rerun.json?.error as string) ?? "unknown"}`, "warning");
+    return null;
+  }
+  return rerun;
+}
+
+async function runPreflightPhase(
+  opts: Options,
+  cwd: string,
+  activity: Activity,
+  notify: Notify,
+): Promise<PreflightOutcome | null> {
+  activity.phase("preflight…");
+  let pf = await runPreflight(preflightArgs(opts), cwd);
+  let rebased = pf.json?.rebased === true;
+
+  // Cache miss → the script surfaced candidates but no chosen base. Ask once.
+  if (pf.code === 0 && pf.json && !pf.json.chosen_base && pf.json.base_candidates) {
+    const names = (pf.json.base_candidates as Array<{ name: string }>).map((c) => c.name).join(", ");
+    notify(`No cached base. Re-run: /b-pr-improved --base <branch> (candidates: ${names})`, "info");
+    return null;
+  }
+
+  // Conflict → resolve in-line, then re-run the preflight to gather.
+  if (pf.code === 3 && pf.json?.conflicted_files) {
+    const rerun = await resolveConflictAndRerun(pf, opts, cwd, activity, notify);
+    if (!rerun) return null;
+    pf = rerun;
+    rebased = true;
+  }
+
+  if (pf.code !== 0 || !pf.json) {
+    notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
+    return null;
+  }
+
+  return { json: pf.json, rebased };
+}
+
 async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI }): Promise<void> {
   const cwd = ctx.cwd;
   const notify = ctx.ui.notify;
@@ -285,45 +352,11 @@ async function runBprImproved(args: string, ctx: { cwd: string; ui: CommandUI })
   const activity = createActivity({ ui: ctx.ui, command: "b-pr-improved" });
 
   try {
-    // 1. Resolve + rebase + gather via the preflight script.
-    const pfArgs: string[] = [];
-    if (opts.base) pfArgs.push("--base", opts.base);
-    if (opts.noCache) pfArgs.push("--no-cache");
-    if (opts.dryRun) pfArgs.push("--dry-run");
+    const pre = await runPreflightPhase(opts, cwd, activity, notify);
+    if (!pre) return;
+    const rebased = pre.rebased;
 
-    activity.phase("preflight…");
-    let pf = await runPreflight(pfArgs, cwd);
-    let rebased = pf.json?.rebased === true;
-
-    // Cache miss → the script surfaced candidates but no chosen base. Ask once.
-    if (pf.code === 0 && pf.json && !pf.json.chosen_base && pf.json.base_candidates) {
-      const names = (pf.json.base_candidates as Array<{ name: string }>).map((c) => c.name).join(", ");
-      notify(`No cached base. Re-run: /b-pr-improved --base <branch> (candidates: ${names})`, "info");
-      return;
-    }
-
-    // Conflict → resolve in-line, then re-run the preflight to gather.
-    if (pf.code === 3 && pf.json?.conflicted_files) {
-      const base = (pf.json.chosen_base as string) ?? "base";
-      activity.phase(`Rebase conflict in ${(pf.json.conflicted_files as unknown[]).length} file(s). Resolving…`);
-      const ok = await resolveRebaseConflicts(cwd, base, opts.model, activity.ingest, notify);
-      if (!ok) return;
-      rebased = true;
-      const rerunArgs = opts.base ? ["--base", opts.base] : [];
-      activity.phase("preflight…");
-      pf = await runPreflight(rerunArgs, cwd);
-      if (pf.code !== 0) {
-        notify(`Preflight after rebase failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "unknown"}`, "warning");
-        return;
-      }
-    }
-
-    if (pf.code !== 0 || !pf.json) {
-      notify(`Preflight failed (exit ${pf.code}): ${(pf.json?.error as string) ?? "no output"}`, "warning");
-      return;
-    }
-
-    const gather = pf.json;
+    const gather = pre.json;
     const base = gather.chosen_base as string;
     const head = gather.current_branch as string;
 

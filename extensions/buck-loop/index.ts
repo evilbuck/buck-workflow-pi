@@ -170,7 +170,7 @@ function returnFailureToAgent(pi: ExtensionAPI, ui: BuckLoopUI, failure: AgentCa
  * work/choice session). Best-effort: if even reading saved status fails,
  * report blocked and preserve the original error.
  */
-async function supervisorFailure(cwd: string, parsed: Extract<ParsedArgs, { ok: true }>, error: unknown): Promise<AgentCallFailure> {
+async function supervisorFailure(cwd: string, parsed: RunArgs, error: unknown): Promise<AgentCallFailure> {
   let state: AgentCallFailure["state"] = "blocked";
   try {
     if (((await statusOf(cwd))).state === "aborted") state = "aborted";

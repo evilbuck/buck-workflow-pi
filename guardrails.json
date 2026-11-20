@@ -19,69 +19,14 @@
     "baseline_coverage": 84,
     "baseline_complexity_inventory": [
       {
-        "file": "skills/b-memory-import/scripts/import-projects.ts",
-        "function": "parseArgs",
-        "complexity": 68
-      },
-      {
-        "file": "extensions/b-commit-improved/index.ts",
-        "function": "runBCommitImproved",
-        "complexity": 35
-      },
-      {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
         "function": "detectJvm",
         "complexity": 30
       },
       {
-        "file": "skills/pi-rpc/scripts/pi-prompt.py",
-        "function": "main",
-        "complexity": 30
-      },
-      {
-        "file": "skills/skill-explainer/scripts/render.py",
-        "function": "validate",
-        "complexity": 28
-      },
-      {
-        "file": "extensions/b-save-improved/index.ts",
-        "function": "runBSaveImproved",
-        "complexity": 27
-      },
-      {
-        "file": "extensions/b-kamal-release/index.ts",
-        "function": "runKamalRelease",
-        "complexity": 26
-      },
-      {
-        "file": "skills/b-auto-fix/scripts/auto-fix.ts",
-        "function": "parseFlags",
-        "complexity": 26
-      },
-      {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
         "function": "detectTypeScript",
         "complexity": 26
-      },
-      {
-        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
-        "function": "parse_diff",
-        "complexity": 26
-      },
-      {
-        "file": "skills/b-memory-import/scripts/import-context-memory.ts",
-        "function": "parseArgs",
-        "complexity": 25
-      },
-      {
-        "file": "extensions/b-pr-improved/index.ts",
-        "function": "runBprImproved",
-        "complexity": 21
-      },
-      {
-        "file": "skills/pi-rpc/scripts/pi-prompt.py",
-        "function": "main.handle_event",
-        "complexity": 19
       },
       {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
@@ -94,79 +39,14 @@
         "complexity": 18
       },
       {
-        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
-        "function": "identify_risk_factors",
-        "complexity": 18
-      },
-      {
-        "file": "skills/b-auto-fix/scripts/auto-fix.ts",
-        "function": "main",
-        "complexity": 17
-      },
-      {
-        "file": "extensions/b-commit-improved/index.ts",
-        "function": "parseModelResponse",
-        "complexity": 16
-      },
-      {
-        "file": "skills/code-review/scripts/pr-context.ts",
-        "function": "isHeadRepository",
-        "complexity": 16
-      },
-      {
-        "file": "skills/code-review/scripts/pr-context.ts",
-        "function": "isPrView",
-        "complexity": 16
-      },
-      {
-        "file": "skills/code-review-universal/scripts/pr-analyzer.py",
-        "function": "generate_suggestions",
-        "complexity": 15
-      },
-      {
-        "file": "extensions/b-kamal-release/index.ts",
-        "function": "resolveVersion",
-        "complexity": 14
-      },
-      {
         "file": "skills/b-init-guardrails/scripts/detect-stack.ts",
         "function": "detectSimple",
         "complexity": 14
       },
       {
-        "file": "extensions/b-save-improved/index.ts",
-        "function": "parseArgs",
-        "complexity": 13
-      },
-      {
         "file": "extensions/omp-models.ts",
         "function": "parseModelRoles",
         "complexity": 13
-      },
-      {
-        "file": "skills/b-pr/scripts/pr-preflight.ts",
-        "function": "artifactType",
-        "complexity": 13
-      },
-      {
-        "file": "skills/code-review/scripts/submit-review.ts",
-        "function": "parseArgs",
-        "complexity": 13
-      },
-      {
-        "file": "extensions/tps-tracker.ts",
-        "function": "(anonymous)",
-        "complexity": 12
-      },
-      {
-        "file": "extensions/plan-artifact.ts",
-        "function": "findPlanExit",
-        "complexity": 11
-      },
-      {
-        "file": "extensions/plan-artifact.ts",
-        "function": "isPlanArtifactEnabled",
-        "complexity": 11
       }
     ],
     "complexity_baseline_file": null,

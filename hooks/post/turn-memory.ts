@@ -77,6 +77,11 @@ export function tickIdentity(sessionFile: string | undefined, user: string, assi
   return `${sessionFile ?? "no-session"}:${timestamp}:${digest}`;
 }
 
+/** Window ids embed session paths (`"` and `:`). Filenames use a stable hash of that id. */
+export function turnMemoryFileStem(phase: string): string {
+  return createHash("sha256").update(phase).digest("hex").slice(0, 32);
+}
+
 function tickIdentityOf(entry: unknown): string | null {
   const record = asRecord(entry);
   if (!record || record.type !== "custom" || record.customType !== TICK) return null;
@@ -107,8 +112,8 @@ async function defaultRemember(input: Parameters<CaptureDeps["remember"]>[0]): P
       runId: bound.runId,
       publishedRevisionIds: context.publishedRevisionIds,
     }, [
-      { kind: "memory", subjectId: input.subject, logicalName: `turn-memory/${input.phase}.md`, bytes: new TextEncoder().encode(input.body), source: "turn-memory" },
-      { kind: "activity", subjectId: "turn-memory", logicalName: `dedupe/${input.phase}.json`, bytes: new TextEncoder().encode(input.phase), source: "turn-memory-dedupe" },
+      { kind: "memory", subjectId: input.subject, logicalName: `turn-memory/${turnMemoryFileStem(input.phase)}.md`, bytes: new TextEncoder().encode(input.body), source: "turn-memory" },
+      { kind: "activity", subjectId: "turn-memory", logicalName: `dedupe/${turnMemoryFileStem(input.phase)}.json`, bytes: new TextEncoder().encode(input.phase), source: "turn-memory-dedupe" },
     ], { attemptId: input.phase, status: "attempted", kind: "rows", metadataDuties: ["readback"] });
     await store.writeReceipt({ ...committed.receipt, status: "complete" });
     const complete = await store.readReceipt(context.projectId, bound.runId);

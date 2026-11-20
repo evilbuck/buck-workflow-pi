@@ -1,3 +1,7 @@
+- 2026-11-19 — [fix-pr #74: save recovery, installer detection, and review accuracy](fix-pr-74-2026-11-19.md) — `review_pending` (3 fix loops; checks green @ 575f7b1; no independent re-review on that SHA)
+
+  - 2026-11-19 | `fix-pr-74-2026-11-19.md` | domains: [tooling, testing, storage] | topics: [fix-pr, pr-74, coderabbit, b-save, guardrails] | status: review_pending
+
 - 2026-11-18 — [b-refactor skill](b-refactor-skill-2026-11-18.md) — completed (one accidental-complexity force per run; night loop is the caller)
 - 2026-11-17 — [fix-pr #73: validate and address CodeRabbit review on b-loop repair](fix-pr-73-2026-11-17.md) — `review_pending` (3 fix loops; CI green @ a60786f; 8/8 settlement polls; no independent re-review)
 

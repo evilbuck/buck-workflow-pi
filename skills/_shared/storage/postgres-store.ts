@@ -1,4 +1,4 @@
-import { MIGRATION_TABLES, assertEmptyOrReplay, emptySnapshot, legacySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationSnapshot, type MigrationTable } from "./migration.js";
+import { MIGRATION_TABLES, assertEmptyOrReplay, assertMergeable, missingRows, digest, emptySnapshot, legacySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationInstallOptions, type MigrationSnapshot, type MigrationTable } from "./migration.js";
 import { randomUUID } from "node:crypto";
 import type { MigrationClient, MigrationPool } from "./migrations.js";
 import type { ArtifactKey, ArtifactQuery, ArtifactRevision, CheckpointSeal, LifecycleRecord, LifecycleTransition, RunReceipt, ScopedCorrection, StorageStore } from "./contract.js";
@@ -280,21 +280,31 @@ export class PostgresStorageStore implements StorageStore {
     finally { client.release(); }
   }
 
-  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+  async installSnapshot(snapshot: MigrationSnapshot, options?: MigrationInstallOptions): Promise<void> {
     validateSnapshot(snapshot);
     const client = await this.#pool.connect();
     try {
       await client.query("BEGIN");
       await client.query(`LOCK TABLE ${Object.keys(MIGRATION_TABLES).join(",")} IN SHARE ROW EXCLUSIVE MODE`);
-      if (!assertEmptyOrReplay(await this.#migrationSnapshot(client, snapshot.projectId), snapshot)) {
-        for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
-          const columns = MIGRATION_TABLES[table].split(" ");
-          for (const row of snapshot.tables[table]) await client.query(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(",")})`, sqlValues(table, row));
+      const current = await this.#migrationSnapshot(client, snapshot.projectId);
+      if (digest(current) !== digest(snapshot)) {
+        if (options?.merge) {
+          assertMergeable(current, snapshot);
+          await this.#insertRows(client, missingRows(current, snapshot));
+        } else if (!assertEmptyOrReplay(current, snapshot)) {
+          await this.#insertRows(client, snapshot);
         }
       }
       await client.query("COMMIT");
     } catch (error) { await this.#rollback(client); throw error; }
     finally { client.release(); }
+  }
+
+  async #insertRows(client: MigrationClient, snapshot: MigrationSnapshot): Promise<void> {
+    for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+      const columns = MIGRATION_TABLES[table].split(" ");
+      for (const row of snapshot.tables[table]) await client.query(`INSERT INTO ${table} (${columns.join(",")}) VALUES (${columns.map((_, i) => `$${i + 1}`).join(",")})`, sqlValues(table, row));
+    }
   }
 
 

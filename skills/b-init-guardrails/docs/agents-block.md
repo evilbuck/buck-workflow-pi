@@ -2,7 +2,7 @@
 
 This template is inserted into `AGENTS.md` (or `CLAUDE.md`) by the `b-init-guardrails` skill. The managed block governs ongoing quality guardrail enforcement.
 
-**Do not edit manually.** Re-run `/b-init-guardrails` to refresh.
+**Do not edit manually.** Re-run `/b-init-guardrails` to refresh. That run also vendors the skills the block loads into the repo.
 
 ---
 
@@ -10,7 +10,7 @@ This template is inserted into `AGENTS.md` (or `CLAUDE.md`) by the `b-init-guard
 <!-- BEGIN b-init-guardrails -->
 # Quality Guardrails (managed block)
 
-This block is managed by `b-init-guardrails`. Do not edit manually; re-run the skill to refresh.
+This block is managed by `b-init-guardrails`. Do not edit manually; re-run `/b-init-guardrails`, or load `skills/b-init-guardrails/SKILL.md` when that command is not installed.
 
 ## When to Run Guardrails Checks
 
@@ -113,7 +113,7 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 - If the function is legitimately complex, document the exception and add it to the baseline via explicit re-baseline (manual opt-in).
 
 **v1 contract detected** (`contract_version: 1`):
-- Run `/b-init-guardrails` to upgrade to v2 and add lint and functional-test gates.
+- Run `/b-init-guardrails`, or load `skills/b-init-guardrails/SKILL.md`, to upgrade to v2 and add lint and functional-test gates.
 
 ## Contract Resolution
 
@@ -121,7 +121,7 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 
 1. `guardrails.json` at repo root → authoritative. Run all gates. Verdict `contract: "durable"`.
 2. Managed block present but `guardrails.json` missing → warn the contract is broken, continue to step 3.
-3. `b-init-guardrails`' `scripts/detect-stack.ts` reports ≥ 1 ecosystem → ephemeral contract; run lint and test gates only. Verdict `contract: "ephemeral"`.
+3. `skills/b-init-guardrails/scripts/detect-stack.ts` reports ≥ 1 ecosystem → ephemeral contract; run lint and test gates only. If that file is absent, run `detect-stack.ts` from the installed `b-init-guardrails` skill. Verdict `contract: "ephemeral"`.
 4. No ecosystem detected → surface any `README.md` testing/development command block as unverified suggestions. Do not execute them. Verdict `contract: "suggested"`.
 5. Nothing found → warn and offer `/b-init-guardrails`. Verdict `contract: "none"`.
 

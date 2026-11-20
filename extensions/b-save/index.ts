@@ -4,8 +4,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createActor } from "xstate";
 import { applyPatch, recoverApply, type ApplyResult } from "./apply.js";
-import { runEffects, type EffectOutcome, type MemoryCtx } from "./effects.js";
+import { canonicalPredecessors, runEffects, type EffectOutcome, type MemoryCtx, type RetainOp } from "./effects.js";
 import {
+  contextRootJoin,
   evaluateSnapshot,
   NeedsJudgmentError,
   SchemaError,
@@ -299,6 +300,41 @@ function persistedScribe(manifest: RunManifest): ScribeProposal | null {
   return isScribeProposal(proposal) ? proposal : null;
 }
 
+type RecoveredProjection =
+  | { patchOps: RetainOp[]; replayBaseline: Record<string, string | null>; replayPredecessors: Record<string, string | null> }
+  | { drift: string };
+
+function missingProjection(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+}
+
+/**
+ * Rebuild the replayed retain writes from the recovered journal. The journal
+ * records the applied content's hash (applyJournalOp), so a projection matches
+ * only when the local file still hashes to the journaled value; anything else
+ * drifted underneath the crashed run.
+ */
+function rebuildRecoveredProjection(cwd: string, applied: ApplyResult): RecoveredProjection {
+  const patchOps: RetainOp[] = [];
+  const replayBaseline: Record<string, string | null> = {};
+  const replayPredecessors: Record<string, string | null> = {};
+  for (const op of applied.journal.ops) {
+    if (op.after === null) continue;
+    let content: string;
+    try {
+      content = readFileSync(contextRootJoin(cwd, op.path), "utf8");
+    } catch (error) {
+      if (missingProjection(error)) return { drift: op.path };
+      throw error;
+    }
+    if (hashContent(content) !== op.after) return { drift: op.path };
+    patchOps.push({ path: op.path, content });
+    replayBaseline[op.path] = op.before;
+    if ("predecessor" in op) replayPredecessors[op.path] = op.predecessor ?? null;
+  }
+  return { patchOps, replayBaseline, replayPredecessors };
+}
+
 async function completeRecoveredApply(
   ctx: CommandCtx,
   flags: CommandFlags,
@@ -308,12 +344,39 @@ async function completeRecoveredApply(
   const scribe = persistedScribe(existing);
   const subject = existing.subject?.name ?? flags.subject;
   if (!scribe || !subject) return resumeFailure(existing.run_id, subject, "persisted proposals cannot safely resume effects", "failed_apply");
+  const projection = rebuildRecoveredProjection(ctx.cwd, applied);
+  if ("drift" in projection) {
+    return resumeFailure(existing.run_id, subject, "recovered projection drifted from the journaled patch: " + projection.drift, "failed_apply");
+  }
   const effects = await runEffects({
     noRetain: flags.noRetain,
     memory: ctx.memory ?? null,
     facts: { run_id: existing.run_id, subject, scribe },
+    cwd: ctx.cwd,
+    patchOps: projection.patchOps,
+    replayBaseline: projection.replayBaseline,
+    replayPredecessors: projection.replayPredecessors,
   });
   const durableFiles = applied.journal.ops.map((op) => op.path);
+  const storeRetain = effects.find((effect) => effect.name === "store_retain");
+  if (storeRetain?.outcome === "failed_nonblocking") {
+    const manifest: RunManifest = {
+      ...existing,
+      state: "failed_apply",
+      effects,
+      user_decisions: [...existing.user_decisions, ...userDecisionsFor(flags, true)],
+      journal: { status: applied.journal.status, files: durableFiles },
+      terminal_error: "store retention failed: " + storeRetain.detail,
+    };
+    writeRunManifest(ctx.cwd, manifest);
+    return {
+      ok: false,
+      runId: existing.run_id,
+      state: "failed_apply",
+      report: formatReport({ runId: existing.run_id, state: "failed_apply", subject, effects, durableFiles, resumed: true }),
+      effects,
+    };
+  }
   const manifest: RunManifest = {
     ...existing,
     state: "completed",
@@ -516,9 +579,30 @@ async function applyAndComplete(args: {
   if (flags.dryRun) {
     return finish({ state: "completed", durableFiles, warnings: ["dry-run: nothing applied or persisted"] });
   }
+  let predecessors: Record<string, string | null> | undefined;
+  try {
+    predecessors = await canonicalPredecessors(ctx.cwd, durableFiles);
+  } catch {
+    predecessors = undefined;
+  }
   let applied: ApplyResult;
   try {
-    applied = applyPatch(ctx.cwd, patch, { runId, expectedHashes: snapshot.input_hashes });
+    writeRunManifest(ctx.cwd, manifestFor({
+      runId,
+      state: "applying",
+      flags,
+      effects: [],
+      ok: true,
+      snapshot,
+      proposals,
+      patch,
+      journal: { status: "in-progress", files: durableFiles },
+    }));
+    applied = applyPatch(ctx.cwd, patch, {
+      runId,
+      expectedHashes: snapshot.input_hashes,
+      ...(predecessors ? { predecessors } : {}),
+    });
   } catch (error) {
     actor.send({ type: "APPLY_FAILED" });
     return finish({
@@ -542,8 +626,31 @@ async function applyAndComplete(args: {
     noRetain: flags.noRetain,
     memory: ctx.memory ?? null,
     facts: { run_id: runId, subject: snapshot.subject.name, scribe },
+    cwd: ctx.cwd,
+    patchOps: patch.ops,
+    ...(predecessors ? { replayPredecessors: predecessors } : {}),
   });
   actor.send({ type: "EFFECTS_DONE" });
+  const storeRetain = effects.find((effect) => effect.name === "store_retain");
+  if (storeRetain?.outcome === "failed_nonblocking") {
+    actor.send({ type: "APPLY_FAILED" });
+    return finish({
+      state: "failed_apply",
+      effects,
+      warnings: ["store retention failed: " + storeRetain.detail],
+      manifest: manifestFor({
+        runId,
+        state: "failed_apply",
+        flags,
+        effects,
+        ok: false,
+        snapshot,
+        proposals,
+        patch,
+        journal: { status: "completed", files: durableFiles },
+      }),
+    });
+  }
   return finish({
     state: machineState(),
     effects,
@@ -644,10 +751,25 @@ async function resumeRun(ctx: CommandCtx, flags: CommandFlags): Promise<CommandR
     const report = formatReport({ runId: plan.runId, state: plan.state, subject: plan.subject, resumed: true });
     return { ok: false, runId: plan.runId, state: plan.state, report, effects: [] };
   }
+  if (flags.dryRun) {
+    return {
+      ok: true,
+      runId: plan.runId,
+      state: "completed",
+      report: formatReport({
+        runId: plan.runId,
+        state: "completed",
+        subject: plan.subject,
+        resumed: true,
+        warnings: ["dry-run: nothing applied or persisted"],
+      }),
+      effects: [],
+    };
+  }
   if (plan.recoverJournal) {
     try {
       const applied = recoverJournalIfAny(ctx.cwd, plan.runId);
-      if (applied) return completeRecoveredApply(ctx, flags, existing, applied);
+      if (applied) return await completeRecoveredApply(ctx, flags, existing, applied);
     } catch (error) {
       return resumeFailure(plan.runId, plan.subject, String(error), "failed_apply");
     }

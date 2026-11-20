@@ -1,13 +1,13 @@
 ---
 name: b-init-guardrails
-description: One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet. Detects the stack, proposes tooling, measures the baseline, writes guardrails.json, and installs a managed AGENTS.md block.
+description: One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, cyclomatic complexity) with a brownfield ratchet. Detects the stack, proposes tooling, measures the baseline, writes guardrails.json, installs a managed AGENTS.md block, and vendors the guardrails skills that block references into the repo.
 ---
 
 # b-init-guardrails: Quality Guardrails Initialization
 
-Initialize quality guardrails in any codebase — greenfield or brownfield. Detects the language stack, proposes tooling changes (with user approval), measures coverage and cyclomatic complexity, records the baseline, writes `guardrails.json`, and installs a managed `AGENTS.md` block that governs ongoing behavior.
+Initialize quality guardrails in any codebase — greenfield or brownfield. Detects the language stack, proposes tooling changes (with user approval), measures coverage and cyclomatic complexity, records the baseline, writes `guardrails.json`, installs a managed `AGENTS.md` block, and copies the skills that block loads into the repo.
 
-**Idempotent**: safe to re-run. Refresh mode updates in place without duplicating the managed block.
+**Idempotent**: safe to re-run. Refresh mode updates the managed block and the vendored skill trees in place.
 
 **Brownfield-safe**: measures where the repo is, then plans a gradual path to the target. Never sets an unreachable goal on day one.
 
@@ -130,6 +130,19 @@ Read `docs/agents-block.md` (this skill's docs). Insert the managed block into `
 - If the markers are absent, append the block to the end of the file.
 - Preserve all hand-authored content outside the markers.
 
+### Phase 5b: Install referenced skills locally
+
+The managed block loads `skills/b-guardrails-check/` and `skills/b-init-guardrails/` from the target repo. Those paths are not a global plugin install. After Phase 5, in both create and refresh mode, run:
+
+```bash
+node <skill_dir>/scripts/install-project-skills.mjs --cwd <repo root>
+```
+
+The script copies those two skills (skill, docs, and scripts; files named `*.test.js`, `*.test.ts`, `*.test.cjs`, `*.test.cts`, `*.test.mjs`, or `*.test.mts` are skipped) into `<repo>/skills/` as regular files, never symlinks. Re-runs overwrite only those managed files and never delete anything: files dropped from the source keep existing in the target until removed by hand. Every other path under `skills/` is left alone. Local edits inside the two managed skill directories are replaced — fix them in buck-workflow-pi and re-run init. If `package.json` has no `guardrails:check` script, it adds `node skills/b-guardrails-check/scripts/check.mjs --cwd .`, creating a `scripts` object when the file has none. A different existing value is reported and left unchanged. When `guardrails.json` records a lizard `complexity_cmd`, the script adds excludes for the two vendored trees so plugin copies are not project complexity debt. It does not rewrite the command otherwise.
+
+Do not skip this phase because the current machine already has the plugin. The next engineer may not. If the script reports `self: true`, it was pointed at the skill source tree; run it with `<skill_dir>` from the loaded plugin and `--cwd` set to the target repo.
+
+
 ### Phase 6: Report Gradual-Improvement Plan
 
 Display the burn-down plan:
@@ -164,9 +177,11 @@ Next steps:
 3. **Schema compliance**: `guardrails.json` matches the schema in `docs/ratchet-protocol.md`.
 4. **Managed block**: uses the correct markers; preserves hand-authored content outside.
 5. **Gradual improvement**: displays the burn-down plan with current state and next steps.
+6. **Local skills**: the installer leaves `skills/b-guardrails-check/SKILL.md`, `docs/contract-resolution.md`, `scripts/check.mjs`, and `skills/b-init-guardrails/scripts/detect-stack.ts` present, does not copy `*.test.[cm]?[jt]s` files, and does not modify unrelated skills. A second run with unchanged sources reports every managed file `unchanged` and copies nothing.
 
 ## Risks
 
 - **Idempotency bugs**: refresh mode must update in place without duplicating the managed block.
 - **Brownfield shock**: a repo with 5% coverage will fail the patch gate on day one. The skill records the measured baseline, not an unreachable target.
 - **Managed block conflicts**: if the user has hand-authored content between the markers, refresh mode will overwrite it. Document this clearly.
+- **Vendored skill overwrite**: Phase 5b replaces files under `skills/b-guardrails-check/` and `skills/b-init-guardrails/`. Do not keep project-only patches there.

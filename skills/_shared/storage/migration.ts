@@ -99,12 +99,63 @@ function validateSnapshotRevisions(snapshot: MigrationSnapshot): void {
 export interface MigrationStore {
   migrationSnapshot(projectId: string): Promise<MigrationSnapshot>;
   /** Atomic, empty-project-only install; exact replay is a no-op. */
-  installSnapshot(snapshot: MigrationSnapshot): Promise<void>;
+  installSnapshot(snapshot: MigrationSnapshot, options?: MigrationInstallOptions): Promise<void>;
+}
+export interface MigrationInstallOptions {
+  /** Merge mode: coexist with unrelated existing rows instead of requiring an empty destination. */
+  merge?: boolean;
+}
+/** Keys mirror the adapter table primary keys (sqlite-store DDL and migrations/*.sql); artifact_lifecycle is unique on subject_id alone. */
+const TABLE_PRIMARY_KEYS: Record<MigrationTable, string[]> = {
+  artifact_revisions: ["project_id", "subject_id", "kind", "logical_name", "branch_id", "worktree_id", "run_id", "revision"],
+  artifact_pointers: ["project_id", "subject_id", "kind", "logical_name", "branch_id", "worktree_id", "run_id"],
+  artifact_lifecycle: ["subject_id"],
+  artifact_runs: ["project_id", "run_id"],
+  artifact_checkpoints: ["id"],
+  artifact_publications: ["id"],
+  artifact_attachments: ["project_id", "sha256"],
+  artifact_import_provenance: ["source_id"],
+  artifact_lifecycle_scope: ["project_id", "branch_id", "subject_id"],
+  artifact_corrections: ["project_id", "branch_id", "artifact_key", "idempotency_key"],
+  artifact_search_text: ["project_id", "revision"],
+  artifact_run_duties: ["project_id", "run_id"],
+};
+function tableRowId(table: MigrationTable, row: MigrationRow): string {
+  return TABLE_PRIMARY_KEYS[table].map(column => canonical(row[column])).join("\0");
 }
 export function assertEmptyOrReplay(current: MigrationSnapshot, incoming: MigrationSnapshot): boolean {
   if (digest(current) === digest(incoming)) return true;
   if (Object.values(current.tables).some(rows => rows.length)) throw new Error("Migration destination is not empty or exact replay");
   return false;
+}
+/** Merge installs refuse only primary-key conflicts with differing content; identical rows are idempotent. */
+export function assertMergeable(current: MigrationSnapshot, incoming: MigrationSnapshot): void {
+  for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+    const existing = new Map(current.tables[table].map(row => [tableRowId(table, row), row]));
+    for (const row of incoming.tables[table]) {
+      const present = existing.get(tableRowId(table, row));
+      if (present && canonical(present) !== canonical(row)) throw new Error(`Migration destination row conflict in ${table}`);
+    }
+  }
+}
+/** Merge readback: every incoming row must land byte-identically; unrelated destination rows are expected. */
+export function verifyMergedInventory(incoming: MigrationSnapshot, merged: MigrationSnapshot): void {
+  for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+    const installed = new Map(merged.tables[table].map(row => [tableRowId(table, row), row]));
+    for (const row of incoming.tables[table]) {
+      const present = installed.get(tableRowId(table, row));
+      if (!present || canonical(present) !== canonical(row)) throw new Error(`Merged inventory readback mismatch in ${table}`);
+    }
+  }
+}
+/** Rows whose primary key is absent from the current snapshot — the payload a merge install actually writes. */
+export function missingRows(current: MigrationSnapshot, incoming: MigrationSnapshot): MigrationSnapshot {
+  const result = emptySnapshot(incoming.projectId);
+  for (const table of Object.keys(MIGRATION_TABLES) as MigrationTable[]) {
+    const known = new Set(current.tables[table].map(row => tableRowId(table, row)));
+    result.tables[table] = incoming.tables[table].filter(row => !known.has(tableRowId(table, row)));
+  }
+  return result;
 }
 
 /** Legacy rows cannot attest branch/publication identity. Retain original metadata without ordinary pointers. */

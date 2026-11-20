@@ -184,6 +184,21 @@ function hasNumberProp(o: object, key: string): o is Record<string, number> {
 function hasBooleanProp(o: object, key: string): o is Record<string, boolean> {
   return typeof (o as Record<string, unknown>)[key] === "boolean";
 }
+type FieldKind = "string" | "number" | "boolean";
+
+/**
+ * Check that every listed key exists on the object with the listed
+ * primitive type. Single source for the flat-field half of a shape
+ * guard so new required fields are a one-line table edit.
+ */
+function hasFields(
+  o: object,
+  spec: ReadonlyArray<readonly [string, FieldKind]>,
+): boolean {
+  const record = o as Record<string, unknown>;
+  return spec.every(([key, kind]) => typeof record[key] === kind);
+}
+
 
 function isOwner(v: unknown): v is { login: string } {
   return isObject(v) && hasStringProp(v, "login");
@@ -210,22 +225,26 @@ function isRepoView(v: unknown): v is RepoView {
   return isObject(v) && hasStringProp(v, "nameWithOwner");
 }
 
+const PR_VIEW_FIELDS: ReadonlyArray<readonly [string, FieldKind]> = [
+  ["number", "number"],
+  ["title", "string"],
+  ["state", "string"],
+  ["url", "string"],
+  ["isDraft", "boolean"],
+  ["isCrossRepository", "boolean"],
+  ["headRefName", "string"],
+  ["headRefOid", "string"],
+  ["baseRefName", "string"],
+  ["baseRefOid", "string"],
+  ["additions", "number"],
+  ["deletions", "number"],
+  ["changedFiles", "number"],
+];
+
 function isPrView(v: unknown): v is PrView {
-  if (!isObject(v)) return false;
   return (
-    hasNumberProp(v, "number") &&
-    hasStringProp(v, "title") &&
-    hasStringProp(v, "state") &&
-    hasStringProp(v, "url") &&
-    hasBooleanProp(v, "isDraft") &&
-    hasBooleanProp(v, "isCrossRepository") &&
-    hasStringProp(v, "headRefName") &&
-    hasStringProp(v, "headRefOid") &&
-    hasStringProp(v, "baseRefName") &&
-    hasStringProp(v, "baseRefOid") &&
-    hasNumberProp(v, "additions") &&
-    hasNumberProp(v, "deletions") &&
-    hasNumberProp(v, "changedFiles") &&
+    isObject(v) &&
+    hasFields(v, PR_VIEW_FIELDS) &&
     isOwner(v["headRepositoryOwner"]) &&
     isHeadRepository(v["headRepository"])
   );

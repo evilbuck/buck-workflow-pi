@@ -224,7 +224,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-explore` | `b-explore` | Explore codebases, trace architecture, map data flows |
 | `/b-fix-rebase-conflict` | `b-fix-rebase-conflict` | Resolve rebase/merge conflicts with context-aware semantic merges |
 | `/b-eval-upstream-prs` | `b-eval-upstream-prs` | Evaluate a fork's upstream PRs — importance/friction/risk triage, isolated validation, merge-order plan (local-only) |
-| `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) — one-shot, idempotent, brownfield-safe |
+| `/b-init-guardrails` | `b-init-guardrails` | Initialize quality guardrails (lint, unit tests, functional tests, coverage, complexity) and vendor the referenced skills into the repo — one-shot, idempotent, brownfield-safe |
 | `/b-init-factory` | `b-init-factory` | Initialize a nested agent software factory — factory-scoped AGENTS.md in a named folder, project default, or asked choice (never assume `.claude/`) |
 | `/b-guardrails-check` | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict |
 | `/b-research` | `b-research` | External/web research, source collection, evidence capture |
@@ -286,7 +286,7 @@ When the package extension is loaded (Pi/OMP), five commands use wired runtime i
 | `b-explore` | Explore unfamiliar codebases, trace architecture, map data flows |
 | `b-arch-qa` | Live architecture Q&A session that builds a durable discussion doc (skill-only) |
 | `b-fix-rebase-conflict` | Resolve large rebase/merge conflicts by reasoning over commit messages, diffs, and `.context/` artifacts |
-| `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet |
+| `b-init-guardrails` | One-shot, idempotent initialization of quality guardrails (lint, unit tests, functional tests, coverage, complexity) with a brownfield ratchet; vendors the skills the managed block loads |
 | `b-init-factory` | Nested agent software factory init — factory-scoped AGENTS.md + empty factory `docs/`; target is told, project default, or asked |
 | `b-guardrails-check` | Resolve the check contract by the resolution chain and run all gates; returns a structured verdict. Measures only — never edits |
 | `b-research` | Investigate external sources — APIs, libraries, documentation, web resources (includes optional Crawl4AI bulk extraction) |

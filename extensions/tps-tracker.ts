@@ -7,6 +7,37 @@
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
+/** Streamed-output delta kinds that count toward tok/s (skips tool output, usage-only updates). */
+export function isOutputDelta(event: { type: string; delta?: string }): event is { type: string; delta: string } {
+  return (
+    typeof event.delta === "string" &&
+    (event.type === "text_delta" ||
+      event.type === "thinking_delta" ||
+      event.type === "toolcall_delta")
+  );
+}
+
+/**
+ * Live tok/s status-line values, or null before there is anything measurable
+ * (no elapsed streaming time, or no tokens from either source).
+ */
+export function liveTpsDisplay(
+  officialTokens: number,
+  estimatedStreamedTokens: number,
+  elapsedSec: number,
+): { tps: number; tokenLabel: string; elapsed: number } | null {
+  if (elapsedSec <= 0) return null;
+  const currentTokens = officialTokens > 0 ? officialTokens : estimatedStreamedTokens;
+  if (currentTokens <= 0) return null;
+  return {
+    tps: Math.round(currentTokens / elapsedSec),
+    tokenLabel: officialTokens > 0
+      ? `${officialTokens} tok`
+      : `~${Math.round(estimatedStreamedTokens)} tok`,
+    elapsed: elapsedSec,
+  };
+}
+
 export function wire(pi: ExtensionAPI): void {
   /** Timestamp of the first streamed output delta for the current assistant message. */
   let streamStart: number | null = null;
@@ -35,33 +66,22 @@ export function wire(pi: ExtensionAPI): void {
 
   pi.on("message_update", async (event, ctx) => {
     if (event.message.role !== "assistant") return;
-
     const streamEvent = event.assistantMessageEvent;
-    const isOutputDelta =
-      streamEvent.type === "text_delta" ||
-      streamEvent.type === "thinking_delta" ||
-      streamEvent.type === "toolcall_delta";
-
-    if (!isOutputDelta) return;
+    if (!isOutputDelta(streamEvent)) return;
 
     const now = Date.now();
     streamStart ??= now;
     estimatedStreamedTokens += Math.max(0, streamEvent.delta.length / 4);
 
-    const elapsed = (now - streamStart) / 1000;
-    const officialTokens = event.message.usage.output;
-    const currentTokens =
-      officialTokens > 0 ? officialTokens : estimatedStreamedTokens;
-
-    if (elapsed > 0 && currentTokens > 0 && ctx.hasUI) {
-      const tps = Math.round(currentTokens / elapsed);
-      const tokenLabel =
-        officialTokens > 0
-          ? `${officialTokens} tok`
-          : `~${Math.round(estimatedStreamedTokens)} tok`;
+    const display = liveTpsDisplay(
+      event.message.usage.output,
+      estimatedStreamedTokens,
+      (now - streamStart) / 1000,
+    );
+    if (display && ctx.hasUI) {
       ctx.ui.setStatus(
         "tps",
-        `${ctx.ui.theme.fg("accent", `${tps} tok/s`)} ${ctx.ui.theme.fg("dim", `(${tokenLabel} / ${elapsed.toFixed(1)}s)`)}`,
+        `${ctx.ui.theme.fg("accent", `${display.tps} tok/s`)} ${ctx.ui.theme.fg("dim", `(${display.tokenLabel} / ${display.elapsed.toFixed(1)}s)`)}`,
       );
     }
   });

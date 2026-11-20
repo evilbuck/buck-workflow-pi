@@ -14,7 +14,7 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 | Tool | Purpose |
 |---|---|
 | `node` | runs the deterministic verdict engine (`scripts/check.mjs`) |
-| `bun` | runs the `detect-stack.ts` fallback during contract resolution |
+| `bun` | runs `skills/b-init-guardrails/scripts/detect-stack.ts` during ephemeral contract resolution |
 | `git` | patch gate (diff-cover needs a diff), diff-scoped lint |
 | `diff-cover`, `lizard` | patch + complexity measurements, when configured |
 
@@ -32,7 +32,7 @@ Follow the five-step chain in `docs/contract-resolution.md`. Set `contract` and 
 
 - **Authoritative `guardrails.json`**: proceed to Step 1b (the deterministic runner). `contract: "durable"`.
 - **Managed block present but `guardrails.json` missing**: emit the broken-contract warning and fall through to step 3.
-- **`detect-stack.ts` reports ≥ 1 ecosystem**: build an ephemeral contract, run only the unit-test, functional-test, and lint gates. Skip coverage, patch, and complexity gates (no recorded baseline). `contract: "ephemeral"`. Emit the verbose warning.
+- **`skills/b-init-guardrails/scripts/detect-stack.ts` reports ≥ 1 ecosystem** (fall back to the installed init skill's `scripts/detect-stack.ts` when that path is absent): build an ephemeral contract, run only the unit-test, functional-test, and lint gates. Skip coverage, patch, and complexity gates (no recorded baseline). `contract: "ephemeral"`. Emit the verbose warning.
 - **No ecosystem detected**: scan `README.md` for the first fenced code block after a heading matching `/^#{1,4}\s*(tests?|testing|development|dev|quality|checks?|contributing)\b/i`. Print it verbatim as unverified suggestions. Never execute it. `contract: "suggested"`.
 - **Nothing found**: emit the no-contract warning. `contract: "none"`. Gate result `unenforceable`.
 

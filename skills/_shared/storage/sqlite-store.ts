@@ -1,4 +1,4 @@
-import { MIGRATION_TABLES, assertEmptyOrReplay, emptySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationSnapshot, type MigrationTable } from "./migration.js";
+import { MIGRATION_TABLES, assertEmptyOrReplay, emptySnapshot, migrationSelect, normalizeRow, quarantineMappedLegacy, scopeSnapshot, sqlValues, validateSnapshot, type MigrationInstallOptions, type MigrationSnapshot, type MigrationTable } from "./migration.js";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 import { mkdirSync } from "node:fs";
@@ -319,7 +319,8 @@ export class SQLiteStorageStore implements StorageStore {
     catch (error) { this.#database.exec("ROLLBACK"); throw error; }
   }
 
-  async installSnapshot(snapshot: MigrationSnapshot): Promise<void> {
+  async installSnapshot(snapshot: MigrationSnapshot, options?: MigrationInstallOptions): Promise<void> {
+    if (options?.merge) throw new Error("Merge install is not supported on this adapter");
     validateSnapshot(snapshot);
     this.#database.exec("BEGIN IMMEDIATE");
     try {

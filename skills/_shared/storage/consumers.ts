@@ -27,6 +27,8 @@ export interface ConsumerWrite {
   source?: string;
   links?: readonly ArtifactKey[];
   expectedRevision?: string | null;
+  /** Replay must not import checkout bytes as a direct edit before compare-and-set. */
+  reconcile?: boolean;
 }
 
 export function consumerKey(scope: ConsumerScope, kind: ArtifactKind, subjectId: string, logicalName: string): ArtifactKey {
@@ -52,7 +54,8 @@ export async function commitConsumerBatch(
   receipt: { attemptId: string; status: RunReceipt["status"]; kind?: RunReceipt["kind"]; metadataDuties?: readonly string[]; runId?: string },
 ): Promise<{ revisions: readonly string[]; receipt: RunReceipt }> {
   const revisions = await Promise.all(writes.map(async (write) => {
-    const current = await store.read(consumerKey(scope, write.kind, write.subjectId, write.logicalName));
+    const key = consumerKey(scope, write.kind, write.subjectId, write.logicalName);
+    const current = write.reconcile === false ? await readCanonicalArtifact(store, key) : await store.read(key);
     return revisionFor(scope, {
       ...write,
       links: write.links ?? current?.links ?? [],
@@ -136,10 +139,50 @@ async function retainBoundArtifact(write: ConsumerWrite & { cwd: string }, conte
 }
 
 let retainTail: Promise<void> = Promise.resolve();
-let retainFailures: unknown[] = [];
+const DEFAULT_RETAIN_SCOPE = "default";
+const retainFailures = new Map<string, unknown[]>();
 
-/** Schedule synchronous writers serially; an explicit drain acknowledges accumulated failures. */
-export function scheduleConfiguredRetain(write: ConsumerWrite & { cwd: string }): Promise<string | null> {
+function noteRetainFailure(scope: string, error: unknown): void {
+  const bucket = retainFailures.get(scope) ?? [];
+  bucket.push(error);
+  retainFailures.set(scope, bucket);
+}
+
+function canonicalReader(store: StorageStore): ((key: ArtifactKey) => Promise<ArtifactRevision | null>) | null {
+  if (!("readCanonical" in store) || typeof store.readCanonical !== "function") return null;
+  // File-store exposes readCanonical; other adapters only implement read.
+  const readCanonical = store.readCanonical as (key: ArtifactKey) => Promise<ArtifactRevision | null>;
+  return readCanonical;
+}
+
+/** Current revision without treating checkout bytes as a new direct edit. */
+export async function readCanonicalArtifact(store: StorageStore, key: ArtifactKey): Promise<ArtifactRevision | null> {
+  const readCanonical = canonicalReader(store);
+  if (readCanonical) return readCanonical.call(store, key);
+  return store.read(key);
+}
+
+/** Attest an already-landed revision when the original receipt write did not finish. */
+export async function repairLandedReceipt(store: StorageStore, scope: ConsumerScope, revision: string): Promise<void> {
+  const runId = "b-save-landed-" + revision;
+  const existing = await store.readReceipt(scope.projectId, runId);
+  if (existing?.status === "complete" && existing.artifactRevisions.includes(revision)) return;
+  const receipt = {
+    projectId: scope.projectId,
+    branchId: scope.branchId,
+    worktreeId: scope.worktreeId,
+    runId,
+    attemptId: runId,
+    artifactRevisions: [revision],
+    kind: "rows" as const,
+    metadataDuties: ["readback"],
+  };
+  if (!existing) await store.writeReceipt({ ...receipt, status: "attempted" });
+  await store.writeReceipt({ ...receipt, status: "complete" });
+}
+
+/** Schedule synchronous writers serially; an explicit drain acknowledges that scope's failures. */
+export function scheduleConfiguredRetain(write: ConsumerWrite & { cwd: string }, scope = DEFAULT_RETAIN_SCOPE): Promise<string | null> {
   // Resolve immediately, not after earlier queued writes finish. Destination and
   // workspace identity are captured before the queue can observe another config.
   const bound = resolveConsumerContext(write.cwd);
@@ -147,7 +190,7 @@ export function scheduleConfiguredRetain(write: ConsumerWrite & { cwd: string })
   const retained = retainTail.then(async () => retainBoundArtifact(write, await bound));
   retainTail = retained.then(
     () => undefined,
-    (error: unknown) => { retainFailures.push(error); },
+    (error: unknown) => { noteRetainFailure(scope, error); },
   );
   return retained;
 }
@@ -177,10 +220,10 @@ export function classifyContextPath(path: string): { kind: ArtifactKind; subject
   return { kind: matched?.[1] ?? (name.endsWith(".md") ? "capture" : "audit"), subjectId, logicalName };
 }
 
-export async function flushConfiguredRetains(): Promise<void> {
+export async function flushConfiguredRetains(scope = DEFAULT_RETAIN_SCOPE): Promise<void> {
   await retainTail;
-  const failures = retainFailures;
-  retainFailures = [];
+  const failures = retainFailures.get(scope) ?? [];
+  retainFailures.delete(scope);
   if (failures.length === 1) throw failures[0];
   if (failures.length > 1) throw new AggregateError(failures, "One or more configured artifact retains failed");
 }

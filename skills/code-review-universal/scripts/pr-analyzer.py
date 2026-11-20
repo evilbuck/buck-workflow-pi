@@ -201,155 +201,153 @@ def _strip_diff_path_prefix(raw: str, header_prefixed: bool) -> str:
     return s
 
 
+def _new_file_stats(path: str) -> FileStats:
+    """Build a FileStats for a known path, classifying language/test/config."""
+    return FileStats(
+        filename=path,
+        language=detect_language(path),
+        is_test=is_test_file(path),
+        is_config=is_config_file(path),
+    )
+
+
+def _same_path_fallback(parts: List[str]) -> Optional[str]:
+    """
+    Best-effort same-path fallback from the two `diff --git` header tokens.
+
+    Covers binary / chmod-only entries that never produce `---`/`+++`
+    body lines: prefix-styled same-path (`a/foo b/foo`) via the back-
+    reference regex, then noprefix identical tokens (`foo foo`).
+    Returns None when the tokens name two different paths (a rename).
+    """
+    if len(parts) == 2:
+        joined = parts[0] + ' ' + parts[1]
+        m = re.match(r'^[a-z]/(.+?) [a-z]/\1$', joined)
+        if m:
+            return m.group(1)
+        if parts[0] == parts[1]:
+            # noprefix: tokens are identical. Pull the path off either
+            # token — but only the first, since `s/x.py` is one path.
+            return parts[0]
+    return None
+
+
+def _count_body_line(line: str, current_file: FileStats) -> None:
+    """Count one body line as an addition or deletion."""
+    if line.startswith('+') and not line.startswith('+++'):
+        current_file.additions += 1
+    elif line.startswith('-') and not line.startswith('---'):
+        current_file.deletions += 1
+
+
+class _DiffState:
+    """Mutable per-diff parse state threaded through the line handlers."""
+
+    def __init__(self) -> None:
+        self.files: List[FileStats] = []
+        self.current_file: Optional[FileStats] = None
+        # Header tokens carry letter prefixes (a/ b/, c/ w/, i/ o/) —
+        # needed when stripping prefixes from `+++`/`---` paths so
+        # noprefix paths like `s/x.py` aren't over-stripped.
+        self.header_prefixed = False
+        # Between a `diff --git` header and the first authoritative
+        # path line (`rename to`, `+++`/`---`).
+        self.saw_diff_header = False
+        # Old path from `---`, persisted until the `+++` mate arrives.
+        self.old_path: Optional[str] = None
+
+
+def _header_parts(line: str) -> List[str]:
+    """The two path tokens of a `diff --git` header line."""
+    return line[len('diff --git '):].strip().split(' ', 1)
+
+
+def _on_diff_header(line: str, state: _DiffState) -> None:
+    """Close out the previous file, then detect prefix style + fallback path.
+
+    Prefix-styled diffs always show two DIFFERENT letter-prefixed tokens
+    (a/foo b/foo, c/foo w/foo, i/foo w/foo); under diff.noprefix both
+    tokens are identical bare paths. The per-token letter+slash shape
+    alone is insufficient — noprefix `s/x.py s/x.py` would otherwise be
+    mistaken for a prefix style — so the inequality of the two tokens
+    is the signal. Same-path fallback tracks binary / chmod-only
+    entries that never produce `+++`/`---`/`rename to` body lines; the
+    later authoritative handlers replace the fallback entry.
+    """
+    if state.current_file is not None:
+        state.files.append(state.current_file)
+    parts = _header_parts(line)
+    if len(parts) == 2:
+        state.header_prefixed = parts[0] != parts[1]
+    else:
+        state.header_prefixed = False
+    state.current_file = None
+    state.old_path = None
+    state.saw_diff_header = True
+    fallback_path = _same_path_fallback(parts)
+    if fallback_path is not None:
+        state.current_file = _new_file_stats(fallback_path)
+
+
+def _on_rename_to(line: str, state: _DiffState) -> None:
+    # `rename to <path>` is the authoritative destination for rename
+    # entries; it never has a prefix. Commit immediately.
+    path = line[len('rename to '):].strip()
+    state.current_file = _new_file_stats(path)
+    state.saw_diff_header = False
+
+
+def _on_old_path_line(line: str, state: _DiffState) -> None:
+    # Unified diff order is `--- old` then `+++ new`. Record the old
+    # path; the `+++` handler commits it when `/dev/null` (deletion)
+    # makes the old path the file's identity.
+    raw = line[4:].strip()
+    if raw == '/dev/null':
+        state.old_path = None
+    else:
+        state.old_path = _strip_diff_path_prefix(raw, state.header_prefixed)
+
+
+def _on_new_path_line(line: str, state: _DiffState) -> None:
+    # `+++ <path>` is the authoritative destination for add/modify
+    # entries. `+++ /dev/null` means deletion; use the recorded old
+    # path, keeping any header-fallback entry when no `---` preceded
+    # (shouldn't happen in well-formed diffs).
+    raw = line[4:].strip()
+    if raw == '/dev/null':
+        if state.old_path is not None:
+            state.current_file = _new_file_stats(state.old_path)
+    else:
+        pending = _strip_diff_path_prefix(raw, state.header_prefixed)
+        state.current_file = _new_file_stats(pending)
+    state.saw_diff_header = False
+
+
+def _dispatch_diff_line(line: str, state: _DiffState) -> None:
+    if line.startswith('diff --git'):
+        _on_diff_header(line, state)
+    elif state.saw_diff_header and line.startswith('rename to '):
+        _on_rename_to(line, state)
+    elif state.saw_diff_header and line.startswith('--- '):
+        _on_old_path_line(line, state)
+    elif state.saw_diff_header and line.startswith('+++ '):
+        _on_new_path_line(line, state)
+    elif state.saw_diff_header:
+        # Other intermediate lines (index, mode, similarity, renames'
+        # `rename from`) don't identify the file. Keep waiting.
+        pass
+    elif state.current_file is not None:
+        _count_body_line(line, state.current_file)
+
+
 def parse_diff(diff_content: str) -> List[FileStats]:
     """Parse git diff output and extract file statistics."""
-    files = []
-    current_file = None
-
-    # Pending file state: collected between a `diff --git` header and
-    # the first authoritative path line (`rename to` for renames,
-    # `+++`/`---` for add/modify/delete). The diff header line itself
-    # is NOT used to extract the path because prefixes vary (a//b/
-    # default, c//i//w//o/ under diff.mnemonicprefix, nothing under
-    # diff.noprefix) and renames have different src/dst. The header
-    # IS used to detect whether the diff is prefix-styled — that
-    # answer is needed when stripping the prefix from the `+++`/`---`
-    # line so noprefix paths like `s/x.py` aren't mistaken for
-    # prefixed `s/x.py` and stripped to `x.py`.
-    pending_path = None     # the authoritative path once known
-    header_prefixed = False # does the diff style include a letter prefix?
-    saw_diff_header = False # between header and `+++`/`---`
-    old_path = None         # persists across `---` -> `+++` within one file
+    state = _DiffState()
     for line in diff_content.split('\n'):
-        if line.startswith('diff --git'):
-            # Close out the previous file (if any).
-            if current_file:
-                files.append(current_file)
-            # Detect prefix style from the header: prefix-styled diffs
-            # always show two DIFFERENT letter-prefixed tokens on the
-            # `diff --git` line (a/foo b/foo, c/foo w/foo, i/foo w/foo,
-            # etc.). Under diff.noprefix both tokens are identical bare
-            # paths. The per-token letter+slash shape alone is
-            # insufficient — noprefix `s/x.py s/x.py` would otherwise
-            # be mistaken for a prefix style. We use the inequality of
-            # the two tokens as the signal; this is robust against
-            # any single-letter config letter.
-            rest = line[len('diff --git '):].strip()
-            parts = rest.split(' ', 1)
-            if len(parts) == 2:
-                src_token, dst_token = parts
-                header_prefixed = src_token != dst_token
-            else:
-                header_prefixed = False
-            current_file = None
-            pending_path = None
-            old_path = None
-            saw_diff_header = True
-            # Best-effort same-path fallback: when the two header
-            # tokens refer to the SAME underlying path, extract it
-            # right now so the file is tracked even when no
-            # `---`/`+++`/`rename to` ever arrives. This covers
-            # modify entries (where the authoritative `+++` line
-            # will still arrive and override this), and critically
-            # binary / chmod-only entries that never produce body
-            # lines. The `+++` / `rename to` handlers below will
-            # override this by re-issuing `current_file =
-            # FileStats(...)` — they replace the fallback entry
-            # when they fire.
-            #
-            # Try prefix-styled same-path first
-            # (`a/foo b/foo`, `c/foo w/foo`), then noprefix same-token
-            # (`foo foo` / `s/x.py s/x.py`).
-            if len(parts) == 2:
-                joined = parts[0] + ' ' + parts[1]
-                m = re.match(r'^[a-z]/(.+?) [a-z]/\1$', joined)
-                if m:
-                    fallback_path = m.group(1)
-                    current_file = FileStats(
-                        filename=fallback_path,
-                        language=detect_language(fallback_path),
-                        is_test=is_test_file(fallback_path),
-                        is_config=is_config_file(fallback_path),
-                    )
-                elif parts[0] == parts[1]:
-                    # noprefix: tokens are identical. Pull the path
-                    # off either token — but only the first, since
-                    # `s/x.py` is one path, not two.
-                    fallback_path = parts[0]
-                    current_file = FileStats(
-                        filename=fallback_path,
-                        language=detect_language(fallback_path),
-                        is_test=is_test_file(fallback_path),
-                        is_config=is_config_file(fallback_path),
-                    )
-            continue
-        if saw_diff_header and line.startswith('rename to '):
-            # `rename to <path>` is the authoritative destination for
-            # rename entries; it never has a prefix. Commit immediately.
-            pending_path = line[len('rename to '):].strip()
-            current_file = FileStats(
-                filename=pending_path,
-                language=detect_language(pending_path),
-                is_test=is_test_file(pending_path),
-                is_config=is_config_file(pending_path),
-            )
-            saw_diff_header = False
-            continue
-        if saw_diff_header and line.startswith('rename from '):
-            # Source side of a rename; keep awaiting `rename to`.
-            continue
-        if saw_diff_header and line.startswith('--- '):
-            # Unified diff order is `--- old` then `+++ new`. Record
-            # the old path; we'll commit it (after prefix stripping)
-            # when the matching `+++` arrives, unless `+++` is
-            # `/dev/null` (deletion), in which case the old path IS
-            # the file's identity.
-            raw = line[4:].strip()
-            if raw != '/dev/null':
-                old_path = _strip_diff_path_prefix(raw, header_prefixed)
-            else:
-                old_path = None
-            continue
-        if saw_diff_header and line.startswith('+++ '):
-            # `+++ <path>` is the authoritative destination for
-            # add/modify entries. `+++ /dev/null` means the file was
-            # deleted; use the previously-recorded `old_path`.
-            raw = line[4:].strip()
-            if raw == '/dev/null':
-                if old_path:
-                    pending_path = old_path
-                else:
-                    # No prior `---` (shouldn't happen in well-formed
-                    # diffs); fall back to the dst side of the
-                    # `diff --git` header. Strip prefix by hand.
-                    rest = line[len('diff --git '):].strip()
-                    # We can't reconstruct here — just skip.
-                    saw_diff_header = False
-                    continue
-            else:
-                pending_path = _strip_diff_path_prefix(raw, header_prefixed)
-            current_file = FileStats(
-                filename=pending_path,
-                language=detect_language(pending_path),
-                is_test=is_test_file(pending_path),
-                is_config=is_config_file(pending_path),
-            )
-            saw_diff_header = False
-            continue
-        if saw_diff_header:
-            # Other intermediate lines (index, mode, similarity, etc.)
-            # don't identify the file. Keep waiting.
-            continue
-        if current_file:
-            if line.startswith('+') and not line.startswith('+++'):
-                current_file.additions += 1
-            elif line.startswith('-') and not line.startswith('---'):
-                current_file.deletions += 1
-
-    if current_file:
-        files.append(current_file)
-
-    return files
+        _dispatch_diff_line(line, state)
+    if state.current_file is not None:
+        state.files.append(state.current_file)
+    return state.files
 
 
 def calculate_complexity(files: List[FileStats]) -> float:
@@ -411,34 +409,50 @@ def estimate_review_time(files: List[FileStats], complexity: float) -> int:
     return max(5, min(120, int(adjusted_time)))
 
 
-def identify_risk_factors(files: List[FileStats]) -> List[str]:
-    """Identify potential risk factors in the PR."""
-    risks = []
+def _first_security_sensitive_file(files: List[FileStats]) -> Optional[FileStats]:
+    """First file whose name matches a security-sensitive pattern, if any."""
+    security_patterns = ['.env', 'auth', 'security', 'password', 'token', 'secret']
+    for f in files:
+        if any(p in f.filename.lower() for p in security_patterns):
+            return f
+    return None
 
+
+def _has_database_changes(files: List[FileStats]) -> bool:
+    """True when any file is a migration or SQL."""
+    for f in files:
+        if 'migration' in f.filename.lower() or f.language == 'SQL':
+            return True
+    return False
+
+
+def _size_and_test_risks(files: List[FileStats]) -> List[str]:
+    """Risk strings for PR size and test-change ratio."""
+    risks: List[str] = []
     total_changes = sum(f.additions + f.deletions for f in files)
     test_changes = sum(f.additions + f.deletions for f in files if f.is_test)
 
     if total_changes > 400:
         risks.append("Large PR (>400 lines) - harder to review thoroughly")
-
     if test_changes == 0 and total_changes > 50:
         risks.append(f"{RISK_NO_TESTS}: No test changes - verify test coverage")
-
     if total_changes > 100 and test_changes / max(total_changes, 1) < 0.2:
         risks.append("Low test ratio (<20%) - consider adding more tests")
+    return risks
+
+
+def identify_risk_factors(files: List[FileStats]) -> List[str]:
+    """Identify potential risk factors in the PR."""
+    risks = _size_and_test_risks(files)
 
     # Security-sensitive files
-    security_patterns = ['.env', 'auth', 'security', 'password', 'token', 'secret']
-    for f in files:
-        if any(p in f.filename.lower() for p in security_patterns):
-            risks.append(f"Security-sensitive file: {f.filename}")
-            break
+    security_file = _first_security_sensitive_file(files)
+    if security_file:
+        risks.append(f"Security-sensitive file: {security_file.filename}")
 
     # Database changes
-    for f in files:
-        if 'migration' in f.filename.lower() or f.language == 'SQL':
-            risks.append("Database changes detected - review carefully")
-            break
+    if _has_database_changes(files):
+        risks.append("Database changes detected - review carefully")
 
     # Config changes
     config_files = [f for f in files if f.is_config]
@@ -446,6 +460,32 @@ def identify_risk_factors(files: List[FileStats]) -> List[str]:
         risks.append(f"Configuration changes in {len(config_files)} file(s)")
 
     return risks
+
+
+LANGUAGE_SUGGESTIONS = {
+    "TypeScript": "Check for proper type usage (avoid 'any')",
+    "TypeScript/React": "Check for proper type usage (avoid 'any')",
+    "Rust": "Check for unwrap() usage and error handling",
+    "C": "Check for memory safety, bounds checks, and UB risks",
+    "C++": "Check for memory safety, bounds checks, and UB risks",
+    "C/C++": "Check for memory safety, bounds checks, and UB risks",
+    "SQL": "Review for SQL injection and query performance",
+}
+
+
+def _language_suggestions(files: List[FileStats]) -> List[str]:
+    """Per-language review hints, deduplicated per hint.
+
+    Several language keys share one hint (TypeScript variants, the C
+    family); each hint is appended at most once, as the original
+    `or`-chains did.
+    """
+    languages = set(f.language for f in files)
+    hints: List[str] = []
+    for language, hint in LANGUAGE_SUGGESTIONS.items():
+        if language in languages and hint not in hints:
+            hints.append(hint)
+    return hints
 
 
 def generate_suggestions(files: List[FileStats], complexity: float, risks: List[str]) -> List[str]:
@@ -464,16 +504,7 @@ def generate_suggestions(files: List[FileStats], complexity: float, risks: List[
     if any(RISK_NO_TESTS in r for r in risks):
         suggestions.append("Request test additions before approval")
 
-    # Language-specific suggestions
-    languages = set(f.language for f in files)
-    if 'TypeScript' in languages or 'TypeScript/React' in languages:
-        suggestions.append("Check for proper type usage (avoid 'any')")
-    if 'Rust' in languages:
-        suggestions.append("Check for unwrap() usage and error handling")
-    if 'C' in languages or 'C++' in languages or 'C/C++' in languages:
-        suggestions.append("Check for memory safety, bounds checks, and UB risks")
-    if 'SQL' in languages:
-        suggestions.append("Review for SQL injection and query performance")
+    suggestions.extend(_language_suggestions(files))
 
     if not suggestions:
         suggestions.append("Standard review process should suffice")

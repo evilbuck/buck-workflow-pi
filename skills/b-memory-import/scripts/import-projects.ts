@@ -137,6 +137,135 @@ Exit codes:
   2 = one or more projects had retain errors`;
 }
 
+/**
+ * Flags that consume every value up to the next flag. This is the shell
+ * convention most users expect (`--include partypix qrpro` = two projects,
+ * not one plus a stray arg).
+ */
+const greedyKeys = new Set(["--root", "--include", "--exclude"]);
+
+/**
+ * Apply one greedy flag: consume and record every following non-flag token.
+ * Returns the index of the last consumed token so the caller can continue
+ * the scan after them. Throws when no value follows the flag.
+ */
+function applyGreedyFlag(flag: string, argv: string[], start: number, out: CliArgs): number {
+  let i = start;
+  let consumed = false;
+  while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+    const v = argv[++i];
+    if (flag === "--root") {
+      out.roots.push(resolve(v));
+    } else if (flag === "--include") {
+      out.mode = "include";
+      out.projects.push(v);
+    } else {
+      out.mode = "exclude";
+      out.projects.push(v);
+    }
+    consumed = true;
+  }
+  if (!consumed) throw new Error(`missing value for ${flag}`);
+  return i;
+}
+
+/**
+ * `--source-dirs`: consume every following non-flag token, then split each
+ * on commas, trim, and drop empties. Returns the index of the last consumed
+ * token. Throws when no value follows the flag.
+ */
+function parseSourceDirs(argv: string[], start: number, flag: string, out: CliArgs): number {
+  let i = start;
+  const parts: string[] = [];
+  while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
+    parts.push(argv[++i]);
+  }
+  if (parts.length === 0) throw new Error(`missing value for ${flag}`);
+  out.sourceDirs.push(
+    ...parts.flatMap((s) => s.split(",").map((p) => p.trim()).filter(Boolean)),
+  );
+  return i;
+}
+
+/** Parse and validate `--limit`: a finite number >= 0. */
+function parseLimit(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new Error(`--limit must be a non-negative number`);
+  }
+  return n;
+}
+
+/** Parse and validate `--concurrency`: a finite integer >= 1. */
+function parseConcurrency(raw: string): number {
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) {
+    throw new Error(`--concurrency must be a finite integer >= 1`);
+  }
+  return n;
+}
+
+/** Boolean flags and the effect each has on the parsed args. */
+const BOOLEAN_SETTERS: Record<string, (out: CliArgs) => void> = {
+  "-h": (o) => {
+    o.help = true;
+  },
+  "--help": (o) => {
+    o.help = true;
+  },
+  "--all": (o) => {
+    o.mode = "all";
+  },
+  "--dry-run": (o) => {
+    o.dryRun = true;
+  },
+  "--sync": (o) => {
+    o.sync = true;
+  },
+  "--force": (o) => {
+    o.force = true;
+  },
+};
+
+/** Value flags: each consumes the next argv token via its parser. */
+const VALUE_SETTERS: Record<string, (raw: string, out: CliArgs) => void> = {
+  "--limit": (raw, o) => {
+    o.limit = parseLimit(raw);
+  },
+  "--concurrency": (raw, o) => {
+    o.concurrency = parseConcurrency(raw);
+  },
+  "--api-url": (raw, o) => {
+    o.apiUrl = raw;
+  },
+  "--api-token": (raw, o) => {
+    o.apiToken = raw;
+  },
+  "--bank-id": (raw, o) => {
+    o.bankId = raw;
+  },
+  "--omp-config": (raw, o) => {
+    o.ompConfig = raw;
+  },
+};
+
+/** The argv token after index i, or a thrown error when absent. */
+function requireValue(argv: string[], i: number, flag: string): string {
+  const v = argv[i + 1];
+  if (v === undefined) throw new Error(`missing value for ${flag}`);
+  return v;
+}
+
+/** Post-parse defaults: mode validation and the ~/projects root fallback. */
+function applyArgDefaults(out: CliArgs): void {
+  if (!VALID_MODES.has(out.mode)) {
+    throw new Error(`invalid mode: ${out.mode}`);
+  }
+  if (out.roots.length === 0) {
+    out.roots.push(resolve(process.env.HOME ?? "~", "projects"));
+  }
+}
+
 export function parseArgs(argv: string[]): CliArgs {
   const out: CliArgs = {
     roots: [],
@@ -155,111 +284,69 @@ export function parseArgs(argv: string[]): CliArgs {
     ompConfig: null,
     childArgs: [],
   };
-  // until the next flag. This is the shell convention most users expect
-  // (`--include partypix qrpro` = two projects, not one plus a stray arg).
-  const greedyKeys = new Set(["--root", "--include", "--exclude"]);
-
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (greedyKeys.has(a)) {
-      let consumed = false;
-      while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
-        const v = argv[++i];
-        switch (a) {
-          case "--root":
-            out.roots.push(resolve(v));
-            break;
-          case "--include":
-            out.mode = "include";
-            out.projects.push(v);
-            break;
-          case "--exclude":
-            out.mode = "exclude";
-            out.projects.push(v);
-            break;
-        }
-        consumed = true;
-      }
-      if (!consumed) throw new Error(`missing value for ${a}`);
+      i = applyGreedyFlag(a, argv, i, out);
       continue;
     }
-    const next = (): string => {
-      const v = argv[++i];
-      if (v === undefined) throw new Error(`missing value for ${a}`);
-      return v;
-    };
-    switch (a) {
-      case "-h":
-      case "--help":
-        out.help = true;
-        break;
-      case "--all":
-        out.mode = "all";
-        break;
-      case "--dry-run":
-        out.dryRun = true;
-        break;
-      case "--sync":
-        out.sync = true;
-        break;
-      case "--force":
-        out.force = true;
-        break;
-      case "--limit":
-        out.limit = Number(next());
-        if (!Number.isFinite(out.limit) || out.limit < 0) {
-          throw new Error(`--limit must be a non-negative number`);
-        }
-        break;
-      case "--concurrency": {
-        const n = Number(next());
-        if (!Number.isInteger(n) || n < 1) {
-          throw new Error(`--concurrency must be a finite integer >= 1`);
-        }
-        out.concurrency = n;
-        break;
-      }
-      case "--api-url":
-        out.apiUrl = next();
-        break;
-      case "--api-token":
-        out.apiToken = next();
-        break;
-      case "--bank-id":
-        out.bankId = next();
-        break;
-      case "--source-dirs": {
-        const parts: string[] = [];
-        while (i + 1 < argv.length && !argv[i + 1].startsWith("-")) {
-          parts.push(argv[++i]);
-        }
-        if (parts.length === 0) throw new Error(`missing value for ${a}`);
-        out.sourceDirs.push(
-          ...parts.flatMap((s) =>
-            s.split(",").map((p) => p.trim()).filter(Boolean),
-          ),
-        );
-        break;
-      }
-      case "--omp-config":
-        out.ompConfig = next();
-        break;
-      default:
-        // unknown flag — pass through to the child script
-        out.childArgs.push(a);
+    // Object.hasOwn: inherited prototype keys (constructor, valueOf, toString)
+    // must fall through to unknown handling, never be invoked as setters.
+    const bool = Object.hasOwn(BOOLEAN_SETTERS, a) ? BOOLEAN_SETTERS[a] : undefined;
+    if (bool) {
+      bool(out);
+      continue;
     }
+    const val = Object.hasOwn(VALUE_SETTERS, a) ? VALUE_SETTERS[a] : undefined;
+    if (val) {
+      val(requireValue(argv, i, a), out);
+      i++;
+      continue;
+    }
+    if (a === "--source-dirs") {
+      i = parseSourceDirs(argv, i, a, out);
+      continue;
+    }
+    // unknown flag — pass through to the child script
+    out.childArgs.push(a);
   }
-
-  if (!VALID_MODES.has(out.mode)) {
-    throw new Error(`invalid mode: ${out.mode}`);
-  }
-  if (out.roots.length === 0) {
-    out.roots.push(resolve(process.env.HOME ?? "~", "projects"));
-  }
+  applyArgDefaults(out);
   return out;
 }
 
 // ---------- discovery ----------
+
+/** A project is any directory with a `.context/memory` subdirectory. */
+function memoryProjectAt(dir: string, label: string): Project | null {
+  const mem = join(dir, ".context", "memory");
+  try {
+    if (statSync(mem).isDirectory()) {
+      return { root: dir, label, hasMemoryDir: true, memoryDir: mem };
+    }
+  } catch {
+    // no memory dir
+  }
+  return null;
+}
+
+/** Multi-project root: scan immediate children for projects. */
+function scanChildProjects(root: string, names: string[]): Project[] {
+  const out: Project[] = [];
+  for (const name of names.sort()) {
+    if (name.startsWith(".")) continue;
+    const sub = join(root, name);
+    let st;
+    try {
+      st = statSync(sub);
+    } catch {
+      continue;
+    }
+    if (!st.isDirectory()) continue;
+    const project = memoryProjectAt(sub, name);
+    if (project) out.push(project);
+  }
+  return out;
+}
 
 function discoverProjects(root: string): Project[] {
   const out: Project[] = [];
@@ -273,20 +360,8 @@ function discoverProjects(root: string): Project[] {
   if (!st.isDirectory()) return out;
 
   // Single-project root: <root>/.context/memory exists.
-  const selfMem = join(root, ".context", "memory");
-  try {
-    if (statSync(selfMem).isDirectory()) {
-      out.push({
-        root,
-        label: basename(root),
-        hasMemoryDir: true,
-        memoryDir: selfMem,
-      });
-      return out;
-    }
-  } catch {
-    // fall through to sub-dir scan
-  }
+  const self = memoryProjectAt(root, basename(root));
+  if (self) return [self];
 
   // Multi-project root: scan immediate children.
   let entries: string[];
@@ -295,26 +370,7 @@ function discoverProjects(root: string): Project[] {
   } catch {
     return out;
   }
-  for (const name of entries.sort()) {
-    if (name.startsWith(".")) continue;
-    const sub = join(root, name);
-    let subStat;
-    try {
-      subStat = statSync(sub);
-    } catch {
-      continue;
-    }
-    if (!subStat.isDirectory()) continue;
-    const mem = join(sub, ".context", "memory");
-    try {
-      if (statSync(mem).isDirectory()) {
-        out.push({ root: sub, label: name, hasMemoryDir: true, memoryDir: mem });
-      }
-    } catch {
-      // no memory dir, skip
-    }
-  }
-  return out;
+  return scanChildProjects(root, entries);
 }
 
 function matchProjects(projects: Project[], args: CliArgs): Project[] {
@@ -327,8 +383,12 @@ function matchProjects(projects: Project[], args: CliArgs): Project[] {
 }
 
 // ---------- child invocation ----------
-async function runChild(project: Project, args: CliArgs): Promise<ProjectResult> {
-  const start = Date.now();
+/**
+ * Build the inner-script command line for one project: fixed root and
+ * memory-dir args, every configured flag, then the wrapper's pass-through
+ * flags in the order they were given.
+ */
+function buildChildArgs(project: Project, args: CliArgs): string[] {
   const childArgs: string[] = [INNER, "--root", project.root];
 
   // Resolve effective source dirs. Wrapper default + inner default are both
@@ -340,16 +400,29 @@ async function runChild(project: Project, args: CliArgs): Promise<ProjectResult>
   // canonical first source dir.
   childArgs.push("--memory-dir", project.memoryDir);
 
-  if (args.dryRun) childArgs.push("--dry-run");
-  if (args.sync) childArgs.push("--sync");
-  if (args.force) childArgs.push("--force");
-  if (args.limit !== null) childArgs.push("--limit", String(args.limit));
-  if (args.apiUrl) childArgs.push("--api-url", args.apiUrl);
-  if (args.apiToken) childArgs.push("--api-token", args.apiToken);
-  if (args.bankId) childArgs.push("--bank-id", args.bankId);
-  if (args.scoping) childArgs.push("--scoping", args.scoping);
-  if (args.ompConfig) childArgs.push("--omp-config", args.ompConfig);
+  childArgs.push(...optionalFlags(args));
   for (const passthrough of args.childArgs) childArgs.push(passthrough);
+  return childArgs;
+}
+
+/** Every optional flag configured on the wrapper, in inner-script order. */
+function optionalFlags(args: CliArgs): string[] {
+  const flags: string[] = [];
+  if (args.dryRun) flags.push("--dry-run");
+  if (args.sync) flags.push("--sync");
+  if (args.force) flags.push("--force");
+  if (args.limit !== null) flags.push("--limit", String(args.limit));
+  if (args.apiUrl) flags.push("--api-url", args.apiUrl);
+  if (args.apiToken) flags.push("--api-token", args.apiToken);
+  if (args.bankId) flags.push("--bank-id", args.bankId);
+  if (args.scoping) flags.push("--scoping", args.scoping);
+  if (args.ompConfig) flags.push("--omp-config", args.ompConfig);
+  return flags;
+}
+
+async function runChild(project: Project, args: CliArgs): Promise<ProjectResult> {
+  const start = Date.now();
+  const childArgs = buildChildArgs(project, args);
 
   const proc = spawn({
     cmd: ["bun", ...childArgs],
@@ -413,7 +486,21 @@ async function runChild(project: Project, args: CliArgs): Promise<ProjectResult>
 
 // ---------- main ----------
 
-async function main(): Promise<void> {
+/** Fold one child result into the running summary and its totals. */
+function accumulateResult(summary: Summary, result: ProjectResult): void {
+  summary.results.push(result);
+  if (typeof result.scanned === "number") summary.totals.scanned += result.scanned;
+  if (typeof result.planned === "number") summary.totals.planned += result.planned;
+  if (typeof result.imported === "number") summary.totals.imported += result.imported;
+  if (typeof result.failed === "number") summary.totals.failed += result.failed;
+  if (typeof result.skipped_unchanged === "number") {
+    summary.totals.skipped_unchanged += result.skipped_unchanged;
+  }
+  summary.totals.duration_ms += result.duration_ms;
+}
+
+/** Parse argv, or exit: usage errors print to stderr with exit 1, --help to stdout with exit 0. */
+function parseArgsOrExit(): CliArgs {
   let args: CliArgs;
   try {
     args = parseArgs(process.argv.slice(2));
@@ -426,6 +513,11 @@ async function main(): Promise<void> {
     console.log(usage());
     process.exit(0);
   }
+  return args;
+}
+
+async function main(): Promise<void> {
+  const args = parseArgsOrExit();
 
   const innerExists = existsSync(INNER);
   if (!innerExists) {
@@ -484,15 +576,7 @@ async function main(): Promise<void> {
           const p = queue.shift();
           if (!p) break;
           const result = await runChild(p, args);
-          summary.results.push(result);
-          if (typeof result.scanned === "number") summary.totals.scanned += result.scanned;
-          if (typeof result.planned === "number") summary.totals.planned += result.planned;
-          if (typeof result.imported === "number") summary.totals.imported += result.imported;
-          if (typeof result.failed === "number") summary.totals.failed += result.failed;
-          if (typeof result.skipped_unchanged === "number") {
-            summary.totals.skipped_unchanged += result.skipped_unchanged;
-          }
-          summary.totals.duration_ms += result.duration_ms;
+          accumulateResult(summary, result);
         }
       })(),
     );
