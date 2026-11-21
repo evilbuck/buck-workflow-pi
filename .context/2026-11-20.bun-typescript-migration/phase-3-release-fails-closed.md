@@ -16,7 +16,8 @@ files:
 from_plan_steps: [1, 2, 3]
 acceptance_criteria:
   - "[ ] Failed `git status --porcelain` yields non-zero exit and no publish (red/green test)"
-  - "[ ] Failed `bun pm view` yields non-zero exit and no publish (red/green test)"
+  - "[ ] A `bun pm view` lookup that reports the requested version as not found is benign and the release continues, even when that lookup exits nonzero (red/green test; the shim models a nonzero not-found status, not only empty output)"
+  - "[ ] A registry, transport, or authentication failure from `bun pm view` yields non-zero exit and no publish (red/green test)"
   - "[ ] Empty-vs-failed precursor outcomes distinguished (empty worktree still allowed)"
   - "[ ] New tests mutation-check red (remove the abort → fail)"
 completed_at: null
@@ -29,8 +30,8 @@ completed_by: null
 Parent goal (inherited): the release command fails closed on precursor errors. Today `scripts/publish.ts` proceeds to publish when its `git status --porcelain` check or its `bun pm view` registry lookup fails (as opposed to returning a benign empty result).
 
 ## Implementation Details
-1. Red: rewrite the two "currently proceeds to publish when %s fails" cases in `scripts/publish.test.ts` to expect non-zero exit and no publish for failed `git status --porcelain` and failed `bun pm view`.
-2. Green: `publish.ts` gains a `must()` runner that aborts on command failure for those two precursors, distinguishing empty output (benign) from command failure (abort).
+1. Red: rewrite the git-status failure case in `scripts/publish.test.ts` to expect non-zero exit and no publish. Add a not-found `bun pm view` case whose shim exits nonzero and still publishes, and a registry, transport, or authentication failure case that expects non-zero exit and no publish.
+2. Green: `publish.ts` gains a `must()` runner that aborts on `git status --porcelain` failure and on `bun pm view` registry, transport, or authentication failures. A lookup that reports the version about to be published as not found is benign — the release continues — even when Bun reports that absence through a nonzero status. Empty output from a clean worktree stays allowed.
 3. Mutation-check the new tests.
 
 ## Risks

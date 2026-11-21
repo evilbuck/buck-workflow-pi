@@ -37,7 +37,7 @@ Measured mechanism (research): `AttributionDatabase.insertReconciled` performs ~
 
 ## Implementation Details
 1. Red: wire-harness test — second `insert` of an unchanged record performs zero store writes (spy on `commitConsumerBatch`) and returns `false`.
-2. Green: `insertReconciled` early-returns when `current` exists and bytes equal the retained record (skip write/commit/correct/readback).
+2. Green: `insertReconciled` skips write/commit/correct/readback when `current` exists and bytes equal the retained record, then still calls `this.project(retained, fallbackEntryKey)` before returning `false`.
 3. Red: ingest test — `scanSessionArtifacts` over N delivered lines issues one `commitConsumerBatch` per file, not per line; failure keeps the file's lines for retry.
 4. Green: batch deliveries per file (dedupe by entryKey, preserve alias writes and cursor-remainder retry).
 5. Red: wire test — `message_end` resolves without awaiting queued persistence; a seeded retention failure still warns at `agent_end` (and shutdown).

@@ -385,20 +385,78 @@ function editedTextHasScriptValue(text: string, scriptValue: string): boolean {
   }
 }
 
+interface JsonStringLiteral {
+  start: number;
+  end: number;
+  value: string;
+}
+
+function recordString(text: string, index: number, found: JsonStringLiteral[]): number {
+  const end = scanString(text, index);
+  try {
+    const value: unknown = JSON.parse(text.slice(index, end));
+    if (typeof value === "string") found.push({ start: index, end, value });
+  } catch {
+    // A broken literal cannot be the unique legacy command.
+  }
+  return end;
+}
+
+function visitContainer(
+  text: string,
+  open: number,
+  token: "{" | "[",
+  visit: (start: number) => number,
+): number {
+  const close = token === "{" ? "}" : "]";
+  let index = skipWs(text, open + 1);
+  while (index < text.length && text[index] !== close) {
+    if (token === "{") {
+      if (text[index] !== '"') return text.length;
+      const keyEnd = scanString(text, index);
+      const colon = skipWs(text, keyEnd);
+      if (text[colon] !== ":") return text.length;
+      index = visit(colon + 1);
+    } else {
+      index = visit(index);
+    }
+    index = skipWs(text, index);
+    if (text[index] === ",") index = skipWs(text, index + 1);
+  }
+  return index < text.length ? index + 1 : index;
+}
+
+/** Every JSON string in `text`, matched by parsed value so `\/` and `/` are the same command. */
+function jsonStringLiterals(text: string): JsonStringLiteral[] {
+  const found: JsonStringLiteral[] = [];
+  const visit = (start: number): number => {
+    const index = skipWs(text, start);
+    const token = text[index];
+    if (token === '"') return recordString(text, index, found);
+    if (token === "{" || token === "[") return visitContainer(text, index, token, visit);
+    return scanValueEnd(text, index);
+  };
+  visit(0);
+  return found;
+}
+
 /**
  * Rewrite exactly the previously managed guardrails:check command to the
  * current runner. Returns null unless the existing value is one of
  * LEGACY_GUARDRAILS_CHECK_SCRIPTS and occurs exactly once in the file, so a
  * custom command — or the same command recorded elsewhere — is never touched.
+ * The match is on the parsed string, so a slash-escaped encoding still migrates.
  */
 function migrateLegacyScript(text: string, scripts: unknown, scriptValue: string): string | null {
   if (!isRecord(scripts)) return null;
   const current = scripts["guardrails:check"];
   if (typeof current !== "string") return null;
   if (!LEGACY_GUARDRAILS_CHECK_SCRIPTS.includes(current)) return null;
-  const parts = text.split(JSON.stringify(current));
-  if (parts.length !== 2) return null;
-  const edited = `${parts[0]}${JSON.stringify(scriptValue)}${parts[1]}`;
+  const matches = jsonStringLiterals(text).filter((literal) => literal.value === current);
+  if (matches.length !== 1) return null;
+  const match = matches[0];
+  if (!match) return null;
+  const edited = `${text.slice(0, match.start)}${JSON.stringify(scriptValue)}${text.slice(match.end)}`;
   return editedTextHasScriptValue(edited, scriptValue) ? edited : null;
 }
 

@@ -35,6 +35,7 @@ case "$command" in
   'git status --porcelain') printf '%s' "$DIRTY" ;;
   'bun pm version '*) printf '%s' '{"name":"release-fixture","version":"1.2.4"}' > "$RELEASE_PACKAGE" ;;
   'bun pm view '*) printf '%s' "$PUBLISHED" ;;
+  'git rev-parse --verify refs/tags/'*) printf '%s\n' "abc123" ;;
 esac
 `;
   for (const name of ["bun", "git"]) {
@@ -63,7 +64,9 @@ describe("publish release CLI", () => {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("Released release-fixture@1.2.4");
     expect(result.commands).toEqual([
-      "bun pm whoami", "git status --porcelain", "bun pm version patch",
+      "bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version",
+      "git add package.json", "git commit -m v1.2.4", "git tag -a v1.2.4 -m v1.2.4",
+      "git rev-parse --verify refs/tags/v1.2.4",
       "bun pm view release-fixture@1.2.4", "bun run test", "bun pm pack --dry-run",
       "bun publish --access public", "git push --follow-tags",
     ]);
@@ -74,7 +77,9 @@ describe("publish release CLI", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("release-fixture@1.2.4 is already published");
     expect(result.commands).toEqual([
-      "bun pm whoami", "git status --porcelain", "bun pm version minor", "bun pm view release-fixture@1.2.4",
+      "bun pm whoami", "git status --porcelain", "bun pm version minor --no-git-tag-version",
+      "git add package.json", "git commit -m v1.2.4", "git tag -a v1.2.4 -m v1.2.4",
+      "git rev-parse --verify refs/tags/v1.2.4", "bun pm view release-fixture@1.2.4",
     ]);
   });
 
@@ -110,11 +115,29 @@ describe("publish release CLI", () => {
     expect(result.commands).toEqual(["bun pm whoami", "git status --porcelain"]);
   });
 
+  const releaseGit = [
+    "git add package.json", "git commit -m v1.2.4", "git tag -a v1.2.4 -m v1.2.4",
+    "git rev-parse --verify refs/tags/v1.2.4",
+  ];
+
+  it("stops before publish when the release tag was not created", () => {
+    const result = release([], { FAIL_COMMAND: "git rev-parse --verify refs/tags/v1.2.4" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("Release tag v1.2.4 was not created");
+    expect(result.commands).toEqual([
+      "bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version",
+      ...releaseGit,
+    ]);
+    expect(result.commands).not.toContain("bun publish --access public");
+  });
+
   it.each([
-    ["bun pm version patch", ["bun pm whoami", "git status --porcelain", "bun pm version patch"]],
-    ["bun run test", ["bun pm whoami", "git status --porcelain", "bun pm version patch", "bun pm view release-fixture@1.2.4", "bun run test"]],
-    ["bun pm pack --dry-run", ["bun pm whoami", "git status --porcelain", "bun pm version patch", "bun pm view release-fixture@1.2.4", "bun run test", "bun pm pack --dry-run"]],
-    ["bun publish --access public", ["bun pm whoami", "git status --porcelain", "bun pm version patch", "bun pm view release-fixture@1.2.4", "bun run test", "bun pm pack --dry-run", "bun publish --access public"]],
+    ["bun pm version patch --no-git-tag-version", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version"]],
+    ["git commit -m v1.2.4", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version", "git add package.json", "git commit -m v1.2.4"]],
+    ["git tag -a v1.2.4 -m v1.2.4", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version", "git add package.json", "git commit -m v1.2.4", "git tag -a v1.2.4 -m v1.2.4"]],
+    ["bun run test", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version", ...releaseGit, "bun pm view release-fixture@1.2.4", "bun run test"]],
+    ["bun pm pack --dry-run", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version", ...releaseGit, "bun pm view release-fixture@1.2.4", "bun run test", "bun pm pack --dry-run"]],
+    ["bun publish --access public", ["bun pm whoami", "git status --porcelain", "bun pm version patch --no-git-tag-version", ...releaseGit, "bun pm view release-fixture@1.2.4", "bun run test", "bun pm pack --dry-run", "bun publish --access public"]],
   ])("stops subsequent commands when %s fails", (failure, commands) => {
     const result = release([], { FAIL_COMMAND: failure });
     expect(result.status).not.toBe(0);

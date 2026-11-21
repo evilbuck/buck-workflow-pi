@@ -11,7 +11,8 @@
 // Prereqs:
 //   - npm registry credentials (from `npm login` once, or a token line in
 //     .npmrc — Bun reads the same .npmrc / bunfig.toml as npm)
-//   - clean git tree (`bun pm version` commits + tags)
+//   - clean git tree (this script commits the bump and tags v<version>;
+//     `bun pm version` itself skips git when .git is a file)
 //
 // Secret safety: the `files` allowlist in package.json is the gate — only listed
 // dirs ship. This script also prints `bun pm pack --dry-run` so you review exactly
@@ -19,8 +20,8 @@
 // allowlist is maintained, but you can add one to drop e.g. *.test.ts from scripts/.
 //
 // Flow: auth check -> clean-tree check -> version bump (optional) ->
-// already-published guard -> test gate -> tarball preview -> publish --access public ->
-// push the release tag.
+// release commit + tag (when bumped) -> already-published guard -> test gate ->
+// tarball preview -> publish --access public -> push the release tag.
 
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -65,15 +66,34 @@ if (dirty) {
   process.exit(1);
 }
 
-// 3. version bump (skipped in --dry-run; creates git commit + tag v<new>)
+// 3. version bump. `--no-git-tag-version` keeps the bump itself git-free:
+// Bun 1.4.3 turns git off when `.git` is a file (a linked worktree) and would
+// otherwise publish with no release commit or tag.
 if (!NO_BUMP && !DRY) {
   const kind = bump || "patch";
-  step(`Bumping ${kind} (git commit + tag)…`);
-  run(`bun pm version ${kind}`);
+  step(`Bumping ${kind}…`);
+  run(`bun pm version ${kind} --no-git-tag-version`);
 }
 
-// 4. already-published guard
+// 4. release commit and annotated tag. Git understands a linked worktree, so
+// these commands still run when `.git` is a file. Publish waits until the tag exists.
 let { name, version } = readPkg();
+
+if (!NO_BUMP && !DRY) {
+  const tag = `v${version}`;
+  const quoted = (value: string): string => `'${value.replaceAll("'", "'\\''")}'`;
+  step(`Creating release commit and tag ${tag}…`);
+  run("git add package.json");
+  run(`git commit -m ${quoted(tag)}`);
+  run(`git tag -a ${quoted(tag)} -m ${quoted(tag)}`);
+  const verified = out(`git rev-parse --verify ${quoted(`refs/tags/${tag}`)}`, "__FAIL__");
+  if (verified === "__FAIL__" || verified.length === 0) {
+    console.error(`✗ Release tag ${tag} was not created.`);
+    process.exit(1);
+  }
+}
+
+// 5. already-published guard
 step(`Checking ${name}@${version} on registry…`);
 const exists = out(`bun pm view ${name}@${version}`);
 if (!DRY && exists) {
@@ -83,11 +103,11 @@ if (!DRY && exists) {
   process.exit(1);
 }
 
-// 5. test gate
+// 6. test gate
 step("Running tests…");
 run("bun run test");
 
-// 6. tarball preview (review this for anything unexpected / sensitive)
+// 7. tarball preview (review this for anything unexpected / sensitive)
 step("Tarball contents…");
 run("bun pm pack --dry-run");
 
@@ -96,11 +116,11 @@ if (DRY) {
   process.exit(0);
 }
 
-// 7. publish (public; prepublishOnly re-runs tests as a safety net)
+// 8. publish (public; prepublishOnly re-runs tests as a safety net)
 step(`Publishing ${name}@${version} (public)…`);
 run("bun publish --access public");
 
-// 8. push the release tag
+// 9. push the release tag
 step("Pushing tags…");
 const pushed = out("git push --follow-tags", "__FAIL__");
 if (pushed === "__FAIL__") {

@@ -56,7 +56,7 @@ Phases 1–4 below, in execution order.
 
 ### Phase 1 — token-attribution `message_end` timeout (high; user-reported)
 1. Red: wire-harness test — second `insert` of an unchanged record performs zero store writes (spy on `commitConsumerBatch`) and returns `false`.
-2. Green: `insertReconciled` early-returns when `current` exists and bytes equal the retained record (skip write/commit/correct/readback).
+2. Green: `insertReconciled` skips write/commit/correct/readback when `current` exists and bytes equal the retained record, then still calls `this.project(retained, fallbackEntryKey)` before returning `false`.
 3. Red: ingest test — `scanSessionArtifacts` over N delivered lines issues one `commitConsumerBatch` per file, not per line; failure keeps the file's lines for retry.
 4. Green: batch deliveries per file (dedupe by entryKey, preserve alias writes and cursor-remainder retry).
 5. Red: wire test — `message_end` resolves without awaiting queued persistence; a seeded retention failure still warns at `agent_end` (and shutdown).
@@ -71,8 +71,8 @@ Phases 1–4 below, in execution order.
 4. No `@ts-nocheck`; no assertion-based narrowing hacks.
 
 ### Phase 3 — release script fails closed
-1. Red: rewrite the two "currently proceeds to publish when %s fails" cases to expect non-zero exit and no publish for failed `git status --porcelain` and failed `bun pm view`.
-2. Green: `publish.ts` gains a `must()` runner that aborts on command failure for those two precursors (empty-vs-failed distinguished).
+1. Red: rewrite the git-status failure case to expect non-zero exit and no publish. Add a not-found `bun pm view` case whose shim exits nonzero and still publishes, and a registry, transport, or authentication failure case that expects non-zero exit and no publish.
+2. Green: `publish.ts` gains a `must()` runner that aborts on `git status --porcelain` failure and on `bun pm view` registry, transport, or authentication failures. A lookup that reports the version about to be published as not found is benign — the release continues — even when Bun reports that absence through a nonzero status. Empty output from a clean worktree stays allowed.
 3. Mutation-check.
 
 ### Phase 4 — lockfile and remnants
@@ -86,7 +86,7 @@ Phases 1–4 below, in execution order.
  [ ] `scanSessionArtifacts` batches one commit per artifact file with retry semantics preserved (test green)
 - [ ] `message_end` handler does not await persistence; failures warn at `agent_end`/`session_shutdown` (tests green)
 - [ ] `bun --bun tsc --noEmit` exits 0 with tsconfig including `scripts/**/*`
-- [ ] `scripts/publish.ts` aborts on failed git-status or registry lookup (tests green)
+- [ ] `scripts/publish.ts` aborts on failed git-status or on a registry, transport, or authentication failure from `bun pm view`; a not-yet-published version is benign (tests green)
 - [ ] `bun install --frozen-lockfile` exits 0; `package-lock.json` absent; repo contains no tracked `.js`/`.mjs` sources except generated `.context` artifacts
 - [ ] `bun run guardrails:check` passes after each phase
 

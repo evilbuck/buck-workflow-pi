@@ -46,7 +46,7 @@ Parent goal (inherited): the repository typechecks clean under the Bun-only runt
 - Test-file typing churn can mask real defects — keep fixes minimal and mechanical; do not restate test logic in mocks.
 
 ## Verification
-`bun --bun tsc --noEmit` exits 0; `bun run guardrails:check`; `npm test` still green.
+`bun --bun tsc --noEmit` exits 0; `bun run guardrails:check`; `bun run test` still green.
 
 ## Per-Phase Execution Loop
 1. Run `/b-build` (escalate to `/b-build-hard` if A1 ambiguity expands) for this phase only.

@@ -10,4 +10,4 @@ related:
   - .context/2026-11-20.bun-typescript-migration/plan-migration-followups-phases.md
 ---
 
-`scripts/publish.ts` aborts on failed `git status --porcelain` and failed `bun pm view` (empty vs failed distinguished). Red/green + mutation check. Easy — `/b-build`.
+`scripts/publish.ts` aborts on failed `git status --porcelain` and on a registry, transport, or authentication failure from `bun pm view`. A not-yet-published version is benign even when that lookup exits nonzero. Red/green + mutation check. Easy — `/b-build`.

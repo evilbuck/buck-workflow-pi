@@ -439,8 +439,53 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const ECOSYSTEM_COMMAND_FIELDS = [
+  "test_runner",
+  "functional_test_cmd",
+  "lint_cmd",
+  "coverage_tool",
+  "coverage_format",
+  "complexity_cmd",
+] as const;
+
+function isOptionalCommand(value: unknown): boolean {
+  return value === undefined || value === null || typeof value === "string";
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function ecosystemShapeError(value: unknown): string | null {
+  if (!isRecord(value)) return "ecosystems[] entries must be objects";
+  if (value["detection_signals"] !== undefined && !isStringArray(value["detection_signals"])) {
+    return "detection_signals must be an array of strings";
+  }
+  for (const field of ECOSYSTEM_COMMAND_FIELDS) {
+    if (!isOptionalCommand(value[field])) return `ecosystem command field "${field}" must be a string`;
+  }
+  return null;
+}
+
+function optionalObjectError(value: Record<string, unknown>, field: string): string | null {
+  const present = value[field];
+  if (present === undefined || present === null || isRecord(present)) return null;
+  return `${field} must be an object`;
+}
+
+function guardrailsContractError(value: unknown): string | null {
+  if (!isRecord(value) || value["version"] === undefined || !Array.isArray(value["ecosystems"])) {
+    return 'missing "version" or "ecosystems[]"';
+  }
+  for (const ecosystem of value["ecosystems"]) {
+    const error = ecosystemShapeError(ecosystem);
+    if (error) return error;
+  }
+  return optionalObjectError(value, "targets") ?? optionalObjectError(value, "ratchet");
+}
+
 function isGuardrailsContract(value: unknown): value is GuardrailsContract {
-  return isRecord(value) && value["version"] !== undefined && Array.isArray(value["ecosystems"]);
+  return guardrailsContractError(value) === null;
 }
 
 function loadContract(cwd: string): GuardrailsContract {
@@ -457,9 +502,7 @@ function loadContract(cwd: string): GuardrailsContract {
     throw new Error(`malformed guardrails.json at ${path}: ${cause instanceof Error ? cause.message : String(cause)}`);
   }
   if (!isGuardrailsContract(parsed)) {
-    throw new Error(
-      `malformed guardrails.json at ${path}: missing "version" or "ecosystems[]"`,
-    );
+    throw new Error(`malformed guardrails.json at ${path}: ${guardrailsContractError(parsed)}`);
   }
   return parsed;
 }
@@ -638,7 +681,11 @@ function runLintGate(ctx: CheckContext): void {
     mode,
     files_linted: filesLinted,
     exit_code: exitCode,
-    lint_gate: applyEnforcement(measurement === "advisory" ? "fail" : measurement, ctx.enforcement.lint_gate),
+    // Whole-repo lint on an unclean baseline is advisory even when the gate is
+    // required. A clean baseline still fails under required enforcement.
+    lint_gate: measurement === "advisory"
+      ? "advisory"
+      : applyEnforcement(measurement, ctx.enforcement.lint_gate),
   });
 }
 
@@ -735,9 +782,41 @@ function runGlobalRatchet(ctx: CheckContext): void {
   ctx.verdict.gates.global_ratchet = applyEnforcement("pass", ctx.enforcement.global_ratchet);
 }
 
+function isComplexityEntry(value: unknown): value is ComplexityEntry {
+  return (
+    isRecord(value) &&
+    typeof value["file"] === "string" &&
+    typeof value["function"] === "string" &&
+    typeof value["complexity"] === "number" &&
+    Number.isFinite(value["complexity"])
+  );
+}
+
+function assertComplexityBaseline(value: unknown, where: string): ComplexityEntry[] {
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `malformed complexity baseline ${where}: expected an array of { file, function, complexity }`,
+    );
+  }
+  const entries: ComplexityEntry[] = [];
+  for (const entry of value) {
+    if (!isComplexityEntry(entry)) {
+      throw new Error(
+        `malformed complexity baseline ${where}: expected an array of { file, function, complexity }`,
+      );
+    }
+    entries.push(entry);
+  }
+  return entries;
+}
+
 function loadComplexityBaseline(ctx: CheckContext): ComplexityEntry[] {
   const ratchet = ctx.contract.ratchet || {};
-  if (!ratchet.complexity_baseline_file) return ratchet.baseline_complexity_inventory || [];
+  if (!ratchet.complexity_baseline_file) {
+    const inline = ratchet.baseline_complexity_inventory;
+    if (inline === undefined || inline === null) return [];
+    return assertComplexityBaseline(inline, "in ratchet.baseline_complexity_inventory");
+  }
   const external = join(ctx.dir, ratchet.complexity_baseline_file);
   if (!existsSync(external)) {
     ctx.diagnostics.push(
@@ -745,9 +824,15 @@ function loadComplexityBaseline(ctx: CheckContext): ComplexityEntry[] {
     );
     return [];
   }
-  // The baseline file is written by the init skill; a cast keeps the exact
-  // runtime behavior (a malformed file fails downstream exactly as before).
-  return JSON.parse(readFileSync(external, "utf8")) as ComplexityEntry[];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(external, "utf8"));
+  } catch (cause) {
+    throw new Error(
+      `malformed complexity baseline at ${external}: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
+  return assertComplexityBaseline(parsed, `at ${external}`);
 }
 
 interface ComplexityAggregate {
@@ -856,7 +941,12 @@ function main(): void {
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--cwd") {
       i += 1;
-      cwd = argv[i] ?? cwd;
+      const value = argv[i];
+      if (!value) {
+        console.error("--cwd requires a value");
+        process.exit(1);
+      }
+      cwd = value;
     } else if (argv[i] === "--version") {
       console.log(`guardrails-check ${CHECK_VERSION}`);
       process.exit(0);

@@ -264,6 +264,13 @@ describe("insertGuardrailsScript", () => {
 describe("legacy runner migration", () => {
   const LEGACY = "node skills/b-guardrails-check/scripts/check.mjs --cwd .";
 
+  test("migrates a legacy command when package.json escapes forward slashes", () => {
+    const text = '{"scripts":{"guardrails:check":"node skills\\/b-guardrails-check\\/scripts\\/check.mjs --cwd ."}}';
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("migrated");
+    expect(JSON.parse(result.text).scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
+
   test("migrates the exact previously managed package command", () => {
     const text = `{\n  "name": "demo",\n  "scripts": {\n    "test": "vitest",\n    "guardrails:check": "${LEGACY}"\n  }\n}\n`;
     const result = insertGuardrailsScript(text);
