@@ -3,17 +3,14 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import {
-  parseArgv,
-  parseLcov,
-  parseComplexityCsv,
-  evaluateComplexity,
-  resolveEnforcement,
-  applyEnforcement,
-  runCheck,
-} from "./check.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
+// Variable-specifier import: the repo tsconfig (module NodeNext, no
+// allowImportingTsExtensions) rejects both "./check.ts" (TS5097) and
+// extensionless static relative imports (TS2835).
+const { parseArgv, parseLcov, parseComplexityCsv, evaluateComplexity, resolveEnforcement, applyEnforcement, runCheck } =
+  await import(join(scriptDir, "check.ts"));
+
 const FIXTURE_ROOT = join("/tmp", "guardrails-check-test-" + process.pid);
 
 function fixtureRepo(name: string, guardrails: unknown): string {
@@ -260,7 +257,7 @@ describe("runCheck", () => {
   it("a required unit-gate failure fails the verdict", async () => {
     const dir = fixtureRepo(
       "required-fail",
-      baseContract({ ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })] }),
+      baseContract({ ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })] }),
     );
     const verdict = await runCheck({ cwd: dir });
     expect(verdict.gates.unit_test_gate).toBe("fail");
@@ -273,7 +270,7 @@ describe("runCheck", () => {
       "advisory-fail",
       baseContract({
         enforcement: { unit_test_gate: "advisory" },
-        ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })],
+        ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })],
       }),
     );
     const verdict = await runCheck({ cwd: dir });
@@ -288,7 +285,7 @@ describe("runCheck", () => {
         enforcement: { unit_test_gate: "disabled" },
         ecosystems: [
           ecosystem({
-            test_runner: `node -e "require('fs').writeFileSync('marker.txt','x')"`,
+            test_runner: `bun -e "require('fs').writeFileSync('marker.txt','x')"`,
           }),
         ],
       }),
@@ -313,7 +310,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node write-lcov.js", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun write-lcov.js", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -335,7 +332,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -350,7 +347,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -383,7 +380,7 @@ describe("runCheck", () => {
       baseContract({
         ratchet: ratchet({ baseline_coverage: 54.9 }),
         ecosystems: [
-          ecosystem({ coverage_tool: "node -e process.exit(0)", coverage_format: "lcov" }),
+          ecosystem({ coverage_tool: "bun -e process.exit(0)", coverage_format: "lcov" }),
         ],
       }),
     );
@@ -403,18 +400,114 @@ describe("runCheck", () => {
     const dir = fixtureRepo("malformed", "{ not json");
     await expect(runCheck({ cwd: dir })).rejects.toThrow();
   });
+
+  it.each([
+    ["null ecosystem", { ecosystems: [null] }, /ecosystems\[\] entries must be objects/],
+    ["numeric test_runner", { ecosystems: [ecosystem({ test_runner: 1 })] }, /test_runner/],
+    ["numeric detection signal", { ecosystems: [ecosystem({ detection_signals: [1] })] }, /detection_signals/],
+    ["array targets", { targets: [] }, /targets must be an object/],
+    ["string ratchet", { ratchet: "nope" }, /ratchet must be an object/],
+  ])("rejects a contract with %s", async (label, overrides, message) => {
+    const dir = fixtureRepo(`shape-${label}`, baseContract(overrides));
+    await expect(runCheck({ cwd: dir })).rejects.toThrow(message);
+  });
+
+  it("keeps a baseline-aware advisory lint result when lint_gate is required", async () => {
+    const dir = fixtureRepo(
+      "lint-advisory-required",
+      baseContract({
+        enforcement: { lint_gate: "required" },
+        ratchet: ratchet({ baseline_lint_clean: false }),
+        ecosystems: [ecosystem({ lint_cmd: "bun -e process.exit(1)", lint_accepts_paths: false })],
+      }),
+    );
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.lint.lint_gate).toBe("advisory");
+    expect(verdict.gates.lint_gate).toBe("advisory");
+    expect(verdict.status).toBe("pass");
+  });
+
+  it("fails a required lint gate when the lint baseline is clean", async () => {
+    const dir = fixtureRepo(
+      "lint-fail-clean-baseline",
+      baseContract({
+        enforcement: { lint_gate: "required" },
+        ratchet: ratchet({ baseline_lint_clean: true }),
+        ecosystems: [ecosystem({ lint_cmd: "bun -e process.exit(1)", lint_accepts_paths: false })],
+      }),
+    );
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.lint.lint_gate).toBe("fail");
+    expect(verdict.status).toBe("fail");
+  });
+
+  it("rejects a complexity baseline that is not an array of entries", async () => {
+    const dir = fixtureRepo(
+      "bad-inline-baseline",
+      baseContract({
+        ratchet: ratchet({ baseline_complexity_inventory: { file: "a.ts" } }),
+      }),
+    );
+    await expect(runCheck({ cwd: dir })).rejects.toThrow(/malformed complexity baseline/);
+  });
+
+  it("rejects a contract that omits ecosystems", async () => {
+    const dir = fixtureRepo("missing-ecosystems", { version: 2 });
+    await expect(runCheck({ cwd: dir })).rejects.toThrow(/missing "version" or "ecosystems\[\]"/);
+  });
+
+  it("rejects a complexity baseline file that is not JSON", async () => {
+    const dir = fixtureRepo(
+      "bad-json-baseline",
+      baseContract({
+        ratchet: ratchet({ complexity_baseline_file: "complexity-baseline.json" }),
+      }),
+    );
+    writeFileSync(join(dir, "complexity-baseline.json"), "{ not json");
+    await expect(runCheck({ cwd: dir })).rejects.toThrow(/malformed complexity baseline/);
+  });
+
+  it("rejects a complexity baseline file whose entries are the wrong shape", async () => {
+    const dir = fixtureRepo(
+      "bad-file-baseline",
+      baseContract({
+        ratchet: ratchet({ complexity_baseline_file: "complexity-baseline.json" }),
+      }),
+    );
+    writeFileSync(
+      join(dir, "complexity-baseline.json"),
+      JSON.stringify([{ file: "a.ts", function: "f", complexity: "12" }]),
+    );
+    await expect(runCheck({ cwd: dir })).rejects.toThrow(/malformed complexity baseline/);
+  });
+
+  it("accepts a valid external complexity baseline", async () => {
+    const dir = fixtureRepo(
+      "good-file-baseline",
+      baseContract({
+        ratchet: ratchet({ complexity_baseline_file: "complexity-baseline.json" }),
+      }),
+    );
+    writeFileSync(
+      join(dir, "complexity-baseline.json"),
+      JSON.stringify([{ file: "a.ts", function: "f", complexity: 12 }]),
+    );
+    const verdict = await runCheck({ cwd: dir });
+    expect(verdict.status).toBe("pass");
+    expect(verdict.diagnostics.join("\n")).not.toMatch(/malformed complexity baseline/);
+  });
 });
 
 // ---------------------------------------------------------------------------
 // CLI exit-code contract
 // ---------------------------------------------------------------------------
 
-describe("check.mjs CLI", () => {
+describe("check.ts CLI", () => {
   beforeEach(() => mkdirSync(FIXTURE_ROOT, { recursive: true }));
   afterEach(() => rmSync(FIXTURE_ROOT, { recursive: true, force: true }));
 
   function runCli(cwd: string) {
-    return spawnSync(process.execPath, [join(scriptDir, "check.mjs"), "--cwd", cwd], {
+    return spawnSync("bun", [join(scriptDir, "check.ts"), "--cwd", cwd], {
       encoding: "utf8",
     });
   }
@@ -422,13 +515,13 @@ describe("check.mjs CLI", () => {
   it("exits nonzero only when a required gate fails", () => {
     const failDir = fixtureRepo(
       "cli-fail",
-      baseContract({ ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })] }),
+      baseContract({ ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })] }),
     );
     const advisoryDir = fixtureRepo(
       "cli-advisory",
       baseContract({
         enforcement: { unit_test_gate: "advisory" },
-        ecosystems: [ecosystem({ test_runner: "node -e process.exit(1)" })],
+        ecosystems: [ecosystem({ test_runner: "bun -e process.exit(1)" })],
       }),
     );
 
@@ -443,11 +536,22 @@ describe("check.mjs CLI", () => {
     expect(advisory.status).toBe(0);
   });
 
+  it("rejects a --cwd flag with a missing or empty value", () => {
+    const script = join(scriptDir, "check.ts");
+    const missing = spawnSync("bun", [script, "--cwd"], { encoding: "utf8" });
+    expect(missing.status).toBe(1);
+    expect(missing.stderr).toContain("--cwd requires a value");
+
+    const empty = spawnSync("bun", [script, "--cwd", ""], { encoding: "utf8" });
+    expect(empty.status).toBe(1);
+    expect(empty.stderr).toContain("--cwd requires a value");
+  });
+
   it("emits verdict JSON on stdout and keeps command output out of it", () => {
     const dir = fixtureRepo(
       "cli-stdout",
       baseContract({
-        ecosystems: [ecosystem({ test_runner: 'node -e "console.log(42); process.exit(0)"' })],
+        ecosystems: [ecosystem({ test_runner: 'bun -e "console.log(42); process.exit(0)"' })],
       }),
     );
     const proc = runCli(dir);

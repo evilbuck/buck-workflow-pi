@@ -1,0 +1,1 @@
+Recovery replay in `b-save` fails closed on drifted local projections and refuses to overwrite a newer canonical revision.

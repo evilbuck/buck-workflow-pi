@@ -8,17 +8,24 @@ import {
   symlinkSync,
   existsSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import {
+import { fileURLToPath } from "node:url";
+
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+// Variable-specifier import: the repo tsconfig (module NodeNext, no
+// allowImportingTsExtensions) rejects both "./install-project-skills.ts"
+// (TS5097) and extensionless static relative imports (TS2835).
+const {
   installProjectSkills,
   insertGuardrailsScript,
   addLizardExclude,
   complexityExcludePatches,
   isExcludedRel,
   GUARDRAILS_CHECK_SCRIPT,
+  LEGACY_GUARDRAILS_CHECK_SCRIPTS,
   defaultSourceSkillsDir,
-} from "./install-project-skills.mjs";
+} = await import(join(scriptDir, "install-project-skills.ts"));
 
 const roots: string[] = [];
 
@@ -41,7 +48,7 @@ function sourceTree(): string {
   mkdirSync(join(skills, "b-init-guardrails/scripts"), { recursive: true });
   writeFileSync(join(skills, "b-guardrails-check/SKILL.md"), "# check\n");
   writeFileSync(join(skills, "b-guardrails-check/docs/contract-resolution.md"), "# resolution\n");
-  writeFileSync(join(skills, "b-guardrails-check/scripts/check.mjs"), "export const ok = 1;\n");
+  writeFileSync(join(skills, "b-guardrails-check/scripts/check.ts"), "export const ok = 1;\n");
   writeFileSync(join(skills, "b-guardrails-check/scripts/check.test.ts"), "throw new Error('do not vendor');\n");
   writeFileSync(join(skills, "b-init-guardrails/SKILL.md"), "# init\n");
   writeFileSync(join(skills, "b-init-guardrails/scripts/detect-stack.ts"), "export const detected = true;\n");
@@ -58,8 +65,8 @@ describe("installProjectSkills", () => {
     mkdirSync(join(cwd, "skills/other-skill"), { recursive: true });
     writeFileSync(join(cwd, "skills/other-skill/SKILL.md"), "# project skill\n");
     symlinkSync(
-      join(source, "b-guardrails-check/scripts/check.mjs"),
-      join(cwd, "skills/b-guardrails-check/scripts/check.mjs"),
+      join(source, "b-guardrails-check/scripts/check.ts"),
+      join(cwd, "skills/b-guardrails-check/scripts/check.ts"),
     );
 
     const result = installProjectSkills({ sourceSkillsDir: source, cwd });
@@ -67,11 +74,11 @@ describe("installProjectSkills", () => {
     expect(result.self).toBe(false);
     expect(result.copied).toContain("b-guardrails-check/SKILL.md");
     expect(result.copied).toContain("b-guardrails-check/docs/contract-resolution.md");
-    expect(result.copied).toContain("b-guardrails-check/scripts/check.mjs");
+    expect(result.copied).toContain("b-guardrails-check/scripts/check.ts");
     expect(result.copied).toContain("b-init-guardrails/scripts/detect-stack.ts");
     expect(result.copied.join("\n")).not.toContain(".test.");
     expect(existsSync(join(cwd, "skills/b-guardrails-check/scripts/check.test.ts"))).toBe(false);
-    expect(lstatSync(join(cwd, "skills/b-guardrails-check/scripts/check.mjs")).isSymbolicLink()).toBe(false);
+    expect(lstatSync(join(cwd, "skills/b-guardrails-check/scripts/check.ts")).isSymbolicLink()).toBe(false);
     expect(readFileSync(join(cwd, "skills/other-skill/SKILL.md"), "utf8")).toBe("# project skill\n");
     expect(readFileSync(join(source, "other-skill/SKILL.md"), "utf8")).toBe("# leave me\n");
   });
@@ -254,6 +261,76 @@ describe("insertGuardrailsScript", () => {
   });
 });
 
+describe("legacy runner migration", () => {
+  const LEGACY = "node skills/b-guardrails-check/scripts/check.mjs --cwd .";
+
+  test("migrates a legacy command when package.json escapes forward slashes", () => {
+    const text = '{"scripts":{"guardrails:check":"node skills\\/b-guardrails-check\\/scripts\\/check.mjs --cwd ."}}';
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("migrated");
+    expect(JSON.parse(result.text).scripts["guardrails:check"]).toBe(GUARDRAILS_CHECK_SCRIPT);
+  });
+
+  test("migrates the exact previously managed package command", () => {
+    const text = `{\n  "name": "demo",\n  "scripts": {\n    "test": "vitest",\n    "guardrails:check": "${LEGACY}"\n  }\n}\n`;
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("migrated");
+    expect(result.text).toContain(`"guardrails:check": "${GUARDRAILS_CHECK_SCRIPT}"`);
+    expect(result.text).toContain('"test": "vitest"');
+    expect(result.text).toContain('"name": "demo"');
+    expect(JSON.parse(result.text)).toEqual(JSON.parse(text.replace(LEGACY, GUARDRAILS_CHECK_SCRIPT)));
+  });
+
+  test("never rewrites a custom guardrails command", () => {
+    const text = '{"scripts":{"guardrails:check":"bun run my-own-check"}}';
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("differs");
+    expect(result.text).toBe(text);
+  });
+
+  test("refuses migration when the legacy command appears more than once", () => {
+    const text = `{"scripts":{"guardrails:check":"${LEGACY}"},"rescue":"${LEGACY}"}`;
+    const result = insertGuardrailsScript(text);
+    expect(result.status).toBe("differs");
+    expect(result.text).toBe(text);
+  });
+
+  test("upgrades a legacy vendored tree end to end", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    writeFileSync(
+      join(cwd, "package.json"),
+      '{\n  "scripts": {\n    "guardrails:check": "node skills/b-guardrails-check/scripts/check.mjs --cwd ."\n  }\n}\n',
+    );
+    mkdirSync(join(cwd, "skills/b-guardrails-check/scripts"), { recursive: true });
+    writeFileSync(join(cwd, "skills/b-guardrails-check/scripts/check.mjs"), "// stale vendored runner with local edits\n");
+
+    const result = installProjectSkills({ sourceSkillsDir: source, cwd });
+
+    expect(result.script).toBe("migrated");
+    expect(result.copied).toContain("b-guardrails-check/scripts/check.ts");
+    expect(existsSync(join(cwd, "skills/b-guardrails-check/scripts/check.ts"))).toBe(true);
+    expect(readFileSync(join(cwd, "skills/b-guardrails-check/scripts/check.mjs"), "utf8")).toBe(
+      "// stale vendored runner with local edits\n",
+    );
+    expect(readFileSync(join(cwd, "package.json"), "utf8")).toContain(
+      `"guardrails:check": "${GUARDRAILS_CHECK_SCRIPT}"`,
+    );
+  });
+
+  test("dry run reports would-migrate without writing", () => {
+    const source = sourceTree();
+    const cwd = tempDir();
+    const before = '{\n  "scripts": {\n    "guardrails:check": "node skills/b-guardrails-check/scripts/check.mjs --cwd ."\n  }\n}\n';
+    writeFileSync(join(cwd, "package.json"), before);
+
+    const result = installProjectSkills({ sourceSkillsDir: source, cwd, dryRun: true });
+
+    expect(result.script).toBe("would-migrate");
+    expect(readFileSync(join(cwd, "package.json"), "utf8")).toBe(before);
+  });
+});
+
 describe("complexity excludes", () => {
   test("inserts flags before the trailing dot and is idempotent", () => {
     const once = addLizardExclude("lizard -C 10 -w --csv .", "*/skills/b-guardrails-check/*");
@@ -284,14 +361,21 @@ describe("complexity excludes", () => {
 describe("helpers", () => {
   test("excludes test files only", () => {
     expect(isExcludedRel("b-guardrails-check/scripts/check.test.ts")).toBe(true);
-    expect(isExcludedRel("b-guardrails-check/scripts/check.mjs")).toBe(false);
+    expect(isExcludedRel("b-guardrails-check/scripts/check.ts")).toBe(false);
+  });
+
+  test("legacy managed command is recorded for migration", () => {
+    expect(LEGACY_GUARDRAILS_CHECK_SCRIPTS).toContain(
+      "node skills/b-guardrails-check/scripts/check.mjs --cwd .",
+    );
+    expect(LEGACY_GUARDRAILS_CHECK_SCRIPTS).not.toContain(GUARDRAILS_CHECK_SCRIPT);
   });
 
   test("canonical source contains the files the managed block names", () => {
     const source = defaultSourceSkillsDir();
     expect(existsSync(join(source, "b-guardrails-check/SKILL.md"))).toBe(true);
     expect(existsSync(join(source, "b-guardrails-check/docs/contract-resolution.md"))).toBe(true);
-    expect(existsSync(join(source, "b-guardrails-check/scripts/check.mjs"))).toBe(true);
+    expect(existsSync(join(source, "b-guardrails-check/scripts/check.ts"))).toBe(true);
     expect(existsSync(join(source, "b-init-guardrails/scripts/detect-stack.ts"))).toBe(true);
   });
 });

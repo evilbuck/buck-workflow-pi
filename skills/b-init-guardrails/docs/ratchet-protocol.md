@@ -57,7 +57,7 @@ Version 1 files are readable by v2 tooling — see *v1 Compatibility* below.
 
 **`version`** — Schema version. Currently `2`. Increment on breaking changes. Version 1 files are readable by v2 tooling — see *v1 Compatibility* below.
 
-**`enforcement`** — Optional explicit enforcement state per gate (see *Enforcement States*). Absent → `check.mjs` `DEFAULT_ENFORCEMENT`: `unit_test_gate`, `functional_test_gate`, `patch_gate`, `global_ratchet`, and `complexity_gate` are `required`; `lint_gate` is `advisory`. The schema sample above is one init configuration, not those omitted-field defaults. Enforcement state is orthogonal to measurement semantics: ratchet baselines, burn-down inventories, and "new/worsened only" complexity checks are measurements; `enforcement` decides whether a failed measurement fails the run.
+**`enforcement`** — Optional explicit enforcement state per gate (see *Enforcement States*). Absent → `check.ts` `DEFAULT_ENFORCEMENT`: `unit_test_gate`, `functional_test_gate`, `patch_gate`, `global_ratchet`, and `complexity_gate` are `required`; `lint_gate` is `advisory`. The schema sample above is one init configuration, not those omitted-field defaults. Enforcement state is orthogonal to measurement semantics: ratchet baselines, burn-down inventories, and "new/worsened only" complexity checks are measurements; `enforcement` decides whether a failed measurement fails the run.
 
 **`targets`** — The quality thresholds. All values are cited (see Threshold Table below).
 - `coverage_min` — Minimum acceptable global coverage (60%). Below this is a warning.
@@ -91,7 +91,7 @@ Version 1 files are readable by v2 tooling — see *v1 Compatibility* below.
 
 ## Enforcement States
 
-Every gate carries an explicit enforcement state, resolved from `guardrails.json.enforcement` (defaults below). The deterministic runner (`skills/b-guardrails-check/scripts/check.mjs`) is the single computation source; `b-guardrails-check` and pull-request CI both invoke it.
+Every gate carries an explicit enforcement state, resolved from `guardrails.json.enforcement` (defaults below). The deterministic runner (`skills/b-guardrails-check/scripts/check.ts`) is the single computation source; `b-guardrails-check` and pull-request CI both invoke it.
 
 | State | Meaning | Verdict on failed measurement | Exit code |
 |---|---|---|---|
@@ -99,7 +99,7 @@ Every gate carries an explicit enforcement state, resolved from `guardrails.json
 | `advisory` | Reported, never blocks. | `advisory` | 0 |
 | `disabled` | Not run at all. | `skipped` | 0 |
 
-**Runtime defaults** (`DEFAULT_ENFORCEMENT` in `skills/b-guardrails-check/scripts/check.mjs`) apply when `guardrails.json.enforcement` is absent:
+**Runtime defaults** (`DEFAULT_ENFORCEMENT` in `skills/b-guardrails-check/scripts/check.ts`) apply when `guardrails.json.enforcement` is absent:
 
 | Gate | Default |
 |---|---|
@@ -116,7 +116,7 @@ These defaults are stricter than the brownfield init recommendation: omitting th
 
 Recommended initial states for a brownfield repo: `unit_test_gate` and `global_ratchet` `required`; absent functional/lint commands `disabled` (the `null` command skips them anyway); `lint_gate` `advisory` until `ratchet.baseline_lint_clean` is `true`; `complexity_gate` `required` (its measurement is already new/worsened-only); `patch_gate` `advisory` until the compare base and coverage artifact are reproducible in CI, then `required`.
 
-Omitted `enforcement` uses `check.mjs` `DEFAULT_ENFORCEMENT` (`required` unit/functional/patch/ratchet/complexity, `advisory` lint), not the brownfield initial states above.
+Omitted `enforcement` uses `check.ts` `DEFAULT_ENFORCEMENT` (`required` unit/functional/patch/ratchet/complexity, `advisory` lint), not the brownfield initial states above.
 
 ## Gate Semantics
 

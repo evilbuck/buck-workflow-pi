@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Buck workflow for structured AI-assisted development — plan, build, review, save with durable context management",
   "bin": {
-    "buck-workflow": "./scripts/install.mjs"
+    "buck-workflow": "./scripts/install.ts"
   },
   "type": "module",
   "files": [
@@ -39,7 +39,7 @@
     "url": "https://github.com/evilbuck/buck-workflow-pi/issues"
   },
   "engines": {
-    "node": ">=18"
+    "bun": ">=1.4.0"
   },
   "publishConfig": {
     "access": "public"
@@ -90,25 +90,25 @@
     }
   },
   "scripts": {
-    "test": "npm run test:vitest && npm run test:bun && npm run test:sqlite-runtime",
-    "test:vitest": "vitest run",
-    "test:bun": "bun test skills/b-memory-import/scripts/import-context-memory.test.ts skills/b-auto-fix/scripts/auto-fix.test.ts",
-    "test:sqlite-runtime": "node --experimental-strip-types skills/_shared/storage/sqlite-runtime-smoke.ts && bun skills/_shared/storage/sqlite-runtime-smoke.ts",
-    "test:ui": "vitest --ui",
-    "test:e2e": "npx playwright test",
-    "test:e2e:ui": "npx playwright test --ui",
-    "test:e2e:debug": "npx playwright test --debug",
-    "test:e2e:chromium": "npx playwright test --project=chromium",
-    "playwright": "playwright",
-    "playwright:install": "playwright install chromium",
-    "playwright:report": "npx playwright show-report",
+    "test": "bun run test:vitest && bun run test:bun && bun run test:sqlite-runtime",
+    "test:vitest": "bun --bun vitest run",
+    "test:bun": "bun test skills/b-memory-import/scripts/import-context-memory.test.ts skills/b-auto-fix/scripts/auto-fix.test.ts skills/pack-self-contained-html-reports/scripts/pack.test.ts",
+    "test:sqlite-runtime": "bun skills/_shared/storage/sqlite-runtime-smoke.ts",
+    "test:ui": "bun --bun vitest --ui",
+    "test:e2e": "bunx --bun playwright test",
+    "test:e2e:ui": "bunx --bun playwright test --ui",
+    "test:e2e:debug": "bunx --bun playwright test --debug",
+    "test:e2e:chromium": "bunx --bun playwright test --project=chromium",
+    "playwright": "bunx --bun playwright",
+    "playwright:install": "bunx --bun playwright install chromium",
+    "playwright:report": "bunx --bun playwright show-report",
     "context:index": "bun scripts/context-artifacts.ts index",
     "context:validate": "bun scripts/context-artifacts.ts validate",
     "presentations:serve": "bun scripts/serve-presentations.ts",
     "site:serve": "bun scripts/serve-presentations.ts --dir site",
-    "prepublishOnly": "npm test",
-    "release": "node scripts/publish.mjs",
-    "guardrails:check": "node skills/b-guardrails-check/scripts/check.mjs",
+    "prepublishOnly": "bun run test",
+    "release": "bun scripts/publish.ts",
+    "guardrails:check": "bun skills/b-guardrails-check/scripts/check.ts",
     "subject-lifecycle:check": "bun skills/_shared/scripts/subject-lifecycle.ts audit --repo . --json"
   },
   "devDependencies": {
