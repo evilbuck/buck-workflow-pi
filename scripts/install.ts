@@ -1,0 +1,1185 @@
+#!/usr/bin/env bun
+
+/**
+ * buck-workflow install — multi-harness symlink installer.
+ *
+ * Detects installed agent harnesses and symlinks bootstrap instructions
+ * + skill/command trees into each harness's expected locations.
+ *
+ * Usage:
+ *   buck-workflow install [--dry-run] [--force] [--source <path>] [--harness <id>...] [--list] [--verify]
+ */
+
+import {
+  existsSync,
+  lstatSync,
+  readlinkSync,
+  symlinkSync,
+  unlinkSync,
+  mkdirSync,
+  readdirSync,
+  realpathSync,
+  type Stats,
+} from "node:fs";
+import { join, dirname, basename, resolve, isAbsolute, sep } from "node:path";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
+import {
+  hooksInstall,
+  hooksStatus,
+  hooksRemove,
+  isHookProfile,
+  type HookProfile,
+  type HooksInstallResult,
+  type HooksRemoveResult,
+  type HooksStatus,
+} from "./hooks.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const REPO_ROOT = resolve(__dirname, "..");
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface HarnessSurface {
+  src: string;
+  dest: string;
+  extra?: string[];
+}
+
+export interface Harness {
+  id: string;
+  name: string;
+  detectDir: string;
+  surfaces: Record<string, HarnessSurface>;
+  note?: string;
+}
+
+/** One managed (harness, surface, src, dest) entry, or an informational note. */
+interface SurfaceItem {
+  harness: string;
+  surface: string;
+  dest: string;
+  src?: string;
+  relPath?: string;
+  note?: string;
+}
+
+export interface EnsureSymlinkOptions {
+  dryRun?: boolean;
+  force?: boolean;
+  sourceRoot?: string | null;
+  relPath?: string | null;
+}
+
+export interface EnsureSymlinkResult {
+  action: "created" | "skipped" | "replaced" | "conflict";
+  message: string;
+  crossRoot?: boolean;
+  oldRoot?: string;
+}
+
+export interface InstallOptions {
+  source?: string;
+  home?: string;
+  dryRun?: boolean;
+  force?: boolean;
+  harnessIds?: string[] | null;
+}
+
+export interface InstallResultRow {
+  harness: string;
+  surface: string;
+  dest: string;
+  action: string;
+  message: string;
+  crossRoot?: boolean;
+  oldRoot?: string;
+}
+
+export interface InstallResult {
+  results: InstallResultRow[];
+  unknownIds: string[];
+  exitCode: number;
+}
+
+export interface VerifyOptions {
+  source?: string;
+  home?: string;
+  harnessIds?: string[] | null;
+}
+
+export interface VerifyResultRow {
+  harness: string;
+  surface: string;
+  dest: string;
+  target: string | null;
+  state: string;
+  root: string | null;
+}
+
+export interface VerifyResult {
+  results: VerifyResultRow[];
+  roots: string[];
+  unknownIds: string[];
+  exitCode: number;
+}
+
+export interface InstallArgs {
+  dryRun: boolean;
+  force: boolean;
+  source: string | null;
+  harnessIds: string[] | null;
+  list: boolean;
+  verify: boolean;
+  help: boolean;
+  command: "hooks" | null;
+  hooksAction: string | null;
+  repo: string | null;
+  profile: string;
+}
+
+export interface InstallCounts {
+  created: number;
+  replaced: number;
+  skipped: number;
+  conflict: number;
+  moved: number;
+}
+
+// ---------------------------------------------------------------------------
+// Harness Registry
+// ---------------------------------------------------------------------------
+
+/**
+ * Each harness declares which surfaces it uses and where they go.
+ * Paths in `dest` are relative to $HOME.
+ * Paths in `src` are relative to the repo root.
+ */
+export const HARNESSES: Harness[] = [
+  {
+    id: "pi",
+    name: "Pi",
+    detectDir: ".pi/agent",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".pi/agent/AGENTS.md" },
+    },
+  },
+  {
+    id: "omp",
+    name: "OMP",
+    detectDir: ".omp/agent",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".omp/agent/AGENTS.md" },
+    },
+  },
+  {
+    id: "claude",
+    name: "Claude Code",
+    detectDir: ".claude",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".claude/CLAUDE.md" },
+      commands:  { src: "prompts", dest: ".claude/commands" },
+      skills:    { src: "skills",  dest: ".claude/skills" },
+    },
+  },
+  {
+    id: "codex",
+    name: "Codex",
+    detectDir: ".codex",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".codex/AGENTS.md" },
+    },
+  },
+  {
+    id: "opencode",
+    name: "OpenCode",
+    detectDir: ".config/opencode",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".config/opencode/AGENTS.md" },
+      commands:  { src: "prompts", dest: ".config/opencode/commands" },
+      skills:    { src: "skills",  dest: ".config/opencode/skills" },
+    },
+  },
+  {
+    id: "cursor",
+    name: "Cursor",
+    detectDir: ".cursor",
+    surfaces: {},
+    note: "Cursor requires project-scoped .cursor/rules/ setup. No global install available.",
+  },
+  {
+    id: "grok",
+    name: "Grok Build",
+    detectDir: ".grok",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".grok/rules/buck-workflow.md" },
+      commands:  { src: "prompts", dest: ".grok/commands" },
+      skills:    { src: "skills",  dest: ".grok/skills" },
+    },
+  },
+  {
+    id: "agy",
+    name: "Antigravity",
+    detectDir: ".gemini/config",
+    surfaces: {
+      bootstrap: { src: "GLOBAL_OR_PROJECT-AGENTS.md", dest: ".gemini/config/AGENTS.md" },
+      skills: {
+        src: "skills",
+        dest: ".gemini/config/skills",
+        extra: [
+          "plugins/buck-workflow/skills/b-build-hard",
+          "plugins/buck-workflow/skills/b-commit",
+        ],
+      },
+    },
+  },
+];
+
+/** Files a harness skills link must be able to resolve. `--verify` fails if any are absent. */
+export const SHIPPED_STORAGE_FILES: string[] = [
+  "skills/_shared/scripts/workflow-state.ts",
+  "skills/_shared/scripts/workflow-state-cli.ts",
+  "skills/_shared/scripts/storage-migration-cli.ts",
+  "skills/_shared/storage/adapter-utils.ts",
+  "skills/_shared/storage/db.ts",
+  "skills/_shared/storage/migrations.ts",
+  "skills/_shared/storage/sql-gate.ts",
+  "skills/_shared/storage/config.ts",
+  "skills/_shared/storage/conformance.ts",
+  "skills/_shared/storage/consumers.ts",
+  "skills/_shared/storage/contract.ts",
+  "skills/_shared/storage/cutover.ts",
+  "skills/_shared/storage/migration.ts",
+  "skills/_shared/storage/domain.ts",
+  "skills/_shared/storage/file-store.ts",
+  "skills/_shared/storage/identity.ts",
+  "skills/_shared/storage/postgres-store.ts",
+  "skills/_shared/storage/publication.ts",
+  "skills/_shared/storage/sqlite-capability.ts",
+  "skills/_shared/storage/sqlite-runtime-smoke.ts",
+  "skills/_shared/storage/sqlite-store.ts",
+  "skills/_shared/storage/visibility.ts",
+];
+
+export function shippedStorageFiles(source = REPO_ROOT): { files: string[]; missing: string[] } {
+  const missing = SHIPPED_STORAGE_FILES.filter((rel) => !existsSync(join(source, rel)));
+  return { files: SHIPPED_STORAGE_FILES, missing };
+}
+
+// ---------------------------------------------------------------------------
+// Path helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Is `target` the source root itself, or a path beneath it?
+ *
+ * The separator guard is load-bearing: a bare `startsWith` would treat
+ * `/x/repo-old/skills/b-plan` as living inside `/x/repo`.
+ *
+ * @param {string} target
+ * @param {string} root
+ * @returns {boolean}
+ */
+export function isInsideRoot(target: string, root: string): boolean {
+  const t = resolve(target);
+  const r = resolve(root);
+  return t === r || t.startsWith(r + sep);
+}
+
+/**
+ * Best-effort source root for an existing link target.
+ *
+ * When the caller knows the repo-relative path the link should have
+ * (`relPath`), stripping it off the end yields the exact foreign root.
+ * Otherwise fall back to the target's parent directory.
+ *
+ * @param {string} target  - Absolute, already-resolved link target.
+ * @param {string} [relPath] - Repo-relative path this link represents.
+ * @returns {string}
+ */
+function inferSourceRoot(target: string, relPath?: string | null): string {
+  if (relPath) {
+    const suffix = sep + relPath;
+    if (target.endsWith(suffix)) return target.slice(0, -suffix.length);
+  }
+  return dirname(target);
+}
+
+// ---------------------------------------------------------------------------
+// ensureSymlink
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace `dest` with a fresh symlink to `src`.
+ * @param {string} src
+ * @param {string} dest
+ * @param {boolean} dryRun
+ */
+function relink(src: string, dest: string, dryRun: boolean): void {
+  if (dryRun) return;
+  unlinkSync(dest);
+  symlinkSync(src, dest);
+}
+
+/** Narrow a thrown value to a Node.js errno exception (e.g. ENOENT). */
+function isErrnoException(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && "code" in err;
+}
+
+/**
+ * Describe the symlink already sitting at `dest`.
+ *
+ * A relative target is stored verbatim, so resolve it against the link's own
+ * directory before deciding which checkout it belongs to.
+ *
+ * @param {string} dest
+ * @param {string} src
+ * @param {{ sourceRoot: string|null, relPath: string|null }} opts
+ * @returns {{ match: boolean, currentTarget?: string, crossRoot?: boolean, oldRoot?: string }}
+ */
+function classifyExistingLink(
+  dest: string,
+  src: string,
+  { sourceRoot, relPath }: { sourceRoot: string | null; relPath: string | null },
+): { match: true } | { match: false; currentTarget: string; crossRoot: boolean; oldRoot?: string } {
+  const currentTarget = readlinkSync(dest);
+  if (currentTarget === src) return { match: true };
+
+  const resolvedTarget = isAbsolute(currentTarget)
+    ? currentTarget
+    : resolve(dirname(dest), currentTarget);
+  const crossRoot =
+    sourceRoot !== null && !isInsideRoot(resolvedTarget, sourceRoot);
+
+  return {
+    match: false,
+    currentTarget,
+    crossRoot,
+    oldRoot: crossRoot ? inferSourceRoot(resolvedTarget, relPath) : undefined,
+  };
+}
+
+/**
+ * Ensure `dest` is a symlink pointing to `src`.
+ *
+ * @param {string} src  - Absolute path to link target.
+ * @param {string} dest - Absolute path for the symlink.
+ * @param {{ dryRun?: boolean, force?: boolean, sourceRoot?: string, relPath?: string }} opts
+ *   `sourceRoot` + `relPath` enable cross-root reporting: when the existing
+ *   link resolves outside `sourceRoot`, the result carries `crossRoot: true`
+ *   and `oldRoot`. Omitting `sourceRoot` preserves the original behavior.
+ * @returns {{ action: 'created'|'skipped'|'replaced'|'conflict', message: string, crossRoot?: boolean, oldRoot?: string }}
+ */
+export function ensureSymlink(
+  src: string,
+  dest: string,
+  { dryRun = false, force = false, sourceRoot = null, relPath = null }: EnsureSymlinkOptions = {},
+): EnsureSymlinkResult {
+  // lstat, not existsSync: existsSync follows the link, so a dangling
+  // symlink looks absent and symlinkSync then throws EEXIST.
+  let destStat: Stats | null = null;
+  try {
+    destStat = lstatSync(dest);
+  } catch (err) {
+    if (!isErrnoException(err) || err.code !== "ENOENT") throw err;
+  }
+
+  if (!destStat) {
+    if (!dryRun) {
+      mkdirSync(dirname(dest), { recursive: true });
+      symlinkSync(src, dest);
+    }
+    return { action: "created", message: `Linked ${dest} → ${src}` };
+  }
+
+  if (destStat.isSymbolicLink()) {
+    const link = classifyExistingLink(dest, src, { sourceRoot, relPath });
+    if (link.match) {
+      return { action: "skipped", message: `Already linked: ${dest}` };
+    }
+
+    relink(src, dest, dryRun);
+
+    if (link.crossRoot) {
+      return {
+        action: "replaced",
+        crossRoot: true,
+        oldRoot: link.oldRoot,
+        message: `Moved ${dest} to a different source root: ${link.oldRoot} → ${sourceRoot} (was ${link.currentTarget})`,
+      };
+    }
+
+    return {
+      action: "replaced",
+      message: `Replaced stale link ${dest}: ${link.currentTarget} → ${src}`,
+    };
+  }
+
+  // Real file or directory — a copy. Conflict unless --force.
+  if (!force) {
+    return {
+      action: "conflict",
+      message: `Conflict: ${dest} is a real file/dir. Use --force to replace it with a symlink.`,
+    };
+  }
+
+  relink(src, dest, dryRun);
+  return {
+    action: "replaced",
+    message: `Force-replaced ${dest} → ${src}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// detectHarnesses
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect which harnesses are installed under `home`.
+ * @param {string} home - Home directory (or test fixture).
+ * @returns {Array<typeof HARNESSES[number]>}
+ */
+export function detectHarnesses(home: string): Harness[] {
+  return HARNESSES.filter((h) => existsSync(join(home, h.detectDir)));
+}
+
+/**
+ * Harnesses this run will wire.
+ *
+ * With no `--harness` list, only harnesses whose detect directory exists are
+ * selected. An explicit id is selected from the registry even when that
+ * directory is absent, so `install.ts --harness agy` can create
+ * `~/.gemini/config` on a machine that has not launched Antigravity yet.
+ *
+ * @param {string} home
+ * @param {string[]|null} harnessIds
+ * @returns {{ harnesses: Harness[], unknownIds: string[] }}
+ */
+function selectHarnesses(
+  home: string,
+  harnessIds: string[] | null,
+): { harnesses: Harness[]; unknownIds: string[] } {
+  if (!harnessIds) return { harnesses: detectHarnesses(home), unknownIds: [] };
+
+  const byId = new Map(HARNESSES.map((h) => [h.id, h]));
+  const unknownIds: string[] = [];
+  const harnesses: Harness[] = [];
+  const seen = new Set<string>();
+  for (const raw of harnessIds) {
+    const id = String(raw).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const harness = byId.get(id);
+    if (!harness) unknownIds.push(id);
+    else harnesses.push(harness);
+  }
+  return { harnesses, unknownIds };
+}
+
+function knownHarnessIds(): string[] {
+  return HARNESSES.map((h) => h.id);
+}
+
+// ---------------------------------------------------------------------------
+// Surface enumeration
+// ---------------------------------------------------------------------------
+
+function enumerateExtraItems(
+  harnessId: string,
+  surfaceName: string,
+  extra: string[] | undefined,
+  source: string,
+  destBase: string,
+): SurfaceItem[] {
+  if (!extra) return [];
+  const items: SurfaceItem[] = [];
+  for (const relPath of extra) {
+    const src = join(source, relPath);
+    if (!existsSync(src)) continue;
+    items.push({
+      harness: harnessId,
+      surface: surfaceName,
+      src,
+      dest: join(destBase, basename(relPath)),
+      relPath,
+    });
+  }
+  return items;
+}
+
+function enumerateSurfaceItems(
+  harnessId: string,
+  surfaceName: string,
+  surface: HarnessSurface,
+  source: string,
+  home: string,
+): SurfaceItem[] {
+  const srcBase = join(source, surface.src);
+  const destBase = join(home, surface.dest);
+
+  // Single file symlink
+  if (surfaceName === "bootstrap") {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      src: srcBase,
+      dest: destBase,
+      relPath: surface.src,
+    }];
+  }
+
+  if (!existsSync(srcBase)) {
+    return [{
+      harness: harnessId,
+      surface: surfaceName,
+      dest: destBase,
+      note: `Source dir missing: ${srcBase}`,
+    }];
+  }
+
+  // commands: each .md file → one symlink. skills: each subdirectory.
+  const names =
+    surfaceName === "commands"
+      ? readdirSync(srcBase).filter((f) => f.endsWith(".md"))
+      : readdirSync(srcBase, { withFileTypes: true })
+          .filter((d) => d.isDirectory())
+          .map((d) => d.name);
+
+  const items: SurfaceItem[] = names.map((name) => ({
+    harness: harnessId,
+    surface: surfaceName,
+    src: join(srcBase, name),
+    dest: join(destBase, name),
+    relPath: join(surface.src, name),
+  }));
+
+  return items.concat(
+    enumerateExtraItems(harnessId, surfaceName, surface.extra, source, destBase),
+  );
+}
+
+/**
+ * Enumerate every (harness, surface, src, dest) pair the installer manages,
+ * in output order. `install` and `verifySurfaces` share this walk so the two
+ * can never disagree about what is supposed to exist.
+ *
+ * Items carrying `note` are informational only (a harness with no global
+ * surfaces, or a missing source directory) — they have no destination state.
+ *
+ * @param {{ source: string, home: string, harnessIds?: string[]|null }} opts
+ * @returns {{ detectedCount: number, unknownIds: string[], items: Array<{ harness: string, surface: string, dest: string, src?: string, relPath?: string, note?: string }> }}
+ */
+function enumerateSurfaces({ source, home, harnessIds = null }: {
+  source: string;
+  home: string;
+  harnessIds?: string[] | null;
+}): { detectedCount: number; unknownIds: string[]; items: SurfaceItem[] } {
+  const { harnesses, unknownIds } = selectHarnesses(home, harnessIds);
+  if (unknownIds.length > 0) return { detectedCount: 0, unknownIds, items: [] };
+
+  const items: SurfaceItem[] = [];
+
+  for (const harness of harnesses) {
+    // Cursor: no global surfaces to wire
+    if (Object.keys(harness.surfaces).length === 0) {
+      items.push({
+        harness: harness.id,
+        surface: "(none)",
+        dest: "",
+        note: `${harness.name}: ${harness.note || "No global surfaces."}`,
+      });
+      continue;
+    }
+
+    for (const [surfaceName, surface] of Object.entries(harness.surfaces)) {
+      items.push(
+        ...enumerateSurfaceItems(harness.id, surfaceName, surface, source, home),
+      );
+    }
+  }
+
+  return { detectedCount: harnesses.length, unknownIds, items };
+}
+
+// ---------------------------------------------------------------------------
+// install
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the full install.
+ *
+ * @param {{ source?: string, home?: string, dryRun?: boolean, force?: boolean, harnessIds?: string[]|null }} opts
+ * @returns {{ results: Array<{ harness: string, surface: string, dest: string, action: string, message: string, crossRoot?: boolean, oldRoot?: string }>, unknownIds: string[], exitCode: number }}
+ */
+export function install({
+  source = REPO_ROOT,
+  home = homedir(),
+  dryRun = false,
+  force = false,
+  harnessIds = null,
+}: InstallOptions = {}): InstallResult {
+  const { detectedCount, unknownIds, items } = enumerateSurfaces({ source, home, harnessIds });
+
+  if (unknownIds.length > 0 || detectedCount === 0) {
+    return {
+      results: [],
+      unknownIds,
+      exitCode: 1,
+    };
+  }
+
+  const results: InstallResultRow[] = [];
+
+  for (const item of items) {
+    if (item.note) {
+      results.push({
+        harness: item.harness,
+        surface: item.surface,
+        dest: item.dest,
+        action: "skipped",
+        message: item.note,
+      });
+      continue;
+    }
+    if (item.src === undefined) throw new Error("Install surface has no source");
+
+    const res = ensureSymlink(item.src, item.dest, {
+      dryRun,
+      force,
+      sourceRoot: source,
+      relPath: item.relPath,
+    });
+
+    // A real file where the bootstrap belongs is a copy. Say so explicitly —
+    // the generic conflict message hides that a re-run will keep skipping it.
+    const message =
+      res.action === "conflict" && item.surface === "bootstrap"
+        ? `Copied bootstrap detected at ${item.dest} — it does not track the repo. Re-run with --force to convert it to a symlink.`
+        : res.message;
+
+    results.push({
+      harness: item.harness,
+      surface: item.surface,
+      dest: item.dest,
+      action: res.action,
+      message,
+      ...(res.crossRoot ? { crossRoot: true, oldRoot: res.oldRoot } : {}),
+    });
+  }
+
+  const hasConflict = results.some((r) => r.action === "conflict");
+  return {
+    results,
+    unknownIds,
+    exitCode: hasConflict ? 1 : 0,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// verifySurfaces
+// ---------------------------------------------------------------------------
+
+/**
+ * Report what each managed destination actually resolves to. Read-only: it
+ * never links, never creates a parent directory.
+ *
+ * States: `linked-here` (symlink inside `source`), `linked-elsewhere`
+ * (symlink into a different checkout), `dangling` (target gone), `real-file`
+ * (a copy), `missing` (nothing installed).
+ *
+ * @param {{ source?: string, home?: string, harnessIds?: string[]|null }} opts
+ * @returns {{ results: Array<{ harness: string, surface: string, dest: string, target: string|null, state: string, root: string|null }>, roots: string[], unknownIds: string[], exitCode: number }}
+ */
+export function verifySurfaces({
+  source = REPO_ROOT,
+  home = homedir(),
+  harnessIds = null,
+}: VerifyOptions = {}): VerifyResult {
+  const { detectedCount, unknownIds, items } = enumerateSurfaces({ source, home, harnessIds });
+
+  if (unknownIds.length > 0 || detectedCount === 0) {
+    return { results: [], roots: [], unknownIds, exitCode: 1 };
+  }
+
+  const results: VerifyResultRow[] = [];
+  const roots: string[] = [];
+
+  for (const item of items) {
+    if (item.note) continue;
+
+    let stat: Stats | null = null;
+    try {
+      stat = lstatSync(item.dest);
+    } catch {
+      stat = null;
+    }
+
+    let state: string;
+    let target: string | null = null;
+    let root: string | null = null;
+
+    if (stat === null) {
+      state = "missing";
+    } else if (stat.isSymbolicLink()) {
+      const raw = readlinkSync(item.dest);
+      target = isAbsolute(raw) ? raw : resolve(dirname(item.dest), raw);
+      if (!existsSync(target)) {
+        state = "dangling";
+        root = inferSourceRoot(target, item.relPath);
+      } else if (isInsideRoot(target, source)) {
+        state = "linked-here";
+        root = resolve(source);
+      } else {
+        state = "linked-elsewhere";
+        root = inferSourceRoot(target, item.relPath);
+      }
+    } else {
+      state = "real-file";
+    }
+
+    if (
+      (state === "linked-here" || state === "linked-elsewhere") &&
+      root !== null && !roots.includes(root)
+    ) {
+      roots.push(root);
+    }
+
+    results.push({
+      harness: item.harness,
+      surface: item.surface,
+      dest: item.dest,
+      target,
+      state,
+      root,
+    });
+  }
+
+  const broken = results.some(
+    (r) =>
+      r.state === "linked-elsewhere" ||
+      r.state === "dangling" ||
+      r.state === "real-file",
+  );
+
+  return { results, roots, unknownIds, exitCode: broken ? 1 : 0 };
+}
+
+// ---------------------------------------------------------------------------
+// parseArgs
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse CLI arguments into an options bag.
+ * @param {string[]} argv - process.argv.slice(2)
+ */
+function parseHooksPrefix(argv: string[]): {
+  command: "hooks" | null;
+  hooksAction: string | null;
+  start: number;
+} {
+  if (argv[0] !== "hooks") return { command: null, hooksAction: null, start: 0 };
+  if (argv[1]?.startsWith("-")) throw new Error(`unknown option: ${argv[1]}`);
+  return { command: "hooks", hooksAction: argv[1] ?? "status", start: 2 };
+}
+const FLAG_BOOLEANS: Record<string, "dryRun" | "force" | "list" | "verify" | "help"> = {
+  "--dry-run": "dryRun",
+  "--force": "force",
+  "--list": "list",
+  "--verify": "verify",
+  "--help": "help",
+};
+
+const FLAG_VALUES: Record<string, "source" | "repo" | "profile" | "harnessIds"> = {
+  "--source": "source",
+  "--repo": "repo",
+  "--profile": "profile",
+  "--harness": "harnessIds",
+};
+
+export function parseArgs(argv: string[]): InstallArgs {
+  const args: InstallArgs = {
+    dryRun: false,
+    force: false,
+    source: null,
+    harnessIds: null,
+    list: false,
+    verify: false,
+    help: false,
+    command: null,
+    hooksAction: null,
+    repo: null,
+    profile: "full",
+  };
+
+  const prefix = parseHooksPrefix(argv);
+  args.command = prefix.command;
+  args.hooksAction = prefix.hooksAction;
+
+  for (let i = prefix.start; i < argv.length; i++) {
+    const value = argv[i];
+    const booleanKey = FLAG_BOOLEANS[value];
+    if (booleanKey) {
+      args[booleanKey] = true;
+      continue;
+    }
+    const valueKey = FLAG_VALUES[value];
+    if (!valueKey) {
+      if (value.startsWith("-")) throw new Error(`unknown option: ${value}`);
+      throw new Error(`unexpected argument: ${value}`);
+    }
+    if (i + 1 >= argv.length || argv[i + 1].startsWith("-")) {
+      throw new Error(`option requires a value: ${value}`);
+    }
+    const raw = argv[++i];
+    if (valueKey === "harnessIds") {
+      args.harnessIds = raw.split(",");
+    } else {
+      args[valueKey] = raw;
+    }
+  }
+
+  return args;
+}
+// ---------------------------------------------------------------------------
+// summarize
+// ---------------------------------------------------------------------------
+
+/**
+ * Tally install results by action. `moved` counts destinations pulled in from
+ * a different source root — the number that matters after a split.
+ *
+ * @param {Array<{ action: string, crossRoot?: boolean }>} results
+ * @returns {{ created: number, replaced: number, skipped: number, conflict: number, moved: number }}
+ */
+export function summarize(results: ReadonlyArray<{ action: string; crossRoot?: boolean }>): InstallCounts {
+  const counts: InstallCounts = { created: 0, replaced: 0, skipped: 0, conflict: 0, moved: 0 };
+  for (const r of results) {
+    const action = r.action;
+    if (action === "created" || action === "replaced" || action === "skipped" || action === "conflict") {
+      counts[action] += 1;
+    }
+    if (r.crossRoot) counts.moved += 1;
+  }
+  return counts;
+}
+
+// ---------------------------------------------------------------------------
+// CLI entry point
+// ---------------------------------------------------------------------------
+
+const HELP = `
+buck-workflow install — multi-harness symlink installer
+
+Usage:
+  buck-workflow install [options]
+  buck-workflow hooks <install|status|remove> [options]
+
+Options:
+  --dry-run              Print planned symlinks, write nothing
+  --force                Replace real files at destination
+  --source <path>        Repo root symlinks resolve from (default: auto-detect)
+  --harness <id,...>     Wire only these harnesses, even if not detected yet
+  --list                 Print detected harnesses and exit
+  --verify               Report what each harness resolves to; write nothing
+  --help                 Show this help
+
+Hooks (opt-in, repository-scoped; normal install never touches git hooks):
+  hooks install [--repo <path>] [--profile full|fast]
+                        Install the managed pre-push security-audit launcher
+                        (default profile: full — full git history scan)
+  hooks status [--repo <path>]
+                        Report hook state, source, profile, audit script path
+  hooks remove [--repo <path>]
+                        Remove the managed launcher; foreign hooks untouched
+`.trim();
+
+/**
+ * `--list`: print detected harnesses and the source they would resolve from.
+ * @returns {number} exit code
+ */
+export function runList(home: string, source: string): number {
+  const detected = detectHarnesses(home);
+  if (detected.length === 0) {
+    console.log("No harnesses detected. Install at least one agent harness.");
+    return 1;
+  }
+
+  console.log("Detected harnesses:\n");
+  for (const h of detected) {
+    const surfaces = Object.keys(h.surfaces);
+    const detail =
+      surfaces.length === 0 ? h.note : `surfaces: ${surfaces.join(", ")}`;
+    console.log(`  ${h.name} (${h.id}) — ${detail}`);
+  }
+  console.log(`\nSource: ${source}`);
+  return 0;
+}
+
+/** One-line description of a destination that is not linked into `source`. */
+function describeProblem(r: VerifyResultRow): string {
+  if (r.state === "real-file") return "real file — a copy, not a symlink";
+  if (r.state === "missing") return "not installed";
+  return `${r.state} → ${r.target}`;
+}
+
+/** Per-harness state tally, e.g. `claude    86 linked-here`. */
+function printHarnessTallies(results: VerifyResultRow[]): void {
+  const byHarness = new Map<string, Record<string, number>>();
+  for (const r of results) {
+    const tally = byHarness.get(r.harness) ?? {};
+    byHarness.set(r.harness, tally);
+    tally[r.state] = (tally[r.state] || 0) + 1;
+  }
+
+  console.log("\nPer harness:");
+  for (const [harness, tally] of byHarness) {
+    const parts = Object.entries(tally).map(([state, n]) => `${n} ${state}`);
+    console.log(`  ${harness.padEnd(9)} ${parts.join(", ")}`);
+  }
+}
+
+/** Closing verdict for a verify run. */
+function printVerifyVerdict(report: VerifyResult): void {
+  if (report.roots.length > 1) {
+    console.error(
+      `\nSplit detected: harnesses resolve to more than one checkout. ` +
+        `Re-run the installer from the checkout you want to be canonical.`,
+    );
+  } else if (report.exitCode !== 0) {
+    console.error(
+      `\nProblems found. Re-run the installer (add --force to replace copied files).`,
+    );
+  } else {
+    console.log("\nOK — every managed surface resolves to this checkout.");
+  }
+}
+
+/**
+ * `--verify`: report what each managed destination resolves to. Writes nothing.
+ * @returns {number} exit code
+ */
+export function runVerify(args: { harnessIds?: string[] | null }, home: string, source: string): number {
+  const shipped = shippedStorageFiles(source);
+  console.log("Shipped storage:");
+  for (const rel of shipped.files) console.log(`  ${shipped.missing.includes(rel) ? "MISSING" : "ok"} ${rel}`);
+  if (shipped.missing.length > 0) {
+    console.error(`\nMissing shipped storage files: ${shipped.missing.length}`);
+    return 1;
+  }
+  console.log(`\nOK — ${shipped.files.length} storage files are in this checkout.`);
+
+  const report = verifySurfaces({ source, home, harnessIds: args.harnessIds });
+
+  if (report.unknownIds.length > 0) {
+    console.error(`Unknown harness: ${report.unknownIds.join(", ")}. Known: ${knownHarnessIds().join(", ")}`);
+    return 1;
+  }
+
+  if (report.results.length === 0) {
+    console.error("No harnesses detected. Install at least one agent harness first.");
+    return 1;
+  }
+
+  console.log(`Source: ${source}`);
+
+  const problems = report.results.filter((r) => r.state !== "linked-here");
+  if (problems.length > 0) {
+    console.log("");
+    for (const r of problems) {
+      console.log(`! [${r.harness}:${r.surface}] ${r.dest} (${describeProblem(r)})`);
+    }
+  }
+
+  printHarnessTallies(report.results);
+
+  console.log(`\nSource roots in use: ${report.roots.length}`);
+  for (const root of report.roots) {
+    const n = report.results.filter((r) => r.root === root).length;
+    console.log(`  ${root} (${n})`);
+  }
+
+  printVerifyVerdict(report);
+  return report.exitCode;
+}
+
+const ACTION_TAGS: Readonly<Record<string, string>> = { created: "+", replaced: "~", skipped: "=" };
+
+/**
+ * Default command: wire every detected harness.
+ * @returns {number} exit code
+ */
+export function runInstall(
+  args: { dryRun?: boolean; force?: boolean; harnessIds?: string[] | null },
+  home: string,
+  source: string,
+): number {
+  const result = install({
+    source,
+    home,
+    dryRun: args.dryRun,
+    force: args.force,
+    harnessIds: args.harnessIds,
+  });
+
+  if (result.unknownIds.length > 0) {
+    console.error(`Unknown harness: ${result.unknownIds.join(", ")}. Known: ${knownHarnessIds().join(", ")}`);
+    return 1;
+  }
+
+  if (result.results.length === 0 && result.exitCode === 1) {
+    console.error("No harnesses detected. Install at least one agent harness first.");
+    return 1;
+  }
+
+  const prefix = args.dryRun ? "[DRY RUN] " : "";
+  for (const r of result.results) {
+    const tag = ACTION_TAGS[r.action] || "!";
+    console.log(`${prefix}${tag} [${r.harness}:${r.surface}] ${r.message}`);
+  }
+
+  const counts = summarize(result.results);
+  const moved =
+    counts.moved > 0 ? ` — ${counts.moved} moved from another source root` : "";
+
+  if (result.exitCode !== 0) {
+    console.error(`\nSome conflicts prevented installation. Re-run with --force to overwrite.`);
+  } else if (!args.dryRun) {
+    console.log(
+      `\nDone. ${counts.created} linked, ${counts.replaced} relinked, ${counts.skipped} unchanged${moved}.`,
+    );
+  }
+
+  return result.exitCode;
+}
+
+/**
+ * `buck-workflow hooks <install|status|remove>` — opt-in pre-push security
+ * audit management. Never invoked by the normal install path.
+ * @returns {number} exit code
+ */
+export function runHooks(
+  args: {
+    repo?: string | null;
+    source?: string | null;
+    hooksAction?: string | null;
+    dryRun?: boolean;
+    profile?: string;
+  },
+  source = REPO_ROOT,
+): number {
+  const repo = args.repo ? resolve(args.repo) : process.cwd();
+  const hookSource = args.source ? resolve(args.source) : source;
+  if (args.hooksAction === "install") return logHooksInstall(args, repo, hookSource);
+  if (args.hooksAction === "remove") return logHooksRemove(args, repo);
+  if (args.hooksAction === "status") return logHooksStatus(repo);
+  console.error(`hooks: unknown action "${args.hooksAction}" — expected install, status, or remove`);
+  return 2;
+}
+
+function logHooksInstall(args: { profile?: string; dryRun?: boolean }, repo: string, source: string): number {
+  const profile = args.profile;
+  if (profile === undefined || !isHookProfile(profile)) {
+    console.error(`hooks: invalid profile "${profile}"`);
+    return 1;
+  }
+  const result: HooksInstallResult = hooksInstall({
+    repo,
+    source,
+    profile,
+    dryRun: args.dryRun,
+  });
+  if (!result.ok) {
+    console.error(`hooks install: ${result.reason}`);
+    return 1;
+  }
+  const prefix = args.dryRun ? "[DRY RUN] " : "";
+  console.log(
+    `${prefix}hooks install: ${result.action} ${result.target} (profile: ${profile})`,
+  );
+  return 0;
+}
+
+function logHooksRemove(args: { dryRun?: boolean }, repo: string): number {
+  const result: HooksRemoveResult = hooksRemove({ repo, dryRun: args.dryRun });
+  if (!result.ok) {
+    console.error(`hooks remove: ${result.reason}`);
+    return 1;
+  }
+  const note = result.note ? ` — ${result.note}` : "";
+  const action = result.dryRun ? `would remove ${result.wouldRemove}` : (result.removed ?? "nothing to remove");
+  console.log(`hooks remove: ${action}${note}`);
+  return 0;
+}
+
+function logHooksStatus(repo: string): number {
+  const status: HooksStatus = hooksStatus({ repo });
+  console.log(`hooks dir:    ${status.hooksDir}`);
+  console.log(`installed:    ${status.installed}`);
+  if (status.installed) {
+    console.log(`source:       ${status.source}`);
+    console.log(`profile:      ${status.profile}`);
+    console.log(`audit script: ${status.auditScript ?? "MISSING (checkout moved?)"}`);
+  } else if (status.foreignHookPresent) {
+    console.log("note:         a foreign pre-push exists (buck-workflow will not touch it)");
+  }
+  return 0;
+}
+
+
+function main(): void {
+  let args: InstallArgs;
+  try {
+    args = parseArgs(process.argv.slice(2));
+  } catch (error) {
+    console.error(`buck-workflow: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(2);
+  }
+
+  if (args.help) {
+    console.log(HELP);
+    process.exit(0);
+  }
+
+  if (args.command === "hooks") {
+    process.exit(runHooks(args, args.source ? resolve(args.source) : REPO_ROOT));
+  }
+
+  const home = homedir();
+  const source = args.source ? resolve(args.source) : REPO_ROOT;
+
+  if (args.list) process.exit(runList(home, source));
+  if (args.verify) process.exit(runVerify(args, home, source));
+  process.exit(runInstall(args, home, source));
+}
+
+/**
+ * Was this file the script the user actually invoked?
+ *
+ * `process.argv[1]` and `import.meta.url` can disagree when the path
+ * traverses a symlinked directory (`/tmp` → `/private/tmp` on macOS, a
+ * symlinked home, a checkout reached through a link). Comparing the resolved
+ * real paths keeps the CLI from exiting 0 having silently done nothing.
+ *
+ * @param {string|undefined} invokedPath - process.argv[1]
+ * @param {string} modulePath - this module's own path
+ * @returns {boolean}
+ */
+export function isMainModule(invokedPath: string | undefined, modulePath: string): boolean {
+  if (!invokedPath) return false;
+  const real = (p: string): string => {
+    try {
+      return realpathSync(resolve(p));
+    } catch {
+      return resolve(p);
+    }
+  };
+  return real(invokedPath) === real(modulePath);
+}
+
+// Auto-run only when executed directly
+if (isMainModule(process.argv[1], __filename)) {
+  main();
+}

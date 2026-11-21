@@ -13,8 +13,7 @@ Measure lint, unit tests, functional tests, coverage, and cyclomatic complexity.
 
 | Tool | Purpose |
 |---|---|
-| `node` | runs the deterministic verdict engine (`scripts/check.mjs`) |
-| `bun` | runs `skills/b-init-guardrails/scripts/detect-stack.ts` during ephemeral contract resolution |
+| `bun` | runs the deterministic verdict engine (`scripts/check.ts`) and `skills/b-init-guardrails/scripts/detect-stack.ts` during ephemeral contract resolution |
 | `git` | patch gate (diff-cover needs a diff), diff-scoped lint |
 | `diff-cover`, `lizard` | patch + complexity measurements, when configured |
 
@@ -41,12 +40,20 @@ Follow the five-step chain in `docs/contract-resolution.md`. Set `contract` and 
 ### Step 1b: Run the Deterministic Verdict Engine (durable path)
 
 ```bash
-node <skill_dir>/scripts/check.mjs --cwd <repo root>
+bun <skill_dir>/scripts/check.ts --cwd <repo root>
 ```
+
+**Legacy vendored runner detection.** The engine is `scripts/check.ts` (Bun). Before invoking, check the skill tree that serves this repo: if `scripts/check.mjs` exists and `scripts/check.ts` does not, the vendored tree predates the Bun migration. Do not silently keep using it. Emit exactly:
+
+```
+Vendored guardrails runner is outdated (skills/b-guardrails-check/scripts/check.mjs). Upgrade with: bun <b-init-guardrails skill_dir>/scripts/install-project-skills.ts --cwd <repo root> — review with --dry-run first.
+```
+
+Prerequisite: the installer must come from a current `b-init-guardrails` copy outside the target repository's vendored `skills/` tree. `<b-init-guardrails skill_dir>` in the command above is that external copy, not the outdated vendored tree being replaced. Review `--dry-run` before applying the installer: it overwrites the two managed skill trees and may append vendored-tree exclusions to lizard commands in `guardrails.json`. On approval, run it without `--dry-run`; it migrates only the exact previously managed `guardrails:check` package command (`node skills/b-guardrails-check/scripts/check.mjs --cwd .`) to `bun skills/b-guardrails-check/scripts/check.ts --cwd .` and leaves custom commands untouched. Then invoke the freshly vendored `check.ts`. The installer never deletes files: the stale `check.mjs` stays until removed by hand. If both files exist, use `check.ts` and identify the leftover `check.mjs` for manual removal; do not report the tree as outdated solely because of that leftover. If the user declines, run the legacy runner under `bun` and report that the verdict came from the outdated engine.
 
 The runner reads `guardrails.json`, executes the recorded commands (argv spawn — never a shell string), applies the `enforcement` states (`required` / `advisory` / `disabled`; defaults when the field is absent), and emits the structured verdict JSON on stdout. It exits `1` only when a **required** gate fails, `2` when `guardrails.json` is absent, and `1` on a malformed contract with a clear error.
 
-**The runner is the single computation source.** Do not re-implement gate logic in prose or re-derive gate values by hand — interpret the emitted verdict (`gates`, `diagnostics`, `ratchet_update`, `enforcement`). The same command (`npm run guardrails:check` in this repo) runs in pull-request CI; local and CI verdicts are byte-identical by construction. Contract resolution and the no-contract diagnostics (steps 2–5 of the chain) remain the skill's job; the runner never writes files.
+**The runner is the single computation source.** Do not re-implement gate logic in prose or re-derive gate values by hand — interpret the emitted verdict (`gates`, `diagnostics`, `ratchet_update`, `enforcement`). The same command (`bun run guardrails:check` in this repo) runs in pull-request CI; local and CI verdicts are byte-identical by construction. Contract resolution and the no-contract diagnostics (steps 2–5 of the chain) remain the skill's job; the runner never writes files.
 
 
 ### Step 2: Ephemeral Path — Test and Lint Gates Only
@@ -146,7 +153,7 @@ When `contract_version: 1`, append the one-line upgrade hint exactly: `guardrail
 
 ### Step 4: Dispatch Contract
 
-This skill is the measurement procedure once invoked. It does **not** dispatch itself. On the durable path the dispatched work is one deterministic command — `node skills/b-guardrails-check/scripts/check.mjs` — so a background `task` or CI step returns the identical verdict the mainline agent would compute.
+This skill is the measurement procedure once invoked. It does **not** dispatch itself. On the durable path the dispatched work is one deterministic command — `bun skills/b-guardrails-check/scripts/check.ts` — so a background `task` or CI step returns the identical verdict the mainline agent would compute.
 
 **OMP (async caller mode):**
 

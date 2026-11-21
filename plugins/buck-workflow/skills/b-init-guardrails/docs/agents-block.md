@@ -2,7 +2,7 @@
 
 This template is inserted into `AGENTS.md` (or `CLAUDE.md`) by the `b-init-guardrails` skill. The managed block governs ongoing quality guardrail enforcement.
 
-**Do not edit manually.** Re-run `/b-init-guardrails` to refresh.
+**Do not edit manually.** Re-run `/b-init-guardrails` to refresh. That run also vendors the skills the block loads into the repo.
 
 ---
 
@@ -10,7 +10,7 @@ This template is inserted into `AGENTS.md` (or `CLAUDE.md`) by the `b-init-guard
 <!-- BEGIN b-init-guardrails -->
 # Quality Guardrails (managed block)
 
-This block is managed by `b-init-guardrails`. Do not edit manually; re-run the skill to refresh.
+This block is managed by `b-init-guardrails`. Do not edit manually; re-run `/b-init-guardrails`, or load `skills/b-init-guardrails/SKILL.md` when that command is not installed.
 
 ## When to Run Guardrails Checks
 
@@ -25,11 +25,11 @@ Do **not** run mid-edit; the working tree may be in an inconsistent state and yi
 
 ## Deterministic Runner
 
-The verdict is computed by one executable: `skills/b-guardrails-check/scripts/check.mjs`, invoked as `npm run guardrails:check`. `b-guardrails-check` and pull-request CI both call this runner; neither re-implements gate logic. It emits the verdict JSON on stdout and exits nonzero **only when a `required` gate fails** (exit 2 = no `guardrails.json`; exit 1 = malformed contract or required-gate failure).
+The verdict is computed by one executable: `skills/b-guardrails-check/scripts/check.ts`, invoked as `bun run guardrails:check`. `b-guardrails-check` and pull-request CI both call this runner; neither re-implements gate logic. It emits the verdict JSON on stdout and exits nonzero **only when a `required` gate fails** (exit 2 = no `guardrails.json`; exit 1 = malformed contract or required-gate failure).
 
 ## Enforcement States
 
-Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, the runner uses `DEFAULT_ENFORCEMENT` in `check.mjs`: unit/functional/patch/ratchet/complexity `required`, lint `advisory`. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
+Every gate carries an explicit state in `guardrails.json.enforcement` — `required` (failure blocks completion, exit 1), `advisory` (failure is reported, never blocks), `disabled` (not run). When the field is absent, the runner uses `DEFAULT_ENFORCEMENT` in `check.ts`: unit/functional/patch/ratchet/complexity `required`, lint `advisory`. Promotion is explicit and monotonic (`disabled` → `advisory` → `required`): promote only after the runner is green in a clean CI environment; demotion or baseline weakening requires recorded user approval.
 
 ## How to Read a Verdict
 
@@ -113,7 +113,7 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 - If the function is legitimately complex, document the exception and add it to the baseline via explicit re-baseline (manual opt-in).
 
 **v1 contract detected** (`contract_version: 1`):
-- Run `/b-init-guardrails` to upgrade to v2 and add lint and functional-test gates.
+- Run `/b-init-guardrails`, or load `skills/b-init-guardrails/SKILL.md`, to upgrade to v2 and add lint and functional-test gates.
 
 ## Contract Resolution
 
@@ -121,7 +121,7 @@ Every gate carries an explicit state in `guardrails.json.enforcement` — `requi
 
 1. `guardrails.json` at repo root → authoritative. Run all gates. Verdict `contract: "durable"`.
 2. Managed block present but `guardrails.json` missing → warn the contract is broken, continue to step 3.
-3. `b-init-guardrails`' `scripts/detect-stack.ts` reports ≥ 1 ecosystem → ephemeral contract; run lint and test gates only. Verdict `contract: "ephemeral"`.
+3. `skills/b-init-guardrails/scripts/detect-stack.ts` reports ≥ 1 ecosystem → ephemeral contract; run lint and test gates only. If that file is absent, run `detect-stack.ts` from the installed `b-init-guardrails` skill. Verdict `contract: "ephemeral"`.
 4. No ecosystem detected → surface any `README.md` testing/development command block as unverified suggestions. Do not execute them. Verdict `contract: "suggested"`.
 5. Nothing found → warn and offer `/b-init-guardrails`. Verdict `contract: "none"`.
 

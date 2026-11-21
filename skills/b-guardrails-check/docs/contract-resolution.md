@@ -4,7 +4,15 @@ The order in which the check skill resolves a project's check contract. **First 
 
 ## 1. `guardrails.json` at repo root
 
-Authoritative. Invoke the deterministic verdict engine — `node <skill_dir>/scripts/check.mjs --cwd <repo root>` — and use its emitted verdict verbatim. The runner honours `version` (v1 → three new gates skipped, see `ratchet-protocol.md` § v1 Compatibility), applies the `enforcement` states, and exits 1 for a required-gate failure or a malformed contract, and 2 when `guardrails.json` is missing. Do not re-implement gate computation in prose. Verdict field: `contract: "durable"`.
+Authoritative. Invoke the deterministic verdict engine — `bun <skill_dir>/scripts/check.ts --cwd <repo root>` — and use its emitted verdict verbatim. The runner honours `version` (v1 → three new gates skipped, see `ratchet-protocol.md` § v1 Compatibility), applies the `enforcement` states, and exits 1 for a required-gate failure or a malformed contract, and 2 when `guardrails.json` is missing. Do not re-implement gate computation in prose. Verdict field: `contract: "durable"`.
+
+**Legacy vendored runner.** The engine is `scripts/check.ts` (Bun). If the skill tree serving this repo has `scripts/check.mjs` (the pre-migration Node runner) instead, the vendored tree is outdated. Emit exactly:
+
+```
+Vendored guardrails runner is outdated (skills/b-guardrails-check/scripts/check.mjs). Upgrade with: bun <b-init-guardrails skill_dir>/scripts/install-project-skills.ts --cwd <repo root> — review with --dry-run first.
+```
+
+Prerequisite: the installer must come from a current `b-init-guardrails` copy outside the target repository's vendored `skills/` tree. `<b-init-guardrails skill_dir>` in the command above is that external copy, not the outdated vendored tree being replaced. The installer overwrites the two managed skill trees and migrates only the exact previously managed `guardrails:check` package command (`node skills/b-guardrails-check/scripts/check.mjs --cwd .` → `bun skills/b-guardrails-check/scripts/check.ts --cwd .`). It preserves custom commands, may append vendored-tree exclusions to lizard commands in `guardrails.json`, and never deletes the stale `check.mjs`. Review `--dry-run` first; on approval run the installer, then invoke the fresh `check.ts`. If the user declines, run the legacy runner under `bun` and label the verdict as coming from the outdated engine.
 
 ## 2. Managed block present but `guardrails.json` missing
 

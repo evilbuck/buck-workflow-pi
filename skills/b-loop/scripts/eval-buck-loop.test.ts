@@ -671,7 +671,7 @@ describe("installed path resolution & zero-bare-specifier constraints (Assumptio
         ].join("\n"),
       );
 
-      const rawCode = extractPromptEvalCode();
+      const rawCode: string = Function(`return \`${extractPromptEvalCode().replace(/`/g, "\\`")}\`;`)();
       const buildCell = (argStr: string): string => rawCode.replace('"__BUCK_LOOP_ARGS__"', JSON.stringify(argStr));
 
       const injectionArg = '2026-11-17.bad"; throw new Error("pwned"); //\n${1+1}';
@@ -829,8 +829,8 @@ console.log("ALL=" + JSON.stringify({ rPluginInvalid, rPluginValid, rConfigValid
       expect(line).toBeDefined();
       const summary = JSON.parse(line!.slice(4));
 
-      const parseOut = (entry: { ok: boolean; out: string }) => {
-        expect(entry.ok).toBe(true);
+      const parseOut = (entry: { ok: boolean; out: string; error?: unknown }) => {
+        expect(entry.ok, JSON.stringify(entry)).toBe(true);
         const match = entry.out.match(/RES=(.+)/);
         expect(match).not.toBeNull();
         return JSON.parse(match![1]);

@@ -16,6 +16,6 @@
     "noEmit": false,
     "types": ["node"]
   },
-  "include": ["extensions/**/*", "skills/**/*", "prompts/**/*"],
+  "include": ["extensions/**/*", "skills/**/*", "prompts/**/*", "scripts/install*.ts", "scripts/hooks*.ts", "scripts/publish*.ts", "scripts/sync-storage-bundle*.ts"],
   "exclude": ["node_modules", "dist"]
 }

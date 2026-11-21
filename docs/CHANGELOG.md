@@ -10,6 +10,7 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Changed
 
+- **Bun 1.4+ replaces Node as the workflow runtime.** Installer, guardrails, release, bundle synchronization, and report-packing sources run from TypeScript; packed browser reports still contain executable JavaScript. Existing copied guardrails require the documented one-time upgrade.
 - **Choose one durable storage backend per project.** Repository files, external project files, SQLite, and PostgreSQL share the trusted workflow-state interface; versioned checkpoint publication and explicit migration preserve branch privacy without environment-driven fallback or dual writes.
 - **Memory access uses one configured adapter across harnesses.** Bootstrap and save guidance use native `workflow_state` or its CLI, with current-branch/published-baseline visibility and no legacy SQL or filesystem fallback. Exact published revisions alone may be mirrored into harness LTM.
 - **Acceptance criteria determine Buck-loop phase completion.** A non-empty `acceptance_criteria` list must be fully checked before a phase counts as complete, even if its status says `completed`. Fully checked phases automatically synchronize `status: completed`, `completed_at`, and phase overview entries. Phases without a non-empty criteria list retain status-based completion.

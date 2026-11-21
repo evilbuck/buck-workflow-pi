@@ -768,7 +768,16 @@ informs: []  # Plans/specs this research fed into
 - Installs a managed `AGENTS.md`/`CLAUDE.md` block for ongoing checks.
 - Copies `b-guardrails-check` and `b-init-guardrails` into the repo's `skills/` directory so the managed block's paths resolve without a global plugin install. Re-runs overwrite those two trees only.
 
-**Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.mjs`, exposed as `npm run guardrails:check` and run in the PR CI `guardrails` job. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction. Exit 1 for a required-gate failure or a malformed contract; exit 2 when `guardrails.json` is missing.
+**Deterministic verdict engine**: gate computation lives in one executable — `skills/b-guardrails-check/scripts/check.ts`, exposed as `bun run guardrails:check` and run in the PR CI `guardrails` job. It requires Bun 1.4 or later. `b-guardrails-check` and CI both invoke it; verdicts are identical by construction. Exit 1 for a required-gate failure or a malformed contract; exit 2 when `guardrails.json` is missing.
+
+**Upgrade a copied runner** from a current Buck Workflow checkout (requires Bun 1.4+):
+
+```bash
+bun /path/to/buck-workflow-pi/skills/b-init-guardrails/scripts/install-project-skills.ts --cwd "$PWD" --dry-run
+bun /path/to/buck-workflow-pi/skills/b-init-guardrails/scripts/install-project-skills.ts --cwd "$PWD"
+```
+
+Review the dry run first: applying replaces files in the two managed skill trees and can append lizard exclusions. It migrates the previously managed package command, preserves custom commands, and leaves the old `check.mjs` for manual removal. An old installed skill cannot detect this upgrade itself; run the command above once from each affected project.
 
 **Next Steps**: `/b-guardrails-check` to verify the initialized guardrails; `/b-save` after review passes. Each phase's contract is the blocking v2 completion gate (see `GLOBAL_OR_PROJECT-AGENTS.md` § Deterministic Check Contract).
 
