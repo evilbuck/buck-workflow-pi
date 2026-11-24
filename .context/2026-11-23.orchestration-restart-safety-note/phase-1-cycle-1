@@ -1,0 +1,14 @@
+{
+  "subject": "2026-11-23.orchestration-restart-safety-note",
+  "slice": "phase-1-restart-safety.md",
+  "kind": "review",
+  "cycle": 1,
+  "baselineCommit": "65d5b7d",
+  "implementationFingerprint": {"docs/orchestration-note.md": "e0e853d32f012fafd55a3dedd9d672f35dcf5ff3", "trackedDeletions": [], "newFiles": ["docs/orchestration-note.md"]},
+  "verdict": "pass",
+  "gateEvidence": "test -f docs/orchestration-note.md OK; grep -c '^## Restart safety' = 1; grep '^## Evidence' no match; git status shows only docs/orchestration-note.md untracked in scope; no commit made (builder stage)",
+  "documentationImpact": "none",
+  "howtoImpact": "none",
+  "inPlanIterate": null,
+  "outOfPlanFindings": []
+}

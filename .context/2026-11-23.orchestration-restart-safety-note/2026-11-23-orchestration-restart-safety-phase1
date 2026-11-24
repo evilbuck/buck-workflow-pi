@@ -1,0 +1,16 @@
+---
+date: 2026-11-23
+domains: [tooling, docs]
+topics: [orchestration, restart-safety, phase-files, resumption]
+subject: 2026-11-23.orchestration-restart-safety-note
+artifacts: [plan-orchestration-note.md, phase-1-restart-safety.md, phase-1-cycle-1]
+related: []
+priority: medium
+status: active
+---
+
+# Phase 1 complete: orchestration restart-safety note
+
+`docs/orchestration-note.md` created in the `feat/orchestration-fixture` worktree with a single `## Restart safety` section (no `## Evidence` section; phase 2 owns it). Content: orchestrated runs record per-phase `status:` markers, so an interrupted run resumes at the first non-completed phase and converges on the same result.
+
+Verified: `test -f docs/orchestration-note.md`; `grep -c '^## Restart safety'` = 1; `grep '^## Evidence'` = no match. Retained review: `.context/2026-11-23.orchestration-restart-safety-note/phase-1-cycle-1` (verdict pass, fingerprint e0e853d32f012fafd55a3dedd9d672f35dcf5ff3 = `git hash-object docs/orchestration-note.md`). Phase 1 marked completed (all acceptance criteria checked, completed_at 2026-11-23, completed_by b-save/CaseBRestart.MightyOwl); subject left open pending phase 2.

@@ -110,6 +110,8 @@ Buck workflow commands follow a discoverable `/b-` prefix. The completion sequen
 /b-build → /b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact) → /b-save → /b-commit
 ```
 
+`/b-full-orchestration` is a standalone supervisor. It starts at the current stage of a plan, a phased plan, or current context, and steps that work through `b-commit` with subagents. Each phase is one run.
+
 **Out-of-plan review findings** (issues beyond the plan's scope) do **not** iterate — they spawn a separate `/b-plan` → `/b-build` cycle, after the accepted work is closed via `/b-save` → `/b-commit`. `/b-iterate` is reserved for in-plan defects.
 
 `/b-commit` is the final step after durable state has been recorded via `/b-save`. It uses the `git-commit` skill to create a Conventional Commits message and commit.
