@@ -88,6 +88,7 @@ source of truth for command bodies and mirrors only the registration surface:
 | `b-blueprint` (skill-only) | Skill | Skill | `skills/b-blueprint/SKILL.md` — single-page HTML architecture blueprint from plans/phases |
 | `b-arch-qa` (skill-only) | Skill | Skill | `skills/b-arch-qa/SKILL.md` — live architecture Q&A into a durable discussion doc |
 | `/b-loop` | Prompt template + Skill | Slash command symlink | `prompts/b-loop.md`; `commands/b-loop.md`; `skills/b-loop/SKILL.md` + `scripts/eval-buck-loop.ts` — OMP `eval` single-subject (`repo-files`) phased runner; `extensions/buck-loop/` is unwired |
+| `/b-full-orchestration` | Prompt template + Skill | Slash command symlink | `prompts/b-full-orchestration.md`; `commands/b-full-orchestration.md`; `skills/b-full-orchestration/SKILL.md` — subagent supervisor from the current stage through `b-commit`; each phase is one run |
 | `/buck-models` | Extension command | Slash command (extension) | `extensions/buck-models/` — create, edit, and activate named Buck model profiles |
 | `b-grill` (skill-only) | Skill | Skill | `skills/b-grill/SKILL.md` — unified grill skill with `user`/`auto` modes |
 | `/b-fix-rebase-conflict` | Prompt template + Skill | Slash command symlink | `prompts/b-fix-rebase-conflict.md`; `commands/b-fix-rebase-conflict.md`; `skills/b-fix-rebase-conflict/SKILL.md` |
@@ -117,6 +118,19 @@ Practical translation rules:
 XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stands: uninvoked extension orchestration is dead weight. Use `/b-loop <subject>` for an existing discrete phased plan (explicitly imported from installed `skills/b-loop/scripts/eval-buck-loop.ts` inside OMP `eval`). `b-plan` recommends `omp_execution`; `b-phase` writes it on new phase files. Historical internals: git history under `extensions/b-flow/`; deprecation record `.context/2026-06-01.deprecate-b-flow/`.
 
 ---
+
+## /b-full-orchestration — Subagent supervisor
+
+**[↑ Back to Quick Reference Table](#quick-reference-table)**
+
+**Purpose**: Drive one subject from its current Buck stage through `b-commit`. The main agent is the orchestrator. Each stage runs in a subagent that follows that stage's skill. A phased plan is a sequence of runs; an unphased plan or current context is one run.
+
+**Pi/OMP primitive**: Prompt command (`prompts/b-full-orchestration.md`, `commands/b-full-orchestration.md`) + skill (`skills/b-full-orchestration/SKILL.md`).
+
+**Machine**: The skill's stage map is the transition table. The orchestrator steps the outer machine. Each phase, or the unphased plan, is one run of the inner machine. No extension steps it. Repair dispatch follows the current review's recorded workflow. A completed run is recognized by a reachable commit with the exact parent and tree in its retained checkpoint. The commit worker verifies the candidate in a detached worktree before the supervisor advances the branch and updates only committed paths in the live index. A conflicting staged entry at a candidate path blocks promotion.
+
+**Invocation**: `/b-full-orchestration [subject|plan|phase|task]`. Empty arguments use current context.
+
 
 ## OMP Autonomous Loops
 
@@ -456,6 +470,7 @@ flowchart TD
 | [**b-plan**](#2-planning-phase) | Prompt template | `/b-plan` | `prompts/b-plan.md` | Create bounded implementation plan |
 | [**b-plan-update**](#b-plan-update--update-existing-plan) | Prompt template + Skill | `/b-plan-update` | `prompts/b-plan-update.md` + `skills/b-plan-update/` | Apply new context, artifacts, and scope changes to an existing plan in place |
 | [**b-phase**](#b-phase--plan-phasing) | Skill | `/skill:b-phase` | `skills/b-phase/SKILL.md` | Break large plans into sequential phases |
+| [**b-full-orchestration**](#b-full-orchestration--subagent-supervisor) | Prompt template + Skill | `/b-full-orchestration` | `prompts/b-full-orchestration.md` + `skills/b-full-orchestration/SKILL.md` | Drive the current subject from its current stage through `b-commit`; each phase is one run |
 | [**b-present**](#b-present--presentation-package) | Prompt template + Skill | `/b-present` | `prompts/b-present.md` + `skills/b-present/` | Generate async-readable presentation package from plan/phase/brainstorm/spec/grill-session |
 | [**b-build**](#3-build-phase) | Prompt template | `/b-build` | `prompts/b-build.md` | Standard implementation routed through the active Buck model profile |
 | [**b-graph**](#b-graph--task-as-a-graph-of-bounded-nodes) | Prompt template + Skill | `/b-graph` | `prompts/b-graph.md` + `skills/b-graph/SKILL.md` | Run a task as a graph of bounded, verifiable nodes — parallel dispatch, evidence gates, node-level retries, resumable artifacts |
@@ -1380,7 +1395,7 @@ Suggested next step
 **Iteration Artifact** (when issues are found):
 - Writes `iterate-<subject>.md` to the active subject folder
 - Captures critical issues, warnings, file paths, and proposed fixes
-- Enables fresh-session iteration: run `/b-iterate` to pick up where review left off
+- Records the repair route in `recommended_workflow` for the next session
 - Only written when there are actual issues — clean reviews skip this
 
 **Recommendations**:
@@ -1785,7 +1800,7 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **Workflow completion sequence**:
 ```
-/b-build → /b-review → /b-iterate if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
+/b-build → /b-review → recorded repair workflow if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
 ```
 
 **Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
@@ -2201,7 +2216,7 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Review Fix Loop (in-plan issues only)
 
 ```
-/b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
+/b-review → recorded repair workflow → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
 ```
 
 This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.

@@ -216,7 +216,7 @@ steps, affected files, or acceptance criteria — but it is broken,
 incomplete, or incorrect. This is a bug in the implementation.
 
 - Completes the existing plan; adds no scope.
-- Route to **`/b-iterate`**.
+- Route to the selected repair workflow (see the iteration artifact below).
 - Write an `iterate-*.md` artifact (see "When review finds in-plan issues" below).
 
 The completion matrix surfaces most in-plan issues as `🔄 partial`, `❌
@@ -295,7 +295,7 @@ Before reviewing, do not call `sql_memory` or construct SQL. The Buck-loop super
 - Prioritize correctness over style.
 - If no plan/spec is found, review against the user request, discovered diff, and code context — state assumptions explicitly.
 - Check tests, security, and risky assumptions.
-- Classify every issue as **in-plan** (implementation defect against the plan → `/b-iterate`) or **out-of-plan** (newly surfaced work beyond the plan's scope → fresh `/b-plan` → `/b-build`). See "Issue Classification & Routing."
+- Classify every issue as **in-plan** (implementation defect against the plan → recorded repair workflow) or **out-of-plan** (newly surfaced work beyond the plan's scope → fresh `/b-plan` → `/b-build`). See "Issue Classification & Routing."
 - **Documentation impact is non-blocking.** When the implementation should be reflected in living docs (conventions, decisions, domain language), recommend `/b-docs` — but never fold it into the correctness verdict or the `iterate-*.md` artifact.
 - **How-to impact is non-blocking.** When a new or changed *user-facing action* (keybinding, CLI, everyday sequence) has no how-to, recommend `/b-howto`. Distinct from `/b-docs` (why vs how). Never fold it into the verdict or `iterate-*.md`.
 - **They compose.** If both are flagged, recommend `/b-docs` first (why before how). `b-docs` will load and follow `b-howto` for the actions it discovers. Running only `/b-howto` is enough when the *why* is already written — it will follow `b-docs` if not. Do not require the user to invoke both.
@@ -362,14 +362,14 @@ When reviewing against a plan/spec/phase path, include:
 - Recommended: <none · `/b-howto` before `/b-save` · skip if `/b-docs` will follow it>
 
 ### Issue Classification
-- In-plan issues (implementation defects → `/b-iterate`): <list, or "none">
+- In-plan issues (implementation defects → recorded repair workflow): <list, or "none">
 - Out-of-plan issues (scope discoveries → fresh `/b-plan`): <list, or "none">
 
 ### Verdict
 <Pass / Pass with warnings / Needs work> — driven by in-plan issues only; out-of-plan findings do not change this verdict
 
 ### Recommended Next Step
-<In-plan issues present → `/b-iterate`. Only out-of-plan issues → close accepted work (`/b-docs` if impact → `/b-save` → `/b-commit`), then follow-up `/b-plan` → `/b-build`. Clean → `/b-save` → `/b-commit`.>
+<In-plan issues present → the recorded repair workflow. Only out-of-plan issues → close accepted work (`/b-docs` if impact → `/b-save` → `/b-commit`), then follow-up `/b-plan` → `/b-build`. Clean → `/b-save` → `/b-commit`.>
 </markdown>
 ```
 
@@ -394,7 +394,7 @@ Documentation impact (conventions, decisions, language) is also **never** writte
 **Subject folder resolution:**
 1. Use the **active subject folder** if one was resolved during scope resolution
 2. If **no subject folder exists**, create `.context/YYYY-MM-DD.<subject>/` and invoke lifecycle `initialize` then `activate`.
-3. Write the artifact inside: `.context/YYYY-MM-DD.<subject>/iterate-<subject>.md`
+3. Retain the artifact through `workflow_state` and return its exact revision. The repo-files projection is `.context/YYYY-MM-DD.<subject>/iterate-<subject>.md`.
 
 ```
 .context/YYYY-MM-DD.<subject>/
@@ -406,6 +406,10 @@ Documentation impact (conventions, decisions, language) is also **never** writte
 - `subject`: Use the **original subject folder's subject** value (e.g., `2026-05-15.my-feature`)
 - `updated`: Set to same as `date` initially; update whenever the file changes
 
+**Repair route.** Record exactly one `recommended_workflow` value for the complete set of in-plan findings. Use `b-iterate` for bounded follow-up fixes, `b-build` for substantial rework with a clear implementation path, or `b-build-hard` for substantial rework that is complex, ambiguous, or risky. On OMP use native judgment for this closed choice. Write the selected value in frontmatter and name only that route in the recommendation to the caller.
+
+For phase reviews, resolve the phase's owning plan using the current plan context or explicit phase ownership. Record that plan in `addresses` so save links to the plan. Keep the exact phase in `reviewed_slice`. If the owner is ambiguous, surface the ambiguity and omit `addresses` rather than linking to the phase.
+
 **Iteration artifact format:**
 
 ```markdown
@@ -416,9 +420,11 @@ updated: YYYY-MM-DD
 subject: YYYY-MM-DD.subject-name
 topics: [review, iteration]
 informs: []          # Filled by b-plan when referencing this iteration
-addresses: plan-*.md # Plan this iteration is about
-completed: null      # Set when b-iterate marks it done
+addresses: <owning plan filename> # Omit for a planless review
+reviewed_slice: <exact plan or phase filename> # Omit for a planless review
+completed: null      # Set when verified repair finishes
 from_review: b-review
+recommended_workflow: <b-iterate | b-build | b-build-hard>
 ---
 
 # Iteration: <subject>
@@ -444,10 +450,7 @@ from_review: b-review
 
 ## Recommended Workflow
 
-Start with `/b-iterate` — it will pick up this file automatically.
-Then re-run `/b-review` against the same plan or phase.
-Inside an OMP execution session, `/b-iterate` completes this artifact before it returns; the supervisor then re-reviews. Do not leave the file `active` waiting for review or save.
-For larger rework, use `/b-build` or `/b-build-hard`.
+Run the selected workflow above, then re-run `/b-review` against the same slice.
 ```
 
 **Lifecycle tracking:**
@@ -461,7 +464,7 @@ For larger rework, use `/b-build` or `/b-build-hard`.
 Summary
 In-plan issues: <N or "none"> · Out-of-plan issues: <N or "none">
 Warnings
-Suggested next step: <`/b-iterate` if in-plan issues · close accepted work then `/b-plan` if only out-of-plan · `/b-save` → `/b-commit` if none>
+Suggested next step: <recorded repair workflow if in-plan issues · close accepted work then `/b-plan` if only out-of-plan · `/b-save` → `/b-commit` if none>
 ```
 
 ## History & Closeout

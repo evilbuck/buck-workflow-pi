@@ -256,6 +256,7 @@ Type `/b-` in Pi or OMP to see the Buck workflow slash commands. Each prompt com
 | `/b-howto` | `b-howto` | Diátaxis how-to guides in `docs/howto/` — one action per file, numbered steps, last step Eat |
 | `/b-recap` | `b-recap` | Summarize the session plus branch delta (commits and staged/unstaged/untracked work) in one read-only page (<500 words) |
 | `/b-commit` | `git-commit` | Create a Conventional Commits message and commit |
+| `/b-full-orchestration` | `b-full-orchestration` | Drive the current subject from its current stage through commit; each phase is one run |
 
 ### OMP Command Mirror
 
@@ -321,6 +322,7 @@ When the package extension is loaded (Pi/OMP), five commands use wired runtime i
 | `b-blueprint` | Single-page HTML architecture blueprint from plans/phases/brainstorms (skill-only) |
 | `b-phase` | Analyze a plan and break it into sequential phases |
 | `b-loop` | Run `/b-loop <subject>` sequentially across discrete phases in OMP `eval` with private `(subject, branch, worktree)` checkpoints, native `judge()` acceptance, read-only fingerprinted `b-review`, receipt-bound `b-save`, tree-pinned commits, and final `close-verified` folding |
+| `b-full-orchestration` | Orchestrate subagents from the current Buck stage through `b-commit`; each phase is one run inside the subject |
 | `fix-pr` | Validate PR review comments against code; fix+push every valid finding on the head branch, then poll re-review until settled; `--issues-only` files issues (skill-only, no slash wrapper; OMP-first, agent-agnostic) |
 | `b-pr` | Create a GitHub PR from the current feature branch — base resolution, auto-rebase, diff-generated description, `gh` create |
 | `b-pr-review-2-issues` | Ingest PR comments → classify → group by theme (user-approved) → plan artifact; never creates issues |
