@@ -408,6 +408,8 @@ Documentation impact (conventions, decisions, language) is also **never** writte
 
 **Repair route.** Record exactly one `recommended_workflow` value for the complete set of in-plan findings. Use `b-iterate` for bounded follow-up fixes, `b-build` for substantial rework with a clear implementation path, or `b-build-hard` for substantial rework that is complex, ambiguous, or risky. On OMP use native judgment for this closed choice. Write the selected value in frontmatter and name only that route in the recommendation to the caller.
 
+For phase reviews, resolve the phase's owning plan using the current plan context or explicit phase ownership. Record that plan in `addresses` so save links to the plan. Keep the exact phase in `reviewed_slice`. If the owner is ambiguous, surface the ambiguity and omit `addresses` rather than linking to the phase.
+
 **Iteration artifact format:**
 
 ```markdown
@@ -418,7 +420,8 @@ updated: YYYY-MM-DD
 subject: YYYY-MM-DD.subject-name
 topics: [review, iteration]
 informs: []          # Filled by b-plan when referencing this iteration
-addresses: <plan or phase filename> # Exact reviewed slice when plan-backed
+addresses: <owning plan filename> # Omit for a planless review
+reviewed_slice: <exact plan or phase filename> # Omit for a planless review
 completed: null      # Set when verified repair finishes
 from_review: b-review
 recommended_workflow: <b-iterate | b-build | b-build-hard>

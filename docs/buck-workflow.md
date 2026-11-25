@@ -127,7 +127,7 @@ XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stand
 
 **Pi/OMP primitive**: Prompt command (`prompts/b-full-orchestration.md`, `commands/b-full-orchestration.md`) + skill (`skills/b-full-orchestration/SKILL.md`).
 
-**Machine**: The skill's stage map is the transition table. The orchestrator steps the outer machine. Each phase, or the unphased plan, is one run of the inner machine. No extension steps it. Repair dispatch follows the current review's recorded workflow. A completed run is recognized by a reachable commit with the exact parent and tree in its retained checkpoint. If the live-index fallback encounters unrelated staged changes, it stops before staging or committing.
+**Machine**: The skill's stage map is the transition table. The orchestrator steps the outer machine. Each phase, or the unphased plan, is one run of the inner machine. No extension steps it. Repair dispatch follows the current review's recorded workflow. A completed run is recognized by a reachable commit with the exact parent and tree in its retained checkpoint. The commit worker verifies the candidate in a detached worktree before the supervisor advances the branch and updates only committed paths in the live index. A conflicting staged entry at a candidate path blocks promotion.
 
 **Invocation**: `/b-full-orchestration [subject|plan|phase|task]`. Empty arguments use current context.
 
@@ -1395,7 +1395,7 @@ Suggested next step
 **Iteration Artifact** (when issues are found):
 - Writes `iterate-<subject>.md` to the active subject folder
 - Captures critical issues, warnings, file paths, and proposed fixes
-- Enables fresh-session iteration: run `/b-iterate` to pick up where review left off
+- Records the repair route in `recommended_workflow` for the next session
 - Only written when there are actual issues — clean reviews skip this
 
 **Recommendations**:
@@ -1800,7 +1800,7 @@ Credentials: CLI → `HINDSIGHT_*` env → `~/.omp/agent/config.yml` `hindsight.
 
 **Workflow completion sequence**:
 ```
-/b-build → /b-review → /b-iterate if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
+/b-build → /b-review → recorded repair workflow if in-plan issues → /b-docs if doc impact → /b-save → /b-commit
 ```
 
 **Out-of-plan findings** (new scope beyond the plan) do not iterate — close accepted work (`/b-save` → `/b-commit`), then start a separate `/b-plan` → `/b-build` cycle. `/b-iterate` is for in-plan defects only.
@@ -2216,7 +2216,7 @@ These paths were used in the OpenCode deployment (managed via chezmoi):
 ### Review Fix Loop (in-plan issues only)
 
 ```
-/b-review → /b-iterate → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
+/b-review → recorded repair workflow → /b-review → (repeat until pass) → /b-docs → /b-save → /b-commit
 ```
 
 This loop fixes **in-plan defects** — work the plan specified that is broken or incomplete. Out-of-plan findings (new scope) are not iterated; they become a follow-up `/b-plan` → `/b-build`.

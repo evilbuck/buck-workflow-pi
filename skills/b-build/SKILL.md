@@ -10,6 +10,10 @@ Implement well-defined work using **test-driven development** with the smallest 
 - **standard** (`/b-build`): Follow existing patterns, keep scope tight, write tests first, run appropriate verification.
 - **hard** (`/b-build-hard`): Think through trade-offs before editing, break changes into safe steps, preserve behavior unless change is required, surface risks and migration concerns clearly, run stronger verification.
 
+## Review repairs
+
+When the supervisor supplies `Repair scope`, read back the named review and iterate revisions through `workflow_state`. Verify they describe the requested slice and use the recorded in-plan findings as the implementation scope. Use the plan or phase for its acceptance contract. Fix each named finding, verify its observable result, and return a finding-to-change mapping plus any unresolved finding. The repair scope takes precedence over discovery of an active iteration or phase.
+
 ## Test Strategy
 
 | Test Type | Framework | Use When |

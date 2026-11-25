@@ -11,7 +11,7 @@ Every dispatch target names a command, not a skill directory. Resolve before dis
 | Target | Procedure | The brief must pass |
 |---|---|---|
 | `b-build-hard` | `skills/b-build/SKILL.md` | difficulty **hard** |
-| `b-commit` | `skills/git-commit/SKILL.md` | the expected parent, expected tree, and prepared index for the verified slice |
+| `b-commit` | `skills/git-commit/SKILL.md` | the verified slice checkpoint and disposable detached worktree |
 | any other `b-<stage>` | `skills/b-<stage>/SKILL.md` | stage arguments |
 
 ### Stage brief
@@ -25,7 +25,7 @@ Subject: <subject folder or "none yet">
 Slice: <plan, phase, or task>
 Stage arguments: <preserved arguments from the resolution table, or "none">
 Difficulty: <standard | hard — b-build only; pass hard for b-build-hard; omit otherwise>
-Commit scope: <expected parent SHA, expected tree OID, prepared index — b-commit only; omit otherwise>
+Commit scope: <slice checkpoint and disposable detached worktree — b-commit only; omit otherwise>
 Repair scope: <exact review and iterate revisions and the in-plan findings — repair only; omit otherwise>
 Decision authority: an approved slice needs no routine reapproval. Return a material
 unanswered question to the supervisor with your partial state — do not guess or wait invisibly.
@@ -65,6 +65,7 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | from | to | guard | effect | cap |
 |---|---|---|---|---|
 | enter | returned | verified completion for this exact slice (see Completion) | return | |
+| enter | commit | the current slice has a verified promoted commit with pending live-index reconciliation | reconcile from its checkpoint before any other stage | |
 | enter | review | implementation or prior review evidence exists, and no review is current | start at `b-review` | |
 | enter | review | a current legacy failing review predates the repair-route field | refresh with `b-review` | |
 | enter | review | the current failing review has a verified completed repair | start at `b-review` | |
@@ -102,10 +103,10 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | guardrails | blocked | required gate failed and guardrails fix count is 2 or more | stop | |
 | guardrails | save | pass, skip, or advisory | dispatch `b-save` | |
 | save | closeout | final run and a plan exists | run `close-verified` | |
-| save | commit | not the final run, or no plan | dispatch `b-commit` | |
-| closeout | commit | closure re-inspected and verified with no blockers | dispatch `b-commit` | |
+| save | commit | not the final run, or no plan | prepare, dispatch `b-commit`, then verify, promote, and reconcile | |
+| closeout | commit | closure re-inspected and verified with no blockers | prepare, dispatch `b-commit`, then verify, promote, and reconcile | |
 | closeout | blocked | `close-verified` returned blockers | stop | |
-| commit | returned | the new commit is the current tip, with the prepared parent and tree | return | |
+| commit | returned | the verified commit is the current tip and live-index reconciliation is complete | return | |
 | commit | blocked | protected branch, inseparable dirty paths, candidate mismatch, or commit failed | stop | |
 
 The iterate cap counts `review` → `iterate`, `build`, and `buildHard` transitions. The guardrails cap counts `guardrails` → `iterate` transitions. They do not share a counter.
@@ -116,7 +117,7 @@ On a pass edge, record out-of-plan findings. They are not a backward edge and do
 
 ## Completion, currency, caps
 
-- **Completion (checked before any task label).** Require the slice-specific retained commit checkpoint in [run.md](run.md) and a reachable single-parent commit with its exact parent and tree. A phase also needs completed status and verified acceptance. A final unphased plan also needs its completed non-empty acceptance checklist and verified subject closure with no blockers. For a historical phase, check completion evidence at the checkpoint commit and its retained revisions. Later phases may change the same files. For a newly returned commit, require the SHA at the current tip.
+- **Completion (checked before any task label).** Require the slice-specific retained commit checkpoint in [run.md](run.md), completed live-index reconciliation, and a reachable single-parent commit with its exact parent and tree. A phase also needs completed status and verified acceptance. A final unphased plan also needs its completed non-empty acceptance checklist and verified subject closure with no blockers. For a historical phase, check completion evidence at the checkpoint commit and its retained revisions. Later phases may change the same files. For a newly returned commit, require the SHA at the current tip.
 - **Review currency.** Use the newest retained review for the exact subject and slice. It is current only when its implementation fingerprint matches the current slice. An iterate artifact routes repairs only through the current failing review's exact artifact reference. A passing review or a changed fingerprint prevents an older active artifact from directing rework. An older failing review without a recorded route must be refreshed by `b-review` before dispatching repair.
 - **Caps.** Reconstruct both counts from retained repair dispatches for the exact slice. Count each distinct source review revision once for iterate/build/buildHard, and each distinct guardrails repair dispatch once for the guardrails cap. Record a dispatch before invoking its worker. Resuming the same recorded repair uses its existing slot.
 
@@ -135,7 +136,7 @@ These illustrate the tables; the tables decide. Each names the observed next sta
 
 1. **Clear feature, familiar code, no prior artifacts.** Intake: formed task, no named missing fact, no plan → the `plan` row. After the plan verifies → `run`. The unphased run builds, reviews, clears gates, saves, closes, commits — no invented research artifact, no approval pause for save or commit.
 2. **Two dependent phases; restart after phase 1's clean review.** Phase 1's run re-enters past `review`: the retained pass is current, fingerprint unchanged, so no re-review; downstream effects complete and phase 1 commits as the new tip; the outer machine then starts phase 2. In a separate trial, edit reviewed content without moving `HEAD`: the fingerprint differs, `enter → review` fires, and the old pass cannot advance.
-3. **Final unphased plan; restart after save.** Saved with closure pending → the next effect is `close-verified`, not commit. An open criterion blocks plan completion and the commit both. With unrelated work staged, an isolated prepared index can commit just the slice while preserving the unrelated staged changes. The live-index fallback stops before staging anything.
+3. **Final unphased plan; restart after save.** Saved with closure pending → the next effect is `close-verified`, not commit. An open criterion blocks plan completion and the commit both. With unrelated work staged, the detached commit and path-scoped reconciliation preserve those entries. A conflicting staged entry at a candidate path blocks promotion.
 
 ## orchestration.md
 

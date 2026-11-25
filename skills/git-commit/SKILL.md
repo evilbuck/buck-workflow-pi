@@ -40,7 +40,7 @@ Under Pi/OMP with `extensions/b-commit-improved/index.ts` loaded, `/b-commit-imp
 
 ## Scoped orchestration commit
 
-When the caller supplies `Commit scope`, use the exact prepared index the caller named. Bypass draft discovery, draft cleanup, automatic staging, and amend. Check the protected-branch rule, require `git rev-parse HEAD` to equal the expected parent, and require `git write-tree` for that index to equal the expected tree. Check both immediately before committing. If either differs, stop and report the mismatch before committing. Run the commit with the same index and verify the resulting tip is a single-parent commit with the expected parent and tree. If commit or verification fails, report the failure without staging more files, retrying against a changed index, or amending. Standalone calls use the procedure below.
+When the caller supplies `Commit scope`, use the named disposable detached worktree and checkpoint. Verify the target branch is eligible, the scratch checkout is detached at the expected parent, and `git write-tree` matches the expected tree. Bypass draft discovery, draft cleanup, staging, and amend. Run normal `git commit` in the scratch checkout, with hooks enabled. Verify its tip is a single-parent commit matching that parent and tree. Return the verified SHA or report the mismatched SHA and tree while they are still detached. The supervisor alone promotes a verified commit and reconciles the live index. Standalone calls use the procedure below.
 
 ## Procedure
 

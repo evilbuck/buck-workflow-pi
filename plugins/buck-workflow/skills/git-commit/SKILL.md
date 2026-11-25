@@ -38,6 +38,10 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
 
 Under Pi/OMP with `extensions/b-commit-improved/index.ts` loaded, `/b-commit-improved` orchestrates this preflight, model drafting, commit, draft cleanup, and verification in code. For `/b-commit` or cross-platform usage without the extension, follow the procedure below.
 
+## Scoped orchestration commit
+
+When the caller supplies `Commit scope`, use the named disposable detached worktree and checkpoint. Verify the target branch is eligible, the scratch checkout is detached at the expected parent, and `git write-tree` matches the expected tree. Bypass draft discovery, draft cleanup, staging, and amend. Run normal `git commit` in the scratch checkout, with hooks enabled. Verify its tip is a single-parent commit matching that parent and tree. Return the verified SHA or report the mismatched SHA and tree while they are still detached. The supervisor alone promotes a verified commit and reconciles the live index. Standalone calls use the procedure below.
+
 ## Procedure
 
 1. **Check for draft commit message** (unless `--no-draft` is passed):

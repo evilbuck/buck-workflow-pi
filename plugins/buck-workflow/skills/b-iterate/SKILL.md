@@ -12,9 +12,9 @@ Handle quick follow-up fixes, polish, and review-loop edits.
 Follow the shared protocol at `skills/_shared/subject-resolution.md`.
 If the protocol resolves a subject, use it for all downstream artifact discovery.
 If the protocol finds no subject, work from the user's inline description.
-After subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
+When the supervisor supplies a repair scope, read the exact iterate revision through `workflow_state` and use the named slice. Use that artifact and slice throughout this run, including completion. Otherwise, after subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
 
-Also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
+When no repair scope was supplied, also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
 
 When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Read `status` as the source of truth: a `status: active` artifact is open work you must finish, not a file you defer to review. Leaving one active after you report the work done is a failed iterating postcondition, not a state the reviewer waits on.
 

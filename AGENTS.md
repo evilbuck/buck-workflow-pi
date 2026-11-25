@@ -107,7 +107,7 @@ This makes all project skills load automatically on next OMP start. Pi does not 
 Buck workflow commands follow a discoverable `/b-` prefix. The completion sequence is: review → (fix issues / sync docs) → save → commit:
 
 ```
-/b-build → /b-review → /b-iterate (if in-plan issues) → /b-docs (if doc impact) → /b-save → /b-commit
+/b-build → /b-review → recorded repair workflow (if in-plan issues) → /b-docs (if doc impact) → /b-save → /b-commit
 ```
 
 `/b-full-orchestration` is a standalone supervisor. It starts at the current stage of a plan, a phased plan, or current context, and steps that work through `b-commit` with subagents. Each phase is one run.
