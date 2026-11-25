@@ -12,11 +12,11 @@ Handle quick follow-up fixes, polish, and review-loop edits.
 Follow the shared protocol at `skills/_shared/subject-resolution.md`.
 If the protocol resolves a subject, use it for all downstream artifact discovery.
 If the protocol finds no subject, work from the user's inline description.
-When the supervisor supplies a repair scope, read the exact iterate revision through `workflow_state` and use the named slice. Use that artifact and slice throughout this run, including completion. Otherwise, after subject resolution, scan the resolved subject folder for `iterate-*.md` files. If exactly one exists, use it. If multiple, present them to the user and ask which to address.
+When the supervisor supplies a repair scope, read the exact iterate revision through `workflow_state` and use the named slice. Use that artifact and slice throughout this run, including completion.
 
-When no repair scope was supplied, also check for an in-progress phase: inside an OMP execution session, check the active subject folder for a `phase-*.md` file with `status: in-progress`; use that phase plus any active `iterate-*.md` artifact as the resume point.
+For a guardrails repair, use the failing guard and slice identified by the supervisor. When the brief names an iterate revision, read that exact revision. With neither an explicit artifact nor a scoped repair, list visible iterate artifacts through `workflow_state` for the resolved subject (`list` with `kind: iterate`, following pagination). Use the CLI equivalent where needed. Read the returned artifacts and consider their current active revisions. Use a sole active artifact, or ask which to use if multiple apply. If none exists, proceed from the inline task when it is sufficient. An adapter failure blocks artifact discovery. Checkout files are optional projections.
 
-When an `iterate-*.md` artifact is found, follow its issues in priority order (Critical → Warnings). Read `status` as the source of truth: a `status: active` artifact is open work you must finish, not a file you defer to review. Leaving one active after you report the work done is a failed iterating postcondition, not a state the reviewer waits on.
+For plan-backed iterations, use the artifact's `reviewed_slice` when it is present. For a legacy artifact with no slice, use its plan context and, in an OMP execution session, check for an in-progress phase for that plan. Follow the selected artifact's issues in priority order (Critical → Warnings).
 
 ## Behavior
 
@@ -48,17 +48,14 @@ At EACH NATURAL STOP (you finished a coherent unit of work):
 8. If no memory file exists yet, create one with proper frontmatter and record its path in current-session.json under memory_file
 
 At COMPLETION:
-9. If you worked from an `iterate-*.md` artifact, set its frontmatter `status: completed` and `completed: YYYY-MM-DD` before you report the work done. This is the artifact's completion contract, not a courtesy for the reviewer.
+9. Complete the selected iteration through the adapter as specified below before reporting the work done.
 10. Do a final memory update
 11. Tell the user to re-run `/b-review` against the same plan or phase before `/b-save`. Inside an execution session, return once your assignment is done: the supervisor owns review, save, and commit, and it reads the artifact's `status` to decide what runs next.
 
 ## Closeout
 
 After completing iteration:
-1. **Update iteration artifact** — if working from an `iterate-*.md` file:
-   - Set `status: completed`
-   - Set `completed: YYYY-MM-DD` (today's date)
-   - Update `updated: YYYY-MM-DD` (if not already set to today)
+1. **Complete the selected iteration** — when its findings are verified, write a new revision of the same iterate artifact through `workflow_state` using the selected revision as the expected predecessor. Preserve its findings and metadata. Set `status: completed`, `completed: YYYY-MM-DD`, and `updated: YYYY-MM-DD`. Read back the exact new revision and return it. If the current revision changed during repair, revalidate against that revision before updating it.
 2. **Changed files** — list what was modified
 3. **Verification** — confirm the fixes work
 4. **Draft commit message** — write the draft to the active subject folder (e.g. `.context/YYYY-MM-DD.subject/draft-commit.md`). If no subject folder exists yet, write to `.context/draft-commit.md` at the root. If the scope is the same as the original build's commit, update the existing draft rather than creating a new one. Replace `$TITLE` with a Conventional Commits subject; replace `$BODY` with why. Do not leave angle-bracket hints in the file.

@@ -26,7 +26,7 @@ Slice: <plan, phase, or task>
 Stage arguments: <preserved arguments from the resolution table, or "none">
 Difficulty: <standard | hard — b-build only; pass hard for b-build-hard; omit otherwise>
 Commit scope: <slice checkpoint and disposable detached worktree — b-commit only; omit otherwise>
-Repair scope: <exact review and iterate revisions and the in-plan findings — repair only; omit otherwise>
+Repair scope: <exact review and iterate revisions and the in-plan findings, or exact failed guardrails evidence and affected slice; omit outside repair>
 Decision authority: an approved slice needs no routine reapproval. Return a material
 unanswered question to the supervisor with your partial state — do not guess or wait invisibly.
 Do only this stage. Stop when its artifact exists. Return artifact paths, verdict, and blockers. Do not start the next stage.
@@ -38,6 +38,7 @@ Do only this stage. Stop when its artifact exists. Return artifact paths, verdic
 |---|---|---|---|
 | detect | blocked | no subagent tool | stop, name the missing tool |
 | detect | blocked | a worker returned a material unanswered question | relay it to the user once; resume this subject with the answer |
+| detect | blocked | a material question in the current plan requires an unanswered user decision | relay the question once and resume with the answer |
 | detect | brainstorm | no formed task, only a vague idea | dispatch `b-brainstorm` |
 | detect | explore | formed non-fix task, a named codebase fact is missing, no covering explore or research artifact | dispatch `b-explore` |
 | detect | research | formed non-fix task, a named external fact is missing, no covering artifact | dispatch `b-research` |
@@ -46,11 +47,11 @@ Do only this stage. Stop when its artifact exists. Return artifact paths, verdic
 | detect | explore | plan open questions need the codebase, ideation returns under 2 | dispatch `b-explore` |
 | detect | research | plan open questions need external facts, ideation returns under 2 | dispatch `b-research` |
 | detect | blocked | plan open questions remain and ideation returns is 2 or more | stop, name the questions |
-| detect | blocked | a plan still has a material open question after the applicable plan-update or research routes | relay user decisions once, or name the missing evidence |
-| detect | phase | the plan recommends phasing and no `phase-N-*.md` exists | dispatch `b-phase` |
+| detect | blocked | the current plan has a material open question and no earlier question-handling guard matches | stop and name the missing evidence |
+| detect | phase | the plan has no material open questions, recommends phasing, and no `phase-N-*.md` exists | dispatch `b-phase` |
 | detect | grill | the user asked to stress-test, no grill record | dispatch `b-grill --mode auto` |
 | detect | present | the user asked to share, no presentation | dispatch `b-present` |
-| detect | run | an incomplete run remains: a quick fix, an unfinished unphased plan, or a ready phased plan with unfinished phases | dispatch one run worker |
+| detect | run | no material plan question remains, and an incomplete run remains: a quick fix, an unfinished unphased plan, or a ready phased plan with unfinished phases | dispatch one run worker |
 | detect | backlog | every run committed, out-of-plan findings remain | dispatch `b-backlog` |
 | detect | done | every run committed, no out-of-plan findings | stop |
 | any stage | detect | stage artifact verified | re-detect |
