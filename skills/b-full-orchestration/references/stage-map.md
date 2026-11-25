@@ -26,7 +26,8 @@ Slice: <plan, phase, or task>
 Stage arguments: <preserved arguments from the resolution table, or "none">
 Difficulty: <standard | hard — b-build only; pass hard for b-build-hard; omit otherwise>
 Commit scope: <slice checkpoint and disposable detached worktree — b-commit only; omit otherwise>
-Repair scope: <exact review and iterate revisions and the in-plan findings, or exact failed guardrails evidence and affected slice; omit outside repair>
+Review repair scope: <exact review and iterate revisions and the in-plan findings; omit outside review repairs>
+Guardrails repair scope: <failed gate evidence, affected slice, and exact iterate revision only if applicable; omit outside guardrails repairs>
 Decision authority: an approved slice needs no routine reapproval. Return a material
 unanswered question to the supervisor with your partial state — do not guess or wait invisibly.
 Do only this stage. Stop when its artifact exists. Return artifact paths, verdict, and blockers. Do not start the next stage.

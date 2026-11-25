@@ -12,7 +12,7 @@ Implement well-defined work using **test-driven development** with the smallest 
 
 ## Review repairs
 
-When the supervisor supplies `Repair scope`, read back the named review and iterate revisions through `workflow_state`. Verify they describe the requested slice and use the recorded in-plan findings as the implementation scope. Use the plan or phase for its acceptance contract. Fix each named finding, verify its observable result, and return a finding-to-change mapping plus any unresolved finding. The repair scope takes precedence over discovery of an active iteration or phase.
+When the supervisor supplies `Review repair scope`, read back the named review and iterate revisions through `workflow_state`. Verify they describe the requested slice and use the recorded in-plan findings as the implementation scope. Use the plan or phase for its acceptance contract. Fix each named finding, verify its observable result, and return a finding-to-change mapping plus any unresolved finding. The repair scope takes precedence over discovery of an active iteration or phase.
 
 ## Test Strategy
 
