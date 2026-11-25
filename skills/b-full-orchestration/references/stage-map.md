@@ -12,7 +12,24 @@ Every dispatch target names a command, not a skill directory. Resolve before dis
 |---|---|---|
 | `b-build-hard` | `skills/b-build/SKILL.md` | difficulty **hard** |
 | `b-commit` | `skills/git-commit/SKILL.md` | only the verified slice's prepared selection and expected parent |
-| any other `b-<stage>` | `skills/<stage>/SKILL.md` | stage arguments |
+| any other `b-<stage>` | `skills/b-<stage>/SKILL.md` | stage arguments |
+
+### Stage brief
+
+Both the orchestrator and run workers use this brief when dispatching a stage subagent. Populate the conditional lines from the resolution table above.
+
+```text
+You are the worker for this stage only. Load and follow <procedure file from the resolution table>.
+You are already the delegate. Do not dispatch another worker for this same stage.
+Subject: <subject folder or "none yet">
+Slice: <plan, phase, or task>
+Stage arguments: <preserved arguments from the resolution table, or "none">
+Difficulty: <standard | hard — b-build only; pass hard for b-build-hard; omit otherwise>
+Commit scope: <prepared selection or verifiable patch description + expected parent SHA — b-commit only; omit otherwise>
+Decision authority: an approved slice needs no routine reapproval. Return a material
+unanswered question to the supervisor with your partial state — do not guess or wait invisibly.
+Do only this stage. Stop when its artifact exists. Return artifact paths, verdict, and blockers. Do not start the next stage.
+```
 
 ## Outer machine
 
@@ -27,11 +44,11 @@ Every dispatch target names a command, not a skill directory. Resolve before dis
 | detect | plan-update | a plan has open questions and a covering artifact now answers them | dispatch `b-plan-update` |
 | detect | explore | plan open questions need the codebase, ideation returns under 2 | dispatch `b-explore` |
 | detect | research | plan open questions need external facts, ideation returns under 2 | dispatch `b-research` |
-| detect | blocked | plan open questions remain and ideation returns is 2 | stop, name the questions |
+| detect | blocked | plan open questions remain and ideation returns is 2 or more | stop, name the questions |
 | detect | phase | the plan recommends phasing and no `phase-N-*.md` exists | dispatch `b-phase` |
 | detect | grill | the user asked to stress-test, no grill record | dispatch `b-grill --mode auto` |
 | detect | present | the user asked to share, no presentation | dispatch `b-present` |
-| detect | run | an incomplete run remains: a quick fix, or a ready plan with unfinished phases | dispatch one run worker |
+| detect | run | an incomplete run remains: a quick fix, an unfinished unphased plan, or a ready phased plan with unfinished phases | dispatch one run worker |
 | detect | backlog | every run committed, out-of-plan findings remain | dispatch `b-backlog` |
 | detect | done | every run committed, no out-of-plan findings | stop |
 | any stage | detect | stage artifact verified | re-detect |
@@ -46,8 +63,11 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | from | to | guard | effect | cap |
 |---|---|---|---|---|
 | enter | returned | verified completion for this exact slice (see Completion) | return | |
-| enter | iterate | an active `iterate-*.md` for this slice, or a fresh quick fix with no implementation and no completion proof | start at `b-iterate` | |
-| enter | buildHard | no implementation, and `buck_hint` is `b-build-hard` or the plan calls the work complex, ambiguous, or risky | start at `b-build-hard` | |
+| enter | blocked | active `iterate-*.md` or current failing review with in-plan issues, and iterate count is 3 or more | stop, name the spent iterate cap and open issues | |
+| enter | buildHard | an active `iterate-*.md` for this slice with in-plan issues, iterate count under 3, where its recommended workflow is `/b-build-hard` (spelled `b-build-hard` or `/b-build-hard` — same hint) or the failing review says the remaining work is complex, ambiguous, or risky — i.e. major and newly complex (see Guard notes) | start at `b-build-hard` | |
+| enter | build | an active `iterate-*.md` for this slice with in-plan issues recommending `/b-build` (spelled `b-build` or `/b-build` — same hint) without newly complex — i.e. major but not newly complex — iterate count under 3 | start at `b-build` | |
+| enter | iterate | an active `iterate-*.md` for this slice with any other recommendation or none, iterate count under 3, or a fresh quick fix with no implementation and no completion proof | start at `b-iterate` | |
+| enter | buildHard | no implementation, and `buck_hint` is `b-build-hard` or `/b-build-hard` (same hint, slash optional) or the plan calls the work complex, ambiguous, or risky | start at `b-build-hard` | |
 | enter | build | no implementation | start at `b-build` | |
 | enter | review | implementation exists, no current review: none retained for this slice and cycle, or its fingerprint differs from the slice's content now | start at `b-review` | |
 | enter | docs | current review pass, documentation impact, living docs not updated | start at `b-docs` | |
@@ -59,10 +79,10 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | enter | blocked | no true row | stop, name the missing proof | |
 | build | review | implementation verified | dispatch `b-review` | |
 | buildHard | review | implementation verified | dispatch `b-review` | |
-| review | iterate | verdict has in-plan issues, iterate count under 3 | dispatch `b-iterate` | 3 |
-| review | buildHard | major in-plan and newly complex, iterate count under 3 | dispatch `b-build-hard` | 3 |
-| review | build | major in-plan and not newly complex, iterate count under 3 | dispatch `b-build` | 3 |
-| review | blocked | in-plan issues remain and iterate count is 3 | stop, name them | |
+| review | buildHard | verdict has in-plan issues and the iterate artifact's recommended workflow is `/b-build-hard` (spelled `b-build-hard` or `/b-build-hard` — same hint), or the review says the remaining work is complex, ambiguous, or risky — i.e. major and newly complex (see Guard notes) — iterate count under 3 | dispatch `b-build-hard` | 3 |
+| review | build | verdict has in-plan issues and the iterate artifact's recommended workflow is `/b-build` (spelled `b-build` or `/b-build` — same hint) without newly complex — i.e. major but not newly complex — iterate count under 3 | dispatch `b-build` | 3 |
+| review | iterate | verdict has in-plan issues with any other recommendation or none — i.e. non-major — iterate count under 3 | dispatch `b-iterate` | 3 |
+| review | blocked | in-plan issues remain and iterate count is 3 or more | stop, name them | |
 | review | docs | passed, documentation impact | dispatch `b-docs` | |
 | review | howto | passed, how-to impact only | dispatch `b-howto` | |
 | review | guardrails | passed, doc gates clear, code touched, not docs-only | dispatch `b-guardrails-check` | |
@@ -73,7 +93,7 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | howto | guardrails | code touched, not docs-only, guardrails not passed | dispatch `b-guardrails-check` | |
 | howto | save | docs-only, or guardrails passed, skipped, or not required | dispatch `b-save` | |
 | guardrails | iterate | required gate failed, guardrails fix count under 2 | dispatch `b-iterate` | 2 |
-| guardrails | blocked | required gate failed and guardrails fix count is 2 | stop | |
+| guardrails | blocked | required gate failed and guardrails fix count is 2 or more | stop | |
 | guardrails | save | pass, skip, or advisory | dispatch `b-save` | |
 | save | closeout | final run and a plan exists | run `close-verified` | |
 | save | commit | not the final run, or no plan | dispatch `b-commit` | |
@@ -101,6 +121,7 @@ On a pass edge, record out-of-plan findings. They are not a backward edge and do
 - **Docs-only.** Use the project's docs-only predicate. Do not invent one. Docs-only skips the guardrails gate.
 - **Off this path unless the user asked.** `b-blueprint`, user-mode grill, `b-capture`. Grill on this path is `--mode auto`. Do not interview.
 - **Ideation returns.** Only plan → explore/research → plan(-update) counts. The cap is 2.
+- **Major / newly complex / non-major.** Read both predicates off evidence the review artifact already has — never invent them. **Major** means the iterate artifact's recommended workflow says `/b-build` or `/b-build-hard` (larger rework, either slash spelling). **Newly complex** means that recommendation is `/b-build-hard`, or the review says the remaining work is complex, ambiguous, or risky. **Non-major** is any other in-plan issue (any other recommendation, or none). The `review →` rows and the `enter → buildHard` / `build` / `iterate` rows use this same pair, so a review that dispatches `buildHard` restarts at `b-build-hard`, not at unconditional `b-iterate`.
 
 ## Worked examples
 

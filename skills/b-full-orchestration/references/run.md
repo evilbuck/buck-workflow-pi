@@ -6,18 +6,7 @@ The brief names the subject, the slice, a start-stage hint, whether this is the 
 
 ## Effects
 
-Dispatch one stage subagent at a time. Resolve every dispatch target through the stage map's resolution table. You are not that stage's worker.
-
-```text
-You are the worker for this stage only. Load and follow <procedure file from the stage map's resolution table>.
-You are already the delegate. Do not dispatch another worker for this same stage.
-Subject: <subject folder or "none yet">
-Slice: <plan, phase, or task>
-Difficulty: <standard | hard — b-build only; pass hard for b-build-hard>
-Decision authority: an approved slice needs no routine reapproval.
-A material unanswered question goes back to the supervisor with your partial state — do not guess, do not wait invisibly.
-Stop when this stage's artifact exists. Return paths, verdict, and blockers.
-```
+Dispatch one stage subagent at a time. Resolve every dispatch target through the stage map's resolution table and use its canonical stage brief in [`stage-map.md`](stage-map.md). You are not that stage's worker.
 
 Stage workers implement only this slice. Review workers stay read-only except the review artifacts their skill writes. If source files changed under a review worker, reject the result and re-dispatch.
 
@@ -32,7 +21,7 @@ bun skills/_shared/scripts/subject-lifecycle.ts close-verified --subject .contex
 
 Pass the `.context/<folder>` path; a bare folder name does not resolve. Do not edit the subject index yourself. Intermediate phases leave the subject open; quick-fix runs have no closeout edge. Return actual blockers, never a successful completion with a blocker list.
 
-**Commit preparation effect.** After save and closure, construct the exact candidate patch: attributable source plus the required repo-projected records the stages retained. Where the harness provides an isolated, scoped commit facility, prepare the selection there and pass it with the expected parent to the commit stage — not the live shared index. Otherwise stage exactly the candidate paths with `git add`, leaving unrelated staged, unstaged, and overlapping edits untouched, and dispatch `b-commit` with the expected parent SHA. When a prepared selection cannot cross a worker boundary, hand the commit worker a verifiable description of the exact patch and require it to reconstruct and compare before committing. A declared path is not ownership of every hunk in it. If ownership, parent, or candidate no longer matches, stop before any mutation. After the commit, verify its parent, patch, and SHA; do not stamp tracked completion state afterward. On a non-repo-files store, retained records stay revision references, not checkout mirrors. One slice, one commit. No `--force`. Do not commit on `main`, `master`, `dev`, or `develop` — take `commit → blocked` so the orchestrator can create the feature branch. Do not stash, reset, or clean.
+**Commit preparation effect.** After save and closure, construct the exact candidate patch: attributable source plus the required repo-projected records the stages retained. Where the harness provides an isolated, scoped commit facility, prepare the selection there and pass it with the expected parent to the commit stage — not the live shared index. Otherwise stage exactly the candidate paths with `git add`, leaving unrelated staged, unstaged, and overlapping edits untouched, and dispatch `b-commit` with the expected parent SHA. When a prepared selection cannot cross a worker boundary, hand the commit worker a verifiable description of the exact patch and require it to reconstruct and compare before committing. A declared path is not ownership of every hunk in it. If ownership, parent, or candidate no longer matches, stop before any mutation. After the commit, verify its parent, patch, and SHA; do not stamp tracked completion state afterward. On a non-repo-files store, retained records stay revision references, not checkout mirrors. One slice, one commit. No `--force`. Do not commit on `main`, `master`, `dev`, or `develop` — take `commit → blocked` and stop (the orchestrator leaves protected branches before the first edit). Do not stash, reset, or clean.
 
 ## Verify before return
 

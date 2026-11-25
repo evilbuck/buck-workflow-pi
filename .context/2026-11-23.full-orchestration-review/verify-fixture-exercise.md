@@ -11,7 +11,7 @@ artifacts: [skills/b-full-orchestration/SKILL.md, skills/b-full-orchestration/re
 
 # Fixture verification: dispatch + resume-safe orchestration
 
-Disposable checkout: `~/projects/.worktrees/buck-workflow-pi/feat/orchestration-fixture` (branch `feat/orchestration-fixture`, commit `65d5b7d` = rewritten skill alone on top of `7dd702f`). All worker operations were confined to that worktree; the main checkout was never touched by fixture work.
+Disposable checkout (2026-11-23 run): `~/projects/.worktrees/buck-workflow-pi/feat/orchestration-fixture` (branch `feat/orchestration-fixture`, commit `65d5b7d` = rewritten skill alone on top of `7dd702f`). Correction (2026-11-25): the original note claimed the main checkout was never touched by fixture work, but the save-slot incident's manual file-mode `save-apply` (§6.4) materialized 11 fixture-subject store records in the main checkout's `.context/` that were accidentally swept into `defc114`; those 11 paths were removed in the 2026-11-25 iteration. Follow-up trials (§10 below) ran in isolated standalone clones (`/tmp/orch-trial-{a,b,c}` with `origin` removed and isolated `XDG_CONFIG_HOME=/tmp/orch-xdg-{a,b,c}`) and verified zero writes to the main checkout.
 
 ## 1. Static dispatch check (RED → GREEN)
 
@@ -107,6 +107,36 @@ Setup for each: `git reset --soft 350ab7c && git restore --staged .` — worktre
 
 - `CaseBRunPhase1` dispatched with hint `build`, final run `no`.
 - Observed progress: build+review passed clean → review retention via workflow_state → save.
+
+## 10. Follow-up iteration trials (2026-11-25 — closing C1, C3, C4 gaps)
+
+Isolated standalone clones (`/tmp/orch-trial-{a,b,c}`, `origin` removed, `env -u SQL_MEMORY_URL XDG_CONFIG_HOME=/tmp/orch-xdg-{a,b,c}`, `node_modules` symlinked, clean `.context/`, updated `skills/b-full-orchestration/{SKILL.md,references/stage-map.md,references/run.md}` copied in; removed after verification). Main checkout `git status --short` verified zero fixture writes before and after.
+
+### 10.1 Static dispatch check (post-template fix)
+
+Re-ran literal suffix substitution against the fixed generic template `skills/b-<stage>/SKILL.md` plus the two explicit aliases (`b-build-hard -> skills/b-build/SKILL.md` with `difficulty **hard**`, `b-commit -> skills/git-commit/SKILL.md` with prepared selection and expected parent). All 18 targets (`b-backlog`, `b-brainstorm`, `b-build`, `b-build-hard`, `b-commit`, `b-docs`, `b-explore`, `b-grill`, `b-guardrails-check`, `b-howto`, `b-iterate`, `b-phase`, `b-plan`, `b-plan-update`, `b-present`, `b-research`, `b-review`, `b-save`) resolved `[OK]`; zero synthetic `skills/b-build-hard/` or `skills/b-commit/` directories; exit 0.
+
+### 10.2 Trial A — live `b-build-hard` dispatch (`Difficulty: hard` reaching `skills/b-build`)
+
+- Fixture: `/tmp/orch-trial-a` (`feat/orch-trial-a`, HEAD `854db3f`), subject `.context/2026-11-25.trial-hard-build/plan-hard-build.md` (`buck_hint: b-build-hard`, complex/risky).
+- Run worker (`9ca2c42c`, given misleading `Start-stage hint: build`): loaded only `references/run.md` and `references/stage-map.md`; overrode hint via `enter → buildHard`; resolved `b-build-hard → /tmp/orch-trial-a/skills/b-build/SKILL.md` with `Difficulty: hard` and `Stage arguments: none` via the canonical stage brief.
+- Nested stage worker (`57b159db`, transcript verified): loaded `skills/b-build/SKILL.md` and `skills/_shared/decision-closure.md` (hard-mode-only protocol); created `docs/trial-hard-contract.md` (blob `b786eaaa561370078ba9738e35c1790479067360`, verified `## Trade-offs`, `## Rollback`, and exact rollback line) and `draft-commit.md`; failed closed at `b-build` Closeout §2 because no `jev` tool is registered in Antigravity, leaving acceptance boxes open.
+- Run worker respected fail-closed acceptance verification: refused to tick boxes on the builder's behalf, hit `buildHard → blocked`, dispatched no `b-review`/`b-save`/`b-commit`, and left `HEAD` unchanged at `854db3f`.
+
+### 10.3 Trial B — live review returning in-plan issues → blocks save/commit → `review → iterate`
+
+- Fixture: `/tmp/orch-trial-b` (`feat/orch-trial-b`, HEAD `31dd73a`), subject `.context/2026-11-25.trial-in-plan-issue/plan-in-plan-issue.md` with pre-ticked `[x]` boxes, paired with defective unstaged `docs/trial-b-guide.md` (blob `5102db46a08403fa0618aac20af9b4cb2b4b8ce4`) missing `## Required Marker` / `VERIFY-TOKEN-42`.
+- Run worker (`df6a8012`, given stale `Start-stage hint: save`): loaded only `references/run.md` and `references/stage-map.md`; overrode hint via `enter → review`.
+- Dispatch 1 (`b-review`, worker `fdbd4029`, read-only verified): caught the real missing `## Required Marker` / `VERIFY-TOKEN-42` defect despite the pre-ticked box; opened active `iterate-trial-in-plan-issue.md` (rev `9d4091cd-a45e-42ba-9770-238db9bea80f`). Run worker retained `review-cycle-1-plan-in-plan-issue.md` (rev `b2988a6d-9cf0-43d6-8327-cf0a331aad4f`, verdict `needs-work`, fingerprint `ba1a3fda64dc15ef95b32a042a982fca0eb446372e03be5fda0168d850c4dc6d`). `review → save` was blocked (`HEAD` stayed `31dd73a`, no save/commit dispatched); `review → iterate` fired (iterate count `0 → 1`).
+- Dispatch 2 (`b-iterate`, worker `15114edb`): fixed `docs/trial-b-guide.md` (new blob `7be2ab4045c6c39a3cceb52f6a9c9d9e01fc9e69`) and completed `iterate-trial-in-plan-issue.md` (`status: completed`, rev `0728761f-02f3-4a88-bd7d-f4a2af6b1bdd`).
+- Dispatch 3 (`b-review` cycle 2, worker `6b7518e2`, read-only verified): verdict `Pass`; retained `review-cycle-2-plan-in-plan-issue.md` (rev `b5c38122-af32-44b0-bf15-dbe8d3cb04f6`, new fingerprint `fbcd62e9b43b50d27168aec39f398858322b40e689189e9351f9394f925360f6`).
+- Finalize + Dispatch 4 (`b-save`, worker `2210fbbd`) + `subject-lifecycle.ts close-verified` (`effectiveState: completed`, `verifiedClosed: true`, `blockers: []`) + Dispatch 5 (`b-commit -> skills/git-commit/SKILL.md`, worker `58b011f0`, passed exact `Commit scope` with expected parent `31dd73a`, 8 paths, and staged patch sha256 `36d3efab5ad720cc57f72ab1b1a79892ad6fbb2cbfb3e3d1290002aacef5284f`). Landed commit **`8beb1263d3ec3ddf442ec684b2078fe9934e4d25`** (parent `31dd73a`, 8 files, leaving 2 untracked runtime receipt JSONs untouched). Independently verified via `git show --stat`, file read, lifecycle inspect, and transcript inspection.
+
+### 10.4 Trial C — spent iterate cap (`3/3`) and fresh restart confirmation
+
+- Fixture: `/tmp/orch-trial-c` (`feat/orch-trial-c`, HEAD `20685d7`), subject `.context/2026-11-25.trial-spent-cap/plan-spent-cap.md` with 3 retained prior failing reviews (`review-cycle-1..3`, revs `0f257963…`, `3579cab4…`, `dda555a1…`, each recording `transition_taken: review -> iterate`) and 3 completed `iterate-cycle-1..3.md` files, plus `docs/trial-c-spec.md` (blob `5be0e601e075154b05620045c4abf16be430e698`) still missing `## Section 4` / `FINAL-PROOF-OK`.
+- **Pass 1 (`61693e6b`, `Start-stage hint: review`)**: reconstructed iterate count `3/3` from slice evidence; `enter → review` fired because prior reviews had stale fingerprints; dispatched nested `b-review` (`574a864b`, read-only verified), which caught missing `## Section 4` / `FINAL-PROOF-OK` and wrote active `iterate-trial-spent-cap.md` (rev `64bf46de-1509-4db7-9072-eae333c2f1f0`); retained `review-cycle-4` (rev `ef74e22b-423e-44ca-ad68-25de95b1bb97`, sha256 `b076ec7a…`, verdict `fail`, `transition_taken: review -> blocked`, matching blob `5be0e601…`); hit `review → blocked` with zero `b-iterate`/`b-save`/`b-commit` dispatches and `HEAD` unchanged at `20685d7`.
+- **Pass 2 (`68c0bce3`, completely fresh worker, zero chat history, given misleading `Start-stage hint: iterate`)**: loaded only `references/run.md` and `references/stage-map.md`; reconstructed iterate count `3/3` from slice evidence; re-verified `review-cycle-4` fingerprint match (`5be0e601…`) and active `iterate-trial-spent-cap.md`; immediately matched `enter → blocked` (stage-map row 2). Transcript verified **0 `invoke_subagent` calls**, 0 edits, `HEAD` unchanged at `20685d7`, blocker explicitly naming spent iterate cap (`3/3`) and the open Section 4 defect.
 
 ## Out-of-plan findings so far
 
