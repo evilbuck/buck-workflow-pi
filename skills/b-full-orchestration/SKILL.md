@@ -22,8 +22,8 @@ Do not yield between stages or runs. Save and commit are in scope; do not ask be
 1. **Resolve the slice.** Subject, plan, or current-context task is named. Done when you can point at the subject folder or quote the task that will create one.
 2. **Detect the position.** Step the outer machine. Verified completion for a slice is checked before its original task label. Artifacts and retained revisions win over `orchestration.md` and over conversation memory. Done when the first true guard names the next edge and the run list is written down.
 3. **Leave a protected branch before the first edit.** If `HEAD` is `main`, `master`, `dev`, or `develop`, create `feat/<slug>` from the subject name (date prefix stripped) or the task. Do not pass `--force`. A dirty tree that blocks the switch is a blocker. Do not stash or reset.
-4. **Pre-run edges.** While the outer edge is `brainstorm`, `explore`, `research`, `plan`, `plan-update`, `phase`, `grill`, or `present`, dispatch that stage, verify its artifact, and return to `detect`. A clear task with no named missing fact plans directly; answered research returns to plan revision, never to another research pass. Done when the edge is `run`, `done`, or `blocked`.
-5. **Sequence runs.** A `run` edge dispatches one run worker. That worker steps the run machine. Wait for it. Re-read its evidence: the retained review revision through `workflow_state`, and the commit — a newly returned commit must match the current tip, while a historical phase checkpoint counts wherever it sits in history. Return to `detect`. Start the next run only after this run's commit is the tip. Done when the outer edge is `done`, `backlog`, or `blocked`.
+4. **Pre-run edges.** While the outer edge is `brainstorm`, `explore`, `research`, `plan`, `plan-update`, `phase`, `grill`, or `present`, dispatch that stage, verify its artifact, and return to `detect`. A clear task with no named missing fact plans directly; answered research returns to plan revision, never to another research pass. Done when the edge is `run`, `backlog`, `done`, or `blocked`.
+5. **Sequence runs.** A `run` edge dispatches one run worker. That worker steps the run machine. Wait for it. Re-read its evidence: the retained review revision through `workflow_state`, and the commit — a newly returned commit must match the current tip, while a historical phase checkpoint counts wherever it sits in history. Then take the outer `run →` row: on `run → detect` re-detect and continue; on `run → blocked` stop and record the blocker. Start the next run only after this run's commit is the tip. Done when the outer edge is `done`, `backlog`, or `blocked`.
 6. **Relay material questions once.** When any worker returns a material unanswered question, relay it to the user, stop, and resume the same subject with the answer. The answer advances the subject; it never restarts intake.
 7. **Close.** When the outer edge is `backlog`, dispatch `b-backlog` and stop. When it is `done`, stop. Do not open a new plan in this invocation.
 
@@ -33,18 +33,7 @@ Write `orchestration.md` beside the plan (the same place `review-*.md` lands) af
 
 Use the harness subagent tool (`task` on OMP/Pi). One stage or one run per subagent. `solutionSpace` stays narrow: the named skill is the procedure. Do not impersonate `/buck-loop`, and do not disable a stage skill's own acceptance verification.
 
-Stage brief:
-
-```text
-You are the worker for this stage only. Load and follow <procedure file from the stage map's resolution table>.
-You are already the delegate. Do not dispatch another worker for this same stage.
-Subject: <path or "none yet">
-Slice: <plan, phase, or task>
-Do only this stage. Stop when its artifact exists.
-Decision authority: an approved slice needs no routine reapproval. Return a material
-unanswered question to the supervisor instead of guessing or waiting invisibly.
-Return artifact paths, verdict, and blockers. Do not start the next stage.
-```
+Stage brief: use the canonical stage brief in [`references/stage-map.md`](references/stage-map.md) (populated from its stage target resolution table).
 
 Run brief:
 
@@ -70,8 +59,8 @@ A stage is verified only when you re-read the artifact it names. A review verdic
 
 Stop, record the blocker in `orchestration.md`, and do not commit when:
 
-- a cap is hit, counting reconstructed counts
-- closeout or guardrails fails and the cap is spent
+- a cap is hit, counting reconstructed counts (iterate 3, guardrails fixes 2, ideation returns 2)
+- closeout (`close-verified`) returns blockers
 - the worktree has unrelated dirty paths the scoped commit cannot separate
 - a stage needs a human (credentials, dashboard, cutover)
 - the subagent tool is missing
@@ -81,4 +70,4 @@ Do not weaken a gate to finish. Prefer a safe refusal over an unprovable commit.
 
 ## Done
 
-Every run's slice is committed. A plan-backed final run has `close-verified` success (`effectiveState` completed) or an explicit blocker list. Out-of-plan findings are backlogged or named in the final report. `orchestration.md` says the orchestration is completed.
+Every run's slice is committed. A plan-backed final run has `close-verified` success (`effectiveState` completed). Out-of-plan findings are backlogged or named in the final report. `orchestration.md` says the orchestration is completed.

@@ -4,7 +4,7 @@ date: 2026-11-23
 subject: 2026-11-23.full-orchestration-review
 topics: [subagents, orchestration, resume, scoped-commits]
 research: []
-iterations: []
+iterations: [iterate-full-orchestration-review.md]
 spec: null
 memory: []
 ---
@@ -39,15 +39,17 @@ Keep one run per phase in dependency order on the shared worktree, one run per u
 6. **Give commit preparation one owner.** The run worker constructs the exact candidate patch after save and closure, including attributable source and required repo-projected records. Use the harness's isolated, scoped commit facility where available; pass the prepared selection and expected parent to the commit stage, not the live shared index. Where a prepared selection cannot cross a worker boundary, pass a verifiable description of the exact patch and require the commit worker to reconstruct and compare it before committing. Never equate a declared path with ownership of every hunk. Preserve unrelated staged, unstaged, and overlapping edits. If ownership, parent, or candidate no longer matches, stop before mutation. Check the resulting commit’s parent, patch, and SHA; do not stamp tracked completion state afterward. External-adapter records remain revision references, not checkout mirrors.
 
 ## Acceptance criteria
-- [ ] All 17 current dispatch targets resolve; hard build receives hard difficulty and commit receives only the verified slice. No synthetic skill directories are required.
-- [ ] A well-specified feature needs no research artifact to reach planning. A material unanswered question reaches the user once; the answer advances the same subject. Existing-plan research returns to plan revision.
-- [ ] A fresh worker can resume after a clean review without repeating it; changing reviewed implementation bytes invalidates the pass even if `HEAD` is unchanged. An open in-plan issue still blocks save/commit.
-- [ ] A completed quick fix does not re-enter iterate or produce a second commit. A previously committed phase is skipped while later phases continue in dependency order. Restart does not replenish spent retries.
-- [ ] An unphased final plan cannot commit with absent/open acceptance or an open subject. Saved-but-not-closed resumes at closure; already verified closure is reused. Intermediate phases and planless fixes retain their distinct closure rules.
-- [ ] Starting with only unstaged slice edits produces one scoped commit. Unrelated staged/unstaged edits remain intact; inseparable ownership or a failed closure produces no commit. The final commit includes required repo-projected completion changes.
-- [ ] Only the ordered tables define routing; the three examples below illustrate them and agree with the observed next stage.
+- [x] All 17 current dispatch targets resolve; hard build receives hard difficulty and commit receives only the verified slice. No synthetic skill directories are required.
+- [x] A well-specified feature needs no research artifact to reach planning. A material unanswered question reaches the user once; the answer advances the same subject. Existing-plan research returns to plan revision.
+- [x] A fresh worker can resume after a clean review without repeating it; changing reviewed implementation bytes invalidates the pass even if `HEAD` is unchanged. An open in-plan issue still blocks save/commit.
+- [x] A completed quick fix does not re-enter iterate or produce a second commit. A previously committed phase is skipped while later phases continue in dependency order. Restart does not replenish spent retries.
+- [x] An unphased final plan cannot commit with absent/open acceptance or an open subject. Saved-but-not-closed resumes at closure; already verified closure is reused. Intermediate phases and planless fixes retain their distinct closure rules.
+- [x] Starting with only unstaged slice edits produces one scoped commit. Unrelated staged/unstaged edits remain intact; inseparable ownership or a failed closure produces no commit. The final commit includes required repo-projected completion changes.
+- [x] Only the ordered tables define routing; the three examples below illustrate them and agree with the observed next stage.
 
-Acceptance wrap-up (2026-11-23, jev via judge, one noul per line): c1 0.65, c2 0.31, c3 0.20, c4 0.12, c5 0.24, c6 0.31, c7 0.63 — all below the 0.7 threshold, so no box is ticked. Judged gaps: no live hard-difficulty dispatch (C1, static enforcement only); in-plan-issue → iterate block not live-exercised, only open-criterion at closeout (C3); no dedicated spent-cap restart trial (C4); remaining clauses scored on narrative evidence the judge cannot independently re-read. Trial log and raw evidence: `verify-fixture-exercise.md`.
+Acceptance wrap-up (2026-11-23, jev via judge, one noul per line): c1 0.65, c2 0.31, c3 0.20, c4 0.12, c5 0.24, c6 0.31, c7 0.63 — all below the 0.7 threshold, so no box was ticked. Judged gaps: no live hard-difficulty dispatch (C1, static enforcement only); in-plan-issue → iterate block not live-exercised, only open-criterion at closeout (C3); no dedicated spent-cap restart trial (C4); remaining clauses scored on narrative evidence the judge could not independently re-read.
+
+Acceptance wrap-up (2026-11-25, native TypeSafe `jev-1.14.0` via `extensions/jev-tool/index.ts:runJev`, one noul per line, full updated skill files + static check + raw trial evidence supplied in `state.evidence`): c1 0.75 (`[x]`), c2 0.87 (`[x]`), c3 0.93 (`[x]`), c4 0.88 (`[x]`), c5 0.85 (`[x]`), c6 0.83 (`[x]`), c7 0.73 (`[x]`) — all seven >= 0.7, so all seven boxes stamped `[x]`. Trial log and raw evidence: `verify-fixture-exercise.md` (§1–§10).
 
 ## Verification
 Check aliases against the actual wrapper and skill files. Then exercise the revised skill against a disposable feature-branch checkout with workers enabled. Capture dispatch order, artifact revisions, lifecycle inspection, and commit diff for each case. Restart with a fresh worker that has the same durable artifacts but no chat history; do not treat a prose walk-through as an execution pass.
