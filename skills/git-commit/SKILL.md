@@ -38,6 +38,10 @@ Buck workflow invokes this skill through `/b-commit` (the workflow-facing slash 
 
 Under Pi/OMP with `extensions/b-commit-improved/index.ts` loaded, `/b-commit-improved` orchestrates this preflight, model drafting, commit, draft cleanup, and verification in code. For `/b-commit` or cross-platform usage without the extension, follow the procedure below.
 
+## Scoped orchestration commit
+
+When the caller supplies `Commit scope`, use the exact prepared index the caller named. Bypass draft discovery, draft cleanup, automatic staging, and amend. Check the protected-branch rule, require `git rev-parse HEAD` to equal the expected parent, and require `git write-tree` for that index to equal the expected tree. Check both immediately before committing. If either differs, stop and report the mismatch before committing. Run the commit with the same index and verify the resulting tip is a single-parent commit with the expected parent and tree. If commit or verification fails, report the failure without staging more files, retrying against a changed index, or amending. Standalone calls use the procedure below.
+
 ## Procedure
 
 1. **Check for draft commit message** (unless `--no-draft` is passed):

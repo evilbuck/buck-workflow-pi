@@ -127,7 +127,7 @@ XState `/b-flow` was unwired 2026-06-01 and deleted 2026-09-20. The lesson stand
 
 **Pi/OMP primitive**: Prompt command (`prompts/b-full-orchestration.md`, `commands/b-full-orchestration.md`) + skill (`skills/b-full-orchestration/SKILL.md`).
 
-**Machine**: The skill's stage map is the transition table. The orchestrator steps the outer machine. Each phase, or the unphased plan, is one run of the inner machine. No extension steps it.
+**Machine**: The skill's stage map is the transition table. The orchestrator steps the outer machine. Each phase, or the unphased plan, is one run of the inner machine. No extension steps it. Repair dispatch follows the current review's recorded workflow. A completed run is recognized by a reachable commit with the exact parent and tree in its retained checkpoint. If the live-index fallback encounters unrelated staged changes, it stops before staging or committing.
 
 **Invocation**: `/b-full-orchestration [subject|plan|phase|task]`. Empty arguments use current context.
 

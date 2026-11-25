@@ -294,3 +294,6 @@ HARD chain: 1 → 2 → 3 → 4. X1–X3 are not phased.
 - [ ] [Phase 6: Parity, cutover & docs](items/phase-6-b-save-parity-cutover.md) — HARD after Phase 5
 -->
 
+## Full orchestration follow-ups
+
+- [ ] [Reject stale subject lifecycle closure proof](items/subject-lifecycle-closeout-stale-proof.md)

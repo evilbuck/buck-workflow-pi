@@ -18,6 +18,8 @@ User-facing changes to Buck Workflow. This record starts with changes integrated
 
 ### Fixed
 
+- **Full orchestration resumes from verified review and commit evidence.** Reviews record one repair route, mode-only changes invalidate prior reviews, and a phase completes only when its exact commit checkpoint is found. Pending plan decisions and unrelated staged changes block unsafe dispatches.
+
 - **SQL save-attempt binding preserves immutable memory provenance.** `remember` now attaches existing memory tags instead of updating `memories.context`, which PostgreSQL correctly rejects. Identical save/correction retries reuse the same active memory id across attempts; the supervisor reconstructs receipt ids from project-scoped tag membership. No schema migration or trigger weakening is required.
 - **A finished Buck-loop build goes to review.** Session outcome `ok` no longer classifies an open acceptance box or an ambiguous scan as a repair lift. Review is the check that the build finished. Iterate, docs, and save misses still use the lift.
 

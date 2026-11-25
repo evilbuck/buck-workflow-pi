@@ -11,7 +11,7 @@ Every dispatch target names a command, not a skill directory. Resolve before dis
 | Target | Procedure | The brief must pass |
 |---|---|---|
 | `b-build-hard` | `skills/b-build/SKILL.md` | difficulty **hard** |
-| `b-commit` | `skills/git-commit/SKILL.md` | only the verified slice's prepared selection and expected parent |
+| `b-commit` | `skills/git-commit/SKILL.md` | the expected parent, expected tree, and prepared index for the verified slice |
 | any other `b-<stage>` | `skills/b-<stage>/SKILL.md` | stage arguments |
 
 ### Stage brief
@@ -25,7 +25,8 @@ Subject: <subject folder or "none yet">
 Slice: <plan, phase, or task>
 Stage arguments: <preserved arguments from the resolution table, or "none">
 Difficulty: <standard | hard — b-build only; pass hard for b-build-hard; omit otherwise>
-Commit scope: <prepared selection or verifiable patch description + expected parent SHA — b-commit only; omit otherwise>
+Commit scope: <expected parent SHA, expected tree OID, prepared index — b-commit only; omit otherwise>
+Repair scope: <exact review and iterate revisions and the in-plan findings — repair only; omit otherwise>
 Decision authority: an approved slice needs no routine reapproval. Return a material
 unanswered question to the supervisor with your partial state — do not guess or wait invisibly.
 Do only this stage. Stop when its artifact exists. Return artifact paths, verdict, and blockers. Do not start the next stage.
@@ -45,6 +46,7 @@ Do only this stage. Stop when its artifact exists. Return artifact paths, verdic
 | detect | explore | plan open questions need the codebase, ideation returns under 2 | dispatch `b-explore` |
 | detect | research | plan open questions need external facts, ideation returns under 2 | dispatch `b-research` |
 | detect | blocked | plan open questions remain and ideation returns is 2 or more | stop, name the questions |
+| detect | blocked | a plan still has a material open question after the applicable plan-update or research routes | relay user decisions once, or name the missing evidence |
 | detect | phase | the plan recommends phasing and no `phase-N-*.md` exists | dispatch `b-phase` |
 | detect | grill | the user asked to stress-test, no grill record | dispatch `b-grill --mode auto` |
 | detect | present | the user asked to share, no presentation | dispatch `b-present` |
@@ -56,33 +58,37 @@ Do only this stage. Stop when its artifact exists. Return artifact paths, verdic
 | run | blocked | run returned blocked or a question | stop |
 | backlog | done | findings recorded, or named in the report | stop |
 
-A run is the first incomplete phase in dependency order, the whole unphased plan, or one quick fix. Do not parallelize runs; they share this worktree. A phase with `status: completed`, every acceptance box `[x]`, and a commit containing its declared `files:` is not a run — wherever that commit sits in history.
+A run is the first incomplete phase in dependency order, the whole unphased plan, or one quick fix. Do not parallelize runs; they share this worktree. A phase with verified completion under the Completion rule is skipped wherever its checkpoint sits in reachable history.
 
 ## Run machine
 
 | from | to | guard | effect | cap |
 |---|---|---|---|---|
 | enter | returned | verified completion for this exact slice (see Completion) | return | |
-| enter | blocked | active `iterate-*.md` or current failing review with in-plan issues, and iterate count is 3 or more | stop, name the spent iterate cap and open issues | |
-| enter | buildHard | an active `iterate-*.md` for this slice with in-plan issues, iterate count under 3, where its recommended workflow is `/b-build-hard` (spelled `b-build-hard` or `/b-build-hard` — same hint) or the failing review says the remaining work is complex, ambiguous, or risky — i.e. major and newly complex (see Guard notes) | start at `b-build-hard` | |
-| enter | build | an active `iterate-*.md` for this slice with in-plan issues recommending `/b-build` (spelled `b-build` or `/b-build` — same hint) without newly complex — i.e. major but not newly complex — iterate count under 3 | start at `b-build` | |
-| enter | iterate | an active `iterate-*.md` for this slice with any other recommendation or none, iterate count under 3, or a fresh quick fix with no implementation and no completion proof | start at `b-iterate` | |
-| enter | buildHard | no implementation, and `buck_hint` is `b-build-hard` or `/b-build-hard` (same hint, slash optional) or the plan calls the work complex, ambiguous, or risky | start at `b-build-hard` | |
-| enter | build | no implementation | start at `b-build` | |
-| enter | review | implementation exists, no current review: none retained for this slice and cycle, or its fingerprint differs from the slice's content now | start at `b-review` | |
+| enter | review | implementation or prior review evidence exists, and no review is current | start at `b-review` | |
+| enter | review | a current legacy failing review predates the repair-route field | refresh with `b-review` | |
+| enter | review | the current failing review has a verified completed repair | start at `b-review` | |
+| enter | blocked | a current failing review with in-plan issues has no verified repair route | stop, name the missing or invalid repair evidence | |
+| enter | blocked | a current failing review has a verified repair route, no recorded repair for this review, and iterate count is 3 or more | stop, name the spent iterate cap and open issues | |
+| enter | buildHard | a current failing review has repair route `b-build-hard`, and the repair is within cap or already recorded for this review | start or resume `b-build-hard` | |
+| enter | build | a current failing review has repair route `b-build`, and the repair is within cap or already recorded for this review | start or resume `b-build` | |
+| enter | iterate | a current failing review has repair route `b-iterate`, and the repair is within cap or already recorded for this review | start or resume `b-iterate` | |
+| enter | iterate | fresh quick fix with no implementation, no review history, and no completion proof | start at `b-iterate` | |
+| enter | buildHard | no implementation or review history, and either the initial `buck_hint` is `b-build-hard` or `/b-build-hard`, or the plan calls for hard difficulty | start at `b-build-hard` | |
+| enter | build | no implementation or review history | start at `b-build` | |
 | enter | docs | current review pass, documentation impact, living docs not updated | start at `b-docs` | |
 | enter | howto | current review pass, how-to impact only, docs impact none or handled | start at `b-howto` | |
 | enter | guardrails | current review pass, doc gates clear, code touched, not docs-only, guardrails not passed | start at `b-guardrails-check` | |
 | enter | save | current review pass, gates clear, no current save evidence | start at `b-save` | |
-| enter | closeout | final plan-backed run, saved, subject closure pending | run `close-verified` | |
-| enter | commit | saved, closure verified or not required, not committed | start at `b-commit` | |
+| enter | closeout | current review pass, final plan-backed run, saved, subject closure pending | run `close-verified` | |
+| enter | commit | current review pass, saved, closure verified or not required, not committed | start at `b-commit` | |
 | enter | blocked | no true row | stop, name the missing proof | |
 | build | review | implementation verified | dispatch `b-review` | |
 | buildHard | review | implementation verified | dispatch `b-review` | |
-| review | buildHard | verdict has in-plan issues and the iterate artifact's recommended workflow is `/b-build-hard` (spelled `b-build-hard` or `/b-build-hard` — same hint), or the review says the remaining work is complex, ambiguous, or risky — i.e. major and newly complex (see Guard notes) — iterate count under 3 | dispatch `b-build-hard` | 3 |
-| review | build | verdict has in-plan issues and the iterate artifact's recommended workflow is `/b-build` (spelled `b-build` or `/b-build` — same hint) without newly complex — i.e. major but not newly complex — iterate count under 3 | dispatch `b-build` | 3 |
-| review | iterate | verdict has in-plan issues with any other recommendation or none — i.e. non-major — iterate count under 3 | dispatch `b-iterate` | 3 |
-| review | blocked | in-plan issues remain and iterate count is 3 or more | stop, name them | |
+| review | blocked | in-plan issues remain, and either the verified repair route is missing or invalid or the iterate count is 3 or more | stop, name the missing proof or open issues | |
+| review | buildHard | in-plan issues, verified repair route `b-build-hard`, iterate count under 3 | dispatch `b-build-hard` | 3 |
+| review | build | in-plan issues, verified repair route `b-build`, iterate count under 3 | dispatch `b-build` | 3 |
+| review | iterate | in-plan issues, verified repair route `b-iterate`, iterate count under 3 | dispatch `b-iterate` | 3 |
 | review | docs | passed, documentation impact | dispatch `b-docs` | |
 | review | howto | passed, how-to impact only | dispatch `b-howto` | |
 | review | guardrails | passed, doc gates clear, code touched, not docs-only | dispatch `b-guardrails-check` | |
@@ -97,9 +103,9 @@ A run is the first incomplete phase in dependency order, the whole unphased plan
 | guardrails | save | pass, skip, or advisory | dispatch `b-save` | |
 | save | closeout | final run and a plan exists | run `close-verified` | |
 | save | commit | not the final run, or no plan | dispatch `b-commit` | |
-| closeout | commit | `close-verified` ok | dispatch `b-commit` | |
+| closeout | commit | closure re-inspected and verified with no blockers | dispatch `b-commit` | |
 | closeout | blocked | `close-verified` returned blockers | stop | |
-| commit | returned | the new commit is the current tip, with the prepared parent and patch | return | |
+| commit | returned | the new commit is the current tip, with the prepared parent and tree | return | |
 | commit | blocked | protected branch, inseparable dirty paths, candidate mismatch, or commit failed | stop | |
 
 The iterate cap counts `review` → `iterate`, `build`, and `buildHard` transitions. The guardrails cap counts `guardrails` → `iterate` transitions. They do not share a counter.
@@ -110,9 +116,9 @@ On a pass edge, record out-of-plan findings. They are not a backward edge and do
 
 ## Completion, currency, caps
 
-- **Completion (checked before any task label).** A phase is complete with `status: completed`, every `acceptance_criteria` box `[x]`, and a commit containing its declared `files:` anywhere in history — a valid historical checkpoint need not remain the tip after later phases. An unphased plan's final run is complete with plan `status: completed` from a non-empty fully verified checklist, verified subject closure, and a commit containing the plan's scope. A quick fix is complete with a verified commit whose diff is exactly the fix's paths. A newly returned commit, by contrast, must match the current tip before the outer machine starts the next run.
-- **Review currency.** A review is current iff a retained `review` artifact exists for this subject, slice, and cycle, and its implementation fingerprint matches the slice's content now. `run.md` owns the fingerprint recipe. Changed bytes with an unchanged `HEAD` still invalidate the pass.
-- **Caps.** Reconstruct both counts from slice-specific evidence on every entry: iterate count from prior `review → iterate`/`build`/`buildHard` transitions visible in retained review artifacts and `iterate-*.md` revisions, guardrails fix count from prior `guardrails → iterate` transitions. Restarting does not replenish a spent cap.
+- **Completion (checked before any task label).** Require the slice-specific retained commit checkpoint in [run.md](run.md) and a reachable single-parent commit with its exact parent and tree. A phase also needs completed status and verified acceptance. A final unphased plan also needs its completed non-empty acceptance checklist and verified subject closure with no blockers. For a historical phase, check completion evidence at the checkpoint commit and its retained revisions. Later phases may change the same files. For a newly returned commit, require the SHA at the current tip.
+- **Review currency.** Use the newest retained review for the exact subject and slice. It is current only when its implementation fingerprint matches the current slice. An iterate artifact routes repairs only through the current failing review's exact artifact reference. A passing review or a changed fingerprint prevents an older active artifact from directing rework. An older failing review without a recorded route must be refreshed by `b-review` before dispatching repair.
+- **Caps.** Reconstruct both counts from retained repair dispatches for the exact slice. Count each distinct source review revision once for iterate/build/buildHard, and each distinct guardrails repair dispatch once for the guardrails cap. Record a dispatch before invoking its worker. Resuming the same recorded repair uses its existing slot.
 
 ## Guard notes
 
@@ -121,7 +127,7 @@ On a pass edge, record out-of-plan findings. They are not a backward edge and do
 - **Docs-only.** Use the project's docs-only predicate. Do not invent one. Docs-only skips the guardrails gate.
 - **Off this path unless the user asked.** `b-blueprint`, user-mode grill, `b-capture`. Grill on this path is `--mode auto`. Do not interview.
 - **Ideation returns.** Only plan → explore/research → plan(-update) counts. The cap is 2.
-- **Major / newly complex / non-major.** Read both predicates off evidence the review artifact already has — never invent them. **Major** means the iterate artifact's recommended workflow says `/b-build` or `/b-build-hard` (larger rework, either slash spelling). **Newly complex** means that recommendation is `/b-build-hard`, or the review says the remaining work is complex, ambiguous, or risky. **Non-major** is any other in-plan issue (any other recommendation, or none). The `review →` rows and the `enter → buildHard` / `build` / `iterate` rows use this same pair, so a review that dispatches `buildHard` restarts at `b-build-hard`, not at unconditional `b-iterate`.
+- **Repair route.** Read `recommended_workflow` from the exact iterate revision produced for this review and retained in the review record. The only accepted values are `b-iterate`, `b-build`, and `b-build-hard`. Standalone quick-fix intake and initial build difficulty are separate decisions. Review prose and legacy recommendations do not select repair routes.
 
 ## Worked examples
 
@@ -129,7 +135,7 @@ These illustrate the tables; the tables decide. Each names the observed next sta
 
 1. **Clear feature, familiar code, no prior artifacts.** Intake: formed task, no named missing fact, no plan → the `plan` row. After the plan verifies → `run`. The unphased run builds, reviews, clears gates, saves, closes, commits — no invented research artifact, no approval pause for save or commit.
 2. **Two dependent phases; restart after phase 1's clean review.** Phase 1's run re-enters past `review`: the retained pass is current, fingerprint unchanged, so no re-review; downstream effects complete and phase 1 commits as the new tip; the outer machine then starts phase 2. In a separate trial, edit reviewed content without moving `HEAD`: the fingerprint differs, `enter → review` fires, and the old pass cannot advance.
-3. **Final unphased plan; restart after save.** Saved with closure pending → the next effect is `close-verified`, not commit. An open criterion blocks plan completion and the commit both. With closure already verified and unrelated work staged: exactly the slice lands, the unrelated work stays staged.
+3. **Final unphased plan; restart after save.** Saved with closure pending → the next effect is `close-verified`, not commit. An open criterion blocks plan completion and the commit both. With unrelated work staged, an isolated prepared index can commit just the slice while preserving the unrelated staged changes. The live-index fallback stops before staging anything.
 
 ## orchestration.md
 
