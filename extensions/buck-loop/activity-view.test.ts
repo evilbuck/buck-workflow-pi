@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderActivityView, type ActivityView } from "./activity-view.js";
-import { visibleWidth } from "@mariozechner/pi-tui";
+import { visibleWidth } from "@oh-my-pi/pi-tui/text/width";
 
 const view: ActivityView = {
   state: "reviewing", skill: "b-review", attempt: 2, iteration: 3,

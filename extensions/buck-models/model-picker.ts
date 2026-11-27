@@ -11,7 +11,11 @@
  * draft/baseline comparison in `deriveStageUpdates` is the partial-write
  * boundary: untouched categories never materialize a write.
  */
-import { decodeKittyPrintable, fuzzyFilter, matchesKey, truncateToWidth, visibleWidth, type KeybindingsManager } from "@mariozechner/pi-tui";
+import type { KeyEvent } from "@oh-my-pi/pi-tui";
+import { decodeInput } from "@oh-my-pi/pi-tui/driver/input/decoder";
+import { truncate, visibleWidth } from "@oh-my-pi/pi-tui/text/width";
+import type { KeybindingsManager } from "@oh-my-pi/pi-coding-agent/config/keybindings/keybindings";
+import { fuzzyFilter } from "@oh-my-pi/pi-coding-agent/utils/fuzzy";
 import {
   BUCK_STAGE_KEYS,
   type BuckModelCandidate,
@@ -33,7 +37,7 @@ export interface ModelPickerTheme {
 
 export interface ModelPickerHost {
   custom?: <T>(factory: (
-    tui: { requestRender(): void; terminal?: { rows?: number } },
+    host: { requestRender(): void; size(): { columns: number; rows: number } },
     theme: ModelPickerTheme,
     keybindings: KeybindingsManager,
     done: (result: T) => void,
@@ -182,6 +186,12 @@ export interface ProfileEditorHost {
   terminalRows?(): number | undefined;
 }
 
+/** Presses (and auto-repeats) in one chunk of raw terminal input; releases and non-key input are dropped. */
+function pressedKeys(data: string): KeyEvent[] {
+  return decodeInput(data).flatMap((event) =>
+    event.type === "key" && event.key.kind !== "release" ? [event.key] : []);
+}
+
 function cloneDrafts(drafts: ProfileDrafts): ProfileDrafts {
   const out = {} as ProfileDrafts;
   for (const key of BUCK_STAGE_KEYS) {
@@ -235,7 +245,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
     );
 
   const cell = (text: string, width: number): string =>
-    truncateToWidth(text, width, "…", true);
+    truncate(text, width, "…", true);
 
   const tabStrip = (width: number): string => {
     const parts = EDITOR_TAB_LABELS.map((label, index) =>
@@ -249,7 +259,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
     }
     const prefix = start > 0 ? "‹" : "";
     const suffix = end < parts.length ? "›" : "";
-    return truncateToWidth(`${prefix}${parts.slice(start, end).join("")}${suffix}`, width);
+    return truncate(`${prefix}${parts.slice(start, end).join("")}${suffix}`, width);
   };
 
   const selectedRowText = (key: BuckStageKey, index: number, focused: boolean): string => {
@@ -308,7 +318,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
       lines.push(`${cell(left, leftWidth)}│${cell(right, rightWidth)}`);
     }
     lines.push(input.theme.fg("muted", `! unavailable · filter: ${view.query}`));
-    return lines.map((line) => truncateToWidth(line, width));
+    return lines.map((line) => truncate(line, width));
   };
 
   const savePane = (width: number): string[] => {
@@ -317,7 +327,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
     const lines: string[] = [input.theme.fg("accent", input.theme.bold("> [ Save ]"))];
     if (changed.length === 0) {
       lines.push(input.theme.fg("muted", "  No deliberate edits yet"));
-      return lines.map((line) => truncateToWidth(line, width));
+      return lines.map((line) => truncate(line, width));
     }
     // Rows held back: the Save button itself, then one row for the "+N more"
     // tail so the button and the tail always fit; the edit list never pushes
@@ -330,7 +340,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
     }
     const hidden = changed.length - shown.length;
     if (hidden > 0) lines.push(input.theme.fg("muted", `  +${hidden} more edit(s)`));
-    return lines.map((line) => truncateToWidth(line, width));
+    return lines.map((line) => truncate(line, width));
   };
 
   const paint = (width: number): string[] => {
@@ -342,7 +352,7 @@ export function createProfileEditor(input: ProfileEditorHost): {
         title,
         input.theme.fg("muted", "Resize to at least 60 columns x 10 rows to edit models."),
         input.theme.fg("muted", "Esc cancels without changes."),
-      ].map((line) => truncateToWidth(line, width));
+      ].map((line) => truncate(line, width));
     }
     const onSaveTab = state.tab === SAVE_TAB;
     const help = onSaveTab
@@ -365,16 +375,16 @@ export function createProfileEditor(input: ProfileEditorHost): {
       lines.push(...categoryPane(key as BuckStageKey, width));
     }
     const limit = input.terminalRows?.() ?? 24;
-    return lines.slice(0, limit).map((line) => truncateToWidth(line, width));
+    return lines.slice(0, limit).map((line) => truncate(line, width));
   };
 
-  const handleTabNav = (data: string): boolean => {
-    if (matchesKey(data, "tab")) {
+  const handleTabNav = (key: KeyEvent): boolean => {
+    if (key.id === "tab") {
       state.tab = wrapIndex(state.tab + 1, EDITOR_TAB_LABELS.length);
       input.requestRender();
       return true;
     }
-    if (matchesKey(data, "shift+tab")) {
+    if (key.id === "shift+tab") {
       state.tab = wrapIndex(state.tab - 1, EDITOR_TAB_LABELS.length);
       input.requestRender();
       return true;
@@ -382,34 +392,34 @@ export function createProfileEditor(input: ProfileEditorHost): {
     return false;
   };
 
-  const handleThinking = (data: string): boolean => {
-    if (state.tab >= SAVE_TAB || !matchesKey(data, "ctrl+t")) return false;
+  const handleThinking = (key: KeyEvent): boolean => {
+    if (state.tab >= SAVE_TAB || key.id !== "ctrl+t") return false;
     emit({ kind: "thinking-request", stage: stageKey(), resume: cloneState(state) });
     return true;
   };
 
-  const handleSaveTab = (data: string): boolean => {
-    if (!input.keybindings.matches(data, "tui.select.confirm") && !matchesKey(data, "space")) {
+  const handleSaveTab = (key: KeyEvent): boolean => {
+    if (!input.keybindings.matchesId(key.id, "tui.select.confirm") && key.id !== "space") {
       return false;
     }
     emit({ kind: "submit", drafts: cloneDrafts(state.drafts) });
     return true;
   };
 
-  const handleColumnNav = (data: string): boolean => {
+  const handleColumnNav = (key: KeyEvent): boolean => {
     const view = state.views[stageKey()];
-    if (matchesKey(data, "left")) {
+    if (key.id === "left") {
       view.focus = "selected";
       input.requestRender();
       return true;
     }
-    if (matchesKey(data, "right")) {
+    if (key.id === "right") {
       view.focus = "catalog";
       input.requestRender();
       return true;
     }
-    const up = input.keybindings.matches(data, "tui.select.up");
-    const down = input.keybindings.matches(data, "tui.select.down");
+    const up = input.keybindings.matchesId(key.id, "tui.select.up");
+    const down = input.keybindings.matchesId(key.id, "tui.select.down");
     if (!up && !down) return false;
     const delta = up ? -1 : 1;
     if (view.focus === "selected") {
@@ -423,8 +433,8 @@ export function createProfileEditor(input: ProfileEditorHost): {
     return true;
   };
 
-  const handleToggle = (data: string): boolean => {
-    const isToggle = matchesKey(data, "space") || input.keybindings.matches(data, "tui.select.confirm");
+  const handleToggle = (event: KeyEvent): boolean => {
+    const isToggle = event.id === "space" || input.keybindings.matchesId(event.id, "tui.select.confirm");
     if (!isToggle) return false;
     const key = stageKey();
     const view = state.views[key];
@@ -454,16 +464,15 @@ export function createProfileEditor(input: ProfileEditorHost): {
     return true;
   };
 
-  const handleQueryEdit = (data: string): boolean => {
+  const handleQueryEdit = (key: KeyEvent): boolean => {
     const view = state.views[stageKey()];
-    if (input.keybindings.matches(data, "tui.editor.deleteCharBackward")) {
+    if (input.keybindings.matchesId(key.id, "tui.editor.deleteCharBackward")) {
       view.query = view.query.slice(0, -1);
       view.catalogCursor = 0;
       input.requestRender();
       return true;
     }
-    const printable = decodeKittyPrintable(data)
-      ?? (data.length === 1 && data >= "!" && data <= "~" ? data : undefined);
+    const printable = key.text;
     if (printable === undefined) return false;
     view.query += printable;
     view.catalogCursor = 0;
@@ -471,25 +480,28 @@ export function createProfileEditor(input: ProfileEditorHost): {
     return true;
   };
 
+  const handleKey = (key: KeyEvent): void => {
+    if (input.keybindings.matchesId(key.id, "tui.select.cancel")) {
+      emit({ kind: "cancel" });
+      return;
+    }
+    if (resizeNeeded() || handleTabNav(key) || handleThinking(key)) return;
+    if (state.tab === SAVE_TAB) {
+      handleSaveTab(key);
+      return;
+    }
+    if (handleColumnNav(key) || handleToggle(key)) return;
+    handleQueryEdit(key);
+  };
+
   return {
     invalidate() {},
     render: paint,
     handleInput(data: string) {
-      if (finished) return;
-      if (input.keybindings.matches(data, "tui.select.cancel")) {
-        emit({ kind: "cancel" });
-        return;
+      for (const key of pressedKeys(data)) {
+        if (finished) return;
+        handleKey(key);
       }
-      if (resizeNeeded()) return;
-      if (handleTabNav(data)) return;
-      if (handleThinking(data)) return;
-      if (state.tab === SAVE_TAB) {
-        handleSaveTab(data);
-        return;
-      }
-      if (handleColumnNav(data)) return;
-      if (handleToggle(data)) return;
-      handleQueryEdit(data);
     },
   };
 }

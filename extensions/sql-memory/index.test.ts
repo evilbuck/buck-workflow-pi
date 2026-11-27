@@ -171,12 +171,12 @@ describe("sql_memory tool", () => {
     expect(result.content[0]!.type === "text" && result.content[0]!.text).toContain('"rows"');
     const theme = {} as never;
     const context = {} as never;
-    const collapsed = tool.renderResult!(result, { expanded: false } as never, theme, context) as { render(width: number): string[] };
-    const expanded = tool.renderResult!(result, { expanded: true } as never, theme, context) as { render(width: number): string[] };
-    expect(collapsed.render(100).join("").trim()).toBe("Memory recall · 1 row · \"buck-loop\"");
-    expect(expanded.render(100).join("")).toContain('"rows"');
+    const collapsed = tool.renderResult!(result, { expanded: false } as never, theme, context);
+    const expanded = tool.renderResult!(result, { expanded: true } as never, theme, context);
+    expect(collapsed).toBe("Memory recall · 1 row · \"buck-loop\"");
+    expect(expanded).toContain('"rows"');
     expect(tool.renderCall!({ op: "sql", statement: "SELECT 1" } as never, theme, context))
-      .toMatchObject({ render: expect.any(Function) });
+      .toBe("Memory sql…");
   });
 
   it("attaches a write synopsis without changing the model-facing JSON", async () => {

@@ -9,9 +9,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { TUI, ProcessTerminal, type Component } from "@mariozechner/pi-tui";
+import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { ActivityEvent } from "../../extension-activity.js";
+import type { ActivityCardUI, ActivityWidgetView } from "../activity-widget.js";
 
 const handleLoop = vi.fn();
 vi.mock("../loop.js", () => ({ handleLoop: (...args: unknown[]) => handleLoop(...args) }));
@@ -23,7 +23,7 @@ function createMockApi(): {
   commands: Map<string, { handler: (args: string, ctx: { cwd: string; ui: {
     notify: (m: string, l?: string) => void;
     setStatus?: (key: string, text: string | undefined) => void;
-    setWidget?: ExtensionContext["ui"]["setWidget"];
+    setWidget?: NonNullable<ActivityCardUI["setWidget"]>;
   } }) => Promise<void> }>;
   sendMessage: ReturnType<typeof vi.fn>;
 } {
@@ -172,12 +172,12 @@ describe("wireBuckLoop", () => {
     expect(notes.some((n) => n.includes("idle:"))).toBe(true);
   });
   it("changes live density without restarting work and removes the card on stop", async () => {
-    const tui = new TUI(new ProcessTerminal());
-    const repaint = vi.spyOn(tui, "requestRender").mockImplementation(() => {});
-    let component: (Component & { dispose?(): void }) | undefined;
+    const host = { requestRender: vi.fn() };
+    const repaint = host.requestRender;
+    let component: ActivityWidgetView | undefined;
     let cleared = false;
-    const setWidget: ExtensionContext["ui"]["setWidget"] = (_key, content) => {
-      if (typeof content === "function") component = content(tui, {} as never);
+    const setWidget: NonNullable<ActivityCardUI["setWidget"]> = (_key, content) => {
+      if (typeof content === "function") component = content(host);
       if (content === undefined) { component?.dispose?.(); cleared = true; }
     };
     const { promise: gate, resolve: settle } = Promise.withResolvers<{ state: string; reason: string }>();

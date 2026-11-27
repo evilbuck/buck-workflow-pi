@@ -1,4 +1,4 @@
-import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@mariozechner/pi-tui";
+import { truncate, visibleWidth, wrap } from "@oh-my-pi/pi-tui/text/width";
 import type { Choice, LoopState } from "./types.js";
 
 export type Profile = "compact" | "standard" | "verbose";
@@ -41,7 +41,7 @@ function currentBox(view: ActivityView, profile: Profile, width: number, spinner
   if (profile !== "compact") content.push(`${view.model ?? "model unknown"} · attempt ${view.attempt} · iteration ${view.iteration}`);
   if (view.context) content.push(contextLabel(view.context, profile));
   if (profile === "verbose" && view.usage) content.push(`I ${view.usage.input} / O ${view.usage.output}`);
-  const rows = content.flatMap(text => wrapTextWithAnsi(clean(text), inner))
+  const rows = content.flatMap(text => wrap(clean(text), inner))
     .map(row => `┃ ${row}${" ".repeat(Math.max(0, inner - visibleWidth(row)))} ┃`);
   return [`┏${"━".repeat(Math.max(0, width - 2))}┓`, ...rows, `┗${"━".repeat(Math.max(0, width - 2))}┛`];
 }
@@ -70,7 +70,7 @@ function detailRows(view: ActivityView, profile: Profile): string[] {
 function activityRows(view: ActivityView, profile: Profile, width: number): string[] {
   if (profile === "compact") return [];
   const entries = profile === "verbose" ? view.activity : view.activity.slice(-3);
-  const rows = entries.flatMap(row => wrapTextWithAnsi(clean(row), width));
+  const rows = entries.flatMap(row => wrap(clean(row), width));
   return profile === "verbose" ? rows : rows.slice(-3);
 }
 
@@ -78,12 +78,12 @@ function activityRows(view: ActivityView, profile: Profile, width: number): stri
 export function renderActivityView(view: ActivityView, profile: Profile, width: number, spinner: string): string[] {
   width = Math.max(1, Math.floor(width));
   const lines: string[] = [];
-  if (profile !== "compact" && view.previous) lines.push(...wrapTextWithAnsi(clean(`PREVIOUS ${visitLabel(view.previous, profile === "verbose")}`), width));
+  if (profile !== "compact" && view.previous) lines.push(...wrap(clean(`PREVIOUS ${visitLabel(view.previous, profile === "verbose")}`), width));
   lines.push(...currentBox(view, profile, width, spinner));
   for (const row of continuationRows(view, profile)) {
-    lines.push(...wrapTextWithAnsi(clean(row), width));
+    lines.push(...wrap(clean(row), width));
   }
   lines.push(...activityRows(view, profile, width));
-  for (const row of detailRows(view, profile)) lines.push(...wrapTextWithAnsi(clean(row), width));
-  return lines.map(line => truncateToWidth(line, width, ""));
+  for (const row of detailRows(view, profile)) lines.push(...wrap(clean(row), width));
+  return lines.map(line => truncate(line, width, ""));
 }
