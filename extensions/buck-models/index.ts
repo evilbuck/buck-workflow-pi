@@ -336,7 +336,7 @@ function defaultProfileEditor(ui: BuckModelsUI): NonNullable<BuckModelsDeps["run
       keybindings,
       done,
       requestRender: () => tui.requestRender(),
-      terminalRows: () => tui.terminal?.rows,
+      terminalRows: () => tui.size().rows,
     }), { overlay: true });
   };
 }

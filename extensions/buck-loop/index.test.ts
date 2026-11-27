@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createActivityCard } from "./activity-widget.js";
+import { createActivityCard, type ActivityCardUI, type ActivityWidgetView } from "./activity-widget.js";
 import { parseArgs } from "./index.js";
-import type { ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { TUI, ProcessTerminal, type Component } from "@mariozechner/pi-tui";
 import type { Snapshot } from "./types.js";
 import { handleLoop } from "./loop.js";
 import { cleanupRepos, git, repo, writeTree } from "./__tests__/fixtures.js";
@@ -13,15 +11,14 @@ const snapshot: Snapshot = {
 };
 
 function harness() {
-  const tui = new TUI(new ProcessTerminal());
-  const repaint = vi.spyOn(tui, "requestRender").mockImplementation(() => {});
-  let component: (Component & { dispose?(): void }) | undefined;
-  const setWidget: ExtensionContext["ui"]["setWidget"] = (_key, content) => {
-    if (typeof content === "function") component = content(tui, {} as never);
+  const host = { requestRender: vi.fn() };
+  let component: ActivityWidgetView | undefined;
+  const setWidget: NonNullable<ActivityCardUI["setWidget"]> = (_key, content) => {
+    if (typeof content === "function") component = content(host);
     else if (content === undefined) component?.dispose?.();
   };
   const card = createActivityCard({ setWidget, notify: vi.fn() }, "standard");
-  return { card, repaint, render: (width = 80) => component!.render(width).join("\n"), disposeHost: () => component?.dispose?.() };
+  return { card, repaint: host.requestRender, render: (width = 80) => component!.render(width).join("\n"), disposeHost: () => component?.dispose?.() };
 }
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); cleanupRepos(); });
 describe("live card", () => {
@@ -149,8 +146,6 @@ describe("live card", () => {
 
   it("notifies the operator on success and failure without rendering", () => {
     const notify = vi.fn();
-    const tui = new TUI(new ProcessTerminal());
-    vi.spyOn(tui, "requestRender").mockImplementation(() => {});
     const card = createActivityCard({ setWidget: () => {}, notify }, "standard");
     card.succeed("finished");
     card.fail("blocked");

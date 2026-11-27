@@ -1,5 +1,4 @@
-import { Loader, type TUI } from "@mariozechner/pi-tui";
-import type { ContextUsage, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ContextUsage } from "@mariozechner/pi-coding-agent";
 import type { ActivityEvent } from "../extension-activity.js";
 import type { Snapshot } from "./types.js";
 import { renderActivityView, type ActivityView, type Profile, type Visit } from "./activity-view.js";
@@ -7,7 +6,21 @@ import { addUsage, projectActivitySnapshot, reportedUsage } from "./activity-sna
 import { rankChoices } from "./choice-ranking.js";
 
 const KEY = "buck-loop:activity-window";
-export type ActivityCardUI = Partial<Pick<ExtensionContext["ui"], "setWidget">> & Pick<ExtensionContext["ui"], "notify">;
+const SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏";
+const SPINNER_INTERVAL_MS = 80;
+/** The slice of the host's widget view the card draws through. */
+export interface ActivityWidgetView {
+  render(width: number): readonly string[];
+  dispose?(): void;
+}
+export type ActivityCardUI = {
+  setWidget?(
+    key: string,
+    content: undefined | ((host: { requestRender(): void }) => ActivityWidgetView),
+    options?: { placement?: "aboveEditor" },
+  ): void;
+  notify(message: string, type?: "info" | "warning" | "error"): void;
+};
 export interface ActivityCard {
   setProfile(profile: Profile): void;
   snapshot(snapshot: Snapshot): void;
@@ -32,22 +45,16 @@ export function createActivityCard(ui: ActivityCardUI, profile: Profile): Activi
   let disposed = false;
   let repaint = (): void => {};
   let stopLoader = (): void => {};
-  ui.setWidget?.(KEY, (tui: TUI) => {
-    const loader = new Loader(tui, text => text, text => text, "", { intervalMs: 80 });
-    tui.addChild(loader);
-    loader.start();
-    let stopped = false;
-    stopLoader = () => {
-      if (stopped) return;
-      stopped = true;
-      loader.stop();
-      tui.removeChild(loader);
-    };
-    repaint = () => { if (!disposed) tui.requestRender(); };
-    if (disposed) stopLoader();
+  ui.setWidget?.(KEY, (host: { requestRender(): void }) => {
+    let frame = 0;
+    const timer = setInterval(() => {
+      frame = (frame + 1) % SPINNER_FRAMES.length;
+      if (!disposed) host.requestRender();
+    }, SPINNER_INTERVAL_MS);
+    stopLoader = () => clearInterval(timer);
+    repaint = () => { if (!disposed) host.requestRender(); };
     return {
-      invalidate() {},
-      render(width: number) { return disposed ? [] : renderActivityView(view, profile, width, loader.render(4)[1]?.trim() ?? ""); },
+      render: (width: number) => disposed ? [] : renderActivityView(view, profile, width, SPINNER_FRAMES[frame] ?? ""),
       dispose() { disposed = true; stopLoader(); },
     };
   }, { placement: "aboveEditor" });

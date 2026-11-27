@@ -1,4 +1,5 @@
-import { KeybindingsManager, TUI_KEYBINDINGS, visibleWidth } from "@mariozechner/pi-tui";
+import { KeybindingsManager } from "@oh-my-pi/pi-coding-agent/config/keybindings/keybindings";
+import { visibleWidth } from "@oh-my-pi/pi-tui/text/width";
 import { describe, expect, it } from "vitest";
 import { BUCK_STAGE_KEYS, type BuckStageConfig, type BuckStageKey, type BuckThinking } from "../omp-models.js";
 import {
@@ -192,7 +193,7 @@ function makeEditor(overrides: {
     ownerships,
     available: overrides.available ?? ["openai/gpt", "anthropic/claude"],
     theme,
-    keybindings: new KeybindingsManager(TUI_KEYBINDINGS),
+    keybindings: KeybindingsManager.inMemory(),
     done: (outcome) => {
       outcomes.push(outcome);
     },
